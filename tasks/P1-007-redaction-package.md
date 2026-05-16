@@ -33,6 +33,7 @@ estimate: M
 
 ## Implementation notes
 
+- Pure TS, zero runtime deps beyond Vitest 4 + fast-check for tests.
 - For the entropy heuristic: Shannon entropy over a sliding window of length ≥ 32 with charset ≥ base64; threshold ~4.5 bits/char. Tune against cassettes.
 - Don't try to redact "data that looks sensitive" beyond the seven classes — false positives are worse than misses at v1, since the doc gates trust on user-visible behavior.
 - Make sure the function is deterministic (same input ⇒ same output bytes) — important for retry idempotency.

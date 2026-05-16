@@ -36,7 +36,9 @@ A thin wrapper around Octokit that transparently targets either github.com or GH
 
 ## Implementation notes
 
+- Use `octokit` 5.x (the meta-package). Retry + throttling plugins are bundled.
 - Detect GHES via host check; don't require an extra "ghes" flag.
+- For GHES older than 3.x (rare but possible), wire in `@octokit/plugin-enterprise-compatibility` conditionally.
 - Keep this layer thin — anti-pattern to grow it into a domain service.
 - User-Agent header: `claude-telemetry/<version>`.
 

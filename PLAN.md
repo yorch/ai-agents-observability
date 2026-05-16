@@ -15,7 +15,7 @@ These were agreed during planning and are the basis for every task below. If one
 | Hook binary | Bun, compiled with `bun build --compile` | Single static binary, fast cold start |
 | Object store | MinIO (local dev + homelab prod) | S3-compatible, self-hostable |
 | API plane | Separate Bun ingest service + Next.js UI | Different SLOs, different scaling shapes |
-| DB tooling | Prisma for dimensional tables; raw SQL for Timescale hypertable | Prisma cannot manage hypertables natively |
+| DB tooling | Prisma 7 for dimensional tables; raw SQL via `prisma db execute` for Timescale hypertable + continuous aggregates | Prisma has no first-class hypertable support |
 | Retention | 1 year transcripts (object store TTL), indefinite metadata | Spec §10 |
 | GitHub host | Both github.com and GHES; host abstracted via `GITHUB_HOST` env | S1 may run GHES |
 | Hook install | Opt-in with strong defaults | Trust per §11 |
@@ -23,6 +23,34 @@ These were agreed during planning and are the basis for every task below. If one
 | Ops handoff | Built by dev tools team; runbooks/SLOs/dashboards delivered in Phase 4 to Platform/SRE | §15 path-to-graduation |
 | Existing telemetry pipelines | None — greenfield | Confirmed with user |
 | PR bot | Opt-in per repo via `.claude-telemetry.yml` | §11 trust mechanic |
+| Lint + format | Biome 2.x (single binary, replaces ESLint + Prettier) | One tool, faster, type-aware rules |
+
+### Pinned tool versions (May 2026)
+
+These are the floor versions every package targets. Bump in lockstep across the monorepo via `pnpm.catalogs` (see `P1-001`).
+
+| Tool | Version | Why this pin |
+|---|---|---|
+| Node.js | 24 LTS | Current Active LTS (22 in maintenance). `engines: ">=24"` in every package. |
+| pnpm | 8.15 | Workspace resolution is rock-solid here; pnpm 11 catalogs + Turborepo + Corepack still rough (see §6). Revisit at end of Phase 1. |
+| Turborepo | 2.x latest | Stable on the 2 line. |
+| TypeScript | 6.0 | TS 7 (native Go compiler) is still beta — wait. |
+| Biome | 2.4.x | v2 unified lint + format; type-aware rules + GritQL plugins. |
+| Bun | 1.3.13 | `bun build --compile` is stable. The in-progress Rust rewrite is not — pin to a known-good 1.3.x. |
+| Next.js | 16.2 | App Router default, Turbopack default for `dev` + `build`, pins React 19.2. |
+| React | 19.2.6 | Don't drift past what Next.js 16 pins. |
+| Tailwind CSS | 4.1.x | Oxide engine + CSS-first config (`@theme`, no JS config file). |
+| Prisma | 7.7 | Latest stable. Classic Prisma Client (not Prisma Postgres). |
+| TimescaleDB | 2.26 on PostgreSQL 17.2+ | TSDB 2.26 requires PG 17.2+ / 16.6+ — avoid PG 17.1 / 16.5 (broken ABI). |
+| MinIO | `quay.io/minio/minio:RELEASE.2025-10-15T17-29-55Z` | Docker Hub MinIO images deprecated Oct 2025. Pull from quay.io. Pin exact RELEASE, never `:latest`. |
+| Hono | 4.12.x | |
+| Zod | 4.x | v4 changed string formats (`z.email()`, strict `z.uuid()`), deprecated `.strict()/.passthrough()` in favor of `z.strictObject()/z.looseObject()`. |
+| jose | 6.x | JWT/JWS/JWE. Zero deps, runs on Bun/Node/Workers. |
+| Octokit | `octokit` 5.x | GHES compatibility via `@octokit/plugin-enterprise-compatibility` if pre-3.x GHES surfaces. |
+| `@aws-sdk/client-s3` | 3.10xx | MinIO via `forcePathStyle: true` + custom `endpoint`. |
+| pino | 10.x | Worker-thread transports. `pino-roll` for rotation. |
+| Croner | 10.x | TS-native scheduler; replaces `node-cron` (stale, weaker DST handling). |
+| Vitest | 4.1.x | Requires Vite 8. v5 in beta — don't pin yet. |
 
 ---
 
@@ -119,9 +147,9 @@ Roadmap-level tasks in [`tasks/P5-roadmap.md`](./tasks/P5-roadmap.md).
 
 These apply to every task. Don't restate in each task file.
 
-- **Language**: TypeScript everywhere. Bun for ingest + hook; Node 20 for Next.js (until Bun-on-Next.js is boring).
-- **Style**: ESLint + Prettier configured at the root in `P1-001`. No per-package overrides without justification.
-- **Tests**: Vitest. Each `packages/*` ships with unit tests. Each app ships with at least one happy-path integration test. Coverage gates not enforced numerically — judgment-based code review.
+- **Language**: TypeScript 6 everywhere. Bun 1.3 for ingest + hook; Node 24 LTS for Next.js (until Bun-on-Next.js is boring).
+- **Style**: Biome 2 at the root in `P1-001` — single binary for lint + format. No ESLint, no Prettier, no per-package overrides without justification. Use `biome.json` nested configs only when a package genuinely needs different rules (none anticipated).
+- **Tests**: Vitest 4. Each `packages/*` ships with unit tests. Each app ships with at least one happy-path integration test. Coverage gates not enforced numerically — judgment-based code review.
 - **Migrations**: Forward-only. Backfills written as separate migrations. Never edit a merged migration.
 - **Logs**: structured JSON via `pino`. No `console.log` in committed code.
 - **Secrets**: never logged, never committed. `.env.example` is the contract; real `.env` is gitignored.
@@ -146,10 +174,14 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 | Risk | Mitigation | Owner-style |
 |---|---|---|
 | Prisma + Timescale dual-migration friction | Spike in `P1-003`; fallback to Drizzle if it bites | Backend |
-| Bun-compiled binary blocked by Mac codesigning | Spike before week 3 of Phase 1 (`P1-017`) | Systems |
+| Bun-compiled binary blocked by Mac codesigning | Spike before week 3 of Phase 1 (`P1-019`) | Systems |
 | MinIO in homelab = SPOF | Phase 4 ops handoff evaluates HA MinIO vs B2 fallback | Platform/SRE |
 | GHES webhook payload drift | `packages/github` version-detects; integration test against a real GHES instance | Backend |
 | Privacy regression on team views | Audit log is the safety net; covered by `P3-*` tasks | Cross-cutting |
+| Wrong Postgres patch version (17.1 / 16.5) breaks TimescaleDB 2.26 | Pin `timescale/timescaledb-ha:pg17.2-ts2.26` exact tag in compose; document in `P1-002` | Backend |
+| MinIO Docker Hub image deprecation (Oct 2025) | Pull from `quay.io/minio/minio` with pinned RELEASE tag, never `:latest` | Backend |
+| Turborepo + pnpm 11 catalogs + Corepack mis-resolve | Pin pnpm 8.15 for Phase 1; revisit at end of phase | Cross-cutting |
+| Bun Rust-rewrite branch regressions on native modules | Pin Bun 1.3.13 (stable JS impl), not bleeding-edge | Systems |
 
 ---
 

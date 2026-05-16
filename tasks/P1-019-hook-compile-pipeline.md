@@ -16,15 +16,15 @@ estimate: M
 
 ## Context
 
-- `PLAN.md` §1 commits to Bun-compiled binaries.
+- `PLAN.md` §1 commits to Bun-compiled binaries. Pin to Bun 1.3.13 (stable JS impl) — NOT the in-progress Rust rewrite branch.
 - Mac codesigning is a known risk (`PLAN.md` §6) — explored here.
 - Binary must be self-contained: no Bun runtime required on the user's machine.
 
 ## Acceptance criteria
 
 - [ ] `apps/hook/src/cli.ts` is the entrypoint (minimal placeholder — full subcommands in P1-023).
-- [ ] `apps/hook/package.json` `build` script runs `bun build --compile --target=<triple> --outfile=dist/claude-telemetry-<triple>` for each target.
-- [ ] All four targets produce binaries under `apps/hook/dist/`.
+- [ ] `apps/hook/package.json` `build` script runs `bun build --compile --target=bun-<triple> --outfile=dist/claude-telemetry-<triple>` for each target (Bun 1.3 `--target` accepts `bun-darwin-arm64`, `bun-darwin-x64`, `bun-linux-x64`, `bun-linux-x64-musl`, `bun-linux-arm64`, `bun-linux-arm64-musl`, `bun-windows-x64`).
+- [ ] All four targets produce binaries under `apps/hook/dist/`: darwin-arm64, darwin-x64, linux-x64 (glibc), linux-arm64 (glibc). musl + windows tracked as stretch.
 - [ ] Binaries run on a clean machine (no Bun/Node) and respond to `claude-telemetry --version`.
 - [ ] CI workflow `.github/workflows/build-hook.yml` matrix-builds all four; uploads artifacts.
 - [ ] Mac binary codesigning step is stubbed (env-gated): if `APPLE_SIGNING_IDENTITY` and `APPLE_TEAM_ID` env vars present, run `codesign` + notarization commands; otherwise log a warning and continue. Document in the README.

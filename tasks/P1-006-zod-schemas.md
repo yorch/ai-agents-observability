@@ -33,8 +33,13 @@ estimate: S
 
 ## Implementation notes
 
-- `z.string().uuid()` for IDs.
-- `z.string().datetime({ offset: true })` for timestamps.
+- **Zod 4** syntax. Notable v3→v4 changes that apply here:
+  - Top-level string formats: `z.uuid()` (strict RFC 4122 — fine, we emit UUIDv7 which is valid), `z.email()`, `z.url()`. Do not use `z.string().uuid()` (deprecated).
+  - For UUIDv7 specifically you can use `z.uuidv7()` if you want to enforce version 7. Recommended for `event_id`.
+  - `.strict()` / `.passthrough()` are deprecated — use `z.strictObject({...})` and `z.looseObject({...})` instead.
+  - Unified error customization: `{ error: (issue) => ... }` instead of separate `message`/`errorMap`.
+  - Defaults inside optionals now apply correctly — relevant for fields like `redaction_flags` defaulting to `[]`.
+- `z.iso.datetime({ offset: true })` for ISO 8601 timestamps (new top-level location in v4).
 - `agent_type` enum starts with just `["claude-code"]` but is an enum so adding cursor/etc. later doesn't break clients.
 - Use `z.discriminatedUnion` on `event_type` if per-type fields differ enough to warrant it; otherwise keep flat with optional fields.
 

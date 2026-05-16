@@ -38,7 +38,9 @@ The `/me` route shows the signed-in user a clear, glance-able summary of their o
 
 ## Implementation notes
 
-- One Prisma query per card is fine for v1; revisit if p50 > 500ms.
+- React 19.2 Server Components throughout. Use `<Suspense>` with `loading.tsx` for the card grid.
+- Tailwind 4: theme tokens come from the `@theme` block defined in `globals.css` (P1-024); reference via `bg-brand-500` etc.
+- One Prisma query per card is fine for v1; revisit if p50 > 500ms. Run them in parallel with `Promise.all` inside the server component.
 - Use Postgres `date_trunc('week', ...)` for week windows.
 - Cost: use the precomputed `Session.cost_usd` aggregates (P1-011) — don't sum events at read time.
 

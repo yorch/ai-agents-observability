@@ -22,9 +22,9 @@ A single `docker compose up` from a clean clone produces a working local stack: 
 ## Acceptance criteria
 
 - [ ] `infra/docker-compose.yml` defines services:
-  - `postgres` — image `timescale/timescaledb:latest-pg16`, healthcheck via `pg_isready`, exposes 5432.
-  - `minio` — image `quay.io/minio/minio`, healthcheck via `/minio/health/live`, exposes 9000 + console 9001.
-  - `createbuckets` — one-shot init that creates the `transcripts` bucket via `mc`.
+  - `postgres` — image `timescale/timescaledb-ha:pg17.2-ts2.26` (EXACT tag — `latest` and `pg17.1` are broken; see `PLAN.md` §6). Healthcheck via `pg_isready`, exposes 5432.
+  - `minio` — image `quay.io/minio/minio:RELEASE.2025-10-15T17-29-55Z` (EXACT tag; Docker Hub MinIO images deprecated Oct 2025). Healthcheck via `/minio/health/live`, exposes 9000 + console 9001.
+  - `createbuckets` — one-shot init using `quay.io/minio/mc` that creates the `transcripts` bucket and sets the 1-year lifecycle rule.
   - `migrations` — placeholder service that exits 0 (real impl in P1-004).
 - [ ] Persistent volumes for postgres data and minio data; survives `docker compose down` (but not `down -v`).
 - [ ] Environment variables read from `.env` at repo root; `.env.example` updated with `POSTGRES_*`, `MINIO_*`, `S3_*` vars.
@@ -37,9 +37,15 @@ A single `docker compose up` from a clean clone produces a working local stack: 
 
 - Use named volumes (`postgres_data`, `minio_data`) not bind mounts — Linux/macOS portability.
 - Set `POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"`.
-- Add `shared_preload_libraries=timescaledb` via a `command:` override.
+- The `timescaledb-ha` image already preloads timescaledb; no `command:` override needed (verify with `SHOW shared_preload_libraries;`).
 - MinIO root creds in `.env.example` are placeholders; document that prod uses real creds.
-- The `createbuckets` service should `mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD` then `mc mb --ignore-existing local/transcripts`.
+- `createbuckets` snippet:
+  ```sh
+  mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
+  mc mb --ignore-existing local/transcripts
+  mc ilm rule add --expire-days 365 local/transcripts
+  ```
+- If/when MinIO mirrors change again, document the swap in this file's header — pinning by digest (`@sha256:...`) is acceptable for prod overlays.
 
 ## Files touched
 

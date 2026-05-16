@@ -16,7 +16,7 @@ Stand up the ingest service as a Bun + Hono app with health endpoint, structured
 
 ## Context
 
-- `PLAN.md` §2 puts ingest at `apps/ingest`.
+- `PLAN.md` §2 puts ingest at `apps/ingest`. Pinned versions: Bun 1.3.13, Hono 4.12.x, pino 10.x.
 - Hono is used for routing; runs natively on Bun.
 - Separate from web because SLOs differ (ingest is hot path).
 

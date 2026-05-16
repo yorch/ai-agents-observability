@@ -25,7 +25,7 @@ A scheduled job syncs `Team` and `TeamMember` rows from GitHub orgs nightly so t
   1. For each `User` with a stored GitHub token, list orgs.
   2. For each org, list teams; upsert into `Team`.
   3. For each team, list members; reconcile `TeamMember` rows (insert new, soft-delete removed via a `left_at` column).
-- [ ] Scheduling via `node-cron` or a simple `setInterval` loop with jitter. Document the cadence in `PLAN.md` cross-cutting standards if it diverges.
+- [ ] Scheduling via **Croner 10** (TS-native, DST-correct; replaces the abandoned `node-cron`). Document the cadence in `PLAN.md` cross-cutting standards if it diverges.
 - [ ] Abandoned-session sweep runs every 10 minutes: sessions with `status=active` and `last_event_at < now() - interval '24h'` get `status=abandoned`.
 - [ ] All job runs write to a `JobRun` table (add to schema if needed) for observability: `job_name`, `started_at`, `finished_at`, `status`, `error_text`.
 - [ ] Lock so two ingest replicas don't run the same job concurrently — use Postgres advisory locks keyed by job name.

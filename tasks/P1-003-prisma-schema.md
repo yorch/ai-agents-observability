@@ -17,8 +17,9 @@ estimate: M
 ## Context
 
 - See `DESIGN_DOC.md` §8 for the full data model.
-- The `events` hypertable is **out of scope** here — that's P1-004 (raw SQL).
-- Prisma can't manage hypertables, so we keep `events` in a parallel raw-SQL migration. Prisma stays unaware of it (no model, or `@@ignore`).
+- The `events` hypertable is **out of scope** here — that's P1-004 (raw SQL via `prisma db execute`).
+- Prisma 7 has no first-class hypertable support, so we keep `events` in a parallel raw-SQL migration. Prisma stays unaware of it (no model, or `@@ignore`).
+- Prisma 7 introduced `prisma bootstrap` (for Prisma Postgres). We are NOT using Prisma Postgres — we use classic Prisma Client against TimescaleDB-on-Postgres. Stick to `prisma migrate dev/deploy`.
 
 ## Acceptance criteria
 
@@ -43,10 +44,12 @@ estimate: M
 
 ## Implementation notes
 
+- Prisma 7.7+. Use the `prisma-client` generator (new generator name in Prisma 7) targeting `output = "../src/generated/client"` so it's tree-shakeable from `@pkg/db`.
 - Use `cuid()` for IDs unless §8 specifies otherwise.
-- Store all timestamps as `TIMESTAMPTZ` (`@db.Timestamptz`).
+- Store all timestamps as `TIMESTAMPTZ` (`@db.Timestamptz(6)`).
 - For JSON-shaped columns (e.g. `Session.session_context`), use `Json` type.
 - The Prisma singleton should attach to `globalThis` in dev to avoid client churn under HMR.
+- Don't enable `postgresqlExtensions` — that preview was discontinued in Prisma 7. Extensions are loaded by the runtime (P1-004).
 
 ## Files touched
 

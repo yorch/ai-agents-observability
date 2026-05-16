@@ -88,6 +88,7 @@ Body sections (use H2 headings, in this order):
 - **Never silently change another agent's task.** If you must touch one that's `in-progress`, leave a comment in the body explaining why.
 - **Update `INDEX.md` in the same commit as the task file.** They drift fast otherwise.
 - **Keep acceptance criteria objective.** "Looks good" is not a criterion; "passes `pnpm test --filter=@app/ingest`" is.
+- **Run Biome before marking review.** `pnpm check` (lint + format check) must pass. `pnpm format --write` if needed.
 - **Out-of-scope is sacred.** If you find yourself doing something listed under "Out of scope", stop and either expand the task (with a note) or split off a new one.
 - **Don't gold-plate.** If a task is `M`, don't turn it into `L` by adding nice-to-haves. File a follow-up task instead.
 

@@ -32,19 +32,20 @@ estimate: M
   }
   ```
 - [ ] `ExternalIdentity` shape: `{ external_id, email, display_name, provider_name, raw }`.
-- [ ] `issueAccessToken(user_id)` mints a JWT (RS256, 15min, payload `{ sub, kind: 'access', iat, exp, jti }`).
+- [ ] `issueAccessToken(user_id)` mints a JWT (EdDSA / Ed25519, 15min, payload `{ sub, kind: 'access', iat, exp, jti }`).
 - [ ] `issueRefreshToken(user_id)` mints an opaque token, stores SHA-256 hash in `AuthToken`, returns plaintext.
 - [ ] `issueHookToken(user_id)` same as refresh but `kind=hook`, expiry 1 year.
 - [ ] `verifyAccessToken(jwt)` returns `{ user_id }` or throws.
 - [ ] `verifyOpaqueToken(token)` looks up hash in `AuthToken`, checks expiry/revocation, returns `{ user_id, kind }` or throws.
 - [ ] `revokeToken(id)` sets `revoked_at`.
 - [ ] `rotateRefreshToken(refresh)` atomically issues new refresh + access, revokes old.
-- [ ] RSA keypair: read from `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` env (PEM). Document key rotation in README.
+- [ ] Ed25519 keypair: read from `JWT_ED25519_PRIVATE_KEY` / `JWT_ED25519_PUBLIC_KEY` env (PEM). Document key rotation in README.
 - [ ] Tests cover happy path + every failure mode (expired, revoked, malformed, wrong kind).
 
 ## Implementation notes
 
-- Use `jose` for JWT. Don't roll your own.
+- Use `jose` 6.x for JWT (ESM, zero deps, runs on Bun + Node + Workers). Don't roll your own.
+- Use `EdDSA` (Ed25519) over RSA — smaller keys, faster verify, no algorithm-downgrade ambiguity. Keys via `JWT_ED25519_PRIVATE_KEY` / `JWT_ED25519_PUBLIC_KEY` PEM env vars.
 - Token format on the wire: JWTs are JWTs; opaque tokens are `cct_<32 base32 chars>` so they're visually distinct.
 - Keep the GitHub provider in a *separate* file (P1-016 implements it). This task ships the interface and a NoopProvider stub for testing.
 

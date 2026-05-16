@@ -40,10 +40,12 @@ The `events` table exists as a TimescaleDB hypertable with the schema in `DESIGN
 
 ## Implementation notes
 
+- Prisma 7's `prisma db execute --file` is fine for applying single SQL files; the runner can shell out to it, or use a raw pg client (`postgres.js`). Either works — pick whichever keeps the runner image smaller.
 - The `_db_sql_migrations` tracking table is simple: `(filename text primary key, applied_at timestamptz default now())`. Don't pull in a migration framework for this.
 - Apply SQL files in lexicographic order. Wrap each in a transaction.
 - Use BIGINT for token counts; cost as `NUMERIC(12, 6)` to avoid float drift.
 - `redaction_flags` as `text[]` so it queries cleanly.
+- TimescaleDB 2.26 caveat: the compose image is `pg17.2-ts2.26`. If anyone tries to swap to `pg17.1` or `pg16.5`, things break — see `PLAN.md` §6.
 
 ## Files touched
 
