@@ -4,7 +4,7 @@
   "private": true,
   "description": "Web dashboard — Next.js. Dashboard + OAuth + read API",
   "engines": {
-    "node": ">=24.6.0"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "node node_modules/next/dist/bin/next dev",
