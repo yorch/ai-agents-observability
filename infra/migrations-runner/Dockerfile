@@ -1,0 +1,22 @@
+FROM oven/bun:1.3.13-alpine
+
+RUN apk add --no-cache postgresql-client
+
+WORKDIR /app
+
+# Dependency layer — rebuild only when manifests change
+COPY package.json bun.lock bunfig.toml ./
+COPY packages/db/package.json ./packages/db/package.json
+
+RUN bun install --frozen-lockfile
+
+# Source layer
+COPY packages/db/prisma/ ./packages/db/prisma/
+COPY packages/db/sql/ ./packages/db/sql/
+COPY packages/db/src/ ./packages/db/src/
+COPY infra/migrations-runner/run.ts ./run.ts
+
+# Generate Prisma client so run.ts can import typed PrismaClient
+RUN bunx prisma generate --schema packages/db/prisma/schema.prisma
+
+CMD ["bun", "run.ts"]
