@@ -3,7 +3,7 @@ id: P1-001
 title: Monorepo bootstrap (Bun + Turborepo 3 + Biome)
 phase: 1
 workstream: A
-status: ready
+status: done
 owner: null
 depends_on: []
 blocks: [P1-002, P1-003, P1-006, P1-007, P1-008, P1-014, P1-015, P1-019, P1-024]
