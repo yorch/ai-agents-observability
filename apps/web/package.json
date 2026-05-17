@@ -14,10 +14,14 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@ai-agents-observability/auth": "workspace:*",
+    "@ai-agents-observability/db": "workspace:*",
+    "@ai-agents-observability/github": "workspace:*",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "pino": "catalog:"
+    "pino": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "typescript": "catalog:",

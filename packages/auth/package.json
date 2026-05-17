@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@ai-agents-observability/db": "workspace:*",
+    "@ai-agents-observability/github": "workspace:*",
     "jose": "catalog:",
+    "keytar": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

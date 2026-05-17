@@ -15,3 +15,8 @@ export {
   verifyAccessToken,
   verifyOpaqueToken,
 } from './tokens.js';
+
+export { GitHubProvider } from './github-provider.js';
+export { startDeviceFlow, pollDeviceFlow } from './device-code.js';
+export type { DeviceCodeStartResult, DevicePollResult } from './device-code.js';
+export { saveToken, loadToken, deleteToken } from './keychain.js';

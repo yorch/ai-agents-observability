@@ -52,7 +52,8 @@
       "turbo": "2.9.14",
       "typescript": "6.0.3",
       "vitest": "4.1.6",
-      "zod": "4.1.0"
+      "zod": "4.1.0",
+      "@faker-js/faker": "9.8.0"
     }
   },
   "devDependencies": {
