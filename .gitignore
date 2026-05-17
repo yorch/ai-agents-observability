@@ -48,3 +48,6 @@ packages/db/src/generated/
 
 # MinIO local data
 infra/.minio-data/
+
+# Claude Code internal (worktrees, session state)
+.claude/
