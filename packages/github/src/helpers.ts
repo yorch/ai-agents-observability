@@ -16,7 +16,8 @@ export async function getOrgTeams(client: GitHubClient, org: string): Promise<Te
   return data.map((t) => ({
     description: t.description ?? null,
     id: t.id,
-    members_count: 0,
+    // members_count is present in the API response but absent from Octokit's list types
+    members_count: (t as typeof t & { members_count?: number }).members_count ?? 0,
     name: t.name,
     slug: t.slug,
   }));
