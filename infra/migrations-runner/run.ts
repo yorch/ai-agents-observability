@@ -14,8 +14,8 @@ const url = new URL(DATABASE_URL);
 const pgHost = url.hostname;
 const pgPort = Number(url.port) || 5432;
 
-// Path where packages/db lives inside the container
-const DB_PACKAGE_DIR = join(import.meta.dirname, '..', 'packages', 'db');
+// run.ts is placed at /app/run.ts in the container, so packages/db is a sibling dir
+const DB_PACKAGE_DIR = join(import.meta.dirname, 'packages', 'db');
 
 async function waitForPostgres(host: string, port: number, timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;

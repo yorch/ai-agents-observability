@@ -17,7 +17,7 @@ COPY packages/db/sql/ ./packages/db/sql/
 COPY packages/db/src/ ./packages/db/src/
 COPY infra/migrations-runner/run.ts ./run.ts
 
-# Generate Prisma client so run.ts can import typed PrismaClient
-RUN bunx prisma generate --schema packages/db/prisma/schema.prisma
+# Generate Prisma client — cd to packages/db so prisma.config.ts is picked up
+RUN cd packages/db && bunx prisma generate
 
 CMD ["bun", "run.ts"]
