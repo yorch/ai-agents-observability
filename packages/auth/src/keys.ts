@@ -1,0 +1,40 @@
+import type { CryptoKey } from 'jose';
+import { importPKCS8, importSPKI } from 'jose';
+
+let _privateKey: CryptoKey | null = null;
+let _publicKey: CryptoKey | null = null;
+
+export async function getPrivateKey(): Promise<CryptoKey> {
+  if (_privateKey) {
+    return _privateKey;
+  }
+  const pem = process.env.JWT_ED25519_PRIVATE_KEY;
+  if (!pem) {
+    throw new Error('JWT_ED25519_PRIVATE_KEY env var is not set');
+  }
+  _privateKey = await importPKCS8(pem, 'EdDSA');
+  return _privateKey;
+}
+
+export async function getPublicKey(): Promise<CryptoKey> {
+  if (_publicKey) {
+    return _publicKey;
+  }
+  const pem = process.env.JWT_ED25519_PUBLIC_KEY;
+  if (!pem) {
+    throw new Error('JWT_ED25519_PUBLIC_KEY env var is not set');
+  }
+  _publicKey = await importSPKI(pem, 'EdDSA');
+  return _publicKey;
+}
+
+/** For tests: inject pre-loaded key material instead of reading from env. */
+export function setKeysForTesting(privateKey: CryptoKey, publicKey: CryptoKey): void {
+  _privateKey = privateKey;
+  _publicKey = publicKey;
+}
+
+export function resetKeys(): void {
+  _privateKey = null;
+  _publicKey = null;
+}

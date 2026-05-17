@@ -3,7 +3,7 @@ id: P1-009
 title: Ingest auth middleware + identity verification
 phase: 1
 workstream: B
-status: blocked
+status: done
 owner: null
 depends_on: [P1-008, P1-014]
 blocks: [P1-010, P1-012]
@@ -24,6 +24,7 @@ Every ingest endpoint requires a valid bearer token; the resolved `user_id` is a
 
 - [ ] `authRequired()` Hono middleware extracts `Authorization: Bearer <token>`; rejects 401 if missing/malformed.
 - [ ] Token verified against `AuthToken` table (SHA-256 hash lookup); rejects 401 if not found, revoked, or expired.
+- [ ] Rejects tokens with `kind !== 'hook'`; refresh and access tokens are not valid ingest credentials.
 - [ ] On success, attaches `c.set('user', { id, kind })` for downstream handlers.
 - [ ] `verifyIdentityClaim(c, claim)` helper compares `c.get('user').id` to `claim`. On mismatch:
   - Log `event: 'suspicious_identity_claim'` with both IDs.

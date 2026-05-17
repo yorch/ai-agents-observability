@@ -1,0 +1,59 @@
+import type { GitHubClient } from './client.js';
+import type { RepoSummary, TeamSummary, UserSummary } from './types.js';
+
+export async function getCurrentUser(client: GitHubClient): Promise<UserSummary> {
+  const { data } = await client.rest.users.getAuthenticated();
+  return {
+    email: data.email ?? null,
+    id: data.id,
+    login: data.login,
+    name: data.name ?? null,
+  };
+}
+
+export async function getOrgTeams(client: GitHubClient, org: string): Promise<TeamSummary[]> {
+  const teams = await client.paginate(client.rest.teams.list, { org, per_page: 100 });
+  return teams.map((t) => ({
+    description: t.description ?? null,
+    id: t.id,
+    // members_count is present in the API response but absent from Octokit's list types
+    members_count: (t as typeof t & { members_count?: number }).members_count ?? 0,
+    name: t.name,
+    slug: t.slug,
+  }));
+}
+
+export async function getTeamMembers(
+  client: GitHubClient,
+  org: string,
+  team_slug: string,
+): Promise<UserSummary[]> {
+  const members = await client.paginate(client.rest.teams.listMembersInOrg, {
+    org,
+    per_page: 100,
+    team_slug,
+  });
+  return members.map((m) => ({
+    email: null,
+    id: m.id,
+    login: m.login,
+    name: m.name ?? null,
+  }));
+}
+
+export async function getRepo(
+  client: GitHubClient,
+  owner: string,
+  name: string,
+): Promise<RepoSummary> {
+  const { data } = await client.rest.repos.get({ owner, repo: name });
+  return {
+    default_branch: data.default_branch,
+    full_name: data.full_name,
+    id: data.id,
+    is_private: data.private,
+    name: data.name,
+    owner: data.owner.login,
+    url: data.html_url,
+  };
+}

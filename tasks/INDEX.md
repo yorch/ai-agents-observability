@@ -22,24 +22,24 @@ Source of truth for task status. Update this in the same commit as the task file
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P1-006](./P1-006-zod-schemas.md) | Zod schemas for hook payload | ready | — | S | P1-001 |
-| [P1-007](./P1-007-redaction-package.md) | Redaction package v1 + test cassettes | ready | — | M | P1-001 |
-| [P1-008](./P1-008-ingest-skeleton.md) | apps/ingest skeleton (Bun + Hono) | blocked | — | S | P1-001 |
-| [P1-009](./P1-009-ingest-auth.md) | Ingest auth middleware + identity verification | blocked | — | M | P1-008, P1-014 |
-| [P1-010](./P1-010-events-endpoint.md) | POST /v1/events handler | blocked | — | M | P1-008, P1-006, P1-004 |
+| [P1-006](./P1-006-zod-schemas.md) | Zod schemas for hook payload | done | — | S | P1-001 |
+| [P1-007](./P1-007-redaction-package.md) | Redaction package v1 + test cassettes | done | — | M | P1-001 |
+| [P1-008](./P1-008-ingest-skeleton.md) | apps/ingest skeleton (Bun + Hono) | done | — | S | P1-001 |
+| [P1-009](./P1-009-ingest-auth.md) | Ingest auth middleware + identity verification | done | — | M | P1-008, P1-014 |
+| [P1-010](./P1-010-events-endpoint.md) | POST /v1/events handler | ready | — | M | P1-008, P1-006, P1-004 |
 | [P1-011](./P1-011-session-aggregation.md) | Session aggregation upserts | blocked | — | M | P1-010 |
-| [P1-012](./P1-012-transcripts-endpoint.md) | POST /v1/transcripts (chunked + MinIO) | blocked | — | L | P1-008, P1-002, P1-007 |
-| [P1-013](./P1-013-price-table-endpoint.md) | GET /v1/price-table | blocked | — | XS | P1-008 |
+| [P1-012](./P1-012-transcripts-endpoint.md) | POST /v1/transcripts (chunked + MinIO) | ready | — | L | P1-008, P1-002, P1-007 |
+| [P1-013](./P1-013-price-table-endpoint.md) | GET /v1/price-table | ready | — | XS | P1-008 |
 
 ### Workstream C — Auth
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P1-014](./P1-014-identity-provider-interface.md) | IdentityProvider interface + JWT issuance | ready | — | M | P1-001 |
-| [P1-015](./P1-015-github-client-package.md) | packages/github: host-agnostic Octokit | ready | — | S | P1-001 |
-| [P1-016](./P1-016-github-oauth-web.md) | GitHub OAuth (web flow) | blocked | — | M | P1-014, P1-015 |
-| [P1-017](./P1-017-device-code-flow.md) | Device-code flow for hook | blocked | — | M | P1-014, P1-015 |
-| [P1-018](./P1-018-team-sync.md) | Team sync cron job | blocked | — | S | P1-015, P1-003 |
+| [P1-014](./P1-014-identity-provider-interface.md) | IdentityProvider interface + JWT issuance | done | — | M | P1-001 |
+| [P1-015](./P1-015-github-client-package.md) | packages/github: host-agnostic Octokit | done | — | S | P1-001 |
+| [P1-016](./P1-016-github-oauth-web.md) | GitHub OAuth (web flow) | ready | — | M | P1-014, P1-015 |
+| [P1-017](./P1-017-device-code-flow.md) | Device-code flow for hook | ready | — | M | P1-014, P1-015 |
+| [P1-018](./P1-018-team-sync.md) | Team sync cron job | ready | — | S | P1-015, P1-003 |
 
 ### Workstream D — Hook
 

@@ -3,7 +3,7 @@ id: P1-008
 title: apps/ingest skeleton (Bun + Hono)
 phase: 1
 workstream: B
-status: blocked
+status: done
 owner: null
 depends_on: [P1-001]
 blocks: [P1-009, P1-010, P1-012, P1-013]
