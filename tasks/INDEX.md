@@ -13,10 +13,10 @@ Source of truth for task status. Update this in the same commit as the task file
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P1-001](./P1-001-monorepo-bootstrap.md) | Monorepo bootstrap (Bun + Turborepo 3 + Biome) | done | — | M | — |
-| [P1-002](./P1-002-docker-compose-stack.md) | docker-compose dev stack | ready | — | M | P1-001 |
-| [P1-003](./P1-003-prisma-schema.md) | Prisma schema for dimensional tables | ready | — | M | P1-001 |
-| [P1-004](./P1-004-timescale-hypertable.md) | Timescale events hypertable + migration runner | blocked | — | M | P1-003 |
-| [P1-005](./P1-005-seed-script.md) | Seed script for local dev | blocked | — | S | P1-003, P1-004 |
+| [P1-002](./P1-002-docker-compose-stack.md) | docker-compose dev stack | done | — | M | P1-001 |
+| [P1-003](./P1-003-prisma-schema.md) | Prisma schema for dimensional tables | done | — | M | P1-001 |
+| [P1-004](./P1-004-timescale-hypertable.md) | Timescale events hypertable + migration runner | done | — | M | P1-003 |
+| [P1-005](./P1-005-seed-script.md) | Seed script for local dev | ready | — | S | P1-003, P1-004 |
 
 ### Workstream B — Ingest API
 

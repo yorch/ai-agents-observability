@@ -1,0 +1,86 @@
+# ai-agents-observability
+
+Self-hosted observability platform for AI coding agents. Captures per-event telemetry from Claude Code sessions, stores them in TimescaleDB, redacts transcripts, and serves personal and team dashboards.
+
+## Local development
+
+### Prerequisites
+
+- [Bun](https://bun.sh) 1.3.13
+- [Docker](https://docs.docker.com/get-docker/) with Compose v2
+
+### Setup
+
+```bash
+# 1. Install dependencies
+bun install
+
+# 2. Copy environment file and fill in values
+cp .env.example .env
+
+# 3. Start the data stack (Postgres + TimescaleDB + MinIO + migrations)
+bun run dev:stack
+```
+
+The stack brings up:
+
+| Service        | URL / port                                      | Purpose                          |
+| -------------- | ----------------------------------------------- | -------------------------------- |
+| PostgreSQL     | `localhost:5432`                                | Primary datastore (TimescaleDB)  |
+| MinIO          | `localhost:9000` (API) / `localhost:9001` (UI)  | S3-compatible transcript storage |
+| createbuckets  | one-shot                                        | Creates `transcripts` bucket     |
+| migrations     | one-shot                                        | Applies Prisma + Timescale DDL   |
+
+### Useful commands
+
+```bash
+bun run dev:stack          # Start stack in background
+bun run dev:stack:logs     # Tail all service logs
+bun run dev:stack:down     # Stop stack (preserves volumes)
+bun run dev:stack:down:v   # Stop stack and delete volumes
+
+# Database
+bun --filter '@ai-agents-observability/db' db:migrate   # Run Prisma migrations
+bun --filter '@ai-agents-observability/db' db:generate  # Regenerate Prisma client
+bun --filter '@ai-agents-observability/db' db:studio    # Open Prisma Studio
+
+# Quality
+bun run check       # Lint + format check (Biome)
+bun run format      # Auto-format
+bun run typecheck   # TypeScript type check (all packages)
+bun run test        # Run all tests
+```
+
+### Verifying the stack
+
+```bash
+# PostgreSQL + TimescaleDB
+psql "postgresql://postgres:postgres@localhost:5432/ai_agents_observability" \
+  -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb';"
+
+# MinIO
+curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
+```
+
+## Architecture
+
+See [`DESIGN_DOC.md`](./DESIGN_DOC.md) for the full architecture specification and [`PLAN.md`](./PLAN.md) for the implementation roadmap.
+
+## Project structure
+
+```
+apps/
+  hook/       CLI binary — fires on every Claude Code hook event
+  ingest/     Hono API — receives events from the hook
+  web/        Next.js dashboard — personal + team views
+packages/
+  auth/       IdentityProvider interface + JWT issuance
+  db/         Prisma schema, migrations, Timescale DDL, typed client
+  github/     Octokit wrappers (github.com + GHES)
+  redaction/  Transcript scrubber (7-class regex rules)
+  schemas/    Zod schemas for the hook→ingest contract
+infra/
+  docker-compose.yml       Local dev stack
+  migrations-runner/       Docker image that applies all DB migrations
+tasks/                     Agent-trackable task decomposition
+```

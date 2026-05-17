@@ -1,0 +1,311 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum SessionStatus {
+  active
+  completed
+  crashed
+  timed_out
+  abandoned
+}
+
+enum AgentType {
+  claude_code
+}
+
+enum AuditAction {
+  view_session
+  view_transcript
+  export_team
+  export_org
+  admin_impersonate
+}
+
+enum AuthTokenKind {
+  access
+  refresh
+  hook
+}
+
+enum TeamRole {
+  member
+  lead
+  maintainer
+}
+
+enum PRState {
+  open
+  closed
+  merged
+}
+
+enum LinkSource {
+  session_start
+  webhook_reconcile
+  manual
+}
+
+// ── Dimension tables ─────────────────────────────────────────────────────────
+
+model Team {
+  id           String   @id @default(uuid()) @db.Uuid
+  githubSlug   String   @unique @map("github_slug")
+  githubId     BigInt   @unique @map("github_id")
+  name         String
+  parentTeamId String?  @map("parent_team_id") @db.Uuid
+  syncedAt     DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  parentTeam   Team?        @relation("TeamHierarchy", fields: [parentTeamId], references: [id])
+  childTeams   Team[]       @relation("TeamHierarchy")
+  members      TeamMember[]
+  primaryUsers User[]       @relation("UserPrimaryTeam")
+  repos        Repo[]
+  auditLogs    AuditLog[]
+
+  @@map("teams")
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  githubLogin   String    @unique @map("github_login")
+  githubId      BigInt    @unique @map("github_id")
+  email         String?
+  displayName   String?   @map("display_name")
+  primaryTeamId String?   @map("primary_team_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(6)
+
+  primaryTeam      Team?             @relation("UserPrimaryTeam", fields: [primaryTeamId], references: [id])
+  teamMemberships  TeamMember[]
+  sessions         Session[]
+  authTokens       AuthToken[]
+  visibilityPolicy VisibilityPolicy?
+  actorAuditLogs   AuditLog[]        @relation("AuditActor")
+  targetAuditLogs  AuditLog[]        @relation("AuditTarget")
+  pullRequests     PullRequest[]
+
+  @@index([lastSeenAt])
+  @@map("users")
+}
+
+model TeamMember {
+  teamId     String   @map("team_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  roleInTeam TeamRole @map("role_in_team")
+  syncedAt   DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+model Repo {
+  id            String   @id @default(uuid()) @db.Uuid
+  githubOwner   String   @map("github_owner")
+  githubName    String   @map("github_name")
+  githubId      BigInt?  @unique @map("github_id")
+  defaultBranch String?  @map("default_branch")
+  owningTeamId  String?  @map("owning_team_id") @db.Uuid
+  firstSeenAt   DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+
+  owningTeam   Team?         @relation(fields: [owningTeamId], references: [id])
+  sessions     Session[]
+  pullRequests PullRequest[]
+
+  @@unique([githubOwner, githubName])
+  @@map("repos")
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+model AuthToken {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  tokenHash String        @map("token_hash")
+  kind      AuthTokenKind
+  expiresAt DateTime?     @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime?     @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_tokens")
+}
+
+// ── Privacy & audit ───────────────────────────────────────────────────────────
+
+model VisibilityPolicy {
+  userId                    String   @id @map("user_id") @db.Uuid
+  shareMetadataWithTeam     Boolean  @default(true) @map("share_metadata_with_team")
+  shareMetadataWithOrg      Boolean  @default(true) @map("share_metadata_with_org")
+  shareTranscriptsWithTeam  Boolean  @default(false) @map("share_transcripts_with_team")
+  shareTranscriptsWithOrg   Boolean  @default(false) @map("share_transcripts_with_org")
+  updatedAt                 DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("visibility_policies")
+}
+
+model AuditLog {
+  id              BigInt      @id @default(autoincrement())
+  ts              DateTime    @default(now()) @db.Timestamptz(6)
+  actorUserId     String      @map("actor_user_id") @db.Uuid
+  action          AuditAction
+  targetUserId    String?     @map("target_user_id") @db.Uuid
+  targetSessionId String?     @map("target_session_id") @db.Uuid
+  targetTeamId    String?     @map("target_team_id") @db.Uuid
+  justification   String?
+  ip              String?
+  userAgent       String?     @map("user_agent")
+
+  actor      User  @relation("AuditActor", fields: [actorUserId], references: [id])
+  targetUser User? @relation("AuditTarget", fields: [targetUserId], references: [id])
+  targetTeam Team? @relation(fields: [targetTeamId], references: [id])
+
+  @@index([targetUserId, ts(sort: Desc)])
+  @@index([actorUserId, ts(sort: Desc)])
+  @@map("audit_log")
+}
+
+// ── Sessions ─────────────────────────────────────────────────────────────────
+
+model Session {
+  sessionId            String        @id @map("session_id") @db.Uuid
+  userId               String        @map("user_id") @db.Uuid
+  agentType            AgentType     @default(claude_code) @map("agent_type")
+  agentVersion         String?       @map("agent_version")
+  startedAt            DateTime      @map("started_at") @db.Timestamptz(6)
+  endedAt              DateTime?     @map("ended_at") @db.Timestamptz(6)
+  lastEventAt          DateTime      @map("last_event_at") @db.Timestamptz(6)
+  status               SessionStatus
+  endReason            String?       @map("end_reason")
+  isResume             Boolean       @default(false) @map("is_resume")
+  resumedFromSessionId String?       @map("resumed_from_session_id") @db.Uuid
+  compactionCount      Int           @default(0) @map("compaction_count")
+  clearCount           Int           @default(0) @map("clear_count")
+  hostHash             String?       @map("host_hash")
+  claudeCodeVersion    String?       @map("claude_code_version")
+  os                   String?
+  cwd                  String?
+  repoId               String?       @map("repo_id") @db.Uuid
+  gitBranch            String?       @map("git_branch")
+  gitCommit            String?       @map("git_commit")
+  gitRemoteUrl         String?       @map("git_remote_url")
+  gitIsDirty           Boolean?      @map("git_is_dirty")
+  prNumber             Int?          @map("pr_number")
+
+  totalInputTokens      BigInt  @default(0) @map("total_input_tokens")
+  totalOutputTokens     BigInt  @default(0) @map("total_output_tokens")
+  totalCacheRead        BigInt  @default(0) @map("total_cache_read")
+  totalCacheCreation    BigInt  @default(0) @map("total_cache_creation")
+  totalCostUsd          Decimal @default(0) @map("total_cost_usd") @db.Decimal(12, 6)
+  toolCallCount         Int     @default(0) @map("tool_call_count")
+  toolErrorCount        Int     @default(0) @map("tool_error_count")
+  permissionPromptCount Int     @default(0) @map("permission_prompt_count")
+  permissionDenyCount   Int     @default(0) @map("permission_deny_count")
+  interruptCount        Int     @default(0) @map("interrupt_count")
+  userMessageCount      Int     @default(0) @map("user_message_count")
+  opusTurns             Int     @default(0) @map("opus_turns")
+  sonnetTurns           Int     @default(0) @map("sonnet_turns")
+  haikuTurns            Int     @default(0) @map("haiku_turns")
+  primaryModel          String? @map("primary_model")
+
+  transcriptS3Key      String?   @map("transcript_s3_key")
+  transcriptBytes      BigInt?   @map("transcript_bytes")
+  transcriptUploadedAt DateTime? @map("transcript_uploaded_at") @db.Timestamptz(6)
+  transcriptRedacted   Boolean   @default(false) @map("transcript_redacted")
+
+  user    User            @relation(fields: [userId], references: [id])
+  repo    Repo?           @relation(fields: [repoId], references: [id])
+  prLinks SessionPRLink[]
+
+  @@index([userId, startedAt(sort: Desc)])
+  @@index([repoId, startedAt(sort: Desc)])
+  @@index([status, lastEventAt])
+  @@index([agentType, startedAt(sort: Desc)])
+  @@map("sessions")
+}
+
+// ── Pull requests ─────────────────────────────────────────────────────────────
+
+model PullRequest {
+  repoId            String    @map("repo_id") @db.Uuid
+  prNumber          Int       @map("pr_number")
+  githubId          BigInt    @unique @map("github_id")
+  title             String?
+  authorUserId      String?   @map("author_user_id") @db.Uuid
+  authorGithubLogin String    @map("author_github_login")
+  state             PRState
+  baseBranch        String?   @map("base_branch")
+  headBranch        String?   @map("head_branch")
+  openedAt          DateTime? @map("opened_at") @db.Timestamptz(6)
+  closedAt          DateTime? @map("closed_at") @db.Timestamptz(6)
+  mergedAt          DateTime? @map("merged_at") @db.Timestamptz(6)
+  linesAdded        Int?      @map("lines_added")
+  linesRemoved      Int?      @map("lines_removed")
+  filesChanged      Int?      @map("files_changed")
+  reviewCount       Int?      @map("review_count")
+  reviewerLogins    String[]  @map("reviewer_logins")
+  labels            String[]
+  enrichedAt        DateTime  @default(now()) @map("enriched_at") @db.Timestamptz(6)
+
+  repo       Repo          @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  authorUser User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  prLinks    SessionPRLink[]
+  rollup     PRRollup?
+
+  @@id([repoId, prNumber])
+  @@map("pull_requests")
+}
+
+model SessionPRLink {
+  sessionId  String     @map("session_id") @db.Uuid
+  repoId     String     @map("repo_id") @db.Uuid
+  prNumber   Int        @map("pr_number")
+  linkedAt   DateTime   @default(now()) @map("linked_at") @db.Timestamptz(6)
+  linkSource LinkSource @map("link_source")
+
+  session     Session     @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  pullRequest PullRequest @relation(fields: [repoId, prNumber], references: [repoId, prNumber], onDelete: Cascade)
+
+  @@id([sessionId, repoId, prNumber])
+  @@index([repoId, prNumber])
+  @@map("session_pr_links")
+}
+
+model PRRollup {
+  repoId                 String    @map("repo_id") @db.Uuid
+  prNumber               Int       @map("pr_number")
+  contributingUserIds    String[]  @map("contributing_user_ids")
+  contributingSessionIds String[]  @map("contributing_session_ids")
+  firstSessionAt         DateTime? @map("first_session_at") @db.Timestamptz(6)
+  lastSessionAt          DateTime? @map("last_session_at") @db.Timestamptz(6)
+  totalActiveSeconds     Int?      @map("total_active_seconds")
+  totalCostUsd           Decimal?  @map("total_cost_usd") @db.Decimal(12, 6)
+  totalInputTokens       BigInt?   @map("total_input_tokens")
+  totalOutputTokens      BigInt?   @map("total_output_tokens")
+  totalToolCalls         Int?      @map("total_tool_calls")
+  totalToolErrors        Int?      @map("total_tool_errors")
+  totalPermissionDenies  Int?      @map("total_permission_denies")
+  costPerLoc             Decimal?  @map("cost_per_loc") @db.Decimal(12, 6)
+  computedAt             DateTime  @default(now()) @map("computed_at") @db.Timestamptz(6)
+
+  pullRequest PullRequest @relation(fields: [repoId, prNumber], references: [repoId, prNumber], onDelete: Cascade)
+
+  @@id([repoId, prNumber])
+  @@map("pr_rollups")
+}
