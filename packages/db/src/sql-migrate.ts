@@ -1,7 +1,12 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { PrismaClient } from './generated/client/index.js';
+import type { PrismaClient } from './generated/client/client.js';
+
+type TxClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
 
 const SQL_MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'sql', 'migrations');
 
@@ -33,7 +38,7 @@ export async function applySqlMigrations(prisma: PrismaClient): Promise<void> {
     const sql = readFileSync(join(SQL_MIGRATIONS_DIR, file), 'utf-8');
     const statements = parseSqlStatements(sql);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: TxClient) => {
       for (const stmt of statements) {
         await tx.$executeRawUnsafe(stmt);
       }

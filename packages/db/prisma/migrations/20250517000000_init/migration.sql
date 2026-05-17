@@ -1,3 +1,6 @@
+-- gen_random_uuid() is built-in from PostgreSQL 13+; pgcrypto provided as a fallback for older versions.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- CreateEnum
 CREATE TYPE "SessionStatus" AS ENUM ('active', 'completed', 'crashed', 'timed_out', 'abandoned');
 

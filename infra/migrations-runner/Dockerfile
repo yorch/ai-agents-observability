@@ -12,6 +12,7 @@ RUN bun install --frozen-lockfile
 
 # Source layer
 COPY packages/db/prisma/ ./packages/db/prisma/
+COPY packages/db/prisma.config.ts ./packages/db/prisma.config.ts
 COPY packages/db/sql/ ./packages/db/sql/
 COPY packages/db/src/ ./packages/db/src/
 COPY infra/migrations-runner/run.ts ./run.ts

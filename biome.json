@@ -11,7 +11,8 @@
     "enabled": true
   },
   "files": {
-    "ignoreUnknown": false
+    "ignoreUnknown": false,
+    "includes": ["**", "!**/src/generated"]
   },
   "formatter": {
     "enabled": true,

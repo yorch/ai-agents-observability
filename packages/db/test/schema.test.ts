@@ -1,13 +1,19 @@
+import { PrismaPg } from '@prisma/adapter-pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PrismaClient } from '../src/generated/client/index.js';
+import { PrismaClient } from '../src/generated/client/client.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
 describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
   let prisma: PrismaClient;
 
+  // Random suffix so re-runs against the same DB don't hit unique constraints
+  const suffix = Math.random().toString(36).slice(2, 8);
+  const githubIdBase = Math.floor(Math.random() * 1_000_000) + 100_000;
+
   beforeAll(() => {
-    prisma = new PrismaClient({ datasources: { db: { url: DATABASE_URL } } });
+    const adapter = new PrismaPg({ connectionString: DATABASE_URL as string });
+    prisma = new PrismaClient({ adapter });
   });
 
   afterAll(async () => {
@@ -34,13 +40,13 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
   it('creates and reads a Team', async () => {
     const team = await prisma.team.create({
       data: {
-        githubId: BigInt(1001),
-        githubSlug: 'test-team',
+        githubId: BigInt(githubIdBase),
+        githubSlug: `test-team-${suffix}`,
         name: 'Test Team',
       },
     });
     teamId = team.id;
-    expect(team.githubSlug).toBe('test-team');
+    expect(team.githubSlug).toBe(`test-team-${suffix}`);
     expect(team.id).toBeTruthy();
   });
 
@@ -48,14 +54,14 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
     const user = await prisma.user.create({
       data: {
         displayName: 'Test User',
-        email: 'test@example.com',
-        githubId: BigInt(2001),
-        githubLogin: 'testuser',
+        email: `test-${suffix}@example.com`,
+        githubId: BigInt(githubIdBase + 1),
+        githubLogin: `testuser-${suffix}`,
         primaryTeamId: teamId,
       },
     });
     userId = user.id;
-    expect(user.githubLogin).toBe('testuser');
+    expect(user.githubLogin).toBe(`testuser-${suffix}`);
     expect(user.primaryTeamId).toBe(teamId);
   });
 
@@ -70,13 +76,13 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
   it('creates and reads a Repo', async () => {
     const repo = await prisma.repo.create({
       data: {
-        githubName: 'testrepo',
-        githubOwner: 'testorg',
+        githubName: `testrepo-${suffix}`,
+        githubOwner: `testorg-${suffix}`,
         owningTeamId: teamId,
       },
     });
     repoId = repo.id;
-    expect(repo.githubOwner).toBe('testorg');
+    expect(repo.githubOwner).toBe(`testorg-${suffix}`);
   });
 
   it('creates and reads a VisibilityPolicy', async () => {
@@ -90,7 +96,7 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
 
   it('creates and reads an AuthToken', async () => {
     const token = await prisma.authToken.create({
-      data: { kind: 'hook', tokenHash: 'sha256:abc123', userId },
+      data: { kind: 'hook', tokenHash: `sha256:${suffix}`, userId },
     });
     expect(token.kind).toBe('hook');
     expect(token.userId).toBe(userId);
@@ -111,7 +117,7 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
 
   it('creates and reads a Session', async () => {
     const now = new Date();
-    const sid = '00000000-0000-0000-0000-000000000001';
+    const sid = crypto.randomUUID();
     const session = await prisma.session.create({
       data: {
         lastEventAt: now,
@@ -131,8 +137,8 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
   it('creates and reads a PullRequest', async () => {
     const pr = await prisma.pullRequest.create({
       data: {
-        authorGithubLogin: 'testuser',
-        githubId: BigInt(9001),
+        authorGithubLogin: `testuser-${suffix}`,
+        githubId: BigInt(githubIdBase + 2),
         prNumber: 1,
         repoId,
         state: 'open',
