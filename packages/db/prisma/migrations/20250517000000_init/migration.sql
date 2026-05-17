@@ -1,5 +1,5 @@
--- gen_random_uuid() is built-in from PostgreSQL 13+; pgcrypto provided as a fallback for older versions.
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
 CREATE TYPE "SessionStatus" AS ENUM ('active', 'completed', 'crashed', 'timed_out', 'abandoned');
@@ -24,7 +24,7 @@ CREATE TYPE "LinkSource" AS ENUM ('session_start', 'webhook_reconcile', 'manual'
 
 -- CreateTable
 CREATE TABLE "teams" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "id" UUID NOT NULL,
     "github_slug" TEXT NOT NULL,
     "github_id" BIGINT NOT NULL,
     "name" TEXT NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE "teams" (
 
 -- CreateTable
 CREATE TABLE "users" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "id" UUID NOT NULL,
     "github_login" TEXT NOT NULL,
     "github_id" BIGINT NOT NULL,
     "email" TEXT,
@@ -56,12 +56,12 @@ CREATE TABLE "team_members" (
     "role_in_team" "TeamRole" NOT NULL,
     "synced_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "team_members_pkey" PRIMARY KEY ("team_id", "user_id")
+    CONSTRAINT "team_members_pkey" PRIMARY KEY ("team_id","user_id")
 );
 
 -- CreateTable
 CREATE TABLE "repos" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "id" UUID NOT NULL,
     "github_owner" TEXT NOT NULL,
     "github_name" TEXT NOT NULL,
     "github_id" BIGINT,
@@ -74,7 +74,7 @@ CREATE TABLE "repos" (
 
 -- CreateTable
 CREATE TABLE "auth_tokens" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
     "token_hash" TEXT NOT NULL,
     "kind" "AuthTokenKind" NOT NULL,
@@ -183,7 +183,7 @@ CREATE TABLE "pull_requests" (
     "labels" TEXT[],
     "enriched_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "pull_requests_pkey" PRIMARY KEY ("repo_id", "pr_number")
+    CONSTRAINT "pull_requests_pkey" PRIMARY KEY ("repo_id","pr_number")
 );
 
 -- CreateTable
@@ -194,7 +194,7 @@ CREATE TABLE "session_pr_links" (
     "linked_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "link_source" "LinkSource" NOT NULL,
 
-    CONSTRAINT "session_pr_links_pkey" PRIMARY KEY ("session_id", "repo_id", "pr_number")
+    CONSTRAINT "session_pr_links_pkey" PRIMARY KEY ("session_id","repo_id","pr_number")
 );
 
 -- CreateTable
@@ -215,77 +215,107 @@ CREATE TABLE "pr_rollups" (
     "cost_per_loc" DECIMAL(12,6),
     "computed_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "pr_rollups_pkey" PRIMARY KEY ("repo_id", "pr_number")
+    CONSTRAINT "pr_rollups_pkey" PRIMARY KEY ("repo_id","pr_number")
 );
 
 -- CreateIndex
 CREATE UNIQUE INDEX "teams_github_slug_key" ON "teams"("github_slug");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "teams_github_id_key" ON "teams"("github_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "users_github_login_key" ON "users"("github_login");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "users_github_id_key" ON "users"("github_id");
+
+-- CreateIndex
 CREATE INDEX "users_last_seen_at_idx" ON "users"("last_seen_at");
+
+-- CreateIndex
 CREATE INDEX "team_members_user_id_idx" ON "team_members"("user_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "repos_github_id_key" ON "repos"("github_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "repos_github_owner_github_name_key" ON "repos"("github_owner", "github_name");
+
+-- CreateIndex
 CREATE INDEX "auth_tokens_user_id_idx" ON "auth_tokens"("user_id");
+
+-- CreateIndex
 CREATE INDEX "audit_log_target_user_id_ts_idx" ON "audit_log"("target_user_id", "ts" DESC);
+
+-- CreateIndex
 CREATE INDEX "audit_log_actor_user_id_ts_idx" ON "audit_log"("actor_user_id", "ts" DESC);
+
+-- CreateIndex
 CREATE INDEX "sessions_user_id_started_at_idx" ON "sessions"("user_id", "started_at" DESC);
+
+-- CreateIndex
 CREATE INDEX "sessions_repo_id_started_at_idx" ON "sessions"("repo_id", "started_at" DESC);
+
+-- CreateIndex
 CREATE INDEX "sessions_status_last_event_at_idx" ON "sessions"("status", "last_event_at");
+
+-- CreateIndex
 CREATE INDEX "sessions_agent_type_started_at_idx" ON "sessions"("agent_type", "started_at" DESC);
-CREATE INDEX "sessions_pr_number_idx" ON "sessions"("pr_number") WHERE "pr_number" IS NOT NULL;
+
+-- CreateIndex
 CREATE UNIQUE INDEX "pull_requests_github_id_key" ON "pull_requests"("github_id");
+
+-- CreateIndex
 CREATE INDEX "session_pr_links_repo_id_pr_number_idx" ON "session_pr_links"("repo_id", "pr_number");
 
 -- AddForeignKey
-ALTER TABLE "teams" ADD CONSTRAINT "teams_parent_team_id_fkey"
-    FOREIGN KEY ("parent_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "teams" ADD CONSTRAINT "teams_parent_team_id_fkey" FOREIGN KEY ("parent_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "users" ADD CONSTRAINT "users_primary_team_id_fkey"
-    FOREIGN KEY ("primary_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "users" ADD CONSTRAINT "users_primary_team_id_fkey" FOREIGN KEY ("primary_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "team_members" ADD CONSTRAINT "team_members_team_id_fkey"
-    FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "team_members" ADD CONSTRAINT "team_members_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "team_members" ADD CONSTRAINT "team_members_user_id_fkey"
-    FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "team_members" ADD CONSTRAINT "team_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "repos" ADD CONSTRAINT "repos_owning_team_id_fkey"
-    FOREIGN KEY ("owning_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "repos" ADD CONSTRAINT "repos_owning_team_id_fkey" FOREIGN KEY ("owning_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "auth_tokens" ADD CONSTRAINT "auth_tokens_user_id_fkey"
-    FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "auth_tokens" ADD CONSTRAINT "auth_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "visibility_policies" ADD CONSTRAINT "visibility_policies_user_id_fkey"
-    FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "visibility_policies" ADD CONSTRAINT "visibility_policies_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_actor_user_id_fkey"
-    FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
-ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_target_user_id_fkey"
-    FOREIGN KEY ("target_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_target_user_id_fkey" FOREIGN KEY ("target_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_target_team_id_fkey"
-    FOREIGN KEY ("target_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_target_team_id_fkey" FOREIGN KEY ("target_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey"
-    FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
-ALTER TABLE "sessions" ADD CONSTRAINT "sessions_repo_id_fkey"
-    FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_repo_id_fkey" FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_repo_id_fkey"
-    FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_repo_id_fkey" FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_author_user_id_fkey"
-    FOREIGN KEY ("author_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_author_user_id_fkey" FOREIGN KEY ("author_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "session_pr_links" ADD CONSTRAINT "session_pr_links_session_id_fkey"
-    FOREIGN KEY ("session_id") REFERENCES "sessions"("session_id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "session_pr_links" ADD CONSTRAINT "session_pr_links_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "sessions"("session_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "session_pr_links" ADD CONSTRAINT "session_pr_links_repo_id_pr_number_fkey"
-    FOREIGN KEY ("repo_id", "pr_number") REFERENCES "pull_requests"("repo_id", "pr_number") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "session_pr_links" ADD CONSTRAINT "session_pr_links_repo_id_pr_number_fkey" FOREIGN KEY ("repo_id", "pr_number") REFERENCES "pull_requests"("repo_id", "pr_number") ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "pr_rollups" ADD CONSTRAINT "pr_rollups_repo_id_pr_number_fkey"
-    FOREIGN KEY ("repo_id", "pr_number") REFERENCES "pull_requests"("repo_id", "pr_number") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey
+ALTER TABLE "pr_rollups" ADD CONSTRAINT "pr_rollups_repo_id_pr_number_fkey" FOREIGN KEY ("repo_id", "pr_number") REFERENCES "pull_requests"("repo_id", "pr_number") ON DELETE CASCADE ON UPDATE CASCADE;
