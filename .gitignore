@@ -36,6 +36,9 @@ coverage/
 *.log
 logs/
 
+# Next.js generated files
+next-env.d.ts
+
 # Compiled hook binary
 apps/hook/bin/
 
