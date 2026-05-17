@@ -1,8 +1,7 @@
 import { execSync } from 'node:child_process';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { applySqlMigrations, PrismaClient } from '@ai-agents-observability/db';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { applySqlMigrations, createClient } from '@ai-agents-observability/db';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -38,15 +37,10 @@ async function waitForPostgres(host: string, port: number, timeoutMs = 60_000): 
   throw new Error(`PostgreSQL did not become ready within ${timeoutMs}ms`);
 }
 
-function makeClient(): PrismaClient {
-  const adapter = new PrismaPg({ connectionString: DATABASE_URL as string });
-  return new PrismaClient({ adapter });
-}
-
 await waitForPostgres(pgHost, pgPort);
 
 // Ensure TimescaleDB extension before any migrations
-const bootstrap = makeClient();
+const bootstrap = createClient(DATABASE_URL as string);
 try {
   await bootstrap.$executeRaw`CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE`;
   console.log('[runner] TimescaleDB extension ready');
@@ -64,7 +58,7 @@ execSync('bunx prisma migrate deploy', {
 
 // Apply raw SQL migrations (Timescale DDL not managed by Prisma)
 console.log('[runner] Applying SQL migrations...');
-const prisma = makeClient();
+const prisma = createClient(DATABASE_URL as string);
 try {
   await applySqlMigrations(prisma);
 } finally {

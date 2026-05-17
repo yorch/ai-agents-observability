@@ -1,6 +1,5 @@
-import { PrismaPg } from '@prisma/adapter-pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PrismaClient } from '../src/generated/client/client.js';
+import { createClient, PrismaClient } from '../src/index.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -12,8 +11,7 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
   const githubIdBase = Math.floor(Math.random() * 1_000_000) + 100_000;
 
   beforeAll(() => {
-    const adapter = new PrismaPg({ connectionString: DATABASE_URL as string });
-    prisma = new PrismaClient({ adapter });
+    prisma = createClient(DATABASE_URL as string);
   });
 
   afterAll(async () => {

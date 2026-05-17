@@ -24,13 +24,14 @@ export async function applySqlMigrations(prisma: PrismaClient): Promise<void> {
     .filter((f) => f.endsWith('.sql'))
     .sort();
 
-  for (const file of files) {
-    const rows = await prisma.$queryRawUnsafe<{ count: string }[]>(
-      `SELECT count(*)::text AS count FROM ${TRACKING_TABLE} WHERE filename = $1`,
-      file,
-    );
+  const appliedRows = await prisma.$queryRawUnsafe<{ filename: string }[]>(
+    `SELECT filename FROM ${TRACKING_TABLE} WHERE filename = ANY($1::text[])`,
+    files,
+  );
+  const applied = new Set(appliedRows.map((r) => r.filename));
 
-    if (Number(rows[0]?.count ?? 0) > 0) {
+  for (const file of files) {
+    if (applied.has(file)) {
       console.log(`[sql-migrate] already applied: ${file}`);
       continue;
     }
