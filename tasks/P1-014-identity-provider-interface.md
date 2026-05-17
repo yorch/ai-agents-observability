@@ -3,7 +3,7 @@ id: P1-014
 title: IdentityProvider interface + JWT issuance
 phase: 1
 workstream: C
-status: ready
+status: done
 owner: null
 depends_on: [P1-001]
 blocks: [P1-009, P1-016, P1-017]

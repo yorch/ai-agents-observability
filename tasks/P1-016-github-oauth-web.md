@@ -3,7 +3,7 @@ id: P1-016
 title: GitHub OAuth (web flow)
 phase: 1
 workstream: C
-status: blocked
+status: ready
 owner: null
 depends_on: [P1-014, P1-015]
 blocks: [P1-024]

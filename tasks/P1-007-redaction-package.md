@@ -3,7 +3,7 @@ id: P1-007
 title: Redaction package v1 + test cassettes
 phase: 1
 workstream: B
-status: ready
+status: done
 owner: null
 depends_on: [P1-001]
 blocks: [P1-012, P1-022]
@@ -16,7 +16,7 @@ estimate: M
 
 ## Context
 
-- §9.1 enumerates the classes: AWS keys, GCP keys, GitHub tokens, generic JWTs, private SSH/PGP key blocks, .env-style assignments to known-secret variable names, high-entropy strings flagged by length+charset heuristics.
+- §9.1 enumerates the classes: AWS keys, Slack tokens (xox[abp]- prefixed), GitHub tokens, generic JWTs, private SSH/PGP key blocks, .env-style assignments to known-secret variable names, high-entropy strings flagged by length+charset heuristics.
 - Pure TS (no native deps) so the same code runs in Bun, Node, and the compiled hook binary.
 - Performance target: redact a 1 MB transcript in <50ms on a 2020-era laptop.
 

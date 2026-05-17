@@ -3,7 +3,7 @@ id: P1-006
 title: Zod schemas for hook payload
 phase: 1
 workstream: B
-status: ready
+status: done
 owner: null
 depends_on: [P1-001]
 blocks: [P1-010, P1-020]

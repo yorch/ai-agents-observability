@@ -3,7 +3,7 @@ id: P1-015
 title: packages/github — host-agnostic Octokit
 phase: 1
 workstream: C
-status: ready
+status: done
 owner: null
 depends_on: [P1-001]
 blocks: [P1-016, P1-017, P1-018]
