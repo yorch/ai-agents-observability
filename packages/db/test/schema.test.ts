@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createClient, PrismaClient } from '../src/index.js';
+import { createClient, type PrismaClient } from '../src/index.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
