@@ -43,7 +43,7 @@ next-env.d.ts
 apps/hook/bin/
 
 # Prisma generated client
-packages/db/generated/
+packages/db/src/generated/
 
 # MinIO local data
 infra/.minio-data/
