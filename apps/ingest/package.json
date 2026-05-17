@@ -22,8 +22,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "bun-types": "catalog:",
+    "pino-pretty": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "pino-pretty": "catalog:"
+    "vitest": "catalog:"
   }
 }

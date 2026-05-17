@@ -85,6 +85,6 @@ export function authRequired(db: DbClient, logger: Logger): MiddlewareHandler<Ap
     }
 
     c.set('user', user);
-    await next();
+    return await next();
   };
 }

@@ -44,6 +44,6 @@ export function rateLimitMiddleware(): MiddlewareHandler<AppEnv> {
       entry.count++;
     }
 
-    await next();
+    return await next();
   };
 }
