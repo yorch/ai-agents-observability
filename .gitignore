@@ -17,6 +17,7 @@ dist/
 
 # Bun
 bun.lockb
+.*.bun-build
 
 # OS
 .DS_Store
