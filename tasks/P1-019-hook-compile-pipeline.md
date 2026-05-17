@@ -54,7 +54,7 @@ estimate: M
 ## Verification
 
 ```bash
-pnpm --filter=@app/hook build
+bun --filter '@app/hook' build
 ./apps/hook/dist/claude-telemetry-darwin-arm64 --version  # or matching triple
 # CI:
 gh workflow run build-hook.yml

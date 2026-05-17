@@ -67,8 +67,8 @@ Three connected pages: a filterable list of the user's sessions, a per-session d
 ## Verification
 
 ```bash
-pnpm --filter=@pkg/db db:seed
-pnpm --filter=@app/web dev
+bun --filter '@pkg/db' db:seed
+bun --filter '@app/web' dev
 # Visit /me/sessions; click a row; click "View transcript".
-pnpm --filter=@app/web test
+bun --filter '@app/web' test
 ```

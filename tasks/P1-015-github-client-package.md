@@ -58,5 +58,5 @@ A thin wrapper around Octokit that transparently targets either github.com or GH
 ## Verification
 
 ```bash
-pnpm --filter=@pkg/github test
+bun --filter '@pkg/github' test
 ```

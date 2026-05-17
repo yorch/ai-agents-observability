@@ -69,6 +69,6 @@ estimate: M
 
 ```bash
 docker compose -f infra/docker-compose.yml up -d postgres
-pnpm --filter=@pkg/db db:migrate
-pnpm --filter=@pkg/db test
+bun --filter '@pkg/db' db:migrate
+bun --filter '@pkg/db' test
 ```

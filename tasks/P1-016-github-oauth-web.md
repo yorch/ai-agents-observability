@@ -59,8 +59,8 @@ The web app can log a user in via GitHub OAuth. On first login, a `User` row is 
 ## Verification
 
 ```bash
-pnpm --filter=@pkg/auth test
-pnpm --filter=@app/web test
+bun --filter '@pkg/auth' test
+bun --filter '@app/web' test
 # Manual against a test GitHub OAuth app:
 # Visit http://localhost:3000/api/auth/login → callback → see /me.
 ```

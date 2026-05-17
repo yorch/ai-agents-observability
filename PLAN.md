@@ -27,17 +27,16 @@ These were agreed during planning and are the basis for every task below. If one
 
 ### Pinned tool versions (May 2026)
 
-These are the floor versions every package targets. Bump in lockstep across the monorepo via `pnpm.catalogs` (see `P1-001`).
+These are the floor versions every package targets. Bump in lockstep across the monorepo via Bun's catalog (`workspaces.catalog` in root `package.json`; see `P1-001`).
 
 | Tool | Version | Why this pin |
 |---|---|---|
-| Node.js | 24 LTS | Current Active LTS (22 in maintenance). `engines: ">=24"` in every package. |
-| pnpm | 8.15 | Workspace resolution is rock-solid here; pnpm 11 catalogs + Turborepo + Corepack still rough (see §6). Revisit at end of Phase 1. |
-| Turborepo | 2.x latest | Stable on the 2 line. |
+| Node.js | 24 LTS | Active LTS. The Next.js prod runtime is Node 24. Bun runs everything else. |
+| Bun | 1.3.13 | **Package manager + workspace tool + script runner + ingest/hook runtime.** Replaces pnpm. Use HOISTED installs, not isolated — Bun 1.3.0's isolated + catalogs combo has known dedup/cache bugs ([oven-sh/bun#23615](https://github.com/oven-sh/bun/issues/23615)). Revisit when fixed. Lockfile is text `bun.lock` (v3 format). |
+| Turborepo | 3.x | v3 is the first release with first-class Bun workspaces support; do NOT use Turbo 2 with Bun. |
 | TypeScript | 6.0 | TS 7 (native Go compiler) is still beta — wait. |
 | Biome | 2.4.x | v2 unified lint + format; type-aware rules + GritQL plugins. |
-| Bun | 1.3.13 | `bun build --compile` is stable. The in-progress Rust rewrite is not — pin to a known-good 1.3.x. |
-| Next.js | 16.2 | App Router default, Turbopack default for `dev` + `build`, pins React 19.2. |
+| Next.js | 16.2 | App Router default, Turbopack default for `dev` + `build`, pins React 19.2. Runs under Node 24 in prod (not Bun — Next on Bun is unofficial). |
 | React | 19.2.6 | Don't drift past what Next.js 16 pins. |
 | Tailwind CSS | 4.1.x | Oxide engine + CSS-first config (`@theme`, no JS config file). |
 | Prisma | 7.7 | Latest stable. Classic Prisma Client (not Prisma Postgres). |
@@ -56,7 +55,7 @@ These are the floor versions every package targets. Bump in lockstep across the 
 
 ## 2. Repo layout
 
-Turborepo + pnpm workspaces. Created in `P1-001`.
+Bun workspaces + Turborepo 3. Created in `P1-001`.
 
 ```
 ai-agents-observability/
@@ -147,8 +146,12 @@ Roadmap-level tasks in [`tasks/P5-roadmap.md`](./tasks/P5-roadmap.md).
 
 These apply to every task. Don't restate in each task file.
 
-- **Language**: TypeScript 6 everywhere. Bun 1.3 for ingest + hook; Node 24 LTS for Next.js (until Bun-on-Next.js is boring).
-- **Style**: Biome 2 at the root in `P1-001` — single binary for lint + format. No ESLint, no Prettier, no per-package overrides without justification. Use `biome.json` nested configs only when a package genuinely needs different rules (none anticipated).
+- **Language**: TypeScript 6 everywhere.
+- **Package manager + runner**: Bun 1.3. `bun install` for deps, `bun run <script>` for scripts, `bun --filter '@scope/pkg' <script>` for workspace-scoped runs, `bunx` instead of `pnpm dlx`/`npx`. Lockfile is `bun.lock` (text v3) — commit it.
+- **Workspaces**: declared in root `package.json` `workspaces: ["apps/*", "packages/*"]`. No `pnpm-workspace.yaml`.
+- **Catalogs**: centralized in root `package.json` `workspaces.catalog` (Bun's catalog syntax). Sub-packages reference shared deps as `"catalog:"`.
+- **Runtimes**: ingest + hook run on Bun 1.3. Next.js prod runtime is Node 24 LTS (Next-on-Bun is not officially supported; revisit when it is).
+- **Style**: Biome 2 at the root in `P1-001` — single binary for lint + format. No ESLint, no Prettier, no per-package overrides without justification.
 - **Tests**: Vitest 4. Each `packages/*` ships with unit tests. Each app ships with at least one happy-path integration test. Coverage gates not enforced numerically — judgment-based code review.
 - **Migrations**: Forward-only. Backfills written as separate migrations. Never edit a merged migration.
 - **Logs**: structured JSON via `pino`. No `console.log` in committed code.
@@ -180,8 +183,9 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 | Privacy regression on team views | Audit log is the safety net; covered by `P3-*` tasks | Cross-cutting |
 | Wrong Postgres patch version (17.1 / 16.5) breaks TimescaleDB 2.26 | Pin `timescale/timescaledb-ha:pg17.2-ts2.26` exact tag in compose; document in `P1-002` | Backend |
 | MinIO Docker Hub image deprecation (Oct 2025) | Pull from `quay.io/minio/minio` with pinned RELEASE tag, never `:latest` | Backend |
-| Turborepo + pnpm 11 catalogs + Corepack mis-resolve | Pin pnpm 8.15 for Phase 1; revisit at end of phase | Cross-cutting |
+| Bun 1.3 isolated installs + catalogs has dedup/cache bugs ([#23615](https://github.com/oven-sh/bun/issues/23615)) | Use HOISTED installs (`linker = "hoisted"` in `bunfig.toml`) until fixed | Cross-cutting |
 | Bun Rust-rewrite branch regressions on native modules | Pin Bun 1.3.13 (stable JS impl), not bleeding-edge | Systems |
+| Next.js on Bun is unofficial | Run Next.js prod under Node 24; only use Bun for `apps/web` package management + script execution | Frontend |
 
 ---
 

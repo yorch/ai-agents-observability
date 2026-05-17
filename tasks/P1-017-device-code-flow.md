@@ -51,8 +51,8 @@ estimate: M
 ## Verification
 
 ```bash
-pnpm --filter=@pkg/auth test
-pnpm --filter=@app/web test
+bun --filter '@pkg/auth' test
+bun --filter '@app/web' test
 # Manual:
 # curl -sX POST http://localhost:3000/api/auth/device/start | jq .
 # Open verification_uri in browser, enter user_code, poll until 'authorized'.

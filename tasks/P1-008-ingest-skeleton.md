@@ -29,7 +29,7 @@ Stand up the ingest service as a Bun + Hono app with health endpoint, structured
 - [ ] Graceful shutdown: SIGTERM drains in-flight requests up to 10s, then exits.
 - [ ] `apps/ingest/Dockerfile` builds a Bun image, multi-stage with a slim final.
 - [ ] `infra/docker-compose.override.yml` wires the service in for local dev with hot reload.
-- [ ] `pnpm --filter=@app/ingest dev` starts the service with `bun --watch`.
+- [ ] `bun --filter '@app/ingest' dev` starts the service with `bun --watch`.
 - [ ] Integration smoke test: HTTP GET `/healthz` returns 200 in test.
 
 ## Implementation notes
@@ -56,8 +56,8 @@ Stand up the ingest service as a Bun + Hono app with health endpoint, structured
 ## Verification
 
 ```bash
-pnpm --filter=@app/ingest dev &
+bun --filter '@app/ingest' dev &
 curl -s http://localhost:4000/healthz | jq .ok
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.override.yml up --build ingest
-pnpm --filter=@app/ingest test
+bun --filter '@app/ingest' test
 ```

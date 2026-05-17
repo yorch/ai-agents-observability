@@ -28,8 +28,8 @@ A single `docker compose up` from a clean clone produces a working local stack: 
   - `migrations` — placeholder service that exits 0 (real impl in P1-004).
 - [ ] Persistent volumes for postgres data and minio data; survives `docker compose down` (but not `down -v`).
 - [ ] Environment variables read from `.env` at repo root; `.env.example` updated with `POSTGRES_*`, `MINIO_*`, `S3_*` vars.
-- [ ] `pnpm dev:stack` (root script) wraps `docker compose -f infra/docker-compose.yml up -d`.
-- [ ] `pnpm dev:stack:down` and `pnpm dev:stack:logs` wrappers exist.
+- [ ] `bun run dev:stack` (root script) wraps `docker compose -f infra/docker-compose.yml up -d`.
+- [ ] `bun run dev:stack:down` and `bun run dev:stack:logs` wrappers exist.
 - [ ] README section at the root explains how to bring the stack up.
 - [ ] Compose file is lint-clean per `docker compose config`.
 

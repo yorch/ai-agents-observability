@@ -60,7 +60,7 @@ When a Claude Code session ends (or after a 10-min heartbeat for long-running se
 ## Verification
 
 ```bash
-pnpm --filter=@app/hook test
+bun --filter '@app/hook' test
 # Manual:
 # Generate a transcript file; touch the marker; run shipper; check MinIO.
 mc ls local/transcripts/...

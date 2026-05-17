@@ -53,7 +53,7 @@ Every accepted event batch atomically updates the corresponding `Session` row's 
 ## Verification
 
 ```bash
-pnpm --filter=@app/ingest test
+bun --filter '@app/ingest' test
 # Manual:
 # Submit two overlapping batches for the same session_id and verify counts.
 ```

@@ -56,6 +56,6 @@ estimate: M
 ## Verification
 
 ```bash
-pnpm --filter=@pkg/redaction test
-pnpm --filter=@pkg/redaction bench
+bun --filter '@pkg/redaction' test
+bun --filter '@pkg/redaction' bench
 ```

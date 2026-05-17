@@ -60,8 +60,8 @@ The `/me` route shows the signed-in user a clear, glance-able summary of their o
 ## Verification
 
 ```bash
-pnpm --filter=@pkg/db db:seed
-pnpm --filter=@app/web dev
+bun --filter '@pkg/db' db:seed
+bun --filter '@app/web' dev
 # Visit http://localhost:3000/me — all cards populated.
-pnpm --filter=@app/web test
+bun --filter '@app/web' test
 ```

@@ -61,7 +61,7 @@ A long-running background process drains the SQLite queue and POSTs batches to `
 ## Verification
 
 ```bash
-pnpm --filter=@app/hook test
+bun --filter '@app/hook' test
 # Manual:
 ./apps/hook/dist/claude-telemetry-<triple> flusher &
 # Generate hook events; observe events in DB and rows draining.

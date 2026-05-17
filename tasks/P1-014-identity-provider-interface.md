@@ -66,5 +66,5 @@ estimate: M
 ## Verification
 
 ```bash
-pnpm --filter=@pkg/auth test
+bun --filter '@pkg/auth' test
 ```

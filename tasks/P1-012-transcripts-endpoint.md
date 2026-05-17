@@ -59,7 +59,7 @@ estimate: L
 ## Verification
 
 ```bash
-pnpm --filter=@app/ingest test
+bun --filter '@app/ingest' test
 # Manual:
 zstd apps/ingest/test/fixtures/sample.jsonl -o /tmp/sample.jsonl.zst
 curl -sX POST "http://localhost:4000/v1/transcripts/<session_id>" \

@@ -69,8 +69,8 @@ A Next.js 16 app exists at `apps/web` with the App Router, Turbopack as the defa
 ## Verification
 
 ```bash
-pnpm --filter=@app/web dev
+bun --filter '@app/web' dev
 # Visit http://localhost:3000/login, click sign-in, verify redirect to /me with the display name.
-pnpm --filter=@app/web build      # Turbopack production build
-pnpm --filter=@app/web test
+bun --filter '@app/web' build      # Turbopack production build
+bun --filter '@app/web' test
 ```

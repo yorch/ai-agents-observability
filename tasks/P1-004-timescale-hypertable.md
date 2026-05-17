@@ -68,5 +68,5 @@ docker compose -f infra/docker-compose.yml up -d postgres
 docker compose -f infra/docker-compose.yml run --rm migrations
 psql "$DATABASE_URL" -c "\d events"
 psql "$DATABASE_URL" -c "SELECT * FROM timescaledb_information.hypertables WHERE hypertable_name='events';"
-pnpm --filter=@pkg/db test
+bun --filter '@pkg/db' test
 ```

@@ -12,7 +12,7 @@ Source of truth for task status. Update this in the same commit as the task file
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P1-001](./P1-001-monorepo-bootstrap.md) | Monorepo bootstrap (Turborepo + pnpm) | ready | — | M | — |
+| [P1-001](./P1-001-monorepo-bootstrap.md) | Monorepo bootstrap (Bun + Turborepo 3 + Biome) | ready | — | M | — |
 | [P1-002](./P1-002-docker-compose-stack.md) | docker-compose dev stack | ready | — | M | P1-001 |
 | [P1-003](./P1-003-prisma-schema.md) | Prisma schema for dimensional tables | ready | — | M | P1-001 |
 | [P1-004](./P1-004-timescale-hypertable.md) | Timescale events hypertable + migration runner | blocked | — | M | P1-003 |

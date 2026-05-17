@@ -55,7 +55,7 @@ estimate: M
 ## Verification
 
 ```bash
-pnpm --filter=@app/ingest test
+bun --filter '@app/ingest' test
 # Manual:
 curl -sX POST http://localhost:4000/v1/events \
   -H 'Authorization: Bearer <hook-token>' \

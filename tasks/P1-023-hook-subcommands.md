@@ -67,7 +67,7 @@ The user-facing CLI surface of `claude-telemetry`. Everything a developer needs 
 ## Verification
 
 ```bash
-pnpm --filter=@app/hook test
+bun --filter '@app/hook' test
 ./apps/hook/dist/claude-telemetry-<triple> --help
 ./apps/hook/dist/claude-telemetry-<triple> login
 ./apps/hook/dist/claude-telemetry-<triple> status

@@ -46,6 +46,6 @@ Explicit non-goals. If you find yourself doing one of these, stop.
 Exact commands. An agent should be able to copy-paste these.
 
 ```bash
-pnpm install
-pnpm --filter=@app/foo test
+bun install
+bun --filter '@app/foo' test
 ```

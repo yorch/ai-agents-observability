@@ -12,7 +12,7 @@ estimate: S
 
 ## Goal
 
-`pnpm --filter=@pkg/db db:seed` produces a realistic-enough local dataset so frontend devs can build UI without running the hook end-to-end.
+`bun --filter '@pkg/db' db:seed` produces a realistic-enough local dataset so frontend devs can build UI without running the hook end-to-end.
 
 ## Context
 
@@ -50,8 +50,8 @@ estimate: S
 ```bash
 docker compose -f infra/docker-compose.yml up -d postgres
 docker compose -f infra/docker-compose.yml run --rm migrations
-pnpm --filter=@pkg/db db:seed
+bun --filter '@pkg/db' db:seed
 psql "$DATABASE_URL" -c "SELECT count(*) FROM \"Session\" WHERE user_id IN (SELECT id FROM \"User\" WHERE email='demo@example.com');"
 # Expect ~90
-pnpm --filter=@pkg/db db:seed   # idempotent
+bun --filter '@pkg/db' db:seed   # idempotent
 ```

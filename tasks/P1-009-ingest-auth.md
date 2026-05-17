@@ -53,7 +53,7 @@ Every ingest endpoint requires a valid bearer token; the resolved `user_id` is a
 ## Verification
 
 ```bash
-pnpm --filter=@app/ingest test
+bun --filter '@app/ingest' test
 # Manual:
 curl -i http://localhost:4000/v1/events                              # 401
 curl -i -H 'Authorization: Bearer bad' http://localhost:4000/v1/events  # 401

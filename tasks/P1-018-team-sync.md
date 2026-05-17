@@ -52,6 +52,6 @@ A scheduled job syncs `Team` and `TeamMember` rows from GitHub orgs nightly so t
 ## Verification
 
 ```bash
-pnpm --filter=@app/ingest test
+bun --filter '@app/ingest' test
 # Manual: trigger sync via an internal admin endpoint and inspect rows.
 ```

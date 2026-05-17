@@ -48,7 +48,7 @@ estimate: XS
 ## Verification
 
 ```bash
-pnpm --filter=@app/ingest test
+bun --filter '@app/ingest' test
 curl -i http://localhost:4000/v1/price-table | jq .version
 curl -i -H 'If-None-Match: "v1"' http://localhost:4000/v1/price-table   # 304
 ```

@@ -50,7 +50,7 @@ A repeatable benchmark proves the hook's wall-time budget is met on representati
 ## Verification
 
 ```bash
-pnpm --filter=@app/hook build
-pnpm --filter=@app/hook bench
+bun --filter '@app/hook' build
+bun --filter '@app/hook' bench
 cat apps/hook/bench/results/*.md
 ```

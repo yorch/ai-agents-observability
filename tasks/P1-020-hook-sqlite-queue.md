@@ -63,8 +63,8 @@ Each Claude Code hook event (`session-start`, `pre-tool-use`, `post-tool-use`, `
 ## Verification
 
 ```bash
-pnpm --filter=@app/hook test
+bun --filter '@app/hook' test
 echo '{"session_id":"...", ...}' | ./apps/hook/dist/claude-telemetry-<triple> hook pre-tool-use
 sqlite3 ~/.claude-telemetry/queue.db 'SELECT count(*) FROM events_queue;'
-pnpm --filter=@app/hook bench  # p99 < 10ms
+bun --filter '@app/hook' bench  # p99 < 10ms
 ```

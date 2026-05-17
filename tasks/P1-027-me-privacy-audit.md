@@ -61,7 +61,7 @@ Two pages that materialize the trust mechanics in `DESIGN_DOC.md` §10 and §11:
 ## Verification
 
 ```bash
-pnpm --filter=@app/web test
+bun --filter '@app/web' test
 # Manual:
 # Visit /me/privacy, toggle a flag, refresh, confirm persisted.
 # Visit /me/audit, confirm empty state.

@@ -60,6 +60,6 @@ estimate: S
 ## Verification
 
 ```bash
-pnpm --filter=@pkg/schemas test
-pnpm --filter=@pkg/schemas build
+bun --filter '@pkg/schemas' test
+bun --filter '@pkg/schemas' build
 ```
