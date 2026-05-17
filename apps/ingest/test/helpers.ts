@@ -1,3 +1,5 @@
+import type { Logger } from 'pino';
+
 import type { AppDeps } from '../src/app.js';
 
 export function makeTestDeps(): AppDeps {
@@ -6,15 +8,15 @@ export function makeTestDeps(): AppDeps {
     checkS3: async () => {},
     db: {
       $executeRaw: async () => 0,
-      authToken: { findFirst: async () => null } as any,
-      repo: { upsert: async () => ({}) } as any,
-    } as any,
+      authToken: { findFirst: async () => null } as unknown as AppDeps['db']['authToken'],
+      repo: { upsert: async () => ({}) } as unknown as AppDeps['db']['repo'],
+    } as unknown as AppDeps['db'],
     logger: {
-      child: () => ({}) as any,
+      child: () => ({}) as unknown as Logger,
       debug: () => {},
       error: () => {},
       info: () => {},
       warn: () => {},
-    } as any,
+    } as unknown as Logger,
   };
 }

@@ -4,7 +4,11 @@ import { createClient } from './index.js';
 const SEED_EMAIL = 'demo@example.com';
 const DEMO_USER_LOGIN = 'demo-dev';
 
-const db = createClient(process.env.DATABASE_URL!);
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  throw new Error('DATABASE_URL is required');
+}
+const db = createClient(DATABASE_URL);
 
 async function main() {
   // Cleanup in FK-safe order: sessions (no cascade from user) → repos (cascade PRs/rollups) → user → team
@@ -219,14 +223,14 @@ async function main() {
     }
 
     // PRRollup for merged PRs
-    if (pr.merged) {
+    if (pr.merged && mergedAt) {
       await db.pRRollup.create({
         data: {
           contributingSessionIds: linkedSessions,
           contributingUserIds: [user.id],
           costPerLoc: faker.number.float({ fractionDigits: 6, max: 0.05, min: 0.001 }),
           firstSessionAt: openedAt,
-          lastSessionAt: mergedAt!,
+          lastSessionAt: mergedAt,
           prNumber: pr.number,
           repoId: repo.id,
           totalActiveSeconds: faker.number.int({ max: 7200, min: 600 }),

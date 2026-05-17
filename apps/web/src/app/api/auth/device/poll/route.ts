@@ -4,10 +4,10 @@ import { createClient } from '@ai-agents-observability/db';
 import { createGitHubClient } from '@ai-agents-observability/github';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-
 import { ensureVisibilityPolicy } from '../../../../../lib/ensure-visibility-policy.js';
+import { requireEnv } from '../../../../../lib/env.js';
 
-const db = createClient(process.env.DATABASE_URL!);
+const db = createClient(requireEnv('DATABASE_URL'));
 
 const PollBody = z.object({ device_code: z.string().min(1) });
 

@@ -2,9 +2,10 @@ import { rotateRefreshToken } from '@ai-agents-observability/auth';
 import { createClient } from '@ai-agents-observability/db';
 import { NextResponse } from 'next/server';
 
+import { requireEnv } from '../../../../lib/env.js';
 import { getRefreshCookie, setAuthCookies } from '../../../../lib/session-cookie.js';
 
-const db = createClient(process.env.DATABASE_URL!);
+const db = createClient(requireEnv('DATABASE_URL'));
 
 export async function POST() {
   const refresh = await getRefreshCookie();

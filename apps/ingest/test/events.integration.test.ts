@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-
 import { createApp } from '../src/app.js';
+import type { Config } from '../src/config.js';
 import { makeTestDeps } from './helpers.js';
 
 const BATCH_FIXTURE = {
@@ -30,7 +30,7 @@ const BATCH_FIXTURE = {
 describe('POST /v1/events', () => {
   it('returns 401 without auth', async () => {
     const deps = makeTestDeps();
-    const app = createApp({} as any, deps);
+    const app = createApp({} as unknown as Config, deps);
     const res = await app.request('/v1/events', {
       body: JSON.stringify(BATCH_FIXTURE),
       headers: { 'Content-Type': 'application/json' },
@@ -41,16 +41,18 @@ describe('POST /v1/events', () => {
 
   it('returns 202 with valid batch and auth', async () => {
     const deps = makeTestDeps();
-    (deps.db.authToken as any).findFirst = vi.fn().mockResolvedValue({
+    const authTokenStub = deps.db.authToken as unknown as { findFirst: ReturnType<typeof vi.fn> };
+    authTokenStub.findFirst = vi.fn().mockResolvedValue({
       expiresAt: null,
       id: 'tok-1',
       kind: 'hook',
       revokedAt: null,
       userId: '00000000-0000-0000-0000-000000000001',
     });
-    (deps.db as any).$executeRaw = vi.fn().mockResolvedValue(1);
+    const dbStub = deps.db as unknown as { $executeRaw: ReturnType<typeof vi.fn> };
+    dbStub.$executeRaw = vi.fn().mockResolvedValue(1);
 
-    const app = createApp({} as any, deps);
+    const app = createApp({} as unknown as Config, deps);
     const res = await app.request('/v1/events', {
       body: JSON.stringify(BATCH_FIXTURE),
       headers: {
@@ -67,7 +69,8 @@ describe('POST /v1/events', () => {
 
   it('returns 413 when batch exceeds 500 events', async () => {
     const deps = makeTestDeps();
-    (deps.db.authToken as any).findFirst = vi.fn().mockResolvedValue({
+    const authTokenStub = deps.db.authToken as unknown as { findFirst: ReturnType<typeof vi.fn> };
+    authTokenStub.findFirst = vi.fn().mockResolvedValue({
       expiresAt: null,
       id: 'tok-1',
       kind: 'hook',
@@ -80,7 +83,7 @@ describe('POST /v1/events', () => {
       event_id: `01906a44-0000-7000-8000-0000000${String(i).padStart(5, '0')}`,
     }));
 
-    const app = createApp({} as any, deps);
+    const app = createApp({} as unknown as Config, deps);
     const res = await app.request('/v1/events', {
       body: JSON.stringify({ ...BATCH_FIXTURE, events }),
       headers: {
