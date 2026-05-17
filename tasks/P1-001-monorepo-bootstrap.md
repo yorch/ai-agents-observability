@@ -34,10 +34,17 @@ Stand up the Bun-native monorepo: Bun 1.3 workspaces, Turborepo 3, Biome 2 (lint
 - [ ] `bunfig.toml` at root sets:
   ```toml
   [install]
-  linker = "hoisted"           # required: see PLAN.md §6
-  exact = true                 # no caret ranges in installed lockfile
-  frozenLockfile = false       # CI overrides to true
+  linker = "hoisted"           # required: see PLAN.md §6 (oven-sh/bun#23615)
+  exact = true                 # required: PLAN.md §4 pinning policy — bun add writes exact versions
+  saveTextLockfile = true      # text bun.lock, not legacy bun.lockb
+  registry = "https://registry.npmjs.org/"
+  # CI overrides with: bun install --frozen-lockfile
   ```
+- [ ] `engines` in root `package.json` pins exact runtimes:
+  ```json
+  "engines": { "node": "24.6.0", "bun": "1.3.13" }
+  ```
+- [ ] `.github/workflows/ci.yml` uses `oven-sh/setup-bun@v2` with `bun-version: 1.3.13` and `actions/setup-node@v4` with `node-version: 24.6.0` — both exact, no `lts/*`.
 - [ ] Sub-package `package.json` files use `"catalog:"` for shared deps (e.g. `"zod": "catalog:"`).
 - [ ] `bun.lock` committed (text format, v3).
 - [ ] `turbo.json` (Turborepo 3) defines pipelines: `build`, `check` (= `biome check`), `format`, `test`, `typecheck`, `dev`. `dev` is non-cacheable. Turbo auto-detects Bun.
@@ -60,44 +67,59 @@ Stand up the Bun-native monorepo: Bun 1.3 workspaces, Turborepo 3, Biome 2 (lint
 - [ ] `apps/{ingest,hook}` `package.json` declares Bun as runtime in `engines` — they run via `bun`, not node.
 - [ ] `apps/web` `package.json` declares Node 24 as runtime — Next.js 16 prod runs on Node, not Bun.
 - [ ] `bun install --frozen-lockfile && bun run check && bun run typecheck` succeeds from a clean clone with no source files.
+- [ ] `renovate.json` at repo root configures:
+  - schedule weekly (Monday mornings) so PRs don't pile up
+  - never auto-merge
+  - group major/minor/patch by ecosystem (React + react-dom + Next.js as one group; Prisma + @prisma/client as one group; Tailwind + @tailwindcss/postcss as one group)
+  - separate group for security patches (label `security`, no schedule)
+  - catalog awareness: update the root catalog entry, not per-package versions
 - [ ] `.env.example` at repo root enumerating every env var the project will use (initially empty; later tasks append).
 - [ ] CI workflow stub at `.github/workflows/ci.yml`:
-  - Uses `oven-sh/setup-bun@v2` pinned to Bun 1.3.13.
-  - Uses `actions/setup-node@v4` pinned to Node 24 (for Next.js build).
-  - Runs `bun install --frozen-lockfile`, `bun run typecheck`, `bun run check`, `bun run test`.
-  - Uses `biomejs/setup-biome@v2` only if Biome isn't already installed by `bun install` (Biome is a workspace dep — likely redundant; choose one).
+  - Uses `oven-sh/setup-bun@v2` pinned to `bun-version: 1.3.13` (exact).
+  - Uses `actions/setup-node@v4` pinned to `node-version: 24.6.0` (exact) for the Next.js build.
+  - GitHub Actions themselves pinned to commit SHAs (not just `@v2`/`@v4` tags) — supply-chain hardening. Document the SHAs in a comment next to each `uses:` line.
+  - Runs `bun install --frozen-lockfile` (fails the build if `bun.lock` is out of sync with `package.json`), then `bun run typecheck`, `bun run check`, `bun run test`.
+  - Biome is invoked via `bun run check` (catalog-installed) — no separate `biomejs/setup-biome` step needed.
 
 ## Implementation notes
 
-- Bun catalog syntax (root `package.json`):
+- Bun catalog syntax (root `package.json`). **Exact versions only — no carets, no tildes.** Per `PLAN.md` §4 pinning policy:
   ```json
   {
     "workspaces": {
       "packages": ["apps/*", "packages/*"],
       "catalog": {
-        "zod": "^4.0.0",
-        "hono": "^4.12.0",
-        "@hono/zod-validator": "^0.4.0",
-        "prisma": "^7.7.0",
-        "@prisma/client": "^7.7.0",
-        "next": "^16.2.0",
-        "react": "^19.2.6",
-        "react-dom": "^19.2.6",
-        "tailwindcss": "^4.1.0",
-        "@aws-sdk/client-s3": "^3.1047.0",
-        "octokit": "^5.0.5",
-        "jose": "^6.2.3",
-        "pino": "^10.3.1",
-        "croner": "^10.0.1",
-        "vitest": "^4.1.6",
-        "@biomejs/biome": "^2.4.0",
-        "typescript": "^6.0.0",
-        "turbo": "^3.0.0"
+        "zod": "4.1.0",
+        "hono": "4.12.19",
+        "@hono/zod-validator": "0.4.4",
+        "prisma": "7.7.0",
+        "@prisma/client": "7.7.0",
+        "next": "16.2.0",
+        "react": "19.2.6",
+        "react-dom": "19.2.6",
+        "tailwindcss": "4.1.0",
+        "@tailwindcss/postcss": "4.1.0",
+        "@aws-sdk/client-s3": "3.1047.0",
+        "octokit": "5.0.5",
+        "@octokit/webhooks": "14.1.0",
+        "jose": "6.2.3",
+        "pino": "10.3.1",
+        "pino-pretty": "14.0.0",
+        "pino-roll": "4.0.0",
+        "croner": "10.0.1",
+        "vitest": "4.1.6",
+        "fast-check": "4.4.0",
+        "react-virtuoso": "5.0.0",
+        "keytar": "8.0.0",
+        "@biomejs/biome": "2.4.0",
+        "typescript": "6.0.0",
+        "turbo": "3.0.0"
       }
     }
   }
   ```
-- Sub-package reference: `"zod": "catalog:"` — Bun resolves to the root catalog.
+- Sub-package reference: `"zod": "catalog:"` — Bun resolves to the root catalog. Never write a version range in a sub-package; if you need a divergent version, add a second named catalog (`workspaces.catalogs.legacy`) and document why.
+- The full canonical version table lives in `PLAN.md` §1 "Pinned tool versions" — keep this catalog and that table in lockstep when bumping.
 - Don't pull in Corepack. Bun is installed directly (CI uses `setup-bun`).
 - Don't try Bun's isolated installs yet — `linker = "hoisted"` is mandatory until [#23615](https://github.com/oven-sh/bun/issues/23615) is fixed.
 - Biome config tip: enable `linter.rules.nursery.useSortedClasses` only after Tailwind 4 is installed in P1-024.
@@ -114,6 +136,7 @@ Stand up the Bun-native monorepo: Bun 1.3 workspaces, Turborepo 3, Biome 2 (lint
 - `apps/{ingest,web,hook}/package.json` (+ `tsconfig.json`, `src/index.ts` empty stub)
 - `packages/{db,schemas,redaction,github,auth}/package.json` (+ `tsconfig.json`, `src/index.ts` empty stub)
 - `.github/workflows/ci.yml`
+- `renovate.json`
 - `.env.example`
 
 ## Out of scope
