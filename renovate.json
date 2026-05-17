@@ -1,57 +1,57 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:base"],
-  "schedule": ["before 9am on Monday"],
   "automerge": false,
-  "rebaseWhen": "conflicted",
+  "bun": {
+    "enabled": true
+  },
+  "extends": ["config:base"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am on Monday"]
+  },
   "packageRules": [
     {
+      "automerge": false,
       "description": "Security patches — ship same-day, no schedule",
-      "matchCategories": ["security"],
-      "schedule": ["at any time"],
       "labels": ["security"],
-      "automerge": false
+      "matchCategories": ["security"],
+      "schedule": ["at any time"]
     },
     {
       "description": "React + Next.js — bump together",
-      "matchPackageNames": ["react", "react-dom", "next", "@types/react", "@types/react-dom"],
-      "groupName": "React / Next.js"
+      "groupName": "React / Next.js",
+      "matchPackageNames": ["react", "react-dom", "next", "@types/react", "@types/react-dom"]
     },
     {
       "description": "Prisma — bump client and CLI together",
-      "matchPackageNames": ["prisma", "@prisma/client"],
-      "groupName": "Prisma"
+      "groupName": "Prisma",
+      "matchPackageNames": ["prisma", "@prisma/client"]
     },
     {
       "description": "Tailwind — bump core and PostCSS plugin together",
-      "matchPackageNames": ["tailwindcss", "@tailwindcss/postcss"],
-      "groupName": "Tailwind CSS"
+      "groupName": "Tailwind CSS",
+      "matchPackageNames": ["tailwindcss", "@tailwindcss/postcss"]
     },
     {
       "description": "Biome — single binary",
-      "matchPackageNames": ["@biomejs/biome"],
-      "groupName": "Biome"
+      "groupName": "Biome",
+      "matchPackageNames": ["@biomejs/biome"]
     },
     {
       "description": "Pino logging",
-      "matchPackageNames": ["pino", "pino-pretty", "pino-roll"],
-      "groupName": "Pino"
+      "groupName": "Pino",
+      "matchPackageNames": ["pino", "pino-pretty", "pino-roll"]
     },
     {
       "description": "Octokit",
+      "groupName": "Octokit",
       "matchPackageNames": [
         "octokit",
         "@octokit/webhooks",
         "@octokit/plugin-enterprise-compatibility"
-      ],
-      "groupName": "Octokit"
+      ]
     }
   ],
-  "bun": {
-    "enabled": true
-  },
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["before 9am on Monday"]
-  }
+  "rebaseWhen": "conflicted",
+  "schedule": ["before 9am on Monday"]
 }

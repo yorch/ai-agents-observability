@@ -1,11 +1,11 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "plugins": [{ "name": "next" }],
     "jsx": "preserve",
     "outDir": ".next",
+    "plugins": [{ "name": "next" }],
     "rootDir": "."
   },
-  "include": ["src/**/*", "app/**/*", "pages/**/*", "next.config.ts", "next-env.d.ts"],
-  "exclude": ["node_modules", ".next"]
+  "exclude": ["node_modules", ".next"],
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/**/*", "app/**/*", "pages/**/*", "next.config.ts", "next-env.d.ts"]
 }
