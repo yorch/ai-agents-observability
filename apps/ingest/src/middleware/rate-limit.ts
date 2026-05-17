@@ -7,6 +7,8 @@ const LIMIT = 1_000;
 
 type WindowEntry = { count: number; windowStart: number };
 
+// Reads IP from proxy-set headers. Requires a trusted proxy that strips/rewrites these headers;
+// without one, clients can spoof IPs and bypass the limit. Acceptable for v1 single-instance.
 function getClientIp(req: { header: (name: string) => string | undefined }): string {
   return (
     req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? req.header('x-real-ip') ?? 'unknown'

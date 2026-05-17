@@ -49,6 +49,9 @@ const LLMInfoSchema = z.object({
   output_tokens: z.number().int().nonnegative(),
 });
 
+// v1: tool and llm are optional across all event types for simplicity. A future version should
+// use z.discriminatedUnion('event_type', [...]) to enforce that PostToolUse/PreToolUse require
+// tool, that LLM-producing events require llm, and that SessionStart carries neither.
 export const EventSchema = z.object({
   agent_type: AgentTypeSchema.default('claude-code'),
   client: ClientInfoSchema,

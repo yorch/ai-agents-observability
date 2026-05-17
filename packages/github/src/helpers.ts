@@ -12,8 +12,8 @@ export async function getCurrentUser(client: GitHubClient): Promise<UserSummary>
 }
 
 export async function getOrgTeams(client: GitHubClient, org: string): Promise<TeamSummary[]> {
-  const { data } = await client.rest.teams.list({ org, per_page: 100 });
-  return data.map((t) => ({
+  const teams = await client.paginate(client.rest.teams.list, { org, per_page: 100 });
+  return teams.map((t) => ({
     description: t.description ?? null,
     id: t.id,
     // members_count is present in the API response but absent from Octokit's list types
@@ -28,8 +28,12 @@ export async function getTeamMembers(
   org: string,
   team_slug: string,
 ): Promise<UserSummary[]> {
-  const { data } = await client.rest.teams.listMembersInOrg({ org, per_page: 100, team_slug });
-  return data.map((m) => ({
+  const members = await client.paginate(client.rest.teams.listMembersInOrg, {
+    org,
+    per_page: 100,
+    team_slug,
+  });
+  return members.map((m) => ({
     email: null,
     id: m.id,
     login: m.login,

@@ -79,6 +79,7 @@ export function authRequired(db: DbClient, logger: Logger): MiddlewareHandler<Ap
       }
 
       user = { expiresAt: record.expiresAt, id: record.userId, kind: record.kind };
+      // revokedAt is intentionally not cached; revocations take effect within TOKEN_CACHE_TTL_MS.
       cache.set(tokenHash, user);
     } else if (user.expiresAt && user.expiresAt < now) {
       cache.delete(tokenHash);
