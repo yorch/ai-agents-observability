@@ -16,7 +16,7 @@ Source of truth for task status. Update this in the same commit as the task file
 | [P1-002](./P1-002-docker-compose-stack.md) | docker-compose dev stack | done | — | M | P1-001 |
 | [P1-003](./P1-003-prisma-schema.md) | Prisma schema for dimensional tables | done | — | M | P1-001 |
 | [P1-004](./P1-004-timescale-hypertable.md) | Timescale events hypertable + migration runner | done | — | M | P1-003 |
-| [P1-005](./P1-005-seed-script.md) | Seed script for local dev | ready | — | S | P1-003, P1-004 |
+| [P1-005](./P1-005-seed-script.md) | Seed script for local dev | done | — | S | P1-003, P1-004 |
 
 ### Workstream B — Ingest API
 
@@ -26,10 +26,10 @@ Source of truth for task status. Update this in the same commit as the task file
 | [P1-007](./P1-007-redaction-package.md) | Redaction package v1 + test cassettes | done | — | M | P1-001 |
 | [P1-008](./P1-008-ingest-skeleton.md) | apps/ingest skeleton (Bun + Hono) | done | — | S | P1-001 |
 | [P1-009](./P1-009-ingest-auth.md) | Ingest auth middleware + identity verification | done | — | M | P1-008, P1-014 |
-| [P1-010](./P1-010-events-endpoint.md) | POST /v1/events handler | ready | — | M | P1-008, P1-006, P1-004 |
-| [P1-011](./P1-011-session-aggregation.md) | Session aggregation upserts | blocked | — | M | P1-010 |
+| [P1-010](./P1-010-events-endpoint.md) | POST /v1/events handler | done | — | M | P1-008, P1-006, P1-004 |
+| [P1-011](./P1-011-session-aggregation.md) | Session aggregation upserts | ready | — | M | P1-010 |
 | [P1-012](./P1-012-transcripts-endpoint.md) | POST /v1/transcripts (chunked + MinIO) | ready | — | L | P1-008, P1-002, P1-007 |
-| [P1-013](./P1-013-price-table-endpoint.md) | GET /v1/price-table | ready | — | XS | P1-008 |
+| [P1-013](./P1-013-price-table-endpoint.md) | GET /v1/price-table | done | — | XS | P1-008 |
 
 ### Workstream C — Auth
 
@@ -37,25 +37,25 @@ Source of truth for task status. Update this in the same commit as the task file
 |---|---|---|---|---|---|
 | [P1-014](./P1-014-identity-provider-interface.md) | IdentityProvider interface + JWT issuance | done | — | M | P1-001 |
 | [P1-015](./P1-015-github-client-package.md) | packages/github: host-agnostic Octokit | done | — | S | P1-001 |
-| [P1-016](./P1-016-github-oauth-web.md) | GitHub OAuth (web flow) | ready | — | M | P1-014, P1-015 |
-| [P1-017](./P1-017-device-code-flow.md) | Device-code flow for hook | ready | — | M | P1-014, P1-015 |
+| [P1-016](./P1-016-github-oauth-web.md) | GitHub OAuth (web flow) | done | — | M | P1-014, P1-015 |
+| [P1-017](./P1-017-device-code-flow.md) | Device-code flow for hook | done | — | M | P1-014, P1-015 |
 | [P1-018](./P1-018-team-sync.md) | Team sync cron job | ready | — | S | P1-015, P1-003 |
 
 ### Workstream D — Hook
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P1-019](./P1-019-hook-compile-pipeline.md) | Bun compile pipeline + multi-target | ready | — | M | P1-001 |
-| [P1-020](./P1-020-hook-sqlite-queue.md) | SQLite queue + hook entrypoints (<10ms) | blocked | — | L | P1-019, P1-006 |
+| [P1-019](./P1-019-hook-compile-pipeline.md) | Bun compile pipeline + multi-target | done | — | M | P1-001 |
+| [P1-020](./P1-020-hook-sqlite-queue.md) | SQLite queue + hook entrypoints (<10ms) | ready | — | L | P1-019, P1-006 |
 | [P1-021](./P1-021-hook-flusher.md) | Background flusher | blocked | — | M | P1-020, P1-010 |
 | [P1-022](./P1-022-hook-transcript-shipper.md) | Transcript shipper with redaction | blocked | — | M | P1-020, P1-012, P1-007 |
-| [P1-023](./P1-023-hook-subcommands.md) | Subcommands (login/status/pause/resume/purge/install) | blocked | — | M | P1-019, P1-017 |
+| [P1-023](./P1-023-hook-subcommands.md) | Subcommands (login/status/pause/resume/purge/install) | ready | — | M | P1-019, P1-017 |
 
 ### Workstream E — Web UI
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P1-024](./P1-024-web-scaffold.md) | Next.js scaffold + OAuth wiring | blocked | — | M | P1-001, P1-016 |
+| [P1-024](./P1-024-web-scaffold.md) | Next.js scaffold + OAuth wiring | ready | — | M | P1-001, P1-016 |
 | [P1-025](./P1-025-me-overview.md) | /me overview page | blocked | — | M | P1-024, P1-011 |
 | [P1-026](./P1-026-me-sessions.md) | /me/sessions list + detail + transcript viewer | blocked | — | L | P1-024, P1-011, P1-012 |
 | [P1-027](./P1-027-me-privacy-audit.md) | /me/privacy + /me/audit | blocked | — | M | P1-024, P1-003 |
