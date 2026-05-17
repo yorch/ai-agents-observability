@@ -1,7 +1,7 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.24
 
 # ── Base ──────────────────────────────────────────────────────────────────────
-FROM oven/bun:1.2-alpine AS base
+FROM oven/bun:1.3.14-alpine AS base
 WORKDIR /app
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ RUN bun build apps/ingest/src/index.ts \
       --external '@prisma/client'
 
 # ── Production ────────────────────────────────────────────────────────────────
-FROM oven/bun:1.2-alpine AS production
+FROM oven/bun:1.3.14-alpine AS production
 WORKDIR /app
 
 RUN addgroup -S ingest && adduser -S ingest -G ingest
