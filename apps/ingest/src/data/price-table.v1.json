@@ -1,0 +1,55 @@
+{
+  "_comment": "Update DESIGN_DOC.md §7.2 when changing. Prices in USD per million tokens. Source: https://www.anthropic.com/pricing",
+  "version": "v1",
+  "generated_at": "2025-05-17T00:00:00Z",
+  "prices": {
+    "claude-opus-4-7": {
+      "input_per_mtok": 15.0,
+      "output_per_mtok": 75.0,
+      "cache_read_per_mtok": 1.50,
+      "cache_write_per_mtok": 18.75
+    },
+    "claude-opus-4-6": {
+      "input_per_mtok": 15.0,
+      "output_per_mtok": 75.0,
+      "cache_read_per_mtok": 1.50,
+      "cache_write_per_mtok": 18.75
+    },
+    "claude-sonnet-4-6": {
+      "input_per_mtok": 3.0,
+      "output_per_mtok": 15.0,
+      "cache_read_per_mtok": 0.30,
+      "cache_write_per_mtok": 3.75
+    },
+    "claude-haiku-4-5": {
+      "input_per_mtok": 0.80,
+      "output_per_mtok": 4.0,
+      "cache_read_per_mtok": 0.08,
+      "cache_write_per_mtok": 1.00
+    },
+    "claude-haiku-4-5-20251001": {
+      "input_per_mtok": 0.80,
+      "output_per_mtok": 4.0,
+      "cache_read_per_mtok": 0.08,
+      "cache_write_per_mtok": 1.00
+    },
+    "claude-3-5-sonnet-20241022": {
+      "input_per_mtok": 3.0,
+      "output_per_mtok": 15.0,
+      "cache_read_per_mtok": 0.30,
+      "cache_write_per_mtok": 3.75
+    },
+    "claude-3-5-haiku-20241022": {
+      "input_per_mtok": 0.80,
+      "output_per_mtok": 4.0,
+      "cache_read_per_mtok": 0.08,
+      "cache_write_per_mtok": 1.00
+    },
+    "claude-3-opus-20240229": {
+      "input_per_mtok": 15.0,
+      "output_per_mtok": 75.0,
+      "cache_read_per_mtok": 1.50,
+      "cache_write_per_mtok": 18.75
+    }
+  }
+}

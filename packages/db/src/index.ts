@@ -1,5 +1,9 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './generated/client/client.js';
+import { Prisma, PrismaClient } from './generated/client/client.js';
+
+export { Prisma, PrismaClient };
+export type * from './generated/client/client.js';
+export { applySqlMigrations } from './sql-migrate.js';
 
 export function createClient(connectionString: string): PrismaClient {
   const adapter = new PrismaPg({ connectionString });
@@ -14,7 +18,3 @@ export const prisma: PrismaClient =
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma._prisma = prisma;
 }
-
-export type * from './generated/client/client.js';
-export { applySqlMigrations } from './sql-migrate.js';
-export { PrismaClient };
