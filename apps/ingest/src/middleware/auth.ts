@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { hashToken } from '@ai-agents-observability/auth';
 import type { PrismaClient } from '@ai-agents-observability/db';
 import type { MiddlewareHandler } from 'hono';
 import type { Logger } from 'pino';
@@ -11,6 +11,7 @@ type CachedUser = { expiresAt: Date | null; id: string; kind: 'hook' };
 type CacheEntry = { expiresAt: number; value: CachedUser };
 
 const TOKEN_CACHE_TTL_MS = 30_000;
+const CCT_PREFIX = 'cct_';
 
 class TtlCache {
   private readonly store = new Map<string, CacheEntry>();
@@ -45,11 +46,12 @@ export function authRequired(db: DbClient, logger: Logger): MiddlewareHandler<Ap
 
     const token = authHeader.slice(7);
 
-    if (!token.startsWith('cct_')) {
+    if (!token.startsWith(CCT_PREFIX)) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const tokenHash = hashToken(token);
+    const now = new Date();
 
     let user = cache.get(tokenHash);
 
@@ -66,7 +68,7 @@ export function authRequired(db: DbClient, logger: Logger): MiddlewareHandler<Ap
         return c.json({ error: 'Unauthorized' }, 401);
       }
 
-      if (record.expiresAt && record.expiresAt < new Date()) {
+      if (record.expiresAt && record.expiresAt < now) {
         logger.warn({ reqId: c.get('requestId') }, 'auth: token expired');
         return c.json({ error: 'Unauthorized' }, 401);
       }
@@ -78,7 +80,7 @@ export function authRequired(db: DbClient, logger: Logger): MiddlewareHandler<Ap
 
       user = { expiresAt: record.expiresAt, id: record.userId, kind: record.kind };
       cache.set(tokenHash, user);
-    } else if (user.expiresAt && user.expiresAt < new Date()) {
+    } else if (user.expiresAt && user.expiresAt < now) {
       cache.delete(tokenHash);
       logger.warn({ reqId: c.get('requestId') }, 'auth: cached token expired');
       return c.json({ error: 'Unauthorized' }, 401);

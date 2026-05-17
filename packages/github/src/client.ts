@@ -5,15 +5,14 @@ const GITHUB_COM_HOST = 'https://github.com';
 const GITHUB_COM_API = 'https://api.github.com';
 
 function resolveApiBase(host: string): string {
-  const normalized = host.replace(/\/$/, '');
-  if (normalized === GITHUB_COM_HOST) {
+  if (host === GITHUB_COM_HOST) {
     return GITHUB_COM_API;
   }
-  return `${normalized}/api/v3`;
+  return `${host}/api/v3`;
 }
 
 function isGhes(host: string): boolean {
-  return host.replace(/\/$/, '') !== GITHUB_COM_HOST;
+  return host !== GITHUB_COM_HOST;
 }
 
 export type CreateGitHubClientOptions = {

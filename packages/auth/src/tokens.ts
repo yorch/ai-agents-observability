@@ -38,7 +38,7 @@ function generateOpaqueToken(): string {
   return TOKEN_PREFIX + bytesToBase32(new Uint8Array(bytes));
 }
 
-function hashToken(plaintext: string): string {
+export function hashToken(plaintext: string): string {
   return createHash('sha256').update(plaintext).digest('hex');
 }
 

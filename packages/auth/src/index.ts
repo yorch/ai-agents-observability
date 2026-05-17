@@ -6,6 +6,7 @@ export type { ExternalIdentity, IdentityProvider, TeamMembership } from './provi
 
 export type { AccessTokenPayload, OpaqueTokenPayload } from './tokens.js';
 export {
+  hashToken,
   issueAccessToken,
   issueHookToken,
   issueRefreshToken,
