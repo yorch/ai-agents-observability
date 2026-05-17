@@ -1,0 +1,57 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "automerge": false,
+  "bun": {
+    "enabled": true
+  },
+  "extends": ["config:base"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am on Monday"]
+  },
+  "packageRules": [
+    {
+      "automerge": false,
+      "description": "Security patches — ship same-day, no schedule",
+      "labels": ["security"],
+      "matchCategories": ["security"],
+      "schedule": ["at any time"]
+    },
+    {
+      "description": "React + Next.js — bump together",
+      "groupName": "React / Next.js",
+      "matchPackageNames": ["react", "react-dom", "next", "@types/react", "@types/react-dom"]
+    },
+    {
+      "description": "Prisma — bump client and CLI together",
+      "groupName": "Prisma",
+      "matchPackageNames": ["prisma", "@prisma/client"]
+    },
+    {
+      "description": "Tailwind — bump core and PostCSS plugin together",
+      "groupName": "Tailwind CSS",
+      "matchPackageNames": ["tailwindcss", "@tailwindcss/postcss"]
+    },
+    {
+      "description": "Biome — single binary",
+      "groupName": "Biome",
+      "matchPackageNames": ["@biomejs/biome"]
+    },
+    {
+      "description": "Pino logging",
+      "groupName": "Pino",
+      "matchPackageNames": ["pino", "pino-pretty", "pino-roll"]
+    },
+    {
+      "description": "Octokit",
+      "groupName": "Octokit",
+      "matchPackageNames": [
+        "octokit",
+        "@octokit/webhooks",
+        "@octokit/plugin-enterprise-compatibility"
+      ]
+    }
+  ],
+  "rebaseWhen": "conflicted",
+  "schedule": ["before 9am on Monday"]
+}

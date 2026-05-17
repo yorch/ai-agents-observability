@@ -1,0 +1,29 @@
+{
+  "name": "@ai-agents-observability/hook",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Bun-compiled CLI: claude-telemetry binary",
+  "engines": {
+    "bun": ">=1.3.13"
+  },
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile bin/claude-telemetry",
+    "build:all": "bun run build:darwin-arm64 && bun run build:darwin-amd64 && bun run build:linux-amd64",
+    "build:darwin-arm64": "bun build src/index.ts --compile --target bun-darwin-arm64 --outfile bin/claude-telemetry-darwin-arm64",
+    "build:darwin-amd64": "bun build src/index.ts --compile --target bun-darwin-x64 --outfile bin/claude-telemetry-darwin-amd64",
+    "build:linux-amd64": "bun build src/index.ts --compile --target bun-linux-x64 --outfile bin/claude-telemetry-linux-amd64",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "zod": "catalog:",
+    "jose": "catalog:",
+    "pino": "catalog:",
+    "keytar": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

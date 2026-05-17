@@ -1,0 +1,23 @@
+{
+  "name": "@ai-agents-observability/schemas",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Zod schemas for hook payload and shared types",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

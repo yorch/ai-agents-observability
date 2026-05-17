@@ -1,0 +1,21 @@
+{
+  "name": "@ai-agents-observability/redaction",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Regex scrubber — client-side redaction before transcript upload",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "fast-check": "catalog:"
+  }
+}
