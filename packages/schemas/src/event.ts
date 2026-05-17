@@ -55,7 +55,7 @@ export const EventSchema = z.object({
   event_id: z.uuidv7(),
   event_type: EventTypeSchema,
   llm: LLMInfoSchema.nullable().optional(),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   parent_event_id: z.uuidv7().nullable().optional(),
   redaction_flags: z.array(z.string()).default([]),
   schema_version: z.literal(1),

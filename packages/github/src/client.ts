@@ -39,7 +39,7 @@ export function createGitHubClient(options: CreateGitHubClientOptions): GitHubCl
   return new OctokitWithPlugins({
     auth: options.token,
     baseUrl,
-    request: options.fetch ? { fetch: options.fetch } : undefined,
+    ...(options.fetch ? { request: { fetch: options.fetch } } : {}),
     userAgent,
   });
 }

@@ -7,6 +7,7 @@ WORKDIR /app
 # ── Dependencies ──────────────────────────────────────────────────────────────
 FROM base AS deps
 COPY bun.lock package.json bunfig.toml ./
+COPY packages/auth/package.json packages/auth/
 COPY packages/db/package.json packages/db/
 COPY packages/schemas/package.json packages/schemas/
 COPY apps/ingest/package.json apps/ingest/
@@ -17,6 +18,8 @@ FROM deps AS build
 COPY packages/ packages/
 COPY apps/ingest/ apps/ingest/
 COPY tsconfig.base.json ./
+# Generate Prisma client before bundling
+RUN cd packages/db && bunx prisma generate
 RUN bun build apps/ingest/src/index.ts \
       --target bun \
       --outdir apps/ingest/dist \
@@ -30,6 +33,7 @@ RUN addgroup -S ingest && adduser -S ingest -G ingest
 USER ingest
 
 COPY --from=build --chown=ingest:ingest /app/apps/ingest/dist ./dist
+COPY --from=build --chown=ingest:ingest /app/packages/db/src/generated ./packages/db/src/generated
 COPY --from=deps --chown=ingest:ingest /app/node_modules ./node_modules
 
 ENV NODE_ENV=production

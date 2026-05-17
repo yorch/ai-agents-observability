@@ -7,7 +7,7 @@ import type { AppEnv } from '../types.js';
 
 type DbClient = Pick<PrismaClient, 'authToken'>;
 
-type CachedUser = { id: string; kind: 'access' | 'hook' | 'refresh' };
+type CachedUser = { expiresAt: Date | null; id: string; kind: 'hook' };
 type CacheEntry = { expiresAt: number; value: CachedUser };
 
 const TOKEN_CACHE_TTL_MS = 30_000;
@@ -71,12 +71,17 @@ export function authRequired(db: DbClient, logger: Logger): MiddlewareHandler<Ap
         return c.json({ error: 'Unauthorized' }, 401);
       }
 
-      if (record.kind !== 'access' && record.kind !== 'hook' && record.kind !== 'refresh') {
+      if (record.kind !== 'hook') {
+        logger.warn({ kind: record.kind, reqId: c.get('requestId') }, 'auth: wrong token kind');
         return c.json({ error: 'Unauthorized' }, 401);
       }
 
-      user = { id: record.userId, kind: record.kind };
+      user = { expiresAt: record.expiresAt, id: record.userId, kind: record.kind };
       cache.set(tokenHash, user);
+    } else if (user.expiresAt && user.expiresAt < new Date()) {
+      cache.delete(tokenHash);
+      logger.warn({ reqId: c.get('requestId') }, 'auth: cached token expired');
+      return c.json({ error: 'Unauthorized' }, 401);
     }
 
     c.set('user', user);

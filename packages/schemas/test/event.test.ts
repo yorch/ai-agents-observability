@@ -101,7 +101,11 @@ describe('EventSchema', () => {
   });
 
   it('allows null tool for UserPromptSubmit', () => {
-    const result = EventSchema.safeParse({ ...validEvent, event_type: 'UserPromptSubmit', tool: null });
+    const result = EventSchema.safeParse({
+      ...validEvent,
+      event_type: 'UserPromptSubmit',
+      tool: null,
+    });
     expect(result.success).toBe(true);
   });
 
@@ -110,7 +114,7 @@ describe('EventSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects extra field in tool if using strict sub-schema', () => {
+  it('strips unknown fields in tool (z.object default behavior)', () => {
     const bad = { ...validEvent, tool: { ...validEvent.tool, unknown_field: 'x' } };
     // z.object strips unknowns by default — parse succeeds but strips the field
     const result = EventSchema.safeParse(bad);
@@ -150,11 +154,15 @@ describe('TranscriptChunkMetaSchema', () => {
   });
 
   it('rejects negative chunk_index', () => {
-    expect(TranscriptChunkMetaSchema.safeParse({ ...validMeta, chunk_index: -1 }).success).toBe(false);
+    expect(TranscriptChunkMetaSchema.safeParse({ ...validMeta, chunk_index: -1 }).success).toBe(
+      false,
+    );
   });
 
   it('rejects zero total_chunks', () => {
-    expect(TranscriptChunkMetaSchema.safeParse({ ...validMeta, total_chunks: 0 }).success).toBe(false);
+    expect(TranscriptChunkMetaSchema.safeParse({ ...validMeta, total_chunks: 0 }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -179,7 +187,9 @@ describe('PriceTableSchema', () => {
   it('rejects negative prices', () => {
     const bad = {
       ...validTable,
-      prices: { 'claude-sonnet-4-6': { ...validTable.prices['claude-sonnet-4-6'], input_per_mtok: -1 } },
+      prices: {
+        'claude-sonnet-4-6': { ...validTable.prices['claude-sonnet-4-6'], input_per_mtok: -1 },
+      },
     };
     expect(PriceTableSchema.safeParse(bad).success).toBe(false);
   });

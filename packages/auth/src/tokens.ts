@@ -154,10 +154,14 @@ export async function rotateRefreshToken(
   return prisma.$transaction(async (tx) => {
     const { tokenId, userId } = await verifyOpaqueToken(tx as DbClient, refreshPlaintext);
 
-    await (tx as DbClient).authToken.update({
-      data: { revokedAt: new Date() },
-      where: { id: tokenId },
+    const revokedAt = new Date();
+    const { count } = await tx.authToken.updateMany({
+      data: { revokedAt },
+      where: { id: tokenId, revokedAt: null },
     });
+    if (count === 0) {
+      throw new Error('Refresh token already rotated');
+    }
 
     const [newRefresh, access] = await Promise.all([
       issueOpaqueToken(tx as DbClient, userId, 'refresh'),

@@ -14,7 +14,7 @@ function makeLargeWithSecrets(sizeBytes: number): string {
   const base = makeLargePlaintext(sizeBytes);
   const secrets = [
     'AKIAIOSFODNN7EXAMPLE',
-    'ghp_16C7e42F292c6912E169B7B89B29DCA4BCB',
+    'ghp_16C7e42F292c6912E169B7B89B29DCA4BCBA',
     'xoxb-123456789012-123456789012-AbCdEfGhIjKlMnOpQrSt',
     'MY_SECRET_KEY=hunter2',
   ].join('\n');
@@ -23,12 +23,15 @@ function makeLargeWithSecrets(sizeBytes: number): string {
 
 const ONE_MB = 1_000_000;
 
+const plainInput = makeLargePlaintext(ONE_MB);
+const secretsInput = makeLargeWithSecrets(ONE_MB);
+
 describe('redact() performance', () => {
   bench('1 MB plain text (no secrets)', () => {
-    redact(makeLargePlaintext(ONE_MB));
+    redact(plainInput);
   });
 
   bench('1 MB text with secrets scattered in', () => {
-    redact(makeLargeWithSecrets(ONE_MB));
+    redact(secretsInput);
   });
 });

@@ -10,6 +10,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "bench": "vitest bench",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },

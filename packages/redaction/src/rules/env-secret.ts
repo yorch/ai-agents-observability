@@ -1,8 +1,8 @@
 import type { RedactionRule } from './types.js';
 
 // Matches KEY=value where the key ends in _KEY, _TOKEN, _SECRET, or _PASSWORD.
-// Preserves the key name; redacts only the value so context is retained.
-const RE = /([A-Z][A-Z0-9_]*(?:_KEY|_TOKEN|_SECRET|_PASSWORD)=)\S+/gi;
+// Handles bare, double-quoted, and single-quoted values; preserves the key name.
+const RE = /([A-Z][A-Z0-9_]*(?:_KEY|_TOKEN|_SECRET|_PASSWORD)=)(?:"[^"]*"|'[^']*'|\S+)/gi;
 
 export const envSecretRule: RedactionRule = {
   apply(text) {

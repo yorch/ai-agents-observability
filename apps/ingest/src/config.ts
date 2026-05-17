@@ -9,7 +9,11 @@ const ConfigSchema = z.object({
   s3_access_key_id: z.string().min(1),
   s3_bucket: z.string().min(1),
   s3_endpoint: z.string().url(),
-  s3_force_path_style: z.coerce.boolean().default(true),
+  s3_force_path_style: z
+    .string()
+    .optional()
+    .transform((v) => v !== 'false' && v !== '0')
+    .default(true),
   s3_region: z.string().default('us-east-1'),
   s3_secret_access_key: z.string().min(1),
 });

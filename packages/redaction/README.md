@@ -20,7 +20,7 @@ Seven rule classes run in sequence. Matches are replaced with `[REDACTED:<class>
 |---|---|---|
 | `aws-access-key` | `AKIA[0-9A-Z]{16}` | `AKIAIOSFODNN7EXAMPLE` |
 | `aws-secret-key` | 40-char base64 + Shannon entropy ≥ 4.5 bits/char | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `github-token` | `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` (36 chars) or `github_pat_` (82 chars) | `ghp_16C7e42F292c6912E169B7B89B29DCA4BCB` |
+| `github-token` | `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` (36 chars) or `github_pat_` (82 chars) | `ghp_16C7e42F292c6912E169B7B89B29DCA4BCBA` |
 | `jwt` | `eyJ…header.eyJ…payload.signature` | Full JWT token string |
 | `slack-token` | `xox[abp]-<10+ chars>` | `xoxb-123456789012-…` |
 | `env-secret` | `*_KEY=`, `*_TOKEN=`, `*_SECRET=`, `*_PASSWORD=` | `API_TOKEN=hunter2` → `API_TOKEN=[REDACTED:env-secret]` |

@@ -16,7 +16,7 @@ export async function getOrgTeams(client: GitHubClient, org: string): Promise<Te
   return data.map((t) => ({
     description: t.description ?? null,
     id: t.id,
-    members_count: t.members_count ?? 0,
+    members_count: 0,
     name: t.name,
     slug: t.slug,
   }));

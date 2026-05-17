@@ -1,6 +1,6 @@
 export type AppEnv = {
   Variables: {
     requestId: string;
-    user?: { id: string; kind: 'access' | 'hook' | 'refresh' };
+    user?: { expiresAt: Date | null; id: string; kind: 'hook' };
   };
 };

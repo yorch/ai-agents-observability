@@ -1,10 +1,10 @@
-import type { KeyLike } from 'jose';
+import type { CryptoKey } from 'jose';
 import { importPKCS8, importSPKI } from 'jose';
 
-let _privateKey: KeyLike | null = null;
-let _publicKey: KeyLike | null = null;
+let _privateKey: CryptoKey | null = null;
+let _publicKey: CryptoKey | null = null;
 
-export async function getPrivateKey(): Promise<KeyLike> {
+export async function getPrivateKey(): Promise<CryptoKey> {
   if (_privateKey) {
     return _privateKey;
   }
@@ -16,7 +16,7 @@ export async function getPrivateKey(): Promise<KeyLike> {
   return _privateKey;
 }
 
-export async function getPublicKey(): Promise<KeyLike> {
+export async function getPublicKey(): Promise<CryptoKey> {
   if (_publicKey) {
     return _publicKey;
   }
@@ -29,7 +29,7 @@ export async function getPublicKey(): Promise<KeyLike> {
 }
 
 /** For tests: inject pre-loaded key material instead of reading from env. */
-export function setKeysForTesting(privateKey: KeyLike, publicKey: KeyLike): void {
+export function setKeysForTesting(privateKey: CryptoKey, publicKey: CryptoKey): void {
   _privateKey = privateKey;
   _publicKey = publicKey;
 }
