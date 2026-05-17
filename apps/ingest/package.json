@@ -13,11 +13,13 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "hono": "catalog:",
+    "@ai-agents-observability/auth": "workspace:*",
+    "@ai-agents-observability/db": "workspace:*",
+    "@aws-sdk/client-s3": "catalog:",
     "@hono/zod-validator": "catalog:",
-    "zod": "catalog:",
+    "hono": "catalog:",
     "pino": "catalog:",
-    "@aws-sdk/client-s3": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "typescript": "catalog:",
