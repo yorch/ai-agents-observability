@@ -1,3 +1,4 @@
+import type { ExternalIdentity } from '@ai-agents-observability/auth';
 import { issueAccessToken, issueRefreshToken } from '@ai-agents-observability/auth';
 import { createClient } from '@ai-agents-observability/db';
 import { NextResponse } from 'next/server';
@@ -22,28 +23,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Invalid state' }, { status: 400 });
   }
 
-  let identity;
+  let identity: ExternalIdentity;
   try {
-    identity = await provider.completeAuthorize({ code, state });
+    identity = await provider.completeAuthorize({
+      code,
+      redirectUri: `${url.origin}/api/auth/callback`,
+      state,
+    });
   } catch {
     return NextResponse.json({ error: 'OAuth exchange failed' }, { status: 502 });
   }
 
   const githubId = BigInt(identity.external_id);
   const user = await db.user.upsert({
-    where: { githubId },
     create: {
-      githubLogin: (identity.raw as { login: string }).login,
-      githubId,
-      email: identity.email,
       displayName: identity.display_name,
+      email: identity.email,
+      githubId,
+      githubLogin: (identity.raw as { login: string }).login,
       lastSeenAt: new Date(),
     },
     update: {
-      email: identity.email,
       displayName: identity.display_name,
+      email: identity.email,
       lastSeenAt: new Date(),
     },
+    where: { githubId },
   });
 
   await ensureVisibilityPolicy(db, user.id);

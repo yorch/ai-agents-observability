@@ -9,7 +9,10 @@ export function priceTableRouter(priceTable: PriceTable): Hono<AppEnv> {
 
   router.get('/', (c) => {
     if (c.req.header('if-none-match') === etag) {
-      return new Response(null, { status: 304 });
+      return new Response(null, {
+        headers: { 'Cache-Control': 'public, max-age=3600', ETag: etag },
+        status: 304,
+      });
     }
 
     return c.json(priceTable, 200, {

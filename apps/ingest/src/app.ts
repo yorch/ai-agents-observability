@@ -1,10 +1,11 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
-import { PriceTableSchema } from '@ai-agents-observability/schemas';
 import type { PriceTable } from '@ai-agents-observability/schemas';
+import { PriceTableSchema } from '@ai-agents-observability/schemas';
 import { Hono } from 'hono';
 import type { Logger } from 'pino';
 
 import type { Config } from './config.js';
+import rawPriceTable from './data/price-table.v1.json' with { type: 'json' };
 import { authRequired } from './middleware/auth.js';
 import { loggerMiddleware } from './middleware/logger.js';
 import { rateLimitMiddleware } from './middleware/rate-limit.js';
@@ -12,8 +13,6 @@ import { requestIdMiddleware } from './middleware/request-id.js';
 import { eventsRouter } from './routes/events.js';
 import { priceTableRouter } from './routes/price-table.js';
 import type { AppEnv, EventsDb } from './types.js';
-
-import rawPriceTable from './data/price-table.v1.json' with { type: 'json' };
 
 export type { AppEnv };
 

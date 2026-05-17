@@ -3,7 +3,7 @@ import { createClient } from '@ai-agents-observability/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-import { clearAuthCookies, COOKIE_ACCESS } from '../../../../lib/session-cookie.js';
+import { COOKIE_ACCESS, clearAuthCookies } from '../../../../lib/session-cookie.js';
 
 const db = createClient(process.env.DATABASE_URL!);
 
@@ -15,8 +15,8 @@ export async function POST() {
     try {
       const { userId } = await verifyAccessToken(access);
       await db.authToken.updateMany({
-        where: { userId, revokedAt: null },
         data: { revokedAt: new Date() },
+        where: { revokedAt: null, userId },
       });
     } catch {
       // Best-effort revocation — still clear cookies

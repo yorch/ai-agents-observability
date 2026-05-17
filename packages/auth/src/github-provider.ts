@@ -12,7 +12,7 @@ export class GitHubProvider implements IdentityProvider {
 
   private readonly clientId: string;
   private readonly clientSecret: string;
-  private readonly fetch?: typeof globalThis.fetch;
+  private readonly fetch: typeof globalThis.fetch | undefined;
 
   constructor(opts: { clientId: string; clientSecret: string; fetch?: typeof globalThis.fetch }) {
     this.clientId = opts.clientId;
@@ -33,25 +33,34 @@ export class GitHubProvider implements IdentityProvider {
     return { state, url: `${base}/login/oauth/authorize?${params}` };
   }
 
-  async completeAuthorize(params: { code: string; state: string }): Promise<ExternalIdentity> {
+  async completeAuthorize(params: {
+    code: string;
+    redirectUri: string;
+    state: string;
+  }): Promise<ExternalIdentity> {
     const host = getGitHubHost();
     const base = getOAuthBase(host);
     const tokenRes = await (this.fetch ?? fetch)(`${base}/login/oauth/access_token`, {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: new URLSearchParams({
         client_id: this.clientId,
         client_secret: this.clientSecret,
         code: params.code,
+        redirect_uri: params.redirectUri,
       }),
+      headers: { Accept: 'application/json' },
+      method: 'POST',
     });
-    if (!tokenRes.ok) throw new Error(`GitHub token exchange failed: ${tokenRes.status}`);
+    if (!tokenRes.ok) {
+      throw new Error(`GitHub token exchange failed: ${tokenRes.status}`);
+    }
     const tokenBody = (await tokenRes.json()) as { access_token?: string; error?: string };
-    if (!tokenBody.access_token) throw new Error(`GitHub OAuth error: ${tokenBody.error ?? 'no token'}`);
+    if (!tokenBody.access_token) {
+      throw new Error(`GitHub OAuth error: ${tokenBody.error ?? 'no token'}`);
+    }
 
     const client = createGitHubClient({
-      token: tokenBody.access_token,
       host,
+      token: tokenBody.access_token,
       ...(this.fetch ? { fetch: this.fetch } : {}),
     });
     const { data: ghUser } = await client.rest.users.getAuthenticated();
@@ -72,7 +81,7 @@ export class GitHubProvider implements IdentityProvider {
       email,
       external_id: String(ghUser.id),
       provider_name: 'github',
-      raw: { login: ghUser.login, avatar_url: ghUser.avatar_url, id: ghUser.id },
+      raw: { avatar_url: ghUser.avatar_url, id: ghUser.id, login: ghUser.login },
     };
   }
 

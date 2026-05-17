@@ -15,34 +15,40 @@ export async function setAuthCookies(access: string, refresh: string) {
   const jar = await cookies();
   jar.set(COOKIE_ACCESS, access, {
     httpOnly: true,
-    secure: IS_PROD,
-    sameSite: 'lax',
-    path: '/',
     maxAge: 15 * 60,
+    path: '/',
+    sameSite: 'lax',
+    secure: IS_PROD,
   });
   jar.set(COOKIE_REFRESH, refresh, {
     httpOnly: true,
-    secure: IS_PROD,
-    sameSite: 'lax',
-    path: '/api/auth/refresh',
     maxAge: 90 * 24 * 60 * 60,
+    path: '/api/auth/refresh',
+    sameSite: 'lax',
+    secure: IS_PROD,
   });
 }
 
 export async function clearAuthCookies() {
   const jar = await cookies();
   jar.delete(COOKIE_ACCESS);
-  jar.delete(COOKIE_REFRESH);
+  jar.set(COOKIE_REFRESH, '', {
+    httpOnly: true,
+    maxAge: 0,
+    path: '/api/auth/refresh',
+    sameSite: 'lax',
+    secure: IS_PROD,
+  });
 }
 
 export async function setStateCookie(stateHash: string) {
   const jar = await cookies();
   jar.set(COOKIE_STATE, stateHash, {
     httpOnly: true,
-    secure: IS_PROD,
-    sameSite: 'lax',
-    path: '/api/auth/callback',
     maxAge: 10 * 60,
+    path: '/api/auth/callback',
+    sameSite: 'lax',
+    secure: IS_PROD,
   });
 }
 

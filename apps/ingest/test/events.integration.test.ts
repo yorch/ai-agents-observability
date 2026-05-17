@@ -4,12 +4,6 @@ import { createApp } from '../src/app.js';
 import { makeTestDeps } from './helpers.js';
 
 const BATCH_FIXTURE = {
-  session_context: {
-    cwd: '/home/user/project',
-    git: null,
-    is_resume: false,
-    mode: 'normal',
-  },
   events: [
     {
       agent_type: 'claude-code',
@@ -25,35 +19,45 @@ const BATCH_FIXTURE = {
       user_id_claim: '00000000-0000-0000-0000-000000000001',
     },
   ],
+  session_context: {
+    cwd: '/home/user/project',
+    git: null,
+    is_resume: false,
+    mode: 'normal',
+  },
 };
 
 describe('POST /v1/events', () => {
   it('returns 401 without auth', async () => {
     const deps = makeTestDeps();
     const app = createApp({} as any, deps);
-    const res = await app.request('/v1/events', { method: 'POST', body: JSON.stringify(BATCH_FIXTURE), headers: { 'Content-Type': 'application/json' } });
+    const res = await app.request('/v1/events', {
+      body: JSON.stringify(BATCH_FIXTURE),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    });
     expect(res.status).toBe(401);
   });
 
   it('returns 202 with valid batch and auth', async () => {
     const deps = makeTestDeps();
     (deps.db.authToken as any).findFirst = vi.fn().mockResolvedValue({
-      id: 'tok-1',
-      userId: '00000000-0000-0000-0000-000000000001',
-      kind: 'hook',
       expiresAt: null,
+      id: 'tok-1',
+      kind: 'hook',
       revokedAt: null,
+      userId: '00000000-0000-0000-0000-000000000001',
     });
     (deps.db as any).$executeRaw = vi.fn().mockResolvedValue(1);
 
     const app = createApp({} as any, deps);
     const res = await app.request('/v1/events', {
-      method: 'POST',
       body: JSON.stringify(BATCH_FIXTURE),
       headers: {
-        'Content-Type': 'application/json',
         Authorization: 'Bearer cct_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        'Content-Type': 'application/json',
       },
+      method: 'POST',
     });
     expect(res.status).toBe(202);
     const body = await res.json();
@@ -64,11 +68,11 @@ describe('POST /v1/events', () => {
   it('returns 413 when batch exceeds 500 events', async () => {
     const deps = makeTestDeps();
     (deps.db.authToken as any).findFirst = vi.fn().mockResolvedValue({
-      id: 'tok-1',
-      userId: '00000000-0000-0000-0000-000000000001',
-      kind: 'hook',
       expiresAt: null,
+      id: 'tok-1',
+      kind: 'hook',
       revokedAt: null,
+      userId: '00000000-0000-0000-0000-000000000001',
     });
 
     const events = Array.from({ length: 501 }, (_, i) => ({
@@ -78,12 +82,12 @@ describe('POST /v1/events', () => {
 
     const app = createApp({} as any, deps);
     const res = await app.request('/v1/events', {
-      method: 'POST',
       body: JSON.stringify({ ...BATCH_FIXTURE, events }),
       headers: {
-        'Content-Type': 'application/json',
         Authorization: 'Bearer cct_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        'Content-Type': 'application/json',
       },
+      method: 'POST',
     });
     expect(res.status).toBe(413);
   });

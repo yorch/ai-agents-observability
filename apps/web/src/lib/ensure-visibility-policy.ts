@@ -4,8 +4,8 @@ type Db = Pick<PrismaClient, 'visibilityPolicy'>;
 
 export async function ensureVisibilityPolicy(db: Db, userId: string): Promise<void> {
   await db.visibilityPolicy.upsert({
-    where: { userId },
     create: { userId },
     update: {},
+    where: { userId },
   });
 }

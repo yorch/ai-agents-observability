@@ -1,22 +1,30 @@
-import { EventsBatchSchema } from '@ai-agents-observability/schemas';
 import type { PriceTable } from '@ai-agents-observability/schemas';
+import { EventsBatchSchema } from '@ai-agents-observability/schemas';
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { Logger } from 'pino';
 
 import { verifyIdentityClaim } from '../lib/identity.js';
 import { insertEventsBatch } from '../lib/insert-events.js';
 import type { AppEnv, EventsDb } from '../types.js';
 
+const MAX_BODY_BYTES = 1_048_576; // 1 MB
+
 export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logger): Hono<AppEnv> {
   const router = new Hono<AppEnv>();
 
   router.post(
     '/',
+    bodyLimit({
+      maxSize: MAX_BODY_BYTES,
+      onError: (c) => c.json({ error: 'Request body too large' }, 413),
+    }),
     zValidator('json', EventsBatchSchema, (result, c) => {
       if (!result.success) {
         return c.json({ error: 'Validation error', issues: result.error.issues }, 400);
       }
+      return;
     }),
     async (c) => {
       const batch = c.req.valid('json');
@@ -30,9 +38,9 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
       const git = batch.session_context.git;
       if (git?.owner && git?.repo) {
         await db.repo.upsert({
-          where: { githubOwner_githubName: { githubOwner: git.owner, githubName: git.repo } },
-          create: { githubOwner: git.owner, githubName: git.repo },
+          create: { githubName: git.repo, githubOwner: git.owner },
           update: {},
+          where: { githubOwner_githubName: { githubName: git.repo, githubOwner: git.owner } },
         });
       }
 

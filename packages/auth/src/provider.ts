@@ -13,7 +13,11 @@ export type TeamMembership = {
 };
 
 export interface IdentityProvider {
-  completeAuthorize(params: { code: string; state: string }): Promise<ExternalIdentity>;
+  completeAuthorize(params: {
+    code: string;
+    redirectUri: string;
+    state: string;
+  }): Promise<ExternalIdentity>;
   fetchTeams(identity: ExternalIdentity): Promise<TeamMembership[]>;
   name: string;
   startAuthorize(redirect_uri: string): Promise<{ state: string; url: string }>;

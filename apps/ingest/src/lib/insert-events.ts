@@ -1,5 +1,5 @@
-import type { Event, PriceTable } from '@ai-agents-observability/schemas';
 import { Prisma } from '@ai-agents-observability/db';
+import type { Event, PriceTable } from '@ai-agents-observability/schemas';
 
 import { computeCostUsd } from './cost.js';
 
@@ -15,7 +15,9 @@ export async function insertEventsBatch(
   userId: string,
   priceTable: PriceTable,
 ): Promise<InsertResult> {
-  if (events.length === 0) return { accepted: 0, deduped: 0 };
+  if (events.length === 0) {
+    return { accepted: 0, deduped: 0 };
+  }
 
   const rows = events.map((e) => {
     const costUsd = e.llm

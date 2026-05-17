@@ -9,11 +9,14 @@ export function computeCostUsd(
   priceTable: PriceTable,
 ): number {
   const price = priceTable.prices[model];
-  if (!price) return 0;
+  if (!price) {
+    return 0;
+  }
   return (
-    inputTokens * price.input_per_mtok +
-    outputTokens * price.output_per_mtok +
-    cacheReadTokens * price.cache_read_per_mtok +
-    cacheCreationTokens * price.cache_write_per_mtok
-  ) / 1_000_000;
+    (inputTokens * price.input_per_mtok +
+      outputTokens * price.output_per_mtok +
+      cacheReadTokens * price.cache_read_per_mtok +
+      cacheCreationTokens * price.cache_write_per_mtok) /
+    1_000_000
+  );
 }

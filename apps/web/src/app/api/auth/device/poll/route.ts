@@ -1,3 +1,4 @@
+import type { DevicePollResult } from '@ai-agents-observability/auth';
 import { issueHookToken, pollDeviceFlow } from '@ai-agents-observability/auth';
 import { createClient } from '@ai-agents-observability/db';
 import { createGitHubClient } from '@ai-agents-observability/github';
@@ -21,7 +22,9 @@ const pollTimestamps = new Map<string, number>();
 function evictStale(): void {
   const cutoff = Date.now() - DEVICE_CODE_TTL_MS;
   for (const [key, ts] of pollTimestamps) {
-    if (ts < cutoff) pollTimestamps.delete(key);
+    if (ts < cutoff) {
+      pollTimestamps.delete(key);
+    }
   }
 }
 
@@ -40,10 +43,13 @@ export async function POST(request: Request) {
   }
   pollTimestamps.set(device_code, Date.now());
 
-  const clientId = process.env.GITHUB_OAUTH_CLIENT_ID!;
-  const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET!;
+  const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return NextResponse.json({ error: 'OAuth not configured' }, { status: 503 });
+  }
 
-  let pollResult;
+  let pollResult: DevicePollResult;
   try {
     pollResult = await pollDeviceFlow(clientId, clientSecret, device_code);
   } catch {
@@ -58,15 +64,15 @@ export async function POST(request: Request) {
   const { data: ghUser } = await ghClient.rest.users.getAuthenticated();
 
   const user = await db.user.upsert({
-    where: { githubId: BigInt(ghUser.id) },
     create: {
-      githubLogin: ghUser.login,
-      githubId: BigInt(ghUser.id),
-      email: ghUser.email ?? null,
       displayName: ghUser.name ?? ghUser.login,
+      email: ghUser.email ?? null,
+      githubId: BigInt(ghUser.id),
+      githubLogin: ghUser.login,
       lastSeenAt: new Date(),
     },
     update: { lastSeenAt: new Date() },
+    where: { githubId: BigInt(ghUser.id) },
   });
 
   await ensureVisibilityPolicy(db, user.id);
@@ -75,13 +81,13 @@ export async function POST(request: Request) {
 
   await db.auditLog.create({
     data: {
-      actorUserId: user.id,
       action: 'view_session', // placeholder — Phase 3 adds hook_token_issued to AuditAction
-      targetUserId: user.id,
+      actorUserId: user.id,
       justification: 'Device-code hook token issued',
+      targetUserId: user.id,
     },
   });
 
   pollTimestamps.delete(device_code);
-  return NextResponse.json({ status: 'authorized', hook_token: hookToken });
+  return NextResponse.json({ hook_token: hookToken, status: 'authorized' });
 }

@@ -15,11 +15,13 @@ export async function startDeviceFlow(
   const host = getGitHubHost();
   const base = getOAuthBase(host);
   const res = await fetchFn(`${base}/login/device/code`, {
+    body: new URLSearchParams({ client_id: clientId, scope: 'read:user read:org user:email' }),
+    headers: { Accept: 'application/json' },
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_id: clientId, scope: 'read:user read:org user:email' }),
   });
-  if (!res.ok) throw new Error(`GitHub device/code request failed: ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`GitHub device/code request failed: ${res.status}`);
+  }
   return res.json() as Promise<DeviceCodeStartResult>;
 }
 
@@ -36,20 +38,22 @@ export async function pollDeviceFlow(
   const host = getGitHubHost();
   const base = getOAuthBase(host);
   const res = await fetchFn(`${base}/login/oauth/access_token`, {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body: new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
       device_code: deviceCode,
       grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
     }),
+    headers: { Accept: 'application/json' },
+    method: 'POST',
   });
-  if (!res.ok) throw new Error(`GitHub device poll failed: ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`GitHub device poll failed: ${res.status}`);
+  }
   const body = (await res.json()) as { access_token?: string; error?: string };
 
   if (body.access_token) {
-    return { status: 'authorized', access_token: body.access_token };
+    return { access_token: body.access_token, status: 'authorized' };
   }
   if (body.error === 'authorization_pending' || body.error === 'slow_down') {
     return { status: 'pending' };
