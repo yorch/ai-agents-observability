@@ -4,13 +4,26 @@ import { createGitHubClient } from '@ai-agents-observability/github';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { ensureVisibilityPolicy } from '../../../../../lib/ensure-visibility-policy.js';
+
 const db = createClient(process.env.DATABASE_URL!);
 
 const PollBody = z.object({ device_code: z.string().min(1) });
 
-// Minimum interval between poll calls per device_code (GitHub requires ≥5s by default)
-const pollTimestamps = new Map<string, number>();
+// GitHub device codes expire after ~15 minutes
+const DEVICE_CODE_TTL_MS = 15 * 60 * 1_000;
 const MIN_INTERVAL_MS = 5_000;
+
+// Best-effort in-process rate limit. In multi-instance deployments each instance
+// has its own map, so this only prevents rapid polling within a single instance.
+const pollTimestamps = new Map<string, number>();
+
+function evictStale(): void {
+  const cutoff = Date.now() - DEVICE_CODE_TTL_MS;
+  for (const [key, ts] of pollTimestamps) {
+    if (ts < cutoff) pollTimestamps.delete(key);
+  }
+}
 
 export async function POST(request: Request) {
   const body = PollBody.safeParse(await request.json().catch(() => ({})));
@@ -20,7 +33,7 @@ export async function POST(request: Request) {
 
   const { device_code } = body.data;
 
-  // Rate limit
+  evictStale();
   const last = pollTimestamps.get(device_code) ?? 0;
   if (Date.now() - last < MIN_INTERVAL_MS) {
     return NextResponse.json({ status: 'pending' });
@@ -41,7 +54,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: 'pending' });
   }
 
-  // Authorized — fetch user and issue hook token
   const ghClient = createGitHubClient({ token: pollResult.access_token });
   const { data: ghUser } = await ghClient.rest.users.getAuthenticated();
 
@@ -57,25 +69,19 @@ export async function POST(request: Request) {
     update: { lastSeenAt: new Date() },
   });
 
-  // Ensure VisibilityPolicy
-  await db.visibilityPolicy.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id },
-    update: {},
-  });
+  await ensureVisibilityPolicy(db, user.id);
 
   const hookToken = await issueHookToken(db, user.id);
 
   await db.auditLog.create({
     data: {
       actorUserId: user.id,
-      action: 'view_session', // Closest available; Phase 3 will add hook_token_issued
+      action: 'view_session', // placeholder — Phase 3 adds hook_token_issued to AuditAction
       targetUserId: user.id,
       justification: 'Device-code hook token issued',
     },
   });
 
   pollTimestamps.delete(device_code);
-
   return NextResponse.json({ status: 'authorized', hook_token: hookToken });
 }

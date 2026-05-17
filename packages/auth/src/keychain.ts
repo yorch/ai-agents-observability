@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -23,7 +23,6 @@ export async function saveToken(token: string): Promise<void> {
   }
   await mkdir(FALLBACK_DIR, { recursive: true });
   await writeFile(FALLBACK_PATH, token, { encoding: 'utf8', mode: 0o600 });
-  await chmod(FALLBACK_PATH, 0o600);
 }
 
 export async function loadToken(): Promise<string | null> {
@@ -45,7 +44,6 @@ export async function deleteToken(): Promise<void> {
     return;
   }
   try {
-    const { unlink } = await import('node:fs/promises');
     await unlink(FALLBACK_PATH);
   } catch {
     // Already gone

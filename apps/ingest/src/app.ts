@@ -58,7 +58,7 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
 
   // Public v1 routes — registered before auth middleware so they bypass it
   app.use('/v1/*', rateLimitMiddleware());
-  app.route('/v1/price-table', priceTableRouter());
+  app.route('/v1/price-table', priceTableRouter(priceTable));
 
   // Auth middleware applies to all remaining /v1/* routes
   app.use('/v1/*', authRequired(deps.db, deps.logger));

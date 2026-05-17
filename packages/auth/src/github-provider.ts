@@ -1,16 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createGitHubClient } from '@ai-agents-observability/github';
+import { getGitHubHost, getOAuthBase } from './github-host.js';
 import type { ExternalIdentity, IdentityProvider, TeamMembership } from './provider.js';
-
-const GITHUB_COM_HOST = 'https://github.com';
-
-function getHost(): string {
-  return (process.env.GITHUB_HOST ?? GITHUB_COM_HOST).replace(/\/$/, '');
-}
-
-function oauthBase(host: string): string {
-  return host === GITHUB_COM_HOST ? 'https://github.com' : host;
-}
 
 function generateState(): string {
   return randomBytes(32).toString('hex');
@@ -30,8 +21,8 @@ export class GitHubProvider implements IdentityProvider {
   }
 
   async startAuthorize(redirectUri: string): Promise<{ state: string; url: string }> {
-    const host = getHost();
-    const base = oauthBase(host);
+    const host = getGitHubHost();
+    const base = getOAuthBase(host);
     const state = generateState();
     const params = new URLSearchParams({
       client_id: this.clientId,
@@ -43,8 +34,8 @@ export class GitHubProvider implements IdentityProvider {
   }
 
   async completeAuthorize(params: { code: string; state: string }): Promise<ExternalIdentity> {
-    const host = getHost();
-    const base = oauthBase(host);
+    const host = getGitHubHost();
+    const base = getOAuthBase(host);
     const tokenRes = await (this.fetch ?? fetch)(`${base}/login/oauth/access_token`, {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -58,10 +49,13 @@ export class GitHubProvider implements IdentityProvider {
     const tokenBody = (await tokenRes.json()) as { access_token?: string; error?: string };
     if (!tokenBody.access_token) throw new Error(`GitHub OAuth error: ${tokenBody.error ?? 'no token'}`);
 
-    const client = createGitHubClient({ token: tokenBody.access_token, host, ...(this.fetch ? { fetch: this.fetch } : {}) });
+    const client = createGitHubClient({
+      token: tokenBody.access_token,
+      host,
+      ...(this.fetch ? { fetch: this.fetch } : {}),
+    });
     const { data: ghUser } = await client.rest.users.getAuthenticated();
 
-    // Fetch primary email
     let email: string | null = ghUser.email ?? null;
     if (!email) {
       try {
@@ -83,8 +77,6 @@ export class GitHubProvider implements IdentityProvider {
   }
 
   async fetchTeams(_identity: ExternalIdentity): Promise<TeamMembership[]> {
-    // We don't hold the OAuth token after completeAuthorize — teams are synced separately via P1-018.
-    // Return empty here; team sync cron (P1-018) handles org membership.
     return [];
   }
 }

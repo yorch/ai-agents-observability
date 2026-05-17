@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { cookies } from 'next/headers';
 
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -6,6 +7,10 @@ export const COOKIE_ACCESS = 'cc_access';
 export const COOKIE_REFRESH = 'cc_refresh';
 export const COOKIE_STATE = 'cc_oauth_state';
 
+export function hashState(state: string): string {
+  return createHash('sha256').update(state).digest('hex');
+}
+
 export async function setAuthCookies(access: string, refresh: string) {
   const jar = await cookies();
   jar.set(COOKIE_ACCESS, access, {
@@ -13,14 +18,14 @@ export async function setAuthCookies(access: string, refresh: string) {
     secure: IS_PROD,
     sameSite: 'lax',
     path: '/',
-    maxAge: 15 * 60, // 15 min — matches JWT TTL
+    maxAge: 15 * 60,
   });
   jar.set(COOKIE_REFRESH, refresh, {
     httpOnly: true,
     secure: IS_PROD,
     sameSite: 'lax',
     path: '/api/auth/refresh',
-    maxAge: 90 * 24 * 60 * 60, // 90 days
+    maxAge: 90 * 24 * 60 * 60,
   });
 }
 
@@ -37,7 +42,7 @@ export async function setStateCookie(stateHash: string) {
     secure: IS_PROD,
     sameSite: 'lax',
     path: '/api/auth/callback',
-    maxAge: 10 * 60, // 10 min
+    maxAge: 10 * 60,
   });
 }
 

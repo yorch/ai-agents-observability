@@ -1,12 +1,4 @@
-const GITHUB_COM_HOST = 'https://github.com';
-
-function getHost(): string {
-  return (process.env.GITHUB_HOST ?? GITHUB_COM_HOST).replace(/\/$/, '');
-}
-
-function oauthBase(host: string): string {
-  return host === GITHUB_COM_HOST ? 'https://github.com' : host;
-}
+import { getGitHubHost, getOAuthBase } from './github-host.js';
 
 export type DeviceCodeStartResult = {
   device_code: string;
@@ -20,8 +12,8 @@ export async function startDeviceFlow(
   clientId: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<DeviceCodeStartResult> {
-  const host = getHost();
-  const base = oauthBase(host);
+  const host = getGitHubHost();
+  const base = getOAuthBase(host);
   const res = await fetchFn(`${base}/login/device/code`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -41,8 +33,8 @@ export async function pollDeviceFlow(
   deviceCode: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<DevicePollResult> {
-  const host = getHost();
-  const base = oauthBase(host);
+  const host = getGitHubHost();
+  const base = getOAuthBase(host);
   const res = await fetchFn(`${base}/login/oauth/access_token`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },

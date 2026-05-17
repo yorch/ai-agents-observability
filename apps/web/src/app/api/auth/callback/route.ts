@@ -1,18 +1,12 @@
-import { createHash } from 'node:crypto';
-import { GitHubProvider, issueAccessToken, issueRefreshToken } from '@ai-agents-observability/auth';
+import { issueAccessToken, issueRefreshToken } from '@ai-agents-observability/auth';
 import { createClient } from '@ai-agents-observability/db';
 import { NextResponse } from 'next/server';
 
-import { getStateCookie, setAuthCookies } from '../../../../lib/session-cookie.js';
+import { provider } from '../../../../lib/auth-provider.js';
+import { ensureVisibilityPolicy } from '../../../../lib/ensure-visibility-policy.js';
+import { getStateCookie, hashState, setAuthCookies } from '../../../../lib/session-cookie.js';
 
 const db = createClient(process.env.DATABASE_URL!);
-
-function getProvider() {
-  return new GitHubProvider({
-    clientId: process.env.GITHUB_OAUTH_CLIENT_ID!,
-    clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET!,
-  });
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -23,14 +17,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing code or state' }, { status: 400 });
   }
 
-  // Verify state against cookie
   const storedHash = await getStateCookie();
-  const expectedHash = createHash('sha256').update(state).digest('hex');
-  if (!storedHash || storedHash !== expectedHash) {
+  if (!storedHash || storedHash !== hashState(state)) {
     return NextResponse.json({ error: 'Invalid state' }, { status: 400 });
   }
 
-  const provider = getProvider();
   let identity;
   try {
     identity = await provider.completeAuthorize({ code, state });
@@ -38,7 +29,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'OAuth exchange failed' }, { status: 502 });
   }
 
-  // Upsert user
   const githubId = BigInt(identity.external_id);
   const user = await db.user.upsert({
     where: { githubId },
@@ -56,12 +46,7 @@ export async function GET(request: Request) {
     },
   });
 
-  // Ensure VisibilityPolicy exists with privacy-preserving defaults
-  await db.visibilityPolicy.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id },
-    update: {},
-  });
+  await ensureVisibilityPolicy(db, user.id);
 
   const [access, refresh] = await Promise.all([
     issueAccessToken(user.id),
@@ -69,6 +54,5 @@ export async function GET(request: Request) {
   ]);
 
   await setAuthCookies(access, refresh);
-
   return NextResponse.redirect(new URL('/me', url.origin));
 }

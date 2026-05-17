@@ -1,4 +1,4 @@
-import { revokeToken, verifyAccessToken } from '@ai-agents-observability/auth';
+import { verifyAccessToken } from '@ai-agents-observability/auth';
 import { createClient } from '@ai-agents-observability/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -13,10 +13,11 @@ export async function POST() {
 
   if (access) {
     try {
-      // Revoke all tokens for this user via the access JWT's sub claim
       const { userId } = await verifyAccessToken(access);
-      const tokens = await db.authToken.findMany({ where: { userId, revokedAt: null } });
-      await Promise.all(tokens.map((t) => revokeToken(db, t.id)));
+      await db.authToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     } catch {
       // Best-effort revocation — still clear cookies
     }

@@ -1,14 +1,11 @@
-import { PriceTableSchema } from '@ai-agents-observability/schemas';
+import type { PriceTable } from '@ai-agents-observability/schemas';
 import { Hono } from 'hono';
 
 import type { AppEnv } from '../types.js';
-import rawPriceTable from '../data/price-table.v1.json' with { type: 'json' };
 
-const priceTable = PriceTableSchema.parse(rawPriceTable);
-const etag = `"${priceTable.version}"`;
-
-export function priceTableRouter(): Hono<AppEnv> {
+export function priceTableRouter(priceTable: PriceTable): Hono<AppEnv> {
   const router = new Hono<AppEnv>();
+  const etag = `"${priceTable.version}"`;
 
   router.get('/', (c) => {
     if (c.req.header('if-none-match') === etag) {
