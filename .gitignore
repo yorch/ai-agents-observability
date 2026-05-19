@@ -39,11 +39,15 @@ logs/
 # Next.js generated files
 next-env.d.ts
 
-# Compiled hook binary
+# Compiled hook binaries
 apps/hook/bin/
+apps/hook/dist/
 
 # Prisma generated client
 packages/db/src/generated/
 
 # MinIO local data
 infra/.minio-data/
+
+# Claude Code internal (worktrees, session state)
+.claude/

@@ -12,14 +12,16 @@
     },
     "apps/hook": {
       "name": "@ai-agents-observability/hook",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
+        "@ai-agents-observability/schemas": "workspace:*",
         "jose": "catalog:",
         "keytar": "catalog:",
         "pino": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
+        "bun-types": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
       },
@@ -30,6 +32,7 @@
       "dependencies": {
         "@ai-agents-observability/auth": "workspace:*",
         "@ai-agents-observability/db": "workspace:*",
+        "@ai-agents-observability/schemas": "workspace:*",
         "@aws-sdk/client-s3": "catalog:",
         "@hono/zod-validator": "catalog:",
         "hono": "catalog:",
@@ -47,10 +50,14 @@
       "name": "@ai-agents-observability/web",
       "version": "0.0.0",
       "dependencies": {
+        "@ai-agents-observability/auth": "workspace:*",
+        "@ai-agents-observability/db": "workspace:*",
+        "@ai-agents-observability/github": "workspace:*",
         "next": "catalog:",
         "pino": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",
+        "zod": "catalog:",
       },
       "devDependencies": {
         "@tailwindcss/postcss": "catalog:",
@@ -64,7 +71,9 @@
       "version": "0.0.0",
       "dependencies": {
         "@ai-agents-observability/db": "workspace:*",
+        "@ai-agents-observability/github": "workspace:*",
         "jose": "catalog:",
+        "keytar": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -80,6 +89,7 @@
         "@prisma/client": "catalog:",
       },
       "devDependencies": {
+        "@faker-js/faker": "catalog:",
         "prisma": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
@@ -123,6 +133,7 @@
   "catalog": {
     "@aws-sdk/client-s3": "3.1047.0",
     "@biomejs/biome": "2.4.0",
+    "@faker-js/faker": "9.8.0",
     "@hono/zod-validator": "0.4.3",
     "@octokit/plugin-enterprise-compatibility": "4.0.1",
     "@octokit/webhooks": "14.1.0",
@@ -276,6 +287,8 @@
     "@emnapi/runtime": ["@emnapi/runtime@1.10.0", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-ewvYlk86xUoGI0zQRNq/mC+16R1QeDlKQy21Ki3oSYXNgLb45GV1P6A0M+/s6nyCuNDqe5VpaY84BzXGwVbwFA=="],
 
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w=="],
+
+    "@faker-js/faker": ["@faker-js/faker@9.8.0", "", {}, "sha512-U9wpuSrJC93jZBxx/Qq2wPjCuYISBueyVUGK7qqdmj7r/nxaxwW8AQDCLeRO7wZnjj94sh3p246cAYjUKuqgfg=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.11", "", { "peerDependencies": { "hono": "^4" } }, "sha512-dr8/3zEaB+p0D2n/IUrlPF1HZm586qgJNXK1a9fhg/PzdtkK7Ksd5l312tJX2yBuALqDYBlG20QEbayqPyxn+g=="],
 
