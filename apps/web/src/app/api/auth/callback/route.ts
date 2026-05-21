@@ -2,10 +2,10 @@ import type { ExternalIdentity } from '@ai-agents-observability/auth';
 import { issueAccessToken, issueRefreshToken } from '@ai-agents-observability/auth';
 import { createClient } from '@ai-agents-observability/db';
 import { NextResponse } from 'next/server';
-import { provider } from '../../../../lib/auth-provider.js';
-import { ensureVisibilityPolicy } from '../../../../lib/ensure-visibility-policy.js';
-import { requireEnv } from '../../../../lib/env.js';
-import { getStateCookie, hashState, setAuthCookies } from '../../../../lib/session-cookie.js';
+import { provider } from '../../../../lib/auth-provider';
+import { ensureVisibilityPolicy } from '../../../../lib/ensure-visibility-policy';
+import { requireEnv } from '../../../../lib/env';
+import { getStateCookie, hashState, setAuthCookies } from '../../../../lib/session-cookie';
 
 const db = createClient(requireEnv('DATABASE_URL'));
 

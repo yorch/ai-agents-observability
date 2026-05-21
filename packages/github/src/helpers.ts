@@ -1,5 +1,5 @@
-import type { GitHubClient } from './client.js';
-import type { RepoSummary, TeamSummary, UserSummary } from './types.js';
+import type { GitHubClient } from './client';
+import type { RepoSummary, TeamSummary, UserSummary } from './types';
 
 export async function getCurrentUser(client: GitHubClient): Promise<UserSummary> {
   const { data } = await client.rest.users.getAuthenticated();

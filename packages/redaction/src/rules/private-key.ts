@@ -1,4 +1,4 @@
-import { makeRule } from './types.js';
+import { makeRule } from './types';
 
 // Matches PEM private key blocks (RSA, EC, OPENSSH, bare PRIVATE KEY, PGP PRIVATE KEY BLOCK)
 const RE =

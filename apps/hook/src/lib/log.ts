@@ -1,7 +1,7 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { telemetryHome } from './paths.js';
+import { telemetryHome } from './paths';
 
 const LOG_PATH = `${telemetryHome()}/hook.log`;
 
@@ -19,7 +19,11 @@ function ensureDir(): void {
   }
 }
 
-export function log(level: 'info' | 'warn' | 'error', event: string, fields?: Record<string, unknown>): void {
+export function log(
+  level: 'info' | 'warn' | 'error',
+  event: string,
+  fields?: Record<string, unknown>,
+): void {
   ensureDir();
   const line = `${JSON.stringify({ event, level, ts: new Date().toISOString(), ...fields })}\n`;
   try {

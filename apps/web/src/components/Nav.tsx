@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import type { User } from '@ai-agents-observability/db';
+import Link from 'next/link';
 
-import { UserMenu } from './UserMenu.js';
+import { UserMenu } from './UserMenu';
 
 export function Nav({ user }: { user: User | null }) {
   return (

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { identityPath } from './paths.js';
+import { identityPath } from './paths';
 
 let cached: string | null = null;
 

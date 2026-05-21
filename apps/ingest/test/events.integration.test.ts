@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createApp } from '../src/app.js';
-import type { Config } from '../src/config.js';
-import { makeTestDeps } from './helpers.js';
+import { createApp } from '../src/app';
+import type { Config } from '../src/config';
+import { makeTestDeps } from './helpers';
 
 const BATCH_FIXTURE = {
   events: [

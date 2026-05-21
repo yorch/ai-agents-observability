@@ -1,11 +1,11 @@
-import { awsAccessKeyRule } from './rules/aws-access-key.js';
-import { awsSecretKeyRule } from './rules/aws-secret-key.js';
-import { envSecretRule } from './rules/env-secret.js';
-import { githubTokenRule } from './rules/github-token.js';
-import { jwtRule } from './rules/jwt.js';
-import { privateKeyRule } from './rules/private-key.js';
-import { slackTokenRule } from './rules/slack-token.js';
-import type { RedactionRule } from './rules/types.js';
+import { awsAccessKeyRule } from './rules/aws-access-key';
+import { awsSecretKeyRule } from './rules/aws-secret-key';
+import { envSecretRule } from './rules/env-secret';
+import { githubTokenRule } from './rules/github-token';
+import { jwtRule } from './rules/jwt';
+import { privateKeyRule } from './rules/private-key';
+import { slackTokenRule } from './rules/slack-token';
+import type { RedactionRule } from './rules/types';
 
 export type { RedactionRule };
 

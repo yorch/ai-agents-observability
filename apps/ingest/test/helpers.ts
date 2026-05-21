@@ -1,6 +1,6 @@
 import type { Logger } from 'pino';
 
-import type { AppDeps } from '../src/app.js';
+import type { AppDeps } from '../src/app';
 
 export function makeTestDeps(): AppDeps {
   return {

@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 
-import type { AppEnv } from '../types.js';
+import type { AppEnv } from '../types';
 
 export function requestIdMiddleware(): MiddlewareHandler<AppEnv> {
   return async (c, next) => {

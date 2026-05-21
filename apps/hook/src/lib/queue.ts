@@ -1,9 +1,8 @@
+import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { Database } from 'bun:sqlite';
-
-import { queuePath } from './paths.js';
+import { queuePath } from './paths';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS events_queue (

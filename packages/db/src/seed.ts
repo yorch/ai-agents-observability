@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker';
-import { createClient } from './index.js';
+import { createClient } from './index';
 
 const SEED_EMAIL = 'demo@example.com';
 const DEMO_USER_LOGIN = 'demo-dev';

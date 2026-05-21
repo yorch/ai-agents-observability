@@ -6,7 +6,7 @@ import {
   EventsBatchSchema,
   PriceTableSchema,
   TranscriptChunkMetaSchema,
-} from '../src/index.js';
+} from '../src/index';
 
 const validEvent = {
   client: {

@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 /* Tailwind 4 CSS-first config. No tailwind.config.ts — see PLAN.md §4. */
 @theme {
@@ -9,12 +9,10 @@
   --color-brand-700: oklch(0.45 0.18 250);
 
   --font-display: ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, 'JetBrains Mono', SFMono-Regular, monospace;
+  --font-mono: ui-monospace, "JetBrains Mono", SFMono-Regular, monospace;
 }
 
-/* Dark by default; light mode honors user preference. */
-@variant light (&:where(.light, .light *));
-
+/* Dark by default; .light class on <html> opts into light mode. */
 :root {
   color-scheme: dark light;
 }

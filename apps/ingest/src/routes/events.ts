@@ -5,9 +5,9 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { Logger } from 'pino';
 
-import { verifyIdentityClaim } from '../lib/identity.js';
-import { insertEventsBatch } from '../lib/insert-events.js';
-import type { AppEnv, EventsDb } from '../types.js';
+import { verifyIdentityClaim } from '../lib/identity';
+import { insertEventsBatch } from '../lib/insert-events';
+import type { AppEnv, EventsDb } from '../types';
 
 const MAX_BODY_BYTES = 1_048_576; // 1 MB
 

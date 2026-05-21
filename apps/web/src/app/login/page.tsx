@@ -9,8 +9,8 @@ export default function LoginPage() {
         ai-agents-observability
       </h1>
       <p className="text-sm text-white/70">
-        Personal telemetry for your Claude Code sessions. Sign in to see what's collected
-        about you — and nothing about anyone else.
+        Personal telemetry for your Claude Code sessions. Sign in to see what's collected about you
+        — and nothing about anyone else.
       </p>
       <a
         href="/api/auth/login"

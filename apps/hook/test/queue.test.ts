@@ -1,13 +1,12 @@
+import { Database } from 'bun:sqlite';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { Database } from 'bun:sqlite';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-
-import { runHook } from '../src/hook-entry.js';
-import { toEvent } from '../src/lib/payload.js';
-import { openQueue } from '../src/lib/queue.js';
+import { runHook } from '../src/hook-entry';
+import { toEvent } from '../src/lib/payload';
+import { openQueue } from '../src/lib/queue';
 
 let tmpHome: string;
 
@@ -27,8 +26,9 @@ describe('queue', () => {
     q.close();
 
     const db = new Database(`${tmpHome}/queue.db`);
+    // WAL mode is database-level and persists across connections.
+    // `synchronous` is connection-level so we can't assert it after reopen.
     const mode = db.query<{ journal_mode: string }, []>('PRAGMA journal_mode').get();
-    const sync = db.query<{ synchronous: number }, []>('PRAGMA synchronous').get();
     const cols = db
       .query<{ name: string }, []>('PRAGMA table_info(events_queue)')
       .all()
@@ -36,8 +36,6 @@ describe('queue', () => {
     db.close();
 
     expect(mode?.journal_mode).toBe('wal');
-    // synchronous=NORMAL = 1
-    expect(sync?.synchronous).toBe(1);
     expect(cols).toEqual(
       expect.arrayContaining(['event_id', 'ts', 'payload_json', 'attempted_at', 'attempts']),
     );

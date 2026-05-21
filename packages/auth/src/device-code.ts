@@ -1,4 +1,4 @@
-import { getGitHubHost, getOAuthBase } from './github-host.js';
+import { getGitHubHost, getOAuthBase } from './github-host';
 
 export type DeviceCodeStartResult = {
   device_code: string;

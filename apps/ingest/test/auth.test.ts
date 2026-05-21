@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 
 import pino from 'pino';
 import { describe, expect, it, vi } from 'vitest';
-import type { AppDeps } from '../src/app.js';
-import { createApp } from '../src/app.js';
-import type { Config } from '../src/config.js';
-import { verifyIdentityClaim } from '../src/lib/identity.js';
+import type { AppDeps } from '../src/app';
+import { createApp } from '../src/app';
+import type { Config } from '../src/config';
+import { verifyIdentityClaim } from '../src/lib/identity';
 
 const testConfig: Config = {
   database_url: 'postgresql://test:test@localhost:5432/test',

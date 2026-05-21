@@ -1,8 +1,8 @@
 import type { Event, EventType } from '@ai-agents-observability/schemas';
 
-import { clientInfo } from './client-info.js';
-import { userIdClaim } from './identity.js';
-import { uuidv7 } from './uuid.js';
+import { clientInfo } from './client-info';
+import { userIdClaim } from './identity';
+import { uuidv7 } from './uuid';
 
 // Subset of fields Claude Code sends on every hook event. We pass the rest
 // through in `metadata` so the flusher can decide what to keep.
@@ -37,12 +37,12 @@ export type HookKind =
   | 'notification';
 
 const HOOK_KIND_TO_EVENT_TYPE: Record<HookKind, EventType> = {
-  'notification': 'Notification',
+  notification: 'Notification',
   'post-tool-use': 'PostToolUse',
   'pre-compact': 'PreCompact',
   'pre-tool-use': 'PreToolUse',
   'session-start': 'SessionStart',
-  'stop': 'Stop',
+  stop: 'Stop',
   'subagent-stop': 'SubagentStop',
   'user-prompt-submit': 'UserPromptSubmit',
 };

@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
-import { COOKIE_ACCESS } from './lib/session-cookie.js';
+import { COOKIE_ACCESS } from './lib/session-cookie';
 
 export function middleware(req: NextRequest) {
   const token = req.cookies.get(COOKIE_ACCESS)?.value;

@@ -1,7 +1,7 @@
 import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { setKeysForTesting } from '../src/keys.js';
+import { setKeysForTesting } from '../src/keys';
 import {
   issueAccessToken,
   issueHookToken,
@@ -9,7 +9,7 @@ import {
   revokeToken,
   verifyAccessToken,
   verifyOpaqueToken,
-} from '../src/tokens.js';
+} from '../src/tokens';
 
 // ── Key setup ─────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
-import { runHook } from './hook-entry.js';
-import { isHookKind } from './lib/payload.js';
+import { runHook } from './hook-entry';
+import { isHookKind } from './lib/payload';
 
 const VERSION = '0.1.0';
 

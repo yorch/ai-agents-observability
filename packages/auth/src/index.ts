@@ -1,11 +1,11 @@
-export type { DeviceCodeStartResult, DevicePollResult } from './device-code.js';
-export { pollDeviceFlow, startDeviceFlow } from './device-code.js';
-export { GitHubProvider } from './github-provider.js';
-export { deleteToken, loadToken, saveToken } from './keychain.js';
-export { getPrivateKey, getPublicKey, resetKeys, setKeysForTesting } from './keys.js';
-export { NoopProvider } from './noop-provider.js';
-export type { ExternalIdentity, IdentityProvider, TeamMembership } from './provider.js';
-export type { AccessTokenPayload, OpaqueTokenPayload } from './tokens.js';
+export type { DeviceCodeStartResult, DevicePollResult } from './device-code';
+export { pollDeviceFlow, startDeviceFlow } from './device-code';
+export { GitHubProvider } from './github-provider';
+export { deleteToken, loadToken, saveToken } from './keychain';
+export { getPrivateKey, getPublicKey, resetKeys, setKeysForTesting } from './keys';
+export { NoopProvider } from './noop-provider';
+export type { ExternalIdentity, IdentityProvider, TeamMembership } from './provider';
+export type { AccessTokenPayload, OpaqueTokenPayload } from './tokens';
 export {
   hashToken,
   issueAccessToken,
@@ -15,4 +15,4 @@ export {
   rotateRefreshToken,
   verifyAccessToken,
   verifyOpaqueToken,
-} from './tokens.js';
+} from './tokens';

@@ -2,9 +2,9 @@ import { createClient } from '@ai-agents-observability/db';
 import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import pino from 'pino';
 
-import type { AppDeps } from './app.js';
-import { createApp } from './app.js';
-import { loadConfig } from './config.js';
+import type { AppDeps } from './app';
+import { createApp } from './app';
+import { loadConfig } from './config';
 
 const config = loadConfig();
 

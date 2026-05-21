@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@ai-agents-observability/db';
 import { jwtVerify, SignJWT } from 'jose';
 
-import { getPrivateKey, getPublicKey } from './keys.js';
+import { getPrivateKey, getPublicKey } from './keys';
 
 // A type satisfied by both PrismaClient and Prisma TransactionClient
 type DbClient = Pick<PrismaClient, 'authToken'>;

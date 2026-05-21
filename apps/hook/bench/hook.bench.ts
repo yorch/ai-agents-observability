@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runHook } from '../src/hook-entry.js';
+import { runHook } from '../src/hook-entry';
 
 const ITERATIONS = 1000;
 const BUDGET_MS_P99 = 10;
@@ -36,7 +36,8 @@ for (let i = 0; i < ITERATIONS; i++) {
 }
 
 samples.sort((a, b) => a - b);
-const p = (q: number): number => samples[Math.min(samples.length - 1, Math.floor(samples.length * q))] ?? 0;
+const p = (q: number): number =>
+  samples[Math.min(samples.length - 1, Math.floor(samples.length * q))] ?? 0;
 const mean = samples.reduce((s, v) => s + v, 0) / samples.length;
 
 process.stdout.write(
@@ -46,6 +47,8 @@ process.stdout.write(
 rmSync(tmpHome, { force: true, recursive: true });
 
 if (p(0.99) >= BUDGET_MS_P99) {
-  process.stdout.write(`WARN: p99 exceeded ${BUDGET_MS_P99}ms — investigate before P1-028 sign-off.\n`);
+  process.stdout.write(
+    `WARN: p99 exceeded ${BUDGET_MS_P99}ms — investigate before P1-028 sign-off.\n`,
+  );
   process.exit(1);
 }

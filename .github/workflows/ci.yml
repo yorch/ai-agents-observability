@@ -10,6 +10,15 @@ jobs:
   ci:
     name: Typecheck / Lint / Test
     runs-on: ubuntu-latest
+    # The web build evaluates route modules during static analysis, which
+    # reads env vars at the top level (see apps/web/src/lib/auth-provider.ts).
+    # Provide non-empty placeholders so the build can proceed — real values
+    # come from secrets at deploy time.
+    env:
+      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+      GITHUB_OAUTH_CLIENT_ID: placeholder
+      GITHUB_OAUTH_CLIENT_SECRET: placeholder
+      GITHUB_HOST: github.com
     steps:
       - name: Checkout
         # actions/checkout@v6.0.2

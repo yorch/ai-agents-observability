@@ -1,8 +1,8 @@
 import pino from 'pino';
 import { describe, expect, it, vi } from 'vitest';
-import type { AppDeps } from '../src/app.js';
-import { createApp } from '../src/app.js';
-import type { Config } from '../src/config.js';
+import type { AppDeps } from '../src/app';
+import { createApp } from '../src/app';
+import type { Config } from '../src/config';
 
 const testConfig: Config = {
   database_url: 'postgresql://test:test@localhost:5432/test',

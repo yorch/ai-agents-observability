@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-import { currentUser } from '../../lib/auth.js';
+import { currentUser } from '../../lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +16,8 @@ export default async function MePage() {
         Hello, {user.displayName ?? user.githubLogin}
       </h1>
       <p className="text-sm text-white/70">
-        Your /me overview page will live here once P1-025 lands. For now this confirms
-        the auth flow is end-to-end working.
+        Your /me overview page will live here once P1-025 lands. For now this confirms the auth flow
+        is end-to-end working.
       </p>
     </div>
   );

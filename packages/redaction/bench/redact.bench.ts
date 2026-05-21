@@ -1,6 +1,6 @@
 import { bench, describe } from 'vitest';
 
-import { redact } from '../src/index.js';
+import { redact } from '../src/index';
 
 function makeLargePlaintext(sizeBytes: number): string {
   const chunk =

@@ -3,8 +3,8 @@ import { createClient } from '@ai-agents-observability/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-import { requireEnv } from '../../../../lib/env.js';
-import { COOKIE_ACCESS, clearAuthCookies } from '../../../../lib/session-cookie.js';
+import { requireEnv } from '../../../../lib/env';
+import { COOKIE_ACCESS, clearAuthCookies } from '../../../../lib/session-cookie';
 
 const db = createClient(requireEnv('DATABASE_URL'));
 

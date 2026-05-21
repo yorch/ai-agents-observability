@@ -3,6 +3,13 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_URL",
+        "GITHUB_HOST",
+        "GITHUB_OAUTH_CLIENT_ID",
+        "GITHUB_OAUTH_CLIENT_SECRET",
+        "NODE_ENV"
+      ],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "src/generated/**"]
     },
     "check": {

@@ -1,4 +1,4 @@
-import { makeRule } from './types.js';
+import { makeRule } from './types';
 
 const RE = /AKIA[0-9A-Z]{16}/g;
 

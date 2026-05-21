@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "jsx": "preserve",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "outDir": ".next",
     "plugins": [{ "name": "next" }],
     "rootDir": "."

@@ -1,7 +1,7 @@
 import { Prisma } from '@ai-agents-observability/db';
 import type { Event, PriceTable } from '@ai-agents-observability/schemas';
 
-import { computeCostUsd } from './cost.js';
+import { computeCostUsd } from './cost';
 
 type RawDb = {
   $executeRaw: (query: Prisma.Sql) => Promise<number>;

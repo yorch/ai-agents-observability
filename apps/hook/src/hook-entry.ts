@@ -1,7 +1,7 @@
-import { log } from './lib/log.js';
-import { type HookKind, toEvent } from './lib/payload.js';
-import { openQueue } from './lib/queue.js';
-import { readStdinBounded } from './lib/stdin.js';
+import { log } from './lib/log';
+import { type HookKind, toEvent } from './lib/payload';
+import { openQueue } from './lib/queue';
+import { readStdinBounded } from './lib/stdin';
 
 type Options = {
   quiet: boolean;
