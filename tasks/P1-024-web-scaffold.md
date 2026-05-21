@@ -3,8 +3,8 @@ id: P1-024
 title: Next.js scaffold + OAuth wiring
 phase: 1
 workstream: E
-status: blocked
-owner: null
+status: review
+owner: claude
 depends_on: [P1-001, P1-016]
 blocks: [P1-025, P1-026, P1-027]
 estimate: M

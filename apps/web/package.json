@@ -18,15 +18,15 @@
     "@ai-agents-observability/db": "workspace:*",
     "@ai-agents-observability/github": "workspace:*",
     "next": "catalog:",
+    "pino": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "pino": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "typescript": "catalog:",
-    "vitest": "catalog:",
+    "@tailwindcss/postcss": "catalog:",
     "tailwindcss": "catalog:",
-    "@tailwindcss/postcss": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

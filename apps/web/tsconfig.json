@@ -7,5 +7,5 @@
   },
   "exclude": ["node_modules", ".next"],
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*", "app/**/*", "pages/**/*", "next.config.ts", "next-env.d.ts"]
+  "include": ["src/**/*", "next.config.ts", "next-env.d.ts"]
 }
