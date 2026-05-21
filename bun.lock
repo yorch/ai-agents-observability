@@ -23,7 +23,6 @@
       "devDependencies": {
         "bun-types": "catalog:",
         "typescript": "catalog:",
-        "vitest": "catalog:",
       },
     },
     "apps/ingest": {
@@ -32,6 +31,7 @@
       "dependencies": {
         "@ai-agents-observability/auth": "workspace:*",
         "@ai-agents-observability/db": "workspace:*",
+        "@ai-agents-observability/redaction": "workspace:*",
         "@ai-agents-observability/schemas": "workspace:*",
         "@aws-sdk/client-s3": "catalog:",
         "@hono/zod-validator": "catalog:",

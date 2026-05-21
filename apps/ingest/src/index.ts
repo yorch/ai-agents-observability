@@ -34,6 +34,7 @@ const deps: AppDeps = {
   },
   db,
   logger,
+  s3: { bucket: config.s3_bucket, client: s3 },
 };
 
 const app = createApp(config, deps);

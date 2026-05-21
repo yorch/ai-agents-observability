@@ -27,8 +27,8 @@ Source of truth for task status. Update this in the same commit as the task file
 | [P1-008](./P1-008-ingest-skeleton.md) | apps/ingest skeleton (Bun + Hono) | done | — | S | P1-001 |
 | [P1-009](./P1-009-ingest-auth.md) | Ingest auth middleware + identity verification | done | — | M | P1-008, P1-014 |
 | [P1-010](./P1-010-events-endpoint.md) | POST /v1/events handler | done | — | M | P1-008, P1-006, P1-004 |
-| [P1-011](./P1-011-session-aggregation.md) | Session aggregation upserts | ready | — | M | P1-010 |
-| [P1-012](./P1-012-transcripts-endpoint.md) | POST /v1/transcripts (chunked + MinIO) | ready | — | L | P1-008, P1-002, P1-007 |
+| [P1-011](./P1-011-session-aggregation.md) | Session aggregation upserts | review | claude | M | P1-010 |
+| [P1-012](./P1-012-transcripts-endpoint.md) | POST /v1/transcripts (chunked + MinIO) | review | claude | L | P1-008, P1-002, P1-007 |
 | [P1-013](./P1-013-price-table-endpoint.md) | GET /v1/price-table | done | — | XS | P1-008 |
 
 ### Workstream C — Auth
