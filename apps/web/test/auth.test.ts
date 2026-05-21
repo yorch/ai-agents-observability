@@ -1,18 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('next/headers', () => {
-  const store = new Map<string, { value: string }>();
-  return {
-    __store: store,
-    cookies: async () => ({
-      get: (name: string) => store.get(name),
-      set: (name: string, value: string) => store.set(name, { value }),
-    }),
-  };
-});
+const cookieStore = new Map<string, { value: string }>();
+
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => cookieStore.get(name),
+    set: (name: string, value: string) => cookieStore.set(name, { value }),
+  }),
+}));
 
 vi.mock('@ai-agents-observability/db', () => ({
-  prisma: {
+  createClient: vi.fn(() => ({
     user: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
         if (where.id === 'u1') {
@@ -31,7 +29,7 @@ vi.mock('@ai-agents-observability/db', () => ({
         return null;
       }),
     },
-  },
+  })),
 }));
 
 vi.mock('@ai-agents-observability/auth', () => ({
@@ -42,6 +40,13 @@ vi.mock('@ai-agents-observability/auth', () => ({
     throw new Error('bad token');
   }),
 }));
+
+beforeEach(() => {
+  cookieStore.clear();
+  // getPrisma() reads DATABASE_URL on first call; provide a placeholder so the
+  // lazy client constructs without requireEnv throwing.
+  process.env.DATABASE_URL = 'postgresql://test:test@x:5432/x';
+});
 
 describe('currentUser', () => {
   it('returns null when no cookie is set', async () => {

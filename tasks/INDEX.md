@@ -47,8 +47,8 @@ Source of truth for task status. Update this in the same commit as the task file
 |---|---|---|---|---|---|
 | [P1-019](./P1-019-hook-compile-pipeline.md) | Bun compile pipeline + multi-target | done | — | M | P1-001 |
 | [P1-020](./P1-020-hook-sqlite-queue.md) | SQLite queue + hook entrypoints (<10ms) | review | claude | L | P1-019, P1-006 |
-| [P1-021](./P1-021-hook-flusher.md) | Background flusher | ready | — | M | P1-020, P1-010 |
-| [P1-022](./P1-022-hook-transcript-shipper.md) | Transcript shipper with redaction | ready | — | M | P1-020, P1-012, P1-007 |
+| [P1-021](./P1-021-hook-flusher.md) | Background flusher | blocked | — | M | P1-020, P1-010 |
+| [P1-022](./P1-022-hook-transcript-shipper.md) | Transcript shipper with redaction | blocked | — | M | P1-020, P1-012, P1-007 |
 | [P1-023](./P1-023-hook-subcommands.md) | Subcommands (login/status/pause/resume/purge/install) | ready | — | M | P1-019, P1-017 |
 
 ### Workstream E — Web UI
@@ -56,15 +56,15 @@ Source of truth for task status. Update this in the same commit as the task file
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P1-024](./P1-024-web-scaffold.md) | Next.js scaffold + OAuth wiring | review | claude | M | P1-001, P1-016 |
-| [P1-025](./P1-025-me-overview.md) | /me overview page | ready | — | M | P1-024, P1-011 |
-| [P1-026](./P1-026-me-sessions.md) | /me/sessions list + detail + transcript viewer | ready | — | L | P1-024, P1-011, P1-012 |
-| [P1-027](./P1-027-me-privacy-audit.md) | /me/privacy + /me/audit | ready | — | M | P1-024, P1-003 |
+| [P1-025](./P1-025-me-overview.md) | /me overview page | blocked | — | M | P1-024, P1-011 |
+| [P1-026](./P1-026-me-sessions.md) | /me/sessions list + detail + transcript viewer | blocked | — | L | P1-024, P1-011, P1-012 |
+| [P1-027](./P1-027-me-privacy-audit.md) | /me/privacy + /me/audit | blocked | — | M | P1-024, P1-003 |
 
 ### Workstream F — Quality
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P1-028](./P1-028-hook-perf-benchmark.md) | Hook perf benchmark (<10ms target) | ready | — | S | P1-020 |
+| [P1-028](./P1-028-hook-perf-benchmark.md) | Hook perf benchmark (<10ms target) | blocked | — | S | P1-020 |
 | [P1-029](./P1-029-phase1-signoff.md) | Phase 1 exit-criteria sign-off | blocked | — | S | all P1-* |
 
 ---

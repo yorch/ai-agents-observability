@@ -1,13 +1,11 @@
 import type { DevicePollResult } from '@ai-agents-observability/auth';
 import { issueHookToken, pollDeviceFlow } from '@ai-agents-observability/auth';
-import { createClient } from '@ai-agents-observability/db';
 import { createGitHubClient } from '@ai-agents-observability/github';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ensureVisibilityPolicy } from '../../../../../lib/ensure-visibility-policy';
-import { requireEnv } from '../../../../../lib/env';
 
-const db = createClient(requireEnv('DATABASE_URL'));
+import { ensureVisibilityPolicy } from '../../../../../lib/ensure-visibility-policy';
+import { getPrisma } from '../../../../../lib/prisma';
 
 const PollBody = z.object({ device_code: z.string().min(1) });
 
@@ -63,6 +61,7 @@ export async function POST(request: Request) {
   const ghClient = createGitHubClient({ token: pollResult.access_token });
   const { data: ghUser } = await ghClient.rest.users.getAuthenticated();
 
+  const db = getPrisma();
   const user = await db.user.upsert({
     create: {
       displayName: ghUser.name ?? ghUser.login,

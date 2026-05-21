@@ -20,7 +20,14 @@ const payload = JSON.stringify({
 });
 
 // Stub stdin so the read is constant-time.
-Bun.stdin.text = async () => payload;
+const payloadBytes = new TextEncoder().encode(payload);
+Bun.stdin.stream = () =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(payloadBytes);
+      controller.close();
+    },
+  });
 
 const samples: number[] = [];
 

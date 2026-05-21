@@ -1,4 +1,5 @@
 import { runHook } from './hook-entry';
+import { log } from './lib/log';
 import { isHookKind } from './lib/payload';
 
 const VERSION = '0.1.0';
@@ -42,7 +43,8 @@ async function main(): Promise<number> {
   if (cmd === 'hook') {
     const kind = positional[1];
     if (!kind || !isHookKind(kind)) {
-      // Hook context: never crash. Exit 0, log the misuse.
+      // Hook context: never crash. Log the misuse for diagnosis, exit 0.
+      log('warn', 'hook.invalid_kind', { kind: kind ?? null });
       return 0;
     }
     await runHook(kind, { quiet });

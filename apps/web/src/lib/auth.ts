@@ -2,7 +2,7 @@ import { verifyAccessToken } from '@ai-agents-observability/auth';
 import type { User } from '@ai-agents-observability/db';
 import { cookies } from 'next/headers';
 
-import { prisma } from './prisma';
+import { getPrisma } from './prisma';
 import { COOKIE_ACCESS } from './session-cookie';
 
 export async function currentUser(): Promise<User | null> {
@@ -19,7 +19,7 @@ export async function currentUser(): Promise<User | null> {
     return null;
   }
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await getPrisma().user.findUnique({ where: { id: userId } });
   if (!user || user.deactivatedAt) {
     return null;
   }

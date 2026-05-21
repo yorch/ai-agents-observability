@@ -1,13 +1,11 @@
 import type { ExternalIdentity } from '@ai-agents-observability/auth';
 import { issueAccessToken, issueRefreshToken } from '@ai-agents-observability/auth';
-import { createClient } from '@ai-agents-observability/db';
 import { NextResponse } from 'next/server';
-import { provider } from '../../../../lib/auth-provider';
-import { ensureVisibilityPolicy } from '../../../../lib/ensure-visibility-policy';
-import { requireEnv } from '../../../../lib/env';
-import { getStateCookie, hashState, setAuthCookies } from '../../../../lib/session-cookie';
 
-const db = createClient(requireEnv('DATABASE_URL'));
+import { getProvider } from '../../../../lib/auth-provider';
+import { ensureVisibilityPolicy } from '../../../../lib/ensure-visibility-policy';
+import { getPrisma } from '../../../../lib/prisma';
+import { getStateCookie, hashState, setAuthCookies } from '../../../../lib/session-cookie';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -25,7 +23,7 @@ export async function GET(request: Request) {
 
   let identity: ExternalIdentity;
   try {
-    identity = await provider.completeAuthorize({
+    identity = await getProvider().completeAuthorize({
       code,
       redirectUri: `${url.origin}/api/auth/callback`,
       state,
@@ -34,6 +32,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'OAuth exchange failed' }, { status: 502 });
   }
 
+  const db = getPrisma();
   const githubId = BigInt(identity.external_id);
   const user = await db.user.upsert({
     create: {

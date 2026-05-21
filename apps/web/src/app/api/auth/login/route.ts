@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { provider } from '../../../../lib/auth-provider';
+import { getProvider } from '../../../../lib/auth-provider';
 import { hashState, setStateCookie } from '../../../../lib/session-cookie';
 
 function buildCallbackUrl(request: Request): string {
@@ -8,7 +8,7 @@ function buildCallbackUrl(request: Request): string {
 }
 
 export async function GET(request: Request) {
-  const { state, url } = await provider.startAuthorize(buildCallbackUrl(request));
+  const { state, url } = await getProvider().startAuthorize(buildCallbackUrl(request));
   await setStateCookie(hashState(state));
   return NextResponse.redirect(url);
 }

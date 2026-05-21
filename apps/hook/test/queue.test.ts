@@ -81,21 +81,37 @@ describe('payload → Event', () => {
   });
 });
 
+function stubStdin(payload: string): () => void {
+  const original = Bun.stdin.stream.bind(Bun.stdin);
+  Bun.stdin.stream = () =>
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        if (payload.length > 0) {
+          controller.enqueue(new TextEncoder().encode(payload));
+        }
+        controller.close();
+      },
+    });
+  return () => {
+    Bun.stdin.stream = original;
+  };
+}
+
 describe('runHook', () => {
   it('writes one event from a piped stdin payload', async () => {
-    const original = Bun.stdin.text.bind(Bun.stdin);
-    Bun.stdin.text = async () =>
+    const restore = stubStdin(
       JSON.stringify({
         cwd: '/tmp',
         hook_event_name: 'PreToolUse',
         session_id: '550e8400-e29b-41d4-a716-446655440000',
         tool_name: 'Read',
-      });
+      }),
+    );
 
     try {
       await runHook('pre-tool-use', { quiet: true });
     } finally {
-      Bun.stdin.text = original;
+      restore();
     }
 
     const db = new Database(`${tmpHome}/queue.db`);
@@ -113,24 +129,20 @@ describe('runHook', () => {
   });
 
   it('does not throw when stdin is empty', async () => {
-    const original = Bun.stdin.text.bind(Bun.stdin);
-    Bun.stdin.text = async () => '';
-
+    const restore = stubStdin('');
     try {
       await runHook('stop', { quiet: true });
     } finally {
-      Bun.stdin.text = original;
+      restore();
     }
   });
 
   it('does not throw on invalid JSON', async () => {
-    const original = Bun.stdin.text.bind(Bun.stdin);
-    Bun.stdin.text = async () => 'not-json{{';
-
+    const restore = stubStdin('not-json{{');
     try {
       await runHook('stop', { quiet: true });
     } finally {
-      Bun.stdin.text = original;
+      restore();
     }
   });
 });

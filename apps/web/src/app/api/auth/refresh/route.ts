@@ -1,11 +1,8 @@
 import { rotateRefreshToken } from '@ai-agents-observability/auth';
-import { createClient } from '@ai-agents-observability/db';
 import { NextResponse } from 'next/server';
 
-import { requireEnv } from '../../../../lib/env';
+import { getPrisma } from '../../../../lib/prisma';
 import { getRefreshCookie, setAuthCookies } from '../../../../lib/session-cookie';
-
-const db = createClient(requireEnv('DATABASE_URL'));
 
 export async function POST() {
   const refresh = await getRefreshCookie();
@@ -14,7 +11,7 @@ export async function POST() {
   }
 
   try {
-    const { access, refresh: newRefresh } = await rotateRefreshToken(db, refresh);
+    const { access, refresh: newRefresh } = await rotateRefreshToken(getPrisma(), refresh);
     await setAuthCookies(access, newRefresh);
     return new NextResponse(null, { status: 204 });
   } catch {

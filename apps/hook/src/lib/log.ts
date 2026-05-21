@@ -3,17 +3,22 @@ import { dirname } from 'node:path';
 
 import { telemetryHome } from './paths';
 
-const LOG_PATH = `${telemetryHome()}/hook.log`;
+// Path is computed per call rather than at module load so overrides set after
+// import (test setup, bench script) take effect.
+export function logPath(): string {
+  return `${telemetryHome()}/hook.log`;
+}
 
-let dirEnsured = false;
+const ensuredDirs = new Set<string>();
 
-function ensureDir(): void {
-  if (dirEnsured) {
+function ensureDir(path: string): void {
+  const dir = dirname(path);
+  if (ensuredDirs.has(dir)) {
     return;
   }
   try {
-    mkdirSync(dirname(LOG_PATH), { recursive: true });
-    dirEnsured = true;
+    mkdirSync(dir, { recursive: true });
+    ensuredDirs.add(dir);
   } catch {
     // Swallow — log() must never throw.
   }
@@ -24,15 +29,12 @@ export function log(
   event: string,
   fields?: Record<string, unknown>,
 ): void {
-  ensureDir();
+  const path = logPath();
+  ensureDir(path);
   const line = `${JSON.stringify({ event, level, ts: new Date().toISOString(), ...fields })}\n`;
   try {
-    appendFileSync(LOG_PATH, line, { encoding: 'utf8' });
+    appendFileSync(path, line, { encoding: 'utf8' });
   } catch {
     // Swallow — log() must never throw.
   }
-}
-
-export function logPath(): string {
-  return LOG_PATH;
 }
