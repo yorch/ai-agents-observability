@@ -59,12 +59,18 @@ export async function runLogin(): Promise<number> {
       }
       pollResult = (await res.json()) as PollResult;
     } catch (err) {
-      process.stderr.write(`Network error during poll: ${(err as Error).message}\n`);
-      return 1;
+      // Transient network error — retry on next tick; deadline handles timeout.
+      process.stderr.write(`Poll network error (retrying): ${(err as Error).message}\n`);
+      continue;
     }
 
     if (pollResult.status === 'pending') {
       continue;
+    }
+
+    if (pollResult.status !== 'authorized') {
+      process.stderr.write(`Unexpected poll status: ${String((pollResult as { status: unknown }).status)}\n`);
+      return 1;
     }
 
     const { hook_token, github_login } = pollResult;

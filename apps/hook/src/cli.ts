@@ -109,5 +109,7 @@ async function main(): Promise<number> {
   return 1;
 }
 
-const exitCode = await main().catch(() => 0);
+// Exit 1 on unexpected crashes so launchd/systemd supervisors restart the
+// process. Hook invocations always return 0 explicitly inside main().
+const exitCode = await main().catch(() => 1);
 process.exit(exitCode);

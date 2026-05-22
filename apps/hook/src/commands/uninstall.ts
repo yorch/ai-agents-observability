@@ -26,16 +26,20 @@ function uninstallLinux(): number {
   const dir = join(homedir(), '.config', 'systemd', 'user');
   const services = ['claude-telemetry-flusher.service', 'claude-telemetry-shipper.service'];
 
+  let anyRemoved = false;
   for (const svc of services) {
-    Bun.spawnSync(['systemctl', '--user', 'disable', '--now', svc]);
     const path = join(dir, svc);
     if (existsSync(path)) {
+      Bun.spawnSync(['systemctl', '--user', 'disable', '--now', svc]);
       rmSync(path, { force: true });
       process.stdout.write(`removed: ${path}\n`);
+      anyRemoved = true;
     }
   }
 
-  Bun.spawnSync(['systemctl', '--user', 'daemon-reload']);
+  if (anyRemoved) {
+    Bun.spawnSync(['systemctl', '--user', 'daemon-reload']);
+  }
 
   process.stdout.write('\nServices uninstalled. Local data was not removed.\n');
   process.stdout.write('To remove local data: claude-telemetry purge-local\n');

@@ -26,11 +26,11 @@ function safeParse(raw: string): Record<string, unknown> | null {
 // Run a single hook entrypoint. Always resolves; the caller exits 0 regardless.
 // Errors are logged and swallowed — a broken hook MUST NOT break Claude Code.
 export async function runHook(kind: HookKind, _opts: Options): Promise<void> {
-  if (existsSync(pausedPath())) {
-    return;
-  }
-
   try {
+    if (existsSync(pausedPath())) {
+      return;
+    }
+
     const stdin = await readStdinBounded();
 
     // Distinct outcomes for distinct stdin states — never synthesize a bogus

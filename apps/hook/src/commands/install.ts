@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { basename } from 'node:path';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -16,38 +17,49 @@ const HOOK_KINDS = [
 const FLUSHER_LABEL = 'com.claude-telemetry.flusher';
 const SHIPPER_LABEL = 'com.claude-telemetry.shipper';
 
+function xmlEscape(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 function launchdPlist(label: string, bin: string, subcommand: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>${label}</string>
+  <string>${xmlEscape(label)}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>${bin}</string>
-    <string>${subcommand}</string>
+    <string>${xmlEscape(bin)}</string>
+    <string>${xmlEscape(subcommand)}</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/tmp/${label}.log</string>
+  <string>/tmp/${xmlEscape(label)}.log</string>
   <key>StandardErrorPath</key>
-  <string>/tmp/${label}.log</string>
+  <string>/tmp/${xmlEscape(label)}.log</string>
 </dict>
 </plist>
 `;
 }
 
 function systemdUnit(bin: string, subcommand: string, description: string): string {
+  // Quote the binary path so systemd handles paths with spaces correctly.
+  const quotedBin = bin.includes(' ') ? `"${bin}"` : bin;
   return `[Unit]
 Description=${description}
 After=network.target
 
 [Service]
-ExecStart=${bin} ${subcommand}
+ExecStart=${quotedBin} ${subcommand}
 Restart=always
 RestartSec=5
 
@@ -63,6 +75,24 @@ function printHookSnippet(bin: string): void {
   }
   process.stdout.write('Add to ~/.claude/settings.json:\n\n');
   process.stdout.write(`${JSON.stringify({ hooks }, null, 2)}\n`);
+}
+
+function resolvedBinaryPath(): string {
+  const bin = process.execPath;
+  // When invoked via `bun run src/cli.ts`, process.execPath is the Bun runtime
+  // binary, not the compiled claude-telemetry binary. The generated service files
+  // would reference bun directly and fail to start. Warn so the user knows to
+  // build first.
+  if (!basename(bin).startsWith('claude-telemetry')) {
+    process.stderr.write(
+      'Warning: running uncompiled — process.execPath points to the Bun runtime,\n' +
+        `not the claude-telemetry binary (got: ${bin}).\n` +
+        'The generated service files will not work. Build the binary first:\n' +
+        '  bun run build\n' +
+        'then run: ./dist/claude-telemetry install\n\n',
+    );
+  }
+  return bin;
 }
 
 function installDarwin(bin: string): number {
@@ -119,7 +149,7 @@ function installLinux(bin: string): number {
 }
 
 export function runInstall(): number {
-  const bin = process.execPath;
+  const bin = resolvedBinaryPath();
 
   if (process.platform === 'darwin') {
     return installDarwin(bin);

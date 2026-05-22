@@ -1,7 +1,14 @@
 import { existsSync, rmSync } from 'node:fs';
 
 import { logPath } from '../lib/log';
-import { flusherStatePath, identityPath, pausedPath, queuePath, shipQueueDir } from '../lib/paths';
+import {
+  flusherStatePath,
+  identityPath,
+  pausedPath,
+  queuePath,
+  shipQueueDir,
+  telemetryHome,
+} from '../lib/paths';
 
 const DEFAULT_API = 'http://localhost:3000';
 
@@ -34,8 +41,18 @@ export async function runPurge(args: string[]): Promise<number> {
   const removed: string[] = [];
   const failed: string[] = [];
 
+  const home = telemetryHome();
+
   function tryRemove(path: string, recursive = false): void {
     if (!existsSync(path)) return;
+    // Guard recursive deletes: refuse to remove a directory that isn't clearly
+    // under telemetryHome so a misconfigured CLAUDE_TELEMETRY_HOME can't wipe
+    // unrelated directory trees.
+    if (recursive && !path.startsWith(`${home}/`)) {
+      process.stderr.write(`skipping ${path}: not within ${home}\n`);
+      failed.push(path);
+      return;
+    }
     try {
       rmSync(path, { force: true, recursive });
       removed.push(path);

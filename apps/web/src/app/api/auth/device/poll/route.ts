@@ -59,33 +59,42 @@ export async function POST(request: Request) {
   }
 
   const ghClient = createGitHubClient({ token: pollResult.access_token });
-  const { data: ghUser } = await ghClient.rest.users.getAuthenticated();
+  let ghUser: Awaited<ReturnType<typeof ghClient.rest.users.getAuthenticated>>['data'];
+  try {
+    ({ data: ghUser } = await ghClient.rest.users.getAuthenticated());
+  } catch {
+    return NextResponse.json({ error: 'Failed to fetch GitHub user' }, { status: 502 });
+  }
 
-  const db = getPrisma();
-  const user = await db.user.upsert({
-    create: {
-      displayName: ghUser.name ?? ghUser.login,
-      email: ghUser.email ?? null,
-      githubId: BigInt(ghUser.id),
-      githubLogin: ghUser.login,
-      lastSeenAt: new Date(),
-    },
-    update: { lastSeenAt: new Date() },
-    where: { githubId: BigInt(ghUser.id) },
-  });
+  let hookToken: string;
+  try {
+    const db = getPrisma();
+    const user = await db.user.upsert({
+      create: {
+        displayName: ghUser.name ?? ghUser.login,
+        email: ghUser.email ?? null,
+        githubId: BigInt(ghUser.id),
+        githubLogin: ghUser.login,
+        lastSeenAt: new Date(),
+      },
+      update: { lastSeenAt: new Date() },
+      where: { githubId: BigInt(ghUser.id) },
+    });
 
-  await ensureVisibilityPolicy(db, user.id);
+    await ensureVisibilityPolicy(db, user.id);
+    hookToken = await issueHookToken(db, user.id);
 
-  const hookToken = await issueHookToken(db, user.id);
-
-  await db.auditLog.create({
-    data: {
-      action: 'view_session', // placeholder — Phase 3 adds hook_token_issued to AuditAction
-      actorUserId: user.id,
-      justification: 'Device-code hook token issued',
-      targetUserId: user.id,
-    },
-  });
+    await db.auditLog.create({
+      data: {
+        action: 'view_session', // placeholder — Phase 3 adds hook_token_issued to AuditAction
+        actorUserId: user.id,
+        justification: 'Device-code hook token issued',
+        targetUserId: user.id,
+      },
+    });
+  } catch {
+    return NextResponse.json({ error: 'Token issuance failed' }, { status: 500 });
+  }
 
   pollTimestamps.delete(device_code);
   return NextResponse.json({ github_login: ghUser.login, hook_token: hookToken, status: 'authorized' });
