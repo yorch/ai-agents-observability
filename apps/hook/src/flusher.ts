@@ -72,108 +72,112 @@ export async function runFlusher(): Promise<void> {
 
   let consecutiveFailures = 0;
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const rows = reader.drain(BATCH_SIZE);
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const rows = reader.drain(BATCH_SIZE);
 
-    if (rows.length === 0) {
-      await Bun.sleep(IDLE_INTERVAL_MS);
-      continue;
-    }
+      if (rows.length === 0) {
+        await Bun.sleep(IDLE_INTERVAL_MS);
+        continue;
+      }
 
-    const jwt = loadJwt();
-    if (!jwt) {
-      log('warn', 'flusher.no_token', {
-        hint: 'Run `claude-telemetry login` to authenticate',
-      });
-      writeFlusherState({
-        ...readFlusherState(),
-        lastError: 'No auth token — run `claude-telemetry login`',
-      });
-      await Bun.sleep(IDLE_INTERVAL_MS);
-      continue;
-    }
-
-    const eventIds = rows.map((r) => r.event_id);
-    const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
-    const body = JSON.stringify({ events, session_context: null });
-
-    let success = false;
-    const attempt = consecutiveFailures;
-
-    try {
-      const res = await fetch(`${INGEST_BASE_URL}/v1/events`, {
-        body,
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          'Content-Type': 'application/json',
-        },
-        method: 'POST',
-      });
-
-      if (res.status >= 200 && res.status < 300) {
-        // Success — delete the rows
-        reader.delete(eventIds);
-        const now = new Date().toISOString();
-        writeFlusherState({ lastError: null, lastFlushAt: now, queueDepth: reader.depth() });
-        log('info', 'flusher.batch_sent', { count: rows.length, status: res.status });
-        consecutiveFailures = 0;
-        success = true;
-      } else if (res.status === 401) {
-        log('error', 'flusher.unauthorized', {
-          hint: 'Run `claude-telemetry login` to re-authenticate',
-          status: res.status,
+      const jwt = loadJwt();
+      if (!jwt) {
+        log('warn', 'flusher.no_token', {
+          hint: 'Run `claude-telemetry login` to authenticate',
         });
         writeFlusherState({
           ...readFlusherState(),
-          lastError: `Unauthorized (${res.status}) — re-authentication required`,
+          lastError: 'No auth token — run `claude-telemetry login`',
         });
-        reader.close();
-        process.exit(1);
-      } else if (res.status >= 400 && res.status < 500) {
-        // 4xx (non-401): bad data, server won't accept — delete and move on
-        reader.delete(eventIds);
-        log('warn', 'flusher.batch_rejected', { count: rows.length, status: res.status });
-        writeFlusherState({
-          lastError: `Batch rejected by server (${res.status})`,
-          lastFlushAt: null,
-          queueDepth: reader.depth(),
+        await Bun.sleep(IDLE_INTERVAL_MS);
+        continue;
+      }
+
+      const eventIds = rows.map((r) => r.event_id);
+      const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
+      const body = JSON.stringify({ events, session_context: null });
+
+      let success = false;
+      const attempt = consecutiveFailures;
+
+      try {
+        const res = await fetch(`${INGEST_BASE_URL}/v1/events`, {
+          body,
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            'Content-Type': 'application/json',
+          },
+          method: 'POST',
         });
-        consecutiveFailures = 0;
-        success = true;
-      } else {
-        // 5xx — mark attempts and back off
+
+        if (res.status >= 200 && res.status < 300) {
+          // Success — delete the rows
+          reader.delete(eventIds);
+          const now = new Date().toISOString();
+          writeFlusherState({ lastError: null, lastFlushAt: now, queueDepth: reader.depth() });
+          log('info', 'flusher.batch_sent', { count: rows.length, status: res.status });
+          consecutiveFailures = 0;
+          success = true;
+        } else if (res.status === 401) {
+          log('error', 'flusher.unauthorized', {
+            hint: 'Run `claude-telemetry login` to re-authenticate',
+            status: res.status,
+          });
+          writeFlusherState({
+            ...readFlusherState(),
+            lastError: `Unauthorized (${res.status}) — re-authentication required`,
+          });
+          reader.close();
+          process.exit(1);
+        } else if (res.status >= 400 && res.status < 500) {
+          // 4xx (non-401): bad data, server won't accept — delete and move on
+          reader.delete(eventIds);
+          log('warn', 'flusher.batch_rejected', { count: rows.length, status: res.status });
+          writeFlusherState({
+            lastError: `Batch rejected by server (${res.status})`,
+            lastFlushAt: null,
+            queueDepth: reader.depth(),
+          });
+          consecutiveFailures = 0;
+          success = true;
+        } else {
+          // 5xx — mark attempts and back off
+          reader.markAttempt(eventIds);
+          const errMsg = `Server error ${res.status}`;
+          log('warn', 'flusher.batch_failed', { attempt, count: rows.length, status: res.status });
+          writeFlusherState({
+            ...readFlusherState(),
+            lastError: errMsg,
+            queueDepth: reader.depth(),
+          });
+          consecutiveFailures++;
+          await backoffSleep(attempt);
+        }
+      } catch (err) {
+        // Network error — mark attempts and back off
+        const message = (err as Error).message;
         reader.markAttempt(eventIds);
-        const errMsg = `Server error ${res.status}`;
-        log('warn', 'flusher.batch_failed', { attempt, count: rows.length, status: res.status });
+        log('warn', 'flusher.network_error', { attempt, message });
         writeFlusherState({
           ...readFlusherState(),
-          lastError: errMsg,
+          lastError: `Network error: ${message}`,
           queueDepth: reader.depth(),
         });
         consecutiveFailures++;
         await backoffSleep(attempt);
       }
-    } catch (err) {
-      // Network error — mark attempts and back off
-      const message = (err as Error).message;
-      reader.markAttempt(eventIds);
-      log('warn', 'flusher.network_error', { attempt, message });
-      writeFlusherState({
-        ...readFlusherState(),
-        lastError: `Network error: ${message}`,
-        queueDepth: reader.depth(),
-      });
-      consecutiveFailures++;
-      await backoffSleep(attempt);
-    }
 
-    if (success) {
-      const depth = reader.depth();
-      if (depth < HIGH_WATER_MARK) {
-        await Bun.sleep(IDLE_INTERVAL_MS);
+      if (success) {
+        const depth = reader.depth();
+        if (depth < HIGH_WATER_MARK) {
+          await Bun.sleep(IDLE_INTERVAL_MS);
+        }
+        // else: loop immediately to drain more rows
       }
-      // else: loop immediately to drain more rows
     }
+  } finally {
+    reader.close();
   }
 }

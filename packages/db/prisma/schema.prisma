@@ -27,6 +27,7 @@ enum AuditAction {
   export_team
   export_org
   admin_impersonate
+  delete_request
 }
 
 enum AuthTokenKind {

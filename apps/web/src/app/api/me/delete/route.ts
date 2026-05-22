@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     }),
     prisma.auditLog.create({
       data: {
-        action: 'admin_impersonate',
+        action: 'delete_request',
         actorUserId: user.id,
         justification: 'User requested data deletion',
         targetUserId: user.id,

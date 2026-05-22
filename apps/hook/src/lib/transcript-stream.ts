@@ -11,12 +11,17 @@ export async function* redactedLines(filePath: string): AsyncGenerator<string> {
   const fileStream = createReadStream(filePath, { encoding: 'utf8' });
   const rl = createInterface({ crlfDelay: Infinity, input: fileStream });
 
-  for await (const line of rl) {
-    if (line.trim().length === 0) {
-      continue;
+  try {
+    for await (const line of rl) {
+      if (line.trim().length === 0) {
+        continue;
+      }
+      const { text } = redact(line);
+      yield text;
     }
-    const { text } = redact(line);
-    yield text;
+  } finally {
+    rl.close();
+    fileStream.destroy();
   }
 }
 

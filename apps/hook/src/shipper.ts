@@ -66,11 +66,8 @@ function readMarkers(): ShipMarker[] {
 }
 
 function deleteMarker(sessionId: string): void {
-  try {
-    rmSync(join(shipQueueDir(), `${sessionId}.json`), { force: true });
-  } catch {
-    // ignore
-  }
+  // { force: true } suppresses ENOENT; other errors (EACCES etc.) still throw.
+  rmSync(join(shipQueueDir(), `${sessionId}.json`), { force: true });
 }
 
 // ── JWT token ─────────────────────────────────────────────────────────────────
@@ -116,14 +113,33 @@ async function throttledUpload(
   body: Uint8Array,
   headers: Record<string, string>,
 ): Promise<Response> {
-  // Throttle to MAX_BYTES_PER_SEC by splitting the body into chunks and
-  // adding sleeps between them. For simplicity and since fetch takes the full
-  // body, we compute the expected time and sleep before sending if needed.
-  const expectedMs = (body.byteLength / MAX_BYTES_PER_SEC) * 1_000;
-  if (expectedMs > 100) {
-    await Bun.sleep(Math.floor(expectedMs));
-  }
-  return fetch(url, { body, headers, method: 'PUT' });
+  // Pace the upload by streaming 256 KB chunks with sleeps between them so
+  // the actual transfer rate stays near MAX_BYTES_PER_SEC. A pre-send sleep
+  // on the whole body does not limit bandwidth — it only delays the start.
+  const CHUNK_SIZE = 256 * 1024;
+  const msPerChunk = Math.ceil((CHUNK_SIZE / MAX_BYTES_PER_SEC) * 1_000);
+
+  let offset = 0;
+  const readable = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (offset >= body.byteLength) {
+        controller.close();
+        return;
+      }
+      const end = Math.min(offset + CHUNK_SIZE, body.byteLength);
+      controller.enqueue(body.slice(offset, end));
+      offset = end;
+      if (offset < body.byteLength) {
+        await Bun.sleep(msPerChunk);
+      }
+    },
+  });
+
+  return fetch(url, {
+    body: readable,
+    headers: { ...headers, 'Content-Length': String(body.byteLength) },
+    method: 'PUT',
+  });
 }
 
 // ── Shipper loop ──────────────────────────────────────────────────────────────
@@ -158,14 +174,26 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
     });
 
     if (res.status >= 200 && res.status < 300) {
-      deleteMarker(session_id);
+      try {
+        deleteMarker(session_id);
+      } catch (delErr) {
+        log('error', 'shipper.delete_marker_failed', {
+          message: (delErr as Error).message,
+          note: 'Transcript uploaded but marker persists — will re-upload next sweep',
+          session_id,
+        });
+      }
       log('info', 'shipper.uploaded', { bytes: body.byteLength, session_id, status: res.status });
     } else if (res.status === 409) {
       // Conflict — skip for now, retry next sweep
       log('info', 'shipper.conflict', { session_id, status: res.status });
     } else if (res.status >= 400 && res.status < 500) {
       // 4xx (non-409): bad data, server won't accept — delete marker
-      deleteMarker(session_id);
+      try {
+        deleteMarker(session_id);
+      } catch {
+        // best-effort; marker will be retried and rejected again next sweep
+      }
       log('warn', 'shipper.rejected', { session_id, status: res.status });
     } else {
       // 5xx / unexpected: skip for now, retry next sweep

@@ -26,8 +26,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const endpoint = process.env.S3_ENDPOINT;
   const s3 = new S3Client({
     credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY ?? '',
-      secretAccessKey: process.env.S3_SECRET_KEY ?? '',
+      accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
+      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
     },
     ...(endpoint ? { endpoint } : {}),
     forcePathStyle: true,

@@ -1,6 +1,16 @@
 import type { $Enums, Prisma } from '@ai-agents-observability/db';
 import { getPrisma } from './prisma';
 
+const VALID_STATUSES = new Set<string>([
+  'active',
+  'completed',
+  'crashed',
+  'timed_out',
+  'abandoned',
+]);
+
+const MAX_PAGE = 10_000;
+
 export type SessionRow = {
   costUsd: number;
   durationSeconds: number | null;
@@ -54,9 +64,15 @@ export async function listSessions(
 ): Promise<{ sessions: SessionRow[]; total: number }> {
   const prisma = getPrisma();
 
+  const safePage = Math.min(Math.max(1, opts.page), MAX_PAGE);
+  const validatedStatus =
+    opts.status && VALID_STATUSES.has(opts.status)
+      ? (opts.status as $Enums.SessionStatus)
+      : undefined;
+
   const where: Prisma.SessionWhereInput = {
     userId,
-    ...(opts.status ? { status: opts.status as $Enums.SessionStatus } : {}),
+    ...(validatedStatus ? { status: validatedStatus } : {}),
     ...(opts.dateFrom || opts.dateTo
       ? {
           startedAt: {
@@ -84,7 +100,7 @@ export async function listSessions(
         repo: { select: { githubName: true, githubOwner: true } },
       },
       orderBy: { startedAt: 'desc' },
-      skip: (opts.page - 1) * PAGE_SIZE,
+      skip: (safePage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       where,
     }),
