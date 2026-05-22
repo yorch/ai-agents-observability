@@ -5,6 +5,7 @@ import pino from 'pino';
 import type { AppDeps } from './app';
 import { createApp } from './app';
 import { loadConfig } from './config';
+import { startScheduler } from './jobs/scheduler';
 
 const config = loadConfig();
 
@@ -45,6 +46,8 @@ const server = Bun.serve({
 });
 
 logger.info({ port: config.port, version: config.git_sha }, 'ingest service started');
+
+startScheduler(db, logger);
 
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, starting graceful shutdown');

@@ -1,0 +1,173 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// We need DATABASE_URL for the lazy prisma singleton
+beforeEach(() => {
+  process.env.DATABASE_URL = 'postgresql://test:test@x:5432/x';
+});
+
+// ── Mock @ai-agents-observability/db ────────────────────────────────────────
+
+const mockPrisma = {
+  session: {
+    aggregate: vi.fn(),
+    findMany: vi.fn(),
+    count: vi.fn(),
+  },
+  visibilityPolicy: {
+    findUnique: vi.fn(),
+    upsert: vi.fn(),
+  },
+};
+
+vi.mock('@ai-agents-observability/db', () => ({
+  createClient: vi.fn(() => mockPrisma),
+}));
+
+// ── getUsageSummary ──────────────────────────────────────────────────────────
+
+describe('getUsageSummary', () => {
+  it('returns zeroed summary when no sessions', async () => {
+    mockPrisma.session.aggregate.mockResolvedValueOnce({
+      _count: { sessionId: 0 },
+      _sum: { totalCostUsd: null },
+    });
+    mockPrisma.session.findMany.mockResolvedValueOnce([]);
+
+    const { getUsageSummary } = await import('../src/lib/me-queries.js');
+    const result = await getUsageSummary('u1', new Date(0));
+
+    expect(result.sessionCount).toBe(0);
+    expect(result.totalCostUsd).toBe(0);
+    expect(result.totalHours).toBe(0);
+    expect(result.repoCount).toBe(0);
+  });
+
+  it('calculates totalHours from session durations', async () => {
+    const start = new Date('2026-01-01T10:00:00Z');
+    const end = new Date('2026-01-01T11:00:00Z'); // 1 hour
+
+    mockPrisma.session.aggregate.mockResolvedValueOnce({
+      _count: { sessionId: 1 },
+      _sum: { totalCostUsd: '0.50' },
+    });
+    mockPrisma.session.findMany.mockResolvedValueOnce([
+      { startedAt: start, endedAt: end, repoId: 'repo1' },
+    ]);
+
+    const { getUsageSummary } = await import('../src/lib/me-queries.js');
+    const result = await getUsageSummary('u1', new Date(0));
+
+    expect(result.sessionCount).toBe(1);
+    expect(result.totalCostUsd).toBeCloseTo(0.5);
+    expect(result.totalHours).toBeCloseTo(1.0);
+    expect(result.repoCount).toBe(1);
+  });
+
+  it('counts unique repos correctly', async () => {
+    mockPrisma.session.aggregate.mockResolvedValueOnce({
+      _count: { sessionId: 3 },
+      _sum: { totalCostUsd: '1.00' },
+    });
+    mockPrisma.session.findMany.mockResolvedValueOnce([
+      { startedAt: new Date(), endedAt: null, repoId: 'repo-a' },
+      { startedAt: new Date(), endedAt: null, repoId: 'repo-a' }, // duplicate
+      { startedAt: new Date(), endedAt: null, repoId: 'repo-b' },
+    ]);
+
+    const { getUsageSummary } = await import('../src/lib/me-queries.js');
+    const result = await getUsageSummary('u1', new Date(0));
+
+    expect(result.repoCount).toBe(2);
+  });
+});
+
+// ── getTopTools ──────────────────────────────────────────────────────────────
+
+describe('getTopTools', () => {
+  it('groups by primaryModel and sums toolCallCount', async () => {
+    mockPrisma.session.findMany.mockResolvedValueOnce([
+      { primaryModel: 'claude-sonnet', toolCallCount: 10 },
+      { primaryModel: 'claude-sonnet', toolCallCount: 5 },
+      { primaryModel: 'claude-opus', toolCallCount: 3 },
+    ]);
+
+    const { getTopTools } = await import('../src/lib/me-queries.js');
+    const result = await getTopTools('u1', new Date(0));
+
+    expect(result[0]).toEqual({ toolName: 'claude-sonnet', callCount: 15 });
+    expect(result[1]).toEqual({ toolName: 'claude-opus', callCount: 3 });
+  });
+
+  it('respects the limit parameter', async () => {
+    mockPrisma.session.findMany.mockResolvedValueOnce([
+      { primaryModel: 'a', toolCallCount: 5 },
+      { primaryModel: 'b', toolCallCount: 4 },
+      { primaryModel: 'c', toolCallCount: 3 },
+      { primaryModel: 'd', toolCallCount: 2 },
+    ]);
+
+    const { getTopTools } = await import('../src/lib/me-queries.js');
+    const result = await getTopTools('u1', new Date(0), 2);
+
+    expect(result).toHaveLength(2);
+  });
+});
+
+// ── getVisibilityPolicy ──────────────────────────────────────────────────────
+
+describe('getVisibilityPolicy', () => {
+  it('returns null when no policy exists', async () => {
+    mockPrisma.visibilityPolicy.findUnique.mockResolvedValueOnce(null);
+
+    const { getVisibilityPolicy } = await import('../src/lib/visibility.js');
+    const result = await getVisibilityPolicy('u1');
+
+    expect(result).toBeNull();
+  });
+
+  it('returns the policy when it exists', async () => {
+    const policy = {
+      shareMetadataWithOrg: true,
+      shareMetadataWithTeam: true,
+      shareTranscriptsWithOrg: false,
+      shareTranscriptsWithTeam: false,
+      updatedAt: new Date(),
+      userId: 'u1',
+    };
+    mockPrisma.visibilityPolicy.findUnique.mockResolvedValueOnce(policy);
+
+    const { getVisibilityPolicy } = await import('../src/lib/visibility.js');
+    const result = await getVisibilityPolicy('u1');
+
+    expect(result?.shareMetadataWithTeam).toBe(true);
+    expect(result?.shareTranscriptsWithTeam).toBe(false);
+  });
+});
+
+// ── updateVisibilityPolicy ───────────────────────────────────────────────────
+
+describe('updateVisibilityPolicy', () => {
+  it('calls upsert with the correct fields', async () => {
+    mockPrisma.visibilityPolicy.upsert.mockResolvedValueOnce({
+      shareMetadataWithOrg: false,
+      shareMetadataWithTeam: true,
+      shareTranscriptsWithOrg: false,
+      shareTranscriptsWithTeam: true,
+      updatedAt: new Date(),
+      userId: 'u1',
+    });
+
+    const { updateVisibilityPolicy } = await import('../src/lib/visibility.js');
+    await updateVisibilityPolicy('u1', {
+      shareMetadataWithTeam: true,
+      shareTranscriptsWithTeam: true,
+    });
+
+    expect(mockPrisma.visibilityPolicy.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'u1' },
+        update: expect.objectContaining({ shareMetadataWithTeam: true }),
+      }),
+    );
+  });
+});

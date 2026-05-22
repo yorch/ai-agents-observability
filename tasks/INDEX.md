@@ -39,7 +39,7 @@ Source of truth for task status. Update this in the same commit as the task file
 | [P1-015](./P1-015-github-client-package.md) | packages/github: host-agnostic Octokit | done | — | S | P1-001 |
 | [P1-016](./P1-016-github-oauth-web.md) | GitHub OAuth (web flow) | done | — | M | P1-014, P1-015 |
 | [P1-017](./P1-017-device-code-flow.md) | Device-code flow for hook | done | — | M | P1-014, P1-015 |
-| [P1-018](./P1-018-team-sync.md) | Team sync cron job | ready | — | S | P1-015, P1-003 |
+| [P1-018](./P1-018-team-sync.md) | Team sync cron job | done | claude | S | P1-015, P1-003 |
 
 ### Workstream D — Hook
 
@@ -56,9 +56,9 @@ Source of truth for task status. Update this in the same commit as the task file
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P1-024](./P1-024-web-scaffold.md) | Next.js scaffold + OAuth wiring | review | claude | M | P1-001, P1-016 |
-| [P1-025](./P1-025-me-overview.md) | /me overview page | blocked | — | M | P1-024, P1-011 |
-| [P1-026](./P1-026-me-sessions.md) | /me/sessions list + detail + transcript viewer | blocked | — | L | P1-024, P1-011, P1-012 |
-| [P1-027](./P1-027-me-privacy-audit.md) | /me/privacy + /me/audit | blocked | — | M | P1-024, P1-003 |
+| [P1-025](./P1-025-me-overview.md) | /me overview page | done | claude | M | P1-024, P1-011 |
+| [P1-026](./P1-026-me-sessions.md) | /me/sessions list + detail + transcript viewer | done | claude | L | P1-024, P1-011, P1-012 |
+| [P1-027](./P1-027-me-privacy-audit.md) | /me/privacy + /me/audit | done | claude | M | P1-024, P1-003 |
 
 ### Workstream F — Quality
 
