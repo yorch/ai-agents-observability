@@ -1,12 +1,20 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-type Line = { role?: string; content?: string; type?: string; message?: unknown; [key: string]: unknown };
+type Line = {
+  role?: string;
+  content?: string;
+  type?: string;
+  message?: unknown;
+  [key: string]: unknown;
+};
 
 function TranscriptLine({ line }: { line: Line }) {
   const role = line.type === 'user' ? 'user' : 'assistant';
   return (
-    <div className={`rounded px-3 py-2 ${role === 'user' ? 'bg-white/5' : 'bg-brand-500/5 border border-brand-500/10'}`}>
+    <div
+      className={`rounded px-3 py-2 ${role === 'user' ? 'bg-white/5' : 'bg-brand-500/5 border border-brand-500/10'}`}
+    >
       <span className="text-xs text-white/40 mr-2">{role}</span>
       <span>
         {typeof line.message === 'object'
@@ -25,7 +33,9 @@ export function TranscriptViewer({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     fetch(`/api/me/transcripts/${sessionId}`)
       .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) {
+          throw new Error(`HTTP ${r.status}`);
+        }
         return r.text();
       })
       .then((text) => {
@@ -49,9 +59,15 @@ export function TranscriptViewer({ sessionId }: { sessionId: string }) {
       });
   }, [sessionId]);
 
-  if (loading) return <div className="animate-pulse h-96 bg-white/5 rounded-lg" />;
-  if (error) return <p className="text-sm text-red-400">Error: {error}</p>;
-  if (lines.length === 0) return <p className="text-sm text-white/40">Transcript is empty.</p>;
+  if (loading) {
+    return <div className="animate-pulse h-96 bg-white/5 rounded-lg" />;
+  }
+  if (error) {
+    return <p className="text-sm text-red-400">Error: {error}</p>;
+  }
+  if (lines.length === 0) {
+    return <p className="text-sm text-white/40">Transcript is empty.</p>;
+  }
 
   return (
     <div className="space-y-2 font-mono text-sm">

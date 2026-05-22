@@ -45,20 +45,14 @@ export function openQueueReader(dbPath: string): QueueReader {
   );
 
   return {
-    drain(limit: number): QueueRow[] {
-      return drainStmt.all(limit);
-    },
-
-    markAttempt(eventIds: string[]): void {
-      if (eventIds.length === 0) return;
-      const placeholders = eventIds.map(() => '?').join(',');
-      db.prepare(
-        `UPDATE events_queue SET attempts = attempts + 1, attempted_at = ? WHERE event_id IN (${placeholders})`,
-      ).run(new Date().toISOString(), ...eventIds);
+    close(): void {
+      db.close();
     },
 
     delete(eventIds: string[]): void {
-      if (eventIds.length === 0) return;
+      if (eventIds.length === 0) {
+        return;
+      }
       const placeholders = eventIds.map(() => '?').join(',');
       db.prepare(`DELETE FROM events_queue WHERE event_id IN (${placeholders})`).run(...eventIds);
     },
@@ -67,14 +61,23 @@ export function openQueueReader(dbPath: string): QueueReader {
       const row = depthStmt.get();
       return row?.c ?? 0;
     },
+    drain(limit: number): QueueRow[] {
+      return drainStmt.all(limit);
+    },
 
     lastAttemptedAt(): string | null {
       const row = lastAttemptedAtStmt.get();
       return row?.last ?? null;
     },
 
-    close(): void {
-      db.close();
+    markAttempt(eventIds: string[]): void {
+      if (eventIds.length === 0) {
+        return;
+      }
+      const placeholders = eventIds.map(() => '?').join(',');
+      db.prepare(
+        `UPDATE events_queue SET attempts = attempts + 1, attempted_at = ? WHERE event_id IN (${placeholders})`,
+      ).run(new Date().toISOString(), ...eventIds);
     },
   };
 }

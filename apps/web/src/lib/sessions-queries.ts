@@ -1,4 +1,4 @@
-import type { Prisma, $Enums } from '@ai-agents-observability/db';
+import type { $Enums, Prisma } from '@ai-agents-observability/db';
 import { getPrisma } from './prisma';
 
 export type SessionRow = {
@@ -56,9 +56,7 @@ export async function listSessions(
 
   const where: Prisma.SessionWhereInput = {
     userId,
-    ...(opts.status
-      ? { status: opts.status as $Enums.SessionStatus }
-      : {}),
+    ...(opts.status ? { status: opts.status as $Enums.SessionStatus } : {}),
     ...(opts.dateFrom || opts.dateTo
       ? {
           startedAt: {
@@ -108,10 +106,7 @@ export async function listSessions(
   return { sessions, total };
 }
 
-export async function getSession(
-  userId: string,
-  sessionId: string,
-): Promise<SessionDetail | null> {
+export async function getSession(userId: string, sessionId: string): Promise<SessionDetail | null> {
   const prisma = getPrisma();
 
   const s = await prisma.session.findFirst({
@@ -121,7 +116,9 @@ export async function getSession(
     where: { sessionId, userId },
   });
 
-  if (!s) return null;
+  if (!s) {
+    return null;
+  }
 
   return {
     agentVersion: s.agentVersion,
@@ -165,6 +162,6 @@ export async function listDistinctRepos(userId: string): Promise<string[]> {
 
   return sessions
     .filter((s) => s.repo !== null)
-    .map((s) => `${s.repo!.githubOwner}/${s.repo!.githubName}`)
+    .map((s) => `${s.repo?.githubOwner}/${s.repo?.githubName}`)
     .sort();
 }

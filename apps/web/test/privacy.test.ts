@@ -29,12 +29,12 @@ describe('getVisibilityPolicy', () => {
 
   it('returns existing policy', async () => {
     const policy = {
-      userId: 'u1',
-      shareMetadataWithTeam: true,
       shareMetadataWithOrg: false,
-      shareTranscriptsWithTeam: false,
+      shareMetadataWithTeam: true,
       shareTranscriptsWithOrg: false,
+      shareTranscriptsWithTeam: false,
       updatedAt: new Date(),
+      userId: 'u1',
     };
     mockPrisma.visibilityPolicy.findUnique.mockResolvedValueOnce(policy);
     const { getVisibilityPolicy } = await import('../src/lib/visibility.js');
@@ -49,12 +49,12 @@ describe('getVisibilityPolicy', () => {
 describe('updateVisibilityPolicy', () => {
   it('upserts with provided values', async () => {
     const updatedPolicy = {
-      userId: 'u1',
-      shareMetadataWithTeam: false,
       shareMetadataWithOrg: false,
-      shareTranscriptsWithTeam: true,
+      shareMetadataWithTeam: false,
       shareTranscriptsWithOrg: false,
+      shareTranscriptsWithTeam: true,
       updatedAt: new Date(),
+      userId: 'u1',
     };
     mockPrisma.visibilityPolicy.upsert.mockResolvedValueOnce(updatedPolicy);
 
@@ -74,19 +74,19 @@ describe('updateVisibilityPolicy', () => {
 
   it('uses create defaults for new policies', async () => {
     const newPolicy = {
-      userId: 'u2',
-      shareMetadataWithTeam: true,
       shareMetadataWithOrg: true,
-      shareTranscriptsWithTeam: false,
+      shareMetadataWithTeam: true,
       shareTranscriptsWithOrg: false,
+      shareTranscriptsWithTeam: false,
       updatedAt: new Date(),
+      userId: 'u2',
     };
     mockPrisma.visibilityPolicy.upsert.mockResolvedValueOnce(newPolicy);
 
     const { updateVisibilityPolicy } = await import('../src/lib/visibility.js');
     await updateVisibilityPolicy('u2', {});
 
-    const call = mockPrisma.visibilityPolicy.upsert.mock.calls.at(-1)![0];
+    const call = mockPrisma.visibilityPolicy.upsert.mock.calls.at(-1)?.[0];
     // create block should have default values
     expect(call.create.shareMetadataWithTeam).toBe(true);
     expect(call.create.shareTranscriptsWithTeam).toBe(false);

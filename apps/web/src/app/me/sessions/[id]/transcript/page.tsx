@@ -1,25 +1,24 @@
-import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-
+import { notFound, redirect } from 'next/navigation';
+import { TranscriptViewer } from '../../../../../components/me/TranscriptViewer';
 import { currentUser } from '../../../../../lib/auth';
 import { getSession } from '../../../../../lib/sessions-queries';
-import { TranscriptViewer } from '../../../../../components/me/TranscriptViewer';
 
 export const dynamic = 'force-dynamic';
 
 type PageParams = { id: string };
 
-export default async function TranscriptPage({
-  params,
-}: {
-  params: Promise<PageParams>;
-}) {
+export default async function TranscriptPage({ params }: { params: Promise<PageParams> }) {
   const user = await currentUser();
-  if (!user) redirect('/login');
+  if (!user) {
+    redirect('/login');
+  }
 
   const { id } = await params;
   const session = await getSession(user.id, id);
-  if (!session) notFound();
+  if (!session) {
+    notFound();
+  }
 
   return (
     <div className="space-y-6">

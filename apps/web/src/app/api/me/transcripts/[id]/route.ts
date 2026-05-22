@@ -1,18 +1,17 @@
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { NextResponse } from 'next/server';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 import { currentUser } from '../../../../../lib/auth';
 import { getPrisma } from '../../../../../lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
-  if (!user) return new NextResponse('Unauthorized', { status: 401 });
+  if (!user) {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
 
   const { id } = await params;
 
@@ -20,7 +19,9 @@ export async function GET(
     select: { transcriptS3Key: true },
     where: { sessionId: id, userId: user.id },
   });
-  if (!session?.transcriptS3Key) return new NextResponse('Not found', { status: 404 });
+  if (!session?.transcriptS3Key) {
+    return new NextResponse('Not found', { status: 404 });
+  }
 
   const endpoint = process.env.S3_ENDPOINT;
   const s3 = new S3Client({
@@ -41,7 +42,9 @@ export async function GET(
       }),
     );
 
-    if (!obj.Body) return new NextResponse('Empty body from S3', { status: 500 });
+    if (!obj.Body) {
+      return new NextResponse('Empty body from S3', { status: 500 });
+    }
 
     // obj.Body is a web ReadableStream in Node.js environments
     return new NextResponse(obj.Body as ReadableStream, {

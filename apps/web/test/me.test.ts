@@ -10,8 +10,8 @@ beforeEach(() => {
 const mockPrisma = {
   session: {
     aggregate: vi.fn(),
-    findMany: vi.fn(),
     count: vi.fn(),
+    findMany: vi.fn(),
   },
   visibilityPolicy: {
     findUnique: vi.fn(),
@@ -51,7 +51,7 @@ describe('getUsageSummary', () => {
       _sum: { totalCostUsd: '0.50' },
     });
     mockPrisma.session.findMany.mockResolvedValueOnce([
-      { startedAt: start, endedAt: end, repoId: 'repo1' },
+      { endedAt: end, repoId: 'repo1', startedAt: start },
     ]);
 
     const { getUsageSummary } = await import('../src/lib/me-queries.js');
@@ -69,9 +69,9 @@ describe('getUsageSummary', () => {
       _sum: { totalCostUsd: '1.00' },
     });
     mockPrisma.session.findMany.mockResolvedValueOnce([
-      { startedAt: new Date(), endedAt: null, repoId: 'repo-a' },
-      { startedAt: new Date(), endedAt: null, repoId: 'repo-a' }, // duplicate
-      { startedAt: new Date(), endedAt: null, repoId: 'repo-b' },
+      { endedAt: null, repoId: 'repo-a', startedAt: new Date() },
+      { endedAt: null, repoId: 'repo-a', startedAt: new Date() }, // duplicate
+      { endedAt: null, repoId: 'repo-b', startedAt: new Date() },
     ]);
 
     const { getUsageSummary } = await import('../src/lib/me-queries.js');
@@ -94,8 +94,8 @@ describe('getTopTools', () => {
     const { getTopTools } = await import('../src/lib/me-queries.js');
     const result = await getTopTools('u1', new Date(0));
 
-    expect(result[0]).toEqual({ toolName: 'claude-sonnet', callCount: 15 });
-    expect(result[1]).toEqual({ toolName: 'claude-opus', callCount: 3 });
+    expect(result[0]).toEqual({ callCount: 15, toolName: 'claude-sonnet' });
+    expect(result[1]).toEqual({ callCount: 3, toolName: 'claude-opus' });
   });
 
   it('respects the limit parameter', async () => {
@@ -165,8 +165,8 @@ describe('updateVisibilityPolicy', () => {
 
     expect(mockPrisma.visibilityPolicy.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: 'u1' },
         update: expect.objectContaining({ shareMetadataWithTeam: true }),
+        where: { userId: 'u1' },
       }),
     );
   });

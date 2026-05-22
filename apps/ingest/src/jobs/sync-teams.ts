@@ -1,5 +1,5 @@
-import { createGitHubClient, getOrgTeams, getTeamMembers } from '@ai-agents-observability/github';
 import type { PrismaClient } from '@ai-agents-observability/db';
+import { createGitHubClient, getOrgTeams, getTeamMembers } from '@ai-agents-observability/github';
 import type { Logger } from 'pino';
 
 /**
@@ -11,10 +11,7 @@ import type { Logger } from 'pino';
  * logs a warning and skips users without tokens. Token storage will be
  * wired up in Phase 4 when the credential store is added.
  */
-export async function runSyncTeams(
-  db: PrismaClient,
-  logger?: Logger,
-): Promise<void> {
+export async function runSyncTeams(db: PrismaClient, logger?: Logger): Promise<void> {
   const jobName = 'sync-teams';
   const startedAt = new Date();
 
@@ -82,14 +79,16 @@ export async function runSyncTeams(
     const errorText = err instanceof Error ? err.message : String(err);
     logger?.error({ err, jobName }, 'Job failed');
     if (jobRunId !== undefined) {
-      await db.jobRun.update({
-        data: {
-          errorText,
-          finishedAt: new Date(),
-          status: 'error',
-        },
-        where: { id: jobRunId },
-      }).catch(() => {});
+      await db.jobRun
+        .update({
+          data: {
+            errorText,
+            finishedAt: new Date(),
+            status: 'error',
+          },
+          where: { id: jobRunId },
+        })
+        .catch(() => {});
     }
   } finally {
     await db.$queryRaw`SELECT pg_advisory_unlock(hashtext(${`job:${jobName}`}))`.catch(() => {});
@@ -98,7 +97,7 @@ export async function runSyncTeams(
 
 async function syncUserTeams(
   db: PrismaClient,
-  userId: string,
+  _userId: string,
   githubLogin: string,
   githubToken: string,
   logger?: Logger,
@@ -181,10 +180,7 @@ async function syncUserTeams(
         },
       });
 
-      logger?.debug(
-        { memberCount: dbUsers.length, team: team.slug },
-        'Synced team members',
-      );
+      logger?.debug({ memberCount: dbUsers.length, team: team.slug }, 'Synced team members');
     }
   }
 }

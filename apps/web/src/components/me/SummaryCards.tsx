@@ -1,11 +1,17 @@
 import type { UsageSummary } from '../../lib/me-queries';
 
 function DeltaBadge({ current, previous }: { current: number; previous: number }) {
-  if (previous === 0 && current === 0) return null;
-  if (previous === 0) return <span className="text-xs text-green-400">↑ new</span>;
+  if (previous === 0 && current === 0) {
+    return null;
+  }
+  if (previous === 0) {
+    return <span className="text-xs text-green-400">↑ new</span>;
+  }
 
   const pct = ((current - previous) / previous) * 100;
-  if (Math.abs(pct) < 0.5) return null;
+  if (Math.abs(pct) < 0.5) {
+    return null;
+  }
 
   const up = pct > 0;
   return (

@@ -46,7 +46,6 @@ function startMockServer(responses: number[]): {
   let callIndex = 0;
 
   const server = Bun.serve({
-    port: 0, // random port
     fetch(req) {
       const status = responses[Math.min(callIndex, responses.length - 1)];
       callIndex++;
@@ -62,6 +61,7 @@ function startMockServer(responses: number[]): {
       }
       return new Response('not found', { status: 404 });
     },
+    port: 0, // random port
   });
 
   return { port: server.port, received, server };
@@ -156,7 +156,9 @@ describe('flusher POST batches', () => {
 
       for (let iteration = 0; iteration < 2; iteration++) {
         const rows = reader.drain(100);
-        if (rows.length === 0) break;
+        if (rows.length === 0) {
+          break;
+        }
 
         const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
         const body = JSON.stringify({ events, session_context: null });

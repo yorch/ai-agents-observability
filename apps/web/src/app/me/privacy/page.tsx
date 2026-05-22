@@ -1,14 +1,15 @@
 import { redirect } from 'next/navigation';
-
+import { PrivacyForm } from '../../../components/me/PrivacyForm';
 import { currentUser } from '../../../lib/auth';
 import { getVisibilityPolicy } from '../../../lib/visibility';
-import { PrivacyForm } from '../../../components/me/PrivacyForm';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PrivacyPage() {
   const user = await currentUser();
-  if (!user) redirect('/login');
+  if (!user) {
+    redirect('/login');
+  }
 
   const policy = await getVisibilityPolicy(user.id);
 
@@ -59,8 +60,8 @@ export default async function PrivacyPage() {
         <h2 className="text-sm font-medium text-red-400">Danger zone</h2>
         <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-3">
           <p className="text-sm text-white/70">
-            Request permanent deletion of all your data. This action cannot be undone.
-            Your account, sessions, and transcripts will be scheduled for deletion.
+            Request permanent deletion of all your data. This action cannot be undone. Your account,
+            sessions, and transcripts will be scheduled for deletion.
           </p>
           <DeleteDataButton />
         </div>
@@ -76,9 +77,7 @@ function DeleteDataButton() {
       method="POST"
       onSubmit={(e) => {
         if (
-          !window.confirm(
-            'Are you sure you want to delete all your data? This cannot be undone.',
-          )
+          !window.confirm('Are you sure you want to delete all your data? This cannot be undone.')
         ) {
           e.preventDefault();
         }

@@ -1,5 +1,4 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
-import { Prisma } from '@ai-agents-observability/db';
 import type { Logger } from 'pino';
 
 /**
@@ -7,10 +6,7 @@ import type { Logger } from 'pino';
  * Uses pg advisory lock to avoid duplicate concurrent runs.
  * Writes a JobRun row for observability.
  */
-export async function runSweepAbandoned(
-  db: PrismaClient,
-  logger?: Logger,
-): Promise<void> {
+export async function runSweepAbandoned(db: PrismaClient, logger?: Logger): Promise<void> {
   const jobName = 'sweep-abandoned';
   const startedAt = new Date();
 
@@ -59,16 +55,18 @@ export async function runSweepAbandoned(
     const errorText = err instanceof Error ? err.message : String(err);
     logger?.error({ err, jobName }, 'Job failed');
     if (jobRunId !== undefined) {
-      await db.jobRun.update({
-        data: {
-          errorText,
-          finishedAt: new Date(),
-          status: 'error',
-        },
-        where: { id: jobRunId },
-      }).catch(() => {
-        // Ignore update failure
-      });
+      await db.jobRun
+        .update({
+          data: {
+            errorText,
+            finishedAt: new Date(),
+            status: 'error',
+          },
+          where: { id: jobRunId },
+        })
+        .catch(() => {
+          // Ignore update failure
+        });
     }
   } finally {
     // Release advisory lock

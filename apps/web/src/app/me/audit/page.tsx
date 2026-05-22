@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation';
-
+import { AuditTable } from '../../../components/me/AuditTable';
 import { currentUser } from '../../../lib/auth';
 import { getPrisma } from '../../../lib/prisma';
-import { AuditTable } from '../../../components/me/AuditTable';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,13 +9,11 @@ const PAGE_SIZE = 50;
 
 type SearchParams = { page?: string };
 
-export default async function AuditPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
+export default async function AuditPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await currentUser();
-  if (!user) redirect('/login');
+  if (!user) {
+    redirect('/login');
+  }
 
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? '1', 10));

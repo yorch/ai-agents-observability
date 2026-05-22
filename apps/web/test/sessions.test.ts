@@ -6,29 +6,29 @@ beforeEach(() => {
 
 // ── Mock @ai-agents-observability/db ────────────────────────────────────────
 
-const now = new Date('2026-01-15T10:00:00Z');
+const _now = new Date('2026-01-15T10:00:00Z');
 const start = new Date('2026-01-15T09:00:00Z');
 const end = new Date('2026-01-15T09:30:00Z');
 
 const mockSessions = [
   {
-    sessionId: 'sess-1',
-    userId: 'u1',
-    startedAt: start,
     endedAt: end,
+    repo: { githubName: 'app', githubOwner: 'acme' },
+    sessionId: 'sess-1',
+    startedAt: start,
     status: 'completed',
-    totalCostUsd: '0.25',
     toolCallCount: 5,
+    totalCostUsd: '0.25',
+    userId: 'u1',
     userMessageCount: 3,
-    repo: { githubOwner: 'acme', githubName: 'app' },
   },
 ];
 
 const mockPrisma = {
   session: {
-    findMany: vi.fn(),
-    findFirst: vi.fn(),
     count: vi.fn(),
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
   },
 };
 
@@ -48,11 +48,11 @@ describe('listSessions', () => {
 
     expect(total).toBe(1);
     expect(sessions).toHaveLength(1);
-    expect(sessions[0]!.sessionId).toBe('sess-1');
-    expect(sessions[0]!.repoName).toBe('acme/app');
-    expect(sessions[0]!.costUsd).toBeCloseTo(0.25);
-    expect(sessions[0]!.durationSeconds).toBe(30 * 60); // 30 min
-    expect(sessions[0]!.eventCount).toBe(8); // 5 tool + 3 user
+    expect(sessions[0]?.sessionId).toBe('sess-1');
+    expect(sessions[0]?.repoName).toBe('acme/app');
+    expect(sessions[0]?.costUsd).toBeCloseTo(0.25);
+    expect(sessions[0]?.durationSeconds).toBe(30 * 60); // 30 min
+    expect(sessions[0]?.eventCount).toBe(8); // 5 tool + 3 user
   });
 
   it('returns empty when no sessions match', async () => {
@@ -84,6 +84,7 @@ describe('getSession', () => {
       ...mockSessions[0],
       agentVersion: null,
       claudeCodeVersion: '1.0.0',
+      endReason: 'completed',
       gitBranch: 'main',
       gitCommit: 'abc1234',
       haikuTurns: 0,
@@ -97,17 +98,16 @@ describe('getSession', () => {
       totalInputTokens: 1000n,
       totalOutputTokens: 500n,
       transcriptS3Key: null,
-      endReason: 'completed',
     });
 
     const { getSession } = await import('../src/lib/sessions-queries.js');
     const result = await getSession('u1', 'sess-1');
 
     expect(result).not.toBeNull();
-    expect(result!.sessionId).toBe('sess-1');
-    expect(result!.branch).toBe('main');
-    expect(result!.commitSha).toBe('abc1234');
-    expect(result!.durationSeconds).toBe(30 * 60);
+    expect(result?.sessionId).toBe('sess-1');
+    expect(result?.branch).toBe('main');
+    expect(result?.commitSha).toBe('abc1234');
+    expect(result?.durationSeconds).toBe(30 * 60);
   });
 });
 
@@ -116,8 +116,8 @@ describe('getSession', () => {
 describe('listDistinctRepos', () => {
   it('returns sorted list of repo names', async () => {
     mockPrisma.session.findMany.mockResolvedValueOnce([
-      { repo: { githubOwner: 'org', githubName: 'zebra' } },
-      { repo: { githubOwner: 'org', githubName: 'alpha' } },
+      { repo: { githubName: 'zebra', githubOwner: 'org' } },
+      { repo: { githubName: 'alpha', githubOwner: 'org' } },
     ]);
 
     const { listDistinctRepos } = await import('../src/lib/sessions-queries.js');

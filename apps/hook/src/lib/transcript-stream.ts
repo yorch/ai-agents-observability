@@ -1,5 +1,5 @@
-import { createReadStream } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 import { redact } from '@ai-agents-observability/redaction';
@@ -9,10 +9,12 @@ import { redact } from '@ai-agents-observability/redaction';
  */
 export async function* redactedLines(filePath: string): AsyncGenerator<string> {
   const fileStream = createReadStream(filePath, { encoding: 'utf8' });
-  const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
+  const rl = createInterface({ crlfDelay: Infinity, input: fileStream });
 
   for await (const line of rl) {
-    if (line.trim().length === 0) continue;
+    if (line.trim().length === 0) {
+      continue;
+    }
     const { text } = redact(line);
     yield text;
   }
@@ -25,7 +27,9 @@ export async function contentHash(lines: AsyncIterable<string>): Promise<string>
   const hash = createHash('sha256');
   let first = true;
   for await (const line of lines) {
-    if (!first) hash.update('\n');
+    if (!first) {
+      hash.update('\n');
+    }
     hash.update(line);
     first = false;
   }

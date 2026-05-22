@@ -11,10 +11,7 @@ export async function getVisibilityPolicy(userId: string) {
   return getPrisma().visibilityPolicy.findUnique({ where: { userId } });
 }
 
-export async function updateVisibilityPolicy(
-  userId: string,
-  updates: VisibilityPolicyUpdate,
-) {
+export async function updateVisibilityPolicy(userId: string, updates: VisibilityPolicyUpdate) {
   return getPrisma().visibilityPolicy.upsert({
     create: {
       shareMetadataWithOrg: updates.shareMetadataWithOrg ?? true,

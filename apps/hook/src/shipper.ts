@@ -1,12 +1,5 @@
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { log } from './lib/log';
@@ -32,11 +25,7 @@ function shipQueueDir(): string {
   return `${telemetryHome()}/ship-queue`;
 }
 
-export function writeShipMarker(
-  sessionId: string,
-  transcriptPath: string,
-  partial: boolean,
-): void {
+export function writeShipMarker(sessionId: string, transcriptPath: string, partial: boolean): void {
   try {
     const dir = shipQueueDir();
     mkdirSync(dir, { recursive: true });
@@ -60,7 +49,9 @@ export function writeShipMarker(
 
 function readMarkers(): ShipMarker[] {
   const dir = shipQueueDir();
-  if (!existsSync(dir)) return [];
+  if (!existsSync(dir)) {
+    return [];
+  }
   const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
   const markers: ShipMarker[] = [];
   for (const file of files) {

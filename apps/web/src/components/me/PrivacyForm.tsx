@@ -1,5 +1,5 @@
 'use client';
-import { useTransition, useState } from 'react';
+import { useState, useTransition } from 'react';
 
 import { savePrivacySettings } from '../../app/me/privacy/actions';
 
@@ -68,8 +68,7 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
       value: policy.shareMetadataWithTeam,
     },
     {
-      description:
-        'Allow your organization admins to see session metadata in org-level reports.',
+      description: 'Allow your organization admins to see session metadata in org-level reports.',
       label: 'Share metadata with org',
       name: 'shareMetadataWithOrg',
       value: policy.shareMetadataWithOrg,
@@ -125,9 +124,7 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
         >
           {isPending ? 'Saving…' : 'Save settings'}
         </button>
-        {saved && (
-          <span className="text-sm text-green-400">Saved</span>
-        )}
+        {saved && <span className="text-sm text-green-400">Saved</span>}
       </div>
     </div>
   );

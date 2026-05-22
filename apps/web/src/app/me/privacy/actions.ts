@@ -4,7 +4,9 @@ import { updateVisibilityPolicy } from '../../../lib/visibility';
 
 export async function savePrivacySettings(formData: FormData) {
   const user = await currentUser();
-  if (!user) throw new Error('Unauthorized');
+  if (!user) {
+    throw new Error('Unauthorized');
+  }
 
   await updateVisibilityPolicy(user.id, {
     shareMetadataWithOrg: formData.get('shareMetadataWithOrg') === 'true',

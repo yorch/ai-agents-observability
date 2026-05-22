@@ -1,8 +1,8 @@
 import { log } from './lib/log';
 import { type HookKind, toEvent } from './lib/payload';
 import { openQueue } from './lib/queue';
-import { writeShipMarker } from './shipper';
 import { readStdinBounded } from './lib/stdin';
+import { writeShipMarker } from './shipper';
 
 type Options = {
   quiet: boolean;
@@ -74,7 +74,13 @@ export async function runHook(kind: HookKind, _opts: Options): Promise<void> {
 
     // For stop events, write a ship marker so the shipper can upload the
     // transcript. transcript_path comes from Claude Code's hook payload.
-    if (kind === 'stop' && typeof payload.transcript_path === 'string' && payload.transcript_path.length > 0 && typeof payload.session_id === 'string' && payload.session_id.length > 0) {
+    if (
+      kind === 'stop' &&
+      typeof payload.transcript_path === 'string' &&
+      payload.transcript_path.length > 0 &&
+      typeof payload.session_id === 'string' &&
+      payload.session_id.length > 0
+    ) {
       writeShipMarker(payload.session_id, payload.transcript_path, false);
     }
 

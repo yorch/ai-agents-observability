@@ -1,9 +1,8 @@
-import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-
+import { notFound, redirect } from 'next/navigation';
+import { Timeline } from '../../../../components/me/Timeline';
 import { currentUser } from '../../../../lib/auth';
 import { getSession } from '../../../../lib/sessions-queries';
-import { Timeline } from '../../../../components/me/Timeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,11 +15,7 @@ function StatusBadge({ status }: { status: string }) {
     timed_out: 'bg-orange-500/20 text-orange-400',
   };
   const color = colors[status] ?? 'bg-white/10 text-white/50';
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
-      {status}
-    </span>
-  );
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{status}</span>;
 }
 
 function ToolsTab({ session }: { session: Awaited<ReturnType<typeof getSession>> & object }) {
@@ -127,13 +122,17 @@ export default async function SessionDetailPage({
   searchParams: Promise<SearchParams>;
 }) {
   const user = await currentUser();
-  if (!user) redirect('/login');
+  if (!user) {
+    redirect('/login');
+  }
 
   const { id } = await params;
   const { tab = 'timeline' } = await searchParams;
 
   const session = await getSession(user.id, id);
-  if (!session) notFound();
+  if (!session) {
+    notFound();
+  }
 
   const tabs = [
     { href: `?tab=timeline`, id: 'timeline', label: 'Timeline' },
@@ -157,13 +156,9 @@ export default async function SessionDetailPage({
           </div>
           <div className="flex flex-wrap gap-3 text-xs text-white/50">
             {session.branch && <span>branch: {session.branch}</span>}
-            {session.commitSha && (
-              <span>commit: {session.commitSha.slice(0, 7)}</span>
-            )}
+            {session.commitSha && <span>commit: {session.commitSha.slice(0, 7)}</span>}
             <span>started: {session.startedAt.toLocaleString()}</span>
-            {session.endedAt && (
-              <span>ended: {session.endedAt.toLocaleString()}</span>
-            )}
+            {session.endedAt && <span>ended: {session.endedAt.toLocaleString()}</span>}
           </div>
         </div>
         <div className="flex items-center gap-3">

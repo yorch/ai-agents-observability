@@ -29,9 +29,7 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center">
-        <p className="text-sm text-white/50">
-          No team or org views have read your data yet.
-        </p>
+        <p className="text-sm text-white/50">No team or org views have read your data yet.</p>
       </div>
     );
   }
@@ -72,9 +70,7 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
                         ? `team:${row.targetTeamId.slice(0, 8)}…`
                         : '—'}
                 </td>
-                <td className="px-4 py-3 text-white/50 text-xs">
-                  {row.justification ?? '—'}
-                </td>
+                <td className="px-4 py-3 text-white/50 text-xs">{row.justification ?? '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -84,8 +80,8 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">
           <p className="text-white/40">
-            {(currentPage - 1) * PAGE_SIZE + 1}–
-            {Math.min(currentPage * PAGE_SIZE, total)} of {total}
+            {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of{' '}
+            {total}
           </p>
           <div className="flex gap-2">
             {hasPrev && (

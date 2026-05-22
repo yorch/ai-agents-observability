@@ -10,19 +10,21 @@ function StatusBadge({ status }: { status: string }) {
     timed_out: 'bg-orange-500/20 text-orange-400',
   };
   const color = colors[status] ?? 'bg-white/10 text-white/50';
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
-      {status}
-    </span>
-  );
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{status}</span>;
 }
 
 function formatDuration(seconds: number | null): string {
-  if (seconds === null) return '—';
-  if (seconds < 60) return `${seconds}s`;
+  if (seconds === null) {
+    return '—';
+  }
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  if (m < 60) return `${m}m ${s}s`;
+  if (m < 60) {
+    return `${m}m ${s}s`;
+  }
   const h = Math.floor(m / 60);
   const rem = m % 60;
   return `${h}h ${rem}m`;
@@ -104,8 +106,8 @@ export function SessionsTable({ sessions, total, currentPage }: SessionsTablePro
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">
           <p className="text-white/40">
-            {(currentPage - 1) * PAGE_SIZE + 1}–
-            {Math.min(currentPage * PAGE_SIZE, total)} of {total}
+            {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of{' '}
+            {total}
           </p>
           <div className="flex gap-2">
             {hasPrev && (

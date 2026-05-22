@@ -78,11 +78,7 @@ export async function getUsageSummary(
   };
 }
 
-export async function getTopTools(
-  userId: string,
-  since: Date,
-  limit = 5,
-): Promise<ToolUsage[]> {
+export async function getTopTools(userId: string, since: Date, limit = 5): Promise<ToolUsage[]> {
   const prisma = getPrisma();
 
   // Aggregate tool call count by primary model as a proxy
@@ -113,10 +109,7 @@ export async function getTopTools(
     .slice(0, limit);
 }
 
-export async function getModelMix(
-  userId: string,
-  since: Date,
-): Promise<ModelMix[]> {
+export async function getModelMix(userId: string, since: Date): Promise<ModelMix[]> {
   const prisma = getPrisma();
 
   const sessions = await prisma.session.findMany({
@@ -162,10 +155,7 @@ export async function getModelMix(
     .sort((a, b) => b.turns - a.turns);
 }
 
-export async function getRecentSessions(
-  userId: string,
-  limit = 10,
-): Promise<RecentSession[]> {
+export async function getRecentSessions(userId: string, limit = 10): Promise<RecentSession[]> {
   const prisma = getPrisma();
 
   const sessions = await prisma.session.findMany({
@@ -180,10 +170,9 @@ export async function getRecentSessions(
   });
 
   return sessions.map((s) => {
-    const durationSeconds =
-      s.endedAt
-        ? Math.round((s.endedAt.getTime() - s.startedAt.getTime()) / 1000)
-        : null;
+    const durationSeconds = s.endedAt
+      ? Math.round((s.endedAt.getTime() - s.startedAt.getTime()) / 1000)
+      : null;
     return {
       costUsd: Number(s.totalCostUsd),
       durationSeconds,

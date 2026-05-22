@@ -1,17 +1,18 @@
 import { redirect } from 'next/navigation';
-
-import { currentUser } from '../../lib/auth';
-import { getModelMix, getRecentSessions, getTopTools, getUsageSummary } from '../../lib/me-queries';
 import { ModelMixChart } from '../../components/me/ModelMix';
 import { RecentSessions } from '../../components/me/RecentSessions';
 import { SummaryCards } from '../../components/me/SummaryCards';
 import { TopTools } from '../../components/me/TopTools';
+import { currentUser } from '../../lib/auth';
+import { getModelMix, getRecentSessions, getTopTools, getUsageSummary } from '../../lib/me-queries';
 
 export const dynamic = 'force-dynamic';
 
 export default async function MePage() {
   const user = await currentUser();
-  if (!user) redirect('/login');
+  if (!user) {
+    redirect('/login');
+  }
 
   const now = new Date();
   const thisWeekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);

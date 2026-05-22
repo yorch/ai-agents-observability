@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import { backoffSleep } from './lib/backoff';
@@ -10,7 +10,7 @@ const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
 const BATCH_SIZE = 100;
 const IDLE_INTERVAL_MS = 5_000;
 const HIGH_WATER_MARK = 50;
-const MAX_ATTEMPTS = 10;
+const _MAX_ATTEMPTS = 10;
 
 // ── State file ────────────────────────────────────────────────────────────────
 
@@ -29,7 +29,7 @@ function readFlusherState(): FlusherStatus {
     const raw = readFileSync(flusherStatePath(), 'utf8');
     return JSON.parse(raw) as FlusherStatus;
   } catch {
-    return { queueDepth: 0, lastFlushAt: null, lastError: null };
+    return { lastError: null, lastFlushAt: null, queueDepth: 0 };
   }
 }
 
@@ -99,7 +99,7 @@ export async function runFlusher(): Promise<void> {
     const body = JSON.stringify({ events, session_context: null });
 
     let success = false;
-    let attempt = consecutiveFailures;
+    const attempt = consecutiveFailures;
 
     try {
       const res = await fetch(`${INGEST_BASE_URL}/v1/events`, {

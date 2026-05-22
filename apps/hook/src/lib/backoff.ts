@@ -10,7 +10,7 @@ const JITTER_FACTOR = 0.2;
  * Jitter is ±20% of the computed delay.
  */
 export function backoffMs(attempt: number): number {
-  const base = Math.min(BASE_MS * Math.pow(2, attempt), MAX_MS);
+  const base = Math.min(BASE_MS * 2 ** attempt, MAX_MS);
   const jitter = base * JITTER_FACTOR * (2 * Math.random() - 1);
   return Math.round(base + jitter);
 }

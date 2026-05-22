@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -10,7 +10,7 @@ import { writeShipMarker } from '../src/shipper';
 
 /** Write a sample JSONL transcript file with the given lines. */
 function writeTranscript(path: string, lines: string[]): void {
-  writeFileSync(path, lines.join('\n') + '\n', 'utf8');
+  writeFileSync(path, `${lines.join('\n')}\n`, 'utf8');
 }
 
 type ReceivedUpload = {
@@ -29,7 +29,6 @@ function startMockIngestServer(statusCode = 200): {
   const received: ReceivedUpload[] = [];
 
   const server = Bun.serve({
-    port: 0,
     async fetch(req) {
       const url = new URL(req.url);
       const match = url.pathname.match(/^\/v1\/transcripts\/(.+)$/);
@@ -47,6 +46,7 @@ function startMockIngestServer(statusCode = 200): {
       }
       return new Response('not found', { status: 404 });
     },
+    port: 0,
   });
 
   return { port: server.port, received, server };
@@ -108,16 +108,16 @@ describe('shipper upload', () => {
 
     // 10 lines, one with a fake AWS access key that should be redacted
     const lines = [
-      JSON.stringify({ role: 'user', content: 'Hello world' }),
-      JSON.stringify({ role: 'assistant', content: 'Hello! How can I help?' }),
-      JSON.stringify({ role: 'user', content: 'My key is AKIAIOSFODNN7EXAMPLE please keep it' }),
-      JSON.stringify({ role: 'assistant', content: 'I see you mentioned a key.' }),
-      JSON.stringify({ role: 'user', content: 'Can you list files?' }),
-      JSON.stringify({ role: 'assistant', content: 'Sure, running ls.' }),
-      JSON.stringify({ role: 'user', content: 'What is 2+2?' }),
-      JSON.stringify({ role: 'assistant', content: '4' }),
-      JSON.stringify({ role: 'user', content: 'Thanks!' }),
-      JSON.stringify({ role: 'assistant', content: 'Goodbye!' }),
+      JSON.stringify({ content: 'Hello world', role: 'user' }),
+      JSON.stringify({ content: 'Hello! How can I help?', role: 'assistant' }),
+      JSON.stringify({ content: 'My key is AKIAIOSFODNN7EXAMPLE please keep it', role: 'user' }),
+      JSON.stringify({ content: 'I see you mentioned a key.', role: 'assistant' }),
+      JSON.stringify({ content: 'Can you list files?', role: 'user' }),
+      JSON.stringify({ content: 'Sure, running ls.', role: 'assistant' }),
+      JSON.stringify({ content: 'What is 2+2?', role: 'user' }),
+      JSON.stringify({ content: '4', role: 'assistant' }),
+      JSON.stringify({ content: 'Thanks!', role: 'user' }),
+      JSON.stringify({ content: 'Goodbye!', role: 'assistant' }),
     ];
     writeTranscript(transcriptPath, lines);
 
