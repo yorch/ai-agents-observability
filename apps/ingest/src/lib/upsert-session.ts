@@ -1,5 +1,5 @@
 import { Prisma } from '@ai-agents-observability/db';
-import type { Event, PriceTable } from '@ai-agents-observability/schemas';
+import type { Event, GitContext, PriceTable } from '@ai-agents-observability/schemas';
 
 import { computeCostUsd } from './cost';
 
@@ -146,6 +146,7 @@ export async function upsertSessions(
   userId: string,
   repoIdByKey: Map<string, string>,
   priceTable: PriceTable,
+  envelopeGit: GitContext | null = null,
 ): Promise<UpsertResult> {
   if (events.length === 0) {
     return { sessionsTouched: 0 };
@@ -156,9 +157,28 @@ export async function upsertSessions(
     let agg = bySession.get(ev.session_id);
     if (!agg) {
       agg = emptyAgg(ev.session_id, userId, ev);
-      const git = ev.session_context.git;
+      // Fall back to the batch envelope's git context when an individual
+      // event has none — early SessionStart events often capture before cwd
+      // git resolution, but events.ts has already upserted the Repo row
+      // (and registered it in repoIdByKey) from the envelope.
+      const git = ev.session_context.git ?? envelopeGit;
       if (git?.owner && git?.repo) {
         agg.repoId = repoIdByKey.get(`${git.owner}/${git.repo}`) ?? null;
+        if (!agg.gitBranch && git.branch) {
+          agg.gitBranch = git.branch;
+        }
+        if (!agg.gitCommit && git.commit) {
+          agg.gitCommit = git.commit;
+        }
+        if (!agg.gitRemoteUrl && git.remote_url) {
+          agg.gitRemoteUrl = git.remote_url;
+        }
+        if (agg.gitIsDirty === null) {
+          agg.gitIsDirty = git.is_dirty;
+        }
+        if (!agg.prNumber && git.pr_number !== null) {
+          agg.prNumber = git.pr_number;
+        }
       }
       bySession.set(ev.session_id, agg);
     }

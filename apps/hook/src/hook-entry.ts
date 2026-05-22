@@ -8,9 +8,6 @@ type Options = {
 };
 
 function safeParse(raw: string): Record<string, unknown> | null {
-  if (!raw) {
-    return {};
-  }
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -24,10 +21,31 @@ function safeParse(raw: string): Record<string, unknown> | null {
 
 // Run a single hook entrypoint. Always resolves; the caller exits 0 regardless.
 // Errors are logged and swallowed — a broken hook MUST NOT break Claude Code.
-export async function runHook(kind: HookKind, opts: Options): Promise<void> {
+export async function runHook(kind: HookKind, _opts: Options): Promise<void> {
   try {
-    const raw = await readStdinBounded();
-    const payload = safeParse(raw);
+    const stdin = await readStdinBounded();
+
+    // Distinct outcomes for distinct stdin states — never synthesize a bogus
+    // event from empty/timeout/error input. If Claude Code didn't give us a
+    // real payload, we have nothing to enqueue.
+    if (stdin.kind === 'empty') {
+      log('warn', 'hook.stdin.empty', { kind });
+      return;
+    }
+    if (stdin.kind === 'timeout') {
+      log('warn', 'hook.stdin.timeout', { kind });
+      return;
+    }
+    if (stdin.kind === 'error') {
+      log('error', 'hook.stdin.read_error', { kind });
+      return;
+    }
+    if (stdin.kind === 'overflow') {
+      log('warn', 'hook.stdin.overflow', { kind });
+      return;
+    }
+
+    const payload = safeParse(stdin.text);
     if (!payload) {
       log('warn', 'hook.payload.invalid_json', { kind });
       return;
@@ -59,12 +77,8 @@ export async function runHook(kind: HookKind, opts: Options): Promise<void> {
       }
     }
   } catch (err) {
-    if (!opts.quiet) {
-      // Even in non-quiet mode, write to log file — stderr from a hook can
-      // surface inside the Claude Code transcript.
-      log('error', 'hook.unexpected', { kind, message: (err as Error).message });
-    } else {
-      log('error', 'hook.unexpected', { kind, message: (err as Error).message });
-    }
+    // Stderr from a hook surfaces inside the Claude Code transcript, so even
+    // in --quiet mode unexpected failures go only to the log file.
+    log('error', 'hook.unexpected', { kind, message: (err as Error).message });
   }
 }

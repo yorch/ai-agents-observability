@@ -5,7 +5,12 @@ import { NextResponse } from 'next/server';
 import { getProvider } from '../../../../lib/auth-provider';
 import { ensureVisibilityPolicy } from '../../../../lib/ensure-visibility-policy';
 import { getPrisma } from '../../../../lib/prisma';
-import { getStateCookie, hashState, setAuthCookies } from '../../../../lib/session-cookie';
+import {
+  consumeNextCookie,
+  getStateCookie,
+  hashState,
+  setAuthCookies,
+} from '../../../../lib/session-cookie';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -58,5 +63,6 @@ export async function GET(request: Request) {
   ]);
 
   await setAuthCookies(access, refresh);
-  return NextResponse.redirect(new URL('/me', url.origin));
+  const next = await consumeNextCookie();
+  return NextResponse.redirect(new URL(next ?? '/me', url.origin));
 }

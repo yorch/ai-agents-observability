@@ -137,6 +137,28 @@ describe('runHook', () => {
     }
   });
 
+  it('does NOT enqueue a synthetic event when stdin is empty', async () => {
+    const restore = stubStdin('');
+    try {
+      await runHook('stop', { quiet: true });
+    } finally {
+      restore();
+    }
+
+    // Empty stdin must drop the event entirely — runHook should never even
+    // open the queue. If it did, the events_queue table would exist (and a
+    // synthetic event with sentinel session_id 00000000-... would pollute
+    // ingest aggregation downstream).
+    const db = new Database(`${tmpHome}/queue.db`);
+    const table = db
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='events_queue'",
+      )
+      .get();
+    db.close();
+    expect(table).toBeNull();
+  });
+
   it('does not throw on invalid JSON', async () => {
     const restore = stubStdin('not-json{{');
     try {

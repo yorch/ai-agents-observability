@@ -204,4 +204,28 @@ describe('upsertSessions', () => {
     await upsertSessions(db, [event], 'u1', repoIds, PRICE_TABLE);
     expect(db.captured[0]?.params).toContain('r1');
   });
+
+  it('falls back to batch envelope git when per-event git is null', async () => {
+    const db = makeDb();
+    const event = makeEvent({
+      event_id: '01906a44-0000-7000-8000-000000000001',
+      event_type: 'SessionStart',
+      // per-event git is null — early SessionStart often captures before cwd resolves
+      session_context: { cwd: '/home/dev/proj', git: null, is_resume: false, mode: 'normal' },
+    });
+    const envelopeGit = {
+      branch: 'main',
+      commit: 'abc',
+      is_dirty: false,
+      owner: 'acme',
+      pr_number: null,
+      remote_url: 'git@github.com:acme/proj.git',
+      repo: 'proj',
+    };
+    const repoIds = new Map<string, string>([['acme/proj', 'r2']]);
+
+    await upsertSessions(db, [event], 'u1', repoIds, PRICE_TABLE, envelopeGit);
+    expect(db.captured[0]?.params).toContain('r2');
+    expect(db.captured[0]?.params).toContain('main');
+  });
 });

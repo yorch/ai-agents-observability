@@ -64,7 +64,20 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
       const start = Date.now();
 
       const inserted = await insertEventsBatch(db, batch.events, userId, priceTable);
-      const aggregated = await upsertSessions(db, batch.events, userId, repoIdByKey, priceTable);
+
+      // Only feed newly-inserted events into the per-session accumulator.
+      // Retries replay event_ids that ON CONFLICT DO NOTHING already swallowed;
+      // if we re-aggregated those, tokens / cost / tool counts on the session
+      // row would inflate on every retry with no way to self-correct.
+      const acceptedEvents = batch.events.filter((e) => inserted.acceptedEventIds.has(e.event_id));
+      const aggregated = await upsertSessions(
+        db,
+        acceptedEvents,
+        userId,
+        repoIdByKey,
+        priceTable,
+        topGit,
+      );
 
       logger.info(
         {

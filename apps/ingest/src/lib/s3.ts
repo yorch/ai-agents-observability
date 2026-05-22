@@ -38,9 +38,15 @@ export async function putObject(
   );
 }
 
-export function transcriptKey(userId: string, sessionId: string, ts: Date = new Date()): string {
-  const yyyy = ts.getUTCFullYear();
-  const mm = String(ts.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(ts.getUTCDate()).padStart(2, '0');
+// The day-bucket MUST be derived from a session-stable timestamp (the session's
+// started_at), not the upload's wall clock. A retry that crosses midnight UTC
+// otherwise computes a different key, the idempotency short-circuit at the
+// caller fails, and the previous day's object is orphaned in S3. Callers must
+// pass the session's started_at so the key remains deterministic across
+// chunked and retried uploads.
+export function transcriptKey(userId: string, sessionId: string, sessionStartedAt: Date): string {
+  const yyyy = sessionStartedAt.getUTCFullYear();
+  const mm = String(sessionStartedAt.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(sessionStartedAt.getUTCDate()).padStart(2, '0');
   return `transcripts/${yyyy}/${mm}/${dd}/${userId}/${sessionId}.jsonl.zst`;
 }

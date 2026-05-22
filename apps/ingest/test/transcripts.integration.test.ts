@@ -61,6 +61,7 @@ describe('POST /v1/transcripts/:session_id', () => {
     const sessionStub = deps.db.session as unknown as { findUnique: ReturnType<typeof vi.fn> };
     sessionStub.findUnique = vi.fn().mockResolvedValue({
       sessionId: SESSION_ID,
+      startedAt: new Date('2026-05-21T12:00:00Z'),
       transcriptBytes: null,
       transcriptS3Key: null,
       transcriptUploadedAt: null,
@@ -84,6 +85,7 @@ describe('POST /v1/transcripts/:session_id', () => {
     };
     sessionStub.findUnique = vi.fn().mockResolvedValue({
       sessionId: SESSION_ID,
+      startedAt: new Date('2026-05-21T12:00:00Z'),
       transcriptBytes: null,
       transcriptS3Key: null,
       transcriptUploadedAt: null,
@@ -139,6 +141,7 @@ describe('POST /v1/transcripts/:session_id', () => {
     const sessionStub = deps.db.session as unknown as { findUnique: ReturnType<typeof vi.fn> };
     sessionStub.findUnique = vi.fn().mockResolvedValue({
       sessionId: SESSION_ID,
+      startedAt: new Date('2026-05-21T12:00:00Z'),
       transcriptBytes: null,
       transcriptS3Key: null,
       transcriptUploadedAt: null,

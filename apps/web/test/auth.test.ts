@@ -48,6 +48,24 @@ beforeEach(() => {
   process.env.DATABASE_URL = 'postgresql://test:test@x:5432/x';
 });
 
+describe('sanitizeNext', () => {
+  it('passes same-origin absolute paths', async () => {
+    const { sanitizeNext } = await import('../src/lib/session-cookie.js');
+    expect(sanitizeNext('/me/sessions/abc')).toBe('/me/sessions/abc');
+    expect(sanitizeNext('/')).toBe('/');
+  });
+
+  it('rejects protocol-relative and absolute URLs (open-redirect guard)', async () => {
+    const { sanitizeNext } = await import('../src/lib/session-cookie.js');
+    expect(sanitizeNext('//evil.example/x')).toBeNull();
+    expect(sanitizeNext('https://evil.example/x')).toBeNull();
+    expect(sanitizeNext('javascript:alert(1)')).toBeNull();
+    expect(sanitizeNext('')).toBeNull();
+    expect(sanitizeNext(undefined)).toBeNull();
+    expect(sanitizeNext(null)).toBeNull();
+  });
+});
+
 describe('currentUser', () => {
   it('returns null when no cookie is set', async () => {
     const { currentUser } = await import('../src/lib/auth.js');

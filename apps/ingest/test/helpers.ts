@@ -9,6 +9,7 @@ export function makeTestDeps(): AppDeps {
     checkS3: async () => {},
     db: {
       $executeRaw: async () => 0,
+      $queryRaw: async () => [],
       authToken: { findFirst: async () => null } as unknown as AppDeps['db']['authToken'],
       repo: {
         upsert: async () => ({ id: '00000000-0000-0000-0000-000000000099' }),

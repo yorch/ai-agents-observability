@@ -49,7 +49,15 @@ describe('POST /v1/events', () => {
       revokedAt: null,
       userId: '00000000-0000-0000-0000-000000000001',
     });
-    const dbStub = deps.db as unknown as { $executeRaw: ReturnType<typeof vi.fn> };
+    const dbStub = deps.db as unknown as {
+      $executeRaw: ReturnType<typeof vi.fn>;
+      $queryRaw: ReturnType<typeof vi.fn>;
+    };
+    // insertEventsBatch now uses RETURNING — surface the inserted id.
+    dbStub.$queryRaw = vi
+      .fn()
+      .mockResolvedValue([{ event_id: '01906a44-0000-7000-8000-000000000001' }]);
+    // upsertSessions still uses $executeRaw.
     dbStub.$executeRaw = vi.fn().mockResolvedValue(1);
 
     const app = createApp({} as unknown as Config, deps);
@@ -65,6 +73,48 @@ describe('POST /v1/events', () => {
     const body = await res.json();
     expect(body).toHaveProperty('accepted');
     expect(body).toHaveProperty('request_id');
+  });
+
+  it('only aggregates accepted (newly-inserted) events, not duplicates', async () => {
+    const deps = makeTestDeps();
+    const authTokenStub = deps.db.authToken as unknown as { findFirst: ReturnType<typeof vi.fn> };
+    authTokenStub.findFirst = vi.fn().mockResolvedValue({
+      expiresAt: null,
+      id: 'tok-1',
+      kind: 'hook',
+      revokedAt: null,
+      userId: '00000000-0000-0000-0000-000000000001',
+    });
+    const executeRaw = vi.fn().mockResolvedValue(0);
+    // Simulate a full-replay retry — every event_id was already inserted before,
+    // so RETURNING comes back empty.
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const dbStub = deps.db as unknown as {
+      $executeRaw: typeof executeRaw;
+      $queryRaw: typeof queryRaw;
+    };
+    dbStub.$executeRaw = executeRaw;
+    dbStub.$queryRaw = queryRaw;
+
+    const app = createApp({} as unknown as Config, deps);
+    const res = await app.request('/v1/events', {
+      body: JSON.stringify(BATCH_FIXTURE),
+      headers: {
+        Authorization: 'Bearer cct_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    });
+
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { accepted: number; deduped: number };
+    expect(body.accepted).toBe(0);
+    expect(body.deduped).toBe(1);
+
+    // Critical: upsertSessions's $executeRaw must NOT have been called, because
+    // there are no newly-accepted events to aggregate. If it were, the SQL SUM
+    // accumulator would double-count session totals on every replay.
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 
   it('returns 413 when batch exceeds 500 events', async () => {
