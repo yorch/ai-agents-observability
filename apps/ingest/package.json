@@ -15,10 +15,12 @@
   "dependencies": {
     "@ai-agents-observability/auth": "workspace:*",
     "@ai-agents-observability/db": "workspace:*",
+    "@ai-agents-observability/github": "workspace:*",
     "@ai-agents-observability/redaction": "workspace:*",
     "@ai-agents-observability/schemas": "workspace:*",
     "@aws-sdk/client-s3": "catalog:",
     "@hono/zod-validator": "catalog:",
+    "croner": "catalog:",
     "hono": "catalog:",
     "pino": "catalog:",
     "zod": "catalog:"

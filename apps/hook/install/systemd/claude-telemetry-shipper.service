@@ -1,0 +1,14 @@
+[Unit]
+Description=Claude Telemetry Shipper
+After=network.target
+
+[Service]
+ExecStart=__BINARY_PATH__ shipper
+Restart=always
+RestartSec=5
+Environment=INGEST_BASE_URL=__INGEST_BASE_URL__
+StandardOutput=append:__TELEMETRY_HOME__/shipper.log
+StandardError=append:__TELEMETRY_HOME__/shipper.log
+
+[Install]
+WantedBy=default.target

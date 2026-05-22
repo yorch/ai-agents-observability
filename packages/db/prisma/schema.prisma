@@ -27,6 +27,7 @@ enum AuditAction {
   export_team
   export_org
   admin_impersonate
+  delete_request
 }
 
 enum AuthTokenKind {
@@ -84,24 +85,26 @@ model User {
   lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz(6)
   deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(6)
 
-  primaryTeam      Team?             @relation("UserPrimaryTeam", fields: [primaryTeamId], references: [id])
-  teamMemberships  TeamMember[]
-  sessions         Session[]
-  authTokens       AuthToken[]
-  visibilityPolicy VisibilityPolicy?
-  actorAuditLogs   AuditLog[]        @relation("AuditActor")
-  targetAuditLogs  AuditLog[]        @relation("AuditTarget")
-  pullRequests     PullRequest[]
+  primaryTeam       Team?             @relation("UserPrimaryTeam", fields: [primaryTeamId], references: [id])
+  teamMemberships   TeamMember[]
+  sessions          Session[]
+  authTokens        AuthToken[]
+  visibilityPolicy  VisibilityPolicy?
+  actorAuditLogs    AuditLog[]        @relation("AuditActor")
+  targetAuditLogs   AuditLog[]        @relation("AuditTarget")
+  pullRequests      PullRequest[]
+  deletionRequests  DeletionRequest[]
 
   @@index([lastSeenAt])
   @@map("users")
 }
 
 model TeamMember {
-  teamId     String   @map("team_id") @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  roleInTeam TeamRole @map("role_in_team")
-  syncedAt   DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  teamId     String    @map("team_id") @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  roleInTeam TeamRole  @map("role_in_team")
+  syncedAt   DateTime  @default(now()) @map("synced_at") @db.Timestamptz(6)
+  leftAt     DateTime? @map("left_at") @db.Timestamptz(6)
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -309,4 +312,33 @@ model PRRollup {
 
   @@id([repoId, prNumber])
   @@map("pr_rollups")
+}
+
+// ── Jobs ──────────────────────────────────────────────────────────────────────
+
+model JobRun {
+  id         BigInt    @id @default(autoincrement())
+  jobName    String    @map("job_name")
+  startedAt  DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
+  status     String
+  errorText  String?   @map("error_text")
+
+  @@index([jobName, startedAt(sort: Desc)])
+  @@map("job_runs")
+}
+
+// ── GDPR / Deletion ───────────────────────────────────────────────────────────
+
+model DeletionRequest {
+  id          BigInt    @id @default(autoincrement())
+  userId      String    @map("user_id") @db.Uuid
+  requestedAt DateTime  @default(now()) @map("requested_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+  reason      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("deletion_requests")
 }

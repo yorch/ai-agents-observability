@@ -17,6 +17,7 @@
     "@ai-agents-observability/auth": "workspace:*",
     "@ai-agents-observability/db": "workspace:*",
     "@ai-agents-observability/github": "workspace:*",
+    "@aws-sdk/client-s3": "catalog:",
     "next": "catalog:",
     "pino": "catalog:",
     "react": "catalog:",
