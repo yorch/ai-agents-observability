@@ -39,6 +39,15 @@ bun run dev:stack:logs     # Tail all service logs
 bun run dev:stack:down     # Stop stack (preserves volumes)
 bun run dev:stack:down:v   # Stop stack and delete volumes
 
+# App services (run after dev:stack)
+bun --filter '@ai-agents-observability/ingest' dev   # Ingest API on :4000 (Bun, watch mode)
+bun --filter '@ai-agents-observability/web' dev      # Web dashboard on :3000 (Next.js, Turbopack)
+
+# Hook binary
+bun --filter '@ai-agents-observability/hook' dev     # Hook CLI in watch mode (for development)
+bun --filter '@ai-agents-observability/hook' build   # Compile native binary → apps/hook/dist/claude-telemetry
+bun --filter '@ai-agents-observability/hook' build:all  # Compile all 4 platform targets
+
 # Database
 bun --filter '@ai-agents-observability/db' db:migrate   # Run Prisma migrations
 bun --filter '@ai-agents-observability/db' db:generate  # Regenerate Prisma client
@@ -49,6 +58,7 @@ bun run check       # Lint + format check (Biome)
 bun run format      # Auto-format
 bun run typecheck   # TypeScript type check (all packages)
 bun run test        # Run all tests
+bun run build       # Build all packages and apps
 ```
 
 ### Verifying the stack
@@ -61,6 +71,10 @@ psql "postgresql://postgres:postgres@localhost:5432/ai_agents_observability" \
 # MinIO
 curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
 ```
+
+## Status
+
+Phase 1 ("My Agents" spine) is substantially complete. See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status. Phase 2 (PR loop) is next — decompose when Phase 1 exit criteria are green.
 
 ## Architecture
 

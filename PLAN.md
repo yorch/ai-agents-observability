@@ -43,25 +43,25 @@ These are the **exact** versions every package targets. No `^` or `~` ranges in 
 | `@tailwindcss/postcss` | 4.1.0 | Lockstep with Tailwind core. |
 | Prisma | 7.7.0 | Latest stable. Classic Prisma Client (not Prisma Postgres). |
 | `@prisma/client` | 7.7.0 | Lockstep with `prisma`. |
-| TimescaleDB image | `timescale/timescaledb-ha:pg17.2-ts2.26` | TSDB 2.26 requires PG 17.2+ / 16.6+ — avoid PG 17.1 / 16.5 (broken ABI). |
-| MinIO image | `quay.io/minio/minio:RELEASE.2025-10-15T17-29-55Z` | Docker Hub MinIO images deprecated Oct 2025. Pull from quay.io. Pin exact RELEASE, never `:latest`. |
-| MinIO client image | `quay.io/minio/mc:RELEASE.2025-10-15T18-02-13Z` | Bucket init + lifecycle. |
+| TimescaleDB image | `timescale/timescaledb-ha:pg17.9-ts2.27.0` | TSDB 2.27 on PG 17.9. Pin exact tag; TimescaleDB ABI is tied to exact PG patch. |
+| MinIO image | `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | Docker Hub MinIO images deprecated Oct 2025. Pull from quay.io. Pin exact RELEASE, never `:latest`. |
+| MinIO client image | `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` | Bucket init + lifecycle. |
 | Hono | 4.12.19 | |
-| `@hono/zod-validator` | 0.4.4 | Hono middleware for Zod validation. |
+| `@hono/zod-validator` | 0.4.3 | Hono middleware for Zod validation. |
 | Zod | 4.1.0 | v4: top-level string formats (`z.email()`, strict `z.uuid()`), `z.strictObject()/z.looseObject()` replace `.strict()/.passthrough()`. |
 | jose | 6.2.3 | JWT/JWS/JWE. Zero deps, runs on Bun/Node/Workers. |
 | `octokit` | 5.0.5 | GHES compatibility via `@octokit/plugin-enterprise-compatibility` if pre-3.x GHES surfaces. |
 | `@octokit/plugin-enterprise-compatibility` | 4.0.1 | Conditionally loaded for old GHES. |
 | `@aws-sdk/client-s3` | 3.1047.0 | MinIO via `forcePathStyle: true` + custom `endpoint`. |
 | pino | 10.3.1 | Worker-thread transports. |
-| `pino-pretty` | 14.0.0 | Dev-only pretty printing. |
+| `pino-pretty` | 13.1.3 | Dev-only pretty printing. |
 | `pino-roll` | 4.0.0 | File rotation. |
 | Croner | 10.0.1 | TS-native scheduler; replaces `node-cron` (stale, weaker DST handling). |
 | Vitest | 4.1.6 | Requires Vite 8. v5 in beta — don't pin yet. |
 | `fast-check` | 4.4.0 | Property-based tests in redaction package. |
 | `@octokit/webhooks` | 14.1.0 | Phase 2; pin now to avoid drift. |
-| `react-virtuoso` | 5.0.0 | Transcript viewer virtualization. |
-| keytar | 8.0.0 | OS keychain access for the hook binary. |
+| `react-virtuoso` | 4.18.7 | Transcript viewer virtualization. |
+| keytar | 7.9.0 | OS keychain access for the hook binary. |
 | zstd | (built into Bun) | Use `Bun.zstd*` APIs; no userland package. |
 
 ---
@@ -84,11 +84,9 @@ ai-agents-observability/
 │   ├── github/              # Octokit wrappers, host-agnostic (github.com / GHES)
 │   └── auth/                # IdentityProvider interface + GitHub impl + JWT issuance
 ├── infra/
-│   ├── docker-compose.yml   # Postgres+Timescale, MinIO, ingest, web, migrations-runner
-│   ├── homelab/             # Compose/systemd for prod-on-homelab
+│   ├── docker-compose.yml   # Postgres+Timescale, MinIO, migrations-runner
 │   └── migrations-runner/   # Init container: Prisma migrate + Timescale DDL
 ├── tasks/                   # Per-task work units; see tasks/README.md
-├── docs/                    # Runbooks (Phase 4), additional design notes
 ├── DESIGN_DOC.md
 └── PLAN.md                  # This file
 ```
@@ -167,7 +165,7 @@ These apply to every task. Don't restate in each task file.
   1. **Every dependency is pinned to an exact version.** No `^`, no `~`, no `>=`, no `*`. The catalog entries in root `package.json` use bare semver (`"zod": "4.1.0"`). Sub-packages use `"catalog:"`.
   2. `bunfig.toml` sets `[install] exact = true` so `bun add` writes exact versions by default.
   3. `bun.lock` is the source of truth for what gets installed and is required to match `package.json`. CI runs `bun install --frozen-lockfile`; out-of-band edits fail the build.
-  4. Docker image tags are exact (`pg17.2-ts2.26`, `RELEASE.2025-10-15T17-29-55Z`). Never `:latest`. SHA256-digest pinning (`@sha256:...`) acceptable for prod overlays.
+  4. Docker image tags are exact (`pg17.9-ts2.27.0`, `RELEASE.2025-09-07T16-13-09Z`). Never `:latest`. SHA256-digest pinning (`@sha256:...`) acceptable for prod overlays.
   5. Engine pins: `engines.node = "24.6.0"`, `engines.bun = "1.3.13"`. CI uses these exact versions via `setup-node@v4` / `setup-bun@v2`.
   6. Bumps are deliberate: open a PR per dependency (or per coordinated group — e.g., React + react-dom + Next.js), update the catalog entry, regenerate `bun.lock`, run the full CI suite. No mass-bump PRs.
   7. Renovate/Dependabot may *propose* bumps but never auto-merges. Schedule weekly so PRs don't pile up.
@@ -179,7 +177,7 @@ These apply to every task. Don't restate in each task file.
 - **Logs**: structured JSON via `pino`. No `console.log` in committed code.
 - **Secrets**: never logged, never committed. `.env.example` is the contract; real `.env` is gitignored.
 - **Commits**: Conventional Commits. PR per task or per tightly-coupled task group.
-- **Branching**: feature branches off `main`; this repo's default working branch is `claude/happy-turing-O39Wq` for the planning phase.
+- **Branching**: feature branches off `main`. Branch names follow `claude/<slug>` for AI-driven tasks and `feat/<slug>` / `fix/<slug>` for human-driven tasks.
 
 ---
 
@@ -203,7 +201,7 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 | MinIO in homelab = SPOF | Phase 4 ops handoff evaluates HA MinIO vs B2 fallback | Platform/SRE |
 | GHES webhook payload drift | `packages/github` version-detects; integration test against a real GHES instance | Backend |
 | Privacy regression on team views | Audit log is the safety net; covered by `P3-*` tasks | Cross-cutting |
-| Wrong Postgres patch version (17.1 / 16.5) breaks TimescaleDB 2.26 | Pin `timescale/timescaledb-ha:pg17.2-ts2.26` exact tag in compose; document in `P1-002` | Backend |
+| Wrong Postgres patch version breaks TimescaleDB ABI | Pin `timescale/timescaledb-ha:pg17.9-ts2.27.0` exact tag in compose; never use `:latest` | Backend |
 | MinIO Docker Hub image deprecation (Oct 2025) | Pull from `quay.io/minio/minio` with pinned RELEASE tag, never `:latest` | Backend |
 | Bun 1.3 isolated installs + catalogs has dedup/cache bugs ([#23615](https://github.com/oven-sh/bun/issues/23615)) | Use HOISTED installs (`linker = "hoisted"` in `bunfig.toml`) until fixed | Cross-cutting |
 | Bun Rust-rewrite branch regressions on native modules | Pin Bun 1.3.13 (stable JS impl), not bleeding-edge | Systems |

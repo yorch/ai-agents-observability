@@ -3,7 +3,7 @@
 **Project:** `ai-agents-observability`
 **Status:** Draft v1
 **Owner:** Jorge (SentinelOne)
-**Last updated:** 2026-05-16
+**Last updated:** 2026-05-22
 **Audience:** Internal — dev tools team, leadership stakeholders
 
 ---
@@ -96,7 +96,7 @@ Split by access pattern:
 
 - **Postgres** — dimensions (users, teams, repos), sessions, PR rollups, audit log, visibility policies. Transactional, queryable surface for the UI.
 - **Postgres + TimescaleDB hypertable** — high-volume events firehose. (Decision: Timescale over ClickHouse for v1 — see §11.1.)
-- **S3-compatible object store (Backblaze B2)** — raw transcript JSONL, zstd-compressed, keyed by session ID. Lifecycle rules for retention.
+- **S3-compatible object store (MinIO)** — raw transcript JSONL, zstd-compressed, keyed by session ID. Lifecycle rules for retention. MinIO for local dev and homelab prod; any S3-compatible store for cloud prod.
 
 ### 4.3 Query / API / UI Plane
 
@@ -128,7 +128,7 @@ Read-only service that fronts:
 [Transcript shipper: redact → zstd → upload]
        │
        ▼
-[POST /v1/transcripts/{sid}] ──► [B2: transcripts/{yyyy}/{mm}/{dd}/{sid}.jsonl.zst]
+[POST /v1/transcripts/{sid}] ──► [MinIO/S3: transcripts/{yyyy}/{mm}/{dd}/{sid}.jsonl.zst]
                                         │
                                         ▼
                                  [Postgres: sessions.transcript_s3_key]
@@ -440,7 +440,7 @@ CREATE TABLE pr_rollups (
 
 ### 5.5 Transcript Index (Optional, Postgres FTS)
 
-If/when transcript search is needed without round-tripping to B2:
+If/when transcript search is needed without round-tripping to object storage:
 
 ```sql
 CREATE TABLE transcript_index (
@@ -476,7 +476,7 @@ Claude Code exposes telemetry through several surfaces; they are not equivalent.
 
 ### 6.2 Hook Binary
 
-A small Go binary (single static binary, easy to distribute via existing dev-machine config / dotfiles / MDM).
+A Bun-compiled static binary (`bun build --compile`), distributed via existing dev-machine config / dotfiles / MDM. Produces a self-contained executable with Bun's runtime bundled — no Node/Bun installation required on the target machine.
 
 Responsibilities:
 
@@ -565,7 +565,7 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 2. Run redaction pass (see §9)
 3. zstd-compress
 4. `PUT /v1/transcripts/{session_id}` with `Content-Range` for chunked / resumable upload
-5. Server writes to B2 at `transcripts/{yyyy}/{mm}/{dd}/{session_id}.jsonl.zst`
+5. Server writes to MinIO/S3 at `transcripts/{yyyy}/{mm}/{dd}/{session_id}.jsonl.zst`
 6. On final chunk, update `sessions.transcript_*` columns
 
 ### 6.5 Identity Trust Model
@@ -673,7 +673,7 @@ Transcripts can contain anything — prompts with file contents, accidentally-pa
 
 ### 9.1 Day-One Redaction Pass
 
-Before B2 upload, the client (yes, client-side, because we don't want raw secrets touching the server) runs a regex sweep for:
+Before upload to object storage, the client (yes, client-side, because we don't want raw secrets touching the server) runs a regex sweep for:
 
 - AWS access keys (`AKIA[0-9A-Z]{16}`)
 - AWS secret keys (40-char base64)
@@ -795,31 +795,34 @@ This is a presentation discipline, not a data model decision. Worth re-asserting
 
 **Re-evaluation trigger:** Aggregation queries on the events table consistently exceed 2s on production hardware, or storage growth makes Postgres maintenance painful.
 
-### 11.2 Go for the Hook Binary
+### 11.2 Bun for the Hook Binary
 
-**Choice:** Single static Go binary distributed via existing dev-machine config.
+**Choice:** Single static binary compiled with `bun build --compile`, distributed via existing dev-machine config.
 
 **Rationale:**
 
-- Single static binary, trivial to ship
-- Cross-compile for darwin/arm64, darwin/amd64, linux/amd64
-- Mature ecosystem for SQLite, HTTP, OIDC
-- No runtime dependency on Node/Python/Bun
+- Single static binary, trivial to ship — Bun's `--compile` flag bundles the runtime
+- Cross-compile for darwin/arm64, darwin/amd64, linux/amd64, linux/arm64
+- Entire codebase is TypeScript; no second language to maintain
+- `Bun.zstd*` APIs available natively — no userland zstd package needed
+- SQLite support built into Bun — no CGO linking required
 
 **Alternative considered:** Bash hooks. Dead simple but no batching, no local queue, no retry. Doesn't scale to 200 devs without a complementary daemon anyway — so just build the daemon.
 
-### 11.3 Backblaze B2 for Transcript Blobs
+**Alternative considered:** Go binary. Would work well; rejected to keep the codebase in one language (TypeScript everywhere).
 
-**Choice:** B2 (Jorge's existing infrastructure).
+### 11.3 MinIO for Transcript Blobs
+
+**Choice:** MinIO for local dev and homelab prod (S3-compatible, self-hosted).
 
 **Rationale:**
 
-- Already running and paid for
-- S3-compatible API
-- Cheap egress; transcript reads are infrequent
-- Lifecycle rules support easy retention enforcement
+- S3-compatible API — swap to any S3-compatible cloud store (Backblaze B2, AWS S3, Tigris) without code changes
+- Self-hostable on existing homelab hardware
+- Lifecycle rules support easy 1-year retention enforcement
+- Local dev and prod use the same code path; no special-casing
 
-**Alternative considered:** MinIO self-hosted. Defer; B2 is cheaper than the ops cost.
+**Alternative considered:** Backblaze B2. Viable for cloud prod since it's S3-compatible and cost-effective; can be adopted later as a prod overlay without changing application code.
 
 ### 11.4 Next.js for the UI
 
@@ -854,9 +857,9 @@ Resist the urge to build all of it. The MVP that proves value:
 
 ### 12.1 Phase 1 — Spine + Self-Service ("My Agents")
 
-1. Ingest API + Timescale events + Postgres sessions + B2 transcript upload
+1. Ingest API + Timescale events + Postgres sessions + MinIO/S3 transcript upload
 2. GitHub OAuth login + nightly team sync
-3. Hook binary (Go), distributed via internal dotfiles / MDM
+3. Hook binary (Bun-compiled), distributed via internal dotfiles / MDM
 4. Redaction v1 (regex pass)
 5. "My Agents" page — every dev gets full access to their own data
 6. Privacy controls UI (visibility policy editor)
@@ -931,7 +934,7 @@ These are the decisions still needed before Phase 1 kicks off.
 | Store raw tool I/O in events vs hash-and-blob             | Hash-and-blob                 | Cannot re-query specific inputs in SQL; gained massive storage savings and compliance posture                        |
 | Default-share-everything vs default-private               | Default-private (transcripts) | Less data visible to leadership day one; gained developer trust, which is the gating factor for adoption             |
 | Build a custom UI vs reuse Grafana                        | Custom UI                     | Slower to MVP; gained "My Agents" experience, transcript viewing, privacy controls — none of which Grafana does well |
-| Single hook binary vs language-native hooks               | Single Go binary              | Slightly higher distribution complexity; gained batching, retry, queue, OIDC — needed at scale                       |
+| Single hook binary vs language-native hooks               | Single Bun-compiled binary    | Slightly higher distribution complexity; gained batching, retry, queue, OIDC — needed at scale; keeps codebase in one language |
 | OAuth App = GitHub App                                    | Two apps                      | More setup; gained clean permission boundaries                                                                       |
 | Capture lots now / surface later vs capture-what-you-need | Capture more                  | Larger storage footprint; gained ability to answer new questions without backfilling from transcripts                |
 | Cost: client-computed price table vs Anthropic admin API  | Client-computed               | Slight risk of price-table drift; gained simplicity and decoupling                                                   |
