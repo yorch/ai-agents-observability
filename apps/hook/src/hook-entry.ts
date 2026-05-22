@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs';
+
 import { log } from './lib/log';
 import { type HookKind, toEvent } from './lib/payload';
+import { pausedPath } from './lib/paths';
 import { openQueue } from './lib/queue';
 import { readStdinBounded } from './lib/stdin';
 import { writeShipMarker } from './shipper';
@@ -23,6 +26,10 @@ function safeParse(raw: string): Record<string, unknown> | null {
 // Run a single hook entrypoint. Always resolves; the caller exits 0 regardless.
 // Errors are logged and swallowed — a broken hook MUST NOT break Claude Code.
 export async function runHook(kind: HookKind, _opts: Options): Promise<void> {
+  if (existsSync(pausedPath())) {
+    return;
+  }
+
   try {
     const stdin = await readStdinBounded();
 

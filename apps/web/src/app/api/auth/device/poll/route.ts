@@ -88,5 +88,5 @@ export async function POST(request: Request) {
   });
 
   pollTimestamps.delete(device_code);
-  return NextResponse.json({ hook_token: hookToken, status: 'authorized' });
+  return NextResponse.json({ github_login: ghUser.login, hook_token: hookToken, status: 'authorized' });
 }

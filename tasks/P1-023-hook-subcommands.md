@@ -3,8 +3,8 @@ id: P1-023
 title: Subcommands (login/status/pause/resume/purge/install)
 phase: 1
 workstream: D
-status: blocked
-owner: null
+status: review
+owner: claude
 depends_on: [P1-019, P1-017]
 blocks: []
 estimate: M

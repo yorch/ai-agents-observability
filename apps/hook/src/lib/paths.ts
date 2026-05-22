@@ -11,3 +11,15 @@ export function queuePath(): string {
 export function identityPath(): string {
   return `${telemetryHome()}/identity.json`;
 }
+
+export function pausedPath(): string {
+  return `${telemetryHome()}/paused`;
+}
+
+export function shipQueueDir(): string {
+  return `${telemetryHome()}/ship-queue`;
+}
+
+export function flusherStatePath(): string {
+  return `${telemetryHome()}/flusher-state.json`;
+}

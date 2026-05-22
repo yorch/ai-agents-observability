@@ -1,3 +1,10 @@
+import { runLogin } from './commands/login';
+import { runPause } from './commands/pause';
+import { runPurge } from './commands/purge';
+import { runResume } from './commands/resume';
+import { runInstall } from './commands/install';
+import { runStatus } from './commands/status';
+import { runUninstall } from './commands/uninstall';
 import { runFlusher } from './flusher';
 import { runHook } from './hook-entry';
 import { log } from './lib/log';
@@ -11,22 +18,28 @@ const HELP = `claude-telemetry v${VERSION}
 Usage: claude-telemetry <command> [options]
 
 Commands:
+  login         Authenticate with the observability server (device-code flow)
+  status        Show auth status, queue depth, and service state
+  pause         Pause telemetry collection (writes a marker file)
+  resume        Resume telemetry collection (removes the marker)
+  purge-local   Remove all local data (queue, logs, identity) — use --yes to confirm
+  install       Write launchd/systemd service files and print the hook snippet
+  uninstall     Remove service files (does not remove local data)
+
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
-                 kinds: session-start, pre-tool-use, post-tool-use, stop,
-                        user-prompt-submit, pre-compact, subagent-stop, notification
+                kinds: session-start, pre-tool-use, post-tool-use, stop,
+                       user-prompt-submit, pre-compact, subagent-stop, notification
   flusher       Drain the SQLite queue and POST batches to /v1/events (long-running)
   shipper       Watch for transcript files and upload them to /v1/transcripts (long-running)
-  login         Authenticate with the observability server
-  status        Show current authentication status
-  pause         Pause telemetry collection
-  resume        Resume telemetry collection
-  purge         Remove local queue and cached transcripts
-  install       Install as a Claude Code hook
 
 Options:
   --quiet        Suppress non-fatal output (errors still logged to file)
   -V, --version  Show version
-  -h, --help     Show help`;
+  -h, --help     Show help
+
+Exit codes:
+  0  Success
+  1  Error (message written to stderr)`;
 
 async function main(): Promise<number> {
   const args = process.argv.slice(2);
@@ -47,7 +60,6 @@ async function main(): Promise<number> {
   if (cmd === 'hook') {
     const kind = positional[1];
     if (!kind || !isHookKind(kind)) {
-      // Hook context: never crash. Log the misuse for diagnosis, exit 0.
       log('warn', 'hook.invalid_kind', { kind: kind ?? null });
       return 0;
     }
@@ -65,7 +77,35 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  process.stderr.write(`Command not yet implemented: ${cmd}\n`);
+  if (cmd === 'login') {
+    return runLogin();
+  }
+
+  if (cmd === 'status') {
+    return runStatus();
+  }
+
+  if (cmd === 'pause') {
+    return runPause();
+  }
+
+  if (cmd === 'resume') {
+    return runResume();
+  }
+
+  if (cmd === 'purge-local' || cmd === 'purge') {
+    return runPurge(args);
+  }
+
+  if (cmd === 'install') {
+    return runInstall();
+  }
+
+  if (cmd === 'uninstall') {
+    return runUninstall();
+  }
+
+  process.stderr.write(`Unknown command: ${cmd}\nRun \`claude-telemetry --help\` for usage.\n`);
   return 1;
 }
 
