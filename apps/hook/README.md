@@ -61,7 +61,7 @@ Options:
 ## Quickstart
 
 ```bash
-# 1. Authenticate (opens browser for GitHub device-code flow)
+# 1. Authenticate (prints a URL + code to complete the GitHub device flow)
 claude-telemetry login
 
 # 2. Install background services and get the settings.json snippet

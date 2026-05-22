@@ -31,12 +31,14 @@ export async function runStatus(): Promise<number> {
   // ── Live queue depth (best-effort) ────────────────────────────────────────────
   let queueDepth = flusherState.queueDepth;
   if (existsSync(queuePath())) {
+    let reader: ReturnType<typeof openQueueReader> | undefined;
     try {
-      const reader = openQueueReader(queuePath());
+      reader = openQueueReader(queuePath());
       queueDepth = reader.depth();
-      reader.close();
     } catch {
       // DB locked or unreadable; use cached value from flusher state
+    } finally {
+      reader?.close();
     }
   }
 

@@ -11,7 +11,12 @@ function uninstallDarwin(): number {
 
   for (const file of plists) {
     if (existsSync(file)) {
-      Bun.spawnSync(['launchctl', 'unload', file]);
+      const result = Bun.spawnSync(['launchctl', 'unload', file]);
+      if (result.exitCode !== 0) {
+        process.stderr.write(
+          `Warning: launchctl unload exited ${result.exitCode} for ${file} — service may still be running\n`,
+        );
+      }
       rmSync(file, { force: true });
       process.stdout.write(`removed: ${file}\n`);
     }
@@ -30,7 +35,12 @@ function uninstallLinux(): number {
   for (const svc of services) {
     const path = join(dir, svc);
     if (existsSync(path)) {
-      Bun.spawnSync(['systemctl', '--user', 'disable', '--now', svc]);
+      const result = Bun.spawnSync(['systemctl', '--user', 'disable', '--now', svc]);
+      if (result.exitCode !== 0) {
+        process.stderr.write(
+          `Warning: systemctl disable --now exited ${result.exitCode} for ${svc} — service may still be running\n`,
+        );
+      }
       rmSync(path, { force: true });
       process.stdout.write(`removed: ${path}\n`);
       anyRemoved = true;
@@ -38,7 +48,10 @@ function uninstallLinux(): number {
   }
 
   if (anyRemoved) {
-    Bun.spawnSync(['systemctl', '--user', 'daemon-reload']);
+    const result = Bun.spawnSync(['systemctl', '--user', 'daemon-reload']);
+    if (result.exitCode !== 0) {
+      process.stderr.write(`Warning: systemctl daemon-reload exited ${result.exitCode}\n`);
+    }
   }
 
   process.stdout.write('\nServices uninstalled. Local data was not removed.\n');

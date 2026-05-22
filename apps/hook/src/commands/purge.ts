@@ -20,10 +20,12 @@ export async function runPurge(args: string[]): Promise<number> {
     process.stdout.write(
       [
         'This will permanently delete all local telemetry data:',
-        `  event queue:   ${queuePath()}`,
-        `  ship queue:    ${shipQueueDir()}`,
-        `  log file:      ${logPath()}`,
-        `  identity file: ${identityPath()}`,
+        `  event queue:    ${queuePath()}`,
+        `  ship queue:     ${shipQueueDir()}`,
+        `  log file:       ${logPath()}`,
+        `  identity file:  ${identityPath()}`,
+        `  flusher state:  ${flusherStatePath()}`,
+        `  pause marker:   ${pausedPath()}`,
         '',
         'Data already uploaded to the server is NOT affected.',
         `Manage server-side data at: ${privacyUrl}`,

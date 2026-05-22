@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -133,11 +133,15 @@ describe('hook-entry when paused', () => {
   });
 
   it('enqueues normally when not paused', async () => {
-    // Provide valid JSON on stdin via a pipe — we test just the pause branch here.
-    // Without a paused marker, runHook tries to read stdin (which will be empty).
-    // Empty stdin produces a warn log but no queue entry — that is tested in queue.test.ts.
-    // Here we verify the marker check alone by confirming the queue may be created.
-    expect(existsSync(join(tmpHome, 'paused'))).toBe(false);
+    // Without a paused marker, runHook proceeds past the pause check and tries
+    // to read stdin. In this test stdin is empty, so it logs hook.stdin.empty
+    // and returns without creating a queue entry. We verify the log file is
+    // written — proving the pause check did NOT short-circuit execution.
+    await runHook('pre-tool-use', { quiet: false });
+
+    expect(existsSync(join(tmpHome, 'hook.log'))).toBe(true);
+    const log = readFileSync(join(tmpHome, 'hook.log'), 'utf8');
+    expect(log).toContain('hook.stdin');
   });
 });
 
@@ -145,9 +149,11 @@ describe('hook-entry when paused', () => {
 
 describe('purge-local', () => {
   it('prints a prompt and returns 1 without --yes', async () => {
+    let exitCode: number | undefined;
     const { stdout } = await captureOutputAsync(async () => {
-      await runPurge([]);
+      exitCode = await runPurge([]);
     });
+    expect(exitCode).toBe(1);
     expect(stdout).toContain('--yes');
     expect(stdout).toContain('server-side data');
   });
