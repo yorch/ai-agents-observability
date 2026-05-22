@@ -1,4 +1,4 @@
-import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
+import { gzipSync, zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 
 import type { S3Client } from '@aws-sdk/client-s3';
 import { describe, expect, it, vi } from 'vitest';
@@ -29,8 +29,12 @@ function compress(text: string): Uint8Array {
   return new Uint8Array(zstdCompressSync(new TextEncoder().encode(text)));
 }
 
+function gzipCompress(text: string): Uint8Array {
+  return new Uint8Array(gzipSync(new TextEncoder().encode(text)));
+}
+
 describe('POST /v1/transcripts/:session_id', () => {
-  it('returns 415 when Content-Type is not application/x-zstd', async () => {
+  it('returns 415 when Content-Type is not application/x-zstd or application/gzip', async () => {
     const deps = authedDeps();
     const app = createApp({} as unknown as Config, deps);
 
@@ -136,6 +140,57 @@ describe('POST /v1/transcripts/:session_id', () => {
     expect(sessionStub.update).toHaveBeenCalledTimes(1);
   });
 
+  it('accepts a gzip-compressed transcript and stores it as zstd', async () => {
+    const deps = authedDeps();
+    const sessionStub = deps.db.session as unknown as {
+      findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+    sessionStub.findUnique = vi.fn().mockResolvedValue({
+      sessionId: SESSION_ID,
+      startedAt: new Date('2026-05-21T12:00:00Z'),
+      transcriptBytes: null,
+      transcriptS3Key: null,
+      transcriptUploadedAt: null,
+      userId: USER_ID,
+    });
+    sessionStub.update = vi.fn().mockResolvedValue({});
+
+    const sent: { Body?: Uint8Array; Bucket?: string; Key?: string }[] = [];
+    deps.s3.client = {
+      send: vi.fn(async (cmd: unknown) => {
+        const input = (cmd as { input?: { Body?: Uint8Array; Bucket?: string; Key?: string } })
+          .input;
+        if (input?.Body) {
+          sent.push(input);
+        }
+        return {};
+      }),
+    } as unknown as S3Client;
+
+    const payload = [
+      '{"role":"user","content":"hi"}',
+      '{"role":"assistant","content":"hello"}',
+      '',
+    ].join('\n');
+    const compressed = gzipCompress(payload);
+
+    const app = createApp({} as unknown as Config, deps);
+    const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
+      body: compressed,
+      headers: { Authorization: TOKEN, 'Content-Type': 'application/gzip' },
+      method: 'POST',
+    });
+
+    expect(res.status).toBe(201);
+    expect(sent).toHaveLength(1);
+    // S3 object must be zstd-compressed regardless of input format
+    const stored = sent[0]?.Body as Uint8Array;
+    const decompressed = new TextDecoder().decode(zstdDecompressSync(stored));
+    expect(decompressed).toContain('"role":"user"');
+    expect(sessionStub.update).toHaveBeenCalledTimes(1);
+  });
+
   it('returns 202 with received offset for an intermediate chunk', async () => {
     const deps = authedDeps();
     const sessionStub = deps.db.session as unknown as { findUnique: ReturnType<typeof vi.fn> };
@@ -167,12 +222,25 @@ describe('POST /v1/transcripts/:session_id', () => {
 });
 
 describe('processTranscript', () => {
-  it('preserves line count and flags secrets per line', () => {
+  it('preserves line count and flags secrets per line (zstd input)', () => {
     const input = ['ok line', 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'tail', ''].join('\n');
     const compressed = compress(input);
     const result = processTranscript(compressed);
     expect(result.redactionFlags).toContain('github-token');
 
+    const decoded = new TextDecoder().decode(zstdDecompressSync(result.recompressed));
+    expect(decoded.split('\n')).toHaveLength(4);
+    expect(decoded).toContain('ok line');
+    expect(decoded).not.toContain('ghp_aaaa');
+  });
+
+  it('decompresses gzip input and recompresses output as zstd', () => {
+    const input = ['ok line', 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'tail', ''].join('\n');
+    const compressed = gzipCompress(input);
+    const result = processTranscript(compressed, 'application/gzip');
+    expect(result.redactionFlags).toContain('github-token');
+
+    // Output must always be zstd regardless of input format
     const decoded = new TextDecoder().decode(zstdDecompressSync(result.recompressed));
     expect(decoded.split('\n')).toHaveLength(4);
     expect(decoded).toContain('ok line');
