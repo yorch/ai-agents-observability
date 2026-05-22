@@ -60,8 +60,12 @@ export async function runStatus(): Promise<number> {
     `last flush:  ${flusherState.lastFlushAt ?? 'never'}`,
     `last error:  ${flusherState.lastError ?? 'none'}`,
   ];
-  if (flusherRunning !== null) lines.push(`flusher:     ${flusherRunning}`);
-  if (shipperRunning !== null) lines.push(`shipper:     ${shipperRunning}`);
+  if (flusherRunning !== null) {
+    lines.push(`flusher:     ${flusherRunning}`);
+  }
+  if (shipperRunning !== null) {
+    lines.push(`shipper:     ${shipperRunning}`);
+  }
 
   process.stdout.write(`${lines.join('\n')}\n`);
   return 0;

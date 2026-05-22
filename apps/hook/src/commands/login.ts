@@ -69,17 +69,23 @@ export async function runLogin(): Promise<number> {
     }
 
     if (pollResult.status !== 'authorized') {
-      process.stderr.write(`Unexpected poll status: ${String((pollResult as { status: unknown }).status)}\n`);
+      process.stderr.write(
+        `Unexpected poll status: ${String((pollResult as { status: unknown }).status)}\n`,
+      );
       return 1;
     }
 
     const { hook_token, github_login } = pollResult;
     const path = identityPath();
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, JSON.stringify({ token: hook_token, user_id_claim: github_login }, null, 2), {
-      encoding: 'utf8',
-      mode: 0o600,
-    });
+    writeFileSync(
+      path,
+      JSON.stringify({ token: hook_token, user_id_claim: github_login }, null, 2),
+      {
+        encoding: 'utf8',
+        mode: 0o600,
+      },
+    );
 
     process.stdout.write(`\nLogged in as ${github_login}\n`);
     return 0;

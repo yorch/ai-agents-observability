@@ -47,8 +47,12 @@ function uninstallLinux(): number {
 }
 
 export function runUninstall(): number {
-  if (process.platform === 'darwin') return uninstallDarwin();
-  if (process.platform === 'linux') return uninstallLinux();
+  if (process.platform === 'darwin') {
+    return uninstallDarwin();
+  }
+  if (process.platform === 'linux') {
+    return uninstallLinux();
+  }
 
   process.stderr.write(`Unsupported platform: ${process.platform}\n`);
   return 1;

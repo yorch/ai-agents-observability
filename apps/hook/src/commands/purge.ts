@@ -44,7 +44,9 @@ export async function runPurge(args: string[]): Promise<number> {
   const home = telemetryHome();
 
   function tryRemove(path: string, recursive = false): void {
-    if (!existsSync(path)) return;
+    if (!existsSync(path)) {
+      return;
+    }
     // Guard recursive deletes: refuse to remove a directory that isn't clearly
     // under telemetryHome so a misconfigured CLAUDE_TELEMETRY_HOME can't wipe
     // unrelated directory trees.

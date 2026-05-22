@@ -1,7 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { basename } from 'node:path';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 const HOOK_KINDS = [
   'session-start',

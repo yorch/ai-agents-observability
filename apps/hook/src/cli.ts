@@ -1,8 +1,8 @@
+import { runInstall } from './commands/install';
 import { runLogin } from './commands/login';
 import { runPause } from './commands/pause';
 import { runPurge } from './commands/purge';
 import { runResume } from './commands/resume';
-import { runInstall } from './commands/install';
 import { runStatus } from './commands/status';
 import { runUninstall } from './commands/uninstall';
 import { runFlusher } from './flusher';

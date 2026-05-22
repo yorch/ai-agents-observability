@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 
 import { log } from './lib/log';
-import { type HookKind, toEvent } from './lib/payload';
 import { pausedPath } from './lib/paths';
+import { type HookKind, toEvent } from './lib/payload';
 import { openQueue } from './lib/queue';
 import { readStdinBounded } from './lib/stdin';
 import { writeShipMarker } from './shipper';

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { join } from 'node:path';
 
 import { log } from './lib/log';
-import { identityPath, shipQueueDir, telemetryHome } from './lib/paths';
+import { identityPath, shipQueueDir } from './lib/paths';
 import { redactedLines } from './lib/transcript-stream';
 
 const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
