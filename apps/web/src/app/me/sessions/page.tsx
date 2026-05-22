@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation';
-
+import { SessionsTable } from '../../../components/me/SessionsTable';
 import { currentUser } from '../../../lib/auth';
 import { listDistinctRepos, listSessions } from '../../../lib/sessions-queries';
-import { SessionsTable } from '../../../components/me/SessionsTable';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +21,9 @@ export default async function SessionsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const user = await currentUser();
-  if (!user) redirect('/login');
+  if (!user) {
+    redirect('/login');
+  }
 
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? '1', 10));
@@ -51,8 +52,11 @@ export default async function SessionsPage({
       {/* Filter bar */}
       <form method="GET" className="flex flex-wrap gap-3 items-end">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-white/50">Repo</label>
+          <label htmlFor="repo-filter" className="text-xs text-white/50">
+            Repo
+          </label>
           <select
+            id="repo-filter"
             name="repo"
             defaultValue={repo ?? ''}
             className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
@@ -67,8 +71,11 @@ export default async function SessionsPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-white/50">Status</label>
+          <label htmlFor="status-filter" className="text-xs text-white/50">
+            Status
+          </label>
           <select
+            id="status-filter"
             name="status"
             defaultValue={status ?? ''}
             className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
@@ -83,8 +90,11 @@ export default async function SessionsPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-white/50">From</label>
+          <label htmlFor="from-filter" className="text-xs text-white/50">
+            From
+          </label>
           <input
+            id="from-filter"
             type="date"
             name="from"
             defaultValue={params.from ?? ''}
@@ -93,8 +103,11 @@ export default async function SessionsPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-white/50">To</label>
+          <label htmlFor="to-filter" className="text-xs text-white/50">
+            To
+          </label>
           <input
+            id="to-filter"
             type="date"
             name="to"
             defaultValue={params.to ?? ''}

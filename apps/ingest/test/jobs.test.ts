@@ -1,24 +1,29 @@
+import type { PrismaClient } from '@ai-agents-observability/db';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runSweepAbandoned } from '../src/jobs/sweep-abandoned.ts';
+
+function asDb(mock: ReturnType<typeof makeMockDb>): PrismaClient {
+  return mock as unknown as PrismaClient;
+}
 
 // ── Mock PrismaClient ────────────────────────────────────────────────────────
 
 type SessionStatus = 'active' | 'abandoned' | 'completed' | 'crashed' | 'timed_out';
 
 interface MockSession {
+  lastEventAt: Date;
   sessionId: string;
   status: SessionStatus;
-  lastEventAt: Date;
 }
 
 interface MockJobRun {
+  errorText: string | null;
+  finishedAt: Date | null;
   id: bigint;
   jobName: string;
   startedAt: Date;
-  finishedAt: Date | null;
   status: string;
-  errorText: string | null;
 }
 
 function makeMockDb() {
@@ -28,9 +33,9 @@ function makeMockDb() {
   let lockAcquired = false;
 
   return {
-    _sessions: sessions,
     _jobRuns: jobRuns,
-    $queryRaw: vi.fn(async (query: TemplateStringsArray, ...values: unknown[]) => {
+    _sessions: sessions,
+    $queryRaw: vi.fn(async (query: TemplateStringsArray, ..._values: unknown[]) => {
       const sql = query.join('?');
       if (sql.includes('pg_try_advisory_lock')) {
         // First call acquires; subsequent ones fail (simulate single-process)
@@ -63,7 +68,10 @@ function makeMockDb() {
     },
     session: {
       updateMany: vi.fn(
-        async (args: { data: { status: SessionStatus }; where: { status: string; lastEventAt: { lt: Date } } }) => {
+        async (args: {
+          data: { status: SessionStatus };
+          where: { status: string; lastEventAt: { lt: Date } };
+        }) => {
           const cutoff = args.where.lastEventAt.lt;
           let count = 0;
           for (const s of sessions) {
@@ -96,10 +104,9 @@ describe('runSweepAbandoned', () => {
       status: 'active',
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await runSweepAbandoned(db as any);
+    await runSweepAbandoned(asDb(db));
 
-    expect(db._sessions[0]!.status).toBe('abandoned');
+    expect(db._sessions[0]?.status).toBe('abandoned');
   });
 
   it('does not mark sessions that are recent', async () => {
@@ -110,10 +117,9 @@ describe('runSweepAbandoned', () => {
       status: 'active',
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await runSweepAbandoned(db as any);
+    await runSweepAbandoned(asDb(db));
 
-    expect(db._sessions[0]!.status).toBe('active');
+    expect(db._sessions[0]?.status).toBe('active');
   });
 
   it('does not touch completed sessions even if old', async () => {
@@ -124,26 +130,23 @@ describe('runSweepAbandoned', () => {
       status: 'completed',
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await runSweepAbandoned(db as any);
+    await runSweepAbandoned(asDb(db));
 
-    expect(db._sessions[0]!.status).toBe('completed');
+    expect(db._sessions[0]?.status).toBe('completed');
   });
 
   it('writes a JobRun row with status=success', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await runSweepAbandoned(db as any);
+    await runSweepAbandoned(asDb(db));
 
     expect(db._jobRuns).toHaveLength(1);
-    expect(db._jobRuns[0]!.jobName).toBe('sweep-abandoned');
-    expect(db._jobRuns[0]!.status).toBe('success');
-    expect(db._jobRuns[0]!.finishedAt).toBeInstanceOf(Date);
+    expect(db._jobRuns[0]?.jobName).toBe('sweep-abandoned');
+    expect(db._jobRuns[0]?.status).toBe('success');
+    expect(db._jobRuns[0]?.finishedAt).toBeInstanceOf(Date);
   });
 
   it('skips run if advisory lock is not available', async () => {
     // Pre-consume the lock by calling once
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await runSweepAbandoned(db as any);
+    await runSweepAbandoned(asDb(db));
     // Reset the lock state manually by clearing the counter
     // Second run: lock was released, so re-acquire
     // Simulate a concurrent lock holder by setting lockAcquired manually
@@ -151,8 +154,7 @@ describe('runSweepAbandoned', () => {
     db.$queryRaw = vi.fn(async () => [{ pg_try_advisory_lock: false }]);
     const runsBefore = db._jobRuns.length;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await runSweepAbandoned(db as any);
+    await runSweepAbandoned(asDb(db));
 
     // No new job run should have been created
     expect(db._jobRuns.length).toBe(runsBefore);
