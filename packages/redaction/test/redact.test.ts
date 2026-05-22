@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { redact } from '../src/index.js';
+import { redact } from '../src/index';
 
 function loadCassette(name: string): string {
   return readFileSync(join(import.meta.dirname, 'cassettes', name), 'utf-8').trim();

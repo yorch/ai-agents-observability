@@ -1,31 +1,59 @@
+import { runHook } from './hook-entry';
+import { log } from './lib/log';
+import { isHookKind } from './lib/payload';
+
 const VERSION = '0.1.0';
 
-const args = process.argv.slice(2);
-const cmd = args[0];
+const HELP = `claude-telemetry v${VERSION}
 
-if (cmd === '--version' || cmd === '-V') {
-  console.log(VERSION);
-  process.exit(0);
-}
-
-if (cmd === '--help' || cmd === '-h' || !cmd) {
-  console.log(`claude-telemetry v${VERSION}
-
-Usage: claude-telemetry <command>
+Usage: claude-telemetry <command> [options]
 
 Commands:
-  login     Authenticate with the observability server
-  status    Show current authentication status
-  pause     Pause telemetry collection
-  resume    Resume telemetry collection
-  purge     Remove local queue and cached transcripts
-  install   Install as a Claude Code hook
+  hook <kind>   Run a hook entrypoint (reads JSON from stdin)
+                 kinds: session-start, pre-tool-use, post-tool-use, stop,
+                        user-prompt-submit, pre-compact, subagent-stop, notification
+  login         Authenticate with the observability server
+  status        Show current authentication status
+  pause         Pause telemetry collection
+  resume        Resume telemetry collection
+  purge         Remove local queue and cached transcripts
+  install       Install as a Claude Code hook
 
 Options:
+  --quiet        Suppress non-fatal output (errors still logged to file)
   -V, --version  Show version
-  -h, --help     Show help`);
-  process.exit(0);
+  -h, --help     Show help`;
+
+async function main(): Promise<number> {
+  const args = process.argv.slice(2);
+  const quiet = args.includes('--quiet');
+  const positional = args.filter((a) => !a.startsWith('-'));
+  const cmd = positional[0];
+
+  if (args.includes('--version') || args.includes('-V')) {
+    process.stdout.write(`${VERSION}\n`);
+    return 0;
+  }
+
+  if (!cmd || args.includes('--help') || args.includes('-h')) {
+    process.stdout.write(`${HELP}\n`);
+    return 0;
+  }
+
+  if (cmd === 'hook') {
+    const kind = positional[1];
+    if (!kind || !isHookKind(kind)) {
+      // Hook context: never crash. Log the misuse for diagnosis, exit 0.
+      log('warn', 'hook.invalid_kind', { kind: kind ?? null });
+      return 0;
+    }
+    await runHook(kind, { quiet });
+    return 0;
+  }
+
+  process.stderr.write(`Command not yet implemented: ${cmd}\n`);
+  return 1;
 }
 
-console.error(`Unknown command: ${cmd}. Run claude-telemetry --help for usage.`);
-process.exit(1);
+const exitCode = await main().catch(() => 0);
+process.exit(exitCode);

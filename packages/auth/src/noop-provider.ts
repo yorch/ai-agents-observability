@@ -1,4 +1,4 @@
-import type { ExternalIdentity, IdentityProvider, TeamMembership } from './provider.js';
+import type { ExternalIdentity, IdentityProvider, TeamMembership } from './provider';
 
 /** Test double that returns configurable canned responses. */
 export class NoopProvider implements IdentityProvider {

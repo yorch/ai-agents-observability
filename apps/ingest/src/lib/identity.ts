@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import type { Logger } from 'pino';
 
-import type { AppEnv } from '../types.js';
+import type { AppEnv } from '../types';
 
 /**
  * Compares a hook-asserted user_id_claim against the authoritative token identity.

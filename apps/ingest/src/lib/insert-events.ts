@@ -1,13 +1,17 @@
 import { Prisma } from '@ai-agents-observability/db';
 import type { Event, PriceTable } from '@ai-agents-observability/schemas';
 
-import { computeCostUsd } from './cost.js';
+import { computeCostUsd } from './cost';
 
 type RawDb = {
-  $executeRaw: (query: Prisma.Sql) => Promise<number>;
+  $queryRaw: <T>(query: Prisma.Sql) => Promise<T>;
 };
 
-export type InsertResult = { accepted: number; deduped: number };
+export type InsertResult = {
+  accepted: number;
+  acceptedEventIds: Set<string>;
+  deduped: number;
+};
 
 export async function insertEventsBatch(
   db: RawDb,
@@ -16,7 +20,7 @@ export async function insertEventsBatch(
   priceTable: PriceTable,
 ): Promise<InsertResult> {
   if (events.length === 0) {
-    return { accepted: 0, deduped: 0 };
+    return { accepted: 0, acceptedEventIds: new Set(), deduped: 0 };
   }
 
   const rows = events.map((e) => {
@@ -66,7 +70,10 @@ export async function insertEventsBatch(
     )`;
   });
 
-  const affected = await db.$executeRaw(
+  // RETURNING tells us exactly which event_ids were newly inserted vs dropped
+  // by ON CONFLICT. The caller needs this to avoid double-counting session
+  // aggregates when a retry replays an already-accepted batch.
+  const returned = await db.$queryRaw<{ event_id: string }[]>(
     Prisma.sql`
       INSERT INTO events (
         event_id, session_id, user_id, ts,
@@ -81,11 +88,15 @@ export async function insertEventsBatch(
         mode, metadata
       ) VALUES ${Prisma.join(rows)}
       ON CONFLICT (event_id) DO NOTHING
+      RETURNING event_id
     `,
   );
 
+  const acceptedEventIds = new Set(returned.map((r) => r.event_id));
+
   return {
-    accepted: affected,
-    deduped: events.length - affected,
+    accepted: acceptedEventIds.size,
+    acceptedEventIds,
+    deduped: events.length - acceptedEventIds.size,
   };
 }

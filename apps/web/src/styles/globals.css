@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* Tailwind 4 CSS-first config. No tailwind.config.ts — see PLAN.md §4. */
+@theme {
+  --color-brand-50: oklch(0.97 0.02 250);
+  --color-brand-100: oklch(0.93 0.04 250);
+  --color-brand-500: oklch(0.65 0.18 250);
+  --color-brand-600: oklch(0.55 0.2 250);
+  --color-brand-700: oklch(0.45 0.18 250);
+
+  --font-display: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", SFMono-Regular, monospace;
+}
+
+/* Dark by default; .light class on <html> opts into light mode. */
+:root {
+  color-scheme: dark light;
+}
+
+html {
+  background-color: oklch(0.18 0.01 250);
+  color: oklch(0.95 0.01 250);
+}
+
+html.light {
+  background-color: oklch(0.98 0.005 250);
+  color: oklch(0.2 0.01 250);
+}

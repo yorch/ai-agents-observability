@@ -27,8 +27,8 @@ Source of truth for task status. Update this in the same commit as the task file
 | [P1-008](./P1-008-ingest-skeleton.md) | apps/ingest skeleton (Bun + Hono) | done | — | S | P1-001 |
 | [P1-009](./P1-009-ingest-auth.md) | Ingest auth middleware + identity verification | done | — | M | P1-008, P1-014 |
 | [P1-010](./P1-010-events-endpoint.md) | POST /v1/events handler | done | — | M | P1-008, P1-006, P1-004 |
-| [P1-011](./P1-011-session-aggregation.md) | Session aggregation upserts | ready | — | M | P1-010 |
-| [P1-012](./P1-012-transcripts-endpoint.md) | POST /v1/transcripts (chunked + MinIO) | ready | — | L | P1-008, P1-002, P1-007 |
+| [P1-011](./P1-011-session-aggregation.md) | Session aggregation upserts | review | claude | M | P1-010 |
+| [P1-012](./P1-012-transcripts-endpoint.md) | POST /v1/transcripts (chunked + MinIO) | review | claude | L | P1-008, P1-002, P1-007 |
 | [P1-013](./P1-013-price-table-endpoint.md) | GET /v1/price-table | done | — | XS | P1-008 |
 
 ### Workstream C — Auth
@@ -46,7 +46,7 @@ Source of truth for task status. Update this in the same commit as the task file
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P1-019](./P1-019-hook-compile-pipeline.md) | Bun compile pipeline + multi-target | done | — | M | P1-001 |
-| [P1-020](./P1-020-hook-sqlite-queue.md) | SQLite queue + hook entrypoints (<10ms) | ready | — | L | P1-019, P1-006 |
+| [P1-020](./P1-020-hook-sqlite-queue.md) | SQLite queue + hook entrypoints (<10ms) | review | claude | L | P1-019, P1-006 |
 | [P1-021](./P1-021-hook-flusher.md) | Background flusher | blocked | — | M | P1-020, P1-010 |
 | [P1-022](./P1-022-hook-transcript-shipper.md) | Transcript shipper with redaction | blocked | — | M | P1-020, P1-012, P1-007 |
 | [P1-023](./P1-023-hook-subcommands.md) | Subcommands (login/status/pause/resume/purge/install) | ready | — | M | P1-019, P1-017 |
@@ -55,7 +55,7 @@ Source of truth for task status. Update this in the same commit as the task file
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P1-024](./P1-024-web-scaffold.md) | Next.js scaffold + OAuth wiring | ready | — | M | P1-001, P1-016 |
+| [P1-024](./P1-024-web-scaffold.md) | Next.js scaffold + OAuth wiring | review | claude | M | P1-001, P1-016 |
 | [P1-025](./P1-025-me-overview.md) | /me overview page | blocked | — | M | P1-024, P1-011 |
 | [P1-026](./P1-026-me-sessions.md) | /me/sessions list + detail + transcript viewer | blocked | — | L | P1-024, P1-011, P1-012 |
 | [P1-027](./P1-027-me-privacy-audit.md) | /me/privacy + /me/audit | blocked | — | M | P1-024, P1-003 |

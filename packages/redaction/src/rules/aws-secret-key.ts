@@ -1,4 +1,4 @@
-import type { RedactionRule } from './types.js';
+import type { RedactionRule } from './types';
 
 // Matches 40-char base64 strings that are not part of a longer base64 sequence.
 // The entropy check reduces false positives — real AWS secrets are highly random.

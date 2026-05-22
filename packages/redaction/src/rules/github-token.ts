@@ -1,4 +1,4 @@
-import { makeRule } from './types.js';
+import { makeRule } from './types';
 
 // GitHub classic PATs and Apps tokens (ghp_, gho_, ghu_, ghs_, ghr_)
 // Fine-grained PATs use github_pat_ prefix with longer suffix

@@ -1,12 +1,9 @@
 import { verifyAccessToken } from '@ai-agents-observability/auth';
-import { createClient } from '@ai-agents-observability/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-import { requireEnv } from '../../../../lib/env.js';
-import { COOKIE_ACCESS, clearAuthCookies } from '../../../../lib/session-cookie.js';
-
-const db = createClient(requireEnv('DATABASE_URL'));
+import { getPrisma } from '../../../../lib/prisma';
+import { COOKIE_ACCESS, clearAuthCookies } from '../../../../lib/session-cookie';
 
 export async function POST() {
   const jar = await cookies();
@@ -15,7 +12,7 @@ export async function POST() {
   if (access) {
     try {
       const { userId } = await verifyAccessToken(access);
-      await db.authToken.updateMany({
+      await getPrisma().authToken.updateMany({
         data: { revokedAt: new Date() },
         where: { revokedAt: null, userId },
       });

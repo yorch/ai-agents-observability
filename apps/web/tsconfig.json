@@ -1,11 +1,12 @@
 {
   "compilerOptions": {
     "jsx": "preserve",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "outDir": ".next",
     "plugins": [{ "name": "next" }],
     "rootDir": "."
   },
   "exclude": ["node_modules", ".next"],
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*", "app/**/*", "pages/**/*", "next.config.ts", "next-env.d.ts"]
+  "include": ["src/**/*", "next.config.ts", "next-env.d.ts"]
 }

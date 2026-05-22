@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import type { Logger } from 'pino';
 
-import type { AppEnv } from '../types.js';
+import type { AppEnv } from '../types';
 
 export function loggerMiddleware(logger: Logger): MiddlewareHandler<AppEnv> {
   return async (c, next) => {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createGitHubClient } from '../src/client.js';
-import { getCurrentUser, getOrgTeams, getRepo, getTeamMembers } from '../src/helpers.js';
+import { createGitHubClient } from '../src/client';
+import { getCurrentUser, getOrgTeams, getRepo, getTeamMembers } from '../src/helpers';
 
 // ── Mock fetch factory ────────────────────────────────────────────────────────
 

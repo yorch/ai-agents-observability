@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { PrismaClient } from './generated/client/client.js';
+import type { PrismaClient } from './generated/client/client';
 
 type TxClient = Omit<
   PrismaClient,

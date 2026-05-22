@@ -1,4 +1,4 @@
-import type { RedactionRule } from './types.js';
+import type { RedactionRule } from './types';
 
 // Matches KEY=value where the key ends in _KEY, _TOKEN, _SECRET, or _PASSWORD.
 // Handles bare, double-quoted, and single-quoted values; preserves the key name.

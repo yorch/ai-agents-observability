@@ -10,6 +10,12 @@
     },
     "enabled": true
   },
+  "css": {
+    "parser": {
+      "cssModules": false,
+      "tailwindDirectives": true
+    }
+  },
   "files": {
     "ignoreUnknown": false,
     "includes": ["**", "!**/src/generated", "!**/next-env.d.ts"]

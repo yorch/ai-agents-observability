@@ -1,9 +1,9 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Prisma, PrismaClient } from './generated/client/client.js';
+import { Prisma, PrismaClient } from './generated/client/client';
 
 export { Prisma, PrismaClient };
-export type * from './generated/client/client.js';
-export { applySqlMigrations } from './sql-migrate.js';
+export type * from './generated/client/client';
+export { applySqlMigrations } from './sql-migrate';
 
 export function createClient(connectionString: string): PrismaClient {
   const adapter = new PrismaPg({ connectionString });

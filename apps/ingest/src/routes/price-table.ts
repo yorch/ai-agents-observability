@@ -1,7 +1,7 @@
 import type { PriceTable } from '@ai-agents-observability/schemas';
 import { Hono } from 'hono';
 
-import type { AppEnv } from '../types.js';
+import type { AppEnv } from '../types';
 
 export function priceTableRouter(priceTable: PriceTable): Hono<AppEnv> {
   const router = new Hono<AppEnv>();

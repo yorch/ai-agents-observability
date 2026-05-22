@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# Push + PR-synchronize fire two runs on the same SHA; dedupe so only the
+# newest in-progress run for a given ref survives. Eliminates double-runs
+# racing for the same runner slot.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     name: Typecheck / Lint / Test

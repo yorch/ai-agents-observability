@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createGitHubClient } from '@ai-agents-observability/github';
-import { getGitHubHost, getOAuthBase } from './github-host.js';
-import type { ExternalIdentity, IdentityProvider, TeamMembership } from './provider.js';
+import { getGitHubHost, getOAuthBase } from './github-host';
+import type { ExternalIdentity, IdentityProvider, TeamMembership } from './provider';
 
 function generateState(): string {
   return randomBytes(32).toString('hex');

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { SessionContextSchema } from './session-context.js';
+import { SessionContextSchema } from './session-context';
 
 export const AgentTypeSchema = z.enum(['claude-code']);
 export type AgentType = z.infer<typeof AgentTypeSchema>;
