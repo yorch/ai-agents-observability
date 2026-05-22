@@ -1,4 +1,4 @@
-import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
+import { gunzipSync, zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 
 import { redact } from '@ai-agents-observability/redaction';
 
@@ -8,14 +8,17 @@ export type PipelineResult = {
   redactionFlags: string[];
 };
 
-// Decompress → split JSONL → redact each line → recompress.
-// Memory-bounded by zstd ratio; v1 keeps the whole transcript in memory because
+// Decompress → split JSONL → redact each line → recompress as zstd.
+// Accepts zstd (server-to-server) or gzip (hook client, pending native Bun zstd).
+// Memory-bounded by compression ratio; v1 keeps the whole transcript in memory because
 // single-PUT to MinIO is simpler than streaming multipart and the practical
 // upper bound (a few hundred MB compressed) fits today's developer machines.
 // Switch to a streaming pipeline (`createZstdDecompress` + `node:readline`)
 // if real sessions exceed ~200 MB compressed.
-export function processTranscript(compressed: Uint8Array): PipelineResult {
-  const decompressed = zstdDecompressSync(compressed);
+export function processTranscript(compressed: Uint8Array, contentType?: string): PipelineResult {
+  const decompressed =
+    contentType === 'application/gzip' ? gunzipSync(compressed) : zstdDecompressSync(compressed);
+
   const text = new TextDecoder('utf-8').decode(decompressed);
 
   const flagSet = new Set<string>();

@@ -138,7 +138,7 @@ async function throttledUpload(
   return fetch(url, {
     body: readable,
     headers: { ...headers, 'Content-Length': String(body.byteLength) },
-    method: 'PUT',
+    method: 'POST',
   });
 }
 
@@ -168,8 +168,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
   try {
     const res = await throttledUpload(url, body, {
       Authorization: `Bearer ${jwt}`,
-      'Content-Encoding': 'gzip',
-      'Content-Type': 'application/jsonlines',
+      'Content-Type': 'application/gzip',
       'X-Content-Hash': hash,
     });
 
@@ -187,8 +186,11 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
     } else if (res.status === 409) {
       // Conflict — skip for now, retry next sweep
       log('info', 'shipper.conflict', { session_id, status: res.status });
+    } else if (res.status === 429) {
+      // Rate-limited — keep marker, retry next sweep
+      log('warn', 'shipper.rate_limited', { session_id, status: res.status });
     } else if (res.status >= 400 && res.status < 500) {
-      // 4xx (non-409): bad data, server won't accept — delete marker
+      // 4xx (non-409, non-429): bad data, server won't accept — delete marker
       try {
         deleteMarker(session_id);
       } catch {

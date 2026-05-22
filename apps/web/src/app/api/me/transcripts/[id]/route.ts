@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+import { zstdDecompressSync } from 'node:zlib';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -46,12 +48,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       return new NextResponse('Empty body from S3', { status: 500 });
     }
 
-    // obj.Body is a web ReadableStream in Node.js environments
-    return new NextResponse(obj.Body as ReadableStream, {
-      headers: {
-        'Content-Type': 'application/x-ndjson',
-        'Transfer-Encoding': 'chunked',
-      },
+    // Buffer the entire S3 body and decompress synchronously so that a
+    // corrupt/truncated object throws before the 200 headers are committed.
+    // A streaming pipeline would produce a truncated 200 with no way to signal
+    // the error to the client after headers are sent.
+    const nodeReadable = Readable.fromWeb(obj.Body as import('stream/web').ReadableStream);
+    const chunks: Buffer[] = [];
+    for await (const chunk of nodeReadable) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
+    }
+    const decompressed = zstdDecompressSync(Buffer.concat(chunks));
+
+    return new NextResponse(decompressed, {
+      headers: { 'Content-Type': 'application/x-ndjson' },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'S3 error';

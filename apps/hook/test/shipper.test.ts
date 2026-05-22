@@ -32,7 +32,7 @@ function startMockIngestServer(statusCode = 200): {
     async fetch(req) {
       const url = new URL(req.url);
       const match = url.pathname.match(/^\/v1\/transcripts\/(.+)$/);
-      if (req.method === 'PUT' && match) {
+      if (req.method === 'POST' && match) {
         const sessionId = match[1];
         const body = new Uint8Array(await req.arrayBuffer());
         received.push({
@@ -154,11 +154,10 @@ describe('shipper upload', () => {
         body,
         headers: {
           Authorization: 'Bearer test-jwt-token',
-          'Content-Encoding': 'gzip',
-          'Content-Type': 'application/jsonlines',
+          'Content-Type': 'application/gzip',
           'X-Content-Hash': hash,
         },
-        method: 'PUT',
+        method: 'POST',
       });
 
       expect(res.status).toBe(200);
@@ -166,8 +165,8 @@ describe('shipper upload', () => {
 
       const upload = received[0];
       expect(upload.sessionId).toBe(sessionId);
-      expect(upload.contentEncoding).toBe('gzip');
-      expect(upload.contentType).toBe('application/jsonlines');
+      expect(upload.contentEncoding).toBeNull();
+      expect(upload.contentType).toBe('application/gzip');
       expect(upload.contentHash).toBe(hash);
 
       // Decompress and verify AWS key was redacted
