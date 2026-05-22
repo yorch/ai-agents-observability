@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { join } from 'node:path';
 
 import { log } from './lib/log';
-import { identityPath, telemetryHome } from './lib/paths';
+import { identityPath, shipQueueDir } from './lib/paths';
 import { redactedLines } from './lib/transcript-stream';
 
 const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
@@ -20,10 +20,6 @@ export type ShipMarker = {
   partial: boolean;
   bytes_uploaded: number;
 };
-
-function shipQueueDir(): string {
-  return `${telemetryHome()}/ship-queue`;
-}
 
 export function writeShipMarker(sessionId: string, transcriptPath: string, partial: boolean): void {
   try {

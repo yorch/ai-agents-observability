@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 
 import { backoffSleep } from './lib/backoff';
 import { log } from './lib/log';
-import { identityPath, telemetryHome } from './lib/paths';
+import { flusherStatePath, identityPath, telemetryHome } from './lib/paths';
 import { openQueueReader } from './lib/queue-reader';
 
 const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
@@ -19,10 +19,6 @@ export type FlusherStatus = {
   lastFlushAt: string | null;
   lastError: string | null;
 };
-
-function flusherStatePath(): string {
-  return `${telemetryHome()}/flusher-state.json`;
-}
 
 function readFlusherState(): FlusherStatus {
   try {

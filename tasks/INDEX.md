@@ -49,7 +49,7 @@ Source of truth for task status. Update this in the same commit as the task file
 | [P1-020](./P1-020-hook-sqlite-queue.md) | SQLite queue + hook entrypoints (<10ms) | review | claude | L | P1-019, P1-006 |
 | [P1-021](./P1-021-hook-flusher.md) | Background flusher | done | — | M | P1-020, P1-010 |
 | [P1-022](./P1-022-hook-transcript-shipper.md) | Transcript shipper with redaction | done | — | M | P1-020, P1-012, P1-007 |
-| [P1-023](./P1-023-hook-subcommands.md) | Subcommands (login/status/pause/resume/purge/install) | ready | — | M | P1-019, P1-017 |
+| [P1-023](./P1-023-hook-subcommands.md) | Subcommands (login/status/pause/resume/purge/install) | review | claude | M | P1-019, P1-017 |
 
 ### Workstream E — Web UI
 

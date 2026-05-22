@@ -1,4 +1,7 @@
+import { existsSync } from 'node:fs';
+
 import { log } from './lib/log';
+import { pausedPath } from './lib/paths';
 import { type HookKind, toEvent } from './lib/payload';
 import { openQueue } from './lib/queue';
 import { readStdinBounded } from './lib/stdin';
@@ -24,6 +27,10 @@ function safeParse(raw: string): Record<string, unknown> | null {
 // Errors are logged and swallowed — a broken hook MUST NOT break Claude Code.
 export async function runHook(kind: HookKind, _opts: Options): Promise<void> {
   try {
+    if (existsSync(pausedPath())) {
+      return;
+    }
+
     const stdin = await readStdinBounded();
 
     // Distinct outcomes for distinct stdin states — never synthesize a bogus
