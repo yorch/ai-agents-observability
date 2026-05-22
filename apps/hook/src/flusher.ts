@@ -131,8 +131,19 @@ export async function runFlusher(): Promise<void> {
           });
           reader.close();
           process.exit(1);
+        } else if (res.status === 429) {
+          // Rate-limited — mark attempts and back off; do not delete events
+          reader.markAttempt(eventIds);
+          log('warn', 'flusher.rate_limited', { attempt, count: rows.length, status: res.status });
+          writeFlusherState({
+            ...readFlusherState(),
+            lastError: `Rate limited (${res.status})`,
+            queueDepth: reader.depth(),
+          });
+          consecutiveFailures++;
+          await backoffSleep(attempt);
         } else if (res.status >= 400 && res.status < 500) {
-          // 4xx (non-401): bad data, server won't accept — delete and move on
+          // 4xx (non-401, non-429): bad data, server won't accept — delete and move on
           reader.delete(eventIds);
           log('warn', 'flusher.batch_rejected', { count: rows.length, status: res.status });
           writeFlusherState({

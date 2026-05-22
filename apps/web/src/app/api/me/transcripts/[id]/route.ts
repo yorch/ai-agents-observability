@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+import { createZstdDecompress } from 'node:zlib';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -46,12 +48,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       return new NextResponse('Empty body from S3', { status: 500 });
     }
 
-    // obj.Body is a web ReadableStream in Node.js environments
-    return new NextResponse(obj.Body as ReadableStream, {
-      headers: {
-        'Content-Type': 'application/x-ndjson',
-        'Transfer-Encoding': 'chunked',
-      },
+    // S3 stores transcripts as zstd-compressed NDJSON. Decompress server-side
+    // so the browser receives plain NDJSON without needing zstd support.
+    const nodeReadable = Readable.fromWeb(obj.Body as import('stream/web').ReadableStream);
+    const decompressor = createZstdDecompress();
+    const decompressed = nodeReadable.pipe(decompressor);
+    const webStream = Readable.toWeb(decompressed) as ReadableStream;
+
+    return new NextResponse(webStream, {
+      headers: { 'Content-Type': 'application/x-ndjson' },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'S3 error';

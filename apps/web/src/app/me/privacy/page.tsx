@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { DeleteDataButton } from '../../../components/me/DeleteDataButton';
 import { PrivacyForm } from '../../../components/me/PrivacyForm';
 import { currentUser } from '../../../lib/auth';
 import { getVisibilityPolicy } from '../../../lib/visibility';
@@ -67,28 +68,5 @@ export default async function PrivacyPage() {
         </div>
       </section>
     </div>
-  );
-}
-
-function DeleteDataButton() {
-  return (
-    <form
-      action="/api/me/delete"
-      method="POST"
-      onSubmit={(e) => {
-        if (
-          !window.confirm('Are you sure you want to delete all your data? This cannot be undone.')
-        ) {
-          e.preventDefault();
-        }
-      }}
-    >
-      <button
-        type="submit"
-        className="rounded-md border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
-      >
-        Delete my data
-      </button>
-    </form>
   );
 }

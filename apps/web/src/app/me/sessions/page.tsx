@@ -5,6 +5,14 @@ import { listDistinctRepos, listSessions } from '../../../lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
 
+function parseDate(s: string | undefined): Date | undefined {
+  if (!s) {
+    return undefined;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
 const SESSION_STATUSES = ['active', 'completed', 'crashed', 'timed_out', 'abandoned'] as const;
 
 type SearchParams = {
@@ -29,8 +37,8 @@ export default async function SessionsPage({
   const page = Math.max(1, parseInt(params.page ?? '1', 10));
   const repo = params.repo || undefined;
   const status = params.status || undefined;
-  const dateFrom = params.from ? new Date(params.from) : undefined;
-  const dateTo = params.to ? new Date(params.to) : undefined;
+  const dateFrom = parseDate(params.from);
+  const dateTo = parseDate(params.to);
 
   const sessionOpts = {
     page,

@@ -16,6 +16,7 @@ import type { AppEnv } from '../types';
 const MAX_TRANSCRIPT_BYTES = 200 * 1024 * 1024; // 200 MB compressed
 const MAX_CHUNK_BYTES = 16 * 1024 * 1024; // 16 MB per chunked PUT
 const CONTENT_TYPE_ZSTD = 'application/x-zstd';
+const CONTENT_TYPE_GZIP = 'application/gzip';
 
 const ContentRangeSchema = z
   .string()
@@ -105,8 +106,12 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
         return c.json({ error: 'Invalid session_id' }, 400);
       }
 
-      if (contentTypeMime(c.req.header('content-type')) !== CONTENT_TYPE_ZSTD) {
-        return c.json({ error: `Expected Content-Type: ${CONTENT_TYPE_ZSTD}` }, 415);
+      const mime = contentTypeMime(c.req.header('content-type'));
+      if (mime !== CONTENT_TYPE_ZSTD && mime !== CONTENT_TYPE_GZIP) {
+        return c.json(
+          { error: `Expected Content-Type: ${CONTENT_TYPE_ZSTD} or ${CONTENT_TYPE_GZIP}` },
+          415,
+        );
       }
 
       // Short-circuit unauthorized requests BEFORE reading the body — see
@@ -196,7 +201,7 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
 
         const reqId = c.get('requestId');
         const startMs = Date.now();
-        const result = processTranscript(compressed);
+        const result = processTranscript(compressed, mime ?? undefined);
         await putObject(deps.s3, key, result.recompressed, CONTENT_TYPE_ZSTD);
 
         await deps.db.session.update({
