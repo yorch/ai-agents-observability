@@ -1,0 +1,14 @@
+[Unit]
+Description=Claude Telemetry Flusher
+After=network.target
+
+[Service]
+ExecStart=__BINARY_PATH__ flusher
+Restart=always
+RestartSec=5
+Environment=INGEST_BASE_URL=__INGEST_BASE_URL__
+StandardOutput=append:__TELEMETRY_HOME__/flusher.log
+StandardError=append:__TELEMETRY_HOME__/flusher.log
+
+[Install]
+WantedBy=default.target

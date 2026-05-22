@@ -1,6 +1,8 @@
+import { runFlusher } from './flusher';
 import { runHook } from './hook-entry';
 import { log } from './lib/log';
 import { isHookKind } from './lib/payload';
+import { runShipper } from './shipper';
 
 const VERSION = '0.1.0';
 
@@ -12,6 +14,8 @@ Commands:
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
                  kinds: session-start, pre-tool-use, post-tool-use, stop,
                         user-prompt-submit, pre-compact, subagent-stop, notification
+  flusher       Drain the SQLite queue and POST batches to /v1/events (long-running)
+  shipper       Watch for transcript files and upload them to /v1/transcripts (long-running)
   login         Authenticate with the observability server
   status        Show current authentication status
   pause         Pause telemetry collection
@@ -48,6 +52,16 @@ async function main(): Promise<number> {
       return 0;
     }
     await runHook(kind, { quiet });
+    return 0;
+  }
+
+  if (cmd === 'flusher') {
+    await runFlusher();
+    return 0;
+  }
+
+  if (cmd === 'shipper') {
+    await runShipper();
     return 0;
   }
 
