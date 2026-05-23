@@ -1,5 +1,8 @@
 export const EVENTS_API_VERSION = '1' as const;
 
+export type { RepoConfig } from './repo-config';
+export { parseRepoConfig, RepoConfigSchema } from './repo-config';
+
 export type { AgentType, Event, EventsBatch, EventType } from './event';
 export { AgentTypeSchema, EventSchema, EventsBatchSchema, EventTypeSchema } from './event';
 export type { ModelPrice, PriceTable } from './price-table';

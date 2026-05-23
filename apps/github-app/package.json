@@ -1,0 +1,29 @@
+{
+  "name": "@ai-agents-observability/github-app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "GitHub App webhook handler — PR Loop",
+  "engines": { "bun": ">=1.3.13" },
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@ai-agents-observability/db": "workspace:*",
+    "@ai-agents-observability/github": "workspace:*",
+    "@ai-agents-observability/schemas": "workspace:*",
+    "@octokit/webhooks": "catalog:",
+    "hono": "catalog:",
+    "jose": "catalog:",
+    "pino": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "bun-types": "catalog:",
+    "pino-pretty": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
