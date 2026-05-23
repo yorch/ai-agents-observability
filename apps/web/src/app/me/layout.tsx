@@ -8,6 +8,9 @@ export default function MeLayout({ children }: { children: React.ReactNode }) {
         <a href="/me/sessions" className="text-white/70 hover:text-white">
           Sessions
         </a>
+        <a href="/me/prs" className="text-white/70 hover:text-white">
+          Pull Requests
+        </a>
         <a href="/me/privacy" className="text-white/70 hover:text-white">
           Privacy
         </a>

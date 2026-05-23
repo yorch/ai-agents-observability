@@ -75,29 +75,29 @@ Source of truth for task status. Update this in the same commit as the task file
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P2-001](./P2-001-github-app-registration.md) | GitHub App registration + credentials wiring | ready | — | S | — |
+| [P2-001](./P2-001-github-app-registration.md) | GitHub App registration + credentials wiring | review | claude | S | — |
 
 ### Workstream B — Webhook pipeline
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P2-002](./P2-002-github-app-service.md) | apps/github-app webhook handler service | ready | — | M | P2-001 |
-| [P2-003](./P2-003-pr-upsert-handlers.md) | PR upsert and close event handlers | ready | — | M | P2-002 |
-| [P2-004](./P2-004-session-pr-linking.md) | Session ↔ PR linking (real-time + backfill) | ready | — | M | P2-003 |
-| [P2-005](./P2-005-pr-rollup-computation.md) | PR rollup computation | ready | — | M | P2-004 |
-| [P2-006](./P2-006-pr-bot-comment.md) | PR bot merge-summary comment | ready | — | M | P2-005, P2-007 |
+| [P2-002](./P2-002-github-app-service.md) | apps/github-app webhook handler service | review | claude | M | P2-001 |
+| [P2-003](./P2-003-pr-upsert-handlers.md) | PR upsert and close event handlers | review | claude | M | P2-002 |
+| [P2-004](./P2-004-session-pr-linking.md) | Session ↔ PR linking (real-time + backfill) | review | claude | M | P2-003 |
+| [P2-005](./P2-005-pr-rollup-computation.md) | PR rollup computation | review | claude | M | P2-004 |
+| [P2-006](./P2-006-pr-bot-comment.md) | PR bot merge-summary comment | review | claude | M | P2-005, P2-007 |
 
 ### Workstream C — Config / schemas
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P2-007](./P2-007-repo-config-parser.md) | .claude-telemetry.yml repo config parser | ready | — | S | — |
+| [P2-007](./P2-007-repo-config-parser.md) | .claude-telemetry.yml repo config parser | done | claude | S | — |
 
 ### Workstream E — Web UI
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P2-008](./P2-008-me-prs-page.md) | /me/prs page — per-user PR list with rollups | ready | — | M | P2-005 |
+| [P2-008](./P2-008-me-prs-page.md) | /me/prs page — per-user PR list with rollups | review | claude | M | P2-005 |
 
 ### Workstream F — Quality
 

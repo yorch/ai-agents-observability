@@ -57,3 +57,38 @@ export async function getRepo(
     url: data.html_url,
   };
 }
+
+export async function getPRDetails(
+  client: GitHubClient,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<{
+  title: string;
+  linesAdded: number;
+  linesRemoved: number;
+  filesChanged: number;
+  reviewCount: number;
+} | null> {
+  try {
+    const { data } = await client.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
+      owner,
+      repo,
+      pull_number: prNumber,
+    });
+    const reviews = await client.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews', {
+      owner,
+      repo,
+      pull_number: prNumber,
+    });
+    return {
+      title: data.title,
+      linesAdded: data.additions,
+      linesRemoved: data.deletions,
+      filesChanged: data.changed_files,
+      reviewCount: reviews.data.length,
+    };
+  } catch {
+    return null;
+  }
+}
