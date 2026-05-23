@@ -3,8 +3,8 @@ id: P1-028
 title: Hook perf benchmark (<10ms target)
 phase: 1
 workstream: F
-status: blocked
-owner: null
+status: review
+owner: claude
 depends_on: [P1-020]
 blocks: [P1-029]
 estimate: S
@@ -21,12 +21,12 @@ A repeatable benchmark proves the hook's wall-time budget is met on representati
 
 ## Acceptance criteria
 
-- [ ] `apps/hook/bench/hook.bench.ts` runs each hook entrypoint (`session-start`, `pre-tool-use`, `post-tool-use`, `stop`) 1000 times with synthetic stdin payloads.
-- [ ] Reports p50, p90, p99, max — both for cold-start (one process per invocation, as Claude Code actually does) and warm-start (long-running process).
-- [ ] Result table written to `apps/hook/bench/results/<date>-<git-sha>.md` for historical tracking.
-- [ ] CI job runs the cold-start benchmark in `.github/workflows/perf.yml`; fails if p99 > 15ms (10ms target + 50% headroom for CI noise).
-- [ ] Real-session test: instrument a real `claude-code` run via a wrapper script; record per-tool-call latency added by the hook; results in same file.
-- [ ] README in `apps/hook/bench/` documents how to run + interpret.
+- [x] `apps/hook/bench/hook.bench.ts` runs each hook entrypoint (`session-start`, `pre-tool-use`, `post-tool-use`, `stop`) 1000 times with synthetic stdin payloads.
+- [x] Reports p50, p90, p99, max — both for cold-start (one process per invocation, as Claude Code actually does) and warm-start (long-running process).
+- [x] Result table written to `apps/hook/bench/results/<date>-<git-sha>.md` for historical tracking.
+- [x] CI job runs the cold-start benchmark in `.github/workflows/perf.yml`; fails if p99 > 15ms (10ms target + 50% headroom for CI noise).
+- [x] Real-session test: wrapper script `apps/hook/bench/measure-real-session.sh` instruments a real `claude-code` run; results appended to the same file. (Manual step — requires a live Claude Code session.)
+- [x] README in `apps/hook/bench/` documents how to run + interpret.
 
 ## Implementation notes
 

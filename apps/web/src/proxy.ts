@@ -1,9 +1,9 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-import { COOKIE_ACCESS } from './lib/session-cookie';
+import { COOKIE_ACCESS } from './lib/cookie-names';
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const token = req.cookies.get(COOKIE_ACCESS)?.value;
   if (token) {
     return NextResponse.next();
@@ -14,8 +14,8 @@ export function middleware(req: NextRequest) {
   return NextResponse.redirect(loginUrl);
 }
 
-// Middleware only does the cookie-presence check — full verification happens
-// in server components via `currentUser()`. Avoids running jose at the edge.
+// Proxy only does the cookie-presence check — full verification happens
+// in server components via `currentUser()`. Avoids running node:crypto at the edge.
 export const config = {
   matcher: ['/me/:path*'],
 };
