@@ -3,8 +3,8 @@ id: P1-025
 title: /me overview page
 phase: 1
 workstream: E
-status: blocked
-owner: null
+status: done
+owner: claude
 depends_on: [P1-024, P1-011, P1-005]
 blocks: [P1-029]
 estimate: M

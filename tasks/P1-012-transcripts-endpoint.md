@@ -23,7 +23,7 @@ estimate: L
 
 ## Acceptance criteria
 
-- [ ] Endpoint `POST /v1/transcripts/:session_id` accepts `Content-Type: application/x-zstd` body.
+- [ ] Endpoint `POST /v1/transcripts/:session_id` accepts `Content-Type: application/x-zstd` or `application/gzip` body (gzip support added for hook client compatibility while native Bun zstd support was pending).
 - [ ] Supports chunked upload via `Content-Range: bytes <start>-<end>/<total>`. Server reassembles in temp storage (or uses MinIO multipart).
 - [ ] Validates the requesting user owns the session (`Session.user_id == auth.user.id`); 403 otherwise.
 - [ ] Streams the body through a transform that:

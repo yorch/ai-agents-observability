@@ -3,8 +3,8 @@ id: P1-016
 title: GitHub OAuth (web flow)
 phase: 1
 workstream: C
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P1-014, P1-015]
 blocks: [P1-024]
 estimate: M

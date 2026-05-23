@@ -3,8 +3,8 @@ id: P1-026
 title: /me/sessions list + detail + transcript viewer
 phase: 1
 workstream: E
-status: blocked
-owner: null
+status: done
+owner: claude
 depends_on: [P1-024, P1-011, P1-012, P1-005]
 blocks: [P1-029]
 estimate: L

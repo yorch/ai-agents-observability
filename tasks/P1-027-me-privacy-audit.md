@@ -3,8 +3,8 @@ id: P1-027
 title: /me/privacy + /me/audit
 phase: 1
 workstream: E
-status: blocked
-owner: null
+status: done
+owner: claude
 depends_on: [P1-024, P1-003]
 blocks: [P1-029]
 estimate: M
@@ -23,7 +23,7 @@ Two pages that materialize the trust mechanics in `DESIGN_DOC.md` §10 and §11:
 
 **Privacy (`/me/privacy`):**
 - [ ] Form bound to `VisibilityPolicy` row for current user.
-- [ ] Toggles for the four flags in `DESIGN_DOC.md` §10: `share_transcripts_with_team`, `share_costs_with_team`, `share_transcripts_with_org`, `share_costs_with_org`.
+- [ ] Toggles for the four flags per `DESIGN_DOC.md` §8.2: `share_metadata_with_team`, `share_transcripts_with_team`, `share_metadata_with_org`, `share_transcripts_with_org`.
 - [ ] Defaults (per §10) shown clearly with "Default" labels next to unchanged toggles.
 - [ ] Save via a Server Action; success toast, persisted to DB.
 - [ ] Below the toggles: explanation paragraph for each, in plain English.
