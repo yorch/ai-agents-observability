@@ -11,11 +11,11 @@ const PRBotConfigSchema = z.looseObject({
 const RepoConfigSchema = z
   .looseObject({
     version: z.literal(1),
-    pr_bot: PRBotConfigSchema.default({}),
+    pr_bot: PRBotConfigSchema.optional(),
   })
   .transform((data) => ({
     ...data,
-    pr_bot: PRBotConfigSchema.parse(data.pr_bot),
+    pr_bot: PRBotConfigSchema.parse(data.pr_bot ?? {}),
   }));
 
 export type RepoConfig = z.infer<typeof RepoConfigSchema>;

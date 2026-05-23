@@ -6,7 +6,7 @@ type PRRollupLike = {
   contributingSessionIds: string[];
   contributingUserIds: string[];
   totalActiveSeconds: number | null;
-  totalCostUsd: number | string | null;
+  totalCostUsd: { toString(): string } | number | string | null;
   totalToolCalls: number | null;
 };
 

@@ -58,7 +58,11 @@ export async function computePRRollup(
 
   const startedAts = sessions.map((s) => s.startedAt).sort((a, b) => a.getTime() - b.getTime());
   const firstSessionAt = startedAts[0] ?? null;
-  const lastSessionAt = startedAts[startedAts.length - 1] ?? null;
+  // Use endedAt when available so lastSessionAt reflects actual work end, not session start.
+  const sessionEndTimes = sessions
+    .map((s) => s.endedAt ?? s.startedAt)
+    .sort((a, b) => a.getTime() - b.getTime());
+  const lastSessionAt = sessionEndTimes[sessionEndTimes.length - 1] ?? null;
 
   const pr = await db.pullRequest.findUnique({
     where: { repoId_prNumber: { repoId, prNumber } },

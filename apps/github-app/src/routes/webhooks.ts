@@ -32,14 +32,19 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
       return c.json({ error: 'Invalid signature' }, 401);
     }
 
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(body) as Record<string, unknown>;
+    } catch {
+      return c.json({ error: 'Invalid JSON body' }, 400);
+    }
+    const action: string = (payload.action as string) ?? '';
+
     recordReceived(event);
     const start = Date.now();
 
     c.status(202);
     const res = c.json({ accepted: true, delivery: id });
-
-    const payload = JSON.parse(body) as Record<string, unknown>;
-    const action: string = (payload.action as string) ?? '';
 
     void (async () => {
       try {

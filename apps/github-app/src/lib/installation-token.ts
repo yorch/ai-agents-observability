@@ -2,6 +2,7 @@ import { importPKCS8, SignJWT } from 'jose';
 
 type TokenCache = { token: string; expiresAt: number };
 const cache = new Map<number, TokenCache>();
+const inflight = new Map<number, Promise<string>>();
 
 export async function getAppJwt(appId: number, privateKeyPem: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
@@ -14,17 +15,12 @@ export async function getAppJwt(appId: number, privateKeyPem: string): Promise<s
     .sign(privateKey);
 }
 
-export async function getInstallationToken(
+async function fetchInstallationToken(
   installationId: number,
   appId: number,
   privateKeyPem: string,
   githubHost: string,
 ): Promise<string> {
-  const cached = cache.get(installationId);
-  if (cached && cached.expiresAt > Date.now() + 60_000) {
-    return cached.token;
-  }
-
   const jwt = await getAppJwt(appId, privateKeyPem);
   const apiBase =
     githubHost === 'https://github.com'
@@ -48,4 +44,27 @@ export async function getInstallationToken(
   const expiresAt = new Date(data.expires_at).getTime();
   cache.set(installationId, { token: data.token, expiresAt });
   return data.token;
+}
+
+export async function getInstallationToken(
+  installationId: number,
+  appId: number,
+  privateKeyPem: string,
+  githubHost: string,
+): Promise<string> {
+  const cached = cache.get(installationId);
+  if (cached && cached.expiresAt > Date.now() + 60_000) {
+    return cached.token;
+  }
+
+  // Deduplicate concurrent requests for the same installation to avoid
+  // exhausting GitHub's per-installation token quota under burst load.
+  const existing = inflight.get(installationId);
+  if (existing) return existing;
+
+  const promise = fetchInstallationToken(installationId, appId, privateKeyPem, githubHost).finally(
+    () => { inflight.delete(installationId); },
+  );
+  inflight.set(installationId, promise);
+  return promise;
 }

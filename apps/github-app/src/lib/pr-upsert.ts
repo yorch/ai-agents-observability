@@ -19,7 +19,7 @@ type PullRequestPayload = {
   number: number;
   requested_reviewers: Array<{ login: string }>;
   title: string;
-  user: { login: string };
+  user: { login: string } | null; // null for deleted/ghost accounts
 };
 
 type RepoPayload = {
@@ -44,8 +44,11 @@ export async function upsertPullRequest(
     update: { githubId: BigInt(repoPl.id) },
   });
 
-  // Resolve authorUserId by login
-  const authorUser = await db.user.findUnique({ where: { githubLogin: prPl.user.login } });
+  // Resolve authorUserId by login (user is null for deleted/ghost accounts)
+  const authorLogin = prPl.user?.login ?? 'ghost';
+  const authorUser = prPl.user
+    ? await db.user.findUnique({ where: { githubLogin: prPl.user.login } })
+    : null;
 
   await db.pullRequest.upsert({
     where: { repoId_prNumber: { repoId: repo.id, prNumber: prPl.number } },
@@ -55,7 +58,7 @@ export async function upsertPullRequest(
       githubId: BigInt(prPl.id),
       title: prPl.title,
       state,
-      authorGithubLogin: prPl.user.login,
+      authorGithubLogin: authorLogin,
       authorUserId: authorUser?.id ?? null,
       baseBranch: prPl.base.ref,
       headBranch: prPl.head.ref,
