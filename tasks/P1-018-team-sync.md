@@ -3,7 +3,7 @@ id: P1-018
 title: Team sync cron job
 phase: 1
 workstream: C
-status: ready
+status: done
 owner: null
 depends_on: [P1-015, P1-003]
 blocks: []

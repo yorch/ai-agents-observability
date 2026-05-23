@@ -28,7 +28,7 @@ Every accepted event batch atomically updates the corresponding `Session` row's 
   - Updates `last_event_at = greatest(last_event_at, max(ts in batch))`.
   - Sets `ended_at` if any event in batch has `event_type='session_end'`.
 - [ ] `Session.status` transitions: `active` on first insert → `ended` when end event arrives → `abandoned` if `last_event_at > 24h ago` (managed by a periodic sweep, not this endpoint).
-- [ ] Tool histogram (`Session.tool_usage jsonb`) merged in-place via `jsonb_set` or a server-side merge function.
+- [ ] Tool histogram (`Session.tool_usage jsonb`) merged in-place via `jsonb_set` or a server-side merge function. [deferred — see implementation note]
 - [ ] Returns enriched response: `{ accepted, deduped, sessions_touched: <int> }`.
 - [ ] Test: two concurrent batches for the same session don't double-count or lose updates (use repeatable-read isolation or `ON CONFLICT` with `SET col = col + EXCLUDED.col`).
 
@@ -37,6 +37,8 @@ Every accepted event batch atomically updates the corresponding `Session` row's 
 - Prefer SQL-side accumulation (`SET event_count = sessions.event_count + EXCLUDED.event_count`) over read-modify-write — concurrency-safe without explicit locks.
 - For the tool histogram, build a JSONB delta and use `jsonb_set` recursively, or write a `merge_tool_usage(jsonb, jsonb) RETURNS jsonb` PL/pgSQL function as part of the SQL migrations.
 - An abandoned-session sweep is a cron in P1-018's worker, not part of this task — but document the contract.
+
+> **As-built deviation**: `tool_usage jsonb` was not implemented. The session row tracks aggregate tool call / error / permission counts via explicit integer columns (`tool_call_count`, `tool_error_count`, `permission_deny_count`). Per-tool breakdown requires querying the `events` hypertable directly. The `0002_merge_tool_usage.sql` migration was not created. This was a deliberate simplification — add per-tool jsonb tracking as a follow-up task if the web UI needs it.
 
 ## Files touched
 
