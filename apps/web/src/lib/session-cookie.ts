@@ -1,12 +1,11 @@
 import { createHash } from 'node:crypto';
 import { cookies } from 'next/headers';
 
-const IS_PROD = process.env.NODE_ENV === 'production';
+import { COOKIE_ACCESS, COOKIE_NEXT, COOKIE_REFRESH, COOKIE_STATE } from './cookie-names';
 
-export const COOKIE_ACCESS = 'cc_access';
-export const COOKIE_REFRESH = 'cc_refresh';
-export const COOKIE_STATE = 'cc_oauth_state';
-export const COOKIE_NEXT = 'cc_oauth_next';
+export { COOKIE_ACCESS, COOKIE_NEXT, COOKIE_REFRESH, COOKIE_STATE };
+
+const IS_PROD = process.env.NODE_ENV === 'production';
 
 // Only same-origin absolute paths are accepted as post-login redirects.
 // `//evil.example` and `https://...` are common open-redirect vectors;
