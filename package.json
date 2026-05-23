@@ -14,10 +14,11 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "build": "turbo run build",
-    "dev:stack": "docker compose -f infra/docker-compose.yml up -d",
-    "dev:stack:down": "docker compose -f infra/docker-compose.yml down",
-    "dev:stack:down:v": "docker compose -f infra/docker-compose.yml down -v",
-    "dev:stack:logs": "docker compose -f infra/docker-compose.yml logs -f"
+    "docker:infra": "docker compose -f infra/docker-compose.yml",
+    "docker:infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "docker:infra:down": "docker compose -f infra/docker-compose.yml down",
+    "docker:infra:down:v": "docker compose -f infra/docker-compose.yml down -v",
+    "docker:infra:logs": "docker compose -f infra/docker-compose.yml logs -f"
   },
   "workspaces": {
     "packages": [

@@ -19,7 +19,7 @@ bun install
 cp .env.example .env
 
 # 3. Start the data stack (Postgres + TimescaleDB + MinIO + migrations)
-bun run dev:stack
+bun run docker:infra:up
 ```
 
 The stack brings up:
@@ -34,10 +34,10 @@ The stack brings up:
 ### Useful commands
 
 ```bash
-bun run dev:stack          # Start stack in background
-bun run dev:stack:logs     # Tail all service logs
-bun run dev:stack:down     # Stop stack (preserves volumes)
-bun run dev:stack:down:v   # Stop stack and delete volumes
+bun run docker:infra:up      # Start stack in background
+bun run docker:infra:logs    # Tail all service logs
+bun run docker:infra:down    # Stop stack (preserves volumes)
+bun run docker:infra:down:v  # Stop stack and delete volumes
 
 # App services (run after dev:stack)
 bun --filter '@ai-agents-observability/ingest' dev   # Ingest API on :4000 (Bun, watch mode)
