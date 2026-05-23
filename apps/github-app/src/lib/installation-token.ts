@@ -9,7 +9,7 @@ export async function getAppJwt(appId: number, privateKeyPem: string): Promise<s
   return new SignJWT({})
     .setProtectedHeader({ alg: 'RS256' })
     .setIssuedAt(now - 60)
-    .setExpiresIn(540) // 9 minutes (GitHub max is 10)
+    .setExpirationTime(now + 540) // 9 minutes (GitHub max is 10)
     .setIssuer(String(appId))
     .sign(privateKey);
 }

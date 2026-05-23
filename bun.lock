@@ -10,6 +10,26 @@
         "typescript": "catalog:",
       },
     },
+    "apps/github-app": {
+      "name": "@ai-agents-observability/github-app",
+      "version": "0.0.0",
+      "dependencies": {
+        "@ai-agents-observability/db": "workspace:*",
+        "@ai-agents-observability/github": "workspace:*",
+        "@ai-agents-observability/schemas": "workspace:*",
+        "@octokit/webhooks": "catalog:",
+        "hono": "catalog:",
+        "jose": "catalog:",
+        "pino": "catalog:",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "bun-types": "catalog:",
+        "pino-pretty": "catalog:",
+        "typescript": "catalog:",
+        "vitest": "catalog:",
+      },
+    },
     "apps/hook": {
       "name": "@ai-agents-observability/hook",
       "version": "0.1.0",
@@ -174,6 +194,8 @@
     "@ai-agents-observability/db": ["@ai-agents-observability/db@workspace:packages/db"],
 
     "@ai-agents-observability/github": ["@ai-agents-observability/github@workspace:packages/github"],
+
+    "@ai-agents-observability/github-app": ["@ai-agents-observability/github-app@workspace:apps/github-app"],
 
     "@ai-agents-observability/hook": ["@ai-agents-observability/hook@workspace:apps/hook"],
 

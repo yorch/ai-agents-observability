@@ -2,6 +2,8 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 
 type BackfillDb = Pick<PrismaClient, 'session' | 'sessionPRLink' | 'pullRequest'>;
 
+type SessionIdRow = { sessionId: string };
+
 export async function backfillPRLinks(
   db: BackfillDb,
   repoId: string,
@@ -14,7 +16,7 @@ export async function backfillPRLinks(
     ? new Date(prOpenedAt.getTime() - 7 * 24 * 60 * 60 * 1000)
     : new Date(0);
 
-  const sessions = await db.session.findMany({
+  const sessions = (await db.session.findMany({
     where: {
       repoId,
       gitBranch: headBranch,
@@ -22,7 +24,7 @@ export async function backfillPRLinks(
       prLinks: { none: { repoId, prNumber } },
     },
     select: { sessionId: true },
-  });
+  })) as SessionIdRow[];
 
   if (sessions.length === 0) return 0;
 

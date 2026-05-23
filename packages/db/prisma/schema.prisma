@@ -342,3 +342,21 @@ model DeletionRequest {
   @@index([userId])
   @@map("deletion_requests")
 }
+
+// ── Webhook deliveries ────────────────────────────────────────────────────────
+
+model WebhookDelivery {
+  id           BigInt    @id @default(autoincrement())
+  deliveryId   String    @unique @map("delivery_id")
+  eventType    String    @map("event_type")
+  action       String?
+  repo         String?
+  receivedAt   DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt  DateTime? @map("processed_at") @db.Timestamptz(6)
+  status       String
+  errorText    String?   @map("error_text")
+
+  @@index([eventType, receivedAt(sort: Desc)])
+  @@index([receivedAt(sort: Desc)])
+  @@map("webhook_deliveries")
+}

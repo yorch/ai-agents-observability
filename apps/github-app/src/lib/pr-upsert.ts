@@ -1,4 +1,6 @@
-import type { PRState, PrismaClient } from '@ai-agents-observability/db';
+import type { PrismaClient } from '@ai-agents-observability/db';
+
+type PRState = 'open' | 'closed' | 'merged';
 
 type PullRequestPayload = {
   additions?: number;

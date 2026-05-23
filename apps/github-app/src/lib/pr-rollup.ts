@@ -2,6 +2,20 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 
 type RollupDb = Pick<PrismaClient, 'sessionPRLink' | 'session' | 'pRRollup' | 'pullRequest'>;
 
+// Minimal shapes for what we access (avoids implicit-any when generated client is absent)
+type SessionPRLinkRow = { sessionId: string };
+type SessionRow = {
+  endedAt: Date | null;
+  permissionDenyCount: number;
+  startedAt: Date;
+  toolCallCount: number;
+  toolErrorCount: number;
+  totalCostUsd: { toString(): string } | number | string;
+  totalInputTokens: { toString(): string } | number | string;
+  totalOutputTokens: { toString(): string } | number | string;
+  userId: string;
+};
+
 export type RollupResult = {
   contributorCount: number;
   sessionCount: number;
@@ -13,12 +27,16 @@ export async function computePRRollup(
   repoId: string,
   prNumber: number,
 ): Promise<RollupResult> {
-  const links = await db.sessionPRLink.findMany({ where: { repoId, prNumber } });
+  const links = (await db.sessionPRLink.findMany({
+    where: { repoId, prNumber },
+  })) as SessionPRLinkRow[];
   const sessionIds = links.map((l) => l.sessionId);
 
-  const sessions =
+  const sessions: SessionRow[] =
     sessionIds.length > 0
-      ? await db.session.findMany({ where: { sessionId: { in: sessionIds } } })
+      ? ((await db.session.findMany({
+          where: { sessionId: { in: sessionIds } },
+        })) as SessionRow[])
       : [];
 
   const contributorIds = [...new Set(sessions.map((s) => s.userId))];
