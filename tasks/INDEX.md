@@ -64,7 +64,7 @@ Source of truth for task status. Update this in the same commit as the task file
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P1-028](./P1-028-hook-perf-benchmark.md) | Hook perf benchmark (<10ms target) | blocked | — | S | P1-020 |
+| [P1-028](./P1-028-hook-perf-benchmark.md) | Hook perf benchmark (<10ms target) | review | claude | S | P1-020 |
 | [P1-029](./P1-029-phase1-signoff.md) | Phase 1 exit-criteria sign-off | blocked | — | S | all P1-* |
 
 ---
