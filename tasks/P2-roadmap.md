@@ -1,5 +1,7 @@
 # Phase 2 — PR Loop (roadmap)
 
+**Status**: Decomposed into P2-001 … P2-010. See [`INDEX.md`](./INDEX.md) for task-level status.
+
 **Trigger to decompose**: P1-029 marked `done`.
 
 ## Goal recap
