@@ -3,15 +3,15 @@ import { z } from 'zod';
 
 const PRBotConfigSchema = z.looseObject({
   enabled: z.boolean().default(false),
+  include_contributors: z.boolean().default(true),
   include_cost: z.boolean().default(true),
   include_tool_counts: z.boolean().default(true),
-  include_contributors: z.boolean().default(true),
 });
 
 const RepoConfigSchema = z
   .looseObject({
-    version: z.literal(1),
     pr_bot: PRBotConfigSchema.optional(),
+    version: z.literal(1),
   })
   .transform((data) => ({
     ...data,

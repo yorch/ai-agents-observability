@@ -17,23 +17,25 @@ export async function backfillPRLinks(
     : new Date(0);
 
   const sessions = (await db.session.findMany({
-    where: {
-      repoId,
-      gitBranch: headBranch,
-      startedAt: { gte: windowStart },
-      prLinks: { none: { repoId, prNumber } },
-    },
     select: { sessionId: true },
+    where: {
+      gitBranch: headBranch,
+      prLinks: { none: { prNumber, repoId } },
+      repoId,
+      startedAt: { gte: windowStart },
+    },
   })) as SessionIdRow[];
 
-  if (sessions.length === 0) return 0;
+  if (sessions.length === 0) {
+    return 0;
+  }
 
   await db.sessionPRLink.createMany({
     data: sessions.map((s) => ({
-      sessionId: s.sessionId,
-      repoId,
-      prNumber,
       linkSource: 'webhook_reconcile',
+      prNumber,
+      repoId,
+      sessionId: s.sessionId,
     })),
     skipDuplicates: true,
   });

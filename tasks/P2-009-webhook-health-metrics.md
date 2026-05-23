@@ -3,7 +3,7 @@ id: P2-009
 title: Webhook delivery health metrics
 phase: 2
 workstream: F
-status: ready
+status: review
 owner: null
 depends_on: [P2-002]
 blocks: []

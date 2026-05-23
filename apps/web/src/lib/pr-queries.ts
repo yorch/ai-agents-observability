@@ -40,12 +40,12 @@ export async function getUserPRs(
 
   // Find PRs linked to this user's sessions (covers both rolled-up and open PRs)
   const linkedPRs = await db.pullRequest.findMany({
+    include: { repo: true, rollup: true },
+    orderBy: [{ mergedAt: 'desc' }, { openedAt: 'desc' }],
     where: {
       prLinks: { some: { session: { userId } } },
       ...(state === 'open' ? { state: 'open' } : state === 'merged' ? { state: 'merged' } : {}),
     },
-    include: { repo: true, rollup: true },
-    orderBy: [{ mergedAt: 'desc' }, { openedAt: 'desc' }],
   });
 
   // Deduplicate by (repoId, prNumber)
@@ -54,20 +54,22 @@ export async function getUserPRs(
 
   for (const pr of linkedPRs) {
     const key = `${pr.repoId}:${pr.prNumber}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      continue;
+    }
     seen.add(key);
 
     const rollup = pr.rollup;
     merged.push({
-      prNumber: pr.prNumber,
-      repoOwner: pr.repo.githubOwner,
-      repoName: pr.repo.githubName,
-      title: pr.title,
-      state: pr.state,
-      openedAt: pr.openedAt,
-      mergedAt: pr.mergedAt,
-      sessionCount: rollup?.contributingSessionIds.length ?? 0,
       contributorCount: rollup?.contributingUserIds.length ?? 0,
+      mergedAt: pr.mergedAt,
+      openedAt: pr.openedAt,
+      prNumber: pr.prNumber,
+      repoName: pr.repo.githubName,
+      repoOwner: pr.repo.githubOwner,
+      sessionCount: rollup?.contributingSessionIds.length ?? 0,
+      state: pr.state,
+      title: pr.title,
       totalCostUsd: Number(rollup?.totalCostUsd ?? 0),
     });
   }
@@ -85,38 +87,40 @@ export async function getPRDetail(
   prNumber: number,
 ): Promise<PRDetail | null> {
   const pr = await db.pullRequest.findFirst({
-    where: {
-      repo: { githubOwner: repoOwner, githubName: repoName },
-      prNumber,
-      prLinks: { some: { session: { userId } } },
-    },
     include: { repo: true, rollup: true },
+    where: {
+      prLinks: { some: { session: { userId } } },
+      prNumber,
+      repo: { githubName: repoName, githubOwner: repoOwner },
+    },
   });
 
-  if (!pr) return null;
+  if (!pr) {
+    return null;
+  }
 
   return {
-    prNumber: pr.prNumber,
-    repoOwner: pr.repo.githubOwner,
-    repoName: pr.repo.githubName,
-    title: pr.title,
-    state: pr.state,
-    openedAt: pr.openedAt,
-    mergedAt: pr.mergedAt,
     baseBranch: pr.baseBranch,
+    contributingSessionIds: pr.rollup?.contributingSessionIds ?? [],
+    contributorCount: pr.rollup?.contributingUserIds.length ?? 0,
+    filesChanged: pr.filesChanged,
+    firstSessionAt: pr.rollup?.firstSessionAt ?? null,
     headBranch: pr.headBranch,
+    lastSessionAt: pr.rollup?.lastSessionAt ?? null,
     linesAdded: pr.linesAdded,
     linesRemoved: pr.linesRemoved,
-    filesChanged: pr.filesChanged,
+    mergedAt: pr.mergedAt,
+    openedAt: pr.openedAt,
+    prNumber: pr.prNumber,
+    repoName: pr.repo.githubName,
+    repoOwner: pr.repo.githubOwner,
     sessionCount: pr.rollup?.contributingSessionIds.length ?? 0,
-    contributorCount: pr.rollup?.contributingUserIds.length ?? 0,
+    state: pr.state,
+    title: pr.title,
+    totalActiveSeconds: pr.rollup?.totalActiveSeconds ?? null,
     totalCostUsd: Number(pr.rollup?.totalCostUsd ?? 0),
     totalInputTokens: pr.rollup?.totalInputTokens ?? null,
     totalOutputTokens: pr.rollup?.totalOutputTokens ?? null,
     totalToolCalls: pr.rollup?.totalToolCalls ?? null,
-    totalActiveSeconds: pr.rollup?.totalActiveSeconds ?? null,
-    contributingSessionIds: pr.rollup?.contributingSessionIds ?? [],
-    firstSessionAt: pr.rollup?.firstSessionAt ?? null,
-    lastSessionAt: pr.rollup?.lastSessionAt ?? null,
   };
 }

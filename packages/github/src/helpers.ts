@@ -73,20 +73,20 @@ export async function getPRDetails(
   try {
     const { data } = await client.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
       owner,
-      repo,
       pull_number: prNumber,
+      repo,
     });
     const reviews = await client.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews', {
       owner,
-      repo,
       pull_number: prNumber,
+      repo,
     });
     return {
-      title: data.title,
+      filesChanged: data.changed_files,
       linesAdded: data.additions,
       linesRemoved: data.deletions,
-      filesChanged: data.changed_files,
       reviewCount: reviews.data.length,
+      title: data.title,
     };
   } catch {
     return null;

@@ -11,14 +11,16 @@ export async function linkSessionToPR(
   prNumber: number,
 ): Promise<void> {
   const pr = await db.pullRequest.findUnique({
-    where: { repoId_prNumber: { repoId, prNumber } },
     select: { prNumber: true },
+    where: { repoId_prNumber: { prNumber, repoId } },
   });
-  if (!pr) return;
+  if (!pr) {
+    return;
+  }
 
   await db.sessionPRLink.upsert({
-    where: { sessionId_repoId_prNumber: { sessionId, repoId, prNumber } },
-    create: { sessionId, repoId, prNumber, linkSource: 'session_start' },
+    create: { linkSource: 'session_start', prNumber, repoId, sessionId },
     update: {},
+    where: { sessionId_repoId_prNumber: { prNumber, repoId, sessionId } },
   });
 }

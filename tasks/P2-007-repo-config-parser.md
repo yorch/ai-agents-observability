@@ -3,7 +3,7 @@ id: P2-007
 title: .claude-telemetry.yml repo config parser
 phase: 2
 workstream: C
-status: ready
+status: done
 owner: null
 depends_on: []
 blocks: [P2-006]

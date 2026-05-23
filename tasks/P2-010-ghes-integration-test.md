@@ -3,7 +3,7 @@ id: P2-010
 title: GHES integration test for webhook + bot flows
 phase: 2
 workstream: F
-status: ready
+status: review
 owner: null
 depends_on: [P2-003, P2-006]
 blocks: []

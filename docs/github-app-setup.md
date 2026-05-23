@@ -48,6 +48,7 @@ See **DESIGN_DOC §7.2** for the full architecture description of the GitHub App
    - `pull_request`
    - `push`
    - `installation`
+   - `installation_repositories`
 
 7. Choose **"Only on this account"** for installation scope (or "Any account" if distributing
    publicly).

@@ -3,7 +3,7 @@ id: P2-001
 title: GitHub App registration + credentials wiring
 phase: 2
 workstream: A
-status: ready
+status: review
 owner: null
 depends_on: []
 blocks: [P2-002, P2-007]

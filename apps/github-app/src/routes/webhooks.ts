@@ -1,11 +1,10 @@
-import { Webhooks } from '@octokit/webhooks';
 import type { EmitterWebhookEvent } from '@octokit/webhooks';
+import { Webhooks } from '@octokit/webhooks';
 import { Hono } from 'hono';
 import type { Logger } from 'pino';
-
+import type { Config } from '../config';
 import { handlePullRequest } from '../handlers/pull-request';
 import { recordFailed, recordProcessed, recordReceived } from '../lib/metrics';
-import type { Config } from '../config';
 import type { AppDb, AppEnv } from '../types';
 
 export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<AppEnv> {

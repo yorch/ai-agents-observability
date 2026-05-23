@@ -27,7 +27,7 @@ type RepoPayload = {
   id: number;
 };
 
-type PrUpsertDb = Pick<PrismaClient, 'repo' | 'pullRequest' | 'user'>;
+export type PrUpsertDb = Pick<PrismaClient, 'repo' | 'pullRequest' | 'user'>;
 
 export async function upsertPullRequest(
   db: PrUpsertDb,
@@ -39,9 +39,9 @@ export async function upsertPullRequest(
 
   // Lazy-upsert the repo row
   const repo = await db.repo.upsert({
-    where: { githubOwner_githubName: { githubName: name, githubOwner: owner } },
-    create: { githubOwner: owner, githubName: name, githubId: BigInt(repoPl.id) },
+    create: { githubId: BigInt(repoPl.id), githubName: name, githubOwner: owner },
     update: { githubId: BigInt(repoPl.id) },
+    where: { githubOwner_githubName: { githubName: name, githubOwner: owner } },
   });
 
   // Resolve authorUserId by login (user is null for deleted/ghost accounts)
@@ -51,39 +51,39 @@ export async function upsertPullRequest(
     : null;
 
   await db.pullRequest.upsert({
-    where: { repoId_prNumber: { repoId: repo.id, prNumber: prPl.number } },
     create: {
-      repoId: repo.id,
-      prNumber: prPl.number,
-      githubId: BigInt(prPl.id),
-      title: prPl.title,
-      state,
       authorGithubLogin: authorLogin,
       authorUserId: authorUser?.id ?? null,
       baseBranch: prPl.base.ref,
-      headBranch: prPl.head.ref,
-      openedAt: new Date(prPl.created_at),
       closedAt: prPl.closed_at ? new Date(prPl.closed_at) : null,
-      mergedAt: prPl.merged_at ? new Date(prPl.merged_at) : null,
+      filesChanged: prPl.changed_files ?? null,
+      githubId: BigInt(prPl.id),
+      headBranch: prPl.head.ref,
+      labels: prPl.labels.map((l) => l.name),
       linesAdded: prPl.additions ?? null,
       linesRemoved: prPl.deletions ?? null,
-      filesChanged: prPl.changed_files ?? null,
+      mergedAt: prPl.merged_at ? new Date(prPl.merged_at) : null,
+      openedAt: new Date(prPl.created_at),
+      prNumber: prPl.number,
+      repoId: repo.id,
       reviewerLogins: prPl.requested_reviewers.map((r) => r.login),
-      labels: prPl.labels.map((l) => l.name),
+      state,
+      title: prPl.title,
     },
     update: {
-      title: prPl.title,
-      state,
+      authorUserId: authorUser?.id ?? null,
       closedAt: prPl.closed_at ? new Date(prPl.closed_at) : null,
-      mergedAt: prPl.merged_at ? new Date(prPl.merged_at) : null,
+      filesChanged: prPl.changed_files ?? null,
+      labels: prPl.labels.map((l) => l.name),
       linesAdded: prPl.additions ?? null,
       linesRemoved: prPl.deletions ?? null,
-      filesChanged: prPl.changed_files ?? null,
+      mergedAt: prPl.merged_at ? new Date(prPl.merged_at) : null,
       reviewerLogins: prPl.requested_reviewers.map((r) => r.login),
-      labels: prPl.labels.map((l) => l.name),
-      authorUserId: authorUser?.id ?? null,
+      state,
+      title: prPl.title,
     },
+    where: { repoId_prNumber: { prNumber: prPl.number, repoId: repo.id } },
   });
 
-  return { repoId: repo.id, prNumber: prPl.number };
+  return { prNumber: prPl.number, repoId: repo.id };
 }

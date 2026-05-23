@@ -18,7 +18,7 @@ function getCounter(event: string): Counter {
 function recordLatency(event: string, ms: number): void {
   let buf = latencies.get(event);
   if (!buf) {
-    buf = { buf: [], size: WINDOW_SIZE, head: 0 };
+    buf = { buf: [], head: 0, size: WINDOW_SIZE };
     latencies.set(event, buf);
   }
   if (buf.buf.length < buf.size) {
@@ -31,7 +31,9 @@ function recordLatency(event: string, ms: number): void {
 
 function p99(event: string): number | null {
   const buf = latencies.get(event);
-  if (!buf || buf.buf.length === 0) return null;
+  if (!buf || buf.buf.length === 0) {
+    return null;
+  }
   const sorted = [...buf.buf].sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length * 0.99)] ?? sorted[sorted.length - 1] ?? null;
 }

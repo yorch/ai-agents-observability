@@ -1,19 +1,19 @@
 import { createHmac } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
 import pino from 'pino';
+import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import type { AppDb } from '../src/types';
 
 const SECRET = 'test-webhook-secret';
 
 function sign(body: string): string {
-  return 'sha256=' + createHmac('sha256', SECRET).update(body).digest('hex');
+  return `sha256=${createHmac('sha256', SECRET).update(body).digest('hex')}`;
 }
 
 // Minimal stub db that satisfies AppDb without a real Postgres connection
 const stubDb = {
+  pRRollup: { findUnique: async () => null, upsert: async () => ({}) },
   pullRequest: { upsert: async () => ({}) },
-  pRRollup: { upsert: async () => ({}), findUnique: async () => null },
   repo: { upsert: async () => ({ id: 'repo-id' }) },
   session: { findMany: async () => [] },
   sessionPRLink: { createMany: async () => ({}), findMany: async () => [] },
@@ -39,9 +39,9 @@ describe('webhooks', () => {
   it('returns 401 for missing signature', async () => {
     const app = createApp(config, stubDb, logger);
     const res = await app.request('/webhooks/github', {
-      method: 'POST',
-      headers: { 'x-github-event': 'ping' },
       body: '{}',
+      headers: { 'x-github-event': 'ping' },
+      method: 'POST',
     });
     expect(res.status).toBe(401);
   });
@@ -49,13 +49,13 @@ describe('webhooks', () => {
   it('returns 401 for wrong signature', async () => {
     const app = createApp(config, stubDb, logger);
     const res = await app.request('/webhooks/github', {
-      method: 'POST',
+      body: '{}',
       headers: {
+        'x-github-delivery': 'test-id',
         'x-github-event': 'ping',
         'x-hub-signature-256': 'sha256=badhash',
-        'x-github-delivery': 'test-id',
       },
-      body: '{}',
+      method: 'POST',
     });
     expect(res.status).toBe(401);
   });
@@ -64,12 +64,12 @@ describe('webhooks', () => {
     const body = '{}';
     const app = createApp(config, stubDb, logger);
     const res = await app.request('/webhooks/github', {
-      method: 'POST',
-      headers: {
-        'x-hub-signature-256': sign(body),
-        'x-github-delivery': 'test-id',
-      },
       body,
+      headers: {
+        'x-github-delivery': 'test-id',
+        'x-hub-signature-256': sign(body),
+      },
+      method: 'POST',
     });
     expect(res.status).toBe(400);
   });
@@ -78,14 +78,14 @@ describe('webhooks', () => {
     const body = JSON.stringify({ action: 'test' });
     const app = createApp(config, stubDb, logger);
     const res = await app.request('/webhooks/github', {
-      method: 'POST',
+      body,
       headers: {
+        'content-type': 'application/json',
+        'x-github-delivery': 'test-id',
         'x-github-event': 'unknown_event',
         'x-hub-signature-256': sign(body),
-        'x-github-delivery': 'test-id',
-        'content-type': 'application/json',
       },
-      body,
+      method: 'POST',
     });
     expect(res.status).toBe(202);
   });

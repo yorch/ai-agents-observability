@@ -23,17 +23,15 @@ async function fetchInstallationToken(
 ): Promise<string> {
   const jwt = await getAppJwt(appId, privateKeyPem);
   const apiBase =
-    githubHost === 'https://github.com'
-      ? 'https://api.github.com'
-      : `${githubHost}/api/v3`;
+    githubHost === 'https://github.com' ? 'https://api.github.com' : `${githubHost}/api/v3`;
 
   const res = await fetch(`${apiBase}/app/installations/${installationId}/access_tokens`, {
-    method: 'POST',
     headers: {
-      Authorization: `Bearer ${jwt}`,
       Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${jwt}`,
       'X-GitHub-Api-Version': '2022-11-28',
     },
+    method: 'POST',
   });
 
   if (!res.ok) {
@@ -42,7 +40,7 @@ async function fetchInstallationToken(
 
   const data = (await res.json()) as { token: string; expires_at: string };
   const expiresAt = new Date(data.expires_at).getTime();
-  cache.set(installationId, { token: data.token, expiresAt });
+  cache.set(installationId, { expiresAt, token: data.token });
   return data.token;
 }
 
@@ -60,10 +58,14 @@ export async function getInstallationToken(
   // Deduplicate concurrent requests for the same installation to avoid
   // exhausting GitHub's per-installation token quota under burst load.
   const existing = inflight.get(installationId);
-  if (existing) return existing;
+  if (existing) {
+    return existing;
+  }
 
   const promise = fetchInstallationToken(installationId, appId, privateKeyPem, githubHost).finally(
-    () => { inflight.delete(installationId); },
+    () => {
+      inflight.delete(installationId);
+    },
   );
   inflight.set(installationId, promise);
   return promise;

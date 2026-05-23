@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from '../../../../lib/auth';
-import { getPrisma } from '../../../../lib/prisma';
 import { getPRDetail } from '../../../../lib/pr-queries';
+import { getPrisma } from '../../../../lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,16 +10,18 @@ type PageParams = { pr: string[] };
 
 function StateBadge({ state }: { state: string }) {
   const colors: Record<string, string> = {
-    open: 'bg-green-500/20 text-green-400',
     closed: 'bg-red-500/20 text-red-400',
     merged: 'bg-purple-500/20 text-purple-400',
+    open: 'bg-green-500/20 text-green-400',
   };
   const color = colors[state] ?? 'bg-white/10 text-white/50';
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{state}</span>;
 }
 
 function formatDate(d: Date | null): string {
-  if (!d) return '—';
+  if (!d) {
+    return '—';
+  }
   return d.toLocaleDateString('en-US', {
     day: 'numeric',
     hour: '2-digit',
@@ -30,10 +32,14 @@ function formatDate(d: Date | null): string {
 }
 
 function formatActiveTime(seconds: number | null): string {
-  if (seconds === null || seconds === 0) return '—';
+  if (seconds === null || seconds === 0) {
+    return '—';
+  }
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
+  if (h > 0) {
+    return `${h}h ${m}m`;
+  }
   return `${m}m`;
 }
 
@@ -60,7 +66,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
   }
 
   const prNumber = parseInt(prNumStr, 10);
-  if (isNaN(prNumber)) {
+  if (Number.isNaN(prNumber)) {
     notFound();
   }
 
@@ -116,12 +122,8 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
             {pr.filesChanged !== null && (
               <span className="text-white/40">{pr.filesChanged} files changed</span>
             )}
-            {pr.linesAdded !== null && (
-              <span className="text-green-400">+{pr.linesAdded}</span>
-            )}
-            {pr.linesRemoved !== null && (
-              <span className="text-red-400">-{pr.linesRemoved}</span>
-            )}
+            {pr.linesAdded !== null && <span className="text-green-400">+{pr.linesAdded}</span>}
+            {pr.linesRemoved !== null && <span className="text-red-400">-{pr.linesRemoved}</span>}
           </div>
         )}
       </div>
@@ -160,37 +162,40 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       )}
 
       {/* Token stats */}
-      {hasRollup && (pr.totalInputTokens !== null || pr.totalOutputTokens !== null || pr.totalToolCalls !== null) && (
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2">
-          <h2 className="text-sm font-medium text-white/70">Usage breakdown</h2>
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            {pr.totalInputTokens !== null && (
-              <div>
-                <div className="text-xs text-white/40">Input tokens</div>
-                <div className="text-white/80">{pr.totalInputTokens.toString()}</div>
-              </div>
-            )}
-            {pr.totalOutputTokens !== null && (
-              <div>
-                <div className="text-xs text-white/40">Output tokens</div>
-                <div className="text-white/80">{pr.totalOutputTokens.toString()}</div>
-              </div>
-            )}
-            {pr.totalToolCalls !== null && (
-              <div>
-                <div className="text-xs text-white/40">Tool calls</div>
-                <div className="text-white/80">{pr.totalToolCalls}</div>
+      {hasRollup &&
+        (pr.totalInputTokens !== null ||
+          pr.totalOutputTokens !== null ||
+          pr.totalToolCalls !== null) && (
+          <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2">
+            <h2 className="text-sm font-medium text-white/70">Usage breakdown</h2>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              {pr.totalInputTokens !== null && (
+                <div>
+                  <div className="text-xs text-white/40">Input tokens</div>
+                  <div className="text-white/80">{pr.totalInputTokens.toString()}</div>
+                </div>
+              )}
+              {pr.totalOutputTokens !== null && (
+                <div>
+                  <div className="text-xs text-white/40">Output tokens</div>
+                  <div className="text-white/80">{pr.totalOutputTokens.toString()}</div>
+                </div>
+              )}
+              {pr.totalToolCalls !== null && (
+                <div>
+                  <div className="text-xs text-white/40">Tool calls</div>
+                  <div className="text-white/80">{pr.totalToolCalls}</div>
+                </div>
+              )}
+            </div>
+            {(pr.firstSessionAt || pr.lastSessionAt) && (
+              <div className="pt-2 border-t border-white/10 text-xs text-white/40 flex gap-4">
+                {pr.firstSessionAt && <span>first session: {formatDate(pr.firstSessionAt)}</span>}
+                {pr.lastSessionAt && <span>last session: {formatDate(pr.lastSessionAt)}</span>}
               </div>
             )}
           </div>
-          {(pr.firstSessionAt || pr.lastSessionAt) && (
-            <div className="pt-2 border-t border-white/10 text-xs text-white/40 flex gap-4">
-              {pr.firstSessionAt && <span>first session: {formatDate(pr.firstSessionAt)}</span>}
-              {pr.lastSessionAt && <span>last session: {formatDate(pr.lastSessionAt)}</span>}
-            </div>
-          )}
-        </div>
-      )}
+        )}
 
       {/* Contributing sessions */}
       {pr.contributingSessionIds.length > 0 && (

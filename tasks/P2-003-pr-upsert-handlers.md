@@ -3,7 +3,7 @@ id: P2-003
 title: PR upsert and close event handlers
 phase: 2
 workstream: B
-status: ready
+status: review
 owner: null
 depends_on: [P2-002]
 blocks: [P2-004, P2-010]

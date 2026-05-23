@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import type { AppEnv } from '../types';
 import { getMetrics } from '../lib/metrics';
+import type { AppEnv } from '../types';
 
 export function healthRouter(startedAt: number, gitSha: string): Hono<AppEnv> {
   const router = new Hono<AppEnv>();

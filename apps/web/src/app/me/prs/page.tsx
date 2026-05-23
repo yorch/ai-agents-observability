@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
 import { currentUser } from '../../../lib/auth';
-import { getPrisma } from '../../../lib/prisma';
-import { getUserPRs } from '../../../lib/pr-queries';
 import type { PRListItem } from '../../../lib/pr-queries';
+import { getUserPRs } from '../../../lib/pr-queries';
+import { getPrisma } from '../../../lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,16 +15,18 @@ type SearchParams = {
 
 function StateBadge({ state }: { state: string }) {
   const colors: Record<string, string> = {
-    open: 'bg-green-500/20 text-green-400',
     closed: 'bg-red-500/20 text-red-400',
     merged: 'bg-purple-500/20 text-purple-400',
+    open: 'bg-green-500/20 text-green-400',
   };
   const color = colors[state] ?? 'bg-white/10 text-white/50';
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{state}</span>;
 }
 
 function formatDate(d: Date | null): string {
-  if (!d) return '—';
+  if (!d) {
+    return '—';
+  }
   return d.toLocaleDateString('en-US', {
     day: 'numeric',
     month: 'short',

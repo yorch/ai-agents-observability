@@ -28,7 +28,7 @@ export async function computePRRollup(
   prNumber: number,
 ): Promise<RollupResult> {
   const links = (await db.sessionPRLink.findMany({
-    where: { repoId, prNumber },
+    where: { prNumber, repoId },
   })) as SessionPRLinkRow[];
   const sessionIds = links.map((l) => l.sessionId);
 
@@ -47,11 +47,13 @@ export async function computePRRollup(
   const totalToolErrors = sessions.reduce((sum, s) => sum + s.toolErrorCount, 0);
   const totalPermissionDenies = sessions.reduce((sum, s) => sum + s.permissionDenyCount, 0);
 
-  const endedSessions = sessions.filter((s) => s.endedAt !== null);
+  const endedSessions = sessions.filter(
+    (s): s is SessionRow & { endedAt: Date } => s.endedAt !== null,
+  );
   const totalActiveSeconds =
     endedSessions.length > 0
       ? endedSessions.reduce((sum, s) => {
-          const secs = (s.endedAt!.getTime() - s.startedAt.getTime()) / 1000;
+          const secs = (s.endedAt.getTime() - s.startedAt.getTime()) / 1000;
           return sum + secs;
         }, 0)
       : null;
@@ -65,44 +67,44 @@ export async function computePRRollup(
   const lastSessionAt = sessionEndTimes[sessionEndTimes.length - 1] ?? null;
 
   const pr = await db.pullRequest.findUnique({
-    where: { repoId_prNumber: { repoId, prNumber } },
+    where: { repoId_prNumber: { prNumber, repoId } },
   });
   const loc = pr ? (pr.linesAdded ?? 0) + (pr.linesRemoved ?? 0) : 0;
   const costPerLoc = loc > 0 ? totalCostUsd / loc : null;
 
   await db.pRRollup.upsert({
-    where: { repoId_prNumber: { repoId, prNumber } },
     create: {
-      repoId,
-      prNumber,
-      contributingUserIds: contributorIds,
       contributingSessionIds: sessionIds,
+      contributingUserIds: contributorIds,
+      costPerLoc,
       firstSessionAt,
       lastSessionAt,
+      prNumber,
+      repoId,
       totalActiveSeconds: totalActiveSeconds !== null ? Math.round(totalActiveSeconds) : null,
       totalCostUsd,
       totalInputTokens: BigInt(totalInputTokens),
       totalOutputTokens: BigInt(totalOutputTokens),
+      totalPermissionDenies,
       totalToolCalls,
       totalToolErrors,
-      totalPermissionDenies,
-      costPerLoc,
     },
     update: {
-      contributingUserIds: contributorIds,
+      computedAt: new Date(),
       contributingSessionIds: sessionIds,
+      contributingUserIds: contributorIds,
+      costPerLoc,
       firstSessionAt,
       lastSessionAt,
       totalActiveSeconds: totalActiveSeconds !== null ? Math.round(totalActiveSeconds) : null,
       totalCostUsd,
       totalInputTokens: BigInt(totalInputTokens),
       totalOutputTokens: BigInt(totalOutputTokens),
+      totalPermissionDenies,
       totalToolCalls,
       totalToolErrors,
-      totalPermissionDenies,
-      costPerLoc,
-      computedAt: new Date(),
     },
+    where: { repoId_prNumber: { prNumber, repoId } },
   });
 
   return { contributorCount: contributorIds.length, sessionCount: sessions.length, totalCostUsd };

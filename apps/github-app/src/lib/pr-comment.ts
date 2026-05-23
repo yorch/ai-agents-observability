@@ -35,9 +35,7 @@ export function buildCommentBody(rollup: PRRollupLike, config: RepoConfig): stri
   }
 
   if (rollup.totalActiveSeconds != null) {
-    lines.push(
-      `• Time span: ${formatDuration(rollup.totalActiveSeconds)} (first session → merge)`,
-    );
+    lines.push(`• Time span: ${formatDuration(rollup.totalActiveSeconds)} (first session → merge)`);
   }
 
   return lines.join('\n');
@@ -51,11 +49,11 @@ export async function postPRComment(
   installationToken: string,
   githubHost: string,
 ): Promise<void> {
-  const client = createGitHubClient({ token: installationToken, host: githubHost });
+  const client = createGitHubClient({ host: githubHost, token: installationToken });
   await client.request('POST /repos/{owner}/{repo}/issues/{issue_number}/comments', {
+    body,
+    issue_number: prNumber,
     owner: repoOwner,
     repo: repoName,
-    issue_number: prNumber,
-    body,
   });
 }
