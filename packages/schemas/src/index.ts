@@ -4,6 +4,8 @@ export type { AgentType, Event, EventsBatch, EventType } from './event';
 export { AgentTypeSchema, EventSchema, EventsBatchSchema, EventTypeSchema } from './event';
 export type { ModelPrice, PriceTable } from './price-table';
 export { PriceTableSchema } from './price-table';
+export type { RepoConfig } from './repo-config';
+export { parseRepoConfig, RepoConfigSchema } from './repo-config';
 export type { GitContext, SessionContext } from './session-context';
 export { GitContextSchema, SessionContextSchema } from './session-context';
 export type { TranscriptChunkMeta } from './transcript';

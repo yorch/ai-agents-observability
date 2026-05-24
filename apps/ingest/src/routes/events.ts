@@ -7,6 +7,7 @@ import type { Logger } from 'pino';
 
 import { verifyIdentityClaim } from '../lib/identity';
 import { insertEventsBatch } from '../lib/insert-events';
+import { linkSessionToPR } from '../lib/session-pr-link';
 import { upsertSessions } from '../lib/upsert-session';
 import type { AppEnv, EventsDb } from '../types';
 
@@ -78,6 +79,24 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
         priceTable,
         topGit,
       );
+
+      // Best-effort session→PR linking (P2-004). Fire-and-forget; errors don't fail the request.
+      Promise.allSettled(
+        acceptedEvents
+          .filter((e) => e.session_context.git?.pr_number != null)
+          .map((e) => {
+            const git = e.session_context.git;
+            if (!git || !git.owner || !git.repo || git.pr_number == null) {
+              return Promise.resolve();
+            }
+            const key = `${git.owner}/${git.repo}`;
+            const repoId = repoIdByKey.get(key);
+            if (!repoId) {
+              return Promise.resolve();
+            }
+            return linkSessionToPR(db, e.session_id, repoId, git.pr_number);
+          }),
+      ).catch(() => {});
 
       logger.info(
         {

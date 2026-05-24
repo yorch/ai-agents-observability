@@ -63,6 +63,28 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_agents_observability}
     restart: "no"
 
+  github-app:
+    build:
+      context: ..
+      dockerfile: apps/github-app/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_agents_observability}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET:-}
+      GITHUB_HOST: ${GITHUB_HOST:-https://github.com}
+      GITHUB_APP_PORT: ${GITHUB_APP_PORT:-4001}
+      GIT_SHA: ${GIT_SHA:-dev}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - "${GITHUB_APP_PORT:-4001}:4001"
+    profiles: ["pr-loop"]
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   minio_data:

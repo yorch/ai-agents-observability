@@ -14,9 +14,11 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "js-yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/js-yaml": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
