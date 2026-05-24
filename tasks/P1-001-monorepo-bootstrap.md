@@ -1,6 +1,6 @@
 ---
 id: P1-001
-title: Monorepo bootstrap (Bun + Turborepo 3 + Biome)
+title: Monorepo bootstrap (Bun + Turborepo + Biome)
 phase: 1
 workstream: A
 status: done
@@ -12,7 +12,7 @@ estimate: M
 
 ## Goal
 
-Stand up the Bun-native monorepo: Bun 1.3 workspaces, Turborepo 3, Biome 2 (lint + format), shared TypeScript config, and version-pinned tooling via Bun catalogs. After this task, every other task can assume the layout in `PLAN.md` §2 exists and `bun install && bun run check && bun run typecheck` works from a clean clone.
+Stand up the Bun-native monorepo: Bun 1.3 workspaces, Turborepo 2.9.14, Biome 2 (lint + format), shared TypeScript config, and version-pinned tooling via Bun catalogs. After this task, every other task can assume the layout in `PLAN.md` §2 exists and `bun install && bun run check && bun run typecheck` works from a clean clone.
 
 ## Context
 
@@ -20,7 +20,7 @@ Stand up the Bun-native monorepo: Bun 1.3 workspaces, Turborepo 3, Biome 2 (lint
 - `PLAN.md` §2 defines the directory layout.
 - `PLAN.md` §4 commits to Bun as package manager + runner, Biome 2, pino, Conventional Commits, Vitest 4.
 - **Use hoisted installs, not isolated** — Bun 1.3 has known bugs with isolated + catalogs ([oven-sh/bun#23615](https://github.com/oven-sh/bun/issues/23615)). Set `[install] linker = "hoisted"` in `bunfig.toml`. Revisit when the bug is fixed.
-- **Turborepo 3** is required for first-class Bun workspace detection; Turbo 2 will miss the `bun.lock`.
+- **Turborepo 2.9.14** is pinned (Turbo 3 was originally targeted but 2.9.14 works correctly with Bun workspaces in practice).
 - Tailwind 4 has no `tailwind.config.js` — that comes in P1-024. This task just makes sure the workspace is ready.
 
 ## Acceptance criteria
@@ -91,7 +91,7 @@ Stand up the Bun-native monorepo: Bun 1.3 workspaces, Turborepo 3, Biome 2 (lint
       "catalog": {
         "zod": "4.1.0",
         "hono": "4.12.19",
-        "@hono/zod-validator": "0.4.4",
+        "@hono/zod-validator": "0.4.3",
         "prisma": "7.7.0",
         "@prisma/client": "7.7.0",
         "next": "16.2.0",
@@ -104,16 +104,16 @@ Stand up the Bun-native monorepo: Bun 1.3 workspaces, Turborepo 3, Biome 2 (lint
         "@octokit/webhooks": "14.1.0",
         "jose": "6.2.3",
         "pino": "10.3.1",
-        "pino-pretty": "14.0.0",
+        "pino-pretty": "13.1.3",
         "pino-roll": "4.0.0",
         "croner": "10.0.1",
         "vitest": "4.1.6",
         "fast-check": "4.4.0",
-        "react-virtuoso": "5.0.0",
-        "keytar": "8.0.0",
+        "react-virtuoso": "4.18.7",
+        "keytar": "7.9.0",
         "@biomejs/biome": "2.4.0",
-        "typescript": "6.0.0",
-        "turbo": "3.0.0"
+        "typescript": "6.0.3",
+        "turbo": "2.9.14"
       }
     }
   }

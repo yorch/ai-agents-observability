@@ -1,9 +1,9 @@
 # ai-agents-observability — Design Document
 
 **Project:** `ai-agents-observability`
-**Status:** Draft v1
+**Status:** v1 — Phase 1 implemented, Phase 2 in review
 **Owner:** Jorge (SentinelOne)
-**Last updated:** 2026-05-22
+**Last updated:** 2026-05-24
 **Audience:** Internal — dev tools team, leadership stakeholders
 
 ---
@@ -908,7 +908,7 @@ Resist the urge to build all of it. The MVP that proves value:
 
 ## 13. Open Questions
 
-These are the decisions still needed before Phase 1 kicks off.
+These were the decisions needed before Phase 1. Phase 1 is now implemented; Phase 2 is in review. Items still unresolved are noted — resolve before Phase 3 starts.
 
 | #   | Question                                                          | Notes                                                                                                                                                                                                                          |
 | --- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

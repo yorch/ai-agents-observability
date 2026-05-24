@@ -84,9 +84,10 @@ See [`DESIGN_DOC.md`](./DESIGN_DOC.md) for the full architecture specification a
 
 ```
 apps/
-  hook/       CLI binary — fires on every Claude Code hook event
-  ingest/     Hono API — receives events from the hook
-  web/        Next.js dashboard — personal + team views
+  hook/           CLI binary — fires on every Claude Code hook event
+  ingest/         Hono API — receives events from the hook
+  web/            Next.js dashboard — personal + team views
+  github-app/     Hono service — GitHub webhook receiver + PR bot (Phase 2)
 packages/
   auth/       IdentityProvider interface + JWT issuance
   db/         Prisma schema, migrations, Timescale DDL, typed client
@@ -96,5 +97,7 @@ packages/
 infra/
   docker-compose.yml       Local dev stack
   migrations-runner/       Docker image that applies all DB migrations
+docs/
+  github-app-setup.md      GitHub App registration guide
 tasks/                     Agent-trackable task decomposition
 ```
