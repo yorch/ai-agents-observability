@@ -1,6 +1,6 @@
 # Phase 2 — PR Loop (roadmap)
 
-**Status**: Fully decomposed into P2-001 … P2-010; all tasks are in `review`. See [`INDEX.md`](./INDEX.md) for task-level status.
+**Status**: Fully decomposed into P2-001 … P2-010. P2-007 is `done`; the remaining 9 are in `review`. See [`INDEX.md`](./INDEX.md) for task-level status.
 
 > Note: tasks were decomposed ahead of P1-029 sign-off to allow parallel progress. The sketches below are the original pre-decomposition notes kept for context; the authoritative task definitions live in the individual P2-*.md files.
 

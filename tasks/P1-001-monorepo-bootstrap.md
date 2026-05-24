@@ -47,7 +47,7 @@ Stand up the Bun-native monorepo: Bun 1.3 workspaces, Turborepo 2.9.14, Biome 2 
 - [ ] `.github/workflows/ci.yml` uses `oven-sh/setup-bun@v2` with `bun-version: 1.3.13` and `actions/setup-node@v4` with `node-version: 24.6.0` — both exact, no `lts/*`.
 - [ ] Sub-package `package.json` files use `"catalog:"` for shared deps (e.g. `"zod": "catalog:"`).
 - [ ] `bun.lock` committed (text format, v3).
-- [ ] `turbo.json` (Turborepo 3) defines pipelines: `build`, `check` (= `biome check`), `format`, `test`, `typecheck`, `dev`. `dev` is non-cacheable. Turbo auto-detects Bun.
+- [ ] `turbo.json` defines pipelines: `build`, `check` (= `biome check`), `format`, `test`, `typecheck`, `dev`. `dev` is non-cacheable. Turbo auto-detects Bun.
 - [ ] Shared `tsconfig.base.json` at root targeting `ES2024`, `module: "preserve"`, `moduleResolution: "bundler"`, `strict: true`, `noUncheckedIndexedAccess: true`. Each package extends it.
 - [ ] `biome.json` at root configured for:
   - lint + format enabled
