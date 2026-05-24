@@ -6,7 +6,7 @@
 
 Team leads see their team's aggregated usage and (with permission) individual sessions. Cross-user reads are gated by `VisibilityPolicy` and recorded in `AuditLog`. No org views yet.
 
-See `DESIGN_DOC.md` §10, §11, §12.3.
+See `DESIGN_DOC.md` §8 (Access Control & Privacy) and §12.3.
 
 ## Sketched tasks
 

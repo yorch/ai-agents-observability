@@ -1,8 +1,8 @@
 # Phase 2 — PR Loop (roadmap)
 
-**Status**: Decomposed into P2-001 … P2-010. See [`INDEX.md`](./INDEX.md) for task-level status.
+**Status**: Fully decomposed into P2-001 … P2-010. P2-007 is `done`; the remaining 9 are in `review`. See [`INDEX.md`](./INDEX.md) for task-level status.
 
-**Trigger to decompose**: P1-029 marked `done`.
+> Note: tasks were decomposed ahead of P1-029 sign-off to allow parallel progress. The sketches below are the original pre-decomposition notes kept for context; the authoritative task definitions live in the individual P2-*.md files.
 
 ## Goal recap
 
@@ -10,9 +10,7 @@ Tie agent activity to PR outcomes. GitHub App receives PR webhooks, links sessio
 
 See `DESIGN_DOC.md` §7 and §12.2.
 
-## Sketched tasks
-
-These will become P2-001 … P2-NNN files when Phase 2 starts. Each sketch is one paragraph — the real task file expands criteria/verification.
+## Original sketches (superseded by P2-*.md task files)
 
 - **P2-001 GitHub App registration + manifest**
   Register a GitHub App against github.com + GHES manifest. Stores private key, webhook secret. App-level permissions: pull_requests:read, contents:read, checks:read. Subscribe: `pull_request`, `push`, `installation`.

@@ -32,9 +32,9 @@ estimate: L
   3. Runs each line through `@pkg/redaction.redact`.
   4. Re-compresses zstd.
   5. Streams to MinIO via S3 SDK multipart upload.
-- [ ] Records on `Session`: `transcript_object_key`, `transcript_bytes`, `transcript_redaction_flags`, `transcript_uploaded_at`.
+- [ ] Records on `Session`: `transcript_s3_key`, `transcript_bytes`, `transcript_redacted` (Boolean), `transcript_uploaded_at`.
 - [ ] Idempotent: re-uploading same `(session_id, sha256)` is a no-op returning the existing key.
-- [ ] Returns `{ object_key, bytes, redaction_flags }`. 201 on first upload, 200 on idempotent re-upload.
+- [ ] Returns `{ s3_key, bytes, redacted }`. 201 on first upload, 200 on idempotent re-upload.
 - [ ] Test: upload a 10 MB synthetic transcript, verify presence in MinIO and metadata on the session row.
 
 ## Implementation notes

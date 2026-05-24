@@ -23,7 +23,7 @@ A GitHub App exists (github.com or GHES) with the correct permissions and webhoo
 ## Acceptance criteria
 
 - [ ] GitHub App registered with:
-  - **Permissions** (repository): `pull_requests: read`, `contents: read`, `checks: read`, `metadata: read`
+  - **Permissions** (repository): `pull_requests: read & write`, `contents: read`, `checks: read`, `metadata: read`
   - **Permissions** (organization): `members: read`
   - **Subscribe to events**: `pull_request`, `push`, `installation`, `installation_repositories`
   - Webhook URL: set to `https://<your-host>/webhooks/github` (can be a placeholder during local dev; use smee.io or ngrok for testing)
@@ -39,9 +39,7 @@ A GitHub App exists (github.com or GHES) with the correct permissions and webhoo
 - For GHES: use `https://<GITHUB_HOST>/organizations/<org>/settings/apps/new`. The rest is identical.
 - Base64-encode the private key for the env var: `base64 -w0 private-key.pem` (Linux) or `base64 -i private-key.pem` (Mac). Decode in code with `Buffer.from(key, 'base64').toString()`.
 - Smee.io proxy for local dev: `npx smee-client --url https://smee.io/<channel> --path /webhooks/github --port 4001`. Document this in the setup guide.
-- The App does **not** need write permissions to the repo — only `pull_requests: write` is needed to post comments. Add that to the permission list above.
-
-**Correction**: Add `pull_requests: write` to the permissions list above. Without it the bot cannot post merge comments (P2-006).
+- `pull_requests: write` is required to post merge-summary comments (P2-006). `pull_requests: read` alone is not sufficient.
 
 ## Files touched
 

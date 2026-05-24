@@ -74,7 +74,7 @@ curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
 
 ## Status
 
-Phase 1 ("My Agents" spine) is implemented. The following tasks are pending final review before Phase 1 sign-off: P1-011 (session aggregation), P1-012 (transcripts endpoint), P1-020 (SQLite queue), P1-023 (hook subcommands), P1-024 (Next.js scaffold), P1-028 (perf benchmark). See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status. Phase 2 (PR loop) is next — decompose when Phase 1 exit criteria are green (P1-029).
+Phase 1 ("My Agents" spine) is implemented. The following tasks are pending final review before Phase 1 sign-off: P1-011 (session aggregation), P1-012 (transcripts endpoint), P1-020 (SQLite queue), P1-023 (hook subcommands), P1-024 (Next.js scaffold), P1-028 (perf benchmark). See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status. Phase 2 (PR loop) is decomposed and in review (P2-001 through P2-010); full sign-off on Phase 1 (P1-029) is still pending.
 
 ## Architecture
 
@@ -84,9 +84,10 @@ See [`DESIGN_DOC.md`](./DESIGN_DOC.md) for the full architecture specification a
 
 ```
 apps/
-  hook/       CLI binary — fires on every Claude Code hook event
-  ingest/     Hono API — receives events from the hook
-  web/        Next.js dashboard — personal + team views
+  hook/           CLI binary — fires on every Claude Code hook event
+  ingest/         Hono API — receives events from the hook
+  web/            Next.js dashboard — personal + team views
+  github-app/     Hono service — GitHub webhook receiver + PR bot (Phase 2)
 packages/
   auth/       IdentityProvider interface + JWT issuance
   db/         Prisma schema, migrations, Timescale DDL, typed client
@@ -96,5 +97,7 @@ packages/
 infra/
   docker-compose.yml       Local dev stack
   migrations-runner/       Docker image that applies all DB migrations
+docs/
+  github-app-setup.md      GitHub App registration guide
 tasks/                     Agent-trackable task decomposition
 ```

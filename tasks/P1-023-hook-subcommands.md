@@ -21,7 +21,7 @@ The user-facing CLI surface of `claude-telemetry`. Everything a developer needs 
 
 ## Acceptance criteria
 
-- [ ] `claude-telemetry login` runs the device-code flow against the configured web app (`CLAUDE_TELEMETRY_API` env), prints the user code + URL, polls until authorized, stores the token in OS keychain.
+- [ ] `claude-telemetry login` runs the device-code flow against the configured web app (`CLAUDE_TELEMETRY_API` env), prints the user code + URL, polls until authorized, writes `{ token, user_id_claim }` to `~/.claude-telemetry/identity.json` (mode 0600).
 - [ ] `claude-telemetry status` prints:
   - logged-in user (from token claims) or "not logged in"
   - queue depth (events_queue row count)

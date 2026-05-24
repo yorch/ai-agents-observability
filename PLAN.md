@@ -31,10 +31,10 @@ These are the **exact** versions every package targets. No `^` or `~` ranges in 
 
 | Tool | Exact version | Why this pin |
 |---|---|---|
-| Node.js | 24.6.0 | Active LTS. The Next.js prod runtime is Node 24. Bun runs everything else. |
+| Node.js | >=24 | Active LTS. The Next.js prod runtime is Node 24. Bun runs everything else. `package.json` uses `"node": ">=24"`; CI uses `setup-node@v6.4.0` with `node-version: '24'` (major pin, not exact patch). |
 | Bun | 1.3.13 | **Package manager + workspace tool + script runner + ingest/hook runtime.** Replaces pnpm. Use HOISTED installs, not isolated — Bun 1.3.0's isolated + catalogs combo has known dedup/cache bugs ([oven-sh/bun#23615](https://github.com/oven-sh/bun/issues/23615)). Revisit when fixed. Lockfile is text `bun.lock` (v3 format). |
-| Turborepo | 3.0.0 | v3 is the first release with first-class Bun workspaces support; do NOT use Turbo 2 with Bun. |
-| TypeScript | 6.0.0 | TS 7 (native Go compiler) is still beta — wait. |
+| Turborepo | 2.9.14 | Bootstrapped with 2.9.14; works correctly with Bun workspaces in practice. Upgrade to 3.x when it stabilises. |
+| TypeScript | 6.0.3 | TS 7 (native Go compiler) is still beta — wait. |
 | Biome | 2.4.0 | v2 unified lint + format; type-aware rules + GritQL plugins. |
 | Next.js | 16.2.0 | App Router default, Turbopack default for `dev` + `build`, pins React 19.2. Runs under Node 24 in prod (not Bun — Next on Bun is unofficial). |
 | React | 19.2.6 | Don't drift past what Next.js 16 pins. RSC CVE fix is in this patch. |
@@ -68,7 +68,7 @@ These are the **exact** versions every package targets. No `^` or `~` ranges in 
 
 ## 2. Repo layout
 
-Bun workspaces + Turborepo 3. Created in `P1-001`.
+Bun workspaces + Turborepo 2.9.14. Created in `P1-001`.
 
 ```
 ai-agents-observability/
@@ -166,7 +166,7 @@ These apply to every task. Don't restate in each task file.
   2. `bunfig.toml` sets `[install] exact = true` so `bun add` writes exact versions by default.
   3. `bun.lock` is the source of truth for what gets installed and is required to match `package.json`. CI runs `bun install --frozen-lockfile`; out-of-band edits fail the build.
   4. Docker image tags are exact (`pg17.9-ts2.27.0`, `RELEASE.2025-09-07T16-13-09Z`). Never `:latest`. SHA256-digest pinning (`@sha256:...`) acceptable for prod overlays.
-  5. Engine pins: `engines.node = "24.6.0"`, `engines.bun = "1.3.13"`. CI uses these exact versions via `setup-node@v4` / `setup-bun@v2`.
+  5. Engine pins: `engines.node = ">=24"` in `package.json`; CI uses `setup-node@v6.4.0` with `node-version: '24'` (major pin). `engines.bun = "1.3.13"` exact; CI uses `setup-bun@v2.2.0` with `bun-version: '1.3.13'` (exact).
   6. Bumps are deliberate: open a PR per dependency (or per coordinated group — e.g., React + react-dom + Next.js), update the catalog entry, regenerate `bun.lock`, run the full CI suite. No mass-bump PRs.
   7. Renovate/Dependabot may *propose* bumps but never auto-merges. Schedule weekly so PRs don't pile up.
   8. Security patches are an exception to (6): cherry-pick the patch version, ship same-day.
