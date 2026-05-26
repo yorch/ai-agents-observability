@@ -4,6 +4,7 @@ services:
       context: ..
       dockerfile: apps/ingest/Dockerfile
       target: build
+    init: true
     command: bun run --watch apps/ingest/src/index.ts
     depends_on:
       postgres:
@@ -41,6 +42,7 @@ services:
       context: ..
       dockerfile: apps/web/Dockerfile
       target: build
+    init: true
     command: bunx next dev --port 3000
     depends_on:
       postgres:
