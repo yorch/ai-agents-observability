@@ -6,7 +6,15 @@ WORKDIR /app
 
 # Dependency layer — rebuild only when manifests change
 COPY package.json bun.lock bunfig.toml ./
-COPY packages/db/package.json ./packages/db/package.json
+COPY apps/github-app/package.json apps/github-app/
+COPY apps/hook/package.json apps/hook/
+COPY apps/ingest/package.json apps/ingest/
+COPY apps/web/package.json apps/web/
+COPY packages/auth/package.json packages/auth/
+COPY packages/db/package.json packages/db/
+COPY packages/github/package.json packages/github/
+COPY packages/redaction/package.json packages/redaction/
+COPY packages/schemas/package.json packages/schemas/
 
 RUN bun install --frozen-lockfile
 
