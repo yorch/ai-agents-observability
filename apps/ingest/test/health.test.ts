@@ -31,12 +31,12 @@ function makeApp(overrides?: Partial<AppDeps>) {
   return { app: createApp(testConfig, deps), deps };
 }
 
-// ── /healthz ──────────────────────────────────────────────────────────────────
+// ── /health ──────────────────────────────────────────────────────────────────
 
-describe('GET /healthz', () => {
+describe('GET /health', () => {
   it('returns 200 with ok:true and version', async () => {
     const { app } = makeApp();
-    const res = await app.request('/healthz');
+    const res = await app.request('/health');
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; version: string; uptime_s: number };
@@ -47,13 +47,13 @@ describe('GET /healthz', () => {
 
   it('sets x-request-id header', async () => {
     const { app } = makeApp();
-    const res = await app.request('/healthz');
+    const res = await app.request('/health');
     expect(res.headers.get('x-request-id')).toBeTruthy();
   });
 
   it('echoes back a provided x-request-id', async () => {
     const { app } = makeApp();
-    const res = await app.request('/healthz', { headers: { 'x-request-id': 'test-req-id' } });
+    const res = await app.request('/health', { headers: { 'x-request-id': 'test-req-id' } });
     expect(res.headers.get('x-request-id')).toBe('test-req-id');
   });
 });

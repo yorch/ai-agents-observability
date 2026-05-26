@@ -44,7 +44,7 @@ COPY --from=deps --chown=github-app:github-app /app/node_modules ./node_modules
 ENV NODE_ENV=production
 EXPOSE 4001
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:4001/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD ["bun", "-e", "fetch('http://127.0.0.1:4001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
 
 CMD ["bun", "run", "dist/index.js"]
