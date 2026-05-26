@@ -35,7 +35,7 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
   app.use('*', requestIdMiddleware());
   app.use('*', loggerMiddleware(deps.logger));
 
-  app.get('/healthz', (c) =>
+  app.get('/health', (c) =>
     c.json({
       ok: true,
       uptime_s: Math.floor((Date.now() - startedAt) / 1000),

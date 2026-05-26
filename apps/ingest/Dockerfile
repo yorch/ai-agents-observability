@@ -44,7 +44,7 @@ COPY --from=deps --chown=ingest:ingest /app/node_modules ./node_modules
 ENV NODE_ENV=production
 EXPOSE 4000
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:4000/healthz || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD ["bun", "-e", "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
 
 CMD ["bun", "run", "dist/index.js"]

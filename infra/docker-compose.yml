@@ -67,6 +67,7 @@ services:
     build:
       context: ..
       dockerfile: apps/github-app/Dockerfile
+    init: true
     depends_on:
       postgres:
         condition: service_healthy
