@@ -2,6 +2,8 @@ FROM oven/bun:1.3.14-alpine
 
 RUN apk add --no-cache postgresql-client
 
+RUN addgroup -g 1001 -S runner && adduser -S runner -u 1001 -G runner
+
 WORKDIR /app
 
 # Dependency layer — rebuild only when manifests change
@@ -26,6 +28,8 @@ COPY packages/db/src/ ./packages/db/src/
 COPY infra/migrations-runner/run.ts ./run.ts
 
 # Generate Prisma client — cd to packages/db so prisma.config.ts is picked up
-RUN cd packages/db && bunx prisma generate
+RUN cd packages/db && bunx prisma generate && chown -R runner:runner /app
+
+USER runner
 
 CMD ["bun", "run.ts"]

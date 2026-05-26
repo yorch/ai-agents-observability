@@ -25,6 +25,10 @@ FROM deps AS build
 COPY tsconfig.base.json ./
 COPY packages/ packages/
 COPY apps/web/ apps/web/
+# Dummy values — next build never connects to DB or auth service.
+ARG DATABASE_URL=postgresql://x:x@placeholder:5432/x
+ARG BETTER_AUTH_SECRET=build-time-placeholder
+ENV DATABASE_URL=$DATABASE_URL BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET
 RUN cd packages/db && bunx prisma generate
 RUN cd apps/web && bunx next build
 
@@ -32,22 +36,36 @@ RUN cd apps/web && bunx next build
 FROM node:24-alpine AS production
 WORKDIR /app
 
-RUN addgroup -S web && adduser -S web -G web
-USER web
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001 -G nodejs
+
+ARG APP_VERSION=dev
+ARG COMMIT_HASH=unknown
+ARG BUILD_TIME=unknown
+ARG GIT_BRANCH=unknown
+ARG GIT_TAG=
+ARG GIT_TIMESTAMP=unknown
+ARG BUILD_NUMBER=0
+ENV APP_VERSION=${APP_VERSION} \
+    COMMIT_HASH=${COMMIT_HASH} \
+    BUILD_TIME=${BUILD_TIME} \
+    GIT_BRANCH=${GIT_BRANCH} \
+    GIT_TAG=${GIT_TAG} \
+    GIT_TIMESTAMP=${GIT_TIMESTAMP} \
+    BUILD_NUMBER=${BUILD_NUMBER}
 
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
-COPY --from=build --chown=web:web /app/apps/web/.next ./apps/web/.next
-COPY --from=build --chown=web:web /app/apps/web/package.json ./apps/web/
-COPY --from=build --chown=web:web /app/apps/web/next.config.ts ./apps/web/
-COPY --from=build --chown=web:web /app/packages/db/src/generated ./packages/db/src/generated
-COPY --from=deps --chown=web:web /app/node_modules ./node_modules
+# Standalone bundle includes only the traced runtime files; static assets
+# are served from the sibling .next/static directory.
+COPY --from=build --chown=nodejs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=build --chown=nodejs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 
-WORKDIR /app/apps/web
+USER nodejs
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD ["node", "-e", "require('http').get('http://127.0.0.1:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
 
-CMD ["npx", "next", "start"]
+CMD ["node", "apps/web/server.js"]
