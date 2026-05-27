@@ -67,11 +67,6 @@ services:
     volumes:
       - ./apps/ingest/src:/app/apps/ingest/src:ro
       - ./packages:/app/packages:ro
-    healthcheck:
-      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
-      interval: 30s
-      timeout: 3s
-      retries: 6
     restart: unless-stopped
 
   web:
