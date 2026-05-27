@@ -18,6 +18,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+permissions:
+  contents: read
+
 jobs:
   # The only per-repo edit: the publishable components. migrations-runner is a
   # one-shot job image (prisma migrate deploy + SQL); web is Next (node runtime),
