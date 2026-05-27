@@ -1,7 +1,43 @@
 services:
+  migrations:
+    build:
+      context: .
+      dockerfile: infra/migrations-runner/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_agents_observability}
+    restart: "no"
+
+  github-app:
+    build:
+      context: .
+      dockerfile: apps/github-app/Dockerfile
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_agents_observability}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET:-}
+      GITHUB_HOST: ${GITHUB_HOST:-https://github.com}
+      GITHUB_APP_PORT: ${GITHUB_APP_PORT:-4001}
+      PORT: 4001
+      HOSTNAME: 0.0.0.0
+      GIT_SHA: ${GIT_SHA:-dev}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - "${GITHUB_APP_PORT:-4001}:4001"
+    profiles: ["pr-loop"]
+    restart: unless-stopped
+
   ingest:
     build:
-      context: ..
+      context: .
       dockerfile: apps/ingest/Dockerfile
       target: build
     init: true
@@ -18,7 +54,8 @@ services:
       GIT_SHA: ${GIT_SHA:-dev}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       NODE_ENV: development
-      PORT: ${INGEST_PORT:-4000}
+      PORT: 4000
+      HOSTNAME: 0.0.0.0
       S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
       S3_BUCKET: ${S3_BUCKET:-transcripts}
       S3_ENDPOINT: http://minio:9000
@@ -28,18 +65,13 @@ services:
     ports:
       - "${INGEST_PORT:-4000}:4000"
     volumes:
-      - ../apps/ingest/src:/app/apps/ingest/src:ro
-      - ../packages:/app/packages:ro
-    healthcheck:
-      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
-      interval: 30s
-      timeout: 3s
-      retries: 6
+      - ./apps/ingest/src:/app/apps/ingest/src:ro
+      - ./packages:/app/packages:ro
     restart: unless-stopped
 
   web:
     build:
-      context: ..
+      context: .
       dockerfile: apps/web/Dockerfile
       target: build
     init: true
@@ -59,10 +91,11 @@ services:
       NEXT_PUBLIC_INGEST_URL: ${NEXT_PUBLIC_INGEST_URL:-http://localhost:4000}
       NODE_ENV: development
       PORT: 3000
+      HOSTNAME: 0.0.0.0
     ports:
       - "${WEB_PORT:-3000}:3000"
     volumes:
-      - ../apps/web/src:/app/apps/web/src:ro
-      - ../packages:/app/packages:ro
+      - ./apps/web/src:/app/apps/web/src:ro
+      - ./packages:/app/packages:ro
     working_dir: /app/apps/web
     restart: unless-stopped

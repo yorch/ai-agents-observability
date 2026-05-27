@@ -95,7 +95,7 @@ packages/
   redaction/  Transcript scrubber (7-class regex rules)
   schemas/    Zod schemas for the hook→ingest contract
 infra/
-  docker-compose.yml       Local dev stack
+  docker-compose.app.yml   Local app stack
   migrations-runner/       Docker image that applies all DB migrations
 docs/
   github-app-setup.md      GitHub App registration guide
