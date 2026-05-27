@@ -34,6 +34,21 @@ RUN bun build apps/ingest/src/index.ts \
 FROM oven/bun:1.3.14-alpine AS production
 WORKDIR /app
 
+ARG APP_VERSION=dev
+ARG COMMIT_HASH=unknown
+ARG BUILD_TIME=unknown
+ARG GIT_BRANCH=unknown
+ARG GIT_TAG=
+ARG GIT_TIMESTAMP=unknown
+ARG BUILD_NUMBER=0
+ENV APP_VERSION=${APP_VERSION} \
+    COMMIT_HASH=${COMMIT_HASH} \
+    BUILD_TIME=${BUILD_TIME} \
+    GIT_BRANCH=${GIT_BRANCH} \
+    GIT_TAG=${GIT_TAG} \
+    GIT_TIMESTAMP=${GIT_TIMESTAMP} \
+    BUILD_NUMBER=${BUILD_NUMBER}
+
 RUN addgroup -S ingest && adduser -S ingest -G ingest
 USER ingest
 
