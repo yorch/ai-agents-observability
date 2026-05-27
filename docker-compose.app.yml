@@ -1,7 +1,41 @@
 services:
+  migrations:
+    build:
+      context: .
+      dockerfile: infra/migrations-runner/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_agents_observability}
+    restart: "no"
+
+  github-app:
+    build:
+      context: .
+      dockerfile: apps/github-app/Dockerfile
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_agents_observability}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET:-}
+      GITHUB_HOST: ${GITHUB_HOST:-https://github.com}
+      GITHUB_APP_PORT: ${GITHUB_APP_PORT:-4001}
+      GIT_SHA: ${GIT_SHA:-dev}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - "${GITHUB_APP_PORT:-4001}:4001"
+    profiles: ["pr-loop"]
+    restart: unless-stopped
+
   ingest:
     build:
-      context: ..
+      context: .
       dockerfile: apps/ingest/Dockerfile
       target: build
     init: true
@@ -28,8 +62,8 @@ services:
     ports:
       - "${INGEST_PORT:-4000}:4000"
     volumes:
-      - ../apps/ingest/src:/app/apps/ingest/src:ro
-      - ../packages:/app/packages:ro
+      - ./apps/ingest/src:/app/apps/ingest/src:ro
+      - ./packages:/app/packages:ro
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -39,7 +73,7 @@ services:
 
   web:
     build:
-      context: ..
+      context: .
       dockerfile: apps/web/Dockerfile
       target: build
     init: true
@@ -62,7 +96,7 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
     volumes:
-      - ../apps/web/src:/app/apps/web/src:ro
-      - ../packages:/app/packages:ro
+      - ./apps/web/src:/app/apps/web/src:ro
+      - ./packages:/app/packages:ro
     working_dir: /app/apps/web
     restart: unless-stopped
