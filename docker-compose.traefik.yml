@@ -1,0 +1,39 @@
+# Overlay for deploying behind an existing Traefik instance.
+#   docker compose -f infra/docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.traefik.yml up -d
+#
+# Assumes Traefik is already running with an external network named `traefik`
+# and a `websecure` entrypoint + `webcert` certificate resolver.
+# DOMAIN_APP → web (Next.js UI), DOMAIN_GITHUB → github-app (webhook receiver).
+services:
+  web:
+    networks:
+      - default
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.services.${TRAEFIK_NAME_WEB:-ai-agents-web}.loadbalancer.server.port=3000"
+      - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.rule=Host(`${DOMAIN_APP}`)"
+      - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.entrypoints=websecure"
+      - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.tls=true"
+      - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.tls.certResolver=webcert"
+      - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.service=${TRAEFIK_NAME_WEB:-ai-agents-web}"
+
+  github-app:
+    networks:
+      - default
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.services.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.loadbalancer.server.port=4001"
+      - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.rule=Host(`${DOMAIN_GITHUB}`)"
+      - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.entrypoints=websecure"
+      - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.tls=true"
+      - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.tls.certResolver=webcert"
+      - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.service=${TRAEFIK_NAME_GITHUB:-ai-agents-github}"
+
+networks:
+  traefik:
+    external: true

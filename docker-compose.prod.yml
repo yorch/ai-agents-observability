@@ -1,0 +1,47 @@
+services:
+  web:
+    image: ${APP_IMAGE_WEB:-ghcr.io/yorch/ai-agents-observability/web:main}
+    pull_policy: always
+    restart: unless-stopped
+    init: true
+    ports:
+      - ${APP_PORT:-3000}:3000
+    env_file:
+      - .env
+    environment:
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+
+  ingest:
+    image: ${APP_IMAGE_INGEST:-ghcr.io/yorch/ai-agents-observability/ingest:main}
+    pull_policy: always
+    restart: unless-stopped
+    init: true
+    ports:
+      - ${INGEST_PORT:-4000}:4000
+    env_file:
+      - .env
+    environment:
+      PORT: "4000"
+      NODE_ENV: production
+
+  github-app:
+    image: ${APP_IMAGE_GITHUB:-ghcr.io/yorch/ai-agents-observability/github-app:main}
+    pull_policy: always
+    restart: unless-stopped
+    init: true
+    ports:
+      - ${GITHUB_APP_PORT:-4001}:4001
+    env_file:
+      - .env
+    environment:
+      PORT: "4001"
+      NODE_ENV: production
+
+  migrations-runner:
+    image: ${APP_IMAGE_MIGRATIONS:-ghcr.io/yorch/ai-agents-observability/migrations-runner:main}
+    pull_policy: always
+    restart: "no"
+    env_file:
+      - .env
