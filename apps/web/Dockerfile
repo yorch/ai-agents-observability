@@ -36,8 +36,6 @@ RUN cd apps/web && bunx next build
 FROM node:24-alpine AS production
 WORKDIR /app
 
-RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001 -G nodejs
-
 ARG APP_VERSION=dev
 ARG COMMIT_HASH=unknown
 ARG BUILD_TIME=unknown
@@ -59,10 +57,10 @@ ENV HOSTNAME=0.0.0.0
 
 # Standalone bundle includes only the traced runtime files; static assets
 # are served from the sibling .next/static directory.
-COPY --from=build --chown=nodejs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=build --chown=nodejs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build --chown=node:node /app/apps/web/.next/standalone ./
+COPY --from=build --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
 
-USER nodejs
+USER node
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
