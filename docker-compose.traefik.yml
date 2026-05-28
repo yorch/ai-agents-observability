@@ -7,6 +7,9 @@
 # DOMAIN_APP → web (Next.js UI), DOMAIN_GITHUB → github-app (webhook receiver).
 services:
   web:
+    # Reached only via Traefik in this overlay — clear the inherited
+    # host port mapping from docker-compose.prod.yml.
+    ports: !reset []
     networks:
       - default
       - traefik
@@ -14,13 +17,16 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
       - "traefik.http.services.${TRAEFIK_NAME_WEB:-ai-agents-web}.loadbalancer.server.port=3000"
-      - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.rule=Host(`${DOMAIN_APP}`)"
+      - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.rule=Host(`${DOMAIN_APP:?DOMAIN_APP must be set when using docker-compose.traefik.yml}`)"
       - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.entrypoints=websecure"
       - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.tls=true"
       - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.tls.certResolver=webcert"
       - "traefik.http.routers.${TRAEFIK_NAME_WEB:-ai-agents-web}.service=${TRAEFIK_NAME_WEB:-ai-agents-web}"
 
   github-app:
+    # Reached only via Traefik in this overlay — clear the inherited
+    # host port mapping from docker-compose.prod.yml.
+    ports: !reset []
     networks:
       - default
       - traefik
@@ -28,7 +34,7 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
       - "traefik.http.services.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.loadbalancer.server.port=4001"
-      - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.rule=Host(`${DOMAIN_GITHUB}`)"
+      - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.rule=Host(`${DOMAIN_GITHUB:?DOMAIN_GITHUB must be set when using docker-compose.traefik.yml}`)"
       - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.entrypoints=websecure"
       - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.tls=true"
       - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.tls.certResolver=webcert"
