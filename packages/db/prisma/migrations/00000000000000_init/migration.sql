@@ -8,7 +8,7 @@ CREATE TYPE "SessionStatus" AS ENUM ('active', 'completed', 'crashed', 'timed_ou
 CREATE TYPE "AgentType" AS ENUM ('claude_code');
 
 -- CreateEnum
-CREATE TYPE "AuditAction" AS ENUM ('view_session', 'view_transcript', 'export_team', 'export_org', 'admin_impersonate');
+CREATE TYPE "AuditAction" AS ENUM ('view_session', 'view_transcript', 'export_team', 'export_org', 'admin_impersonate', 'delete_request');
 
 -- CreateEnum
 CREATE TYPE "AuthTokenKind" AS ENUM ('access', 'refresh', 'hook');
@@ -55,6 +55,7 @@ CREATE TABLE "team_members" (
     "user_id" UUID NOT NULL,
     "role_in_team" "TeamRole" NOT NULL,
     "synced_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "left_at" TIMESTAMPTZ(6),
 
     CONSTRAINT "team_members_pkey" PRIMARY KEY ("team_id","user_id")
 );
@@ -218,6 +219,44 @@ CREATE TABLE "pr_rollups" (
     CONSTRAINT "pr_rollups_pkey" PRIMARY KEY ("repo_id","pr_number")
 );
 
+-- CreateTable
+CREATE TABLE "job_runs" (
+    "id" BIGSERIAL NOT NULL,
+    "job_name" TEXT NOT NULL,
+    "started_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "finished_at" TIMESTAMPTZ(6),
+    "status" TEXT NOT NULL,
+    "error_text" TEXT,
+
+    CONSTRAINT "job_runs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "deletion_requests" (
+    "id" BIGSERIAL NOT NULL,
+    "user_id" UUID NOT NULL,
+    "requested_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "processed_at" TIMESTAMPTZ(6),
+    "reason" TEXT,
+
+    CONSTRAINT "deletion_requests_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "webhook_deliveries" (
+    "id" BIGSERIAL NOT NULL,
+    "delivery_id" TEXT NOT NULL,
+    "event_type" TEXT NOT NULL,
+    "action" TEXT,
+    "repo" TEXT,
+    "received_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "processed_at" TIMESTAMPTZ(6),
+    "status" TEXT NOT NULL,
+    "error_text" TEXT,
+
+    CONSTRAINT "webhook_deliveries_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "teams_github_slug_key" ON "teams"("github_slug");
 
@@ -246,6 +285,9 @@ CREATE UNIQUE INDEX "repos_github_owner_github_name_key" ON "repos"("github_owne
 CREATE INDEX "auth_tokens_user_id_idx" ON "auth_tokens"("user_id");
 
 -- CreateIndex
+CREATE INDEX "auth_tokens_token_hash_idx" ON "auth_tokens"("token_hash");
+
+-- CreateIndex
 CREATE INDEX "audit_log_target_user_id_ts_idx" ON "audit_log"("target_user_id", "ts" DESC);
 
 -- CreateIndex
@@ -268,6 +310,21 @@ CREATE UNIQUE INDEX "pull_requests_github_id_key" ON "pull_requests"("github_id"
 
 -- CreateIndex
 CREATE INDEX "session_pr_links_repo_id_pr_number_idx" ON "session_pr_links"("repo_id", "pr_number");
+
+-- CreateIndex
+CREATE INDEX "job_runs_job_name_started_at_idx" ON "job_runs"("job_name", "started_at" DESC);
+
+-- CreateIndex
+CREATE INDEX "deletion_requests_user_id_idx" ON "deletion_requests"("user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "webhook_deliveries_delivery_id_key" ON "webhook_deliveries"("delivery_id");
+
+-- CreateIndex
+CREATE INDEX "webhook_deliveries_event_type_received_at_idx" ON "webhook_deliveries"("event_type", "received_at" DESC);
+
+-- CreateIndex
+CREATE INDEX "webhook_deliveries_received_at_idx" ON "webhook_deliveries"("received_at" DESC);
 
 -- AddForeignKey
 ALTER TABLE "teams" ADD CONSTRAINT "teams_parent_team_id_fkey" FOREIGN KEY ("parent_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -319,3 +376,6 @@ ALTER TABLE "session_pr_links" ADD CONSTRAINT "session_pr_links_repo_id_pr_numbe
 
 -- AddForeignKey
 ALTER TABLE "pr_rollups" ADD CONSTRAINT "pr_rollups_repo_id_pr_number_fkey" FOREIGN KEY ("repo_id", "pr_number") REFERENCES "pull_requests"("repo_id", "pr_number") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "deletion_requests" ADD CONSTRAINT "deletion_requests_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
