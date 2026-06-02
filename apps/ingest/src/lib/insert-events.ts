@@ -11,6 +11,8 @@ export type InsertResult = {
   accepted: number;
   acceptedEventIds: Set<string>;
   deduped: number;
+  /** Models seen in this batch that were absent from the price table. */
+  unknownModels: Set<string>;
 };
 
 export async function insertEventsBatch(
@@ -19,8 +21,9 @@ export async function insertEventsBatch(
   userId: string,
   priceTable: PriceTable,
 ): Promise<InsertResult> {
+  const unknownModels = new Set<string>();
   if (events.length === 0) {
-    return { accepted: 0, acceptedEventIds: new Set(), deduped: 0 };
+    return { accepted: 0, acceptedEventIds: new Set(), deduped: 0, unknownModels };
   }
 
   const rows = events.map((e) => {
@@ -32,6 +35,7 @@ export async function insertEventsBatch(
           e.llm.cache_read_tokens,
           e.llm.cache_creation_tokens,
           priceTable,
+          unknownModels,
         )
       : null;
 
@@ -98,5 +102,6 @@ export async function insertEventsBatch(
     accepted: acceptedEventIds.size,
     acceptedEventIds,
     deduped: events.length - acceptedEventIds.size,
+    unknownModels,
   };
 }

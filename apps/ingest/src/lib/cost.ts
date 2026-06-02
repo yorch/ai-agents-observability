@@ -7,9 +7,14 @@ export function computeCostUsd(
   cacheReadTokens: number,
   cacheCreationTokens: number,
   priceTable: PriceTable,
+  // Optional collector: models absent from the price table are recorded here so
+  // the caller can surface them. Otherwise a new (unpriced) model silently bills
+  // $0 despite real token usage, with no signal to update the price table.
+  unknownModels?: Set<string>,
 ): number {
   const price = priceTable.prices[model];
   if (!price) {
+    unknownModels?.add(model);
     return 0;
   }
   return (

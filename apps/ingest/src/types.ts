@@ -12,6 +12,7 @@ export type AppEnv = {
 export type EventsDb = Pick<PrismaClient, 'repo' | 'sessionPRLink' | 'pullRequest'> & {
   $executeRaw: PrismaClient['$executeRaw'];
   $queryRaw: PrismaClient['$queryRaw'];
+  $transaction: PrismaClient['$transaction'];
 };
 
 export type SessionDb = Pick<PrismaClient, 'session'>;

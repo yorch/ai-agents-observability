@@ -117,6 +117,34 @@ describe('POST /v1/events', () => {
     expect(executeRaw).not.toHaveBeenCalled();
   });
 
+  it('returns a structured 500 when the DB throws on the hot path', async () => {
+    const deps = makeTestDeps();
+    const authTokenStub = deps.db.authToken as unknown as { findFirst: ReturnType<typeof vi.fn> };
+    authTokenStub.findFirst = vi.fn().mockResolvedValue({
+      expiresAt: null,
+      id: 'tok-1',
+      kind: 'hook',
+      revokedAt: null,
+      userId: '00000000-0000-0000-0000-000000000001',
+    });
+    const dbStub = deps.db as unknown as { $queryRaw: ReturnType<typeof vi.fn> };
+    dbStub.$queryRaw = vi.fn().mockRejectedValue(new Error('connection reset'));
+
+    const app = createApp({} as unknown as Config, deps);
+    const res = await app.request('/v1/events', {
+      body: JSON.stringify(BATCH_FIXTURE),
+      headers: {
+        Authorization: 'Bearer cct_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    });
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: string; request_id: string };
+    expect(body.error).toBe('Internal server error');
+    expect(body.request_id).toBeTruthy();
+  });
+
   it('returns 413 when batch exceeds 500 events', async () => {
     const deps = makeTestDeps();
     const authTokenStub = deps.db.authToken as unknown as { findFirst: ReturnType<typeof vi.fn> };

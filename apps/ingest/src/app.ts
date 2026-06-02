@@ -67,5 +67,15 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
   app.route('/v1/events', eventsRouter(deps.db, priceTable, deps.logger));
   app.route('/v1/transcripts', transcriptsRouter({ db: deps.db, s3: deps.s3 }, deps.logger));
 
+  // Catch-all for unhandled throws (e.g. DB errors on the events hot path).
+  // Without this, Hono returns an opaque 500 with no structured log — and ingest
+  // clients retry, so the normal failure mode would be silent. Log + 500 so the
+  // client backs off and we can see the cause.
+  app.onError((err, c) => {
+    const reqId = c.get('requestId');
+    deps.logger.error({ err, reqId }, 'ingest.unhandled_error');
+    return c.json({ error: 'Internal server error', request_id: reqId }, 500);
+  });
+
   return app;
 }

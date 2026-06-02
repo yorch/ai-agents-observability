@@ -10,7 +10,7 @@ import type { Logger } from 'pino';
 import { z } from 'zod';
 
 import { objectExists, putObject, type S3Deps, transcriptKey } from '../lib/s3';
-import { processTranscript } from '../lib/transcript-pipeline';
+import { processTranscript, TranscriptTooLargeError } from '../lib/transcript-pipeline';
 import type { AppEnv } from '../types';
 
 const MAX_TRANSCRIPT_BYTES = 200 * 1024 * 1024; // 200 MB compressed
@@ -201,7 +201,15 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
 
         const reqId = c.get('requestId');
         const startMs = Date.now();
-        const result = processTranscript(compressed, mime ?? undefined);
+        let result: ReturnType<typeof processTranscript>;
+        try {
+          result = processTranscript(compressed, mime ?? undefined);
+        } catch (err) {
+          if (err instanceof TranscriptTooLargeError) {
+            return c.json({ error: 'Transcript too large after decompression' }, 413);
+          }
+          throw err;
+        }
         await putObject(deps.s3, key, result.recompressed, CONTENT_TYPE_ZSTD);
 
         await deps.db.session.update({
