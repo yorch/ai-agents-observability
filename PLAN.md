@@ -36,13 +36,13 @@ These are the **exact** versions every package targets. No `^` or `~` ranges in 
 | Turborepo | 2.9.14 | Bootstrapped with 2.9.14; works correctly with Bun workspaces in practice. Upgrade to 3.x when it stabilises. |
 | TypeScript | 6.0.3 | TS 7 (native Go compiler) is still beta — wait. |
 | Biome | 2.4.0 | v2 unified lint + format; type-aware rules + GritQL plugins. |
-| Next.js | 16.2.0 | App Router default, Turbopack default for `dev` + `build`, pins React 19.2. Runs under Node 24 in prod (not Bun — Next on Bun is unofficial). |
+| Next.js | 16.2.6 | App Router default, Turbopack default for `dev` + `build`, pins React 19.2. Runs under Node 24 in prod (not Bun — Next on Bun is unofficial). |
 | React | 19.2.6 | Don't drift past what Next.js 16 pins. RSC CVE fix is in this patch. |
 | react-dom | 19.2.6 | Lockstep with React. |
 | Tailwind CSS | 4.1.0 | Oxide engine + CSS-first config (`@theme`, no JS config file). |
 | `@tailwindcss/postcss` | 4.1.0 | Lockstep with Tailwind core. |
-| Prisma | 7.7.0 | Latest stable. Classic Prisma Client (not Prisma Postgres). |
-| `@prisma/client` | 7.7.0 | Lockstep with `prisma`. |
+| Prisma | 7.8.0 | Latest stable. Classic Prisma Client (not Prisma Postgres). |
+| `@prisma/client` | 7.8.0 | Lockstep with `prisma`. |
 | TimescaleDB image | `timescale/timescaledb-ha:pg17.9-ts2.27.0` | TSDB 2.27 on PG 17.9. Pin exact tag; TimescaleDB ABI is tied to exact PG patch. |
 | MinIO image | `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | Docker Hub MinIO images deprecated Oct 2025. Pull from quay.io. Pin exact RELEASE, never `:latest`. |
 | MinIO client image | `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` | Bucket init + lifecycle. |

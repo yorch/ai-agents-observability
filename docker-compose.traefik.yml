@@ -1,5 +1,8 @@
-# Overlay for deploying behind an existing Traefik instance.
-#   docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml \
+# Overlay for deploying behind an existing Traefik instance. Layer it on top of
+# the infra + prod compose files (the prod services depend on postgres/minio,
+# which are defined in docker-compose.infra.yml):
+#   docker compose -f docker-compose.infra.yml \
+#                  -f docker-compose.prod.yml \
 #                  -f docker-compose.traefik.yml up -d
 #
 # Assumes Traefik is already running with an external network named `traefik`
