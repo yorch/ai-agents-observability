@@ -12,9 +12,11 @@ export async function POST() {
   if (access) {
     try {
       const { userId } = await verifyAccessToken(access);
+      // Revoke only refresh tokens — a web sign-out must NOT revoke the long-lived
+      // `hook` token, which would silently kill the developer's CLI telemetry.
       await getPrisma().authToken.updateMany({
         data: { revokedAt: new Date() },
-        where: { revokedAt: null, userId },
+        where: { kind: 'refresh', revokedAt: null, userId },
       });
     } catch {
       // Best-effort revocation — still clear cookies

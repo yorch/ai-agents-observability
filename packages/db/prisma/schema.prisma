@@ -28,6 +28,7 @@ enum AuditAction {
   export_org
   admin_impersonate
   delete_request
+  hook_token_issued
 }
 
 enum AuthTokenKind {

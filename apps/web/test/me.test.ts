@@ -8,6 +8,7 @@ beforeEach(() => {
 // ── Mock @ai-agents-observability/db ────────────────────────────────────────
 
 const mockPrisma = {
+  $queryRaw: vi.fn(),
   session: {
     aggregate: vi.fn(),
     count: vi.fn(),
@@ -21,6 +22,8 @@ const mockPrisma = {
 
 vi.mock('@ai-agents-observability/db', () => ({
   createClient: vi.fn(() => mockPrisma),
+  // Minimal Prisma.sql tag so $queryRaw call sites don't blow up under mock.
+  Prisma: { sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }) },
 }));
 
 // ── getUsageSummary ──────────────────────────────────────────────────────────
@@ -84,32 +87,31 @@ describe('getUsageSummary', () => {
 // ── getTopTools ──────────────────────────────────────────────────────────────
 
 describe('getTopTools', () => {
-  it('groups by primaryModel and sums toolCallCount', async () => {
-    mockPrisma.session.findMany.mockResolvedValueOnce([
-      { primaryModel: 'claude-sonnet', toolCallCount: 10 },
-      { primaryModel: 'claude-sonnet', toolCallCount: 5 },
-      { primaryModel: 'claude-opus', toolCallCount: 3 },
+  it('returns real per-tool counts from the events firehose', async () => {
+    // Counts come from the events table (tool_name), not from primary_model.
+    mockPrisma.$queryRaw.mockResolvedValueOnce([
+      { call_count: 15n, tool_name: 'Edit' },
+      { call_count: 3n, tool_name: 'Bash' },
     ]);
 
     const { getTopTools } = await import('../src/lib/me-queries.js');
     const result = await getTopTools('u1', new Date(0));
 
-    expect(result[0]).toEqual({ callCount: 15, toolName: 'claude-sonnet' });
-    expect(result[1]).toEqual({ callCount: 3, toolName: 'claude-opus' });
+    expect(result[0]).toEqual({ callCount: 15, toolName: 'Edit' });
+    expect(result[1]).toEqual({ callCount: 3, toolName: 'Bash' });
   });
 
-  it('respects the limit parameter', async () => {
-    mockPrisma.session.findMany.mockResolvedValueOnce([
-      { primaryModel: 'a', toolCallCount: 5 },
-      { primaryModel: 'b', toolCallCount: 4 },
-      { primaryModel: 'c', toolCallCount: 3 },
-      { primaryModel: 'd', toolCallCount: 2 },
+  it('maps each returned row and coerces bigint counts to number', async () => {
+    mockPrisma.$queryRaw.mockResolvedValueOnce([
+      { call_count: 5n, tool_name: 'Read' },
+      { call_count: 4n, tool_name: 'Grep' },
     ]);
 
     const { getTopTools } = await import('../src/lib/me-queries.js');
     const result = await getTopTools('u1', new Date(0), 2);
 
     expect(result).toHaveLength(2);
+    expect(typeof result[0]?.callCount).toBe('number');
   });
 });
 

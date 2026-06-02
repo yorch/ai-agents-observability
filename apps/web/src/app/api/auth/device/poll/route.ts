@@ -66,6 +66,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch GitHub user' }, { status: 502 });
   }
 
+  // Single-org enforcement (opt-in). Without this gate, anyone with a GitHub
+  // account who completes the device flow can mint a 365-day hook token and
+  // start ingesting. When GITHUB_ALLOWED_ORG is set, require membership first.
+  const allowedOrg = process.env.GITHUB_ALLOWED_ORG;
+  if (allowedOrg) {
+    try {
+      const { data: orgs } = await ghClient.rest.orgs.listForAuthenticatedUser({ per_page: 100 });
+      const isMember = orgs.some((o) => o.login.toLowerCase() === allowedOrg.toLowerCase());
+      if (!isMember) {
+        return NextResponse.json(
+          { error: 'Not a member of the authorized organization' },
+          { status: 403 },
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: 'Failed to verify organization membership' },
+        { status: 502 },
+      );
+    }
+  }
+
   let hookToken: string;
   try {
     const db = getPrisma();
@@ -84,12 +106,15 @@ export async function POST(request: Request) {
     await ensureVisibilityPolicy(db, user.id);
     hookToken = await issueHookToken(db, user.id);
 
+    const forwardedFor = request.headers.get('x-forwarded-for');
     await db.auditLog.create({
       data: {
-        action: 'view_session', // placeholder — Phase 3 adds hook_token_issued to AuditAction
+        action: 'hook_token_issued',
         actorUserId: user.id,
+        ip: forwardedFor?.split(',')[0]?.trim() ?? null,
         justification: 'Device-code hook token issued',
         targetUserId: user.id,
+        userAgent: request.headers.get('user-agent'),
       },
     });
   } catch {

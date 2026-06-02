@@ -1,5 +1,12 @@
-import type { $Enums, Prisma } from '@ai-agents-observability/db';
+import { type $Enums, Prisma } from '@ai-agents-observability/db';
 import { getPrisma } from './prisma';
+
+export type ModelBreakdownRow = {
+  inputTokens: bigint;
+  model: string;
+  outputTokens: bigint;
+  turns: number;
+};
 
 const VALID_STATUSES = new Set<string>([
   'active',
@@ -165,6 +172,40 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
     transcriptS3Key: s.transcriptS3Key,
     userMessageCount: s.userMessageCount,
   };
+}
+
+/**
+ * Real per-model token/turn breakdown for a session, from the events firehose.
+ * The sessions row only has per-model TURN counts and session-total tokens — not
+ * per-model token splits — so a truthful model table must aggregate events by
+ * `model`. Scoped by userId as defense-in-depth (callers already own-check).
+ */
+export async function getSessionModelBreakdown(
+  userId: string,
+  sessionId: string,
+): Promise<ModelBreakdownRow[]> {
+  const prisma = getPrisma();
+  const rows = await prisma.$queryRaw<
+    { input_tokens: bigint | null; model: string; output_tokens: bigint | null; turns: bigint }[]
+  >(Prisma.sql`
+    SELECT model,
+           COUNT(*) AS turns,
+           COALESCE(SUM(input_tokens), 0) AS input_tokens,
+           COALESCE(SUM(output_tokens), 0) AS output_tokens
+    FROM events
+    WHERE session_id = ${sessionId}::uuid
+      AND user_id = ${userId}::uuid
+      AND model IS NOT NULL
+    GROUP BY model
+    ORDER BY turns DESC
+  `);
+
+  return rows.map((r) => ({
+    inputTokens: r.input_tokens ?? 0n,
+    model: r.model,
+    outputTokens: r.output_tokens ?? 0n,
+    turns: Number(r.turns),
+  }));
 }
 
 export async function listDistinctRepos(userId: string): Promise<string[]> {
