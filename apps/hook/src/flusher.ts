@@ -58,15 +58,10 @@ export function buildBatchEnvelope(events: unknown[]): {
   events: unknown[];
   session_context: unknown;
 } {
-  let sessionContext: unknown = null;
-  for (let i = events.length - 1; i >= 0; i--) {
-    const ctx = (events[i] as { session_context?: unknown } | null)?.session_context;
-    if (ctx) {
-      sessionContext = ctx;
-      break;
-    }
-  }
-  return { events, session_context: sessionContext };
+  const newest = (events as Array<{ session_context?: unknown } | null>).findLast(
+    (e) => e?.session_context,
+  );
+  return { events, session_context: newest?.session_context ?? null };
 }
 
 // ── JWT token ─────────────────────────────────────────────────────────────────
@@ -162,8 +157,10 @@ export async function runFlusher(): Promise<void> {
           reader.close();
           process.exit(1);
         } else if (res.status === 429) {
-          // Rate-limited — mark attempts and back off; do not delete events
-          reader.markAttempt(eventIds);
+          // Rate-limited — explicit server backpressure, NOT a failure. Back off
+          // but do NOT markAttempt: counting 429s toward the attempt cap would
+          // let sustained throttling push rows past the cap and dropAbandoned()
+          // would then permanently delete valid, deliverable events.
           log('warn', 'flusher.rate_limited', { attempt, count: rows.length, status: res.status });
           writeFlusherState({
             ...readFlusherState(),

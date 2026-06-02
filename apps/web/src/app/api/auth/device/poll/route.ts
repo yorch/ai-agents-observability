@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { ensureVisibilityPolicy } from '../../../../../lib/ensure-visibility-policy';
 import { getPrisma } from '../../../../../lib/prisma';
+import { clientIp } from '../../../../../lib/request-meta';
 
 const PollBody = z.object({ device_code: z.string().min(1) });
 
@@ -111,12 +112,11 @@ export async function POST(request: Request) {
     await ensureVisibilityPolicy(db, user.id);
     hookToken = await issueHookToken(db, user.id);
 
-    const forwardedFor = request.headers.get('x-forwarded-for');
     await db.auditLog.create({
       data: {
         action: 'hook_token_issued',
         actorUserId: user.id,
-        ip: forwardedFor?.split(',')[0]?.trim() ?? null,
+        ip: clientIp(request.headers),
         justification: 'Device-code hook token issued',
         targetUserId: user.id,
         userAgent: request.headers.get('user-agent'),

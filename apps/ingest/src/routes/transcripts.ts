@@ -73,10 +73,15 @@ async function withSessionLock<T>(sessionId: string, fn: () => Promise<T>): Prom
   }
 }
 
+// Scratch-file naming, shared with the sweep job (jobs/sweep-scratch.ts) so the
+// two can't drift. Exported as the single source of truth for the pattern.
+export const SCRATCH_PREFIX = 'claude-telemetry-transcript-';
+export const SCRATCH_SUFFIX = '.zst.part';
+
 // User-scoped scratch path: a malicious request can't address another user's
 // session_id even if they guess one, because the path includes user.id.
 function chunkPath(userId: string, sessionId: string): string {
-  return join(tmpdir(), `claude-telemetry-transcript-${userId}-${sessionId}.zst.part`);
+  return join(tmpdir(), `${SCRATCH_PREFIX}${userId}-${sessionId}${SCRATCH_SUFFIX}`);
 }
 
 export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<AppEnv> {

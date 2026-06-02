@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 import { log } from './lib/log';
@@ -85,11 +93,16 @@ function recordRetryableFailure(marker: ShipMarker, reason: string): boolean {
     return true;
   }
   try {
-    writeFileSync(
-      join(shipQueueDir(), `${marker.session_id}.json`),
-      JSON.stringify({ ...marker, attempts }, null, 2),
-      { encoding: 'utf8', mode: 0o600 },
-    );
+    // Atomic rewrite: write a temp file then rename, so a crash mid-write can't
+    // leave a truncated marker (which the reader would skip — losing the
+    // transcript silently — or whose attempts counter would reset).
+    const finalPath = join(shipQueueDir(), `${marker.session_id}.json`);
+    const tmpPath = `${finalPath}.tmp`;
+    writeFileSync(tmpPath, JSON.stringify({ ...marker, attempts }, null, 2), {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
+    renameSync(tmpPath, finalPath);
   } catch {
     // best-effort; if we can't persist the attempt count we'll just retry again
   }
@@ -211,19 +224,18 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
       log('info', 'shipper.uploaded', { bytes: body.byteLength, session_id, status: res.status });
     } else if (res.status === 404) {
       // The session row doesn't exist yet — the events pipeline hasn't created
-      // it (e.g. the flusher is behind or offline). This is transient ordering,
-      // NOT bad data: keep the marker and retry (capped) so we don't drop the
-      // transcript permanently.
+      // it (e.g. the flusher is behind or offline). Transient ordering, NOT bad
+      // data: keep the marker and retry WITHOUT consuming the abandon budget, so
+      // a slow/offline flusher can't cause valid transcripts to be dropped.
       log('info', 'shipper.session_not_ready', { session_id, status: res.status });
-      recordRetryableFailure(marker, 'session_not_ready');
     } else if (res.status === 409) {
-      // Conflict — retryable, retry next sweep (capped)
+      // Conflict (e.g. missing prior chunk) — transient ordering; keep + retry,
+      // no attempt bump.
       log('info', 'shipper.conflict', { session_id, status: res.status });
-      recordRetryableFailure(marker, 'conflict');
     } else if (res.status === 429) {
-      // Rate-limited — retryable, retry next sweep (capped)
+      // Rate-limited — explicit server backpressure, NOT a failure. Keep the
+      // marker and retry next sweep without counting toward the abandon cap.
       log('warn', 'shipper.rate_limited', { session_id, status: res.status });
-      recordRetryableFailure(marker, 'rate_limited');
     } else if (res.status >= 400 && res.status < 500) {
       // 4xx (non-404, non-409, non-429): bad data, server won't accept — drop.
       try {

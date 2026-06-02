@@ -3,11 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Logger } from 'pino';
 
-// Must match the scratch-file naming in routes/transcripts.ts `chunkPath()`.
+import { SCRATCH_PREFIX, SCRATCH_SUFFIX } from '../routes/transcripts';
+
 // Chunked uploads write a `.part` scratch file; an abandoned upload (client
 // uploads chunk 0 then disappears) would otherwise leave it in tmp forever.
-const SCRATCH_PREFIX = 'claude-telemetry-transcript-';
-const SCRATCH_SUFFIX = '.zst.part';
+// Pattern is imported from transcripts.ts so the two can't drift.
 const MAX_AGE_MS = 6 * 60 * 60 * 1_000; // 6h — far beyond any legitimate upload
 
 export async function runSweepScratch(

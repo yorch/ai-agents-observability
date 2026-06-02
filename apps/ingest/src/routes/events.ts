@@ -73,23 +73,29 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
       // ON CONFLICT DO NOTHING swallows them, leaving acceptedEventIds empty and
       // the session aggregate never updated (permanent, unrecoverable drift). A
       // single transaction makes the retry re-insert AND re-aggregate together.
-      const { inserted, aggregated } = await db.$transaction(async (tx) => {
-        const insertedTx = await insertEventsBatch(tx, batch.events, userId, priceTable);
+      const { inserted, aggregated } = await db.$transaction(
+        async (tx) => {
+          const insertedTx = await insertEventsBatch(tx, batch.events, userId, priceTable);
 
-        // Only feed newly-inserted events into the per-session accumulator.
-        const acceptedEventsTx = batch.events.filter((e) =>
-          insertedTx.acceptedEventIds.has(e.event_id),
-        );
-        const aggregatedTx = await upsertSessions(
-          tx,
-          acceptedEventsTx,
-          userId,
-          repoIdByKey,
-          priceTable,
-          topGit,
-        );
-        return { aggregated: aggregatedTx, inserted: insertedTx };
-      });
+          // Only feed newly-inserted events into the per-session accumulator.
+          const acceptedEventsTx = batch.events.filter((e) =>
+            insertedTx.acceptedEventIds.has(e.event_id),
+          );
+          const aggregatedTx = await upsertSessions(
+            tx,
+            acceptedEventsTx,
+            userId,
+            repoIdByKey,
+            priceTable,
+            topGit,
+          );
+          return { aggregated: aggregatedTx, inserted: insertedTx };
+        },
+        // A full 500-event batch (multi-row INSERT + per-session UPSERTs) can
+        // exceed Prisma's 5s default interactive-transaction timeout under load;
+        // raise it so a heavy-but-healthy batch isn't rolled back and retried whole.
+        { maxWait: 5_000, timeout: 30_000 },
+      );
 
       if (inserted.unknownModels.size > 0) {
         logger.warn(

@@ -59,7 +59,7 @@ function ModelsTab({ costUsd, rows }: { costUsd: number; rows: ModelBreakdownRow
         <thead>
           <tr className="text-white/40 text-xs border-b border-white/10">
             <th className="text-left pb-2">Model</th>
-            <th className="text-right pb-2">Turns</th>
+            <th className="text-right pb-2">Calls</th>
             <th className="text-right pb-2">Input tokens</th>
             <th className="text-right pb-2">Output tokens</th>
           </tr>
@@ -75,7 +75,7 @@ function ModelsTab({ costUsd, rows }: { costUsd: number; rows: ModelBreakdownRow
             rows.map((r) => (
               <tr key={r.model} className="border-b border-white/5">
                 <td className="py-2 text-white/70">{r.model}</td>
-                <td className="py-2 text-right text-white/60">{r.turns}</td>
+                <td className="py-2 text-right text-white/60">{r.calls}</td>
                 <td className="py-2 text-right text-white/60">
                   {r.inputTokens > 0n ? r.inputTokens.toString() : '—'}
                 </td>

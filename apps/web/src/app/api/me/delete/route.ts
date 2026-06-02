@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { currentUser } from '../../../../lib/auth';
 import { getPrisma } from '../../../../lib/prisma';
+import { clientIp } from '../../../../lib/request-meta';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,6 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const prisma = getPrisma();
-  const forwardedFor = req.headers.get('x-forwarded-for');
 
   await prisma.$transaction([
     prisma.deletionRequest.create({
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       data: {
         action: 'delete_request',
         actorUserId: user.id,
-        ip: forwardedFor?.split(',')[0]?.trim() ?? null,
+        ip: clientIp(req.headers),
         justification: 'User requested data deletion',
         targetUserId: user.id,
         userAgent: req.headers.get('user-agent'),
