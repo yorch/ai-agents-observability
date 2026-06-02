@@ -55,7 +55,12 @@ export async function POST(request: Request) {
   }
 
   if (pollResult.status === 'pending') {
-    return NextResponse.json({ status: 'pending' });
+    // Relay GitHub's slow_down so the CLI widens its polling interval.
+    return NextResponse.json(
+      pollResult.slowDown
+        ? { interval: pollResult.interval, slow_down: true, status: 'pending' }
+        : { status: 'pending' },
+    );
   }
 
   const ghClient = createGitHubClient({ token: pollResult.access_token });

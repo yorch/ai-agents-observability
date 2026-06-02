@@ -15,7 +15,7 @@ type StartResult = {
 };
 
 type PollResult =
-  | { status: 'pending' }
+  | { status: 'pending'; slow_down?: boolean; interval?: number }
   | { github_login: string; hook_token: string; status: 'authorized' };
 
 export async function runLogin(): Promise<number> {
@@ -40,7 +40,7 @@ export async function runLogin(): Promise<number> {
   process.stdout.write(`  URL:  ${startResult.verification_uri}\n\n`);
   process.stdout.write('Waiting for authorization...\n');
 
-  const intervalMs = Math.max((startResult.interval ?? 5) * 1_000, 5_000);
+  let intervalMs = Math.max((startResult.interval ?? 5) * 1_000, 5_000);
   const deadline = Date.now() + Math.min((startResult.expires_in ?? 900) * 1_000, POLL_TIMEOUT_MS);
 
   while (Date.now() < deadline) {
@@ -65,6 +65,11 @@ export async function runLogin(): Promise<number> {
     }
 
     if (pollResult.status === 'pending') {
+      // Honor GitHub's slow_down: widen the interval (use the server-provided
+      // value if present, otherwise add 5s per GitHub's guidance).
+      if (pollResult.slow_down) {
+        intervalMs = pollResult.interval ? pollResult.interval * 1_000 : intervalMs + 5_000;
+      }
       continue;
     }
 
