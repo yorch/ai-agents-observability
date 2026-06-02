@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { ensureVisibilityPolicy } from '../../../../../lib/ensure-visibility-policy';
 import { getPrisma } from '../../../../../lib/prisma';
+import { clientIp } from '../../../../../lib/request-meta';
 
 const PollBody = z.object({ device_code: z.string().min(1) });
 
@@ -55,7 +56,12 @@ export async function POST(request: Request) {
   }
 
   if (pollResult.status === 'pending') {
-    return NextResponse.json({ status: 'pending' });
+    // Relay GitHub's slow_down so the CLI widens its polling interval.
+    return NextResponse.json(
+      pollResult.slowDown
+        ? { interval: pollResult.interval, slow_down: true, status: 'pending' }
+        : { status: 'pending' },
+    );
   }
 
   const ghClient = createGitHubClient({ token: pollResult.access_token });
@@ -64,6 +70,28 @@ export async function POST(request: Request) {
     ({ data: ghUser } = await ghClient.rest.users.getAuthenticated());
   } catch {
     return NextResponse.json({ error: 'Failed to fetch GitHub user' }, { status: 502 });
+  }
+
+  // Single-org enforcement (opt-in). Without this gate, anyone with a GitHub
+  // account who completes the device flow can mint a 365-day hook token and
+  // start ingesting. When GITHUB_ALLOWED_ORG is set, require membership first.
+  const allowedOrg = process.env.GITHUB_ALLOWED_ORG;
+  if (allowedOrg) {
+    try {
+      const { data: orgs } = await ghClient.rest.orgs.listForAuthenticatedUser({ per_page: 100 });
+      const isMember = orgs.some((o) => o.login.toLowerCase() === allowedOrg.toLowerCase());
+      if (!isMember) {
+        return NextResponse.json(
+          { error: 'Not a member of the authorized organization' },
+          { status: 403 },
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: 'Failed to verify organization membership' },
+        { status: 502 },
+      );
+    }
   }
 
   let hookToken: string;
@@ -86,10 +114,12 @@ export async function POST(request: Request) {
 
     await db.auditLog.create({
       data: {
-        action: 'view_session', // placeholder — Phase 3 adds hook_token_issued to AuditAction
+        action: 'hook_token_issued',
         actorUserId: user.id,
+        ip: clientIp(request.headers),
         justification: 'Device-code hook token issued',
         targetUserId: user.id,
+        userAgent: request.headers.get('user-agent'),
       },
     });
   } catch {

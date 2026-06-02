@@ -19,11 +19,7 @@
     "bench": "bun run bench/hook.bench.ts"
   },
   "dependencies": {
-    "@ai-agents-observability/schemas": "workspace:*",
-    "jose": "catalog:",
-    "keytar": "catalog:",
-    "pino": "catalog:",
-    "zod": "catalog:"
+    "@ai-agents-observability/schemas": "workspace:*"
   },
   "devDependencies": {
     "bun-types": "catalog:",

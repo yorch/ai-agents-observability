@@ -14,6 +14,10 @@ export const EventTypeSchema = z.enum([
   'PreCompact',
   'SubagentStop',
   'Notification',
+  // Distinct from Stop — fires when the session itself ends (vs. a single
+  // response stopping). Listed as valid in DESIGN_DOC §5.3; without it a hook
+  // emitting SessionEnd would fail validation.
+  'SessionEnd',
 ]);
 export type EventType = z.infer<typeof EventTypeSchema>;
 
@@ -60,6 +64,10 @@ export const EventSchema = z.object({
   llm: LLMInfoSchema.nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).default({}),
   parent_event_id: z.uuidv7().nullable().optional(),
+  // Informational only: which client-side redaction classes fired for this
+  // event's content. There is no `redaction_flags` column on the events
+  // hypertable (§9.1 keeps flags with the transcript / session, not per-event);
+  // ingest accepts but does not persist this field.
   redaction_flags: z.array(z.string()).default([]),
   schema_version: z.literal(1),
   session_context: SessionContextSchema,

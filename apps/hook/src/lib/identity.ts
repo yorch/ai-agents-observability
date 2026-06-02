@@ -24,3 +24,21 @@ export function userIdClaim(): string {
   cached = 'pending-login';
   return cached;
 }
+
+/**
+ * Load the hook auth token written by `claude-telemetry login` (the `token`
+ * field of the identity file). Returns null when absent/unreadable. Shared by
+ * the flusher and transcript shipper so the read isn't duplicated.
+ */
+export function loadHookToken(): string | null {
+  try {
+    const raw = readFileSync(identityPath(), 'utf8');
+    const parsed = JSON.parse(raw) as { token?: unknown };
+    if (typeof parsed.token === 'string' && parsed.token.length > 0) {
+      return parsed.token;
+    }
+  } catch {
+    // No identity file or unreadable.
+  }
+  return null;
+}

@@ -1,16 +1,38 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
+import { loadHookToken } from './lib/identity';
+import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
-import { identityPath, shipQueueDir } from './lib/paths';
+import { shipQueueDir } from './lib/paths';
 import { redactedLines } from './lib/transcript-stream';
 
-const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
 const SWEEP_INTERVAL_MS = 10 * 60 * 1_000; // 10 minutes
 
 // Bandwidth throttle: max 5 MB/s
 const MAX_BYTES_PER_SEC = 5 * 1024 * 1024;
+
+// Max ship attempts before a marker is abandoned. A perpetually-failing
+// transcript (server 500s, unreadable file) must not be re-read/re-uploaded
+// forever every sweep.
+const MAX_SHIP_ATTEMPTS = 10;
+
+// Max age for transient outcomes (404/409/429) that DON'T bump the attempt
+// counter. These are normally short-lived ordering/backpressure, but a 404 can
+// also be permanent (bad session id, the session was deleted, or ingest cleaned
+// it up), in which case the marker would otherwise retry forever. After this age
+// we give up. Generous so a slow/offline flusher backfilling the session row
+// still wins.
+const MAX_TRANSIENT_AGE_MS = 24 * 60 * 60 * 1_000; // 24h
 
 // ── Ship marker ───────────────────────────────────────────────────────────────
 
@@ -19,6 +41,9 @@ export type ShipMarker = {
   transcript_path: string;
   partial: boolean;
   bytes_uploaded: number;
+  attempts?: number;
+  /** ISO timestamp the marker was first created; used to age out stale 404s. */
+  first_seen_at?: string;
 };
 
 export function writeShipMarker(sessionId: string, transcriptPath: string, partial: boolean): void {
@@ -27,6 +52,7 @@ export function writeShipMarker(sessionId: string, transcriptPath: string, parti
     mkdirSync(dir, { recursive: true });
     const marker: ShipMarker = {
       bytes_uploaded: 0,
+      first_seen_at: new Date().toISOString(),
       partial,
       session_id: sessionId,
       transcript_path: transcriptPath,
@@ -66,19 +92,53 @@ function deleteMarker(sessionId: string): void {
   rmSync(join(shipQueueDir(), `${sessionId}.json`), { force: true });
 }
 
-// ── JWT token ─────────────────────────────────────────────────────────────────
-
-function loadJwt(): string | null {
-  try {
-    const raw = readFileSync(identityPath(), 'utf8');
-    const parsed = JSON.parse(raw) as { token?: unknown };
-    if (typeof parsed.token === 'string' && parsed.token.length > 0) {
-      return parsed.token;
-    }
-    return null;
-  } catch {
-    return null;
+/**
+ * Record a failed attempt for a retryable outcome. Bumps the marker's attempt
+ * counter; once the cap is hit the marker is dropped (and logged) so a poison
+ * transcript can't loop forever. Returns true if the marker was abandoned.
+ */
+function recordRetryableFailure(marker: ShipMarker, reason: string): boolean {
+  const attempts = (marker.attempts ?? 0) + 1;
+  if (attempts >= MAX_SHIP_ATTEMPTS) {
+    deleteMarker(marker.session_id);
+    log('error', 'shipper.abandoned', { attempts, reason, session_id: marker.session_id });
+    return true;
   }
+  try {
+    // Atomic rewrite: write a temp file then rename, so a crash mid-write can't
+    // leave a truncated marker (which the reader would skip — losing the
+    // transcript silently — or whose attempts counter would reset).
+    const finalPath = join(shipQueueDir(), `${marker.session_id}.json`);
+    const tmpPath = `${finalPath}.tmp`;
+    writeFileSync(tmpPath, JSON.stringify({ ...marker, attempts }, null, 2), {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
+    renameSync(tmpPath, finalPath);
+  } catch {
+    // best-effort; if we can't persist the attempt count we'll just retry again
+  }
+  return false;
+}
+
+/**
+ * Handle a transient outcome (404/409/429) that should keep retrying without
+ * burning the attempt budget — but abandon the marker once it's older than
+ * MAX_TRANSIENT_AGE_MS, so a permanently-absent session (deleted, bad id, or
+ * ingest cleanup) can't loop forever. Returns true if the marker was abandoned.
+ */
+function keepOrAbandonStale(marker: ShipMarker, reason: string): boolean {
+  const firstSeen = marker.first_seen_at ? Date.parse(marker.first_seen_at) : Number.NaN;
+  if (!Number.isNaN(firstSeen) && Date.now() - firstSeen > MAX_TRANSIENT_AGE_MS) {
+    deleteMarker(marker.session_id);
+    log('error', 'shipper.abandoned_stale', {
+      ageMs: Date.now() - firstSeen,
+      reason,
+      session_id: marker.session_id,
+    });
+    return true;
+  }
+  return false;
 }
 
 // ── Bandwidth-throttled upload ────────────────────────────────────────────────
@@ -156,7 +216,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
     ({ body, hash } = await buildGzipBody(transcript_path));
   } catch (err) {
     log('warn', 'shipper.read_error', { message: (err as Error).message, session_id });
-    // skip for now, retry next sweep
+    recordRetryableFailure(marker, 'read_error');
     return;
   }
 
@@ -179,14 +239,31 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
         });
       }
       log('info', 'shipper.uploaded', { bytes: body.byteLength, session_id, status: res.status });
+    } else if (res.status === 404) {
+      // The session row doesn't exist yet — the events pipeline hasn't created
+      // it (e.g. the flusher is behind or offline). Transient ordering, NOT bad
+      // data: keep the marker and retry WITHOUT consuming the attempt budget, so
+      // a slow/offline flusher can't cause valid transcripts to be dropped. But a
+      // 404 can also be permanent (deleted/unknown session), so age the marker
+      // out after MAX_TRANSIENT_AGE_MS instead of looping forever.
+      if (!keepOrAbandonStale(marker, 'session_not_ready')) {
+        log('info', 'shipper.session_not_ready', { session_id, status: res.status });
+      }
     } else if (res.status === 409) {
-      // Conflict — skip for now, retry next sweep
-      log('info', 'shipper.conflict', { session_id, status: res.status });
+      // Conflict (e.g. missing prior chunk) — transient ordering; keep + retry,
+      // no attempt bump (aged out after MAX_TRANSIENT_AGE_MS).
+      if (!keepOrAbandonStale(marker, 'conflict')) {
+        log('info', 'shipper.conflict', { session_id, status: res.status });
+      }
     } else if (res.status === 429) {
-      // Rate-limited — keep marker, retry next sweep
-      log('warn', 'shipper.rate_limited', { session_id, status: res.status });
+      // Rate-limited — explicit server backpressure, NOT a failure. Keep the
+      // marker and retry next sweep without counting toward the attempt cap
+      // (aged out after MAX_TRANSIENT_AGE_MS).
+      if (!keepOrAbandonStale(marker, 'rate_limited')) {
+        log('warn', 'shipper.rate_limited', { session_id, status: res.status });
+      }
     } else if (res.status >= 400 && res.status < 500) {
-      // 4xx (non-409, non-429): bad data, server won't accept — delete marker
+      // 4xx (non-404, non-409, non-429): bad data, server won't accept — drop.
       try {
         deleteMarker(session_id);
       } catch {
@@ -194,12 +271,14 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
       }
       log('warn', 'shipper.rejected', { session_id, status: res.status });
     } else {
-      // 5xx / unexpected: skip for now, retry next sweep
+      // 5xx / unexpected: retryable, retry next sweep (capped)
       log('warn', 'shipper.server_error', { session_id, status: res.status });
+      recordRetryableFailure(marker, `server_error_${res.status}`);
     }
   } catch (err) {
-    // Network error: skip for now, retry next sweep
+    // Network error: retryable, retry next sweep (capped)
     log('warn', 'shipper.network_error', { message: (err as Error).message, session_id });
+    recordRetryableFailure(marker, 'network_error');
   }
 }
 
@@ -215,7 +294,7 @@ export async function runShipper(): Promise<void> {
       continue;
     }
 
-    const jwt = loadJwt();
+    const jwt = loadHookToken();
     if (!jwt) {
       log('warn', 'shipper.no_token', { hint: 'Run `claude-telemetry login` to authenticate' });
       await Bun.sleep(SWEEP_INTERVAL_MS);

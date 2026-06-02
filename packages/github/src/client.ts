@@ -4,11 +4,16 @@ import { Octokit } from 'octokit';
 const GITHUB_COM_HOST = 'https://github.com';
 const GITHUB_COM_API = 'https://api.github.com';
 
-function resolveApiBase(host: string): string {
+/**
+ * Map a GitHub host origin to its REST API base. `https://github.com` →
+ * `https://api.github.com`; any other (GHES) host → `<host>/api/v3`. Exported as
+ * the single source of truth so services don't re-derive it inline.
+ */
+export function resolveApiBase(host: string): string {
   if (host === GITHUB_COM_HOST) {
     return GITHUB_COM_API;
   }
-  return `${host}/api/v3`;
+  return `${host.replace(/\/$/, '')}/api/v3`;
 }
 
 function isGhes(host: string): boolean {

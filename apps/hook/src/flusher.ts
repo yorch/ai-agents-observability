@@ -2,15 +2,15 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import { backoffSleep } from './lib/backoff';
+import { loadHookToken } from './lib/identity';
+import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
-import { flusherStatePath, identityPath, telemetryHome } from './lib/paths';
+import { flusherStatePath, telemetryHome } from './lib/paths';
 import { openQueueReader } from './lib/queue-reader';
 
-const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
 const BATCH_SIZE = 100;
 const IDLE_INTERVAL_MS = 5_000;
 const HIGH_WATER_MARK = 50;
-const _MAX_ATTEMPTS = 10;
 
 // ── State file ────────────────────────────────────────────────────────────────
 
@@ -43,19 +43,26 @@ export function getFlusherStatus(): FlusherStatus {
   return readFlusherState();
 }
 
-// ── JWT token ─────────────────────────────────────────────────────────────────
+// ── Batch envelope ──────────────────────────────────────────────────────────
 
-function loadJwt(): string | null {
-  try {
-    const raw = readFileSync(identityPath(), 'utf8');
-    const parsed = JSON.parse(raw) as { token?: unknown };
-    if (typeof parsed.token === 'string' && parsed.token.length > 0) {
-      return parsed.token;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+/**
+ * Build the `POST /v1/events` request body from queued event payloads.
+ *
+ * `EventsBatchSchema` requires a non-nullable top-level `session_context`
+ * envelope — ingest uses it as a repo-attribution fallback. Each event already
+ * carries its own context, so we reuse the newest event's context for the
+ * envelope. Sending `session_context: null` (the previous behaviour) failed
+ * validation with a 400 on every batch, which the flusher then treated as
+ * "bad data" and silently deleted — dropping all telemetry end-to-end.
+ */
+export function buildBatchEnvelope(events: unknown[]): {
+  events: unknown[];
+  session_context: unknown;
+} {
+  const newest = (events as Array<{ session_context?: unknown } | null>).findLast(
+    (e) => e?.session_context,
+  );
+  return { events, session_context: newest?.session_context ?? null };
 }
 
 // ── Flusher loop ──────────────────────────────────────────────────────────────
@@ -65,6 +72,18 @@ export async function runFlusher(): Promise<void> {
   const reader = openQueueReader(dbPath);
 
   log('info', 'flusher.start', { ingestBaseUrl: INGEST_BASE_URL });
+
+  // Bump the per-row attempt counter, then prune any row that just crossed the
+  // cap. Pruning only here (right after a bump) avoids a full table scan on
+  // every idle loop tick — a markAttempt is the only thing that can newly
+  // abandon a row. Data loss at the cap is intentional (P1-021) but logged.
+  const markAttemptAndPrune = (ids: string[]): void => {
+    reader.markAttempt(ids);
+    const dropped = reader.dropAbandoned();
+    if (dropped > 0) {
+      log('warn', 'flusher.dropped_abandoned', { count: dropped });
+    }
+  };
 
   let consecutiveFailures = 0;
 
@@ -78,7 +97,7 @@ export async function runFlusher(): Promise<void> {
         continue;
       }
 
-      const jwt = loadJwt();
+      const jwt = loadHookToken();
       if (!jwt) {
         log('warn', 'flusher.no_token', {
           hint: 'Run `claude-telemetry login` to authenticate',
@@ -93,7 +112,7 @@ export async function runFlusher(): Promise<void> {
 
       const eventIds = rows.map((r) => r.event_id);
       const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
-      const body = JSON.stringify({ events, session_context: null });
+      const body = JSON.stringify(buildBatchEnvelope(events));
 
       let success = false;
       const attempt = consecutiveFailures;
@@ -128,8 +147,10 @@ export async function runFlusher(): Promise<void> {
           reader.close();
           process.exit(1);
         } else if (res.status === 429) {
-          // Rate-limited — mark attempts and back off; do not delete events
-          reader.markAttempt(eventIds);
+          // Rate-limited — explicit server backpressure, NOT a failure. Back off
+          // but do NOT markAttempt: counting 429s toward the attempt cap would
+          // let sustained throttling push rows past the cap and dropAbandoned()
+          // would then permanently delete valid, deliverable events.
           log('warn', 'flusher.rate_limited', { attempt, count: rows.length, status: res.status });
           writeFlusherState({
             ...readFlusherState(),
@@ -151,7 +172,7 @@ export async function runFlusher(): Promise<void> {
           success = true;
         } else {
           // 5xx — mark attempts and back off
-          reader.markAttempt(eventIds);
+          markAttemptAndPrune(eventIds);
           const errMsg = `Server error ${res.status}`;
           log('warn', 'flusher.batch_failed', { attempt, count: rows.length, status: res.status });
           writeFlusherState({
@@ -165,7 +186,7 @@ export async function runFlusher(): Promise<void> {
       } catch (err) {
         // Network error — mark attempts and back off
         const message = (err as Error).message;
-        reader.markAttempt(eventIds);
+        markAttemptAndPrune(eventIds);
         log('warn', 'flusher.network_error', { attempt, message });
         writeFlusherState({
           ...readFlusherState(),

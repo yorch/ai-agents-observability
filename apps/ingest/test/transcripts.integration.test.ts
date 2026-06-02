@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../src/app';
 import type { Config } from '../src/config';
-import { processTranscript } from '../src/lib/transcript-pipeline';
+import { processTranscript, TranscriptTooLargeError } from '../src/lib/transcript-pipeline';
 import { makeTestDeps } from './helpers';
 
 const USER_ID = '00000000-0000-0000-0000-000000000001';
@@ -245,5 +245,12 @@ describe('processTranscript', () => {
     expect(decoded.split('\n')).toHaveLength(4);
     expect(decoded).toContain('ok line');
     expect(decoded).not.toContain('ghp_aaaa');
+  });
+
+  it('throws TranscriptTooLargeError when decompressed size exceeds the cap', () => {
+    // A highly-compressible payload (10k repeated chars) that decompresses well
+    // past a tiny injected cap — simulates a decompression bomb without 512 MB.
+    const bomb = compress('A'.repeat(10_000));
+    expect(() => processTranscript(bomb, undefined, 64)).toThrow(TranscriptTooLargeError);
   });
 });

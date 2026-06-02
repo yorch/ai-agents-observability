@@ -1,3 +1,4 @@
+import { resolveApiBase } from '@ai-agents-observability/github';
 import type { RepoConfig } from '@ai-agents-observability/schemas';
 import { parseRepoConfig } from '@ai-agents-observability/schemas';
 import type { EmitterWebhookEvent } from '@octokit/webhooks';
@@ -79,17 +80,22 @@ async function maybePostComment(
     config.github_host,
   );
 
-  const [owner, name] = repo.full_name.split('/') as [string, string];
-  const apiBase =
-    config.github_host === 'https://github.com'
-      ? 'https://api.github.com'
-      : `${config.github_host}/api/v3`;
+  // full_name should be exactly "owner/name". Validate rather than trust the
+  // payload, and URL-encode each segment before interpolating into the fetch URL
+  // (defense-in-depth against path injection, even though the payload is signed).
+  const parts = repo.full_name.split('/');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    logger.warn({ full_name: repo.full_name, pr: prNumber }, 'pr.comment.bad_repo_name');
+    return;
+  }
+  const [owner, name] = parts as [string, string];
+  const apiBase = resolveApiBase(config.github_host);
 
   const mergeCommitSha = (pr as { merge_commit_sha?: string | null }).merge_commit_sha;
-  const refParam = mergeCommitSha ? `?ref=${mergeCommitSha}` : '';
+  const refParam = mergeCommitSha ? `?ref=${encodeURIComponent(mergeCommitSha)}` : '';
 
   const configRes = await fetch(
-    `${apiBase}/repos/${owner}/${name}/contents/.claude-telemetry.yml${refParam}`,
+    `${apiBase}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/contents/.claude-telemetry.yml${refParam}`,
     {
       headers: {
         Accept: 'application/vnd.github.raw+json',
@@ -117,6 +123,9 @@ async function maybePostComment(
   }
 
   const body = buildCommentBody(rollup, repoConfig);
-  await postPRComment(owner, name, prNumber, body, installToken, config.github_host);
-  logger.info({ pr: prNumber, repo: repo.full_name }, 'pr.comment.posted');
+  const posted = await postPRComment(owner, name, prNumber, body, installToken, config.github_host);
+  logger.info(
+    { posted, pr: prNumber, repo: repo.full_name },
+    posted ? 'pr.comment.posted' : 'pr.comment.skipped_existing',
+  );
 }

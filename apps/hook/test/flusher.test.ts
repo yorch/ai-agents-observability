@@ -129,6 +129,26 @@ describe('QueueReader', () => {
     expect(reader.depth()).toBe(5);
     reader.close();
   });
+
+  it('dropAbandoned removes rows that hit the attempt cap and keeps others', () => {
+    const dbPath = join(tmpHome, 'queue.db');
+    makeQueueDb(dbPath, 3);
+
+    const db = new Database(dbPath);
+    // Force one row to the cap (10) and leave the rest under it.
+    db.prepare('UPDATE events_queue SET attempts = 10 WHERE event_id = ?').run('event-000000');
+    db.close();
+
+    const reader = openQueueReader(dbPath);
+    // Capped row is excluded from depth but still present in the DB.
+    expect(reader.depth()).toBe(2);
+    const dropped = reader.dropAbandoned();
+    expect(dropped).toBe(1);
+    // Second call is a no-op once abandoned rows are gone.
+    expect(reader.dropAbandoned()).toBe(0);
+    expect(reader.depth()).toBe(2);
+    reader.close();
+  });
 });
 
 describe('flusher POST batches', () => {

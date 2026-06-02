@@ -1,4 +1,4 @@
-import type { Prisma } from '@ai-agents-observability/db';
+import { Prisma } from '@ai-agents-observability/db';
 import { getPrisma } from './prisma';
 
 export type UsageSummary = {
@@ -81,32 +81,23 @@ export async function getUsageSummary(
 export async function getTopTools(userId: string, since: Date, limit = 5): Promise<ToolUsage[]> {
   const prisma = getPrisma();
 
-  // Aggregate tool call count by primary model as a proxy
-  // Real tool-level breakdown would need a JSON aggregation on toolUsage field
-  // For now, aggregate by session and sum toolCallCount grouped by session type
-  // Since toolUsage is not a JSON field in the schema, we aggregate sessions
-  const sessions = await prisma.session.findMany({
-    select: {
-      primaryModel: true,
-      toolCallCount: true,
-    },
-    where: {
-      startedAt: { gte: since },
-      userId,
-    },
-  });
+  // Real per-tool breakdown from the events firehose. We count PostToolUse events
+  // (one per completed tool call, matching sessions.tool_call_count semantics) so
+  // PreToolUse doesn't double-count. Previously this grouped sessions by
+  // primary_model and mislabeled model names as tools.
+  const rows = await prisma.$queryRaw<{ call_count: bigint; tool_name: string }[]>(Prisma.sql`
+    SELECT tool_name, COUNT(*) AS call_count
+    FROM events
+    WHERE user_id = ${userId}::uuid
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND tool_name IS NOT NULL
+    GROUP BY tool_name
+    ORDER BY call_count DESC
+    LIMIT ${limit}
+  `);
 
-  // Group by primaryModel as a tool usage proxy
-  const toolMap = new Map<string, number>();
-  for (const s of sessions) {
-    const key = s.primaryModel ?? 'unknown';
-    toolMap.set(key, (toolMap.get(key) ?? 0) + s.toolCallCount);
-  }
-
-  return Array.from(toolMap.entries())
-    .map(([toolName, callCount]) => ({ callCount, toolName }))
-    .sort((a, b) => b.callCount - a.callCount)
-    .slice(0, limit);
+  return rows.map((r) => ({ callCount: Number(r.call_count), toolName: r.tool_name }));
 }
 
 export async function getModelMix(userId: string, since: Date): Promise<ModelMix[]> {

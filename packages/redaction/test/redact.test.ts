@@ -33,6 +33,48 @@ describe('aws-access-key', () => {
   });
 });
 
+// ── AWS secret key ────────────────────────────────────────────────────────────
+
+describe('aws-secret-key', () => {
+  it('redacts high-entropy 40-char base64 secrets (positive cassette)', () => {
+    const lines = loadCassette('aws-secret-key.txt').split('\n');
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) {
+      const { text, flags } = redact(line);
+      expect(flags).toContain('aws-secret-key');
+      expect(text).toContain('[REDACTED:aws-secret-key]');
+    }
+  });
+
+  it('does NOT redact low-entropy 40-char strings (entropy gate)', () => {
+    for (const low of [
+      'A'.repeat(40),
+      'ABABABABABABABABABABABABABABABABABABABAB',
+      'aaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb',
+    ]) {
+      const { flags } = redact(low);
+      expect(flags).not.toContain('aws-secret-key');
+    }
+  });
+
+  it('does not match a secret embedded in a longer base64 run (documented boundary)', () => {
+    // Known recall limitation: the rule requires the 40-char window to be
+    // bounded by non-base64 chars, so a secret concatenated into a longer blob
+    // is not matched here (server-side re-scan is the backstop). This test pins
+    // the current behaviour so a future change to it is deliberate.
+    const embedded = 'aZ3kLp9QvX2mNb7RtY6wEoUiPaSdFgHjKlZxCvBnEXTRA1234';
+    const { flags } = redact(embedded);
+    expect(flags).not.toContain('aws-secret-key');
+  });
+
+  it('runs in linear time on a pathological input (no catastrophic backtracking)', () => {
+    const evil = `${'/'.repeat(100_000)}!`;
+    const t0 = performance.now();
+    redact(evil);
+    expect(performance.now() - t0).toBeLessThan(250);
+  });
+});
+
 // ── GitHub token ──────────────────────────────────────────────────────────────
 
 describe('github-token', () => {

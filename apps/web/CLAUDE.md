@@ -11,7 +11,7 @@ Read [`/PLAN.md`](../../PLAN.md) and [`/tasks/`](../../tasks/) before picking up
 - **Prisma**: server-only. Import `prisma` from `src/lib/prisma.ts`; never reference it inside `'use client'` modules.
 - **Routing layout**:
   - `/login` — public.
-  - `/me/*` — authenticated. Gated by `src/middleware.ts` (cookie presence) and verified per-request by `currentUser()`.
+  - `/me/*` — authenticated. Gated by `src/proxy.ts` (Next 16's renamed middleware — cookie presence only) and verified per-request by `currentUser()`.
   - `/api/auth/*` — OAuth + session endpoints (P1-016, P1-017).
 
 ## Pinning

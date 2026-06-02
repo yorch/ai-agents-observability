@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Timeline } from '../../../../components/me/Timeline';
 import { currentUser } from '../../../../lib/auth';
-import { getSession } from '../../../../lib/sessions-queries';
+import type { ModelBreakdownRow } from '../../../../lib/sessions-queries';
+import { getSession, getSessionModelBreakdown } from '../../../../lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,25 +51,7 @@ function ToolsTab({ session }: { session: Awaited<ReturnType<typeof getSession>>
   );
 }
 
-function ModelsTab({ session }: { session: Awaited<ReturnType<typeof getSession>> & object }) {
-  const rows = [
-    {
-      model: 'claude-opus',
-      tokens: session.inputTokens,
-      turns: session.opusTurns,
-    },
-    {
-      model: 'claude-sonnet',
-      tokens: 0n,
-      turns: session.sonnetTurns,
-    },
-    {
-      model: 'claude-haiku',
-      tokens: 0n,
-      turns: session.haikuTurns,
-    },
-  ].filter((r) => r.turns > 0);
-
+function ModelsTab({ costUsd, rows }: { costUsd: number; rows: ModelBreakdownRow[] }) {
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-4">
       <h3 className="text-sm font-medium text-white/70 mb-4">Model Breakdown</h3>
@@ -76,7 +59,7 @@ function ModelsTab({ session }: { session: Awaited<ReturnType<typeof getSession>
         <thead>
           <tr className="text-white/40 text-xs border-b border-white/10">
             <th className="text-left pb-2">Model</th>
-            <th className="text-right pb-2">Turns</th>
+            <th className="text-right pb-2">Calls</th>
             <th className="text-right pb-2">Input tokens</th>
             <th className="text-right pb-2">Output tokens</th>
           </tr>
@@ -92,12 +75,12 @@ function ModelsTab({ session }: { session: Awaited<ReturnType<typeof getSession>
             rows.map((r) => (
               <tr key={r.model} className="border-b border-white/5">
                 <td className="py-2 text-white/70">{r.model}</td>
-                <td className="py-2 text-right text-white/60">{r.turns}</td>
+                <td className="py-2 text-right text-white/60">{r.calls}</td>
                 <td className="py-2 text-right text-white/60">
-                  {r.tokens > 0n ? r.tokens.toString() : '—'}
+                  {r.inputTokens > 0n ? r.inputTokens.toString() : '—'}
                 </td>
                 <td className="py-2 text-right text-white/60">
-                  {session.outputTokens > 0n ? session.outputTokens.toString() : '—'}
+                  {r.outputTokens > 0n ? r.outputTokens.toString() : '—'}
                 </td>
               </tr>
             ))
@@ -105,7 +88,7 @@ function ModelsTab({ session }: { session: Awaited<ReturnType<typeof getSession>
         </tbody>
       </table>
       <div className="mt-4 pt-4 border-t border-white/10 text-xs text-white/40">
-        Total cost: <span className="text-white/70">${session.costUsd.toFixed(4)}</span>
+        Total cost: <span className="text-white/70">${costUsd.toFixed(4)}</span>
       </div>
     </div>
   );
@@ -129,7 +112,14 @@ export default async function SessionDetailPage({
   const { id } = await params;
   const { tab = 'timeline' } = await searchParams;
 
-  const session = await getSession(user.id, id);
+  // The breakdown only needs userId+sessionId (not the session row), so when the
+  // models tab is active run both queries concurrently instead of serially.
+  const [session, modelBreakdown] = await Promise.all([
+    getSession(user.id, id),
+    tab === 'models'
+      ? getSessionModelBreakdown(user.id, id)
+      : Promise.resolve([] as ModelBreakdownRow[]),
+  ]);
   if (!session) {
     notFound();
   }
@@ -196,7 +186,7 @@ export default async function SessionDetailPage({
       {/* Tab content */}
       {tab === 'timeline' && <Timeline session={session} />}
       {tab === 'tools' && <ToolsTab session={session} />}
-      {tab === 'models' && <ModelsTab session={session} />}
+      {tab === 'models' && <ModelsTab costUsd={session.costUsd} rows={modelBreakdown} />}
     </div>
   );
 }

@@ -26,7 +26,7 @@ export async function startDeviceFlow(
 }
 
 export type DevicePollResult =
-  | { status: 'pending' }
+  | { status: 'pending'; slowDown?: boolean; interval?: number }
   | { status: 'authorized'; access_token: string };
 
 export async function pollDeviceFlow(
@@ -50,13 +50,24 @@ export async function pollDeviceFlow(
   if (!res.ok) {
     throw new Error(`GitHub device poll failed: ${res.status}`);
   }
-  const body = (await res.json()) as { access_token?: string; error?: string };
+  const body = (await res.json()) as {
+    access_token?: string;
+    error?: string;
+    interval?: number;
+  };
 
   if (body.access_token) {
     return { access_token: body.access_token, status: 'authorized' };
   }
-  if (body.error === 'authorization_pending' || body.error === 'slow_down') {
+  if (body.error === 'authorization_pending') {
     return { status: 'pending' };
+  }
+  // GitHub asks us to back off — surface it so the poller widens its interval
+  // (GitHub returns the new minimum interval). Ignoring this risks being blocked.
+  if (body.error === 'slow_down') {
+    return body.interval !== undefined
+      ? { interval: body.interval, slowDown: true, status: 'pending' }
+      : { slowDown: true, status: 'pending' };
   }
   throw new Error(`Device flow error: ${body.error}`);
 }

@@ -35,10 +35,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@ai-agents-observability/schemas": "workspace:*",
-        "jose": "catalog:",
-        "keytar": "catalog:",
-        "pino": "catalog:",
-        "zod": "catalog:",
       },
       "devDependencies": {
         "bun-types": "catalog:",

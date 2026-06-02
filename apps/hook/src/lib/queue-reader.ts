@@ -9,14 +9,19 @@ export type QueueRow = {
   attempts: number;
 };
 
+/** Max delivery attempts before a row is abandoned (dropped) by the flusher. */
+export const MAX_ATTEMPTS = 10;
+
 export type QueueReader = {
-  /** SELECT up to `limit` rows WHERE attempts < 10 ORDER BY ts */
+  /** SELECT up to `limit` rows WHERE attempts < MAX_ATTEMPTS ORDER BY ts */
   drain(limit: number): QueueRow[];
   /** UPDATE: attempts++, attempted_at=now() */
   markAttempt(eventIds: string[]): void;
   /** DELETE WHERE event_id IN (...) */
   delete(eventIds: string[]): void;
-  /** COUNT(*) WHERE attempts < 10 */
+  /** DELETE WHERE attempts >= MAX_ATTEMPTS — returns count dropped. */
+  dropAbandoned(): number;
+  /** COUNT(*) WHERE attempts < MAX_ATTEMPTS */
   depth(): number;
   /** MAX(attempted_at) */
   lastAttemptedAt(): string | null;
@@ -33,15 +38,19 @@ export function openQueueReader(dbPath: string): QueueReader {
   db.exec('PRAGMA temp_store = memory;');
 
   const drainStmt = db.prepare<QueueRow, [number]>(
-    'SELECT event_id, payload_json, ts, attempts FROM events_queue WHERE attempts < 10 ORDER BY ts LIMIT ?',
+    `SELECT event_id, payload_json, ts, attempts FROM events_queue WHERE attempts < ${MAX_ATTEMPTS} ORDER BY ts LIMIT ?`,
   );
 
   const depthStmt = db.prepare<{ c: number }, []>(
-    'SELECT COUNT(*) AS c FROM events_queue WHERE attempts < 10',
+    `SELECT COUNT(*) AS c FROM events_queue WHERE attempts < ${MAX_ATTEMPTS}`,
   );
 
   const lastAttemptedAtStmt = db.prepare<{ last: string | null }, []>(
     'SELECT MAX(attempted_at) AS last FROM events_queue',
+  );
+
+  const dropAbandonedStmt = db.prepare(
+    `DELETE FROM events_queue WHERE attempts >= ${MAX_ATTEMPTS}`,
   );
 
   return {
@@ -63,6 +72,13 @@ export function openQueueReader(dbPath: string): QueueReader {
     },
     drain(limit: number): QueueRow[] {
       return drainStmt.all(limit);
+    },
+
+    dropAbandoned(): number {
+      // Rows that have hit the attempt cap are unsendable (poison batch or a
+      // permanently-rejecting endpoint). Drop them so the DB doesn't grow
+      // unbounded and a head-of-line poison row can't block the queue forever.
+      return dropAbandonedStmt.run().changes;
     },
 
     lastAttemptedAt(): string | null {

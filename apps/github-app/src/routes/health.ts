@@ -20,12 +20,19 @@ export function adminRouter(adminSecret: string | undefined): Hono<AppEnv> {
   const router = new Hono<AppEnv>();
 
   router.get('/health', (c) => {
-    const metrics = getMetrics();
-    const extended = adminSecret && c.req.header('x-admin-secret') === adminSecret;
+    // The admin endpoint exposes delivery counters/event types. It is reachable
+    // on the same public listener as the webhook, so it must be gated. When no
+    // secret is configured the endpoint is disabled entirely (404) rather than
+    // leaking even basic counters; when configured, a matching header is required.
+    if (!adminSecret) {
+      return c.json({ error: 'Not found' }, 404);
+    }
+    if (c.req.header('x-admin-secret') !== adminSecret) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
     return c.json({
-      deliveries: metrics,
+      deliveries: getMetrics(),
       uptime_s: Math.floor(process.uptime()),
-      ...(extended ? { extended: true } : {}),
     });
   });
 

@@ -3,6 +3,7 @@ import { Cron } from 'croner';
 import type { Logger } from 'pino';
 
 import { runSweepAbandoned } from './sweep-abandoned';
+import { runSweepScratch } from './sweep-scratch';
 import { runSyncTeams } from './sync-teams';
 
 export function startScheduler(db: PrismaClient, logger?: Logger): void {
@@ -20,5 +21,14 @@ export function startScheduler(db: PrismaClient, logger?: Logger): void {
     });
   });
 
-  logger?.info('Job scheduler started (sync-teams: hourly, sweep-abandoned: every 10m)');
+  // Hourly: remove stale transcript scratch files from abandoned chunked uploads
+  new Cron('0 * * * *', { protect: true }, () => {
+    runSweepScratch(logger).catch((err) => {
+      logger?.error({ err }, 'Unhandled error in sweep-scratch job');
+    });
+  });
+
+  logger?.info(
+    'Job scheduler started (sync-teams: hourly, sweep-abandoned: every 10m, sweep-scratch: hourly)',
+  );
 }

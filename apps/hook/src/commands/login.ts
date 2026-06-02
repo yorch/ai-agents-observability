@@ -15,7 +15,7 @@ type StartResult = {
 };
 
 type PollResult =
-  | { status: 'pending' }
+  | { status: 'pending'; slow_down?: boolean; interval?: number }
   | { github_login: string; hook_token: string; status: 'authorized' };
 
 export async function runLogin(): Promise<number> {
@@ -40,7 +40,7 @@ export async function runLogin(): Promise<number> {
   process.stdout.write(`  URL:  ${startResult.verification_uri}\n\n`);
   process.stdout.write('Waiting for authorization...\n');
 
-  const intervalMs = Math.max((startResult.interval ?? 5) * 1_000, 5_000);
+  let intervalMs = Math.max((startResult.interval ?? 5) * 1_000, 5_000);
   const deadline = Date.now() + Math.min((startResult.expires_in ?? 900) * 1_000, POLL_TIMEOUT_MS);
 
   while (Date.now() < deadline) {
@@ -65,6 +65,11 @@ export async function runLogin(): Promise<number> {
     }
 
     if (pollResult.status === 'pending') {
+      // Honor GitHub's slow_down: widen the interval (use the server-provided
+      // value if present, otherwise add 5s per GitHub's guidance).
+      if (pollResult.slow_down) {
+        intervalMs = pollResult.interval ? pollResult.interval * 1_000 : intervalMs + 5_000;
+      }
       continue;
     }
 
@@ -78,6 +83,13 @@ export async function runLogin(): Promise<number> {
     const { hook_token, github_login } = pollResult;
     const path = identityPath();
     mkdirSync(dirname(path), { recursive: true });
+    // Token storage: deliberately a 0600 plaintext JSON file rather than the OS
+    // keychain. The hook ships as a `bun build --compile` single binary, where the
+    // native `keytar` addon cannot be reliably linked across the four cross-compiled
+    // targets, and we need to persist structured identity (token + claim), not just a
+    // bare secret. The 0600 file (owner-read/write only) is the same posture as
+    // `~/.ssh` keys and `~/.aws/credentials`. The keytar-with-file-fallback path lives
+    // in `@ai-agents-observability/auth` (keychain.ts) for non-compiled server contexts.
     writeFileSync(
       path,
       JSON.stringify({ token: hook_token, user_id_claim: github_login }, null, 2),

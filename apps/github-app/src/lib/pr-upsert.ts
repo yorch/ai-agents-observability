@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@ai-agents-observability/db';
+import { isUniqueViolation, type PrismaClient } from '@ai-agents-observability/db';
 
 type PRState = 'open' | 'closed' | 'merged';
 
@@ -30,6 +30,26 @@ type RepoPayload = {
 export type PrUpsertDb = Pick<PrismaClient, 'repo' | 'pullRequest' | 'user'>;
 
 export async function upsertPullRequest(
+  db: PrUpsertDb,
+  repoPl: RepoPayload,
+  prPl: PullRequestPayload,
+  state: PRState,
+): Promise<{ repoId: string; prNumber: number }> {
+  // Two webhook deliveries for the same new repo/PR (e.g. opened + synchronize
+  // arriving together) can race: both take the create path and one hits a
+  // unique-constraint violation (P2002), a known Prisma upsert behaviour. Retry
+  // once — the second pass finds the now-existing rows and takes the update path.
+  try {
+    return await doUpsert(db, repoPl, prPl, state);
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return await doUpsert(db, repoPl, prPl, state);
+    }
+    throw err;
+  }
+}
+
+async function doUpsert(
   db: PrUpsertDb,
   repoPl: RepoPayload,
   prPl: PullRequestPayload,

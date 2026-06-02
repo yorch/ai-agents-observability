@@ -11,7 +11,11 @@ import { linkSessionToPR } from '../lib/session-pr-link';
 import { upsertSessions } from '../lib/upsert-session';
 import type { AppEnv, EventsDb } from '../types';
 
-const MAX_BODY_BYTES = 1_048_576; // 1 MB
+// A full 500-event batch (each event carrying tool + llm + metadata blocks) can
+// plausibly exceed 1 MB, which would 413 a legitimate max batch before the
+// 500-count check runs. 8 MB keeps headroom over the worst-case batch while
+// still bounding memory per request.
+const MAX_BODY_BYTES = 8 * 1_048_576; // 8 MB
 
 export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logger): Hono<AppEnv> {
   const router = new Hono<AppEnv>();
@@ -64,21 +68,45 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
       const reqId = c.get('requestId');
       const start = Date.now();
 
-      const inserted = await insertEventsBatch(db, batch.events, userId, priceTable);
+      // Insert events and aggregate sessions atomically. If aggregation fails
+      // after the events commit, a retry would replay the same event_ids — but
+      // ON CONFLICT DO NOTHING swallows them, leaving acceptedEventIds empty and
+      // the session aggregate never updated (permanent, unrecoverable drift). A
+      // single transaction makes the retry re-insert AND re-aggregate together.
+      const { acceptedEvents, inserted, aggregated } = await db.$transaction(
+        async (tx) => {
+          const insertedTx = await insertEventsBatch(tx, batch.events, userId, priceTable);
 
-      // Only feed newly-inserted events into the per-session accumulator.
-      // Retries replay event_ids that ON CONFLICT DO NOTHING already swallowed;
-      // if we re-aggregated those, tokens / cost / tool counts on the session
-      // row would inflate on every retry with no way to self-correct.
-      const acceptedEvents = batch.events.filter((e) => inserted.acceptedEventIds.has(e.event_id));
-      const aggregated = await upsertSessions(
-        db,
-        acceptedEvents,
-        userId,
-        repoIdByKey,
-        priceTable,
-        topGit,
+          // Only feed newly-inserted events into the per-session accumulator.
+          const acceptedEventsTx = batch.events.filter((e) =>
+            insertedTx.acceptedEventIds.has(e.event_id),
+          );
+          const aggregatedTx = await upsertSessions(
+            tx,
+            acceptedEventsTx,
+            userId,
+            repoIdByKey,
+            priceTable,
+            topGit,
+          );
+          return {
+            acceptedEvents: acceptedEventsTx,
+            aggregated: aggregatedTx,
+            inserted: insertedTx,
+          };
+        },
+        // A full 500-event batch (multi-row INSERT + per-session UPSERTs) can
+        // exceed Prisma's 5s default interactive-transaction timeout under load;
+        // raise it so a heavy-but-healthy batch isn't rolled back and retried whole.
+        { maxWait: 5_000, timeout: 30_000 },
       );
+
+      if (inserted.unknownModels.size > 0) {
+        logger.warn(
+          { models: [...inserted.unknownModels], reqId },
+          'ingest.events.unknown_model_zero_cost',
+        );
+      }
 
       // Best-effort session→PR linking (P2-004). Fire-and-forget; errors don't fail the request.
       Promise.allSettled(

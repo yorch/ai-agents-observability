@@ -1,3 +1,4 @@
+import { isUniqueViolation } from '@ai-agents-observability/db';
 import type { EmitterWebhookEvent } from '@octokit/webhooks';
 import { Webhooks } from '@octokit/webhooks';
 import { Hono } from 'hono';
@@ -38,8 +39,43 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
       return c.json({ error: 'Invalid JSON body' }, 400);
     }
     const action: string = (payload.action as string) ?? '';
+    const repoFullName = (payload.repository as { full_name?: string } | undefined)?.full_name;
 
     recordReceived(event);
+
+    // Idempotency + durable record. Persist the delivery keyed by the unique
+    // X-GitHub-Delivery id BEFORE acking. GitHub re-delivers on its own schedule,
+    // and we ack 202 before processing (so it never retries on our failures);
+    // without this, a replay would reprocess (e.g. post a duplicate PR comment)
+    // and a failed delivery would leave no trace. A unique-constraint violation
+    // means we've already seen this delivery — short-circuit as a duplicate.
+    // (If the header is absent — never true for real GitHub — fall back to a
+    // random id so a missing header can't collide and block processing.)
+    const deliveryId = id === 'unknown' ? `unknown-${crypto.randomUUID()}` : id;
+    try {
+      await db.webhookDelivery.create({
+        data: {
+          action: action || null,
+          deliveryId,
+          eventType: event,
+          repo: repoFullName ?? null,
+          status: 'received',
+        },
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        logger.info({ delivery: deliveryId, event }, 'webhook.duplicate');
+        return c.json({ accepted: true, delivery: id, duplicate: true }, 202);
+      }
+      // DB unavailable (non-unique error): we cannot record the delivery, so we
+      // cannot guarantee exactly-once processing. Do NOT process+ack — return 503
+      // so GitHub redelivers later; when the DB recovers, the redelivery creates
+      // the row and processes exactly once. Processing here would risk duplicate
+      // side effects (e.g. a second PR comment) with no dedup record.
+      logger.error({ delivery: deliveryId, err, event }, 'webhook.persist.error');
+      return c.json({ error: 'Storage unavailable, retry later' }, 503);
+    }
+
     const start = Date.now();
 
     c.status(202);
@@ -56,9 +92,21 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
           );
         }
         recordProcessed(`${event}.${action}`, Date.now() - start);
+        await db.webhookDelivery
+          .update({
+            data: { processedAt: new Date(), status: 'processed' },
+            where: { deliveryId },
+          })
+          .catch(() => {});
       } catch (err) {
         recordFailed(`${event}.${action}`);
-        logger.error({ delivery: id, err, event }, 'webhook.handler.error');
+        logger.error({ delivery: deliveryId, err, event }, 'webhook.handler.error');
+        await db.webhookDelivery
+          .update({
+            data: { errorText: (err as Error).message, processedAt: new Date(), status: 'error' },
+            where: { deliveryId },
+          })
+          .catch(() => {});
       }
     })();
 

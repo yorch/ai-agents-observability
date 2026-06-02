@@ -79,6 +79,21 @@ describe('getSession', () => {
     expect(result).toBeNull();
   });
 
+  it('scopes the query to the authenticated user (IDOR resistance)', async () => {
+    mockPrisma.session.findFirst.mockResolvedValueOnce(null);
+
+    const { getSession } = await import('../src/lib/sessions-queries.js');
+    await getSession('u1', 'sess-belonging-to-someone-else');
+
+    // The userId MUST be part of the where clause — otherwise a user could read
+    // another user's session by guessing its id.
+    expect(mockPrisma.session.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { sessionId: 'sess-belonging-to-someone-else', userId: 'u1' },
+      }),
+    );
+  });
+
   it('returns session detail', async () => {
     mockPrisma.session.findFirst.mockResolvedValueOnce({
       ...mockSessions[0],

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { currentUser } from '../../../../lib/auth';
 import { getPrisma } from '../../../../lib/prisma';
+import { clientIp } from '../../../../lib/request-meta';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,8 +27,10 @@ export async function POST(req: NextRequest) {
       data: {
         action: 'delete_request',
         actorUserId: user.id,
+        ip: clientIp(req.headers),
         justification: 'User requested data deletion',
         targetUserId: user.id,
+        userAgent: req.headers.get('user-agent'),
       },
     }),
   ]);

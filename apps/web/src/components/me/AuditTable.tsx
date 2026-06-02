@@ -21,6 +21,16 @@ type AuditTableProps = {
 
 const PAGE_SIZE = 50;
 
+const ACTION_LABELS: Record<string, string> = {
+  admin_impersonate: 'admin impersonation',
+  delete_request: 'data deletion request',
+  export_org: 'org export',
+  export_team: 'team export',
+  hook_token_issued: 'CLI token issued',
+  view_session: 'viewed session',
+  view_transcript: 'viewed transcript',
+};
+
 export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const hasPrev = currentPage > 1;
@@ -58,7 +68,7 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
                 </td>
                 <td className="px-4 py-3">
                   <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70">
-                    {row.action}
+                    {ACTION_LABELS[row.action] ?? row.action}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-white/60 font-mono text-xs">

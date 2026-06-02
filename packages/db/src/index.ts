@@ -2,6 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from './generated/client/client';
 
 export { Prisma, PrismaClient };
+export { isUniqueViolation } from './errors';
 export type * from './generated/client/client';
 export { applySqlMigrations } from './sql-migrate';
 
