@@ -10,7 +10,6 @@ const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
 const BATCH_SIZE = 100;
 const IDLE_INTERVAL_MS = 5_000;
 const HIGH_WATER_MARK = 50;
-const _MAX_ATTEMPTS = 10;
 
 // ── State file ────────────────────────────────────────────────────────────────
 
@@ -98,6 +97,14 @@ export async function runFlusher(): Promise<void> {
   try {
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      // Drop rows that exhausted their retry budget so they can't block the
+      // queue head or grow the DB without bound. Data loss here is intentional
+      // (per P1-021) but must be visible.
+      const dropped = reader.dropAbandoned();
+      if (dropped > 0) {
+        log('warn', 'flusher.dropped_abandoned', { count: dropped });
+      }
+
       const rows = reader.drain(BATCH_SIZE);
 
       if (rows.length === 0) {

@@ -12,6 +12,11 @@ const SWEEP_INTERVAL_MS = 10 * 60 * 1_000; // 10 minutes
 // Bandwidth throttle: max 5 MB/s
 const MAX_BYTES_PER_SEC = 5 * 1024 * 1024;
 
+// Max ship attempts before a marker is abandoned. A perpetually-failing
+// transcript (server 500s, unreadable file) must not be re-read/re-uploaded
+// forever every sweep.
+const MAX_SHIP_ATTEMPTS = 10;
+
 // ── Ship marker ───────────────────────────────────────────────────────────────
 
 export type ShipMarker = {
@@ -19,6 +24,7 @@ export type ShipMarker = {
   transcript_path: string;
   partial: boolean;
   bytes_uploaded: number;
+  attempts?: number;
 };
 
 export function writeShipMarker(sessionId: string, transcriptPath: string, partial: boolean): void {
@@ -64,6 +70,30 @@ function readMarkers(): ShipMarker[] {
 function deleteMarker(sessionId: string): void {
   // { force: true } suppresses ENOENT; other errors (EACCES etc.) still throw.
   rmSync(join(shipQueueDir(), `${sessionId}.json`), { force: true });
+}
+
+/**
+ * Record a failed attempt for a retryable outcome. Bumps the marker's attempt
+ * counter; once the cap is hit the marker is dropped (and logged) so a poison
+ * transcript can't loop forever. Returns true if the marker was abandoned.
+ */
+function recordRetryableFailure(marker: ShipMarker, reason: string): boolean {
+  const attempts = (marker.attempts ?? 0) + 1;
+  if (attempts >= MAX_SHIP_ATTEMPTS) {
+    deleteMarker(marker.session_id);
+    log('error', 'shipper.abandoned', { attempts, reason, session_id: marker.session_id });
+    return true;
+  }
+  try {
+    writeFileSync(
+      join(shipQueueDir(), `${marker.session_id}.json`),
+      JSON.stringify({ ...marker, attempts }, null, 2),
+      { encoding: 'utf8', mode: 0o600 },
+    );
+  } catch {
+    // best-effort; if we can't persist the attempt count we'll just retry again
+  }
+  return false;
 }
 
 // ── JWT token ─────────────────────────────────────────────────────────────────
@@ -156,7 +186,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
     ({ body, hash } = await buildGzipBody(transcript_path));
   } catch (err) {
     log('warn', 'shipper.read_error', { message: (err as Error).message, session_id });
-    // skip for now, retry next sweep
+    recordRetryableFailure(marker, 'read_error');
     return;
   }
 
@@ -179,14 +209,23 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
         });
       }
       log('info', 'shipper.uploaded', { bytes: body.byteLength, session_id, status: res.status });
+    } else if (res.status === 404) {
+      // The session row doesn't exist yet — the events pipeline hasn't created
+      // it (e.g. the flusher is behind or offline). This is transient ordering,
+      // NOT bad data: keep the marker and retry (capped) so we don't drop the
+      // transcript permanently.
+      log('info', 'shipper.session_not_ready', { session_id, status: res.status });
+      recordRetryableFailure(marker, 'session_not_ready');
     } else if (res.status === 409) {
-      // Conflict — skip for now, retry next sweep
+      // Conflict — retryable, retry next sweep (capped)
       log('info', 'shipper.conflict', { session_id, status: res.status });
+      recordRetryableFailure(marker, 'conflict');
     } else if (res.status === 429) {
-      // Rate-limited — keep marker, retry next sweep
+      // Rate-limited — retryable, retry next sweep (capped)
       log('warn', 'shipper.rate_limited', { session_id, status: res.status });
+      recordRetryableFailure(marker, 'rate_limited');
     } else if (res.status >= 400 && res.status < 500) {
-      // 4xx (non-409, non-429): bad data, server won't accept — delete marker
+      // 4xx (non-404, non-409, non-429): bad data, server won't accept — drop.
       try {
         deleteMarker(session_id);
       } catch {
@@ -194,12 +233,14 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
       }
       log('warn', 'shipper.rejected', { session_id, status: res.status });
     } else {
-      // 5xx / unexpected: skip for now, retry next sweep
+      // 5xx / unexpected: retryable, retry next sweep (capped)
       log('warn', 'shipper.server_error', { session_id, status: res.status });
+      recordRetryableFailure(marker, `server_error_${res.status}`);
     }
   } catch (err) {
-    // Network error: skip for now, retry next sweep
+    // Network error: retryable, retry next sweep (capped)
     log('warn', 'shipper.network_error', { message: (err as Error).message, session_id });
+    recordRetryableFailure(marker, 'network_error');
   }
 }
 
