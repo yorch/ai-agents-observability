@@ -8,7 +8,7 @@ CREATE TYPE "SessionStatus" AS ENUM ('active', 'completed', 'crashed', 'timed_ou
 CREATE TYPE "AgentType" AS ENUM ('claude_code');
 
 -- CreateEnum
-CREATE TYPE "AuditAction" AS ENUM ('view_session', 'view_transcript', 'export_team', 'export_org', 'admin_impersonate', 'delete_request');
+CREATE TYPE "AuditAction" AS ENUM ('view_session', 'view_transcript', 'export_team', 'export_org', 'admin_impersonate', 'delete_request', 'hook_token_issued');
 
 -- CreateEnum
 CREATE TYPE "AuthTokenKind" AS ENUM ('access', 'refresh', 'hook');

@@ -26,6 +26,14 @@ const MAX_BYTES_PER_SEC = 5 * 1024 * 1024;
 // forever every sweep.
 const MAX_SHIP_ATTEMPTS = 10;
 
+// Max age for transient outcomes (404/409/429) that DON'T bump the attempt
+// counter. These are normally short-lived ordering/backpressure, but a 404 can
+// also be permanent (bad session id, the session was deleted, or ingest cleaned
+// it up), in which case the marker would otherwise retry forever. After this age
+// we give up. Generous so a slow/offline flusher backfilling the session row
+// still wins.
+const MAX_TRANSIENT_AGE_MS = 24 * 60 * 60 * 1_000; // 24h
+
 // ── Ship marker ───────────────────────────────────────────────────────────────
 
 export type ShipMarker = {
@@ -34,6 +42,8 @@ export type ShipMarker = {
   partial: boolean;
   bytes_uploaded: number;
   attempts?: number;
+  /** ISO timestamp the marker was first created; used to age out stale 404s. */
+  first_seen_at?: string;
 };
 
 export function writeShipMarker(sessionId: string, transcriptPath: string, partial: boolean): void {
@@ -42,6 +52,7 @@ export function writeShipMarker(sessionId: string, transcriptPath: string, parti
     mkdirSync(dir, { recursive: true });
     const marker: ShipMarker = {
       bytes_uploaded: 0,
+      first_seen_at: new Date().toISOString(),
       partial,
       session_id: sessionId,
       transcript_path: transcriptPath,
@@ -106,6 +117,26 @@ function recordRetryableFailure(marker: ShipMarker, reason: string): boolean {
     renameSync(tmpPath, finalPath);
   } catch {
     // best-effort; if we can't persist the attempt count we'll just retry again
+  }
+  return false;
+}
+
+/**
+ * Handle a transient outcome (404/409/429) that should keep retrying without
+ * burning the attempt budget — but abandon the marker once it's older than
+ * MAX_TRANSIENT_AGE_MS, so a permanently-absent session (deleted, bad id, or
+ * ingest cleanup) can't loop forever. Returns true if the marker was abandoned.
+ */
+function keepOrAbandonStale(marker: ShipMarker, reason: string): boolean {
+  const firstSeen = marker.first_seen_at ? Date.parse(marker.first_seen_at) : Number.NaN;
+  if (!Number.isNaN(firstSeen) && Date.now() - firstSeen > MAX_TRANSIENT_AGE_MS) {
+    deleteMarker(marker.session_id);
+    log('error', 'shipper.abandoned_stale', {
+      ageMs: Date.now() - firstSeen,
+      reason,
+      session_id: marker.session_id,
+    });
+    return true;
   }
   return false;
 }
@@ -211,17 +242,26 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
     } else if (res.status === 404) {
       // The session row doesn't exist yet — the events pipeline hasn't created
       // it (e.g. the flusher is behind or offline). Transient ordering, NOT bad
-      // data: keep the marker and retry WITHOUT consuming the abandon budget, so
-      // a slow/offline flusher can't cause valid transcripts to be dropped.
-      log('info', 'shipper.session_not_ready', { session_id, status: res.status });
+      // data: keep the marker and retry WITHOUT consuming the attempt budget, so
+      // a slow/offline flusher can't cause valid transcripts to be dropped. But a
+      // 404 can also be permanent (deleted/unknown session), so age the marker
+      // out after MAX_TRANSIENT_AGE_MS instead of looping forever.
+      if (!keepOrAbandonStale(marker, 'session_not_ready')) {
+        log('info', 'shipper.session_not_ready', { session_id, status: res.status });
+      }
     } else if (res.status === 409) {
       // Conflict (e.g. missing prior chunk) — transient ordering; keep + retry,
-      // no attempt bump.
-      log('info', 'shipper.conflict', { session_id, status: res.status });
+      // no attempt bump (aged out after MAX_TRANSIENT_AGE_MS).
+      if (!keepOrAbandonStale(marker, 'conflict')) {
+        log('info', 'shipper.conflict', { session_id, status: res.status });
+      }
     } else if (res.status === 429) {
       // Rate-limited — explicit server backpressure, NOT a failure. Keep the
-      // marker and retry next sweep without counting toward the abandon cap.
-      log('warn', 'shipper.rate_limited', { session_id, status: res.status });
+      // marker and retry next sweep without counting toward the attempt cap
+      // (aged out after MAX_TRANSIENT_AGE_MS).
+      if (!keepOrAbandonStale(marker, 'rate_limited')) {
+        log('warn', 'shipper.rate_limited', { session_id, status: res.status });
+      }
     } else if (res.status >= 400 && res.status < 500) {
       // 4xx (non-404, non-409, non-429): bad data, server won't accept — drop.
       try {
