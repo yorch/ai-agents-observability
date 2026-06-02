@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@ai-agents-observability/db';
+import { isUniqueViolation, type PrismaClient } from '@ai-agents-observability/db';
 
 type PRState = 'open' | 'closed' | 'merged';
 
@@ -42,7 +42,7 @@ export async function upsertPullRequest(
   try {
     return await doUpsert(db, repoPl, prPl, state);
   } catch (err) {
-    if ((err as { code?: string }).code === 'P2002') {
+    if (isUniqueViolation(err)) {
       return await doUpsert(db, repoPl, prPl, state);
     }
     throw err;

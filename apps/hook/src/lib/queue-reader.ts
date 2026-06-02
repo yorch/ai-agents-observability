@@ -49,6 +49,10 @@ export function openQueueReader(dbPath: string): QueueReader {
     'SELECT MAX(attempted_at) AS last FROM events_queue',
   );
 
+  const dropAbandonedStmt = db.prepare(
+    `DELETE FROM events_queue WHERE attempts >= ${MAX_ATTEMPTS}`,
+  );
+
   return {
     close(): void {
       db.close();
@@ -74,8 +78,7 @@ export function openQueueReader(dbPath: string): QueueReader {
       // Rows that have hit the attempt cap are unsendable (poison batch or a
       // permanently-rejecting endpoint). Drop them so the DB doesn't grow
       // unbounded and a head-of-line poison row can't block the queue forever.
-      const res = db.prepare(`DELETE FROM events_queue WHERE attempts >= ${MAX_ATTEMPTS}`).run();
-      return res.changes;
+      return dropAbandonedStmt.run().changes;
     },
 
     lastAttemptedAt(): string | null {

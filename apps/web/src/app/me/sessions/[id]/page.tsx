@@ -112,12 +112,17 @@ export default async function SessionDetailPage({
   const { id } = await params;
   const { tab = 'timeline' } = await searchParams;
 
-  const session = await getSession(user.id, id);
+  // The breakdown only needs userId+sessionId (not the session row), so when the
+  // models tab is active run both queries concurrently instead of serially.
+  const [session, modelBreakdown] = await Promise.all([
+    getSession(user.id, id),
+    tab === 'models'
+      ? getSessionModelBreakdown(user.id, id)
+      : Promise.resolve([] as ModelBreakdownRow[]),
+  ]);
   if (!session) {
     notFound();
   }
-
-  const modelBreakdown = tab === 'models' ? await getSessionModelBreakdown(user.id, id) : [];
 
   const tabs = [
     { href: `?tab=timeline`, id: 'timeline', label: 'Timeline' },

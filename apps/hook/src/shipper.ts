@@ -10,11 +10,12 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 
+import { loadHookToken } from './lib/identity';
+import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
-import { identityPath, shipQueueDir } from './lib/paths';
+import { shipQueueDir } from './lib/paths';
 import { redactedLines } from './lib/transcript-stream';
 
-const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
 const SWEEP_INTERVAL_MS = 10 * 60 * 1_000; // 10 minutes
 
 // Bandwidth throttle: max 5 MB/s
@@ -107,21 +108,6 @@ function recordRetryableFailure(marker: ShipMarker, reason: string): boolean {
     // best-effort; if we can't persist the attempt count we'll just retry again
   }
   return false;
-}
-
-// ── JWT token ─────────────────────────────────────────────────────────────────
-
-function loadJwt(): string | null {
-  try {
-    const raw = readFileSync(identityPath(), 'utf8');
-    const parsed = JSON.parse(raw) as { token?: unknown };
-    if (typeof parsed.token === 'string' && parsed.token.length > 0) {
-      return parsed.token;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 // ── Bandwidth-throttled upload ────────────────────────────────────────────────
@@ -268,7 +254,7 @@ export async function runShipper(): Promise<void> {
       continue;
     }
 
-    const jwt = loadJwt();
+    const jwt = loadHookToken();
     if (!jwt) {
       log('warn', 'shipper.no_token', { hint: 'Run `claude-telemetry login` to authenticate' });
       await Bun.sleep(SWEEP_INTERVAL_MS);

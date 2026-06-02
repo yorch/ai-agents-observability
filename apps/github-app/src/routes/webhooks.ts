@@ -1,3 +1,4 @@
+import { isUniqueViolation } from '@ai-agents-observability/db';
 import type { EmitterWebhookEvent } from '@octokit/webhooks';
 import { Webhooks } from '@octokit/webhooks';
 import { Hono } from 'hono';
@@ -62,7 +63,7 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
         },
       });
     } catch (err) {
-      if ((err as { code?: string }).code === 'P2002') {
+      if (isUniqueViolation(err)) {
         logger.info({ delivery: deliveryId, event }, 'webhook.duplicate');
         return c.json({ accepted: true, delivery: id, duplicate: true }, 202);
       }

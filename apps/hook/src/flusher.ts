@@ -2,11 +2,12 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import { backoffSleep } from './lib/backoff';
+import { loadHookToken } from './lib/identity';
+import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
-import { flusherStatePath, identityPath, telemetryHome } from './lib/paths';
+import { flusherStatePath, telemetryHome } from './lib/paths';
 import { openQueueReader } from './lib/queue-reader';
 
-const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
 const BATCH_SIZE = 100;
 const IDLE_INTERVAL_MS = 5_000;
 const HIGH_WATER_MARK = 50;
@@ -64,21 +65,6 @@ export function buildBatchEnvelope(events: unknown[]): {
   return { events, session_context: newest?.session_context ?? null };
 }
 
-// ── JWT token ─────────────────────────────────────────────────────────────────
-
-function loadJwt(): string | null {
-  try {
-    const raw = readFileSync(identityPath(), 'utf8');
-    const parsed = JSON.parse(raw) as { token?: unknown };
-    if (typeof parsed.token === 'string' && parsed.token.length > 0) {
-      return parsed.token;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 // ── Flusher loop ──────────────────────────────────────────────────────────────
 
 export async function runFlusher(): Promise<void> {
@@ -87,19 +73,23 @@ export async function runFlusher(): Promise<void> {
 
   log('info', 'flusher.start', { ingestBaseUrl: INGEST_BASE_URL });
 
+  // Bump the per-row attempt counter, then prune any row that just crossed the
+  // cap. Pruning only here (right after a bump) avoids a full table scan on
+  // every idle loop tick — a markAttempt is the only thing that can newly
+  // abandon a row. Data loss at the cap is intentional (P1-021) but logged.
+  const markAttemptAndPrune = (ids: string[]): void => {
+    reader.markAttempt(ids);
+    const dropped = reader.dropAbandoned();
+    if (dropped > 0) {
+      log('warn', 'flusher.dropped_abandoned', { count: dropped });
+    }
+  };
+
   let consecutiveFailures = 0;
 
   try {
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      // Drop rows that exhausted their retry budget so they can't block the
-      // queue head or grow the DB without bound. Data loss here is intentional
-      // (per P1-021) but must be visible.
-      const dropped = reader.dropAbandoned();
-      if (dropped > 0) {
-        log('warn', 'flusher.dropped_abandoned', { count: dropped });
-      }
-
       const rows = reader.drain(BATCH_SIZE);
 
       if (rows.length === 0) {
@@ -107,7 +97,7 @@ export async function runFlusher(): Promise<void> {
         continue;
       }
 
-      const jwt = loadJwt();
+      const jwt = loadHookToken();
       if (!jwt) {
         log('warn', 'flusher.no_token', {
           hint: 'Run `claude-telemetry login` to authenticate',
@@ -182,7 +172,7 @@ export async function runFlusher(): Promise<void> {
           success = true;
         } else {
           // 5xx — mark attempts and back off
-          reader.markAttempt(eventIds);
+          markAttemptAndPrune(eventIds);
           const errMsg = `Server error ${res.status}`;
           log('warn', 'flusher.batch_failed', { attempt, count: rows.length, status: res.status });
           writeFlusherState({
@@ -196,7 +186,7 @@ export async function runFlusher(): Promise<void> {
       } catch (err) {
         // Network error — mark attempts and back off
         const message = (err as Error).message;
-        reader.markAttempt(eventIds);
+        markAttemptAndPrune(eventIds);
         log('warn', 'flusher.network_error', { attempt, message });
         writeFlusherState({
           ...readFlusherState(),

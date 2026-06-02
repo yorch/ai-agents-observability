@@ -1,5 +1,5 @@
 export type { CreateGitHubClientOptions, GitHubClient } from './client';
-export { createGitHubClient } from './client';
+export { createGitHubClient, resolveApiBase } from './client';
 
 export { getCurrentUser, getOrgTeams, getPRDetails, getRepo, getTeamMembers } from './helpers';
 

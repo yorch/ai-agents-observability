@@ -1,3 +1,4 @@
+import { resolveApiBase } from '@ai-agents-observability/github';
 import type { RepoConfig } from '@ai-agents-observability/schemas';
 import { parseRepoConfig } from '@ai-agents-observability/schemas';
 import type { EmitterWebhookEvent } from '@octokit/webhooks';
@@ -88,10 +89,7 @@ async function maybePostComment(
     return;
   }
   const [owner, name] = parts as [string, string];
-  const apiBase =
-    config.github_host === 'https://github.com'
-      ? 'https://api.github.com'
-      : `${config.github_host}/api/v3`;
+  const apiBase = resolveApiBase(config.github_host);
 
   const mergeCommitSha = (pr as { merge_commit_sha?: string | null }).merge_commit_sha;
   const refParam = mergeCommitSha ? `?ref=${encodeURIComponent(mergeCommitSha)}` : '';
