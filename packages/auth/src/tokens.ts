@@ -152,7 +152,14 @@ export async function rotateRefreshToken(
   refreshPlaintext: string,
 ): Promise<{ access: string; refresh: string }> {
   return prisma.$transaction(async (tx) => {
-    const { tokenId, userId } = await verifyOpaqueToken(tx as DbClient, refreshPlaintext);
+    const { kind, tokenId, userId } = await verifyOpaqueToken(tx as DbClient, refreshPlaintext);
+
+    // Only refresh tokens may be rotated into a web session. `verifyOpaqueToken`
+    // also accepts long-lived `hook` tokens; without this guard a leaked hook
+    // token could be exchanged for dashboard access tokens (privilege crossing).
+    if (kind !== 'refresh') {
+      throw new Error('Token is not a refresh token');
+    }
 
     const revokedAt = new Date();
     const { count } = await tx.authToken.updateMany({

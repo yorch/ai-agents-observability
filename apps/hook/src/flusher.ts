@@ -43,6 +43,33 @@ export function getFlusherStatus(): FlusherStatus {
   return readFlusherState();
 }
 
+// ── Batch envelope ──────────────────────────────────────────────────────────
+
+/**
+ * Build the `POST /v1/events` request body from queued event payloads.
+ *
+ * `EventsBatchSchema` requires a non-nullable top-level `session_context`
+ * envelope — ingest uses it as a repo-attribution fallback. Each event already
+ * carries its own context, so we reuse the newest event's context for the
+ * envelope. Sending `session_context: null` (the previous behaviour) failed
+ * validation with a 400 on every batch, which the flusher then treated as
+ * "bad data" and silently deleted — dropping all telemetry end-to-end.
+ */
+export function buildBatchEnvelope(events: unknown[]): {
+  events: unknown[];
+  session_context: unknown;
+} {
+  let sessionContext: unknown = null;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ctx = (events[i] as { session_context?: unknown } | null)?.session_context;
+    if (ctx) {
+      sessionContext = ctx;
+      break;
+    }
+  }
+  return { events, session_context: sessionContext };
+}
+
 // ── JWT token ─────────────────────────────────────────────────────────────────
 
 function loadJwt(): string | null {
@@ -93,7 +120,7 @@ export async function runFlusher(): Promise<void> {
 
       const eventIds = rows.map((r) => r.event_id);
       const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
-      const body = JSON.stringify({ events, session_context: null });
+      const body = JSON.stringify(buildBatchEnvelope(events));
 
       let success = false;
       const attempt = consecutiveFailures;

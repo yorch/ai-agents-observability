@@ -7,6 +7,7 @@ import {
   issueHookToken,
   issueRefreshToken,
   revokeToken,
+  rotateRefreshToken,
   verifyAccessToken,
   verifyOpaqueToken,
 } from '../src/tokens';
@@ -37,7 +38,8 @@ type FakeToken = {
 };
 
 function makeDb(store: Map<string, FakeToken> = new Map()) {
-  return {
+  const db = {
+    $transaction: vi.fn(async (fn: (tx: typeof db) => unknown) => fn(db)),
     authToken: {
       create: vi.fn(async ({ data }: { data: Omit<FakeToken, 'id'> }) => {
         const record = { ...data, id: crypto.randomUUID() } as FakeToken;
@@ -58,8 +60,28 @@ function makeDb(store: Map<string, FakeToken> = new Map()) {
           throw new Error('Record not found');
         },
       ),
+      updateMany: vi.fn(
+        async ({
+          data,
+          where,
+        }: {
+          data: Partial<FakeToken>;
+          where: { id: string; revokedAt: null };
+        }) => {
+          let count = 0;
+          for (const record of store.values()) {
+            // where.revokedAt is null (only-unrevoked); treat missing as unrevoked.
+            if (record.id === where.id && record.revokedAt == null) {
+              Object.assign(record, data);
+              count++;
+            }
+          }
+          return { count };
+        },
+      ),
     },
   };
+  return db;
 }
 
 // ── Access token ──────────────────────────────────────────────────────────────
@@ -126,6 +148,43 @@ describe('issueHookToken', () => {
     const token = await issueHookToken(db, userId);
     const payload = await verifyOpaqueToken(db, token);
     expect(payload.kind).toBe('hook');
+  });
+});
+
+// ── Rotation ──────────────────────────────────────────────────────────────────
+
+describe('rotateRefreshToken', () => {
+  it('rotates a valid refresh token into a fresh access + refresh pair', async () => {
+    const db = makeDb();
+    const userId = crypto.randomUUID();
+    const refresh = await issueRefreshToken(db, userId);
+
+    const result = await rotateRefreshToken(db as never, refresh);
+
+    expect(result.access).toBeTruthy();
+    expect(result.refresh).toMatch(/^cct_[A-Z2-7]{32}$/);
+    expect(result.refresh).not.toBe(refresh);
+    // Original refresh token is now revoked (single-use).
+    await expect(verifyOpaqueToken(db, refresh)).rejects.toThrow('Token has been revoked');
+  });
+
+  it('rejects double-rotation of the same token', async () => {
+    const db = makeDb();
+    const userId = crypto.randomUUID();
+    const refresh = await issueRefreshToken(db, userId);
+
+    await rotateRefreshToken(db as never, refresh);
+    await expect(rotateRefreshToken(db as never, refresh)).rejects.toThrow();
+  });
+
+  it('refuses to rotate a hook token (privilege-crossing guard)', async () => {
+    const db = makeDb();
+    const userId = crypto.randomUUID();
+    const hookToken = await issueHookToken(db, userId);
+
+    await expect(rotateRefreshToken(db as never, hookToken)).rejects.toThrow(
+      'Token is not a refresh token',
+    );
   });
 });
 

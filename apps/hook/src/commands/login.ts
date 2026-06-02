@@ -78,6 +78,13 @@ export async function runLogin(): Promise<number> {
     const { hook_token, github_login } = pollResult;
     const path = identityPath();
     mkdirSync(dirname(path), { recursive: true });
+    // Token storage: deliberately a 0600 plaintext JSON file rather than the OS
+    // keychain. The hook ships as a `bun build --compile` single binary, where the
+    // native `keytar` addon cannot be reliably linked across the four cross-compiled
+    // targets, and we need to persist structured identity (token + claim), not just a
+    // bare secret. The 0600 file (owner-read/write only) is the same posture as
+    // `~/.ssh` keys and `~/.aws/credentials`. The keytar-with-file-fallback path lives
+    // in `@ai-agents-observability/auth` (keychain.ts) for non-compiled server contexts.
     writeFileSync(
       path,
       JSON.stringify({ token: hook_token, user_id_claim: github_login }, null, 2),
