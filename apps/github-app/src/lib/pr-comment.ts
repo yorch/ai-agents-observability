@@ -10,6 +10,9 @@ type PRRollupLike = {
   totalToolCalls: number | null;
 };
 
+/** Leading marker identifying a bot-authored summary comment (for idempotency). */
+export const COMMENT_MARKER = '🤖 **Claude Code summary**';
+
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -17,7 +20,7 @@ function formatDuration(seconds: number): string {
 }
 
 export function buildCommentBody(rollup: PRRollupLike, config: RepoConfig): string {
-  const lines: string[] = ['🤖 **Claude Code summary**'];
+  const lines: string[] = [COMMENT_MARKER];
 
   const sessions = rollup.contributingSessionIds.length;
   const contributors = rollup.contributingUserIds.length;
@@ -35,12 +38,18 @@ export function buildCommentBody(rollup: PRRollupLike, config: RepoConfig): stri
   }
 
   if (rollup.totalActiveSeconds != null) {
-    lines.push(`• Time span: ${formatDuration(rollup.totalActiveSeconds)} (first session → merge)`);
+    // Sum of contributing-session durations — active time, not wall-clock span.
+    lines.push(`• Active time: ${formatDuration(rollup.totalActiveSeconds)}`);
   }
 
   return lines.join('\n');
 }
 
+/**
+ * Post the summary comment, idempotently. GitHub re-delivers webhooks, so before
+ * posting we list existing PR comments and skip if a bot summary (identified by
+ * {@link COMMENT_MARKER}) is already present. Returns true if a comment was posted.
+ */
 export async function postPRComment(
   repoOwner: string,
   repoName: string,
@@ -48,12 +57,25 @@ export async function postPRComment(
   body: string,
   installationToken: string,
   githubHost: string,
-): Promise<void> {
+): Promise<boolean> {
   const client = createGitHubClient({ host: githubHost, token: installationToken });
+
+  const existing = await client.request(
+    'GET /repos/{owner}/{repo}/issues/{issue_number}/comments',
+    { issue_number: prNumber, owner: repoOwner, per_page: 100, repo: repoName },
+  );
+  const alreadyPosted = (existing.data as Array<{ body?: string | null }>).some((cm) =>
+    cm.body?.includes(COMMENT_MARKER),
+  );
+  if (alreadyPosted) {
+    return false;
+  }
+
   await client.request('POST /repos/{owner}/{repo}/issues/{issue_number}/comments', {
     body,
     issue_number: prNumber,
     owner: repoOwner,
     repo: repoName,
   });
+  return true;
 }

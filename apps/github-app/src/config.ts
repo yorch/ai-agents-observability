@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
 const ConfigSchema = z.object({
+  // When set, GET /admin/health requires a matching X-Admin-Secret header.
+  // When unset, the admin endpoint is disabled (404) rather than leaking counters.
+  admin_secret: z.string().min(1).optional(),
   database_url: z.string().min(1),
   git_sha: z.string().default('dev'),
   github_app_id: z.coerce.number().int().positive(),
@@ -17,6 +20,7 @@ export type Config = z.infer<typeof ConfigSchema>;
 
 export function loadConfig(): Config {
   return ConfigSchema.parse({
+    admin_secret: process.env.ADMIN_SECRET,
     database_url: process.env.DATABASE_URL,
     git_sha: process.env.GIT_SHA ?? process.env.COMMIT_SHA,
     github_app_id: process.env.GITHUB_APP_ID,

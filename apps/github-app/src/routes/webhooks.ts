@@ -38,8 +38,39 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
       return c.json({ error: 'Invalid JSON body' }, 400);
     }
     const action: string = (payload.action as string) ?? '';
+    const repoFullName = (payload.repository as { full_name?: string } | undefined)?.full_name;
 
     recordReceived(event);
+
+    // Idempotency + durable record. Persist the delivery keyed by the unique
+    // X-GitHub-Delivery id BEFORE acking. GitHub re-delivers on its own schedule,
+    // and we ack 202 before processing (so it never retries on our failures);
+    // without this, a replay would reprocess (e.g. post a duplicate PR comment)
+    // and a failed delivery would leave no trace. A unique-constraint violation
+    // means we've already seen this delivery — short-circuit as a duplicate.
+    // (If the header is absent — never true for real GitHub — fall back to a
+    // random id so a missing header can't collide and block processing.)
+    const deliveryId = id === 'unknown' ? `unknown-${crypto.randomUUID()}` : id;
+    try {
+      await db.webhookDelivery.create({
+        data: {
+          action: action || null,
+          deliveryId,
+          eventType: event,
+          repo: repoFullName ?? null,
+          status: 'received',
+        },
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2002') {
+        logger.info({ delivery: deliveryId, event }, 'webhook.duplicate');
+        return c.json({ accepted: true, delivery: id, duplicate: true }, 202);
+      }
+      // DB unavailable — log and still ack so GitHub doesn't hammer retries, but
+      // we have no durable record. Surface loudly.
+      logger.error({ delivery: deliveryId, err, event }, 'webhook.persist.error');
+    }
+
     const start = Date.now();
 
     c.status(202);
@@ -56,9 +87,21 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
           );
         }
         recordProcessed(`${event}.${action}`, Date.now() - start);
+        await db.webhookDelivery
+          .update({
+            data: { processedAt: new Date(), status: 'processed' },
+            where: { deliveryId },
+          })
+          .catch(() => {});
       } catch (err) {
         recordFailed(`${event}.${action}`);
-        logger.error({ delivery: id, err, event }, 'webhook.handler.error');
+        logger.error({ delivery: deliveryId, err, event }, 'webhook.handler.error');
+        await db.webhookDelivery
+          .update({
+            data: { errorText: (err as Error).message, processedAt: new Date(), status: 'error' },
+            where: { deliveryId },
+          })
+          .catch(() => {});
       }
     })();
 

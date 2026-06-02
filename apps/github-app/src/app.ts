@@ -15,7 +15,7 @@ export function createApp(config: Config, db: AppDb, logger: Logger): Hono<AppEn
   app.use('*', loggerMiddleware(logger));
 
   app.route('/health', healthRouter(startedAt, config.git_sha));
-  app.route('/admin', adminRouter(process.env.ADMIN_SECRET));
+  app.route('/admin', adminRouter(config.admin_secret));
   app.route('/webhooks/github', webhooksRouter(db, config, logger));
 
   return app;

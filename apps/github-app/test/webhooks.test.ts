@@ -18,7 +18,11 @@ const stubDb = {
   session: { findMany: async () => [] },
   sessionPRLink: { createMany: async () => ({}), findMany: async () => [] },
   user: { findUnique: async () => null },
-  webhookDelivery: { create: async () => ({}) },
+  webhookDelivery: {
+    create: async () => ({}),
+    deleteMany: async () => ({ count: 0 }),
+    update: async () => ({}),
+  },
 } as unknown as AppDb;
 
 const config = {
@@ -88,5 +92,59 @@ describe('webhooks', () => {
       method: 'POST',
     });
     expect(res.status).toBe(202);
+  });
+
+  it('persists each delivery keyed by the delivery id', async () => {
+    const created: string[] = [];
+    const db = {
+      ...stubDb,
+      webhookDelivery: {
+        ...(stubDb as unknown as { webhookDelivery: object }).webhookDelivery,
+        create: async ({ data }: { data: { deliveryId: string } }) => {
+          created.push(data.deliveryId);
+          return {};
+        },
+      },
+    } as unknown as AppDb;
+    const body = JSON.stringify({ action: 'opened' });
+    const app = createApp(config, db, logger);
+    await app.request('/webhooks/github', {
+      body,
+      headers: {
+        'content-type': 'application/json',
+        'x-github-delivery': 'delivery-123',
+        'x-github-event': 'unknown_event',
+        'x-hub-signature-256': sign(body),
+      },
+      method: 'POST',
+    });
+    expect(created).toContain('delivery-123');
+  });
+
+  it('treats a replayed delivery id as a duplicate (no reprocessing)', async () => {
+    const db = {
+      ...stubDb,
+      webhookDelivery: {
+        ...(stubDb as unknown as { webhookDelivery: object }).webhookDelivery,
+        create: async () => {
+          throw Object.assign(new Error('unique constraint'), { code: 'P2002' });
+        },
+      },
+    } as unknown as AppDb;
+    const body = JSON.stringify({ action: 'opened' });
+    const app = createApp(config, db, logger);
+    const res = await app.request('/webhooks/github', {
+      body,
+      headers: {
+        'content-type': 'application/json',
+        'x-github-delivery': 'delivery-123',
+        'x-github-event': 'pull_request',
+        'x-hub-signature-256': sign(body),
+      },
+      method: 'POST',
+    });
+    expect(res.status).toBe(202);
+    const json = (await res.json()) as { duplicate?: boolean };
+    expect(json.duplicate).toBe(true);
   });
 });
