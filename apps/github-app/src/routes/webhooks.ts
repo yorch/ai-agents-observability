@@ -66,9 +66,13 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
         logger.info({ delivery: deliveryId, event }, 'webhook.duplicate');
         return c.json({ accepted: true, delivery: id, duplicate: true }, 202);
       }
-      // DB unavailable — log and still ack so GitHub doesn't hammer retries, but
-      // we have no durable record. Surface loudly.
+      // DB unavailable (non-unique error): we cannot record the delivery, so we
+      // cannot guarantee exactly-once processing. Do NOT process+ack — return 503
+      // so GitHub redelivers later; when the DB recovers, the redelivery creates
+      // the row and processes exactly once. Processing here would risk duplicate
+      // side effects (e.g. a second PR comment) with no dedup record.
       logger.error({ delivery: deliveryId, err, event }, 'webhook.persist.error');
+      return c.json({ error: 'Storage unavailable, retry later' }, 503);
     }
 
     const start = Date.now();

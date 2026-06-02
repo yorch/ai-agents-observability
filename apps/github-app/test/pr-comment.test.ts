@@ -54,4 +54,18 @@ describe('postPRComment idempotency', () => {
     expect(posted).toBe(true);
     expect(requestMock).toHaveBeenCalledTimes(2);
   });
+
+  it('finds a marker beyond the first page and skips posting', async () => {
+    requestMock.mockReset();
+    // Page 1: a full page (100) with no marker → must fetch page 2.
+    const fullPage = Array.from({ length: 100 }, (_, i) => ({ body: `comment ${i}` }));
+    requestMock.mockResolvedValueOnce({ data: fullPage });
+    requestMock.mockResolvedValueOnce({ data: [{ body: `${COMMENT_MARKER}\n• prior` }] });
+
+    const posted = await postPRComment('acme', 'repo', 42, 'body', 'token', 'https://github.com');
+
+    expect(posted).toBe(false);
+    // page 1 + page 2 GET, no POST
+    expect(requestMock).toHaveBeenCalledTimes(2);
+  });
 });

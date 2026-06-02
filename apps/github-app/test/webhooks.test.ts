@@ -121,6 +121,32 @@ describe('webhooks', () => {
     expect(created).toContain('delivery-123');
   });
 
+  it('returns 503 (so GitHub retries) when the delivery cannot be persisted', async () => {
+    const db = {
+      ...stubDb,
+      webhookDelivery: {
+        ...(stubDb as unknown as { webhookDelivery: object }).webhookDelivery,
+        create: async () => {
+          // Non-P2002 failure (e.g. DB down) — must NOT process without a record.
+          throw new Error('connection refused');
+        },
+      },
+    } as unknown as AppDb;
+    const body = JSON.stringify({ action: 'opened' });
+    const app = createApp(config, db, logger);
+    const res = await app.request('/webhooks/github', {
+      body,
+      headers: {
+        'content-type': 'application/json',
+        'x-github-delivery': 'delivery-503',
+        'x-github-event': 'pull_request',
+        'x-hub-signature-256': sign(body),
+      },
+      method: 'POST',
+    });
+    expect(res.status).toBe(503);
+  });
+
   it('treats a replayed delivery id as a duplicate (no reprocessing)', async () => {
     const db = {
       ...stubDb,

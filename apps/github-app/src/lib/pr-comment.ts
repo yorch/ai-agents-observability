@@ -60,15 +60,26 @@ export async function postPRComment(
 ): Promise<boolean> {
   const client = createGitHubClient({ host: githubHost, token: installationToken });
 
-  const existing = await client.request(
-    'GET /repos/{owner}/{repo}/issues/{issue_number}/comments',
-    { issue_number: prNumber, owner: repoOwner, per_page: 100, repo: repoName },
-  );
-  const alreadyPosted = (existing.data as Array<{ body?: string | null }>).some((cm) =>
-    cm.body?.includes(COMMENT_MARKER),
-  );
-  if (alreadyPosted) {
-    return false;
+  // Scan ALL comment pages for an existing bot summary, not just the first 100 —
+  // on a busy PR the marker can sit beyond page 1 and a single-page check would
+  // re-post a duplicate. Bounded at MAX_PAGES so a pathological PR can't loop.
+  const PER_PAGE = 100;
+  const MAX_PAGES = 20; // up to 2000 comments
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const resp = await client.request('GET /repos/{owner}/{repo}/issues/{issue_number}/comments', {
+      issue_number: prNumber,
+      owner: repoOwner,
+      page,
+      per_page: PER_PAGE,
+      repo: repoName,
+    });
+    const comments = resp.data as Array<{ body?: string | null }>;
+    if (comments.some((cm) => cm.body?.includes(COMMENT_MARKER))) {
+      return false;
+    }
+    if (comments.length < PER_PAGE) {
+      break; // last page reached
+    }
   }
 
   await client.request('POST /repos/{owner}/{repo}/issues/{issue_number}/comments', {
