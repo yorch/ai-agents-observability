@@ -157,9 +157,9 @@ export async function runIndexTranscripts(
              ON CONFLICT (session_id, message_idx) DO NOTHING`,
             row.session_id,
           );
+        } else {
+          indexed++;
         }
-
-        indexed++;
       } catch (err) {
         logger?.warn({ err, sessionId: row.session_id }, 'Failed to index transcript');
       }
