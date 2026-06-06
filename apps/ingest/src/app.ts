@@ -7,6 +7,7 @@ import type { Logger } from 'pino';
 
 import type { Config } from './config';
 import rawPriceTable from './data/price-table.v1.json' with { type: 'json' };
+import { httpRequestDurationMs, httpRequestsTotal, registry } from './lib/metrics';
 import { authRequired } from './middleware/auth';
 import { loggerMiddleware } from './middleware/logger';
 import { rateLimitMiddleware } from './middleware/rate-limit';
@@ -35,6 +36,20 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
   app.use('*', requestIdMiddleware());
   app.use('*', loggerMiddleware(deps.logger));
 
+  // Request timing middleware — records HTTP duration + request count for Prometheus
+  app.use('*', async (c, next) => {
+    const start = Date.now();
+    await next();
+    const durationMs = Date.now() - start;
+    const method = c.req.method;
+    // Normalise dynamic path segments so cardinality stays bounded.
+    // e.g. /v1/events/abc-123 → /v1/events/:id
+    const route = c.req.routePath ?? c.req.path;
+    const status = String(c.res.status);
+    httpRequestsTotal.inc({ method, route, status });
+    httpRequestDurationMs.observe({ method, route, status }, durationMs);
+  });
+
   app.get('/health', (c) =>
     c.json({
       ok: true,
@@ -56,6 +71,14 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
       },
       ok ? 200 : 503,
     );
+  });
+
+  // Prometheus metrics — accessible from Prometheus scraper only (no auth needed in dev)
+  app.get('/metrics', async (_c) => {
+    const output = await registry.metrics();
+    return new Response(output, {
+      headers: { 'Content-Type': registry.contentType },
+    });
   });
 
   // Public v1 routes — registered before auth middleware so they bypass it

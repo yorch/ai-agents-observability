@@ -13,6 +13,9 @@ export type PRListItem = {
   sessionCount: number;
   contributorCount: number;
   totalCostUsd: number;
+  revertedAt: Date | null;
+  checkFailuresCount: number;
+  jiraKey: string | null;
 };
 
 export type PRDetail = PRListItem & {
@@ -61,12 +64,15 @@ export async function getUserPRs(
 
     const rollup = pr.rollup;
     merged.push({
+      checkFailuresCount: rollup?.checkFailuresCount ?? 0,
       contributorCount: rollup?.contributingUserIds.length ?? 0,
+      jiraKey: pr.jiraKey,
       mergedAt: pr.mergedAt,
       openedAt: pr.openedAt,
       prNumber: pr.prNumber,
       repoName: pr.repo.githubName,
       repoOwner: pr.repo.githubOwner,
+      revertedAt: pr.revertedAt,
       sessionCount: rollup?.contributingSessionIds.length ?? 0,
       state: pr.state,
       title: pr.title,
@@ -101,11 +107,13 @@ export async function getPRDetail(
 
   return {
     baseBranch: pr.baseBranch,
+    checkFailuresCount: pr.rollup?.checkFailuresCount ?? 0,
     contributingSessionIds: pr.rollup?.contributingSessionIds ?? [],
     contributorCount: pr.rollup?.contributingUserIds.length ?? 0,
     filesChanged: pr.filesChanged,
     firstSessionAt: pr.rollup?.firstSessionAt ?? null,
     headBranch: pr.headBranch,
+    jiraKey: pr.jiraKey,
     lastSessionAt: pr.rollup?.lastSessionAt ?? null,
     linesAdded: pr.linesAdded,
     linesRemoved: pr.linesRemoved,
@@ -114,6 +122,7 @@ export async function getPRDetail(
     prNumber: pr.prNumber,
     repoName: pr.repo.githubName,
     repoOwner: pr.repo.githubOwner,
+    revertedAt: pr.revertedAt,
     sessionCount: pr.rollup?.contributingSessionIds.length ?? 0,
     state: pr.state,
     title: pr.title,

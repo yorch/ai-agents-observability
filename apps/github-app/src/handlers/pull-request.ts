@@ -51,6 +51,32 @@ export async function handlePullRequest(
       const rollupResult = await computePRRollup(db, repoId, prNumber);
       logger.info({ ...rollupResult, pr: prNumber }, 'pr.rollup');
 
+      // P5-003: Revert detection — check if this merged PR reverts another PR.
+      // GitHub auto-generates revert PRs with title "Revert "<original title>""
+      // and body containing "Reverts #<original PR number>".
+      const prTitle = pr.title ?? '';
+      const prBody = (pr as { body?: string | null }).body ?? '';
+      const isRevertTitle = /^Revert\s+["""]/i.test(prTitle);
+      const bodyMatch = /Reverts\s+#(\d+)/.exec(prBody);
+
+      if (isRevertTitle && bodyMatch) {
+        const originalPrNumber = parseInt(bodyMatch[1] as string, 10);
+
+        // Mark the original PR as reverted
+        await db.pullRequest.updateMany({
+          data: { revertedAt: new Date() },
+          where: { prNumber: originalPrNumber, repoId },
+        });
+
+        // Record which PR this reverting PR reverts
+        await db.pullRequest.update({
+          data: { revertOfPrNumber: originalPrNumber },
+          where: { repoId_prNumber: { prNumber, repoId } },
+        });
+
+        logger.info({ originalPrNumber, prNumber }, 'pr.revert.detected');
+      }
+
       if (installationId) {
         try {
           await maybePostComment(db, config, logger, repoId, prNumber, pr, repo, installationId);

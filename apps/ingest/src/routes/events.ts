@@ -7,6 +7,7 @@ import type { Logger } from 'pino';
 
 import { verifyIdentityClaim } from '../lib/identity';
 import { insertEventsBatch } from '../lib/insert-events';
+import { eventsIngestedTotal } from '../lib/metrics';
 import { linkSessionToPR } from '../lib/session-pr-link';
 import { upsertSessions } from '../lib/upsert-session';
 import type { AppEnv, EventsDb } from '../types';
@@ -100,6 +101,12 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
         // raise it so a heavy-but-healthy batch isn't rolled back and retried whole.
         { maxWait: 5_000, timeout: 30_000 },
       );
+
+      // Increment Prometheus counter for each accepted event, labelled by agent type.
+      if (inserted.accepted > 0) {
+        const agentType = batch.events[0]?.agent_type ?? 'claude-code';
+        eventsIngestedTotal.inc({ agent_type: agentType }, inserted.accepted);
+      }
 
       if (inserted.unknownModels.size > 0) {
         logger.warn(

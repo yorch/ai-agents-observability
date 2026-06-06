@@ -1,89 +1,70 @@
-# Runbook: TimescaleDB Slow or Unreachable
-
-**Service**: `postgres` (Timescale HA image, port 5432)  
-**Impact**: All services (ingest, web, github-app) depend on Postgres
-
----
+# Runbook: TimescaleDB Slow / Down
 
 ## Symptoms
-- Ingest readyz shows `postgres: error`
-- Web pages time out on session queries
-- Job runs stall without completing (check `job_runs` table)
-- Events insert rate drops below baseline
 
-## Diagnosis
+- `POST /v1/events` latency elevated (p99 > 500 ms) or returning 500.
+- `GET /readyz` on ingest shows `checks.postgres: "error"`.
+- DB connection pool exhausted — log lines: `ingest.unhandled_error` with `PrismaClientKnownRequestError`.
+- Hypertable chunk creation lagging.
+
+## Observe
+
+**Metrics:** Grafana — http://localhost:3001 (see [on-call.md](../on-call.md))
+
+```
+Grafana: http://localhost:3001 (see on-call.md)
+```
+
+Key panels:
+
+- p50 / p99 Latency — sustained elevation points to DB saturation, not transient spikes.
+- Error Rate (5xx) — correlate with DB error logs.
+
+**Logs:**
 
 ```bash
-# 1. Container health
-docker compose ps postgres
-
-# 2. Postgres connectivity
-docker exec $(docker ps -qf name=postgres) psql -U postgres -c "SELECT version();"
-
-# 3. Long-running queries (> 30s)
-docker exec $(docker ps -qf name=postgres) psql -U postgres -c "
-  SELECT pid, now() - pg_stat_activity.query_start AS duration, query, state
-  FROM pg_stat_activity
-  WHERE (now() - pg_stat_activity.query_start) > interval '30 seconds'
-    AND state <> 'idle'
-  ORDER BY duration DESC;"
-
-# 4. Table bloat on sessions
-docker exec $(docker ps -qf name=postgres) psql -U postgres -c "
-  SELECT
-    pg_size_pretty(pg_total_relation_size('sessions')) AS sessions_total,
-    pg_size_pretty(pg_total_relation_size('events')) AS events_total;"
-
-# 5. Replication lag (if Timescale HA is running a replica)
-docker exec $(docker ps -qf name=postgres) psql -U postgres -c "
-  SELECT * FROM pg_stat_replication;"
-
-# 6. Timescale chunk info
-docker exec $(docker ps -qf name=postgres) psql -U postgres -c "
-  SELECT chunk_name, range_start, range_end, is_compressed
-  FROM timescaledb_information.chunks
-  WHERE hypertable_name = 'events'
-  ORDER BY range_start DESC
-  LIMIT 10;"
+docker compose -f docker-compose.infra.yml logs -f postgres
+bun run docker:app:logs   # ingest logs for DB error messages
 ```
 
-## Mitigation
+**Connect directly:**
 
-### Kill a runaway query
-```sql
--- Get PID from long-running queries above
-SELECT pg_cancel_backend(<pid>);   -- graceful
-SELECT pg_terminate_backend(<pid>); -- forceful
-```
-
-### Boost compression (reduces I/O for old chunks)
-```sql
-SELECT compress_chunk(i.chunk_schema || '.' || i.chunk_name)
-FROM timescaledb_information.chunks i
-WHERE i.hypertable_name = 'events'
-  AND NOT i.is_compressed
-  AND i.range_end < NOW() - INTERVAL '7 days';
-```
-
-### Missing indexes (if a specific query is slow)
-```sql
-EXPLAIN ANALYZE <slow query here>;
--- Look for Seq Scan on events or sessions; add targeted index if confirmed
-```
-
-### Out-of-disk (Timescale uses named volume)
-Same as [MinIO full runbook](./minio-full.md) pattern — expand the named volume, not the bind mount.
-
-### Restart Postgres
 ```bash
-# Graceful restart (waits for in-flight transactions)
-docker compose restart postgres
-
-# If restart fails, full cycle
-docker compose stop postgres
-docker compose start postgres
+docker compose -f docker-compose.infra.yml exec postgres \
+  psql -U postgres -d ai_agents_observability
 ```
 
-## Escalation
-- P2: Any app returns 503 for > 5 minutes due to DB unreachable
-- P1: Primary Postgres container exits unexpectedly (data loss risk — check WAL)
+## Diagnose
+
+1. **Blocking queries?**
+
+   ```sql
+   SELECT pid, wait_event_type, wait_event, query, now() - query_start AS age
+   FROM pg_stat_activity
+   WHERE state != 'idle'
+   ORDER BY age DESC;
+   ```
+
+2. **Lock contention?**
+
+   ```sql
+   SELECT * FROM pg_locks l JOIN pg_stat_activity a ON l.pid = a.pid
+   WHERE NOT l.granted;
+   ```
+
+3. **Hypertable chunk maintenance?** — TimescaleDB background jobs (compression, retention) can spike I/O. Check `timescaledb_information.job_stats`.
+
+4. **Disk full?** — Check volume usage. Retention policy should keep the `events` hypertable bounded.
+
+5. **OOM?** — `docker stats` — if Postgres is hitting its memory limit, it may crash + restart.
+
+## Mitigate
+
+- Kill a blocking query: `SELECT pg_terminate_backend(<pid>);`
+- Restart Postgres (last resort — will briefly interrupt all services): `docker compose -f docker-compose.infra.yml restart postgres`
+- Ingest events are idempotent (`ON CONFLICT DO NOTHING`) — hook CLIs will re-deliver on retry.
+- If the volume is full, increase storage or run the retention sweep manually.
+
+## Escalate
+
+If the DB volume is corrupted or data loss is suspected, escalate immediately to the team lead. See [on-call.md](../on-call.md).

@@ -234,8 +234,11 @@ model Session {
   permissionDenyCount   Int     @default(0) @map("permission_deny_count")
   interruptCount        Int     @default(0) @map("interrupt_count")
   userMessageCount      Int     @default(0) @map("user_message_count")
+  // @deprecated — Claude Code-specific; never populated. Use the events firehose for per-model breakdown.
   opusTurns             Int     @default(0) @map("opus_turns")
+  // @deprecated — Claude Code-specific; never populated. Use the events firehose for per-model breakdown.
   sonnetTurns           Int     @default(0) @map("sonnet_turns")
+  // @deprecated — Claude Code-specific; never populated. Use the events firehose for per-model breakdown.
   haikuTurns            Int     @default(0) @map("haiku_turns")
   primaryModel          String? @map("primary_model")
 

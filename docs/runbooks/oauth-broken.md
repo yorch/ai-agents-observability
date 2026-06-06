@@ -1,63 +1,51 @@
-# Runbook: OAuth Login Broken
-
-**Service**: `apps/web` GitHub OAuth flow  
-**Impact**: No new sessions can authenticate; existing sessions with valid tokens are unaffected
-
----
+# Runbook: OAuth Broken
 
 ## Symptoms
-- `/login` returns error or redirect loop
-- `GET /api/auth/callback` returns 500 or `bad_verification_code`
-- Web logs show `Failed to exchange OAuth code`
 
-## Diagnosis
+- Users unable to log in to the web UI — redirect loop or "Unauthorized" on `/api/auth/callback`.
+- Hook CLI device-code flow failing — `login` command errors or hangs.
+- `apps/web` logs: `auth.callback.error` or `session.decode.error`.
+
+## Observe
+
+**Metrics:** Grafana — http://localhost:3001 (see [on-call.md](../on-call.md))
+
+```
+Grafana: http://localhost:3001 (see on-call.md)
+```
+
+There are no dedicated OAuth metrics yet (P4-009 tracks adding them). For now rely on logs.
+
+**Web logs:**
 
 ```bash
-# 1. Check web logs around the auth callback
-docker compose logs --tail=200 web | grep -i oauth
-
-# 2. Confirm env vars are set
-docker compose exec web env | grep GITHUB_
-
-# 3. Manually verify the callback URL matches GitHub app settings:
-#    GitHub.com → Settings → Developer Settings → OAuth Apps → <your app>
-#    Callback URL must match GITHUB_OAUTH_CALLBACK_URL in .env
+docker compose -f docker-compose.app.yml logs -f web
 ```
 
-### Common causes
+**Ingest auth logs:**
 
-| Cause | Signal | Fix |
-|---|---|---|
-| Callback URL mismatch | `bad_verification_code` or 302 to `/login?error=...` | Update GitHub OAuth app callback URL to match env |
-| Expired client secret | `incorrect_client_credentials` | Rotate client secret in GitHub; update `GITHUB_OAUTH_CLIENT_SECRET` |
-| Wrong client ID | `incorrect_client_credentials` | Verify `GITHUB_OAUTH_CLIENT_ID` matches GitHub app |
-| JWT secret rotation | Users suddenly logged out | Old sessions invalid; if intentional, no action needed |
-| Rate limit on GitHub OAuth | `rate limit exceeded` in logs | Wait 1h; or use a second OAuth app as failover |
-| GITHUB_HOST misconfigured (GHES) | `ENOTFOUND github.example.com` | Set `GITHUB_HOST` to the correct GHES host URL |
-
-## Mitigation
-
-### Rotate client secret
-1. Go to GitHub → OAuth App → "Generate a new client secret"
-2. Update `GITHUB_OAUTH_CLIENT_SECRET` in `.env`
-3. Restart the web service: `docker compose restart web`
-4. Existing user sessions remain valid (JWT-signed, not OAuth-token-backed)
-
-### Test the OAuth flow manually
 ```bash
-# Construct an auth URL and test in browser:
-# https://github.com/login/oauth/authorize?client_id=<GITHUB_OAUTH_CLIENT_ID>&scope=read:user,read:org
+bun run docker:app:logs | grep 'auth\|token\|identity'
 ```
 
-### Emergency bypass (dev only)
-In extreme cases, seed a test user directly and issue a token via the DB:
-```sql
--- DO NOT use in production
-INSERT INTO users (github_login, github_id, display_name)
-VALUES ('testuser', 999999, 'Test User')
-ON CONFLICT DO NOTHING;
-```
+## Diagnose
 
-## Escalation
-- P2: OAuth broken for > 30 minutes (blocks all new user access)
-- P1: Existing user sessions also invalidated (e.g., JWT secret accidentally rotated)
+1. **GitHub App credentials revoked or rotated?** — Check `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `GITHUB_APP_PRIVATE_KEY` are still valid. Regenerate via GitHub App settings if needed.
+
+2. **JWT secret missing or rotated?** — `JWT_SECRET` (or `SESSION_SECRET`) must match between web and ingest. A mismatch causes every auth token to fail verification.
+
+3. **Callback URL mismatch?** — GitHub OAuth requires the callback URL in the App settings to match `NEXT_PUBLIC_URL + /api/auth/callback`. Update it when the deployment URL changes.
+
+4. **Clock skew?** — JWT `exp` validation fails if the server clock is >5 min off. Check `date` on the host.
+
+5. **Device-code flow (hook CLI)?** — The hook uses `INGEST_URL` and `GITHUB_APP_CLIENT_ID`. Verify both are correct in the hook's config (`~/.config/claude-telemetry/config.json`).
+
+## Mitigate
+
+- Rotate the GitHub App credentials and update env vars, then restart `apps/web` and `apps/ingest`.
+- If JWT secret was rotated: existing sessions are invalidated — users must re-login (expected behavior).
+- Temporary workaround: if the web UI is inaccessible, direct-API access via curl with a valid token still works.
+
+## Escalate
+
+If credentials are suspected compromised (not just misconfigured), escalate to the security team immediately. See [on-call.md](../on-call.md).

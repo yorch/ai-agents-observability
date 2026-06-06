@@ -10,8 +10,14 @@ type PRRollupLike = {
   totalToolCalls: number | null;
 };
 
-/** Leading marker identifying a bot-authored summary comment (for idempotency). */
-export const COMMENT_MARKER = '🤖 **Claude Code summary**';
+/** Hidden HTML marker for deduplication — agent-neutral, not exposed in rendered output. */
+export const COMMENT_MARKER = '<!-- ai-agents-observability:pr-summary -->';
+
+/**
+ * Legacy marker used before P5-006. Kept for backward compatibility so existing
+ * PRs with the old marker are not re-posted.
+ */
+const LEGACY_COMMENT_MARKER = '🤖 **Claude Code summary**';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -19,8 +25,12 @@ function formatDuration(seconds: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-export function buildCommentBody(rollup: PRRollupLike, config: RepoConfig): string {
-  const lines: string[] = [COMMENT_MARKER];
+export function buildCommentBody(
+  rollup: PRRollupLike,
+  config: RepoConfig,
+  agentLabel = 'Claude Code',
+): string {
+  const lines: string[] = [COMMENT_MARKER, `🤖 **${agentLabel} summary**`];
 
   const sessions = rollup.contributingSessionIds.length;
   const contributors = rollup.contributingUserIds.length;
@@ -48,7 +58,8 @@ export function buildCommentBody(rollup: PRRollupLike, config: RepoConfig): stri
 /**
  * Post the summary comment, idempotently. GitHub re-delivers webhooks, so before
  * posting we list existing PR comments and skip if a bot summary (identified by
- * {@link COMMENT_MARKER}) is already present. Returns true if a comment was posted.
+ * {@link COMMENT_MARKER} or the legacy marker) is already present. Returns true
+ * if a comment was posted.
  */
 export async function postPRComment(
   repoOwner: string,
@@ -74,7 +85,11 @@ export async function postPRComment(
       repo: repoName,
     });
     const comments = resp.data as Array<{ body?: string | null }>;
-    if (comments.some((cm) => cm.body?.includes(COMMENT_MARKER))) {
+    if (
+      comments.some(
+        (cm) => cm.body?.includes(COMMENT_MARKER) || cm.body?.includes(LEGACY_COMMENT_MARKER),
+      )
+    ) {
       return false;
     }
     if (comments.length < PER_PAGE) {

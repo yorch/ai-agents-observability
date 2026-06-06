@@ -39,6 +39,7 @@ export async function insertEventsBatch(
         )
       : null;
 
+    // Tool names stored raw; disambiguate by (agent_type, tool_name) at query time when needed.
     return Prisma.sql`(
       ${e.event_id}::uuid,
       ${e.session_id}::uuid,

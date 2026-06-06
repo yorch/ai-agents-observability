@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import { currentUser } from '@/lib/auth';
-import type { PRListItem } from '@/lib/pr-queries';
-import { getUserPRs } from '@/lib/pr-queries';
-import { getPrisma } from '@/lib/prisma';
+import { currentUser } from '../../../lib/auth';
+import type { PRListItem } from '../../../lib/pr-queries';
+import { getUserPRs } from '../../../lib/pr-queries';
+import { getPrisma } from '../../../lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,11 +39,13 @@ function PRsTable({
   total,
   currentPage,
   stateFilter,
+  jiraBase,
 }: {
   items: PRListItem[];
   total: number;
   currentPage: number;
   stateFilter: string;
+  jiraBase: string | null;
 }) {
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const hasPrev = currentPage > 1;
@@ -74,6 +76,8 @@ function PRsTable({
               <th className="text-right px-4 py-3">Merged</th>
               <th className="text-right px-4 py-3">Sessions</th>
               <th className="text-right px-4 py-3">Cost</th>
+              <th className="text-right px-4 py-3">Checks</th>
+              <th className="text-right px-4 py-3">Jira</th>
             </tr>
           </thead>
           <tbody>
@@ -86,9 +90,16 @@ function PRsTable({
                   className="border-b border-white/5 hover:bg-white/5 transition-colors"
                 >
                   <td className="px-4 py-3 max-w-[300px]">
-                    <a href={detailHref} className="text-white/80 hover:text-white line-clamp-1">
-                      {pr.title ?? `#${pr.prNumber}`}
-                    </a>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <a href={detailHref} className="text-white/80 hover:text-white line-clamp-1">
+                        {pr.title ?? `#${pr.prNumber}`}
+                      </a>
+                      {pr.revertedAt && (
+                        <span className="rounded-full bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-400 shrink-0">
+                          reverted
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-white/30 mt-0.5">
                       <a
                         href={githubHref}
@@ -112,6 +123,29 @@ function PRsTable({
                   <td className="px-4 py-3 text-right text-white/60">{pr.sessionCount}</td>
                   <td className="px-4 py-3 text-right text-white/60">
                     ${pr.totalCostUsd.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {pr.checkFailuresCount > 0 ? (
+                      <span className="text-amber-400 text-xs font-medium">
+                        ⚠ {pr.checkFailuresCount}
+                      </span>
+                    ) : (
+                      <span className="text-white/20 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-xs">
+                    {pr.jiraKey ? (
+                      <a
+                        href={jiraBase ? `${jiraBase}/browse/${pr.jiraKey}` : undefined}
+                        target={jiraBase ? '_blank' : undefined}
+                        rel={jiraBase ? 'noopener noreferrer' : undefined}
+                        className={jiraBase ? 'text-blue-400 hover:text-blue-300' : 'text-white/50'}
+                      >
+                        {pr.jiraKey}
+                      </a>
+                    ) : (
+                      <span className="text-white/20">—</span>
+                    )}
                   </td>
                 </tr>
               );
@@ -161,6 +195,8 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
   const stateParam = params.state;
   const stateFilter: 'open' | 'merged' | 'all' =
     stateParam === 'open' || stateParam === 'merged' ? stateParam : 'all';
+
+  const jiraBase = process.env.NEXT_PUBLIC_JIRA_BASE_URL?.replace(/\/$/, '') ?? null;
 
   const db = getPrisma();
   const { items, total } = await getUserPRs(db, user.id, page, stateFilter);
@@ -226,7 +262,13 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
         )}
       </form>
 
-      <PRsTable items={items} total={total} currentPage={page} stateFilter={stateFilter} />
+      <PRsTable
+        items={items}
+        total={total}
+        currentPage={page}
+        stateFilter={stateFilter}
+        jiraBase={jiraBase}
+      />
     </div>
   );
 }

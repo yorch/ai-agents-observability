@@ -1,103 +1,80 @@
 # On-Call Guide
 
-**Service**: ai-agents-observability  
-**Current on-call owner**: Dev Tools team  
-**Target handoff**: Platform/SRE at Phase 4 completion
+## Overview
+
+This document covers the on-call rotation, escalation paths, and quick-access links for
+`ai-agents-observability`. Pair it with the service-specific runbooks in `docs/runbooks/`.
 
 ---
 
-## Rotation
+## Quick Links
 
-| Period | Primary | Secondary |
+| Tool | Dev (local) | Prod |
 |---|---|---|
-| Phase 1–3 | Dev Tools team | N/A (dev-tool team owns recovery) |
-| Phase 4+ | Platform/SRE | Dev Tools team (escalation) |
-
-Update this table when rotation is set up in your incident management tool (PagerDuty / Opsgenie).
+| Grafana | http://localhost:3001 | `$GRAFANA_URL` (environment-specific) |
+| Prometheus | http://localhost:9090 | `$PROMETHEUS_URL` (environment-specific) |
+| MinIO Console | http://localhost:9001 | managed S3 in prod |
 
 ---
 
-## Response Time Expectations
+## Grafana
 
-| Priority | Response | Mitigation target |
+**Dev:** http://localhost:3001
+
+Grafana is provisioned automatically when you run `bun run docker:infra:up`. Log in with
+`admin` / `admin` (configurable via `GRAFANA_PASSWORD` env var). Anonymous viewer access is
+enabled, so dashboards are readable without logging in.
+
+**Prod:** The production URL is environment-specific. Set `GRAFANA_URL` in your team's runbook
+or ops wiki. Authentication in prod should be configured with a real identity provider — disable
+`GF_AUTH_ANONYMOUS_ENABLED` and set `GF_SECURITY_ADMIN_PASSWORD` to a strong secret.
+
+**Available dashboards:**
+
+- **Ingest Service** — QPS, error rate, p50/p99 latency, events ingested rate, transcripts stored.
+
+---
+
+## Prometheus
+
+**Dev:** http://localhost:9090
+
+Scrapes:
+- `ingest` service at `host.docker.internal:4000/metrics` every 15 s
+- `prometheus` itself at `localhost:9090`
+
+Retention: 15 days (configurable in `infra/prometheus/prometheus.yml`).
+
+---
+
+## Services and Owners
+
+| Service | Port (dev) | Primary runbook |
 |---|---|---|
-| P1 — Data integrity / GDPR | 15 minutes | 1 hour |
-| P2 — Service degraded | 1 hour | 4 hours |
-| P3 — Non-critical degradation | 4 hours (business hours) | Next business day |
-
-**P1 examples**: Postgres unrecoverable; `run-deletions` job fails 2× consecutively; user data leak suspected.  
-**P2 examples**: Ingest down > 1h; OAuth broken; webhook delivery error rate > 10%.  
-**P3 examples**: Continuous aggregate refresh stale > 6h; PR bot comments delayed; transcript FTS returning no results.
-
----
-
-## First 5 Minutes Checklist
-
-```bash
-# 1. Check all containers
-docker compose ps
-
-# 2. Check all health endpoints
-for svc in ingest:4000 web:3000 github-app:4001; do
-  curl -sf "http://localhost:${svc##*:}/health" || echo "$svc UNHEALTHY"
-done
-
-# 3. Check recent job failures
-psql $DATABASE_URL -c "
-  SELECT job_name, status, started_at, error_text
-  FROM job_runs
-  WHERE started_at > NOW() - INTERVAL '24 hours'
-    AND status = 'error'
-  ORDER BY started_at DESC;"
-
-# 4. Check ingest error rate (last 5 min)
-docker compose logs --since=5m ingest | grep -c '"status":5'
-```
-
----
-
-## Runbooks
-
-| Scenario | Runbook |
-|---|---|
-| Ingest service down | [docs/runbooks/ingest-down.md](./runbooks/ingest-down.md) |
-| MinIO / S3 full or unreachable | [docs/runbooks/minio-full.md](./runbooks/minio-full.md) |
-| TimescaleDB slow or unreachable | [docs/runbooks/timescale-slow.md](./runbooks/timescale-slow.md) |
-| OAuth login broken | [docs/runbooks/oauth-broken.md](./runbooks/oauth-broken.md) |
-| GitHub webhooks failing | [docs/runbooks/webhook-failing.md](./runbooks/webhook-failing.md) |
-
----
-
-## Key Config Reference
-
-| Variable | Where | Purpose |
-|---|---|---|
-| `DATABASE_URL` | All services | Postgres connection string |
-| `S3_ENDPOINT` | ingest | MinIO / S3 endpoint |
-| `S3_BUCKET` | ingest | Transcript bucket name |
-| `TRANSCRIPT_RETENTION_DAYS` | ingest | Days to keep transcripts (default: 365) |
-| `GITHUB_APP_PRIVATE_KEY_B64` | github-app | App private key (base64 PEM) |
-| `GITHUB_APP_WEBHOOK_SECRET` | github-app | Webhook HMAC secret |
-| `GITHUB_HOST` | all | github.com or GHES host URL |
-| `GITHUB_OAUTH_CLIENT_ID` | web | OAuth App client ID |
-| `GITHUB_OAUTH_CLIENT_SECRET` | web | OAuth App client secret |
-
-Full variable reference: `.env.example`
-
----
-
-## Incident Communication
-
-1. **Acknowledge in the incident channel** (`#ai-agents-obs-incidents`) within response time.
-2. **Status updates** every 30 minutes on P1, every 2 hours on P2.
-3. **Post-mortem** for P1 and any P2 that burned > 10% error budget: use `docs/post-mortems/YYYY-MM-DD-<slug>.md` template.
-4. **GDPR incidents** (user data accessed without authorization, deletion failed): notify privacy@yourorg.com within 1 hour regardless of time of day.
+| `apps/ingest` | 4000 | `docs/runbooks/ingest-down.md` |
+| `apps/web` | 3000 | — |
+| `apps/github-app` | 4001 | `docs/runbooks/webhook-failing.md` |
+| Postgres / TimescaleDB | 5432 | `docs/runbooks/timescale-slow.md` |
+| MinIO | 9000 / 9001 | `docs/runbooks/minio-full.md` |
 
 ---
 
 ## Escalation Path
 
-1. Primary on-call
-2. Secondary on-call (page after 15 min unacknowledged)
-3. Dev Tools team lead (P1 only, page after 30 min)
-4. Engineering manager (P1 data integrity only)
+1. **On-call engineer** — first responder. See runbook for the affected service.
+2. **Team lead** — escalate after 30 min without mitigation or if the incident is data-loss risk.
+3. **Vendor support** — Timescale Cloud (if on managed DB), AWS (if on S3).
+
+Response-time expectations and rotation cadence are maintained in the team's ops wiki.
+
+---
+
+## SLOs (target)
+
+| Service | Availability | Latency |
+|---|---|---|
+| `apps/ingest` | 99.5% | p99 < 200 ms |
+| `apps/web` | 99% | p95 < 1 s |
+| Webhook delivery | 99% | — |
+
+See `tasks/P4-009-slos.md` for full error budget definitions.

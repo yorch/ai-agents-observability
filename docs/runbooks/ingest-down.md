@@ -1,56 +1,57 @@
 # Runbook: Ingest Service Down
 
-**Service**: `apps/ingest` (port 4000)  
-**SLO**: 99.5% availability · p99 < 200ms
-
----
-
 ## Symptoms
-- Hook clients get connection refused or 5xx responses
-- Events stop arriving in the `events` Timescale table
-- Sessions remain stuck in `status=active` past their normal session duration
 
-## Diagnosis
+- `POST /v1/events` or `POST /v1/transcripts` returning 5xx or timing out.
+- Hook CLIs on developer machines reporting delivery failures / queuing events locally.
+- `GET /health` on `apps/ingest` not returning `{"ok":true}`.
 
-```bash
-# 1. Check container health
-docker compose ps ingest
+## Observe
 
-# 2. Tail recent logs
-docker compose logs --tail=200 ingest
+**Metrics:** Grafana — http://localhost:3001 (see [on-call.md](../on-call.md))
 
-# 3. Hit the health endpoint (should return 200)
-curl -sf http://localhost:4000/health | jq .
-
-# 4. Hit the readiness endpoint — shows DB + S3 checks
-curl -sf http://localhost:4000/readyz | jq .
+```
+Grafana: http://localhost:3001 (see on-call.md)
 ```
 
-### Common causes
+Key panels to check on the **Ingest Service** dashboard:
 
-| Cause | Signal | Fix |
-|---|---|---|
-| DB unreachable | readyz shows `postgres: error` | See [timescale-slow runbook](./timescale-slow.md) |
-| S3 unreachable | readyz shows `s3: error` | See [minio-full runbook](./minio-full.md) |
-| OOM killed | `docker stats` shows memory near limit | Increase container memory limit; identify event burst via session logs |
-| Crash on startup | Logs show `Error:` before first `ingest service started` | Usually env var missing — check `.env` against `.env.example` |
-| Port conflict | `address already in use` in logs | Kill the conflicting process on port 4000 |
+- Error Rate (5xx) — spike indicates handler failures.
+- p99 Latency — high values suggest DB or S3 saturation.
+- Ingest QPS — sudden drop to 0 with expected traffic is a signal the service is down.
 
-## Mitigation
+**Logs:**
 
 ```bash
-# Restart the service (graceful SIGTERM → 10s drain)
-docker compose restart ingest
-
-# Force restart if stuck
-docker compose kill ingest && docker compose up -d ingest
-
-# Scale back up if using multiple replicas
-docker compose up -d --scale ingest=2
+# Docker Compose stack
+bun run docker:app:logs
+# or filter to ingest only
+docker compose -f docker-compose.app.yml logs -f ingest
 ```
 
-Hook clients retry with exponential backoff and have a local SQLite queue that survives restarts — events are not lost during a brief outage. The local queue capacity is unbounded for offline periods.
+**Health check:**
 
-## Escalation
-- P2 (within 4h): 1+ hours of no events from any hook client
-- P1 (within 1h): queue drain after outage stalls (events arriving but not persisting to DB)
+```bash
+curl http://localhost:4000/health
+curl http://localhost:4000/readyz
+```
+
+`/readyz` reports `checks.postgres` and `checks.s3` individually — use this to isolate the failing dependency.
+
+## Diagnose
+
+1. **Service process exited?** — Check Docker exit code. OOM kills show exit code 137.
+2. **Postgres down?** — `checks.postgres: "error"` in `/readyz`. See `timescale-slow.md`.
+3. **MinIO/S3 down?** — `checks.s3: "error"` in `/readyz`. See `minio-full.md`.
+4. **Config missing?** — Service fails at startup with a Zod validation error. Check env vars against `.env.example`.
+5. **Port conflict?** — Default port 4000. `lsof -i :4000` to find the occupying process.
+
+## Mitigate
+
+- Restart the service: `docker compose -f docker-compose.app.yml restart ingest`
+- If DB is the cause, the hook CLI queues events locally (SQLite) — no data loss for up to the local queue TTL.
+- If S3 is the cause, transcript uploads fail but event ingestion continues (they are independent routes).
+
+## Escalate
+
+If the service cannot be restored within 30 min, or if DB corruption is suspected, escalate to the team lead. See [on-call.md](../on-call.md) for the escalation path.

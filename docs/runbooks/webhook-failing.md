@@ -1,77 +1,57 @@
-# Runbook: GitHub Webhooks Failing
-
-**Service**: `apps/github-app` (port 4001)  
-**Impact**: PR rollups stale; PR bot comments not posted; session↔PR links missing
-
----
+# Runbook: GitHub Webhook Failing
 
 ## Symptoms
-- `webhook_deliveries` table shows `status='error'` rows
-- GitHub App → Deliveries page shows failures (red ✕)
-- PR rollups not updating after sessions complete
-- PR bot comments absent on merged PRs
 
-## Diagnosis
+- GitHub PR comments (bot summaries) not appearing.
+- GitHub App settings → Recent Deliveries showing failed deliveries (non-2xx responses).
+- `apps/github-app` logs: `webhook.signature.invalid`, `webhook.handler.error`, or request timeouts.
+- Session ↔ PR linking not completing (PR rollup data stale).
 
-```bash
-# 1. Check github-app service health
-docker compose ps github-app
-curl -sf http://localhost:4001/health | jq .
+## Observe
 
-# 2. Recent error logs
-docker compose logs --tail=200 github-app | grep -i error
+**Metrics:** Grafana — http://localhost:3001 (see [on-call.md](../on-call.md))
 
-# 3. Delivery failures in DB (last 24h)
-psql $DATABASE_URL -c "
-  SELECT event_type, action, repo, status, error_text, received_at
-  FROM webhook_deliveries
-  WHERE received_at > NOW() - INTERVAL '24 hours'
-    AND status = 'error'
-  ORDER BY received_at DESC
-  LIMIT 20;"
-
-# 4. Check GitHub App Deliveries tab for the HTTP response code
-#    GitHub → Settings → Apps → <your app> → Advanced → Recent Deliveries
+```
+Grafana: http://localhost:3001 (see on-call.md)
 ```
 
-### Common causes
+There are no dedicated webhook metrics yet (P2-009 tracks adding them). For now rely on GitHub delivery logs and service logs.
 
-| Cause | Signal | Fix |
-|---|---|---|
-| Webhook secret mismatch | `400 Invalid signature` in logs | Verify `GITHUB_APP_WEBHOOK_SECRET` matches app settings |
-| github-app service down | 5xx on delivery | See [ingest-down runbook](./ingest-down.md) pattern |
-| Private key wrong | `JWT authentication failed` | Re-base64-encode PEM; update `GITHUB_APP_PRIVATE_KEY_B64` |
-| App not installed on repo | Deliveries not arriving | Install app on the org/repo from GitHub App settings |
-| Smee proxy expired (local dev) | No deliveries reaching service | Restart smee: `npx smee-client --url <smee-url> --path /webhooks/github --port 4001` |
-| DB unreachable | `Failed to upsert PR` in logs | See [timescale-slow runbook](./timescale-slow.md) |
+**GitHub delivery log:** GitHub App settings → Advanced → Recent Deliveries.
 
-## Mitigation
+**Service logs:**
 
-### Redeliver a failed webhook
-1. Go to GitHub App → Advanced → Recent Deliveries
-2. Find the failed delivery
-3. Click "Redeliver"
-
-This is safe — PR upserts are idempotent (`ON CONFLICT DO UPDATE`).
-
-### Backfill missing PR data
-If deliveries were lost during an outage, trigger a backfill from the ingest side:
 ```bash
-# In the ingest service, the team sync job runs `session-pr-linking` for open sessions.
-# Force-run it by inserting a job trigger row (manual operational escape hatch).
-psql $DATABASE_URL -c "
-  INSERT INTO job_runs (job_name, started_at, status)
-  VALUES ('pr-backfill-manual', NOW(), 'triggered');"
+docker compose -f docker-compose.app.yml logs -f github-app
 ```
 
-### Validate webhook signature locally
+**Health check:**
+
 ```bash
-PAYLOAD='{"action":"opened"}'
-SECRET="$GITHUB_APP_WEBHOOK_SECRET"
-SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print "sha256="$2}')
-echo $SIG   # compare with X-Hub-Signature-256 header from GitHub delivery
+curl http://localhost:4001/health
 ```
 
-## Escalation
-- P3: Webhook delivery failures for > 2 hours (rollups stale but not broken)
-- P2: github-app service completely down
+## Diagnose
+
+1. **Webhook secret mismatch?** — `GITHUB_APP_WEBHOOK_SECRET` in env must match what's set in GitHub App settings. Signature validation will reject every delivery.
+
+2. **Service not reachable from GitHub?** — In local dev, check that smee.io relay is running (`npx smee-client …`). In prod, check that the webhook URL is publicly routable.
+
+3. **App not installed on the repository?** — GitHub only sends events for installed repos. Check GitHub App → Installations.
+
+4. **PR bot comment permission missing?** — The GitHub App needs `Pull requests: Read & Write`. Check App permissions in GitHub settings.
+
+5. **Handler crash?** — If `apps/github-app` exits on a malformed event, GitHub retries with exponential backoff. The retry will succeed once the service is restarted.
+
+6. **Rate limited by GitHub API?** — Log lines will include `X-RateLimit-Remaining: 0`. Wait for the reset window or use a different installation token.
+
+## Mitigate
+
+- Fix the webhook secret and restart `apps/github-app`.
+- For local dev: restart the smee relay and the github-app service.
+- Trigger a manual redelivery from GitHub App → Recent Deliveries → Redeliver.
+- If session→PR linking is stale, the backfill job (P2-004) will re-link on next scheduled run.
+
+## Escalate
+
+If the GitHub App credentials (private key) are suspected compromised, rotate immediately via GitHub App settings → Private keys and update `GITHUB_APP_PRIVATE_KEY`. Escalate to the team lead. See [on-call.md](../on-call.md).

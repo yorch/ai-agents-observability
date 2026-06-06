@@ -23,6 +23,7 @@
     "croner": "catalog:",
     "hono": "catalog:",
     "pino": "catalog:",
+    "prom-client": "15.1.3",
     "zod": "catalog:"
   },
   "devDependencies": {
