@@ -13,11 +13,6 @@ type PRRollupLike = {
 /** Hidden HTML marker for deduplication — agent-neutral, not exposed in rendered output. */
 export const COMMENT_MARKER = '<!-- ai-agents-observability:pr-summary -->';
 
-/**
- * Legacy marker used before P5-006. Kept for backward compatibility so existing
- * PRs with the old marker are not re-posted.
- */
-const LEGACY_COMMENT_MARKER = '🤖 **Claude Code summary**';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -86,9 +81,7 @@ export async function postPRComment(
     });
     const comments = resp.data as Array<{ body?: string | null }>;
     if (
-      comments.some(
-        (cm) => cm.body?.includes(COMMENT_MARKER) || cm.body?.includes(LEGACY_COMMENT_MARKER),
-      )
+      comments.some((cm) => cm.body?.includes(COMMENT_MARKER))
     ) {
       return false;
     }
