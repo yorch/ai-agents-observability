@@ -65,53 +65,59 @@ async function filterByPolicy(
   });
 }
 
-export async function getTeamSummary(teamId: string, since: Date): Promise<TeamSummary> {
-  const prisma = getPrisma();
+/**
+ * Returns the total active member count and the subset whose shareMetadataWithTeam
+ * policy allows team-lead-visible data. Call once per page and pass visibleIds down
+ * to the individual query functions to avoid redundant DB round-trips.
+ */
+export async function resolveTeamVisibility(
+  teamId: string,
+): Promise<{ totalCount: number; visibleIds: string[] }> {
+  const allIds = await activeTeamMemberIds(teamId);
+  const visibleIds = await filterByPolicy(allIds, 'shareMetadataWithTeam');
+  return { totalCount: allIds.length, visibleIds };
+}
 
-  const [allMemberIds, totalMembers] = await Promise.all([
-    activeTeamMemberIds(teamId),
-    prisma.teamMember.count({ where: { leftAt: null, teamId } }),
-  ]);
-
-  const visibleIds = await filterByPolicy(allMemberIds, 'shareMetadataWithOrg');
+export async function getTeamSummary(
+  since: Date,
+  visibleIds: string[],
+  totalMemberCount: number,
+): Promise<TeamSummary> {
   if (visibleIds.length === 0) {
-    return { activeMembers: totalMembers, sessionCount: 0, totalCostUsd: 0, totalHours: 0 };
+    return { activeMembers: totalMemberCount, sessionCount: 0, totalCostUsd: 0, totalHours: 0 };
   }
 
-  const [agg, sessions] = await Promise.all([
+  const prisma = getPrisma();
+  const uuids = Prisma.join(visibleIds.map((id) => Prisma.sql`${id}::uuid`));
+
+  const [agg, [hoursRow]] = await Promise.all([
     prisma.session.aggregate({
       _count: { sessionId: true },
       _sum: { totalCostUsd: true },
       where: { startedAt: { gte: since }, userId: { in: visibleIds } },
     }),
-    prisma.session.findMany({
-      select: { endedAt: true, startedAt: true },
-      where: { startedAt: { gte: since }, userId: { in: visibleIds } },
-    }),
+    prisma.$queryRaw<[{ total_seconds: number }]>(Prisma.sql`
+      SELECT COALESCE(EXTRACT(EPOCH FROM SUM(ended_at - started_at)), 0) AS total_seconds
+      FROM sessions
+      WHERE user_id IN (${uuids})
+        AND started_at >= ${since}
+        AND ended_at IS NOT NULL
+    `),
   ]);
 
-  let totalMs = 0;
-  for (const s of sessions) {
-    if (s.endedAt) {
-      totalMs += s.endedAt.getTime() - s.startedAt.getTime();
-    }
-  }
-
   return {
-    activeMembers: totalMembers,
+    activeMembers: totalMemberCount,
     sessionCount: agg._count.sessionId,
     totalCostUsd: Number(agg._sum.totalCostUsd ?? 0),
-    totalHours: totalMs / (1000 * 60 * 60),
+    totalHours: Number(hoursRow?.total_seconds ?? 0) / 3600,
   };
 }
 
 export async function getTeamTopTools(
-  teamId: string,
   since: Date,
+  visibleIds: string[],
   limit = 5,
 ): Promise<TeamToolUsage[]> {
-  const allMemberIds = await activeTeamMemberIds(teamId);
-  const visibleIds = await filterByPolicy(allMemberIds, 'shareMetadataWithOrg');
   if (visibleIds.length === 0) {
     return [];
   }
@@ -132,9 +138,7 @@ export async function getTeamTopTools(
   return rows.map((r) => ({ callCount: Number(r.call_count), toolName: r.tool_name }));
 }
 
-export async function getTeamModelMix(teamId: string, since: Date): Promise<TeamModelMix[]> {
-  const allMemberIds = await activeTeamMemberIds(teamId);
-  const visibleIds = await filterByPolicy(allMemberIds, 'shareMetadataWithOrg');
+export async function getTeamModelMix(since: Date, visibleIds: string[]): Promise<TeamModelMix[]> {
   if (visibleIds.length === 0) {
     return [];
   }

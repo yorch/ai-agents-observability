@@ -1,5 +1,10 @@
 import { requireTeamLead } from '../../../lib/roles';
-import { getTeamModelMix, getTeamSummary, getTeamTopTools } from '../../../lib/team-queries';
+import {
+  getTeamModelMix,
+  getTeamSummary,
+  getTeamTopTools,
+  resolveTeamVisibility,
+} from '../../../lib/team-queries';
 import { TeamSubNav } from './layout';
 
 export const dynamic = 'force-dynamic';
@@ -11,11 +16,12 @@ export default async function TeamOverviewPage({ params }: { params: Promise<{ s
   const { teamId, teamName } = await requireTeamLead(slug);
 
   const since = new Date(Date.now() - THIRTY_DAYS_MS);
+  const { totalCount, visibleIds } = await resolveTeamVisibility(teamId);
 
   const [summary, tools, models] = await Promise.all([
-    getTeamSummary(teamId, since),
-    getTeamTopTools(teamId, since),
-    getTeamModelMix(teamId, since),
+    getTeamSummary(since, visibleIds, totalCount),
+    getTeamTopTools(since, visibleIds),
+    getTeamModelMix(since, visibleIds),
   ]);
 
   const hasData = summary.sessionCount > 0;

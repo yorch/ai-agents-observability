@@ -3,6 +3,7 @@ import { AuditAction } from '@ai-agents-observability/db';
 import { headers } from 'next/headers';
 
 import { getPrisma } from './prisma';
+import { clientIp } from './request-meta';
 
 export { AuditAction };
 
@@ -18,10 +19,7 @@ export type AuditParams = {
 async function requestMeta(): Promise<{ ip: string | null; userAgent: string | null }> {
   try {
     const h = await headers();
-    const forwarded = h.get('x-forwarded-for');
-    const ip = forwarded ? (forwarded.split(',')[0]?.trim() ?? null) : null;
-    const userAgent = h.get('user-agent');
-    return { ip, userAgent };
+    return { ip: clientIp(h), userAgent: h.get('user-agent') };
   } catch {
     return { ip: null, userAgent: null };
   }

@@ -21,10 +21,13 @@ export default async function TeamRosterPage({ params }: { params: Promise<{ slu
 
   const since = new Date(Date.now() - THIRTY_DAYS_MS);
 
-  const [members] = await Promise.all([
-    getTeamRoster(teamId, since),
-    writeAuditLog({ action: AuditAction.export_team, actorUserId: user.id, targetTeamId: teamId }),
-  ]);
+  // Audit write is fire-and-forget per P3-005: never throws, errors logged to stderr.
+  void writeAuditLog({
+    action: AuditAction.export_team,
+    actorUserId: user.id,
+    targetTeamId: teamId,
+  });
+  const members = await getTeamRoster(teamId, since);
 
   return (
     <div className="space-y-6">
