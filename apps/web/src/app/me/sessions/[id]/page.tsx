@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { StatusBadge } from '@/components/me/StatusBadge';
 import { ModelsTab, ToolsTab } from '@/components/me/SessionTabs';
+import { StatusBadge } from '@/components/me/StatusBadge';
 import { Timeline } from '@/components/me/Timeline';
 import { currentUser } from '@/lib/auth';
 import type { ModelBreakdownRow } from '@/lib/sessions-queries';

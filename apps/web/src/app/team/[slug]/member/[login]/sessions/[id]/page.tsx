@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { StatusBadge } from '@/components/me/StatusBadge';
 import { ModelsTab, ToolsTab } from '@/components/me/SessionTabs';
+import { StatusBadge } from '@/components/me/StatusBadge';
 import { Timeline } from '@/components/me/Timeline';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';

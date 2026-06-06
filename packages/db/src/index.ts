@@ -3,8 +3,8 @@ import { Prisma, PrismaClient } from './generated/client/client';
 
 export { Prisma, PrismaClient };
 export { isUniqueViolation } from './errors';
-export * from './generated/client/enums';
 export type * from './generated/client/client';
+export * from './generated/client/enums';
 export { applySqlMigrations } from './sql-migrate';
 
 export function createClient(connectionString: string): PrismaClient {

@@ -17,7 +17,10 @@ export function getS3Client(): S3Client {
 
 // Buffers the entire S3 body and decompresses synchronously so a corrupt/truncated
 // object throws before 200 headers are committed.
-export async function fetchAndDecompressTranscript(s3: S3Client, key: string): Promise<ArrayBuffer> {
+export async function fetchAndDecompressTranscript(
+  s3: S3Client,
+  key: string,
+): Promise<ArrayBuffer> {
   const obj = await s3.send(
     new GetObjectCommand({
       Bucket: process.env.S3_BUCKET ?? 'transcripts',
