@@ -19,6 +19,9 @@ enum SessionStatus {
 
 enum AgentType {
   claude_code
+  cursor
+  aider
+  copilot
 }
 
 enum AuditAction {
@@ -274,9 +277,15 @@ model PullRequest {
   linesRemoved      Int?      @map("lines_removed")
   filesChanged      Int?      @map("files_changed")
   reviewCount       Int?      @map("review_count")
-  reviewerLogins    String[]  @map("reviewer_logins")
-  labels            String[]
-  enrichedAt        DateTime  @default(now()) @map("enriched_at") @db.Timestamptz(6)
+  reviewerLogins      String[]  @map("reviewer_logins")
+  labels              String[]
+  enrichedAt          DateTime  @default(now()) @map("enriched_at") @db.Timestamptz(6)
+  // P5-003: revert detection — set when a reverting PR is merged
+  revertedAt          DateTime? @map("reverted_at") @db.Timestamptz(6)
+  // P5-003: on the reverting PR, points back to the PR it reverts
+  revertOfPrNumber    Int?      @map("revert_of_pr_number")
+  // P5-004: Jira issue key extracted from head branch name (e.g. PROJ-123)
+  jiraKey             String?   @map("jira_key")
 
   repo       Repo          @relation(fields: [repoId], references: [id], onDelete: Cascade)
   authorUser User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
@@ -317,6 +326,8 @@ model PRRollup {
   totalToolErrors        Int?      @map("total_tool_errors")
   totalPermissionDenies  Int?      @map("total_permission_denies")
   costPerLoc             Decimal?  @map("cost_per_loc") @db.Decimal(12, 6)
+  // P5-005: cumulative count of failed check runs on associated PR
+  checkFailuresCount     Int       @default(0) @map("check_failures_count")
   computedAt             DateTime  @default(now()) @map("computed_at") @db.Timestamptz(6)
 
   pullRequest PullRequest @relation(fields: [repoId, prNumber], references: [repoId, prNumber], onDelete: Cascade)
