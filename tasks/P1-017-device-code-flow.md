@@ -3,7 +3,7 @@ id: P1-017
 title: Device-code flow for hook
 phase: 1
 workstream: C
-status: ready
+status: done
 owner: null
 depends_on: [P1-014, P1-015]
 blocks: [P1-023]

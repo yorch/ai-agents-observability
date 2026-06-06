@@ -1,11 +1,9 @@
-import { Readable } from 'node:stream';
-import { zstdDecompressSync } from 'node:zlib';
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-import { currentUser } from '../../../../../lib/auth';
-import { getPrisma } from '../../../../../lib/prisma';
+import { currentUser } from '@/lib/auth';
+import { getPrisma } from '@/lib/prisma';
+import { fetchAndDecompressTranscript, getS3Client } from '@/lib/s3';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,40 +23,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return new NextResponse('Not found', { status: 404 });
   }
 
-  const endpoint = process.env.S3_ENDPOINT;
-  const s3 = new S3Client({
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
-      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
-    },
-    ...(endpoint ? { endpoint } : {}),
-    forcePathStyle: true,
-    region: process.env.S3_REGION ?? 'us-east-1',
-  });
-
   try {
-    const obj = await s3.send(
-      new GetObjectCommand({
-        Bucket: process.env.S3_BUCKET ?? 'transcripts',
-        Key: session.transcriptS3Key,
-      }),
-    );
-
-    if (!obj.Body) {
-      return new NextResponse('Empty body from S3', { status: 500 });
-    }
-
-    // Buffer the entire S3 body and decompress synchronously so that a
-    // corrupt/truncated object throws before the 200 headers are committed.
-    // A streaming pipeline would produce a truncated 200 with no way to signal
-    // the error to the client after headers are sent.
-    const nodeReadable = Readable.fromWeb(obj.Body as import('stream/web').ReadableStream);
-    const chunks: Buffer[] = [];
-    for await (const chunk of nodeReadable) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
-    }
-    const decompressed = zstdDecompressSync(Buffer.concat(chunks));
-
+    const decompressed = await fetchAndDecompressTranscript(getS3Client(), session.transcriptS3Key);
     return new NextResponse(decompressed, {
       headers: { 'Content-Type': 'application/x-ndjson' },
     });

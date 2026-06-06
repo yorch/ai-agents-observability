@@ -3,7 +3,7 @@ id: P1-021
 title: Background flusher
 phase: 1
 workstream: D
-status: blocked
+status: done
 owner: null
 depends_on: [P1-020, P1-010]
 blocks: []

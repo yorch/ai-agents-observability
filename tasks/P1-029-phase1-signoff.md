@@ -3,7 +3,7 @@ id: P1-029
 title: Phase 1 exit-criteria sign-off
 phase: 1
 workstream: F
-status: blocked
+status: ready
 owner: null
 depends_on: [P1-011, P1-012, P1-020, P1-023, P1-024, P1-025, P1-026, P1-027, P1-028]
 blocks: []

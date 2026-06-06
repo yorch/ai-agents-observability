@@ -3,7 +3,7 @@ id: P1-020
 title: SQLite queue + hook entrypoints (<10ms)
 phase: 1
 workstream: D
-status: review
+status: done
 owner: claude
 depends_on: [P1-019, P1-006]
 blocks: [P1-021, P1-022, P1-028]

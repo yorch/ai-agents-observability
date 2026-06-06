@@ -3,7 +3,7 @@ id: P1-010
 title: POST /v1/events handler
 phase: 1
 workstream: B
-status: ready
+status: done
 owner: null
 depends_on: [P1-008, P1-006, P1-004, P1-009]
 blocks: [P1-011, P1-021]

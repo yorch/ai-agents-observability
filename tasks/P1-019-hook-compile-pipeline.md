@@ -3,7 +3,7 @@ id: P1-019
 title: Bun compile pipeline + multi-target
 phase: 1
 workstream: D
-status: ready
+status: done
 owner: null
 depends_on: [P1-001]
 blocks: [P1-020, P1-023]

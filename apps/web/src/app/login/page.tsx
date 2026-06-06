@@ -1,4 +1,5 @@
-import { sanitizeNext } from '../../lib/session-cookie';
+import { getConfig } from '@/lib/config';
+import { sanitizeNext } from '@/lib/session-cookie';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,7 +8,7 @@ type Props = {
 };
 
 export default async function LoginPage({ searchParams }: Props) {
-  const githubHost = process.env.GITHUB_HOST ?? 'github.com';
+  const { githubHost } = getConfig();
   const params = await searchParams;
   const next = sanitizeNext(params.next);
   const signInHref = next ? `/api/auth/login?next=${encodeURIComponent(next)}` : '/api/auth/login';

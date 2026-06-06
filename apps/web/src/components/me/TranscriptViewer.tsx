@@ -25,13 +25,13 @@ function TranscriptLine({ line }: { line: Line }) {
   );
 }
 
-export function TranscriptViewer({ sessionId }: { sessionId: string }) {
+export function TranscriptViewer({ apiUrl, sessionId }: { apiUrl?: string; sessionId: string }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/me/transcripts/${sessionId}`)
+    fetch(apiUrl ?? `/api/me/transcripts/${sessionId}`)
       .then((r) => {
         if (!r.ok) {
           throw new Error(`HTTP ${r.status}`);

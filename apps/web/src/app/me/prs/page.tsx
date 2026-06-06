@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import { currentUser } from '../../../lib/auth';
-import type { PRListItem } from '../../../lib/pr-queries';
-import { getUserPRs } from '../../../lib/pr-queries';
-import { getPrisma } from '../../../lib/prisma';
+import { currentUser } from '@/lib/auth';
+import type { PRListItem } from '@/lib/pr-queries';
+import { getUserPRs } from '@/lib/pr-queries';
+import { getPrisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 

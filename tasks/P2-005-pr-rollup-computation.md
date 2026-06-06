@@ -3,7 +3,7 @@ id: P2-005
 title: PR rollup computation
 phase: 2
 workstream: B
-status: review
+status: done
 owner: null
 depends_on: [P2-004]
 blocks: [P2-006, P2-008]

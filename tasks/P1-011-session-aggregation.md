@@ -3,7 +3,7 @@ id: P1-011
 title: Session aggregation upserts
 phase: 1
 workstream: B
-status: review
+status: done
 owner: claude
 depends_on: [P1-010]
 blocks: [P1-025, P1-026]

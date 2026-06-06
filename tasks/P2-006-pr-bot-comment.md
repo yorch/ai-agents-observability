@@ -3,7 +3,7 @@ id: P2-006
 title: PR bot merge-summary comment
 phase: 2
 workstream: B
-status: review
+status: done
 owner: null
 depends_on: [P2-005, P2-007]
 blocks: [P2-010]

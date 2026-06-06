@@ -3,7 +3,7 @@ id: P1-002
 title: docker-compose dev stack
 phase: 1
 workstream: A
-status: ready
+status: done
 owner: null
 depends_on: [P1-001]
 blocks: [P1-012]

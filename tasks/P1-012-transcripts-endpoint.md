@@ -3,7 +3,7 @@ id: P1-012
 title: POST /v1/transcripts (chunked + MinIO)
 phase: 1
 workstream: B
-status: review
+status: done
 owner: claude
 depends_on: [P1-008, P1-002, P1-007, P1-009]
 blocks: [P1-022, P1-026]

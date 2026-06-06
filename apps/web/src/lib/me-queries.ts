@@ -146,6 +146,71 @@ export async function getModelMix(userId: string, since: Date): Promise<ModelMix
     .sort((a, b) => b.turns - a.turns);
 }
 
+export type AuditRow = {
+  action: string;
+  actorLogin: string;
+  id: bigint;
+  ip: string | null;
+  justification: string | null;
+  targetSessionId: string | null;
+  targetTeamId: string | null;
+  targetUserId: string | null;
+  ts: Date;
+};
+
+export async function getAuditLog(
+  userId: string,
+  filters: { action?: string; since?: Date },
+  page: number,
+  pageSize = 25,
+): Promise<{ rows: AuditRow[]; total: number }> {
+  const prisma = getPrisma();
+  const where = {
+    targetUserId: userId,
+    // Cast to `never` avoids the AuditAction import (generated client not committed to repo).
+    ...(filters.action ? { action: filters.action as never } : {}),
+    ...(filters.since ? { ts: { gte: filters.since } } : {}),
+  };
+
+  type RawRow = {
+    action: string;
+    actor: { githubLogin: string };
+    id: bigint;
+    ip: string | null;
+    justification: string | null;
+    targetSessionId: string | null;
+    targetTeamId: string | null;
+    targetUserId: string | null;
+    ts: Date;
+  };
+
+  const [total, rawRows]: [number, RawRow[]] = await Promise.all([
+    prisma.auditLog.count({ where }),
+    prisma.auditLog.findMany({
+      include: { actor: { select: { githubLogin: true } } },
+      orderBy: { ts: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      where,
+    }),
+  ]);
+
+  return {
+    rows: rawRows.map((r) => ({
+      action: r.action,
+      actorLogin: r.actor.githubLogin,
+      id: r.id,
+      ip: r.ip,
+      justification: r.justification,
+      targetSessionId: r.targetSessionId,
+      targetTeamId: r.targetTeamId,
+      targetUserId: r.targetUserId,
+      ts: r.ts,
+    })),
+    total,
+  };
+}
+
 export async function getRecentSessions(userId: string, limit = 10): Promise<RecentSession[]> {
   const prisma = getPrisma();
 

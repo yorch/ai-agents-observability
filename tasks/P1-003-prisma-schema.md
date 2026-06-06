@@ -3,7 +3,7 @@ id: P1-003
 title: Prisma schema for dimensional tables
 phase: 1
 workstream: A
-status: ready
+status: done
 owner: null
 depends_on: [P1-001]
 blocks: [P1-004, P1-005, P1-010, P1-018, P1-027]

@@ -1,9 +1,9 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-import { currentUser } from '../../../../lib/auth';
-import { getPrisma } from '../../../../lib/prisma';
-import { clientIp } from '../../../../lib/request-meta';
+import { currentUser } from '@/lib/auth';
+import { getPrisma } from '@/lib/prisma';
+import { clientIp } from '@/lib/request-meta';
 
 export const dynamic = 'force-dynamic';
 

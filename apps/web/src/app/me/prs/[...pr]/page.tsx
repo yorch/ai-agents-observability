@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { currentUser } from '../../../../lib/auth';
-import { getPRDetail } from '../../../../lib/pr-queries';
-import { getPrisma } from '../../../../lib/prisma';
+import { currentUser } from '@/lib/auth';
+import { getPRDetail } from '@/lib/pr-queries';
+import { getPrisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 

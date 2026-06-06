@@ -80,6 +80,7 @@
       },
       "devDependencies": {
         "@tailwindcss/postcss": "catalog:",
+        "fast-check": "catalog:",
         "tailwindcss": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",

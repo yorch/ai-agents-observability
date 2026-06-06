@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
 
-import { getProvider } from '../../../../lib/auth-provider';
-import {
-  hashState,
-  sanitizeNext,
-  setNextCookie,
-  setStateCookie,
-} from '../../../../lib/session-cookie';
+import { getProvider } from '@/lib/auth-provider';
+import { hashState, sanitizeNext, setNextCookie, setStateCookie } from '@/lib/session-cookie';
 
 function buildCallbackUrl(request: Request): string {
   return `${new URL(request.url).origin}/api/auth/callback`;

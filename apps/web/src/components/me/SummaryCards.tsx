@@ -1,4 +1,4 @@
-import type { UsageSummary } from '../../lib/me-queries';
+import type { UsageSummary } from '@/lib/me-queries';
 
 function DeltaBadge({ current, previous }: { current: number; previous: number }) {
   if (previous === 0 && current === 0) {

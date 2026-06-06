@@ -4,9 +4,10 @@ import { createGitHubClient } from '@ai-agents-observability/github';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { ensureVisibilityPolicy } from '../../../../../lib/ensure-visibility-policy';
-import { getPrisma } from '../../../../../lib/prisma';
-import { clientIp } from '../../../../../lib/request-meta';
+import { getConfig } from '@/lib/config';
+import { ensureVisibilityPolicy } from '@/lib/ensure-visibility-policy';
+import { getPrisma } from '@/lib/prisma';
+import { clientIp } from '@/lib/request-meta';
 
 const PollBody = z.object({ device_code: z.string().min(1) });
 
@@ -42,8 +43,7 @@ export async function POST(request: Request) {
   }
   pollTimestamps.set(device_code, Date.now());
 
-  const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET;
+  const { githubOAuthClientId: clientId, githubOAuthClientSecret: clientSecret } = getConfig();
   if (!clientId || !clientSecret) {
     return NextResponse.json({ error: 'OAuth not configured' }, { status: 503 });
   }
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
   // Single-org enforcement (opt-in). Without this gate, anyone with a GitHub
   // account who completes the device flow can mint a 365-day hook token and
   // start ingesting. When GITHUB_ALLOWED_ORG is set, require membership first.
-  const allowedOrg = process.env.GITHUB_ALLOWED_ORG;
+  const { githubAllowedOrg: allowedOrg } = getConfig();
   if (allowedOrg) {
     try {
       const { data: orgs } = await ghClient.rest.orgs.listForAuthenticatedUser({ per_page: 100 });

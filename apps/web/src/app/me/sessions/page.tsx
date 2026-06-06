@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
-import { SessionsTable } from '../../../components/me/SessionsTable';
-import { currentUser } from '../../../lib/auth';
-import { listDistinctRepos, listSessions } from '../../../lib/sessions-queries';
+import { SessionsTable } from '@/components/me/SessionsTable';
+import { currentUser } from '@/lib/auth';
+import { listDistinctRepos, listSessions } from '@/lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
 

@@ -1,6 +1,6 @@
 'use server';
-import { currentUser } from '../../../lib/auth';
-import { updateVisibilityPolicy } from '../../../lib/visibility';
+import { currentUser } from '@/lib/auth';
+import { updateVisibilityPolicy } from '@/lib/visibility';
 
 export async function savePrivacySettings(formData: FormData) {
   const user = await currentUser();

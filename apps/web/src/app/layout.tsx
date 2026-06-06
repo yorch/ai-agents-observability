@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 
 import '../styles/globals.css';
 
-import { Footer } from '../components/Footer';
-import { Nav } from '../components/Nav';
-import { currentUser } from '../lib/auth';
+import { Footer } from '@/components/Footer';
+import { Nav } from '@/components/Nav';
+import { currentUser } from '@/lib/auth';
 
 export const metadata = {
   description: 'Self-hosted observability for AI coding agents.',
