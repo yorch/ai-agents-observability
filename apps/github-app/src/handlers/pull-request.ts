@@ -61,18 +61,20 @@ export async function handlePullRequest(
 
       if (isRevertTitle && bodyMatch) {
         const originalPrNumber = parseInt(bodyMatch[1] as string, 10);
+        const revertedAt = new Date();
 
-        // Mark the original PR as reverted
-        await db.pullRequest.updateMany({
-          data: { revertedAt: new Date() },
-          where: { prNumber: originalPrNumber, repoId },
-        });
-
-        // Record which PR this reverting PR reverts
-        await db.pullRequest.update({
-          data: { revertOfPrNumber: originalPrNumber },
-          where: { repoId_prNumber: { prNumber, repoId } },
-        });
+        // Both writes are atomic: if one fails the other is rolled back,
+        // preventing a half-linked revert pair.
+        await db.$transaction([
+          db.pullRequest.updateMany({
+            data: { revertedAt },
+            where: { prNumber: originalPrNumber, repoId },
+          }),
+          db.pullRequest.update({
+            data: { revertOfPrNumber: originalPrNumber },
+            where: { repoId_prNumber: { prNumber, repoId } },
+          }),
+        ]);
 
         logger.info({ originalPrNumber, prNumber }, 'pr.revert.detected');
       }

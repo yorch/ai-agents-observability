@@ -51,9 +51,11 @@ export function adminRouter(
     try {
       await db.jobConfig.upsert({
         create: {
-          // Provide valid defaults so the row satisfies NOT NULL constraints.
-          // The nightly scheduler will overwrite these with the real schedule.
-          enabled: true,
+          // disabled=false so the scheduler's scheduled-run path never fires this
+          // row — it only fires via the runRequestedAt manual-trigger path above.
+          // Configurable jobs are seeded with enabled=true on startup and always
+          // hit the update branch here.
+          enabled: false,
           jobName: name,
           runHourUtc: 0,
           runMinuteUtc: 0,

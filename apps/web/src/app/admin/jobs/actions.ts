@@ -11,11 +11,19 @@ export async function updateJobConfig(formData: FormData) {
   const enabled = formData.get('enabled') === 'on';
   const runHourUtc = Number(formData.get('runHourUtc'));
   const runMinuteUtc = Number(formData.get('runMinuteUtc'));
-  if (!jobName || Number.isNaN(runHourUtc) || Number.isNaN(runMinuteUtc)) {
+  if (
+    !jobName ||
+    Number.isNaN(runHourUtc) ||
+    Number.isNaN(runMinuteUtc) ||
+    runHourUtc < 0 ||
+    runHourUtc > 23 ||
+    runMinuteUtc < 0 ||
+    runMinuteUtc > 59
+  ) {
     return;
   }
   await getPrisma().jobConfig.update({
-    data: { enabled, runHourUtc, runMinuteUtc, updatedAt: new Date() },
+    data: { enabled, runHourUtc, runMinuteUtc },
     where: { jobName },
   });
   revalidatePath('/admin/jobs');

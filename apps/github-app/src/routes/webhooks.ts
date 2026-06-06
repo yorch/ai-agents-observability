@@ -107,20 +107,24 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
             (checkRun.conclusion === 'failure' || checkRun.conclusion === 'action_required') &&
             repoFullName
           ) {
-            for (const pr of checkRun.pull_requests ?? []) {
-              const [owner, name] = repoFullName.split('/') as [string, string];
+            const parts = repoFullName.split('/');
+            if (parts.length !== 2 || !parts[0] || !parts[1]) {
+              logger.warn({ repoFullName }, 'check_run: unexpected repository full_name format');
+            } else {
+              const [owner, name] = parts as [string, string];
+              // Resolve repo once — all PRs in this check_run belong to the same repo.
               const repo = await db.repo.findFirst({
                 select: { id: true },
                 where: { githubName: name, githubOwner: owner },
               });
-              if (!repo) {
-                continue;
+              if (repo) {
+                for (const pr of checkRun.pull_requests ?? []) {
+                  await db.pRRollup.updateMany({
+                    data: { checkFailuresCount: { increment: 1 } },
+                    where: { prNumber: pr.number, repoId: repo.id },
+                  });
+                }
               }
-
-              await db.pRRollup.updateMany({
-                data: { checkFailuresCount: { increment: 1 } },
-                where: { prNumber: pr.number, repoId: repo.id },
-              });
             }
           }
         }

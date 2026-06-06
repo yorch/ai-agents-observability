@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { currentUser } from '../../../lib/auth';
+import { getConfig } from '../../../lib/config';
 import type { PRListItem } from '../../../lib/pr-queries';
 import { getUserPRs } from '../../../lib/pr-queries';
 import { getPrisma } from '../../../lib/prisma';
@@ -196,7 +197,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
   const stateFilter: 'open' | 'merged' | 'all' =
     stateParam === 'open' || stateParam === 'merged' ? stateParam : 'all';
 
-  const jiraBase = process.env.NEXT_PUBLIC_JIRA_BASE_URL?.replace(/\/$/, '') ?? null;
+  const jiraBase = getConfig().jiraBaseUrl?.replace(/\/$/, '') ?? null;
 
   const db = getPrisma();
   const { items, total } = await getUserPRs(db, user.id, page, stateFilter);

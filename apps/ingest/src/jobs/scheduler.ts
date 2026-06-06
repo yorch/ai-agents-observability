@@ -25,14 +25,6 @@ const CONFIGURABLE_JOBS = [
   'index-transcripts',
   'compute-effectiveness',
 ] as const;
-type ConfigurableJob = (typeof CONFIGURABLE_JOBS)[number];
-
-// Default seeds — inserted with ON CONFLICT DO NOTHING on startup.
-const JOB_DEFAULTS: Record<ConfigurableJob, { runHourUtc: number; runMinuteUtc: number }> = {
-  'compute-effectiveness': { runHourUtc: 5, runMinuteUtc: 0 },
-  'index-transcripts': { runHourUtc: 3, runMinuteUtc: 30 },
-  'sweep-retention': { runHourUtc: 2, runMinuteUtc: 0 },
-};
 
 // All job names accepted by the manual-trigger endpoint.
 const ALL_KNOWN_JOBS = new Set<string>([
@@ -47,10 +39,10 @@ export function isKnownJob(name: string): boolean {
   return ALL_KNOWN_JOBS.has(name);
 }
 
-function slotKey(hour: number, minute: number, date: Date): string {
-  const startOfYear = Date.UTC(date.getUTCFullYear(), 0, 1);
-  const dayOfYear = Math.floor((date.getTime() - startOfYear) / 86_400_000);
-  return `${hour}:${minute}:${dayOfYear}`;
+// Returns "YYYY-MM-DDTHH:MM" — unique per minute, used as a dedup key to
+// prevent a 60-second poll from firing the same job twice in one minute.
+function slotKey(date: Date): string {
+  return date.toISOString().slice(0, 16);
 }
 
 /** Dispatch a named job using the full deps context. */
@@ -91,17 +83,17 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
 export function startScheduler(deps: SchedulerDeps): void {
   const { db, githubSyncToken, logger } = deps;
 
-  // Seed default config rows for DB-driven jobs (idempotent).
+  // Seed default config rows for DB-driven jobs (idempotent, single round-trip).
   void (async () => {
     try {
-      for (const jobName of CONFIGURABLE_JOBS) {
-        const { runHourUtc, runMinuteUtc } = JOB_DEFAULTS[jobName];
-        await db.$executeRaw`
-          INSERT INTO job_config (job_name, enabled, run_hour_utc, run_minute_utc)
-          VALUES (${jobName}, true, ${runHourUtc}, ${runMinuteUtc})
-          ON CONFLICT (job_name) DO NOTHING
-        `;
-      }
+      await db.$executeRaw`
+        INSERT INTO job_config (job_name, enabled, run_hour_utc, run_minute_utc)
+        VALUES
+          ('sweep-retention',       true, 2, 0),
+          ('index-transcripts',     true, 3, 30),
+          ('compute-effectiveness', true, 5, 0)
+        ON CONFLICT (job_name) DO NOTHING
+      `;
       logger?.info('Scheduler: seeded job_config defaults');
     } catch (err) {
       logger?.error({ err }, 'Scheduler: failed to seed job_config defaults');
@@ -117,7 +109,7 @@ export function startScheduler(deps: SchedulerDeps): void {
       const now = new Date();
       const hour = now.getUTCHours();
       const minute = now.getUTCMinutes();
-      const currentSlot = slotKey(hour, minute, now);
+      const currentSlot = slotKey(now);
 
       let configs: Array<{
         enabled: boolean;
@@ -145,10 +137,20 @@ export function startScheduler(deps: SchedulerDeps): void {
 
           if (!recentRun) {
             logger?.info({ jobName: cfg.jobName }, 'Scheduler: manual run requested');
-            // Clear flag before launching to prevent double-firing on next poll.
-            await db.jobConfig
-              .update({ data: { runRequestedAt: null }, where: { jobName: cfg.jobName } })
-              .catch(() => {});
+            // Clear flag before launching — if the update fails we skip this
+            // poll tick rather than risk double-firing on the next one.
+            try {
+              await db.jobConfig.update({
+                data: { runRequestedAt: null },
+                where: { jobName: cfg.jobName },
+              });
+            } catch (err) {
+              logger?.warn(
+                { err, jobName: cfg.jobName },
+                'Scheduler: failed to clear run_requested_at, skipping trigger',
+              );
+              continue;
+            }
             triggerJob(deps, cfg.jobName).catch((err) => {
               logger?.error({ err, jobName: cfg.jobName }, 'Scheduler: manual run error');
             });
@@ -179,43 +181,47 @@ export function startScheduler(deps: SchedulerDeps): void {
 
   // ── Fixed-cadence sub-hourly jobs (not yet configurable via UI) ──────────────
 
+  // Guards re-entrant invocations: if the previous run is still in-flight when
+  // the next interval fires, we skip rather than overlap.
+  function guarded(fn: () => Promise<void>, name: string): () => void {
+    let running = false;
+    return () => {
+      if (running) {
+        logger?.warn({ jobName: name }, 'Scheduler: skipping re-entrant job invocation');
+        return;
+      }
+      running = true;
+      fn()
+        .catch((err) => logger?.error({ err }, `Unhandled error in ${name} job`))
+        .finally(() => {
+          running = false;
+        });
+    };
+  }
+
   const syncTeamsInterval = setInterval(
-    () => {
-      runSyncTeams(db, githubSyncToken, logger).catch((err) => {
-        logger?.error({ err }, 'Unhandled error in sync-teams job');
-      });
-    },
+    guarded(() => runSyncTeams(db, githubSyncToken, logger), 'sync-teams'),
     60 * 60 * 1_000,
   );
   syncTeamsInterval.unref?.();
 
   const sweepAbandonedInterval = setInterval(
-    () => {
-      runSweepAbandoned(db, logger).catch((err) => {
-        logger?.error({ err }, 'Unhandled error in sweep-abandoned job');
-      });
-    },
+    guarded(() => runSweepAbandoned(db, logger), 'sweep-abandoned'),
     10 * 60 * 1_000,
   );
   sweepAbandonedInterval.unref?.();
 
   const sweepScratchInterval = setInterval(
-    () => {
-      runSweepScratch(logger).catch((err) => {
-        logger?.error({ err }, 'Unhandled error in sweep-scratch job');
-      });
-    },
+    guarded(async () => {
+      await runSweepScratch(logger);
+    }, 'sweep-scratch'),
     60 * 60 * 1_000,
   );
   sweepScratchInterval.unref?.();
 
   // Every 6 h: GDPR deletion (high-priority, fixed cadence).
   const deletionsInterval = setInterval(
-    () => {
-      triggerJob(deps, 'run-deletions').catch((err) => {
-        logger?.error({ err }, 'Unhandled error in run-deletions job');
-      });
-    },
+    guarded(() => triggerJob(deps, 'run-deletions'), 'run-deletions'),
     6 * 60 * 60 * 1_000,
   );
   deletionsInterval.unref?.();
