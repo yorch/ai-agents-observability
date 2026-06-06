@@ -3,7 +3,7 @@ id: P3-002
 title: /team/[slug] overview page
 phase: 3
 workstream: B
-status: ready
+status: done
 owner: null
 depends_on: [P3-001]
 blocks: []

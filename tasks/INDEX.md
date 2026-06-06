@@ -118,8 +118,8 @@ Source of truth for task status. Update this in the same commit as the task file
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P3-002](./P3-002-team-overview.md) | /team/[slug] overview page | ready | — | M | P3-001 |
-| [P3-003](./P3-003-team-roster.md) | /team/[slug]/roster page | ready | — | M | P3-001, P3-005 |
+| [P3-002](./P3-002-team-overview.md) | /team/[slug] overview page | done | — | M | P3-001 |
+| [P3-003](./P3-003-team-roster.md) | /team/[slug]/roster page | done | — | M | P3-001, P3-005 |
 | [P3-004](./P3-004-team-member-drill-in.md) | Drill-in to team member sessions | ready | — | M | P3-003, P3-005 |
 | [P3-007](./P3-007-me-audit-filters.md) | /me/audit with filters + real Phase 3 data | ready | — | S | P3-005 |
 
