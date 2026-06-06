@@ -41,7 +41,7 @@ export default async function TeamRosterPage({ params }: { params: Promise<{ slu
       <TeamSubNav slug={slug} active="roster" />
 
       {members.length === 0 ? (
-        <div className="rounded-lg border border-white/10 p-8 text-center">
+        <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center">
           <p className="text-white/50">No members in this team yet.</p>
         </div>
       ) : (
@@ -64,7 +64,16 @@ export default async function TeamRosterPage({ params }: { params: Promise<{ slu
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div>
-                        <p className="font-medium text-white">{m.displayName ?? m.githubLogin}</p>
+                        {m.canViewStats ? (
+                          <Link
+                            href={`/team/${slug}/member/${m.githubLogin}`}
+                            className="font-medium text-white hover:text-white/70"
+                          >
+                            {m.displayName ?? m.githubLogin}
+                          </Link>
+                        ) : (
+                          <p className="font-medium text-white">{m.displayName ?? m.githubLogin}</p>
+                        )}
                         {m.displayName && <p className="text-xs text-white/40">@{m.githubLogin}</p>}
                       </div>
                     </div>
