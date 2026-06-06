@@ -5,7 +5,7 @@ CREATE SCHEMA IF NOT EXISTS "public";
 CREATE TYPE "SessionStatus" AS ENUM ('active', 'completed', 'crashed', 'timed_out', 'abandoned');
 
 -- CreateEnum
-CREATE TYPE "AgentType" AS ENUM ('claude_code', 'cursor', 'aider', 'copilot');
+CREATE TYPE "AgentType" AS ENUM ('claude_code', 'cursor', 'aider', 'copilot', 'codex', 'windsurf', 'opencode');
 
 -- CreateEnum
 CREATE TYPE "AuditAction" AS ENUM ('view_session', 'view_transcript', 'export_team', 'export_org', 'admin_impersonate', 'delete_request', 'hook_token_issued');

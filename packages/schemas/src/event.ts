@@ -2,7 +2,15 @@ import { z } from 'zod';
 
 import { SessionContextSchema } from './session-context';
 
-export const AgentTypeSchema = z.enum(['claude-code', 'cursor', 'aider', 'copilot']);
+export const AgentTypeSchema = z.enum([
+  'claude-code',
+  'cursor',
+  'aider',
+  'copilot',
+  'codex',
+  'windsurf',
+  'opencode',
+]);
 export type AgentType = z.infer<typeof AgentTypeSchema>;
 
 export const EventTypeSchema = z.enum([

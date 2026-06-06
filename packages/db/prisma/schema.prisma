@@ -22,6 +22,9 @@ enum AgentType {
   cursor
   aider
   copilot
+  codex
+  windsurf
+  opencode
 }
 
 enum AuditAction {
