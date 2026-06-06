@@ -24,8 +24,10 @@ export type SessionRow = {
   durationSeconds: number | null;
   endedAt: Date | null;
   eventCount: number;
+  frictionScore: number | null;
   repoName: string | null;
   sessionId: string;
+  shapeLabel: string | null;
   startedAt: Date;
   status: string;
 };
@@ -39,8 +41,10 @@ export type SessionDetail = {
   durationSeconds: number | null;
   endedAt: Date | null;
   endReason: string | null;
+  frictionScore: number | null;
   haikuTurns: number;
   inputTokens: bigint;
+  interruptCount: number;
   opusTurns: number;
   os: string | null;
   outputTokens: bigint;
@@ -49,6 +53,7 @@ export type SessionDetail = {
   primaryModel: string | null;
   repoName: string | null;
   sessionId: string;
+  shapeLabel: string | null;
   sonnetTurns: number;
   startedAt: Date;
   status: string;
@@ -121,8 +126,10 @@ export async function listSessions(
       : null,
     endedAt: s.endedAt,
     eventCount: s.toolCallCount + s.userMessageCount,
+    frictionScore: s.frictionScore,
     repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
     sessionId: s.sessionId,
+    shapeLabel: s.shapeLabel,
     startedAt: s.startedAt,
     status: s.status,
   }));
@@ -155,8 +162,10 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
       : null,
     endedAt: s.endedAt,
     endReason: s.endReason,
+    frictionScore: s.frictionScore,
     haikuTurns: s.haikuTurns,
     inputTokens: s.totalInputTokens,
+    interruptCount: s.interruptCount,
     opusTurns: s.opusTurns,
     os: s.os,
     outputTokens: s.totalOutputTokens,
@@ -165,6 +174,7 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
     primaryModel: s.primaryModel,
     repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
     sessionId: s.sessionId,
+    shapeLabel: s.shapeLabel,
     sonnetTurns: s.sonnetTurns,
     startedAt: s.startedAt,
     status: s.status,

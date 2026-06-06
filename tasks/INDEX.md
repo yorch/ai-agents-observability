@@ -132,8 +132,46 @@ Source of truth for task status. Update this in the same commit as the task file
 
 ## Phase 4 — Org views, search, ops handoff
 
-See [`P4-roadmap.md`](./P4-roadmap.md).
+### Workstream A — Schema + Infrastructure
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P4-001](./P4-001-org-dashboard.md) | viewer_aggregate role + org dashboard | done | claude | L | P3-001 |
+| [P4-004](./P4-004-continuous-aggregates.md) | Timescale continuous aggregates | done | claude | M | P1-004 |
+| [P4-003](./P4-003-transcript-fts.md) | Transcript FTS index + search UI | done | claude | L | P1-012 |
+
+### Workstream B — Ingest jobs
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P4-006](./P4-006-deletion-runner.md) | Deletion job runner (GDPR) | done | claude | M | P1-003 |
+| [P4-007](./P4-007-retention-enforcement.md) | Configurable retention enforcement | done | claude | M | P1-012 |
+
+### Workstream C — Web UI
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P4-002](./P4-002-faceted-search.md) | Faceted session search | done | claude | M | P4-001 |
+| [P4-005](./P4-005-anomaly-surfaces.md) | Anomaly surfaces on org dashboard | done | claude | S | P4-001 |
+
+### Workstream D — Ops handoff
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P4-008](./P4-008-runbooks.md) | Runbooks (5 scenarios) | done | claude | M | — |
+| [P4-009](./P4-009-slos.md) | SLO definitions + error budgets | done | claude | S | — |
+| [P4-010](./P4-010-dashboards.md) | Grafana dashboard config | ready | — | M | P4-009 |
+| [P4-011](./P4-011-on-call.md) | On-call doc + escalation path | done | claude | S | P4-009 |
 
 ## Phase 5 — Effectiveness signals
 
-See [`P5-roadmap.md`](./P5-roadmap.md).
+### Workstream A — Session signals
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P5-001](./P5-001-friction-score.md) | Friction score (compute + surface) | done | claude | M | P1-011 |
+| [P5-002](./P5-002-session-clustering.md) | Session-shape clustering | done | claude | M | P5-001 |
+| [P5-003](./P5-003-revert-detection.md) | Revert detection | ready | — | M | P2-005 |
+| [P5-004](./P5-004-jira.md) | Jira integration | blocked | — | L | §13 Q6 answer |
+| [P5-005](./P5-005-checks.md) | GitHub Checks correlation | ready | — | L | P2-003 |
+| [P5-006](./P5-006-multi-agent.md) | Multi-agent (cursor) adapter | ready | — | XL | demand |

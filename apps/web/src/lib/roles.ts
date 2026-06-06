@@ -1,5 +1,5 @@
 import type { User } from '@ai-agents-observability/db';
-import { TeamRole } from '@ai-agents-observability/db';
+import { OrgRole, TeamRole } from '@ai-agents-observability/db';
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from './auth';
 import { getPrisma } from './prisma';
@@ -85,4 +85,49 @@ export async function getTeamRole(userId: string, teamId: string): Promise<TeamR
 
 export function isLeadOrAbove(role: TeamRole): boolean {
   return LEAD_ROLES.includes(role);
+}
+
+// ── Org-level role helpers ────────────────────────────────────────────────────
+
+export type OrgContext = {
+  orgRole: OrgRole;
+  user: User;
+};
+
+/**
+ * Asserts the caller has org_admin role.
+ * Redirects to /login if unauthenticated; 404 if insufficient role.
+ */
+export async function requireOrgAdmin(): Promise<OrgContext> {
+  const user = await currentUser();
+  if (!user) {
+    redirect('/login');
+  }
+  if (user.orgRole !== OrgRole.org_admin) {
+    notFound();
+  }
+  return { orgRole: user.orgRole, user };
+}
+
+/**
+ * Asserts the caller has org_admin or viewer_aggregate role.
+ * Redirects to /login if unauthenticated; 404 if insufficient role.
+ */
+export async function requireOrgViewer(): Promise<OrgContext> {
+  const user = await currentUser();
+  if (!user) {
+    redirect('/login');
+  }
+  if (user.orgRole === OrgRole.member) {
+    notFound();
+  }
+  return { orgRole: user.orgRole, user };
+}
+
+export function isOrgAdmin(role: OrgRole): boolean {
+  return role === OrgRole.org_admin;
+}
+
+export function canViewIndividuals(role: OrgRole): boolean {
+  return role === OrgRole.org_admin;
 }

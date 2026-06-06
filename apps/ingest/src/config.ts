@@ -17,6 +17,8 @@ const ConfigSchema = z.object({
     .default(true),
   s3_region: z.string().default('us-east-1'),
   s3_secret_access_key: z.string().min(1),
+  // Configurable transcript retention (days). Default: 365. Set to 0 to disable.
+  transcript_retention_days: z.coerce.number().int().min(0).default(365),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -35,5 +37,6 @@ export function loadConfig(): Config {
     s3_force_path_style: process.env.S3_FORCE_PATH_STYLE,
     s3_region: process.env.S3_REGION,
     s3_secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
+    transcript_retention_days: process.env.TRANSCRIPT_RETENTION_DAYS,
   });
 }

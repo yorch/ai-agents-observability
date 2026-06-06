@@ -47,7 +47,14 @@ const server = Bun.serve({
 
 logger.info({ port: config.port, version: config.git_sha }, 'ingest service started');
 
-startScheduler(db, config.github_sync_token, logger);
+startScheduler({
+  bucket: config.s3_bucket,
+  db,
+  ...(config.github_sync_token ? { githubSyncToken: config.github_sync_token } : {}),
+  logger,
+  s3,
+  transcriptRetentionDays: config.transcript_retention_days,
+});
 
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, starting graceful shutdown');

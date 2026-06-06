@@ -43,6 +43,12 @@ enum TeamRole {
   maintainer
 }
 
+enum OrgRole {
+  member
+  org_admin
+  viewer_aggregate
+}
+
 enum PRState {
   open
   closed
@@ -82,6 +88,7 @@ model User {
   email         String?
   displayName   String?   @map("display_name")
   primaryTeamId String?   @map("primary_team_id") @db.Uuid
+  orgRole       OrgRole   @default(member) @map("org_role")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz(6)
   deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(6)
@@ -233,6 +240,9 @@ model Session {
   transcriptBytes      BigInt?   @map("transcript_bytes")
   transcriptUploadedAt DateTime? @map("transcript_uploaded_at") @db.Timestamptz(6)
   transcriptRedacted   Boolean   @default(false) @map("transcript_redacted")
+
+  shapeLabel           String?   @map("shape_label")
+  frictionScore        Float?    @map("friction_score")
 
   user    User            @relation(fields: [userId], references: [id])
   repo    Repo?           @relation(fields: [repoId], references: [id])
