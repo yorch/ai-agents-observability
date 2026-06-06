@@ -3,7 +3,7 @@ id: P3-005
 title: Audit log writes on every cross-user view
 phase: 3
 workstream: C
-status: in-progress
+status: done
 owner: null
 depends_on: [P3-001]
 blocks: [P3-003, P3-004, P3-006, P3-007]

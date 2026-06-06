@@ -1,3 +1,4 @@
+import * as fc from 'fast-check';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => {
@@ -6,7 +7,13 @@ beforeEach(() => {
 
 // ── Mock @ai-agents-observability/db ────────────────────────────────────────
 
+const mockTeamMemberFindMany = vi.fn();
+const mockTeamMemberFindFirst = vi.fn();
+const mockSessionGroupBy = vi.fn();
+
 const mockPrisma = {
+  session: { groupBy: mockSessionGroupBy },
+  teamMember: { findFirst: mockTeamMemberFindFirst, findMany: mockTeamMemberFindMany },
   visibilityPolicy: {
     findUnique: vi.fn(),
     upsert: vi.fn(),
@@ -15,6 +22,8 @@ const mockPrisma = {
 
 vi.mock('@ai-agents-observability/db', () => ({
   createClient: vi.fn(() => mockPrisma),
+  Prisma: {},
+  TeamRole: { lead: 'lead', maintainer: 'maintainer', member: 'member' },
 }));
 
 // ── getVisibilityPolicy ──────────────────────────────────────────────────────
@@ -90,5 +99,152 @@ describe('updateVisibilityPolicy', () => {
     // create block should have default values
     expect(call.create.shareMetadataWithTeam).toBe(true);
     expect(call.create.shareTranscriptsWithTeam).toBe(false);
+  });
+});
+
+// ── P3-006: fast-check property-based access control tests ───────────────────
+
+function makeMembership(opts: {
+  displayName?: string | null;
+  githubLogin?: string;
+  roleInTeam?: string;
+  shareMetadataWithTeam?: boolean;
+  shareTranscriptsWithTeam?: boolean;
+  userId?: string;
+}) {
+  return {
+    roleInTeam: opts.roleInTeam ?? 'member',
+    user: {
+      displayName: opts.displayName ?? null,
+      githubLogin: opts.githubLogin ?? 'testuser',
+      visibilityPolicy: {
+        shareMetadataWithTeam: opts.shareMetadataWithTeam ?? true,
+        shareTranscriptsWithTeam: opts.shareTranscriptsWithTeam ?? false,
+      },
+    },
+    userId: opts.userId ?? 'user-1',
+  };
+}
+
+describe('privacy enforcement — property tests (≥200 runs each)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (globalThis as Record<string, unknown>)._prisma = undefined;
+  });
+
+  it('shareMetadataWithTeam=false → no cost/session stats in roster result', async () => {
+    const { getTeamRoster } = await import('../src/lib/team-queries.js');
+
+    await fc.assert(
+      fc.asyncProperty(
+        fc.record({
+          displayName: fc.option(fc.string({ maxLength: 20 }), { nil: null }),
+          githubLogin: fc.string({ maxLength: 15, minLength: 1 }),
+          shareMetadataWithTeam: fc.boolean(),
+          userId: fc.uuid(),
+        }),
+        async (member) => {
+          vi.clearAllMocks();
+          (globalThis as Record<string, unknown>)._prisma = undefined;
+
+          mockTeamMemberFindMany.mockResolvedValueOnce([
+            makeMembership({
+              displayName: member.displayName,
+              githubLogin: member.githubLogin,
+              shareMetadataWithTeam: member.shareMetadataWithTeam,
+              userId: member.userId,
+            }),
+          ]);
+          if (member.shareMetadataWithTeam) {
+            mockSessionGroupBy.mockResolvedValueOnce([]);
+          }
+
+          const roster = await getTeamRoster('team-id', new Date());
+          const found = roster.find((m) => m.userId === member.userId);
+
+          expect(found).toBeDefined();
+          if (!member.shareMetadataWithTeam) {
+            expect(found?.canViewStats).toBe(false);
+            expect(found?.sessionCount).toBeNull();
+            expect(found?.totalCostUsd).toBeNull();
+          } else {
+            expect(found?.canViewStats).toBe(true);
+          }
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it('shareTranscriptsWithTeam=false → canViewTranscripts=false in getMemberForTeam', async () => {
+    const { getMemberForTeam } = await import('../src/lib/team-queries.js');
+
+    await fc.assert(
+      fc.asyncProperty(
+        fc.record({
+          shareMetadataWithTeam: fc.boolean(),
+          shareTranscriptsWithTeam: fc.boolean(),
+          userId: fc.uuid(),
+        }),
+        async (member) => {
+          vi.clearAllMocks();
+          (globalThis as Record<string, unknown>)._prisma = undefined;
+
+          mockTeamMemberFindFirst.mockResolvedValueOnce(
+            makeMembership({
+              shareMetadataWithTeam: member.shareMetadataWithTeam,
+              shareTranscriptsWithTeam: member.shareTranscriptsWithTeam,
+              userId: member.userId,
+            }),
+          );
+
+          const profile = await getMemberForTeam('team-id', 'testuser');
+
+          expect(profile).not.toBeNull();
+          expect(profile?.canViewTranscripts).toBe(member.shareTranscriptsWithTeam);
+          expect(profile?.canViewStats).toBe(member.shareMetadataWithTeam);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it('cross-team isolation: getMemberForTeam returns null for user not in team', async () => {
+    const { getMemberForTeam } = await import('../src/lib/team-queries.js');
+
+    await fc.assert(
+      fc.asyncProperty(
+        fc.record({
+          login: fc.string({ maxLength: 20, minLength: 1 }),
+          teamId: fc.uuid(),
+        }),
+        async ({ login, teamId }) => {
+          vi.clearAllMocks();
+          (globalThis as Record<string, unknown>)._prisma = undefined;
+
+          // DB returns null: user is not an active member of this team.
+          mockTeamMemberFindFirst.mockResolvedValueOnce(null);
+
+          const profile = await getMemberForTeam(teamId, login);
+
+          expect(profile).toBeNull();
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it('member-role rejected, lead/maintainer accepted by isLeadOrAbove', async () => {
+    const { isLeadOrAbove } = await import('../src/lib/roles.js');
+
+    await fc.assert(
+      fc.property(fc.constantFrom('lead', 'maintainer', 'member'), (role) => {
+        if (role === 'lead' || role === 'maintainer') {
+          return isLeadOrAbove(role as never);
+        }
+        return !isLeadOrAbove(role as never);
+      }),
+      { numRuns: 200 },
+    );
   });
 });

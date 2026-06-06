@@ -120,15 +120,15 @@ Source of truth for task status. Update this in the same commit as the task file
 |---|---|---|---|---|---|
 | [P3-002](./P3-002-team-overview.md) | /team/[slug] overview page | done | — | M | P3-001 |
 | [P3-003](./P3-003-team-roster.md) | /team/[slug]/roster page | done | — | M | P3-001, P3-005 |
-| [P3-004](./P3-004-team-member-drill-in.md) | Drill-in to team member sessions | ready | — | M | P3-003, P3-005 |
-| [P3-007](./P3-007-me-audit-filters.md) | /me/audit with filters + real Phase 3 data | ready | — | S | P3-005 |
+| [P3-004](./P3-004-team-member-drill-in.md) | Drill-in to team member sessions | done | claude | M | P3-003, P3-005 |
+| [P3-007](./P3-007-me-audit-filters.md) | /me/audit with filters + real Phase 3 data | done | claude | S | P3-005 |
 
 ### Workstream C — Privacy / correctness
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P3-005](./P3-005-audit-log-writes.md) | Audit log writes on every cross-user view | ready | — | M | P3-001 |
-| [P3-006](./P3-006-privacy-test-suite.md) | Privacy enforcement property-test suite | ready | — | M | P3-005 |
+| [P3-005](./P3-005-audit-log-writes.md) | Audit log writes on every cross-user view | done | claude | M | P3-001 |
+| [P3-006](./P3-006-privacy-test-suite.md) | Privacy enforcement property-test suite | done | claude | M | P3-005 |
 
 ## Phase 4 — Org views, search, ops handoff
 

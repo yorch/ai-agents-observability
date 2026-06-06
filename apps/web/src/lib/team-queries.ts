@@ -169,6 +169,42 @@ export async function getTeamModelMix(since: Date, visibleIds: string[]): Promis
     .sort((a, b) => b.turns - a.turns);
 }
 
+export type MemberProfile = {
+  canViewStats: boolean;
+  canViewTranscripts: boolean;
+  displayName: string | null;
+  githubLogin: string;
+  role: string;
+  userId: string;
+};
+
+export async function getMemberForTeam(
+  teamId: string,
+  githubLogin: string,
+): Promise<MemberProfile | null> {
+  const membership = await getPrisma().teamMember.findFirst({
+    include: {
+      user: { include: { visibilityPolicy: true } },
+    },
+    where: {
+      leftAt: null,
+      teamId,
+      user: { githubLogin },
+    },
+  });
+  if (!membership) {
+    return null;
+  }
+  return {
+    canViewStats: membership.user.visibilityPolicy?.shareMetadataWithTeam ?? true,
+    canViewTranscripts: membership.user.visibilityPolicy?.shareTranscriptsWithTeam ?? false,
+    displayName: membership.user.displayName,
+    githubLogin: membership.user.githubLogin,
+    role: membership.roleInTeam as string,
+    userId: membership.userId,
+  };
+}
+
 export async function getTeamRoster(teamId: string, since: Date): Promise<RosterMember[]> {
   const prisma = getPrisma();
 

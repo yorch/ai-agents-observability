@@ -41,6 +41,7 @@ function formatDate(d: Date): string {
 }
 
 type SessionsTableProps = {
+  basePath?: string;
   currentPage: number;
   sessions: SessionRow[];
   total: number;
@@ -48,7 +49,12 @@ type SessionsTableProps = {
 
 const PAGE_SIZE = 50;
 
-export function SessionsTable({ sessions, total, currentPage }: SessionsTableProps) {
+export function SessionsTable({
+  sessions,
+  total,
+  currentPage,
+  basePath = '/me/sessions',
+}: SessionsTableProps) {
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const hasPrev = currentPage > 1;
   const hasNext = currentPage < totalPages;
@@ -82,7 +88,7 @@ export function SessionsTable({ sessions, total, currentPage }: SessionsTablePro
                 className="border-b border-white/5 hover:bg-white/5 transition-colors"
               >
                 <td className="px-4 py-3 text-white/70">
-                  <Link href={`/me/sessions/${s.sessionId}`} className="hover:text-white">
+                  <Link href={`${basePath}/${s.sessionId}`} className="hover:text-white">
                     {formatDate(s.startedAt)}
                   </Link>
                 </td>
