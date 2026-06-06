@@ -27,6 +27,7 @@ const s3 = new S3Client({
 });
 
 const deps: AppDeps = {
+  ...(config.admin_secret ? { adminSecret: config.admin_secret } : {}),
   checkDb: async () => {
     await db.$queryRaw`SELECT 1`;
   },

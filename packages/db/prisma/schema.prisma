@@ -385,3 +385,16 @@ model WebhookDelivery {
   @@index([receivedAt(sort: Desc)])
   @@map("webhook_deliveries")
 }
+
+// ── Job config (UI-configurable schedules) ────────────────────────────────────
+
+model JobConfig {
+  jobName        String    @id @map("job_name")
+  enabled        Boolean   @default(true)
+  runHourUtc     Int       @map("run_hour_utc")    @db.SmallInt
+  runMinuteUtc   Int       @map("run_minute_utc")  @db.SmallInt
+  runRequestedAt DateTime? @map("run_requested_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("job_config")
+}

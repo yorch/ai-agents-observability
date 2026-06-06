@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const ConfigSchema = z.object({
+  admin_secret: z.string().optional(),
   database_url: z.string().min(1),
   git_sha: z.string().default('dev'),
   github_sync_token: z.string().optional(),
@@ -25,6 +26,7 @@ export type Config = z.infer<typeof ConfigSchema>;
 
 export function loadConfig(): Config {
   return ConfigSchema.parse({
+    admin_secret: process.env.ADMIN_SECRET,
     database_url: process.env.DATABASE_URL,
     git_sha: process.env.GIT_SHA ?? process.env.COMMIT_SHA,
     github_sync_token: process.env.GITHUB_SYNC_TOKEN,
