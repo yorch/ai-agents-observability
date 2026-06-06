@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation';
-import { ModelMixChart } from '../../components/me/ModelMix';
-import { RecentSessions } from '../../components/me/RecentSessions';
-import { SummaryCards } from '../../components/me/SummaryCards';
-import { TopTools } from '../../components/me/TopTools';
-import { currentUser } from '../../lib/auth';
-import { getModelMix, getRecentSessions, getTopTools, getUsageSummary } from '../../lib/me-queries';
+import { ModelMixChart } from '@/components/me/ModelMix';
+import { RecentSessions } from '@/components/me/RecentSessions';
+import { SummaryCards } from '@/components/me/SummaryCards';
+import { TopTools } from '@/components/me/TopTools';
+import { currentUser } from '@/lib/auth';
+import { getModelMix, getRecentSessions, getTopTools, getUsageSummary } from '@/lib/me-queries';
 
 export const dynamic = 'force-dynamic';
 

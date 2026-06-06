@@ -4,7 +4,7 @@ import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamRoster } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
-import { TeamSubNav } from '../layout';
+import { TeamSubNav } from '@/app/team/[slug]/layout';
 
 export const dynamic = 'force-dynamic';
 

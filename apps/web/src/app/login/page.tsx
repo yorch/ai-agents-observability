@@ -1,4 +1,4 @@
-import { sanitizeNext } from '../../lib/session-cookie';
+import { sanitizeNext } from '@/lib/session-cookie';
 
 export const dynamic = 'force-dynamic';
 

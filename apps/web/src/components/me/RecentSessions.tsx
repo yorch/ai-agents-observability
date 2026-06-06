@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { RecentSession } from '../../lib/me-queries';
+import type { RecentSession } from '@/lib/me-queries';
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {

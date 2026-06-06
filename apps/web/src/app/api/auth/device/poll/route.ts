@@ -4,9 +4,9 @@ import { createGitHubClient } from '@ai-agents-observability/github';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { ensureVisibilityPolicy } from '../../../../../lib/ensure-visibility-policy';
-import { getPrisma } from '../../../../../lib/prisma';
-import { clientIp } from '../../../../../lib/request-meta';
+import { ensureVisibilityPolicy } from '@/lib/ensure-visibility-policy';
+import { getPrisma } from '@/lib/prisma';
+import { clientIp } from '@/lib/request-meta';
 
 const PollBody = z.object({ device_code: z.string().min(1) });
 

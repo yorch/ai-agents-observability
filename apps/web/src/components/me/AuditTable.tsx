@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { AuditRow } from '../../lib/me-queries';
+import type { AuditRow } from '@/lib/me-queries';
 
 type AuditTableProps = {
   currentPage: number;

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { SessionRow } from '../../lib/sessions-queries';
+import type { SessionRow } from '@/lib/sessions-queries';
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {

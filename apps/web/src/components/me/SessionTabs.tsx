@@ -1,4 +1,4 @@
-import type { getSession, ModelBreakdownRow } from '../../lib/sessions-queries';
+import type { getSession, ModelBreakdownRow } from '@/lib/sessions-queries';
 
 export function ToolsTab({
   session,

@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import { DeleteDataButton } from '../../../components/me/DeleteDataButton';
-import { PrivacyForm } from '../../../components/me/PrivacyForm';
-import { currentUser } from '../../../lib/auth';
-import { getVisibilityPolicy } from '../../../lib/visibility';
+import { DeleteDataButton } from '@/components/me/DeleteDataButton';
+import { PrivacyForm } from '@/components/me/PrivacyForm';
+import { currentUser } from '@/lib/auth';
+import { getVisibilityPolicy } from '@/lib/visibility';
 
 export const dynamic = 'force-dynamic';
 

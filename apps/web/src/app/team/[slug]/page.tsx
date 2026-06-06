@@ -1,13 +1,13 @@
-import { ModelMixChart } from '../../../components/me/ModelMix';
-import { TopTools } from '../../../components/me/TopTools';
-import { requireTeamLead } from '../../../lib/roles';
+import { ModelMixChart } from '@/components/me/ModelMix';
+import { TopTools } from '@/components/me/TopTools';
+import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamModelMix,
   getTeamSummary,
   getTeamTopTools,
   resolveTeamVisibility,
-} from '../../../lib/team-queries';
-import { daysAgo } from '../../../lib/time';
+} from '@/lib/team-queries';
+import { daysAgo } from '@/lib/time';
 import { TeamSubNav } from './layout';
 
 export const dynamic = 'force-dynamic';

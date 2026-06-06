@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ModelsTab, ToolsTab } from '../../../../components/me/SessionTabs';
-import { Timeline } from '../../../../components/me/Timeline';
-import { currentUser } from '../../../../lib/auth';
-import type { ModelBreakdownRow } from '../../../../lib/sessions-queries';
-import { getSession, getSessionModelBreakdown } from '../../../../lib/sessions-queries';
+import { ModelsTab, ToolsTab } from '@/components/me/SessionTabs';
+import { Timeline } from '@/components/me/Timeline';
+import { currentUser } from '@/lib/auth';
+import type { ModelBreakdownRow } from '@/lib/sessions-queries';
+import { getSession, getSessionModelBreakdown } from '@/lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
 

@@ -1,4 +1,4 @@
-import type { SessionDetail } from '../../lib/sessions-queries';
+import type { SessionDetail } from '@/lib/sessions-queries';
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (

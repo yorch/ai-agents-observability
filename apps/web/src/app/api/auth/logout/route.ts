@@ -2,8 +2,8 @@ import { verifyAccessToken } from '@ai-agents-observability/auth';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-import { getPrisma } from '../../../../lib/prisma';
-import { COOKIE_ACCESS, clearAuthCookies } from '../../../../lib/session-cookie';
+import { getPrisma } from '@/lib/prisma';
+import { COOKIE_ACCESS, clearAuthCookies } from '@/lib/session-cookie';
 
 export async function POST() {
   const jar = await cookies();

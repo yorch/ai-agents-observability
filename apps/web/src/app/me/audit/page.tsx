@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import { AuditTable } from '../../../components/me/AuditTable';
-import { currentUser } from '../../../lib/auth';
-import { getAuditLog } from '../../../lib/me-queries';
-import { daysAgo } from '../../../lib/time';
+import { AuditTable } from '@/components/me/AuditTable';
+import { currentUser } from '@/lib/auth';
+import { getAuditLog } from '@/lib/me-queries';
+import { daysAgo } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 

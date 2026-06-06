@@ -2,15 +2,15 @@ import type { ExternalIdentity } from '@ai-agents-observability/auth';
 import { issueAccessToken, issueRefreshToken } from '@ai-agents-observability/auth';
 import { NextResponse } from 'next/server';
 
-import { getProvider } from '../../../../lib/auth-provider';
-import { ensureVisibilityPolicy } from '../../../../lib/ensure-visibility-policy';
-import { getPrisma } from '../../../../lib/prisma';
+import { getProvider } from '@/lib/auth-provider';
+import { ensureVisibilityPolicy } from '@/lib/ensure-visibility-policy';
+import { getPrisma } from '@/lib/prisma';
 import {
   consumeNextCookie,
   getStateCookie,
   hashState,
   setAuthCookies,
-} from '../../../../lib/session-cookie';
+} from '@/lib/session-cookie';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

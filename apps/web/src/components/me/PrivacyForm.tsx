@@ -1,7 +1,7 @@
 'use client';
 import { useState, useTransition } from 'react';
 
-import { savePrivacySettings } from '../../app/me/privacy/actions';
+import { savePrivacySettings } from '@/app/me/privacy/actions';
 
 type Toggle = {
   description: string;

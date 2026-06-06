@@ -1,8 +1,8 @@
 import { rotateRefreshToken } from '@ai-agents-observability/auth';
 import { NextResponse } from 'next/server';
 
-import { getPrisma } from '../../../../lib/prisma';
-import { getRefreshCookie, setAuthCookies } from '../../../../lib/session-cookie';
+import { getPrisma } from '@/lib/prisma';
+import { getRefreshCookie, setAuthCookies } from '@/lib/session-cookie';
 
 export async function POST() {
   const refresh = await getRefreshCookie();

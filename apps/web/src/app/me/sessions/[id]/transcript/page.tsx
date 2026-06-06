@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { TranscriptViewer } from '../../../../../components/me/TranscriptViewer';
-import { currentUser } from '../../../../../lib/auth';
-import { getSession } from '../../../../../lib/sessions-queries';
+import { TranscriptViewer } from '@/components/me/TranscriptViewer';
+import { currentUser } from '@/lib/auth';
+import { getSession } from '@/lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
 
