@@ -43,6 +43,7 @@ export default async function OrgSearchPage({
     prisma.team.findMany({
       orderBy: { name: 'asc' },
       select: { githubSlug: true, id: true, name: true },
+      take: 100,
     }),
     prisma.repo.findMany({
       orderBy: { githubName: 'asc' },

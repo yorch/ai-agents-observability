@@ -27,8 +27,10 @@ export default async function OrgDashboardPage() {
     getCostByModel(since),
     getOrgTopTools(since),
     getWeeklyCostTrend(12),
-    getAnomalies(since),
+    getAnomalies(),
   ]);
+
+  const modelTotalCost = modelCost.reduce((s, r) => s + r.costUsd, 0);
 
   return (
     <div className="space-y-6">
@@ -151,8 +153,7 @@ export default async function OrgDashboardPage() {
           ) : (
             <div className="space-y-2">
               {modelCost.map((m) => {
-                const total = modelCost.reduce((s, r) => s + r.costUsd, 0);
-                const pct = total > 0 ? (m.costUsd / total) * 100 : 0;
+                const pct = modelTotalCost > 0 ? (m.costUsd / modelTotalCost) * 100 : 0;
                 return (
                   <div key={m.model} className="space-y-1">
                     <div className="flex justify-between text-sm">

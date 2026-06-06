@@ -255,7 +255,7 @@ export async function getOrgTopTools(since: Date, limit = 10): Promise<OrgToolUs
 }
 
 /** Anomaly detection: cost spikes (>2σ over trailing 14-day baseline) and error spikes. */
-export async function getAnomalies(_since: Date): Promise<AnomalyRow[]> {
+export async function getAnomalies(): Promise<AnomalyRow[]> {
   const prisma = getPrisma();
   const anomalies: AnomalyRow[] = [];
 

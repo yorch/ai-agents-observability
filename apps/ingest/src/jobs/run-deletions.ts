@@ -4,9 +4,13 @@ import type { Logger } from 'pino';
 
 /**
  * Processes pending DeletionRequest rows.
- * For each request: deletes S3 transcript objects, then cascades the Prisma
- * user delete (which cascades to sessions, events FK, PR links, audit logs via
- * ON DELETE CASCADE defined in schema).
+ * For each request:
+ *  1. Deletes S3 transcript objects (best-effort; errors are logged and skipped).
+ *  2. Deletes audit_log rows where the user is the actor (actor_user_id FK is
+ *     ON DELETE RESTRICT, so this must happen before user.delete).
+ *  3. Deletes the user row (cascades to sessions, events, PR links, and
+ *     audit_log rows where the user is the target via ON DELETE SET NULL).
+ *     The DeletionRequest row itself is removed by cascade when the user is deleted.
  * Uses pg advisory lock to prevent concurrent runs.
  */
 export async function runDeletions(

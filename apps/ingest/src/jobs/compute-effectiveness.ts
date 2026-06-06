@@ -154,31 +154,35 @@ export async function runComputeEffectiveness(db: DbWithRaw, logger?: Logger): P
 
     let updated = 0;
     for (const s of sessions) {
-      const durationSeconds = s.ended_at
-        ? Math.round((s.ended_at.getTime() - s.started_at.getTime()) / 1000)
-        : null;
+      try {
+        const durationSeconds = s.ended_at
+          ? Math.round((s.ended_at.getTime() - s.started_at.getTime()) / 1000)
+          : null;
 
-      const frictionScore = computeFrictionScore({
-        durationSeconds,
-        interruptCount: s.interrupt_count,
-        permissionDenyCount: s.permission_deny_count,
-        status: s.status,
-        toolCallCount: s.tool_call_count,
-        toolErrorCount: s.tool_error_count,
-        userMessageCount: s.user_message_count,
-      });
+        const frictionScore = computeFrictionScore({
+          durationSeconds,
+          interruptCount: s.interrupt_count,
+          permissionDenyCount: s.permission_deny_count,
+          status: s.status,
+          toolCallCount: s.tool_call_count,
+          toolErrorCount: s.tool_error_count,
+          userMessageCount: s.user_message_count,
+        });
 
-      const histogram = histogramMap.get(s.session_id) ?? [];
-      const shapeLabel = classifyShape(histogram, s.user_message_count, s.tool_call_count);
+        const histogram = histogramMap.get(s.session_id) ?? [];
+        const shapeLabel = classifyShape(histogram, s.user_message_count, s.tool_call_count);
 
-      await db.$executeRaw(Prisma.sql`
-        UPDATE sessions
-        SET friction_score = ${frictionScore},
-            shape_label    = ${shapeLabel}
-        WHERE session_id = ${s.session_id}::uuid
-      `);
+        await db.$executeRaw(Prisma.sql`
+          UPDATE sessions
+          SET friction_score = ${frictionScore},
+              shape_label    = ${shapeLabel}
+          WHERE session_id = ${s.session_id}::uuid
+        `);
 
-      updated++;
+        updated++;
+      } catch (err) {
+        logger?.warn({ err, sessionId: s.session_id }, 'Failed to update session effectiveness');
+      }
     }
 
     await (db as Pick<PrismaClient, 'jobRun'>).jobRun.update({

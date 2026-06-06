@@ -126,12 +126,11 @@ export async function runIndexTranscripts(
         }
 
         // Insert FTS rows in a batch (one per message with text content)
-        let msgIdx = 0;
-        for (const msg of messages) {
+        let hasInserted = false;
+        for (const [msgIdx, msg] of messages.entries()) {
           const role = typeof msg.role === 'string' ? msg.role : 'unknown';
           const contentText = extractTextContent(msg.content);
           if (!contentText.trim()) {
-            msgIdx++;
             continue;
           }
           const ts = typeof msg.timestamp === 'string' ? new Date(msg.timestamp) : null;
@@ -146,7 +145,18 @@ export async function runIndexTranscripts(
             ts,
             contentText.slice(0, 100_000), // cap per-message to avoid huge rows
           );
-          msgIdx++;
+          hasInserted = true;
+        }
+
+        // If the transcript had no indexable text at all, insert a sentinel so this
+        // session is not re-selected on every nightly run (NOT EXISTS check).
+        if (!hasInserted) {
+          await db.$executeRawUnsafe(
+            `INSERT INTO transcript_index (session_id, message_idx, role, ts, content_text)
+             VALUES ($1::uuid, -1, '__empty__', null, ' ')
+             ON CONFLICT (session_id, message_idx) DO NOTHING`,
+            row.session_id,
+          );
         }
 
         indexed++;
