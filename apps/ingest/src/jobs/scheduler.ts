@@ -6,10 +6,14 @@ import { runSweepAbandoned } from './sweep-abandoned';
 import { runSweepScratch } from './sweep-scratch';
 import { runSyncTeams } from './sync-teams';
 
-export function startScheduler(db: PrismaClient, logger?: Logger): void {
+export function startScheduler(
+  db: PrismaClient,
+  githubSyncToken: string | undefined,
+  logger?: Logger,
+): void {
   // Hourly team sync
   new Cron('0 * * * *', { protect: true }, () => {
-    runSyncTeams(db, logger).catch((err) => {
+    runSyncTeams(db, githubSyncToken, logger).catch((err) => {
       logger?.error({ err }, 'Unhandled error in sync-teams job');
     });
   });

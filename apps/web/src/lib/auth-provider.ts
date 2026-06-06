@@ -1,17 +1,20 @@
 import { GitHubProvider } from '@ai-agents-observability/auth';
 
-import { requireEnv } from './env';
+import { getConfig } from '@/lib/config';
 
-// Lazy singleton — see lib/prisma.ts for the same pattern. Reads OAuth env
-// only on first call so route modules import cleanly during Next's build-time
-// static analysis.
+// Lazy singleton — only reads env on first call so route modules import cleanly
+// during Next.js build-time static analysis.
 let cached: GitHubProvider | undefined;
 
 export function getProvider(): GitHubProvider {
   if (!cached) {
+    const { githubOAuthClientId, githubOAuthClientSecret } = getConfig();
+    if (!githubOAuthClientId || !githubOAuthClientSecret) {
+      throw new Error('GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET must be set');
+    }
     cached = new GitHubProvider({
-      clientId: requireEnv('GITHUB_OAUTH_CLIENT_ID'),
-      clientSecret: requireEnv('GITHUB_OAUTH_CLIENT_SECRET'),
+      clientId: githubOAuthClientId,
+      clientSecret: githubOAuthClientSecret,
     });
   }
   return cached;

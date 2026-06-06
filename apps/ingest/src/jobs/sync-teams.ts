@@ -11,7 +11,11 @@ import type { Logger } from 'pino';
  * logs a warning and skips users without tokens. Token storage will be
  * wired up in Phase 4 when the credential store is added.
  */
-export async function runSyncTeams(db: PrismaClient, logger?: Logger): Promise<void> {
+export async function runSyncTeams(
+  db: PrismaClient,
+  githubSyncToken: string | undefined,
+  logger?: Logger,
+): Promise<void> {
   const jobName = 'sync-teams';
   const startedAt = new Date();
 
@@ -51,8 +55,7 @@ export async function runSyncTeams(db: PrismaClient, logger?: Logger): Promise<v
 
     for (const user of users) {
       // Tokens are not stored on User yet — this is a stub for future wiring
-      const githubToken = process.env.GITHUB_SYNC_TOKEN;
-      if (!githubToken) {
+      if (!githubSyncToken) {
         logger?.warn(
           { githubLogin: user.githubLogin, userId: user.id },
           'No GitHub token available for team sync; skipping user (token storage not yet implemented)',
@@ -61,7 +64,7 @@ export async function runSyncTeams(db: PrismaClient, logger?: Logger): Promise<v
       }
 
       try {
-        await syncUserTeams(db, user.id, user.githubLogin, githubToken, logger);
+        await syncUserTeams(db, user.id, user.githubLogin, githubSyncToken, logger);
       } catch (err) {
         // Log but don't fail entire job for one user
         logger?.error({ err, userId: user.id }, 'Failed to sync teams for user');

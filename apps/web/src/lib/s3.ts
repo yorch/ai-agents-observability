@@ -1,18 +1,16 @@
 import { Readable } from 'node:stream';
 import { zstdDecompressSync } from 'node:zlib';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { requireEnv } from '@/lib/env';
+
+import { getConfig } from '@/lib/config';
 
 export function getS3Client(): S3Client {
-  const endpoint = process.env.S3_ENDPOINT;
+  const { s3AccessKeyId, s3Endpoint, s3Region, s3SecretAccessKey } = getConfig();
   return new S3Client({
-    credentials: {
-      accessKeyId: requireEnv('S3_ACCESS_KEY_ID'),
-      secretAccessKey: requireEnv('S3_SECRET_ACCESS_KEY'),
-    },
-    ...(endpoint ? { endpoint } : {}),
+    credentials: { accessKeyId: s3AccessKeyId, secretAccessKey: s3SecretAccessKey },
+    ...(s3Endpoint ? { endpoint: s3Endpoint } : {}),
     forcePathStyle: true,
-    region: process.env.S3_REGION ?? 'us-east-1',
+    region: s3Region,
   });
 }
 
@@ -24,7 +22,7 @@ export async function fetchAndDecompressTranscript(
 ): Promise<ArrayBuffer> {
   const obj = await s3.send(
     new GetObjectCommand({
-      Bucket: requireEnv('S3_BUCKET'),
+      Bucket: getConfig().s3Bucket,
       Key: key,
     }),
   );

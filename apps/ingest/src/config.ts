@@ -3,6 +3,7 @@ import { z } from 'zod';
 const ConfigSchema = z.object({
   database_url: z.string().min(1),
   git_sha: z.string().default('dev'),
+  github_sync_token: z.string().optional(),
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   node_env: z.enum(['development', 'production', 'test']).default('development'),
   port: z.coerce.number().int().min(1).max(65535).default(4000),
@@ -24,6 +25,7 @@ export function loadConfig(): Config {
   return ConfigSchema.parse({
     database_url: process.env.DATABASE_URL,
     git_sha: process.env.GIT_SHA ?? process.env.COMMIT_SHA,
+    github_sync_token: process.env.GITHUB_SYNC_TOKEN,
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,
     port: process.env.INGEST_PORT,
