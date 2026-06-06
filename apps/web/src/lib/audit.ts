@@ -27,7 +27,7 @@ async function requestMeta(): Promise<{ ip: string | null; userAgent: string | n
 
 /**
  * Writes a single audit log row for a privileged cross-user data access.
- * Fire-and-forget: awaited but never throws — errors are logged to stderr.
+ * Never throws — errors are logged to stderr. Callers use `void` for fire-and-forget.
  */
 export async function writeAuditLog(
   params: AuditParams,

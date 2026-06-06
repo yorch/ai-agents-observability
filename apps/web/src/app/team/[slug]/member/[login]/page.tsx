@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { SessionsTable } from '../../../../../components/me/SessionsTable';
-import { AuditAction, writeAuditLog } from '../../../../../lib/audit';
-import { requireTeamLead } from '../../../../../lib/roles';
-import { listSessions } from '../../../../../lib/sessions-queries';
-import { getMemberForTeam } from '../../../../../lib/team-queries';
+import { SessionsTable } from '@/components/me/SessionsTable';
+import { AuditAction, writeAuditLog } from '@/lib/audit';
+import { requireTeamLead } from '@/lib/roles';
+import { listSessions } from '@/lib/sessions-queries';
+import { getMemberForTeam } from '@/lib/team-queries';
 
 export const dynamic = 'force-dynamic';
 

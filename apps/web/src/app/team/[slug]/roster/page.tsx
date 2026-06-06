@@ -1,9 +1,9 @@
 import Link from 'next/link';
 
-import { AuditAction, writeAuditLog } from '../../../../lib/audit';
-import { requireTeamLead } from '../../../../lib/roles';
-import { getTeamRoster } from '../../../../lib/team-queries';
-import { daysAgo } from '../../../../lib/time';
+import { AuditAction, writeAuditLog } from '@/lib/audit';
+import { requireTeamLead } from '@/lib/roles';
+import { getTeamRoster } from '@/lib/team-queries';
+import { daysAgo } from '@/lib/time';
 import { TeamSubNav } from '../layout';
 
 export const dynamic = 'force-dynamic';

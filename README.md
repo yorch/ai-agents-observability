@@ -78,7 +78,7 @@ curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
 
 **Phase 2** (PR loop) — code complete. P2-001 (GitHub App registration) needs a one-time manual registration step; P2-010 (GHES integration test) needs a GHES sandbox. All other P2 tasks are `done`.
 
-**Phase 3** (team views) — in progress. P3-001 through P3-007 are decomposed; P3-001 (role middleware) is being implemented now.
+**Phase 3** (team views) — code complete. P3-001 through P3-007 are `done`.
 
 See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status.
 

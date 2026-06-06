@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { TranscriptViewer } from '../../../../../../../../components/me/TranscriptViewer';
-import { AuditAction, writeAuditLog } from '../../../../../../../../lib/audit';
-import { requireTeamLead } from '../../../../../../../../lib/roles';
-import { getSession } from '../../../../../../../../lib/sessions-queries';
-import { getMemberForTeam } from '../../../../../../../../lib/team-queries';
+import { TranscriptViewer } from '@/components/me/TranscriptViewer';
+import { AuditAction, writeAuditLog } from '@/lib/audit';
+import { requireTeamLead } from '@/lib/roles';
+import { getSession } from '@/lib/sessions-queries';
+import { getMemberForTeam } from '@/lib/team-queries';
 
 export const dynamic = 'force-dynamic';
 

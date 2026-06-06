@@ -1,7 +1,7 @@
 type ToolEntry = { callCount: number; toolName: string };
 
 export function TopTools({
-  title = 'Top Models by Tool Calls',
+  title = 'Top Tools by Call Count',
   tools,
 }: {
   title?: string;

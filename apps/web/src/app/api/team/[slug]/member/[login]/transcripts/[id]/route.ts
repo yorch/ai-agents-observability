@@ -4,9 +4,9 @@ import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-import { currentUser } from '../../../../../../../../lib/auth';
-import { getPrisma } from '../../../../../../../../lib/prisma';
-import { getMemberForTeam } from '../../../../../../../../lib/team-queries';
+import { currentUser } from '@/lib/auth';
+import { getPrisma } from '@/lib/prisma';
+import { getMemberForTeam } from '@/lib/team-queries';
 
 export const dynamic = 'force-dynamic';
 

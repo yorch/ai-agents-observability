@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ModelsTab, ToolsTab } from '../../../../../../../components/me/SessionTabs';
-import { Timeline } from '../../../../../../../components/me/Timeline';
-import { AuditAction, writeAuditLog } from '../../../../../../../lib/audit';
-import { requireTeamLead } from '../../../../../../../lib/roles';
-import type { ModelBreakdownRow } from '../../../../../../../lib/sessions-queries';
-import { getSession, getSessionModelBreakdown } from '../../../../../../../lib/sessions-queries';
-import { getMemberForTeam } from '../../../../../../../lib/team-queries';
+import { ModelsTab, ToolsTab } from '@/components/me/SessionTabs';
+import { Timeline } from '@/components/me/Timeline';
+import { AuditAction, writeAuditLog } from '@/lib/audit';
+import { requireTeamLead } from '@/lib/roles';
+import type { ModelBreakdownRow } from '@/lib/sessions-queries';
+import { getSession, getSessionModelBreakdown } from '@/lib/sessions-queries';
+import { getMemberForTeam } from '@/lib/team-queries';
 
 export const dynamic = 'force-dynamic';
 

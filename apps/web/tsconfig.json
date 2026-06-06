@@ -1,8 +1,12 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "jsx": "preserve",
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "outDir": ".next",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "plugins": [{ "name": "next" }],
     "rootDir": "."
   },
