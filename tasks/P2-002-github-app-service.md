@@ -3,7 +3,7 @@ id: P2-002
 title: apps/github-app webhook handler service
 phase: 2
 workstream: B
-status: review
+status: done
 owner: null
 depends_on: [P2-001]
 blocks: [P2-003, P2-009]

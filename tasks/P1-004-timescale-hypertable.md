@@ -3,7 +3,7 @@ id: P1-004
 title: Timescale events hypertable + migration runner
 phase: 1
 workstream: A
-status: blocked
+status: done
 owner: null
 depends_on: [P1-003]
 blocks: [P1-005, P1-010]

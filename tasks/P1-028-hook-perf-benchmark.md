@@ -3,7 +3,7 @@ id: P1-028
 title: Hook perf benchmark (<10ms target)
 phase: 1
 workstream: F
-status: review
+status: done
 owner: claude
 depends_on: [P1-020]
 blocks: [P1-029]

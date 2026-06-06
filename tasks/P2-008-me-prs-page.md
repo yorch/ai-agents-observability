@@ -3,7 +3,7 @@ id: P2-008
 title: /me/prs page — per-user PR list with rollups
 phase: 2
 workstream: E
-status: review
+status: done
 owner: null
 depends_on: [P2-005]
 blocks: []

@@ -3,7 +3,7 @@ id: P1-013
 title: GET /v1/price-table
 phase: 1
 workstream: B
-status: ready
+status: done
 owner: null
 depends_on: [P1-008]
 blocks: [P1-021]

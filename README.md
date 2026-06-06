@@ -74,7 +74,13 @@ curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
 
 ## Status
 
-Phase 1 ("My Agents" spine) is implemented. The following tasks are pending final review before Phase 1 sign-off: P1-011 (session aggregation), P1-012 (transcripts endpoint), P1-020 (SQLite queue), P1-023 (hook subcommands), P1-024 (Next.js scaffold), P1-028 (perf benchmark). See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status. Phase 2 (PR loop) is decomposed and in review (P2-001 through P2-010); full sign-off on Phase 1 (P1-029) is still pending.
+**Phase 1** ("My Agents" spine) — code complete. All P1 tasks are `done`. P1-029 (dogfood sign-off) is `ready`: requires one engineer to run the hook for five working days and record observations in `docs/phase1-*.md`.
+
+**Phase 2** (PR loop) — code complete. P2-001 (GitHub App registration) needs a one-time manual registration step; P2-010 (GHES integration test) needs a GHES sandbox. All other P2 tasks are `done`.
+
+**Phase 3** (team views) — in progress. P3-001 through P3-007 are decomposed; P3-001 (role middleware) is being implemented now.
+
+See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status.
 
 ## Architecture
 

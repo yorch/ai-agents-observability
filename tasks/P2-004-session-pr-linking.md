@@ -3,7 +3,7 @@ id: P2-004
 title: Session ↔ PR linking (real-time + backfill)
 phase: 2
 workstream: B
-status: review
+status: done
 owner: null
 depends_on: [P2-003]
 blocks: [P2-005]

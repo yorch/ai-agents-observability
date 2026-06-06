@@ -17,5 +17,5 @@ export function proxy(req: NextRequest) {
 // Proxy only does the cookie-presence check — full verification happens
 // in server components via `currentUser()`. Avoids running node:crypto at the edge.
 export const config = {
-  matcher: ['/me/:path*'],
+  matcher: ['/me/:path*', '/team/:path*'],
 };

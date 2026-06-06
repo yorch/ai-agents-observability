@@ -1,9 +1,9 @@
 # ai-agents-observability — Design Document
 
 **Project:** `ai-agents-observability`
-**Status:** v1 — Phase 1 implemented, Phase 2 in review
+**Status:** v1 — Phase 1 + 2 implemented, Phase 3 (team views) in progress
 **Owner:** Jorge (SentinelOne)
-**Last updated:** 2026-05-24
+**Last updated:** 2026-06-06
 **Audience:** Internal — dev tools team, leadership stakeholders
 
 ---

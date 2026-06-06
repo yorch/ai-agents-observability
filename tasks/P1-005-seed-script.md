@@ -3,7 +3,7 @@ id: P1-005
 title: Seed script for local dev
 phase: 1
 workstream: A
-status: blocked
+status: done
 owner: null
 depends_on: [P1-003, P1-004]
 blocks: [P1-025, P1-026]

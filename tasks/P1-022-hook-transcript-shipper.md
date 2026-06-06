@@ -3,7 +3,7 @@ id: P1-022
 title: Transcript shipper with redaction
 phase: 1
 workstream: D
-status: blocked
+status: done
 owner: null
 depends_on: [P1-020, P1-012, P1-007]
 blocks: []
