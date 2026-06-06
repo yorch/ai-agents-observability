@@ -184,14 +184,16 @@ export async function getAuditLog(
     ts: Date;
   };
 
-  const total = await prisma.auditLog.count({ where });
-  const rawRows: RawRow[] = await prisma.auditLog.findMany({
-    include: { actor: { select: { githubLogin: true } } },
-    orderBy: { ts: 'desc' },
-    skip: (page - 1) * pageSize,
-    take: pageSize,
-    where,
-  });
+  const [total, rawRows]: [number, RawRow[]] = await Promise.all([
+    prisma.auditLog.count({ where }),
+    prisma.auditLog.findMany({
+      include: { actor: { select: { githubLogin: true } } },
+      orderBy: { ts: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      where,
+    }),
+  ]);
 
   return {
     rows: rawRows.map((r) => ({

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { StatusBadge } from '@/components/me/StatusBadge';
 import { ModelsTab, ToolsTab } from '@/components/me/SessionTabs';
 import { Timeline } from '@/components/me/Timeline';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
@@ -9,18 +10,6 @@ import { getSession, getSessionModelBreakdown } from '@/lib/sessions-queries';
 import { getMemberForTeam } from '@/lib/team-queries';
 
 export const dynamic = 'force-dynamic';
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    abandoned: 'bg-yellow-500/20 text-yellow-400',
-    active: 'bg-green-500/20 text-green-400',
-    completed: 'bg-blue-500/20 text-blue-400',
-    crashed: 'bg-red-500/20 text-red-400',
-    timed_out: 'bg-orange-500/20 text-orange-400',
-  };
-  const color = colors[status] ?? 'bg-white/10 text-white/50';
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{status}</span>;
-}
 
 type PageParams = { id: string; login: string; slug: string };
 type SearchParams = { tab?: string };
