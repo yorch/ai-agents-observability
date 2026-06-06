@@ -3,11 +3,10 @@ import Link from 'next/link';
 import { AuditAction, writeAuditLog } from '../../../../lib/audit';
 import { requireTeamLead } from '../../../../lib/roles';
 import { getTeamRoster } from '../../../../lib/team-queries';
+import { daysAgo } from '../../../../lib/time';
 import { TeamSubNav } from '../layout';
 
 export const dynamic = 'force-dynamic';
-
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 const ROLE_LABEL: Record<string, string> = {
   lead: 'Lead',
@@ -19,7 +18,7 @@ export default async function TeamRosterPage({ params }: { params: Promise<{ slu
   const { slug } = await params;
   const { teamId, teamName, user } = await requireTeamLead(slug);
 
-  const since = new Date(Date.now() - THIRTY_DAYS_MS);
+  const since = daysAgo(30);
 
   // Audit write is fire-and-forget per P3-005: never throws, errors logged to stderr.
   void writeAuditLog({

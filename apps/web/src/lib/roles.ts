@@ -37,7 +37,10 @@ async function resolveActiveMembership(teamId: string, userId: string) {
  * Asserts authenticated and holds lead or maintainer role in the given team.
  * Redirects to /login if unauthenticated; 404 if team missing or user is not a lead.
  */
-export async function requireTeamLead(slug: string): Promise<TeamContext> {
+async function requireTeamRole(
+  slug: string,
+  check: (role: TeamRole) => boolean,
+): Promise<TeamContext> {
   const user = await currentUser();
   if (!user) {
     redirect('/login');
@@ -46,7 +49,7 @@ export async function requireTeamLead(slug: string): Promise<TeamContext> {
   const team = await resolveTeam(slug);
   const membership = await resolveActiveMembership(team.id, user.id);
 
-  if (!membership || !LEAD_ROLES.includes(membership.roleInTeam)) {
+  if (!membership || !check(membership.roleInTeam)) {
     notFound();
   }
 
@@ -59,30 +62,16 @@ export async function requireTeamLead(slug: string): Promise<TeamContext> {
   };
 }
 
+export function requireTeamLead(slug: string): Promise<TeamContext> {
+  return requireTeamRole(slug, isLeadOrAbove);
+}
+
 /**
  * Asserts authenticated and is an active member of the team (any role).
  * Redirects to /login if unauthenticated; 404 if team missing or user not a member.
  */
-export async function requireTeamMember(slug: string): Promise<TeamContext> {
-  const user = await currentUser();
-  if (!user) {
-    redirect('/login');
-  }
-
-  const team = await resolveTeam(slug);
-  const membership = await resolveActiveMembership(team.id, user.id);
-
-  if (!membership) {
-    notFound();
-  }
-
-  return {
-    role: membership.roleInTeam,
-    teamId: team.id,
-    teamName: team.name,
-    teamSlug: team.githubSlug,
-    user,
-  };
+export function requireTeamMember(slug: string): Promise<TeamContext> {
+  return requireTeamRole(slug, () => true);
 }
 
 /**

@@ -1,6 +1,8 @@
-import type { ModelMix } from '../../lib/me-queries';
+const MODEL_COLORS = ['bg-brand-500', 'bg-brand-600', 'bg-brand-700'];
 
-export function ModelMixChart({ models }: { models: ModelMix[] }) {
+type ModelEntry = { costUsd: number; model: string; turns: number };
+
+export function ModelMixChart({ models }: { models: ModelEntry[] }) {
   if (models.length === 0) {
     return (
       <div className="rounded-lg border border-white/10 bg-white/5 p-4">
@@ -18,18 +20,14 @@ export function ModelMixChart({ models }: { models: ModelMix[] }) {
 
       {/* Segmented bar */}
       <div className="flex h-3 w-full overflow-hidden rounded-full mb-4">
-        {models.map((m, i) => {
-          const colors = ['bg-brand-500', 'bg-brand-600', 'bg-brand-700'];
-          const color = colors[i % colors.length];
-          return (
-            <div
-              key={m.model}
-              className={color}
-              style={{ width: `${(m.turns / totalTurns) * 100}%` }}
-              title={`${m.model}: ${m.turns} turns`}
-            />
-          );
-        })}
+        {models.map((m, i) => (
+          <div
+            key={m.model}
+            className={MODEL_COLORS[i % MODEL_COLORS.length]}
+            style={{ width: `${(m.turns / totalTurns) * 100}%` }}
+            title={`${m.model}: ${m.turns} turns`}
+          />
+        ))}
       </div>
 
       <table className="w-full text-xs">

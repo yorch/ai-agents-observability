@@ -37,8 +37,7 @@ export async function writeAuditLog(
   try {
     await db.auditLog.create({
       data: {
-        action: params.action,
-        actorUserId: params.actorUserId,
+        ...params,
         ip,
         justification: params.justification ?? null,
         targetSessionId: params.targetSessionId ?? null,

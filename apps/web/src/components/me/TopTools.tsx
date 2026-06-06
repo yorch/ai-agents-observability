@@ -1,10 +1,16 @@
-import type { ToolUsage } from '../../lib/me-queries';
+type ToolEntry = { callCount: number; toolName: string };
 
-export function TopTools({ tools }: { tools: ToolUsage[] }) {
+export function TopTools({
+  title = 'Top Models by Tool Calls',
+  tools,
+}: {
+  title?: string;
+  tools: ToolEntry[];
+}) {
   if (tools.length === 0) {
     return (
       <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-        <h2 className="text-sm font-medium text-white/70 mb-4">Top Models by Tool Calls</h2>
+        <h2 className="text-sm font-medium text-white/70 mb-4">{title}</h2>
         <p className="text-sm text-white/40">No data</p>
       </div>
     );
@@ -14,7 +20,7 @@ export function TopTools({ tools }: { tools: ToolUsage[] }) {
 
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-      <h2 className="text-sm font-medium text-white/70 mb-4">Top Models by Tool Calls</h2>
+      <h2 className="text-sm font-medium text-white/70 mb-4">{title}</h2>
       <div className="space-y-3">
         {tools.map((tool) => (
           <div key={tool.toolName}>
