@@ -3,8 +3,8 @@ id: P3-006
 title: Privacy enforcement property-test suite
 phase: 3
 workstream: C
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P3-005]
 blocks: []
 estimate: M
@@ -23,14 +23,14 @@ A property-based test suite using `fast-check` that generates random user/role/v
 
 ## Acceptance criteria
 
-- [ ] `apps/web/src/lib/__tests__/privacy.test.ts` uses `fc.assert(fc.property(...))` with ≥ 200 runs.
-- [ ] Properties tested:
+- [x] `apps/web/src/lib/__tests__/privacy.test.ts` uses `fc.assert(fc.property(...))` with ≥ 200 runs.
+- [x] Properties tested:
   - A member with `share_metadata_with_team = false` never appears with cost/session stats in the roster result.
   - A member with `share_transcripts_with_team = false` causes transcript access to return `null` / be blocked.
   - A `member`-role user cannot access the roster query (role check tested at the query level).
   - Team lead for Team A cannot retrieve sessions for a user who is only in Team B.
-- [ ] Tests run in CI via `bun run test`.
-- [ ] TypeScript and Biome clean.
+- [x] Tests run in CI via `bun run test`.
+- [x] TypeScript and Biome clean.
 
 ## Files touched
 
