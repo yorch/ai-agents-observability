@@ -1,13 +1,14 @@
 import { Readable } from 'node:stream';
 import { zstdDecompressSync } from 'node:zlib';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { requireEnv } from '@/lib/env';
 
 export function getS3Client(): S3Client {
   const endpoint = process.env.S3_ENDPOINT;
   return new S3Client({
     credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
-      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
+      accessKeyId: requireEnv('S3_ACCESS_KEY_ID'),
+      secretAccessKey: requireEnv('S3_SECRET_ACCESS_KEY'),
     },
     ...(endpoint ? { endpoint } : {}),
     forcePathStyle: true,
@@ -23,7 +24,7 @@ export async function fetchAndDecompressTranscript(
 ): Promise<ArrayBuffer> {
   const obj = await s3.send(
     new GetObjectCommand({
-      Bucket: process.env.S3_BUCKET ?? 'transcripts',
+      Bucket: requireEnv('S3_BUCKET'),
       Key: key,
     }),
   );
