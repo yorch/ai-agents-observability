@@ -138,7 +138,15 @@ export function startScheduler(deps: SchedulerDeps): void {
               })
               .catch(() => [] as { jobName: string; startedAt: Date }[])
           : [];
-      const latestRunByJob = new Map(recentRuns.map((r) => [r.jobName, r.startedAt]));
+      // recentRuns is ordered startedAt DESC — iterate once, keeping only the
+      // first (newest) occurrence per job name so we don't overwrite it with an
+      // older run when the same job has multiple history rows.
+      const latestRunByJob = new Map<string, Date>();
+      for (const r of recentRuns) {
+        if (!latestRunByJob.has(r.jobName)) {
+          latestRunByJob.set(r.jobName, r.startedAt);
+        }
+      }
 
       for (const cfg of configs) {
         // Manual-trigger path: runRequestedAt set by web UI.

@@ -12,7 +12,10 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
     );
   }
 
-  const totalTurns = models.reduce((sum, m) => sum + m.turns, 0) || 1;
+  const totalTurns = Math.max(
+    models.reduce((sum, m) => sum + m.turns, 0),
+    1,
+  );
 
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-4">

@@ -104,16 +104,27 @@ export async function getTopTools(userId: string, since: Date, limit = 5): Promi
 export async function getModelMix(userId: string, since: Date): Promise<ModelMix[]> {
   const prisma = getPrisma();
 
-  const [sessions, turnsRows] = await Promise.all([
-    prisma.session.findMany({
-      select: {
-        primaryModel: true,
-        totalCostUsd: true,
-        totalInputTokens: true,
-        totalOutputTokens: true,
-      },
-      where: { startedAt: { gte: since }, userId },
-    }),
+  const [sessionRows, turnsRows] = await Promise.all([
+    prisma.$queryRaw<
+      {
+        cost_usd: string;
+        input_tokens: bigint;
+        output_tokens: bigint;
+        primary_model: string | null;
+        session_count: bigint;
+      }[]
+    >(Prisma.sql`
+      SELECT
+        primary_model,
+        COUNT(*)                              AS session_count,
+        COALESCE(SUM(total_cost_usd), 0)      AS cost_usd,
+        COALESCE(SUM(total_input_tokens), 0)  AS input_tokens,
+        COALESCE(SUM(total_output_tokens), 0) AS output_tokens
+      FROM sessions
+      WHERE user_id = ${userId}::uuid
+        AND started_at >= ${since}
+      GROUP BY primary_model
+    `),
     prisma.$queryRaw<{ model: string; turns: bigint }[]>(Prisma.sql`
       SELECT model, COUNT(*) AS turns
       FROM events
@@ -126,29 +137,18 @@ export async function getModelMix(userId: string, since: Date): Promise<ModelMix
 
   const turnsMap = new Map(turnsRows.map((r) => [r.model, Number(r.turns)]));
 
-  const modelMap = new Map<
-    string,
-    { costUsd: number; inputTokens: bigint; outputTokens: bigint; sessionCount: number }
-  >();
-
-  for (const s of sessions) {
-    const model = s.primaryModel ?? 'unknown';
-    const existing = modelMap.get(model) ?? {
-      costUsd: 0,
-      inputTokens: 0n,
-      outputTokens: 0n,
-      sessionCount: 0,
-    };
-    modelMap.set(model, {
-      costUsd: existing.costUsd + Number(s.totalCostUsd),
-      inputTokens: existing.inputTokens + s.totalInputTokens,
-      outputTokens: existing.outputTokens + s.totalOutputTokens,
-      sessionCount: existing.sessionCount + 1,
-    });
-  }
-
-  return Array.from(modelMap.entries())
-    .map(([model, stats]) => ({ model, ...stats, turns: turnsMap.get(model) ?? 0 }))
+  return sessionRows
+    .map((r) => {
+      const model = r.primary_model ?? 'unknown';
+      return {
+        costUsd: Number(r.cost_usd),
+        inputTokens: r.input_tokens,
+        model,
+        outputTokens: r.output_tokens,
+        sessionCount: Number(r.session_count),
+        turns: turnsMap.get(model) ?? 0,
+      };
+    })
     .sort((a, b) => b.turns - a.turns);
 }
 

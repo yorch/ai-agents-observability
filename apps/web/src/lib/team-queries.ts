@@ -2,6 +2,8 @@ import { Prisma } from '@ai-agents-observability/db';
 
 import { getPrisma } from './prisma';
 
+const toUuidList = (ids: string[]) => Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`));
+
 export type TeamSummary = {
   activeMembers: number;
   sessionCount: number;
@@ -89,7 +91,7 @@ export async function getTeamSummary(
   }
 
   const prisma = getPrisma();
-  const uuids = Prisma.join(visibleIds.map((id) => Prisma.sql`${id}::uuid`));
+  const uuids = toUuidList(visibleIds);
 
   const [agg, [hoursRow]] = await Promise.all([
     prisma.session.aggregate({
@@ -123,7 +125,7 @@ export async function getTeamTopTools(
     return [];
   }
 
-  const uuids = Prisma.join(visibleIds.map((id) => Prisma.sql`${id}::uuid`));
+  const uuids = toUuidList(visibleIds);
   const rows = await getPrisma().$queryRaw<{ call_count: bigint; tool_name: string }[]>(Prisma.sql`
     SELECT tool_name, COUNT(*) AS call_count
     FROM events
@@ -145,16 +147,21 @@ export async function getTeamModelMix(since: Date, visibleIds: string[]): Promis
   }
 
   const prisma = getPrisma();
-  const uuids = Prisma.join(visibleIds.map((id) => Prisma.sql`${id}::uuid`));
+  const uuids = toUuidList(visibleIds);
 
-  const [sessions, turnsRows] = await Promise.all([
-    prisma.session.findMany({
-      select: {
-        primaryModel: true,
-        totalCostUsd: true,
-      },
-      where: { startedAt: { gte: since }, userId: { in: visibleIds } },
-    }),
+  const [sessionRows, turnsRows] = await Promise.all([
+    prisma.$queryRaw<{ cost_usd: string; primary_model: string | null; session_count: bigint }[]>(
+      Prisma.sql`
+        SELECT
+          primary_model,
+          COUNT(*)                          AS session_count,
+          COALESCE(SUM(total_cost_usd), 0) AS cost_usd
+        FROM sessions
+        WHERE user_id IN (${uuids})
+          AND started_at >= ${since}
+        GROUP BY primary_model
+      `,
+    ),
     prisma.$queryRaw<{ model: string; turns: bigint }[]>(Prisma.sql`
       SELECT model, COUNT(*) AS turns
       FROM events
@@ -167,18 +174,16 @@ export async function getTeamModelMix(since: Date, visibleIds: string[]): Promis
 
   const turnsMap = new Map(turnsRows.map((r) => [r.model, Number(r.turns)]));
 
-  const modelMap = new Map<string, { costUsd: number; sessionCount: number }>();
-  for (const s of sessions) {
-    const model = s.primaryModel ?? 'unknown';
-    const existing = modelMap.get(model) ?? { costUsd: 0, sessionCount: 0 };
-    modelMap.set(model, {
-      costUsd: existing.costUsd + Number(s.totalCostUsd),
-      sessionCount: existing.sessionCount + 1,
-    });
-  }
-
-  return Array.from(modelMap.entries())
-    .map(([model, stats]) => ({ model, ...stats, turns: turnsMap.get(model) ?? 0 }))
+  return sessionRows
+    .map((r) => {
+      const model = r.primary_model ?? 'unknown';
+      return {
+        costUsd: Number(r.cost_usd),
+        model,
+        sessionCount: Number(r.session_count),
+        turns: turnsMap.get(model) ?? 0,
+      };
+    })
     .sort((a, b) => b.turns - a.turns);
 }
 

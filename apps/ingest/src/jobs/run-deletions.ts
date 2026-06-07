@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
-import { DeleteObjectCommand, type S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectsCommand, type S3Client } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
 /**
@@ -53,18 +53,23 @@ export async function runDeletions(
     let deleted = 0;
     for (const req of pending) {
       try {
-        // Delete each transcript from S3
-        for (const session of req.user.sessions) {
-          if (session.transcriptS3Key) {
-            await s3
-              .send(new DeleteObjectCommand({ Bucket: bucket, Key: session.transcriptS3Key }))
-              .catch((err) => {
-                logger?.warn(
-                  { err, key: session.transcriptS3Key },
-                  'S3 delete failed (continuing)',
-                );
-              });
-          }
+        // Batch-delete all transcripts for this user (up to 1000 per S3 request).
+        const transcriptKeys = req.user.sessions
+          .map((s) => s.transcriptS3Key)
+          .filter((k): k is string => k !== null);
+        const CHUNK_SIZE = 1000;
+        for (let i = 0; i < transcriptKeys.length; i += CHUNK_SIZE) {
+          const chunk = transcriptKeys.slice(i, i + CHUNK_SIZE);
+          await s3
+            .send(
+              new DeleteObjectsCommand({
+                Bucket: bucket,
+                Delete: { Objects: chunk.map((Key) => ({ Key })) },
+              }),
+            )
+            .catch((err) => {
+              logger?.warn({ count: chunk.length, err }, 'S3 batch delete failed (continuing)');
+            });
         }
 
         // Remove audit log entries where user is the actor (actor_user_id FK is RESTRICT).

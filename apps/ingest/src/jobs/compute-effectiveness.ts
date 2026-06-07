@@ -53,7 +53,7 @@ export async function runComputeEffectiveness(db: DbWithRaw, logger?: Logger): P
         tool_call_count, tool_error_count, permission_deny_count,
         interrupt_count, user_message_count
       FROM sessions
-      WHERE (friction_score IS NULL OR shape_label IS NULL)
+      WHERE shape_label IS NULL
         AND last_event_at >= NOW() - INTERVAL '48 hours'
       LIMIT 500
     `);

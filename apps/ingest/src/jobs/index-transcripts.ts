@@ -141,8 +141,7 @@ export async function runIndexTranscripts(
           })
           .filter((r) => r !== null);
 
-        const hasInserted = msgRows.length > 0;
-        if (hasInserted) {
+        if (msgRows.length > 0) {
           const valueClauses = msgRows.map(
             (_, i) => `($1::uuid, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4}, $${i * 4 + 5})`,
           );
@@ -156,19 +155,16 @@ export async function runIndexTranscripts(
              ON CONFLICT (session_id, message_idx) DO NOTHING`,
             ...params,
           );
-        }
-
-        // If the transcript had no indexable text at all, insert a sentinel so this
-        // session is not re-selected on every nightly run (NOT EXISTS check).
-        if (!hasInserted) {
+          indexed++;
+        } else {
+          // If the transcript had no indexable text at all, insert a sentinel so this
+          // session is not re-selected on every nightly run (NOT EXISTS check).
           await db.$executeRawUnsafe(
             `INSERT INTO transcript_index (session_id, message_idx, role, ts, content_text)
              VALUES ($1::uuid, -1, '__empty__', null, ' ')
              ON CONFLICT (session_id, message_idx) DO NOTHING`,
             row.session_id,
           );
-        } else {
-          indexed++;
         }
       } catch (err) {
         logger?.warn({ err, sessionId: row.session_id }, 'Failed to index transcript');
