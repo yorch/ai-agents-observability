@@ -32,7 +32,7 @@ These are the **exact** versions every package targets. No `^` or `~` ranges in 
 | Tool | Exact version | Why this pin |
 |---|---|---|
 | Node.js | >=24 | Active LTS. The Next.js prod runtime is Node 24. Bun runs everything else. `package.json` uses `"node": ">=24"`; CI uses `setup-node@v6.4.0` with `node-version: '24'` (major pin, not exact patch). |
-| Bun | 1.3.13 | **Package manager + workspace tool + script runner + ingest/hook runtime.** Replaces pnpm. Use HOISTED installs, not isolated — Bun 1.3.0's isolated + catalogs combo has known dedup/cache bugs ([oven-sh/bun#23615](https://github.com/oven-sh/bun/issues/23615)). Revisit when fixed. Lockfile is text `bun.lock` (v3 format). |
+| Bun | 1.3.14 | **Package manager + workspace tool + script runner + ingest/hook runtime.** Replaces pnpm. Use HOISTED installs, not isolated — Bun 1.3.0's isolated + catalogs combo has known dedup/cache bugs ([oven-sh/bun#23615](https://github.com/oven-sh/bun/issues/23615)). Revisit when fixed. Lockfile is text `bun.lock` (v3 format). |
 | Turborepo | 2.9.14 | Bootstrapped with 2.9.14; works correctly with Bun workspaces in practice. Upgrade to 3.x when it stabilises. |
 | TypeScript | 6.0.3 | TS 7 (native Go compiler) is still beta — wait. |
 | Biome | 2.4.0 | v2 unified lint + format; type-aware rules + GritQL plugins. |
@@ -123,7 +123,7 @@ ai-agents-observability/
 
 GitHub App webhooks → `pull_requests` table → `session_pr_links` → `pr_rollups`. Optional PR bot comment on merge (opt-in per repo). Adds `/me/prs` page.
 
-Roadmap-level tasks in [`tasks/P2-roadmap.md`](./tasks/P2-roadmap.md). Decompose when Phase 1 exit criteria are green.
+Tasks P2-001–P2-010 are fully decomposed and implemented. See [`tasks/INDEX.md`](./tasks/INDEX.md) for current status. P2-001 (GitHub App credentials wiring) and P2-010 (GHES integration test) remain in review; all other P2 tasks are done.
 
 **Exit**: PR bot comments on opt-in repos; one team lead reacts positively unprompted.
 
@@ -131,7 +131,7 @@ Roadmap-level tasks in [`tasks/P2-roadmap.md`](./tasks/P2-roadmap.md). Decompose
 
 `team_lead` role middleware, `/team/[slug]` pages, audit log writes wired on every cross-user view, `/me/audit` becomes meaningful. Honors `visibility_policies`.
 
-Roadmap-level tasks in [`tasks/P3-roadmap.md`](./tasks/P3-roadmap.md).
+Tasks P3-001–P3-007 are fully decomposed and implemented (all `done`). See [`tasks/INDEX.md`](./tasks/INDEX.md).
 
 **Exit**: team leads use weekly; zero privacy incidents.
 
@@ -139,7 +139,7 @@ Roadmap-level tasks in [`tasks/P3-roadmap.md`](./tasks/P3-roadmap.md).
 
 Org dashboards, faceted search (visibility-scoped at query layer), transcript FTS via Postgres, anomaly surfaces via Timescale continuous aggregates, **Platform/SRE handoff deliverables** (runbooks, SLOs, dashboards, on-call doc).
 
-Roadmap-level tasks in [`tasks/P4-roadmap.md`](./tasks/P4-roadmap.md).
+Tasks P4-001–P4-011 are fully decomposed and implemented (all `done`). See [`tasks/INDEX.md`](./tasks/INDEX.md).
 
 **Exit**: quarterly leadership readout runs off this; Platform/SRE owns the pager.
 
@@ -147,7 +147,7 @@ Roadmap-level tasks in [`tasks/P4-roadmap.md`](./tasks/P4-roadmap.md).
 
 Friction score, session-shape clustering, revert detection, optional Jira integration, optional GitHub Checks correlation.
 
-Roadmap-level tasks in [`tasks/P5-roadmap.md`](./tasks/P5-roadmap.md).
+Tasks P5-001–P5-006 are fully decomposed and implemented (all `done`). See [`tasks/INDEX.md`](./tasks/INDEX.md).
 
 **Exit**: at least one effectiveness signal cited in a real promo packet or planning doc.
 
@@ -166,7 +166,7 @@ These apply to every task. Don't restate in each task file.
   2. `bunfig.toml` sets `[install] exact = true` so `bun add` writes exact versions by default.
   3. `bun.lock` is the source of truth for what gets installed and is required to match `package.json`. CI runs `bun install --frozen-lockfile`; out-of-band edits fail the build.
   4. Docker image tags are exact (`pg17.9-ts2.27.0`, `RELEASE.2025-09-07T16-13-09Z`). Never `:latest`. SHA256-digest pinning (`@sha256:...`) acceptable for prod overlays.
-  5. Engine pins: `engines.node = ">=24"` in `package.json`; CI uses `setup-node@v6.4.0` with `node-version: '24'` (major pin). `engines.bun = "1.3.13"` exact; CI uses `setup-bun@v2.2.0` with `bun-version: '1.3.13'` (exact).
+  5. Engine pins: `engines.node = ">=24"` in `package.json`; CI uses `setup-node@v6.4.0` with `node-version: '24'` (major pin). `engines.bun = "1.3.14"` exact; CI uses `setup-bun@v2.2.0` with `bun-version: '1.3.14'` (exact).
   6. Bumps are deliberate: open a PR per dependency (or per coordinated group — e.g., React + react-dom + Next.js), update the catalog entry, regenerate `bun.lock`, run the full CI suite. No mass-bump PRs.
   7. Renovate/Dependabot may *propose* bumps but never auto-merges. Schedule weekly so PRs don't pile up.
   8. Security patches are an exception to (6): cherry-pick the patch version, ship same-day.
@@ -204,7 +204,7 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 | Wrong Postgres patch version breaks TimescaleDB ABI | Pin `timescale/timescaledb-ha:pg17.9-ts2.27.0` exact tag in compose; never use `:latest` | Backend |
 | MinIO Docker Hub image deprecation (Oct 2025) | Pull from `quay.io/minio/minio` with pinned RELEASE tag, never `:latest` | Backend |
 | Bun 1.3 isolated installs + catalogs has dedup/cache bugs ([#23615](https://github.com/oven-sh/bun/issues/23615)) | Use HOISTED installs (`linker = "hoisted"` in `bunfig.toml`) until fixed | Cross-cutting |
-| Bun Rust-rewrite branch regressions on native modules | Pin Bun 1.3.13 (stable JS impl), not bleeding-edge | Systems |
+| Bun Rust-rewrite branch regressions on native modules | Pin Bun 1.3.14 (stable JS impl), not bleeding-edge | Systems |
 | Next.js on Bun is unofficial | Run Next.js prod under Node 24; only use Bun for `apps/web` package management + script execution | Frontend |
 
 ---

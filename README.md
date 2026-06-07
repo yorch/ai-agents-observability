@@ -6,7 +6,7 @@ Self-hosted observability platform for AI coding agents. Captures per-event tele
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) 1.3.13
+- [Bun](https://bun.sh) 1.3.14
 - [Docker](https://docs.docker.com/get-docker/) with Compose v2
 
 ### Setup
