@@ -18,6 +18,7 @@ export type TeamModelMix = {
   costUsd: number;
   model: string;
   sessionCount: number;
+  turns: number;
 };
 
 export type RosterMember = {
@@ -143,13 +144,28 @@ export async function getTeamModelMix(since: Date, visibleIds: string[]): Promis
     return [];
   }
 
-  const sessions = await getPrisma().session.findMany({
-    select: {
-      primaryModel: true,
-      totalCostUsd: true,
-    },
-    where: { startedAt: { gte: since }, userId: { in: visibleIds } },
-  });
+  const prisma = getPrisma();
+  const uuids = Prisma.join(visibleIds.map((id) => Prisma.sql`${id}::uuid`));
+
+  const [sessions, turnsRows] = await Promise.all([
+    prisma.session.findMany({
+      select: {
+        primaryModel: true,
+        totalCostUsd: true,
+      },
+      where: { startedAt: { gte: since }, userId: { in: visibleIds } },
+    }),
+    prisma.$queryRaw<{ model: string; turns: bigint }[]>(Prisma.sql`
+      SELECT model, COUNT(*) AS turns
+      FROM events
+      WHERE user_id IN (${uuids})
+        AND ts >= ${since}
+        AND model IS NOT NULL
+      GROUP BY model
+    `),
+  ]);
+
+  const turnsMap = new Map(turnsRows.map((r) => [r.model, Number(r.turns)]));
 
   const modelMap = new Map<string, { costUsd: number; sessionCount: number }>();
   for (const s of sessions) {
@@ -162,8 +178,8 @@ export async function getTeamModelMix(since: Date, visibleIds: string[]): Promis
   }
 
   return Array.from(modelMap.entries())
-    .map(([model, stats]) => ({ model, ...stats }))
-    .sort((a, b) => b.sessionCount - a.sessionCount);
+    .map(([model, stats]) => ({ model, ...stats, turns: turnsMap.get(model) ?? 0 }))
+    .sort((a, b) => b.turns - a.turns);
 }
 
 export type MemberProfile = {

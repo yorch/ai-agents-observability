@@ -19,6 +19,7 @@ export type ModelMix = {
   model: string;
   outputTokens: bigint;
   sessionCount: number;
+  turns: number;
 };
 
 export type RecentSession = {
@@ -103,18 +104,27 @@ export async function getTopTools(userId: string, since: Date, limit = 5): Promi
 export async function getModelMix(userId: string, since: Date): Promise<ModelMix[]> {
   const prisma = getPrisma();
 
-  const sessions = await prisma.session.findMany({
-    select: {
-      primaryModel: true,
-      totalCostUsd: true,
-      totalInputTokens: true,
-      totalOutputTokens: true,
-    },
-    where: {
-      startedAt: { gte: since },
-      userId,
-    },
-  });
+  const [sessions, turnsRows] = await Promise.all([
+    prisma.session.findMany({
+      select: {
+        primaryModel: true,
+        totalCostUsd: true,
+        totalInputTokens: true,
+        totalOutputTokens: true,
+      },
+      where: { startedAt: { gte: since }, userId },
+    }),
+    prisma.$queryRaw<{ model: string; turns: bigint }[]>(Prisma.sql`
+      SELECT model, COUNT(*) AS turns
+      FROM events
+      WHERE user_id = ${userId}::uuid
+        AND ts >= ${since}
+        AND model IS NOT NULL
+      GROUP BY model
+    `),
+  ]);
+
+  const turnsMap = new Map(turnsRows.map((r) => [r.model, Number(r.turns)]));
 
   const modelMap = new Map<
     string,
@@ -138,8 +148,8 @@ export async function getModelMix(userId: string, since: Date): Promise<ModelMix
   }
 
   return Array.from(modelMap.entries())
-    .map(([model, stats]) => ({ model, ...stats }))
-    .sort((a, b) => b.sessionCount - a.sessionCount);
+    .map(([model, stats]) => ({ model, ...stats, turns: turnsMap.get(model) ?? 0 }))
+    .sort((a, b) => b.turns - a.turns);
 }
 
 export type AuditRow = {
