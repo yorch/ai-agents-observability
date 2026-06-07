@@ -56,10 +56,10 @@ See `DESIGN_DOC.md` §12.5.
   whether a second agent maps its lifecycle onto these names or needs additional members;
   document the mapping. The hook→event mapping (`apps/hook/src/lib/payload.ts`
   `HOOK_KIND_TO_EVENT_TYPE`) is the per-adapter translation point.
-- [ ] **Retire the Claude-shaped session columns.** `sessions.opus_turns` /
-  `sonnet_turns` / `haiku_turns` and `claude_code_version` don't generalize across vendors
-  (and the turn columns are never populated today). Replace with a generic per-model
-  breakdown (the events-firehose query already exists) and rely on `agent_version`.
+- [x] **Retire the Claude-shaped session columns.** `sessions.opus_turns` /
+  `sonnet_turns` / `haiku_turns` dropped (were never populated; per-model breakdown
+  now served by the events-firehose query). `claude_code_version` retained as
+  `claudeCodeVersion` (useful fingerprint when agent is claude_code).
 - [ ] **Implement the `<agent>:<tool>` tool-naming convention** (DESIGN §2.4). Today
   `tool_name` is stored raw (`"Edit"`) in `insert-events.ts` with no agent prefix, so the
   documented collision-avoidance mechanism is not actually built. Decide: prefix on write,

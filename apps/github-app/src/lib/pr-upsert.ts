@@ -29,6 +29,16 @@ type RepoPayload = {
 
 export type PrUpsertDb = Pick<PrismaClient, 'repo' | 'pullRequest' | 'user'>;
 
+/**
+ * Extracts the first Jira issue key from a branch name.
+ * Jira keys are of the form PROJECT-123 (uppercase letters, optional digits, dash, digits).
+ * Returns null if no key is found.
+ */
+export function extractJiraKey(branch: string): string | null {
+  const match = /([A-Z][A-Z0-9]+-\d+)/.exec(branch);
+  return match?.[1] ?? null;
+}
+
 export async function upsertPullRequest(
   db: PrUpsertDb,
   repoPl: RepoPayload,
@@ -70,6 +80,9 @@ async function doUpsert(
     ? await db.user.findUnique({ where: { githubLogin: prPl.user.login } })
     : null;
 
+  // P5-004: extract Jira key from head branch name
+  const jiraKey = extractJiraKey(prPl.head.ref);
+
   await db.pullRequest.upsert({
     create: {
       authorGithubLogin: authorLogin,
@@ -79,6 +92,7 @@ async function doUpsert(
       filesChanged: prPl.changed_files ?? null,
       githubId: BigInt(prPl.id),
       headBranch: prPl.head.ref,
+      jiraKey,
       labels: prPl.labels.map((l) => l.name),
       linesAdded: prPl.additions ?? null,
       linesRemoved: prPl.deletions ?? null,
@@ -94,6 +108,7 @@ async function doUpsert(
       authorUserId: authorUser?.id ?? null,
       closedAt: prPl.closed_at ? new Date(prPl.closed_at) : null,
       filesChanged: prPl.changed_files ?? null,
+      jiraKey,
       labels: prPl.labels.map((l) => l.name),
       linesAdded: prPl.additions ?? null,
       linesRemoved: prPl.deletions ?? null,

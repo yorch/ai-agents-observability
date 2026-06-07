@@ -5,7 +5,7 @@ CREATE SCHEMA IF NOT EXISTS "public";
 CREATE TYPE "SessionStatus" AS ENUM ('active', 'completed', 'crashed', 'timed_out', 'abandoned');
 
 -- CreateEnum
-CREATE TYPE "AgentType" AS ENUM ('claude_code');
+CREATE TYPE "AgentType" AS ENUM ('claude_code', 'cursor', 'aider', 'copilot', 'codex', 'windsurf', 'opencode');
 
 -- CreateEnum
 CREATE TYPE "AuditAction" AS ENUM ('view_session', 'view_transcript', 'export_team', 'export_org', 'admin_impersonate', 'delete_request', 'hook_token_issued');
@@ -15,6 +15,9 @@ CREATE TYPE "AuthTokenKind" AS ENUM ('access', 'refresh', 'hook');
 
 -- CreateEnum
 CREATE TYPE "TeamRole" AS ENUM ('member', 'lead', 'maintainer');
+
+-- CreateEnum
+CREATE TYPE "OrgRole" AS ENUM ('member', 'org_admin', 'viewer_aggregate');
 
 -- CreateEnum
 CREATE TYPE "PRState" AS ENUM ('open', 'closed', 'merged');
@@ -42,6 +45,7 @@ CREATE TABLE "users" (
     "email" TEXT,
     "display_name" TEXT,
     "primary_team_id" UUID,
+    "org_role" "OrgRole" NOT NULL DEFAULT 'member',
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_seen_at" TIMESTAMPTZ(6),
     "deactivated_at" TIMESTAMPTZ(6),
@@ -150,14 +154,13 @@ CREATE TABLE "sessions" (
     "permission_deny_count" INTEGER NOT NULL DEFAULT 0,
     "interrupt_count" INTEGER NOT NULL DEFAULT 0,
     "user_message_count" INTEGER NOT NULL DEFAULT 0,
-    "opus_turns" INTEGER NOT NULL DEFAULT 0,
-    "sonnet_turns" INTEGER NOT NULL DEFAULT 0,
-    "haiku_turns" INTEGER NOT NULL DEFAULT 0,
     "primary_model" TEXT,
     "transcript_s3_key" TEXT,
     "transcript_bytes" BIGINT,
     "transcript_uploaded_at" TIMESTAMPTZ(6),
     "transcript_redacted" BOOLEAN NOT NULL DEFAULT false,
+    "shape_label" TEXT,
+    "friction_score" DOUBLE PRECISION,
 
     CONSTRAINT "sessions_pkey" PRIMARY KEY ("session_id")
 );
@@ -183,6 +186,9 @@ CREATE TABLE "pull_requests" (
     "reviewer_logins" TEXT[],
     "labels" TEXT[],
     "enriched_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "reverted_at" TIMESTAMPTZ(6),
+    "revert_of_pr_number" INTEGER,
+    "jira_key" TEXT,
 
     CONSTRAINT "pull_requests_pkey" PRIMARY KEY ("repo_id","pr_number")
 );
@@ -214,6 +220,7 @@ CREATE TABLE "pr_rollups" (
     "total_tool_errors" INTEGER,
     "total_permission_denies" INTEGER,
     "cost_per_loc" DECIMAL(12,6),
+    "check_failures_count" INTEGER NOT NULL DEFAULT 0,
     "computed_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "pr_rollups_pkey" PRIMARY KEY ("repo_id","pr_number")
@@ -225,10 +232,24 @@ CREATE TABLE "job_runs" (
     "job_name" TEXT NOT NULL,
     "started_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "finished_at" TIMESTAMPTZ(6),
-    "status" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'running',
     "error_text" TEXT,
 
     CONSTRAINT "job_runs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "job_config" (
+    "job_name" TEXT NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "run_hour_utc" SMALLINT NOT NULL,
+    "run_minute_utc" SMALLINT NOT NULL,
+    "run_requested_at" TIMESTAMPTZ(6),
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "job_config_pkey" PRIMARY KEY ("job_name"),
+    CONSTRAINT "job_config_run_hour_utc_check" CHECK ("run_hour_utc" BETWEEN 0 AND 23),
+    CONSTRAINT "job_config_run_minute_utc_check" CHECK ("run_minute_utc" BETWEEN 0 AND 59)
 );
 
 -- CreateTable
@@ -307,6 +328,9 @@ CREATE INDEX "sessions_agent_type_started_at_idx" ON "sessions"("agent_type", "s
 
 -- CreateIndex
 CREATE UNIQUE INDEX "pull_requests_github_id_key" ON "pull_requests"("github_id");
+
+-- CreateIndex
+CREATE INDEX "pull_requests_jira_key_idx" ON "pull_requests"("jira_key") WHERE "jira_key" IS NOT NULL;
 
 -- CreateIndex
 CREATE INDEX "session_pr_links_repo_id_pr_number_idx" ON "session_pr_links"("repo_id", "pr_number");

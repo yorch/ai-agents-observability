@@ -1,4 +1,5 @@
 import type { User } from '@ai-agents-observability/db';
+import { OrgRole } from '@ai-agents-observability/db';
 import Link from 'next/link';
 
 import { UserMenu } from './UserMenu';
@@ -10,6 +11,11 @@ export function Nav({ user }: { user: User | null }) {
         ai-agents-observability
       </Link>
       <div className="flex items-center gap-4 text-sm">
+        {user && user.orgRole !== OrgRole.member && (
+          <Link href="/org/dashboard" className="text-white/60 hover:text-white hover:underline">
+            Org
+          </Link>
+        )}
         {user ? (
           <UserMenu displayName={user.displayName ?? user.githubLogin} />
         ) : (

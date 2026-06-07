@@ -51,6 +51,32 @@ export async function handlePullRequest(
       const rollupResult = await computePRRollup(db, repoId, prNumber);
       logger.info({ ...rollupResult, pr: prNumber }, 'pr.rollup');
 
+      // P5-003: Revert detection — GitHub auto-generates revert PRs with title
+      // "Revert "<original title>"" and body "Reverts #<original PR number>".
+      const bodyMatch =
+        /^Revert\s+["""]/i.test(pr.title ?? '') &&
+        /Reverts\s+#(\d+)/.exec((pr as { body?: string | null }).body ?? '');
+
+      if (bodyMatch) {
+        const originalPrNumber = parseInt(bodyMatch[1] as string, 10);
+        const revertedAt = new Date();
+
+        // Both writes are atomic: if one fails the other is rolled back,
+        // preventing a half-linked revert pair.
+        await db.$transaction([
+          db.pullRequest.updateMany({
+            data: { revertedAt },
+            where: { prNumber: originalPrNumber, repoId },
+          }),
+          db.pullRequest.update({
+            data: { revertOfPrNumber: originalPrNumber },
+            where: { repoId_prNumber: { prNumber, repoId } },
+          }),
+        ]);
+
+        logger.info({ originalPrNumber, prNumber }, 'pr.revert.detected');
+      }
+
       if (installationId) {
         try {
           await maybePostComment(db, config, logger, repoId, prNumber, pr, repo, installationId);

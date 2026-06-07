@@ -10,8 +10,8 @@ type PRRollupLike = {
   totalToolCalls: number | null;
 };
 
-/** Leading marker identifying a bot-authored summary comment (for idempotency). */
-export const COMMENT_MARKER = '🤖 **Claude Code summary**';
+/** Hidden HTML marker for deduplication — agent-neutral, not exposed in rendered output. */
+export const COMMENT_MARKER = '<!-- ai-agents-observability:pr-summary -->';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -20,7 +20,7 @@ function formatDuration(seconds: number): string {
 }
 
 export function buildCommentBody(rollup: PRRollupLike, config: RepoConfig): string {
-  const lines: string[] = [COMMENT_MARKER];
+  const lines: string[] = [COMMENT_MARKER, '🤖 **AI agent summary**'];
 
   const sessions = rollup.contributingSessionIds.length;
   const contributors = rollup.contributingUserIds.length;

@@ -6,9 +6,6 @@ export function ToolsTab({
   session: Awaited<ReturnType<typeof getSession>> & object;
 }) {
   const modelCounts = [
-    { label: 'Opus turns', value: session.opusTurns },
-    { label: 'Sonnet turns', value: session.sonnetTurns },
-    { label: 'Haiku turns', value: session.haikuTurns },
     { label: 'Tool calls', value: session.toolCallCount },
     { label: 'Tool errors', value: session.toolErrorCount },
   ];

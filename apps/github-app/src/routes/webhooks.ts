@@ -91,6 +91,43 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
             logger,
           );
         }
+
+        // P5-005: GitHub Checks correlation — increment check_failures_count on
+        // the rollup for each PR associated with a failed or action-required check run.
+        if (event === 'check_run') {
+          const checkRun = payload.check_run as
+            | {
+                conclusion: string | null;
+                pull_requests: Array<{ number: number }>;
+              }
+            | undefined;
+
+          if (
+            checkRun &&
+            (checkRun.conclusion === 'failure' || checkRun.conclusion === 'action_required') &&
+            repoFullName
+          ) {
+            const parts = repoFullName.split('/');
+            if (parts.length !== 2 || !parts[0] || !parts[1]) {
+              logger.warn({ repoFullName }, 'check_run: unexpected repository full_name format');
+            } else {
+              const [owner, name] = parts as [string, string];
+              // Resolve repo once — all PRs in this check_run belong to the same repo.
+              const repo = await db.repo.findFirst({
+                select: { id: true },
+                where: { githubName: name, githubOwner: owner },
+              });
+              if (repo) {
+                for (const pr of checkRun.pull_requests ?? []) {
+                  await db.pRRollup.updateMany({
+                    data: { checkFailuresCount: { increment: 1 } },
+                    where: { prNumber: pr.number, repoId: repo.id },
+                  });
+                }
+              }
+            }
+          }
+        }
         recordProcessed(`${event}.${action}`, Date.now() - start);
         await db.webhookDelivery
           .update({

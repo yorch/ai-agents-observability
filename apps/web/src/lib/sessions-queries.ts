@@ -24,8 +24,10 @@ export type SessionRow = {
   durationSeconds: number | null;
   endedAt: Date | null;
   eventCount: number;
+  frictionScore: number | null;
   repoName: string | null;
   sessionId: string;
+  shapeLabel: string | null;
   startedAt: Date;
   status: string;
 };
@@ -39,9 +41,9 @@ export type SessionDetail = {
   durationSeconds: number | null;
   endedAt: Date | null;
   endReason: string | null;
-  haikuTurns: number;
+  frictionScore: number | null;
   inputTokens: bigint;
-  opusTurns: number;
+  interruptCount: number;
   os: string | null;
   outputTokens: bigint;
   permissionDenyCount: number;
@@ -49,7 +51,7 @@ export type SessionDetail = {
   primaryModel: string | null;
   repoName: string | null;
   sessionId: string;
-  sonnetTurns: number;
+  shapeLabel: string | null;
   startedAt: Date;
   status: string;
   toolCallCount: number;
@@ -121,8 +123,10 @@ export async function listSessions(
       : null,
     endedAt: s.endedAt,
     eventCount: s.toolCallCount + s.userMessageCount,
+    frictionScore: s.frictionScore,
     repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
     sessionId: s.sessionId,
+    shapeLabel: s.shapeLabel,
     startedAt: s.startedAt,
     status: s.status,
   }));
@@ -155,9 +159,9 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
       : null,
     endedAt: s.endedAt,
     endReason: s.endReason,
-    haikuTurns: s.haikuTurns,
+    frictionScore: s.frictionScore,
     inputTokens: s.totalInputTokens,
-    opusTurns: s.opusTurns,
+    interruptCount: s.interruptCount,
     os: s.os,
     outputTokens: s.totalOutputTokens,
     permissionDenyCount: s.permissionDenyCount,
@@ -165,7 +169,7 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
     primaryModel: s.primaryModel,
     repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
     sessionId: s.sessionId,
-    sonnetTurns: s.sonnetTurns,
+    shapeLabel: s.shapeLabel,
     startedAt: s.startedAt,
     status: s.status,
     toolCallCount: s.toolCallCount,

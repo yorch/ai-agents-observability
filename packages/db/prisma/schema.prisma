@@ -19,6 +19,12 @@ enum SessionStatus {
 
 enum AgentType {
   claude_code
+  cursor
+  aider
+  copilot
+  codex
+  windsurf
+  opencode
 }
 
 enum AuditAction {
@@ -41,6 +47,12 @@ enum TeamRole {
   member
   lead
   maintainer
+}
+
+enum OrgRole {
+  member
+  org_admin
+  viewer_aggregate
 }
 
 enum PRState {
@@ -82,6 +94,7 @@ model User {
   email         String?
   displayName   String?   @map("display_name")
   primaryTeamId String?   @map("primary_team_id") @db.Uuid
+  orgRole       OrgRole   @default(member) @map("org_role")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz(6)
   deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(6)
@@ -224,15 +237,15 @@ model Session {
   permissionDenyCount   Int     @default(0) @map("permission_deny_count")
   interruptCount        Int     @default(0) @map("interrupt_count")
   userMessageCount      Int     @default(0) @map("user_message_count")
-  opusTurns             Int     @default(0) @map("opus_turns")
-  sonnetTurns           Int     @default(0) @map("sonnet_turns")
-  haikuTurns            Int     @default(0) @map("haiku_turns")
   primaryModel          String? @map("primary_model")
 
   transcriptS3Key      String?   @map("transcript_s3_key")
   transcriptBytes      BigInt?   @map("transcript_bytes")
   transcriptUploadedAt DateTime? @map("transcript_uploaded_at") @db.Timestamptz(6)
   transcriptRedacted   Boolean   @default(false) @map("transcript_redacted")
+
+  shapeLabel           String?   @map("shape_label")
+  frictionScore        Float?    @map("friction_score")
 
   user    User            @relation(fields: [userId], references: [id])
   repo    Repo?           @relation(fields: [repoId], references: [id])
@@ -264,9 +277,15 @@ model PullRequest {
   linesRemoved      Int?      @map("lines_removed")
   filesChanged      Int?      @map("files_changed")
   reviewCount       Int?      @map("review_count")
-  reviewerLogins    String[]  @map("reviewer_logins")
-  labels            String[]
-  enrichedAt        DateTime  @default(now()) @map("enriched_at") @db.Timestamptz(6)
+  reviewerLogins      String[]  @map("reviewer_logins")
+  labels              String[]
+  enrichedAt          DateTime  @default(now()) @map("enriched_at") @db.Timestamptz(6)
+  // P5-003: revert detection — set when a reverting PR is merged
+  revertedAt          DateTime? @map("reverted_at") @db.Timestamptz(6)
+  // P5-003: on the reverting PR, points back to the PR it reverts
+  revertOfPrNumber    Int?      @map("revert_of_pr_number")
+  // P5-004: Jira issue key extracted from head branch name (e.g. PROJ-123)
+  jiraKey             String?   @map("jira_key")
 
   repo       Repo          @relation(fields: [repoId], references: [id], onDelete: Cascade)
   authorUser User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
@@ -307,6 +326,8 @@ model PRRollup {
   totalToolErrors        Int?      @map("total_tool_errors")
   totalPermissionDenies  Int?      @map("total_permission_denies")
   costPerLoc             Decimal?  @map("cost_per_loc") @db.Decimal(12, 6)
+  // P5-005: cumulative count of failed check runs on associated PR
+  checkFailuresCount     Int       @default(0) @map("check_failures_count")
   computedAt             DateTime  @default(now()) @map("computed_at") @db.Timestamptz(6)
 
   pullRequest PullRequest @relation(fields: [repoId, prNumber], references: [repoId, prNumber], onDelete: Cascade)
@@ -360,4 +381,17 @@ model WebhookDelivery {
   @@index([eventType, receivedAt(sort: Desc)])
   @@index([receivedAt(sort: Desc)])
   @@map("webhook_deliveries")
+}
+
+// ── Job config (UI-configurable schedules) ────────────────────────────────────
+
+model JobConfig {
+  jobName        String    @id @map("job_name")
+  enabled        Boolean   @default(true)
+  runHourUtc     Int       @map("run_hour_utc")    @db.SmallInt
+  runMinuteUtc   Int       @map("run_minute_utc")  @db.SmallInt
+  runRequestedAt DateTime? @map("run_requested_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("job_config")
 }

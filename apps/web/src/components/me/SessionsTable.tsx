@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { StatusBadge } from '@/components/me/StatusBadge';
+import { computeFrictionScore, frictionBadge, shapeBadge } from '@/lib/effectiveness';
 import type { SessionRow } from '@/lib/sessions-queries';
 
 function formatDuration(seconds: number | null): string {
@@ -64,36 +65,76 @@ export function SessionsTable({
             <tr className="border-b border-white/10 text-white/40 text-xs">
               <th className="text-left px-4 py-3">Started</th>
               <th className="text-left px-4 py-3">Repo</th>
+              <th className="text-left px-4 py-3">Shape</th>
               <th className="text-right px-4 py-3">Duration</th>
               <th className="text-right px-4 py-3">Events</th>
               <th className="text-right px-4 py-3">Cost</th>
+              <th className="text-center px-4 py-3">Friction</th>
               <th className="text-center px-4 py-3">Status</th>
             </tr>
           </thead>
           <tbody>
-            {sessions.map((s) => (
-              <tr
-                key={s.sessionId}
-                className="border-b border-white/5 hover:bg-white/5 transition-colors"
-              >
-                <td className="px-4 py-3 text-white/70">
-                  <Link href={`${basePath}/${s.sessionId}`} className="hover:text-white">
-                    {formatDate(s.startedAt)}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-white/70 max-w-[200px] truncate">
-                  {s.repoName ?? '—'}
-                </td>
-                <td className="px-4 py-3 text-right text-white/60">
-                  {formatDuration(s.durationSeconds)}
-                </td>
-                <td className="px-4 py-3 text-right text-white/60">{s.eventCount}</td>
-                <td className="px-4 py-3 text-right text-white/60">${s.costUsd.toFixed(3)}</td>
-                <td className="px-4 py-3 text-center">
-                  <StatusBadge status={s.status} />
-                </td>
-              </tr>
-            ))}
+            {sessions.map((s) => {
+              // Fall back to on-the-fly computation if not yet computed by nightly job
+              const friction =
+                s.frictionScore ??
+                computeFrictionScore({
+                  durationSeconds: s.durationSeconds,
+                  interruptCount: 0,
+                  permissionDenyCount: 0,
+                  status: s.status,
+                  toolCallCount: s.eventCount,
+                  toolErrorCount: 0,
+                  userMessageCount: 0,
+                });
+              const badge = friction !== null ? frictionBadge(friction) : null;
+              return (
+                <tr
+                  key={s.sessionId}
+                  className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                >
+                  <td className="px-4 py-3 text-white/70">
+                    <Link href={`${basePath}/${s.sessionId}`} className="hover:text-white">
+                      {formatDate(s.startedAt)}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-white/70 max-w-[200px] truncate">
+                    {s.repoName ?? '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    {s.shapeLabel ? (
+                      <span
+                        className={`text-xs px-1.5 py-0.5 rounded ${shapeBadge(s.shapeLabel as Parameters<typeof shapeBadge>[0])}`}
+                      >
+                        {s.shapeLabel}
+                      </span>
+                    ) : (
+                      <span className="text-white/20 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-white/60">
+                    {formatDuration(s.durationSeconds)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-white/60">{s.eventCount}</td>
+                  <td className="px-4 py-3 text-right text-white/60">${s.costUsd.toFixed(3)}</td>
+                  <td className="px-4 py-3 text-center">
+                    {badge ? (
+                      <span
+                        className={`text-xs font-medium ${badge.color}`}
+                        title={`${((friction ?? 0) * 100).toFixed(0)}%`}
+                      >
+                        {badge.label}
+                      </span>
+                    ) : (
+                      <span className="text-white/20 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <StatusBadge status={s.status} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

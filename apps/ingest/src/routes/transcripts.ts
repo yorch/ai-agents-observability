@@ -9,6 +9,7 @@ import { bodyLimit } from 'hono/body-limit';
 import type { Logger } from 'pino';
 import { z } from 'zod';
 
+import { transcriptsStoredTotal } from '../lib/metrics';
 import { objectExists, putObject, type S3Deps, transcriptKey } from '../lib/s3';
 import { processTranscript, TranscriptTooLargeError } from '../lib/transcript-pipeline';
 import type { AppEnv } from '../types';
@@ -226,6 +227,8 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
           },
           where: { sessionId },
         });
+
+        transcriptsStoredTotal.inc();
 
         logger.info(
           {

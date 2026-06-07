@@ -7,10 +7,12 @@ import type { Logger } from 'pino';
 
 import type { Config } from './config';
 import rawPriceTable from './data/price-table.v1.json' with { type: 'json' };
+import { httpRequestDurationMs, httpRequestsTotal, registry } from './lib/metrics';
 import { authRequired } from './middleware/auth';
 import { loggerMiddleware } from './middleware/logger';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 import { requestIdMiddleware } from './middleware/request-id';
+import { adminRouter } from './routes/admin';
 import { eventsRouter } from './routes/events';
 import { priceTableRouter } from './routes/price-table';
 import { transcriptsRouter } from './routes/transcripts';
@@ -19,9 +21,10 @@ import type { AppEnv, EventsDb, SessionDb } from './types';
 export type { AppEnv };
 
 export type AppDeps = {
+  adminSecret?: string;
   checkDb: () => Promise<void>;
   checkS3: () => Promise<void>;
-  db: Pick<PrismaClient, 'authToken'> & EventsDb & SessionDb;
+  db: Pick<PrismaClient, 'authToken' | 'jobConfig'> & EventsDb & SessionDb;
   logger: Logger;
   s3: { bucket: string; client: S3Client };
 };
@@ -34,6 +37,20 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
 
   app.use('*', requestIdMiddleware());
   app.use('*', loggerMiddleware(deps.logger));
+
+  // Request timing middleware — records HTTP duration + request count for Prometheus
+  app.use('*', async (c, next) => {
+    const start = Date.now();
+    await next();
+    const durationMs = Date.now() - start;
+    const method = c.req.method;
+    // Normalise dynamic path segments so cardinality stays bounded.
+    // e.g. /v1/events/abc-123 → /v1/events/:id
+    const route = c.req.routePath ?? c.req.path;
+    const status = String(c.res.status);
+    httpRequestsTotal.inc({ method, route, status });
+    httpRequestDurationMs.observe({ method, route, status }, durationMs);
+  });
 
   app.get('/health', (c) =>
     c.json({
@@ -56,6 +73,16 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
       },
       ok ? 200 : 503,
     );
+  });
+
+  app.route('/admin', adminRouter(deps.db, config.admin_secret, deps.logger));
+
+  // Prometheus metrics — accessible from Prometheus scraper only (no auth needed in dev)
+  app.get('/metrics', async (_c) => {
+    const output = await registry.metrics();
+    return new Response(output, {
+      headers: { 'Content-Type': registry.contentType },
+    });
   });
 
   // Public v1 routes — registered before auth middleware so they bypass it

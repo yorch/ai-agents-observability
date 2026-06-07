@@ -27,6 +27,7 @@ const s3 = new S3Client({
 });
 
 const deps: AppDeps = {
+  ...(config.admin_secret ? { adminSecret: config.admin_secret } : {}),
   checkDb: async () => {
     await db.$queryRaw`SELECT 1`;
   },
@@ -47,7 +48,14 @@ const server = Bun.serve({
 
 logger.info({ port: config.port, version: config.git_sha }, 'ingest service started');
 
-startScheduler(db, config.github_sync_token, logger);
+startScheduler({
+  bucket: config.s3_bucket,
+  db,
+  ...(config.github_sync_token ? { githubSyncToken: config.github_sync_token } : {}),
+  logger,
+  s3,
+  transcriptRetentionDays: config.transcript_retention_days,
+});
 
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, starting graceful shutdown');

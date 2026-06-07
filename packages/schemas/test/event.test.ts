@@ -85,7 +85,7 @@ describe('EventSchema', () => {
   });
 
   it('rejects invalid agent_type', () => {
-    expect(EventSchema.safeParse({ ...validEvent, agent_type: 'cursor' }).success).toBe(false);
+    expect(EventSchema.safeParse({ ...validEvent, agent_type: 'vscode' }).success).toBe(false);
   });
 
   it('rejects wrong schema_version', () => {

@@ -1,6 +1,6 @@
 const MODEL_COLORS = ['bg-brand-500', 'bg-brand-600', 'bg-brand-700'];
 
-type ModelEntry = { costUsd: number; model: string; turns: number };
+type ModelEntry = { costUsd: number; model: string; sessionCount: number; turns: number };
 
 export function ModelMixChart({ models }: { models: ModelEntry[] }) {
   if (models.length === 0) {
@@ -12,13 +12,16 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
     );
   }
 
-  const totalTurns = models.reduce((sum, m) => sum + m.turns, 0) || 1;
+  const totalTurns = Math.max(
+    models.reduce((sum, m) => sum + m.turns, 0),
+    1,
+  );
 
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-4">
       <h2 className="text-sm font-medium text-white/70 mb-4">Model Usage</h2>
 
-      {/* Segmented bar */}
+      {/* Segmented bar — proportional to turns */}
       <div className="flex h-3 w-full overflow-hidden rounded-full mb-4">
         {models.map((m, i) => (
           <div
@@ -35,6 +38,7 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
           <tr className="text-white/40 border-b border-white/10">
             <th className="text-left pb-2">Model</th>
             <th className="text-right pb-2">Turns</th>
+            <th className="text-right pb-2">Sessions</th>
             <th className="text-right pb-2">Cost</th>
           </tr>
         </thead>
@@ -42,7 +46,8 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
           {models.map((m) => (
             <tr key={m.model} className="border-b border-white/5">
               <td className="py-1.5 text-white/80 truncate max-w-[120px]">{m.model}</td>
-              <td className="py-1.5 text-right text-white/60">{m.turns}</td>
+              <td className="py-1.5 text-right text-white/60">{m.turns.toLocaleString()}</td>
+              <td className="py-1.5 text-right text-white/60">{m.sessionCount}</td>
               <td className="py-1.5 text-right text-white/60">${m.costUsd.toFixed(3)}</td>
             </tr>
           ))}

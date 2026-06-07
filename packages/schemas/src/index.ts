@@ -1,5 +1,14 @@
 export const EVENTS_API_VERSION = '1' as const;
 
+export type { FrictionInputs, ShapeLabel, ToolHistogram } from './effectiveness';
+export {
+  classifySessionShape,
+  computeFrictionScore,
+  EXEC_TOOLS,
+  FRICTION_VERSION,
+  READ_TOOLS,
+  WRITE_TOOLS,
+} from './effectiveness';
 export type { AgentType, Event, EventsBatch, EventType } from './event';
 export { AgentTypeSchema, EventSchema, EventsBatchSchema, EventTypeSchema } from './event';
 export type { ModelPrice, PriceTable } from './price-table';
