@@ -123,7 +123,7 @@ ai-agents-observability/
 
 GitHub App webhooks → `pull_requests` table → `session_pr_links` → `pr_rollups`. Optional PR bot comment on merge (opt-in per repo). Adds `/me/prs` page.
 
-Roadmap-level tasks in [`tasks/P2-roadmap.md`](./tasks/P2-roadmap.md). Decompose when Phase 1 exit criteria are green.
+Tasks P2-001–P2-010 are fully decomposed and implemented. See [`tasks/INDEX.md`](./tasks/INDEX.md) for current status. P2-001 (GitHub App credentials wiring) and P2-010 (GHES integration test) remain in review; all other P2 tasks are done.
 
 **Exit**: PR bot comments on opt-in repos; one team lead reacts positively unprompted.
 
@@ -131,7 +131,7 @@ Roadmap-level tasks in [`tasks/P2-roadmap.md`](./tasks/P2-roadmap.md). Decompose
 
 `team_lead` role middleware, `/team/[slug]` pages, audit log writes wired on every cross-user view, `/me/audit` becomes meaningful. Honors `visibility_policies`.
 
-Roadmap-level tasks in [`tasks/P3-roadmap.md`](./tasks/P3-roadmap.md).
+Tasks P3-001–P3-007 are fully decomposed and implemented (all `done`). See [`tasks/INDEX.md`](./tasks/INDEX.md).
 
 **Exit**: team leads use weekly; zero privacy incidents.
 
@@ -139,7 +139,7 @@ Roadmap-level tasks in [`tasks/P3-roadmap.md`](./tasks/P3-roadmap.md).
 
 Org dashboards, faceted search (visibility-scoped at query layer), transcript FTS via Postgres, anomaly surfaces via Timescale continuous aggregates, **Platform/SRE handoff deliverables** (runbooks, SLOs, dashboards, on-call doc).
 
-Roadmap-level tasks in [`tasks/P4-roadmap.md`](./tasks/P4-roadmap.md).
+Tasks P4-001–P4-011 are fully decomposed and implemented (all `done`). See [`tasks/INDEX.md`](./tasks/INDEX.md).
 
 **Exit**: quarterly leadership readout runs off this; Platform/SRE owns the pager.
 
@@ -147,7 +147,7 @@ Roadmap-level tasks in [`tasks/P4-roadmap.md`](./tasks/P4-roadmap.md).
 
 Friction score, session-shape clustering, revert detection, optional Jira integration, optional GitHub Checks correlation.
 
-Roadmap-level tasks in [`tasks/P5-roadmap.md`](./tasks/P5-roadmap.md).
+Tasks P5-001–P5-006 are fully decomposed and implemented (all `done`). See [`tasks/INDEX.md`](./tasks/INDEX.md).
 
 **Exit**: at least one effectiveness signal cited in a real promo packet or planning doc.
 
