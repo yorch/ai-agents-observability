@@ -129,7 +129,9 @@ export async function runIndexTranscripts(
         const msgRows = messages
           .map((msg, msgIdx) => {
             const contentText = extractTextContent(msg.content);
-            if (!contentText.trim()) return null;
+            if (!contentText.trim()) {
+              return null;
+            }
             return {
               contentText: contentText.slice(0, 100_000),
               msgIdx,

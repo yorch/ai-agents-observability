@@ -79,9 +79,7 @@ export async function postPRComment(
       repo: repoName,
     });
     const comments = resp.data as Array<{ body?: string | null }>;
-    if (
-      comments.some((cm) => cm.body?.includes(COMMENT_MARKER))
-    ) {
+    if (comments.some((cm) => cm.body?.includes(COMMENT_MARKER))) {
       return false;
     }
     if (comments.length < PER_PAGE) {

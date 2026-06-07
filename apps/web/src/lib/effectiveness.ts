@@ -1,16 +1,20 @@
 import type { ShapeLabel } from '@ai-agents-observability/schemas';
 
+export type { FrictionInputs, ShapeLabel, ToolHistogram } from '@ai-agents-observability/schemas';
 export {
   classifySessionShape,
   computeFrictionScore,
   FRICTION_VERSION,
 } from '@ai-agents-observability/schemas';
-export type { FrictionInputs, ShapeLabel, ToolHistogram } from '@ai-agents-observability/schemas';
 
 /** Badge color for friction score. */
 export function frictionBadge(score: number): { color: string; label: string } {
-  if (score < 0.2) return { color: 'text-green-400', label: 'Low' };
-  if (score < 0.5) return { color: 'text-yellow-400', label: 'Medium' };
+  if (score < 0.2) {
+    return { color: 'text-green-400', label: 'Low' };
+  }
+  if (score < 0.5) {
+    return { color: 'text-yellow-400', label: 'Medium' };
+  }
   return { color: 'text-red-400', label: 'High' };
 }
 

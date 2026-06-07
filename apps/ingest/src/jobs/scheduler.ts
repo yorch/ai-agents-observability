@@ -132,9 +132,9 @@ export function startScheduler(deps: SchedulerDeps): void {
         pendingTriggers.length > 0
           ? await db.jobRun
               .findMany({
+                orderBy: { startedAt: 'desc' },
                 select: { jobName: true, startedAt: true },
                 where: { jobName: { in: pendingTriggers.map((c) => c.jobName) } },
-                orderBy: { startedAt: 'desc' },
               })
               .catch(() => [] as { jobName: string; startedAt: Date }[])
           : [];

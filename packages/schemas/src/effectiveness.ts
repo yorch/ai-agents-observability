@@ -40,16 +40,19 @@ export function computeFrictionScore(inputs: FrictionInputs): number | null {
   const shortAbandoned =
     status === 'abandoned' && (durationSeconds == null || durationSeconds < 60) ? 1 : 0;
 
-  return Math.min(1, denyRate * 0.3 + errorRate * 0.3 + interruptRate * 0.25 + shortAbandoned * 0.15);
+  return Math.min(
+    1,
+    denyRate * 0.3 + errorRate * 0.3 + interruptRate * 0.25 + shortAbandoned * 0.15,
+  );
 }
 
 export type ShapeLabel =
-  | 'exploratory'  // heavy Read/Glob/Grep, few writes
+  | 'exploratory' // heavy Read/Glob/Grep, few writes
   | 'focused-edit' // heavy Edit/Write, clear target
-  | 'debugging'    // heavy Bash + errors, many retries
-  | 'planning'     // mostly user messages + no file writes
-  | 'multi-tool'   // broad tool spread; no dominant pattern
-  | 'minimal';     // very few events — not enough to classify
+  | 'debugging' // heavy Bash + errors, many retries
+  | 'planning' // mostly user messages + no file writes
+  | 'multi-tool' // broad tool spread; no dominant pattern
+  | 'minimal'; // very few events — not enough to classify
 
 export type ToolHistogram = { callCount: number; toolName: string }[];
 
@@ -85,9 +88,17 @@ export function classifySessionShape(
   const writeFrac = writeCalls / total;
   const execFrac = execCalls / total;
 
-  if (readFrac > 0.6 && writeFrac < 0.15) return 'exploratory';
-  if (writeFrac > 0.5) return 'focused-edit';
-  if (execFrac > 0.4 && writeFrac < 0.2) return 'debugging';
-  if (userMessageCount > 0.7 * (toolCallCount + userMessageCount)) return 'planning';
+  if (readFrac > 0.6 && writeFrac < 0.15) {
+    return 'exploratory';
+  }
+  if (writeFrac > 0.5) {
+    return 'focused-edit';
+  }
+  if (execFrac > 0.4 && writeFrac < 0.2) {
+    return 'debugging';
+  }
+  if (userMessageCount > 0.7 * (toolCallCount + userMessageCount)) {
+    return 'planning';
+  }
   return 'multi-tool';
 }
