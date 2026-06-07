@@ -343,7 +343,7 @@ model JobRun {
   jobName    String    @map("job_name")
   startedAt  DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
   finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
-  status     String
+  status     String    @default("running")
   errorText  String?   @map("error_text")
 
   @@index([jobName, startedAt(sort: Desc)])

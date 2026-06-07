@@ -3,7 +3,7 @@
 # We still use Bun for package management to stay aligned with the rest of the monorepo.
 
 # ── Base ──────────────────────────────────────────────────────────────────────
-FROM oven/bun:1.3.14-alpine AS base
+FROM oven/bun:1.3.13-alpine AS base
 WORKDIR /app
 
 # ── Dependencies ──────────────────────────────────────────────────────────────

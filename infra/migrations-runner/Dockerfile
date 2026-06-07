@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.14-alpine
+FROM oven/bun:1.3.13-alpine
 
 RUN apk add --no-cache postgresql-client
 
