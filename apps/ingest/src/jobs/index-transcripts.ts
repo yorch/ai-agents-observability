@@ -125,27 +125,35 @@ export async function runIndexTranscripts(
           }
         }
 
-        // Insert FTS rows in a batch (one per message with text content)
-        let hasInserted = false;
-        for (const [msgIdx, msg] of messages.entries()) {
-          const role = typeof msg.role === 'string' ? msg.role : 'unknown';
-          const contentText = extractTextContent(msg.content);
-          if (!contentText.trim()) {
-            continue;
-          }
-          const ts = typeof msg.timestamp === 'string' ? new Date(msg.timestamp) : null;
+        // Collect all indexable messages, then insert in one round-trip.
+        const msgRows = messages
+          .map((msg, msgIdx) => {
+            const contentText = extractTextContent(msg.content);
+            if (!contentText.trim()) return null;
+            return {
+              contentText: contentText.slice(0, 100_000),
+              msgIdx,
+              role: typeof msg.role === 'string' ? msg.role : 'unknown',
+              ts: typeof msg.timestamp === 'string' ? new Date(msg.timestamp) : null,
+            };
+          })
+          .filter((r) => r !== null);
 
+        const hasInserted = msgRows.length > 0;
+        if (hasInserted) {
+          const valueClauses = msgRows.map(
+            (_, i) => `($1::uuid, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4}, $${i * 4 + 5})`,
+          );
+          const params: unknown[] = [
+            row.session_id,
+            ...msgRows.flatMap((r) => [r.msgIdx, r.role, r.ts, r.contentText]),
+          ];
           await db.$executeRawUnsafe(
             `INSERT INTO transcript_index (session_id, message_idx, role, ts, content_text)
-             VALUES ($1::uuid, $2, $3, $4, $5)
+             VALUES ${valueClauses.join(', ')}
              ON CONFLICT (session_id, message_idx) DO NOTHING`,
-            row.session_id,
-            msgIdx,
-            role,
-            ts,
-            contentText.slice(0, 100_000), // cap per-message to avoid huge rows
+            ...params,
           );
-          hasInserted = true;
         }
 
         // If the transcript had no indexable text at all, insert a sentinel so this

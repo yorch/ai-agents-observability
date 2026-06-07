@@ -126,14 +126,25 @@ export function startScheduler(deps: SchedulerDeps): void {
         return;
       }
 
+      // Batch-fetch the most recent run for all pending manual triggers in one query.
+      const pendingTriggers = configs.filter((c) => c.runRequestedAt);
+      const recentRuns =
+        pendingTriggers.length > 0
+          ? await db.jobRun
+              .findMany({
+                select: { jobName: true, startedAt: true },
+                where: { jobName: { in: pendingTriggers.map((c) => c.jobName) } },
+                orderBy: { startedAt: 'desc' },
+              })
+              .catch(() => [] as { jobName: string; startedAt: Date }[])
+          : [];
+      const latestRunByJob = new Map(recentRuns.map((r) => [r.jobName, r.startedAt]));
+
       for (const cfg of configs) {
         // Manual-trigger path: runRequestedAt set by web UI.
         if (cfg.runRequestedAt) {
-          const recentRun = await db.jobRun
-            .findFirst({
-              where: { jobName: cfg.jobName, startedAt: { gt: cfg.runRequestedAt } },
-            })
-            .catch(() => null);
+          const latestRun = latestRunByJob.get(cfg.jobName);
+          const recentRun = latestRun && latestRun > cfg.runRequestedAt;
 
           if (!recentRun) {
             logger?.info({ jobName: cfg.jobName }, 'Scheduler: manual run requested');

@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import type { S3Client } from '@aws-sdk/client-s3';
-import { DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, DeleteObjectsCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
 /**
@@ -99,14 +99,22 @@ export async function runSweepRetention(
         });
         const trackedKeys = new Set(rows.map((r) => r.transcriptS3Key));
 
-        for (const key of keys) {
-          if (!trackedKeys.has(key) && !knownKeys.has(key)) {
-            // Orphan — no session references this object
-            await s3
-              .send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
-              .then(() => orphans++)
-              .catch((err) => logger?.warn({ err, key }, 'Failed to delete orphan'));
-          }
+        const orphanKeys = keys.filter((key) => !trackedKeys.has(key) && !knownKeys.has(key));
+        if (orphanKeys.length > 0) {
+          await s3
+            .send(
+              new DeleteObjectsCommand({
+                Bucket: bucket,
+                Delete: { Objects: orphanKeys.map((Key) => ({ Key })) },
+              }),
+            )
+            .then((res) => {
+              orphans += res.Deleted?.length ?? 0;
+              for (const err of res.Errors ?? []) {
+                logger?.warn({ key: err.Key, message: err.Message }, 'Failed to delete orphan');
+              }
+            })
+            .catch((err) => logger?.warn({ err }, 'Failed to batch-delete orphans'));
         }
       }
 
