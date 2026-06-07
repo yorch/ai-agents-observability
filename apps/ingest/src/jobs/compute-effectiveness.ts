@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import { Prisma } from '@ai-agents-observability/db';
+import { classifySessionShape, computeFrictionScore } from '@ai-agents-observability/schemas';
 import type { Logger } from 'pino';
 
 type DbWithRaw = Pick<PrismaClient, 'jobRun'> & {
@@ -7,82 +8,7 @@ type DbWithRaw = Pick<PrismaClient, 'jobRun'> & {
   $queryRaw: PrismaClient['$queryRaw'];
 };
 
-// Mirrors apps/web/src/lib/effectiveness.ts — kept local to avoid package coupling.
-function computeFrictionScore(inputs: {
-  durationSeconds: number | null;
-  interruptCount: number;
-  permissionDenyCount: number;
-  status: string;
-  toolCallCount: number;
-  toolErrorCount: number;
-  userMessageCount: number;
-}): number | null {
-  if (inputs.toolCallCount < 2 && inputs.userMessageCount < 2) {
-    return null;
-  }
-  const denyRate =
-    inputs.toolCallCount > 0 ? Math.min(inputs.permissionDenyCount / inputs.toolCallCount, 1) : 0;
-  const errorRate =
-    inputs.toolCallCount > 0 ? Math.min(inputs.toolErrorCount / inputs.toolCallCount, 1) : 0;
-  const interruptRate =
-    inputs.userMessageCount > 0 ? Math.min(inputs.interruptCount / inputs.userMessageCount, 1) : 0;
-  const shortAbandoned =
-    inputs.status === 'abandoned' && (inputs.durationSeconds == null || inputs.durationSeconds < 60)
-      ? 1
-      : 0;
-  return Math.min(
-    1,
-    denyRate * 0.3 + errorRate * 0.3 + interruptRate * 0.25 + shortAbandoned * 0.15,
-  );
-}
-
 type ToolRow = { call_count: bigint; tool_name: string };
-
-const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS', 'WebFetch', 'WebSearch']);
-const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit']);
-const EXEC_TOOLS = new Set(['Bash', 'Exec', 'Shell']);
-
-function classifyShape(
-  histogram: ToolRow[],
-  userMessageCount: number,
-  toolCallCount: number,
-): string {
-  if (toolCallCount < 3 && userMessageCount < 3) {
-    return 'minimal';
-  }
-  const total = histogram.reduce((s, r) => s + Number(r.call_count), 0);
-  if (total === 0) {
-    return userMessageCount > 3 ? 'planning' : 'minimal';
-  }
-
-  const readCalls = histogram
-    .filter((r) => READ_TOOLS.has(r.tool_name))
-    .reduce((s, r) => s + Number(r.call_count), 0);
-  const writeCalls = histogram
-    .filter((r) => WRITE_TOOLS.has(r.tool_name))
-    .reduce((s, r) => s + Number(r.call_count), 0);
-  const execCalls = histogram
-    .filter((r) => EXEC_TOOLS.has(r.tool_name))
-    .reduce((s, r) => s + Number(r.call_count), 0);
-
-  const readFrac = readCalls / total;
-  const writeFrac = writeCalls / total;
-  const execFrac = execCalls / total;
-
-  if (readFrac > 0.6 && writeFrac < 0.15) {
-    return 'exploratory';
-  }
-  if (writeFrac > 0.5) {
-    return 'focused-edit';
-  }
-  if (execFrac > 0.4 && writeFrac < 0.2) {
-    return 'debugging';
-  }
-  if (userMessageCount > 0.7 * (toolCallCount + userMessageCount)) {
-    return 'planning';
-  }
-  return 'multi-tool';
-}
 
 /**
  * Nightly job: computes friction_score and shape_label for recently updated
@@ -169,8 +95,11 @@ export async function runComputeEffectiveness(db: DbWithRaw, logger?: Logger): P
           userMessageCount: s.user_message_count,
         });
 
-        const histogram = histogramMap.get(s.session_id) ?? [];
-        const shapeLabel = classifyShape(histogram, s.user_message_count, s.tool_call_count);
+        const histogram = (histogramMap.get(s.session_id) ?? []).map((r) => ({
+          callCount: Number(r.call_count),
+          toolName: r.tool_name,
+        }));
+        const shapeLabel = classifySessionShape(histogram, s.user_message_count, s.tool_call_count);
 
         await db.$executeRaw(Prisma.sql`
           UPDATE sessions
