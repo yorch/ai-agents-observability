@@ -19,12 +19,8 @@ function formatDuration(seconds: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-export function buildCommentBody(
-  rollup: PRRollupLike,
-  config: RepoConfig,
-  agentLabel = 'Claude Code',
-): string {
-  const lines: string[] = [COMMENT_MARKER, `🤖 **${agentLabel} summary**`];
+export function buildCommentBody(rollup: PRRollupLike, config: RepoConfig): string {
+  const lines: string[] = [COMMENT_MARKER, '🤖 **AI agent summary**'];
 
   const sessions = rollup.contributingSessionIds.length;
   const contributors = rollup.contributingUserIds.length;
@@ -52,8 +48,7 @@ export function buildCommentBody(
 /**
  * Post the summary comment, idempotently. GitHub re-delivers webhooks, so before
  * posting we list existing PR comments and skip if a bot summary (identified by
- * {@link COMMENT_MARKER} or the legacy marker) is already present. Returns true
- * if a comment was posted.
+ * {@link COMMENT_MARKER}) is already present. Returns true if a comment was posted.
  */
 export async function postPRComment(
   repoOwner: string,

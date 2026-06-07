@@ -293,9 +293,6 @@ CREATE TABLE sessions (
   user_message_count      INT NOT NULL DEFAULT 0,
 
   -- Model mix
-  opus_turns              INT NOT NULL DEFAULT 0,
-  sonnet_turns            INT NOT NULL DEFAULT 0,
-  haiku_turns             INT NOT NULL DEFAULT 0,
   primary_model           TEXT,
 
   -- Transcript pointer

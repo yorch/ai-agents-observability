@@ -17,7 +17,7 @@ export type TeamToolUsage = {
 export type TeamModelMix = {
   costUsd: number;
   model: string;
-  turns: number;
+  sessionCount: number;
 };
 
 export type RosterMember = {
@@ -145,28 +145,25 @@ export async function getTeamModelMix(since: Date, visibleIds: string[]): Promis
 
   const sessions = await getPrisma().session.findMany({
     select: {
-      haikuTurns: true,
-      opusTurns: true,
       primaryModel: true,
-      sonnetTurns: true,
       totalCostUsd: true,
     },
     where: { startedAt: { gte: since }, userId: { in: visibleIds } },
   });
 
-  const modelMap = new Map<string, { costUsd: number; turns: number }>();
+  const modelMap = new Map<string, { costUsd: number; sessionCount: number }>();
   for (const s of sessions) {
     const model = s.primaryModel ?? 'unknown';
-    const existing = modelMap.get(model) ?? { costUsd: 0, turns: 0 };
+    const existing = modelMap.get(model) ?? { costUsd: 0, sessionCount: 0 };
     modelMap.set(model, {
       costUsd: existing.costUsd + Number(s.totalCostUsd),
-      turns: existing.turns + s.opusTurns + s.sonnetTurns + s.haikuTurns,
+      sessionCount: existing.sessionCount + 1,
     });
   }
 
   return Array.from(modelMap.entries())
     .map(([model, stats]) => ({ model, ...stats }))
-    .sort((a, b) => b.turns - a.turns);
+    .sort((a, b) => b.sessionCount - a.sessionCount);
 }
 
 export type MemberProfile = {

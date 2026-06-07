@@ -42,10 +42,8 @@ export type SessionDetail = {
   endedAt: Date | null;
   endReason: string | null;
   frictionScore: number | null;
-  haikuTurns: number;
   inputTokens: bigint;
   interruptCount: number;
-  opusTurns: number;
   os: string | null;
   outputTokens: bigint;
   permissionDenyCount: number;
@@ -54,7 +52,6 @@ export type SessionDetail = {
   repoName: string | null;
   sessionId: string;
   shapeLabel: string | null;
-  sonnetTurns: number;
   startedAt: Date;
   status: string;
   toolCallCount: number;
@@ -163,10 +160,8 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
     endedAt: s.endedAt,
     endReason: s.endReason,
     frictionScore: s.frictionScore,
-    haikuTurns: s.haikuTurns,
     inputTokens: s.totalInputTokens,
     interruptCount: s.interruptCount,
-    opusTurns: s.opusTurns,
     os: s.os,
     outputTokens: s.totalOutputTokens,
     permissionDenyCount: s.permissionDenyCount,
@@ -175,7 +170,6 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
     repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
     sessionId: s.sessionId,
     shapeLabel: s.shapeLabel,
-    sonnetTurns: s.sonnetTurns,
     startedAt: s.startedAt,
     status: s.status,
     toolCallCount: s.toolCallCount,

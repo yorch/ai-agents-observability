@@ -24,9 +24,9 @@ Widen the schema, annotate deprecated columns, and document cross-cutting decisi
 - [x] Existing `agent_type.replaceAll('-', '_')` normalization in `apps/ingest/src/lib/insert-events.ts` handles all new values correctly (single-word values need no transformation).
 - [x] A comment near the `tool_name` insert documents the (agent_type, tool_name) query-time disambiguation decision.
 - [x] `COMMENT_MARKER` in `apps/github-app/src/lib/pr-comment.ts` is the hidden HTML comment `<!-- ai-agents-observability:pr-summary -->`.
-- [x] `buildCommentBody` accepts an optional `agentLabel` param (default `'Claude Code'`).
-- [x] `postPRComment` recognises both the new marker and the legacy emoji marker to prevent duplicate comments on existing PRs.
-- [x] `opusTurns`, `sonnetTurns`, `haikuTurns` in `packages/db/prisma/schema.prisma` carry `@deprecated` comments explaining the preferred alternative.
+- [x] `buildCommentBody` uses agent-neutral "AI agent summary" header (no per-agent label).
+- [x] `postPRComment` uses `COMMENT_MARKER` for idempotency (legacy emoji marker removed).
+- [x] `opusTurns`, `sonnetTurns`, `haikuTurns` removed from schema (were never populated; dropped in follow-up cleanup).
 - [x] `computeCostUsd` in `apps/ingest/src/lib/cost.ts` has a comment explaining that model names are vendor-specific and carries a `_agentType?` placeholder param to mark the future disambiguation seam.
 - [x] `bun run typecheck` passes.
 - [x] `bun run check` passes.
@@ -39,14 +39,14 @@ Widen the schema, annotate deprecated columns, and document cross-cutting decisi
 
 **PR comment marker**: changed from the emoji string to a hidden HTML comment so the idempotency marker is not visible in rendered PR comments and is not coupled to any agent brand.
 
-**Deprecated columns**: `opusTurns`, `sonnetTurns`, `haikuTurns` were Claude Code-specific placeholders that were never populated. They are annotated but not dropped — dropping would require a migration and there may be data in production.
+**Deprecated columns**: `opusTurns`, `sonnetTurns`, `haikuTurns` were Claude Code-specific placeholders that were never populated. They have been dropped from the schema and all call sites.
 
 ## Files touched
 
 - `packages/schemas/src/event.ts` — `AgentTypeSchema` widened
 - `apps/ingest/src/lib/insert-events.ts` — tool naming comment added
 - `apps/ingest/src/lib/cost.ts` — agent-type seam comment + `_agentType?` param
-- `apps/github-app/src/lib/pr-comment.ts` — new marker, legacy marker, `agentLabel` param
+- `apps/github-app/src/lib/pr-comment.ts` — new marker, agent-neutral header
 - `packages/db/prisma/schema.prisma` — `@deprecated` comments on model-turn columns
 - `tasks/P5-006-multi-agent-readiness.md` — this file
 - `tasks/INDEX.md` — row added
@@ -56,7 +56,7 @@ Widen the schema, annotate deprecated columns, and document cross-cutting decisi
 - Actual hook adapter for Cursor, Aider, or Copilot — deferred until demand is confirmed.
 - Per-agent price tables — model names are vendor-unique so a single keyed-by-model table suffices; the `_agentType` seam in `computeCostUsd` is sufficient for now.
 - Schema version bump — the schema is backward-compatible; `agent_type` defaults to `'claude-code'`.
-- Dropping or migrating the deprecated model-turn columns — kept for data-safety.
+- ~~Dropping or migrating the deprecated model-turn columns~~ — done.
 
 ## Verification
 

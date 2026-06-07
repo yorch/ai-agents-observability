@@ -125,7 +125,6 @@ async function main() {
           primaryModel: 'claude-sonnet-4-6',
           repoId: repo.id,
           sessionId: faker.string.uuid(),
-          sonnetTurns: faker.number.int({ max: 40, min: 5 }),
           startedAt,
           status: 'completed',
           toolCallCount: toolCalls,
