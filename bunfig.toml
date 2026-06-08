@@ -3,3 +3,4 @@ linker = "hoisted"        # required: isolated + catalogs has dedup bugs (oven-s
 exact = true              # bun add writes exact versions; no ^ or ~
 saveTextLockfile = true   # bun.lock text format (v3), not legacy bun.lockb
 registry = "https://registry.npmjs.org/"
+minimumReleaseAge = 432000 # 5 days (seconds): supply-chain guard — reject pkg versions newer than this
