@@ -79,8 +79,6 @@ Why this pattern: with **4 services** all needing the same migration state, "mig
 
 Prisma 7 + **TimescaleDB** (custom Postgres image with hypertable extensions). Schema lives at `packages/db/prisma/schema.prisma`; generated client at `packages/db/src/generated/client` (gitignored). Raw SQL migrations live alongside in `packages/db/sql/` and are applied by `applySqlMigrations()` — this gives us TimescaleDB-specific DDL (hypertable creation, retention policies) that Prisma's DSL can't model.
 
-**The TimescaleDB image manages its own uid under `/home/postgres/pgdata`.** Bind mounts break — local infra uses **named volumes**, never `./data:/var/lib/postgresql/data`. Don't change this without testing.
-
 ### Storage (`apps/ingest` + MinIO/S3)
 
 Session transcripts are too large for the relational DB. They're streamed to S3-compatible object storage (MinIO locally, real S3 in prod), and the relational row carries the S3 key. `apps/ingest/src/index.ts` runs a `HeadBucketCommand` at boot to validate the bucket exists + credentials work — boot fails loud if not.

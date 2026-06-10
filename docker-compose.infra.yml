@@ -1,17 +1,21 @@
 services:
   postgres:
-    image: timescale/timescaledb-ha:pg17.9-ts2.27.0
+    image: timescale/timescaledb:latest-pg18
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-ai_agents_observability}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+      # POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/home/postgres/pgdata/data
+      - ./data/postgres:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ai_agents_observability}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ai_agents_observability}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -27,7 +31,7 @@ services:
       - "${MINIO_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
-      - minio_data:/data
+      - ./data/minio:/data
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -56,7 +60,7 @@ services:
     image: prom/prometheus:v3.4.1
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
+      - ./data/prometheus:/prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     command:
@@ -67,7 +71,7 @@ services:
   grafana:
     image: grafana/grafana:12.0.1
     volumes:
-      - grafana_data:/var/lib/grafana
+      - ./data/grafana:/var/lib/grafana
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
     environment:
@@ -79,10 +83,3 @@ services:
     depends_on:
       - prometheus
     restart: unless-stopped
-
-
-volumes:
-  postgres_data:
-  minio_data:
-  prometheus_data:
-  grafana_data:
