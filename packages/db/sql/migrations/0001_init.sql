@@ -55,7 +55,7 @@ SELECT create_hypertable('events', 'ts',
   if_not_exists => TRUE
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS events_event_id_key      ON events (event_id);
+CREATE UNIQUE INDEX IF NOT EXISTS events_event_id_key      ON events (event_id, ts);
 CREATE INDEX IF NOT EXISTS events_user_id_ts_idx           ON events (user_id, ts DESC);
 CREATE INDEX IF NOT EXISTS events_session_id_ts_idx        ON events (session_id, ts);
 CREATE INDEX IF NOT EXISTS events_tool_name_ts_idx         ON events (tool_name, ts DESC) WHERE tool_name IS NOT NULL;
