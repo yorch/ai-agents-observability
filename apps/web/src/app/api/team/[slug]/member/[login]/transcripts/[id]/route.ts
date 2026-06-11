@@ -40,7 +40,7 @@ export async function GET(
   }
 
   const member = await getMemberForTeam(team.id, login);
-  if (!member || !member.canViewTranscripts) {
+  if (!member?.canViewTranscripts) {
     return new NextResponse('Not found', { status: 404 });
   }
 

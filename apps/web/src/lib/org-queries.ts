@@ -348,7 +348,7 @@ export type SessionSearchFilters = {
 
 export type SessionSearchResult = {
   costUsd: number;
-  githubLogin: string;
+  githubLogin: string | null;
   repoName: string | null;
   sessionId: string;
   startedAt: Date;
@@ -473,7 +473,7 @@ export async function searchSessions(
 
 export type TranscriptSearchResult = {
   excerpt: string;
-  githubLogin: string;
+  githubLogin: string | null;
   messageIdx: number;
   role: string;
   sessionId: string;
@@ -495,7 +495,7 @@ export async function searchTranscripts(
   const rows = await prisma.$queryRaw<
     {
       content_text: string;
-      github_login: string;
+      github_login: string | null;
       message_idx: number;
       role: string;
       session_id: string;

@@ -15,9 +15,9 @@ export function PasswordForm({ next }: Props) {
     setError(null);
     setPending(true);
 
-    const form = e.currentTarget;
-    const email = (form.elements.namedItem('email') as HTMLInputElement).value;
-    const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+    const data = new FormData(e.currentTarget);
+    const email = data.get('email') as string;
+    const password = data.get('password') as string;
 
     try {
       const res = await fetch('/api/auth/password', {
@@ -27,8 +27,8 @@ export function PasswordForm({ next }: Props) {
       });
 
       if (res.ok) {
-        const { redirect } = (await res.json()) as { redirect: string };
-        router.push(redirect);
+        const { redirect } = (await res.json()) as { redirect?: string };
+        router.push(redirect ?? '/me');
       } else {
         const { error: msg } = (await res.json()) as { error: string };
         setError(msg ?? 'Sign in failed');

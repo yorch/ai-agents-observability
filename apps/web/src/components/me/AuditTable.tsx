@@ -51,7 +51,9 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
                 <td className="px-4 py-3 text-white/60 whitespace-nowrap">
                   {row.ts.toLocaleString()}
                 </td>
-                <td className="px-4 py-3 text-white/70">@{row.actorLogin}</td>
+                <td className="px-4 py-3 text-white/70">
+                  {row.actorLogin ? `@${row.actorLogin}` : '—'}
+                </td>
                 <td className="px-4 py-3">
                   <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70">
                     {ACTION_LABELS[row.action] ?? row.action}

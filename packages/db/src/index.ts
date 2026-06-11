@@ -1,11 +1,11 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from './generated/client/client';
 
-export { Prisma, PrismaClient };
 export { isUniqueViolation } from './errors';
 export type * from './generated/client/client';
 export * from './generated/client/enums';
 export { applySqlMigrations } from './sql-migrate';
+export { Prisma, PrismaClient };
 
 export function createClient(connectionString: string): PrismaClient {
   const adapter = new PrismaPg({ connectionString });

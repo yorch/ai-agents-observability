@@ -121,7 +121,7 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
           .filter((e) => e.session_context.git?.pr_number != null)
           .map((e) => {
             const git = e.session_context.git;
-            if (!git || !git.owner || !git.repo || git.pr_number == null) {
+            if (!git?.owner || !git.repo || git.pr_number == null) {
               return Promise.resolve();
             }
             const key = `${git.owner}/${git.repo}`;

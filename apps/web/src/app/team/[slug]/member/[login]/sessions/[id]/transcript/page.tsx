@@ -19,7 +19,7 @@ export default async function TeamMemberTranscriptPage({
   const { teamId, user } = await requireTeamLead(slug);
 
   const member = await getMemberForTeam(teamId, login);
-  if (!member || !member.canViewStats) {
+  if (!member?.canViewStats) {
     notFound();
   }
 

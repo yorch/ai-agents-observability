@@ -48,6 +48,7 @@ export async function runSyncTeams(
       },
       where: {
         deactivatedAt: null,
+        githubLogin: { not: null },
       },
     });
 
@@ -64,7 +65,7 @@ export async function runSyncTeams(
       }
 
       try {
-        await syncUserTeams(db, user.id, user.githubLogin, githubSyncToken, logger);
+        await syncUserTeams(db, user.id, user.githubLogin as string, githubSyncToken, logger);
       } catch (err) {
         // Log but don't fail entire job for one user
         logger?.error({ err, userId: user.id }, 'Failed to sync teams for user');
