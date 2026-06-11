@@ -43,7 +43,10 @@ services:
       dockerfile: apps/ingest/Dockerfile
       target: build
     init: true
-    command: bun run --watch apps/ingest/src/index.ts
+    # Generate the Prisma client before starting — the packages bind-mount
+    # shadows the client built into the image layer, so we regenerate it into
+    # the prisma_generated named volume which overlays that path.
+    command: sh -c "cd /app/packages/db && bunx prisma generate && cd /app && bun run --watch apps/ingest/src/index.ts"
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +72,7 @@ services:
     volumes:
       - ./apps/ingest/src:/app/apps/ingest/src:ro
       - ./packages:/app/packages:ro
+      - prisma_generated:/app/packages/db/src/generated
     restart: unless-stopped
 
   web:
@@ -77,7 +81,8 @@ services:
       dockerfile: apps/web/Dockerfile
       target: build
     init: true
-    command: bunx next dev --port 3000
+    # Generate the Prisma client before starting — same reason as ingest above.
+    command: sh -c "cd /app/packages/db && bunx prisma generate && cd /app/apps/web && bunx next dev --port 3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -99,5 +104,9 @@ services:
     volumes:
       - ./apps/web/src:/app/apps/web/src:ro
       - ./packages:/app/packages:ro
+      - prisma_generated:/app/packages/db/src/generated
     working_dir: /app/apps/web
     restart: unless-stopped
+
+volumes:
+  prisma_generated:
