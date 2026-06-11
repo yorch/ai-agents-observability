@@ -1,4 +1,9 @@
-import { issueAccessToken, issueRefreshToken, verifyPassword } from '@ai-agents-observability/auth';
+import {
+  hashPassword,
+  issueAccessToken,
+  issueRefreshToken,
+  verifyPassword,
+} from '@ai-agents-observability/auth';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -12,9 +17,12 @@ const RequestBody = z.object({
   password: z.string().min(1).max(1024),
 });
 
-// Pre-computed once so every login attempt — including unknown emails — runs the
-// full KDF, preventing timing-based email enumeration.
-const DUMMY_HASH = await Bun.password.hash('__sentinel__');
+// Lazily computed on first request so module load doesn't block the build.
+let dummyHashPromise: Promise<string> | null = null;
+function getDummyHash(): Promise<string> {
+  dummyHashPromise ??= hashPassword('__sentinel__');
+  return dummyHashPromise;
+}
 
 const INVALID_CREDENTIALS = 'Invalid email or password';
 
@@ -30,7 +38,7 @@ export async function POST(request: Request) {
   const user = await db.user.findUnique({ where: { email } });
 
   // Always verify against a hash so response time doesn't reveal whether the email exists.
-  const valid = await verifyPassword(password, user?.passwordHash ?? DUMMY_HASH);
+  const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
 
   if (!user || user.deactivatedAt || !valid) {
     return NextResponse.json({ error: INVALID_CREDENTIALS }, { status: 401 });

@@ -42,7 +42,7 @@ export default async function LoginPage({ searchParams }: Props) {
         </div>
       </div>
 
-      <PasswordForm next={next ?? undefined} />
+      <PasswordForm {...(next ? { next } : {})} />
     </div>
   );
 }
