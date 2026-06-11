@@ -26,7 +26,7 @@ export type TeamModelMix = {
 export type RosterMember = {
   canViewStats: boolean;
   displayName: string | null;
-  githubLogin: string;
+  githubLogin: string | null;
   role: string;
   sessionCount: number | null;
   totalCostUsd: number | null;
@@ -191,7 +191,7 @@ export type MemberProfile = {
   canViewStats: boolean;
   canViewTranscripts: boolean;
   displayName: string | null;
-  githubLogin: string;
+  githubLogin: string | null;
   role: string;
   userId: string;
 };
