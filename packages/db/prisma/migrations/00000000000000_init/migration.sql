@@ -40,9 +40,10 @@ CREATE TABLE "teams" (
 -- CreateTable
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
-    "github_login" TEXT NOT NULL,
-    "github_id" BIGINT NOT NULL,
+    "github_login" TEXT,
+    "github_id" BIGINT,
     "email" TEXT,
+    "password_hash" TEXT,
     "display_name" TEXT,
     "primary_team_id" UUID,
     "org_role" "OrgRole" NOT NULL DEFAULT 'member',
