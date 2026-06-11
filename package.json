@@ -9,11 +9,16 @@
     "node": ">=24"
   },
   "scripts": {
-    "check": "biome check --error-on-warnings .",
-    "format": "biome format --write .",
+    "dev": "turbo run dev",
+    "dev:web": "bun run --cwd apps/web dev",
+    "dev:ingest": "bun run --cwd apps/ingest dev",
+    "dev:github-app": "bun run --cwd apps/github-app dev",
+    "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "build": "turbo run build",
+    "check": "biome check --error-on-warnings .",
+    "lint": "bun run check",
+    "format": "biome format --write .",
     "docker:infra": "docker compose -f docker-compose.infra.yml",
     "docker:infra:up": "bun run docker:infra up -d",
     "docker:infra:down": "bun run docker:infra down",
@@ -22,6 +27,7 @@
     "docker:app": "docker compose -f docker-compose.app.yml -f docker-compose.infra.yml",
     "docker:app:up": "bun run docker:app up -d",
     "docker:app:down": "bun run docker:app down",
+    "docker:app:build": "bun run docker:app build",
     "docker:app:logs": "bun run docker:app logs -f"
   },
   "workspaces": {
