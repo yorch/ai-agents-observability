@@ -8,6 +8,16 @@ services:
       WATCHTOWER_LABEL_ENABLE: "true"
       WATCHTOWER_SCOPE: ${WATCHTOWER_SCOPE:-ai-agents-observability}
       WATCHTOWER_CLEANUP: "true"
+      # The migrations service is a one-shot container that exits after applying
+      # migrations. These two flags let Watchtower re-pull AND re-run it when a
+      # new image is published, so schema changes ship with the code that needs
+      # them. The runner is idempotent (prisma migrate deploy + applySqlMigrations).
+      # Note: Watchtower does not guarantee migrations finish before the app
+      # services restart; the runner tolerates re-runs, but a release that both
+      # changes the schema AND can't run against the old one may briefly error
+      # until the next poll converges.
+      WATCHTOWER_INCLUDE_STOPPED: "true"
+      WATCHTOWER_REVIVE_STOPPED: "true"
       # Default daily, matching .env.example documentation.
       WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-86400}
 
@@ -22,6 +32,11 @@ services:
       - "com.centurylinklabs.watchtower.scope=${WATCHTOWER_SCOPE:-ai-agents-observability}"
 
   github-app:
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=${WATCHTOWER_SCOPE:-ai-agents-observability}"
+
+  migrations:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.scope=${WATCHTOWER_SCOPE:-ai-agents-observability}"
