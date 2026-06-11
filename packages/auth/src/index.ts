@@ -1,4 +1,5 @@
 export type { DeviceCodeStartResult, DevicePollResult } from './device-code';
+export { hashPassword, verifyPassword } from './password';
 export { pollDeviceFlow, startDeviceFlow } from './device-code';
 export { GitHubProvider } from './github-provider';
 export { deleteToken, loadToken, saveToken } from './keychain';
