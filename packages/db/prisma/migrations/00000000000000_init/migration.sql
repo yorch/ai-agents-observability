@@ -40,9 +40,10 @@ CREATE TABLE "teams" (
 -- CreateTable
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
-    "github_login" TEXT NOT NULL,
-    "github_id" BIGINT NOT NULL,
+    "github_login" TEXT,
+    "github_id" BIGINT,
     "email" TEXT,
+    "password_hash" TEXT,
     "display_name" TEXT,
     "primary_team_id" UUID,
     "org_role" "OrgRole" NOT NULL DEFAULT 'member',
@@ -283,6 +284,9 @@ CREATE UNIQUE INDEX "teams_github_slug_key" ON "teams"("github_slug");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "teams_github_id_key" ON "teams"("github_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_github_login_key" ON "users"("github_login");

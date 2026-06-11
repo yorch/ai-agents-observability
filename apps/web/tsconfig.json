@@ -9,7 +9,8 @@
       "@/*": ["./src/*"]
     },
     "plugins": [{ "name": "next" }],
-    "rootDir": "."
+    "rootDir": ".",
+    "types": ["bun-types"]
   },
   "exclude": ["node_modules", ".next"],
   "extends": "../../tsconfig.base.json",

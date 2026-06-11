@@ -89,9 +89,10 @@ model Team {
 
 model User {
   id            String    @id @default(uuid()) @db.Uuid
-  githubLogin   String    @unique @map("github_login")
-  githubId      BigInt    @unique @map("github_id")
-  email         String?
+  githubLogin   String?   @unique @map("github_login")
+  githubId      BigInt?   @unique @map("github_id")
+  email         String?   @unique
+  passwordHash  String?   @map("password_hash")
   displayName   String?   @map("display_name")
   primaryTeamId String?   @map("primary_team_id") @db.Uuid
   orgRole       OrgRole   @default(member) @map("org_role")

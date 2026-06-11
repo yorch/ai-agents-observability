@@ -154,7 +154,7 @@ export async function getModelMix(userId: string, since: Date): Promise<ModelMix
 
 export type AuditRow = {
   action: string;
-  actorLogin: string;
+  actorLogin: string | null;
   id: bigint;
   ip: string | null;
   justification: string | null;
@@ -180,7 +180,7 @@ export async function getAuditLog(
 
   type RawRow = {
     action: string;
-    actor: { githubLogin: string };
+    actor: { githubLogin: string | null };
     id: bigint;
     ip: string | null;
     justification: string | null;

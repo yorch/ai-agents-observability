@@ -17,7 +17,7 @@ export function Nav({ user }: { user: User | null }) {
           </Link>
         )}
         {user ? (
-          <UserMenu displayName={user.displayName ?? user.githubLogin} />
+          <UserMenu displayName={user.displayName ?? user.githubLogin ?? user.email ?? 'User'} />
         ) : (
           <Link href="/login" className="hover:underline">
             Sign in
