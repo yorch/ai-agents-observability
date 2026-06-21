@@ -11,8 +11,12 @@ function scryptHash(
   keylen: number,
   options: { N: number; p: number; r: number },
 ): Promise<Buffer> {
+  // scrypt needs ~128 * N * r bytes (≈64 MiB at N=65536, r=8), which exceeds
+  // Node/Bun's default maxmem of 32 MiB and throws MEMORY_LIMIT_EXCEEDED.
+  // Derive maxmem from the params (with headroom) so hash + verify agree.
+  const maxmem = 128 * options.N * options.r * 2;
   return new Promise((resolve, reject) => {
-    scrypt(password, salt, keylen, options, (err, key) => {
+    scrypt(password, salt, keylen, { ...options, maxmem }, (err, key) => {
       if (err) {
         reject(err);
       } else {
