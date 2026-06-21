@@ -51,3 +51,6 @@ infra/.minio-data/
 
 # Claude Code internal (worktrees, session state)
 .claude/
+
+# Data
+data/
