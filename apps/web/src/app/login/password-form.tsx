@@ -29,6 +29,9 @@ export function PasswordForm({ next }: Props) {
       if (res.ok) {
         const { redirect } = (await res.json()) as { redirect?: string };
         router.push(redirect ?? '/me');
+        // Refresh server components so the root layout re-renders with the
+        // now-authenticated state (otherwise the nav stays in its signed-out form).
+        router.refresh();
       } else {
         const { error: msg } = (await res.json()) as { error: string };
         setError(msg ?? 'Sign in failed');
