@@ -83,7 +83,7 @@ function PRsTable({
           </thead>
           <tbody>
             {items.map((pr) => {
-              const detailHref = `/me/prs/${encodeURIComponent(`${pr.repoOwner}/${pr.repoName}`)}/${pr.prNumber}`;
+              const detailHref = `/me/prs/${encodeURIComponent(pr.repoOwner)}/${encodeURIComponent(pr.repoName)}/${pr.prNumber}`;
               const githubHref = `https://github.com/${pr.repoOwner}/${pr.repoName}/pull/${pr.prNumber}`;
               return (
                 <tr

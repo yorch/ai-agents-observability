@@ -165,7 +165,7 @@ async function main() {
             ${faker.number.float({ fractionDigits: 6, max: 0.05, min: 0.001 })},
             'normal'
           )
-          ON CONFLICT (event_id) DO NOTHING
+          ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       }
     }

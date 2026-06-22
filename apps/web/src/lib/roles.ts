@@ -49,12 +49,15 @@ async function requireTeamRole(
   const team = await resolveTeam(slug);
   const membership = await resolveActiveMembership(team.id, user.id);
 
-  if (!membership || !check(membership.roleInTeam)) {
+  // Org admins may view any team (consistent with canViewIndividuals) without a
+  // team membership. Non-admins must be active members passing the role check.
+  const isAdmin = user.orgRole === OrgRole.org_admin;
+  if (!isAdmin && (!membership || !check(membership.roleInTeam))) {
     notFound();
   }
 
   return {
-    role: membership.roleInTeam,
+    role: membership?.roleInTeam ?? TeamRole.lead,
     teamId: team.id,
     teamName: team.name,
     teamSlug: team.githubSlug,
