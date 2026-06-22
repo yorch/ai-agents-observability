@@ -107,3 +107,9 @@ docs/
   github-app-setup.md      GitHub App registration guide
 tasks/                     Agent-trackable task decomposition
 ```
+
+## License
+
+Licensed under the [Functional Source License, Version 1.1, MIT Future License](./LICENSE.md) (FSL-1.1-MIT).
+
+You may use, copy, modify, and redistribute the software for any purpose other than a [Competing Use](./LICENSE.md#permitted-purpose). Two years after each version is released, that version becomes available to you under the [MIT License](./LICENSE.md#grant-of-future-license).
