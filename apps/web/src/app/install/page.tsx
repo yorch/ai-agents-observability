@@ -19,8 +19,8 @@ export default function InstallPage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">Install the telemetry hook</h1>
         <p className="text-sm text-white/50">
-          The hook is a lightweight CLI that runs on your machine alongside Claude Code,
-          capturing session events and shipping them to this dashboard.
+          The hook is a lightweight CLI that runs on your machine alongside Claude Code, capturing
+          session events and shipping them to this dashboard.
         </p>
       </div>
 
@@ -65,9 +65,7 @@ export default function InstallPage() {
           </table>
         </div>
 
-        <p className="text-sm text-white/50">
-          Then make it executable:
-        </p>
+        <p className="text-sm text-white/50">Then make it executable:</p>
         <pre className="rounded-md bg-black/30 px-4 py-3 text-sm font-mono text-white/80 overflow-x-auto">
           {`chmod +x claude-telemetry-<os>-<arch>
 sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
@@ -108,8 +106,8 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
           claude-telemetry login
         </pre>
         <p className="text-xs text-white/40">
-          This opens a browser window to complete the OAuth flow. Your auth token is stored
-          locally in <code className="font-mono">~/.claude-telemetry/config.json</code>.
+          This opens a browser window to complete the OAuth flow. Your auth token is stored locally
+          in <code className="font-mono">~/.claude-telemetry/config.json</code>.
         </p>
       </section>
 

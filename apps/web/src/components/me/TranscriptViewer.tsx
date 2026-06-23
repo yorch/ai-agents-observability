@@ -6,7 +6,11 @@ import { useEffect, useState } from 'react';
 type TextBlock = { type: 'text'; text: string };
 type ToolUseBlock = { type: 'tool_use'; name: string; input: unknown };
 type ToolResultBlock = { type: 'tool_result'; content: unknown };
-type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock | { type: string; [key: string]: unknown };
+type ContentBlock =
+  | TextBlock
+  | ToolUseBlock
+  | ToolResultBlock
+  | { type: string; [key: string]: unknown };
 
 type Message = {
   role?: string;
@@ -24,9 +28,7 @@ type Line = {
 // ── Content block renderers ───────────────────────────────────────────────────
 
 function TextBlockView({ block }: { block: TextBlock }) {
-  return (
-    <p className="whitespace-pre-wrap text-white/80 text-sm leading-relaxed">{block.text}</p>
-  );
+  return <p className="whitespace-pre-wrap text-white/80 text-sm leading-relaxed">{block.text}</p>;
 }
 
 function ToolUseBlockView({ block }: { block: ToolUseBlock }) {
@@ -47,9 +49,7 @@ function ToolUseBlockView({ block }: { block: ToolUseBlock }) {
 
 function ToolResultBlockView({ block }: { block: ToolResultBlock }) {
   const raw =
-    typeof block.content === 'string'
-      ? block.content
-      : JSON.stringify(block.content, null, 2);
+    typeof block.content === 'string' ? block.content : JSON.stringify(block.content, null, 2);
   const isLong = raw.length > 500;
   return (
     <details className="rounded border border-white/10 bg-white/5 text-sm">
@@ -74,9 +74,15 @@ function UnknownBlockView({ block }: { block: { type: string; [key: string]: unk
 }
 
 function ContentBlockView({ block }: { block: ContentBlock }) {
-  if (block.type === 'text') return <TextBlockView block={block as TextBlock} />;
-  if (block.type === 'tool_use') return <ToolUseBlockView block={block as ToolUseBlock} />;
-  if (block.type === 'tool_result') return <ToolResultBlockView block={block as ToolResultBlock} />;
+  if (block.type === 'text') {
+    return <TextBlockView block={block as TextBlock} />;
+  }
+  if (block.type === 'tool_use') {
+    return <ToolUseBlockView block={block as ToolUseBlock} />;
+  }
+  if (block.type === 'tool_result') {
+    return <ToolResultBlockView block={block as ToolResultBlock} />;
+  }
   return <UnknownBlockView block={block as { type: string; [key: string]: unknown }} />;
 }
 
@@ -114,7 +120,12 @@ function TranscriptLine({ line }: { line: Line }) {
     );
   }
 
-  const role = line.type === 'user' ? 'user' : line.type === 'assistant' ? 'assistant' : line.type ?? 'unknown';
+  const role =
+    line.type === 'user'
+      ? 'user'
+      : line.type === 'assistant'
+        ? 'assistant'
+        : (line.type ?? 'unknown');
   const message = line.message;
   const effectiveRole = message?.role ?? role;
 

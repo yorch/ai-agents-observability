@@ -29,18 +29,32 @@ function formatDuration(seconds: number | null): string {
 }
 
 /** Derive a human-readable label + dot color from a raw event. */
-function describeEvent(ev: SessionEvent): { color: string; label: string; sublabel?: string } {
+function describeEvent(ev: SessionEvent): {
+  color: string;
+  label: string;
+  sublabel?: string | undefined;
+} {
   if (ev.eventType === 'SessionStart') {
     return { color: 'bg-brand-500', label: 'Session started' };
   }
-  if (ev.eventType === 'SessionStop') {
+  if (ev.eventType === 'Stop' || ev.eventType === 'SessionEnd') {
     return { color: 'bg-white/40', label: 'Session ended' };
+  }
+  if (ev.eventType === 'SubagentStop') {
+    return { color: 'bg-white/30', label: 'Subagent finished' };
+  }
+  if (ev.eventType === 'PreCompact') {
+    return { color: 'bg-amber-400/60', label: 'Context compacted' };
   }
   if (ev.eventType === 'PreToolUse' || ev.eventType === 'PostToolUse') {
     const tool = ev.toolName ?? ev.mcpTool ?? '?';
     const denied = ev.toolWasDenied;
     const label = `${ev.eventType === 'PreToolUse' ? '→' : '←'} ${tool}`;
-    const color = denied ? 'bg-red-400' : ev.eventType === 'PostToolUse' ? 'bg-green-500/60' : 'bg-brand-500/60';
+    const color = denied
+      ? 'bg-red-400'
+      : ev.eventType === 'PostToolUse'
+        ? 'bg-green-500/60'
+        : 'bg-brand-500/60';
     const sublabel = denied ? 'denied' : ev.mcpServer ? `via ${ev.mcpServer}` : undefined;
     return { color, label, sublabel };
   }
@@ -50,21 +64,17 @@ function describeEvent(ev: SessionEvent): { color: string; label: string; sublab
       label: ev.slashCommand ? `/${ev.slashCommand}` : 'User message',
     };
   }
-  if (ev.eventType === 'ApiRequest' || ev.eventType === 'ApiResponse') {
-    return {
-      color: 'bg-purple-400/60',
-      label: ev.eventType === 'ApiRequest' ? 'API request' : 'API response',
-      sublabel: ev.model ?? undefined,
-    };
+  if (ev.eventType === 'Notification') {
+    return { color: 'bg-purple-400/60', label: 'Notification' };
   }
-  return { color: 'bg-white/20', label: ev.eventType };
+  return { color: 'bg-white/20', label: ev.eventType, sublabel: ev.model ?? undefined };
 }
 
 export function Timeline({
-  events,
+  events = [],
   session,
 }: {
-  events: SessionEvent[];
+  events?: SessionEvent[];
   session: SessionDetail;
 }) {
   // Build milestone events for the top/bottom anchors
@@ -104,7 +114,9 @@ export function Timeline({
             frictionInfo ? (
               <span className={frictionInfo.color}>
                 {frictionInfo.label}{' '}
-                <span className="text-white/30 text-xs">({((frictionScore ?? 0) * 100).toFixed(0)}%)</span>
+                <span className="text-white/30 text-xs">
+                  ({((frictionScore ?? 0) * 100).toFixed(0)}%)
+                </span>
               </span>
             ) : (
               '—'
@@ -148,9 +160,7 @@ export function Timeline({
                     >
                       {label}
                     </span>
-                    {sublabel && (
-                      <span className="ml-2 text-xs text-white/30">{sublabel}</span>
-                    )}
+                    {sublabel && <span className="ml-2 text-xs text-white/30">{sublabel}</span>}
                     <span className="ml-2 text-xs text-white/20">
                       {ev.ts.toLocaleTimeString([], {
                         hour: '2-digit',

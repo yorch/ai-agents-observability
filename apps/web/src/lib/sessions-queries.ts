@@ -224,10 +224,7 @@ export type SessionEvent = {
   ts: Date;
 };
 
-export async function getSessionEvents(
-  userId: string,
-  sessionId: string,
-): Promise<SessionEvent[]> {
+export async function getSessionEvents(userId: string, sessionId: string): Promise<SessionEvent[]> {
   const prisma = getPrisma();
   const rows = await prisma.$queryRaw<
     {

@@ -43,6 +43,7 @@ const mockUser = { findUnique: vi.fn() };
 
 vi.mock('@ai-agents-observability/db', () => ({
   createClient: vi.fn(() => ({ team: mockTeam, teamMember: mockTeamMember, user: mockUser })),
+  OrgRole: { member: 'member', org_admin: 'org_admin', viewer_aggregate: 'viewer_aggregate' },
   TeamRole: { lead: 'lead', maintainer: 'maintainer', member: 'member' },
 }));
 
