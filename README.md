@@ -18,7 +18,10 @@ bun install
 # 2. Copy environment file and fill in values
 cp .env.example .env
 
-# 3. Start the data stack (Postgres + TimescaleDB + MinIO + migrations)
+# 3. Generate the Ed25519 JWT signing keypair (required for login)
+bun run gen:keys
+
+# 4. Start the data stack (Postgres + TimescaleDB + MinIO + migrations)
 bun run docker:infra:up
 ```
 

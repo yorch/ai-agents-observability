@@ -20,6 +20,7 @@
     "lint": "bun run check",
     "lint:fix": "bun run check --write .",
     "format": "biome format --write .",
+    "gen:keys": "bun run --cwd packages/auth gen:keys",
     "db:generate": "bun run --cwd packages/db db:generate",
     "db:migrate": "bun run --cwd packages/db db:migrate",
     "db:push": "bun run --cwd packages/db db:push",
