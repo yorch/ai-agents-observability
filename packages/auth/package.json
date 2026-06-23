@@ -10,6 +10,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "gen:keys": "bun run src/gen-keys.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
