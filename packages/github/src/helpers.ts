@@ -1,5 +1,5 @@
 import type { GitHubClient } from './client';
-import type { RepoSummary, TeamSummary, UserSummary } from './types';
+import type { RepoSummary, TeamSummary, UserSummary, UserTeamSummary } from './types';
 
 export async function getCurrentUser(client: GitHubClient): Promise<UserSummary> {
   const { data } = await client.rest.users.getAuthenticated();
@@ -38,6 +38,25 @@ export async function getTeamMembers(
     id: m.id,
     login: m.login,
     name: m.name ?? null,
+  }));
+}
+
+/**
+ * Lists every team the authenticated user belongs to, across all of their orgs,
+ * via `GET /user/teams`. Requires the `read:org` scope (which the web OAuth flow
+ * requests). The endpoint does not report the caller's role within each team, so
+ * membership is recorded as `member`.
+ */
+export async function getAuthenticatedUserTeams(client: GitHubClient): Promise<UserTeamSummary[]> {
+  const teams = await client.paginate(client.rest.teams.listForAuthenticatedUser, {
+    per_page: 100,
+  });
+  return teams.map((t) => ({
+    id: t.id,
+    name: t.name,
+    orgLogin: t.organization.login,
+    role: 'member' as const,
+    slug: t.slug,
   }));
 }
 

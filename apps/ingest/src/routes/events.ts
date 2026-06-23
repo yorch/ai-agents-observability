@@ -7,7 +7,7 @@ import type { Logger } from 'pino';
 
 import { verifyIdentityClaim } from '../lib/identity';
 import { insertEventsBatch } from '../lib/insert-events';
-import { eventsIngestedTotal } from '../lib/metrics';
+import { eventsIngestedTotal, unknownModelEventsTotal } from '../lib/metrics';
 import { linkSessionToPR } from '../lib/session-pr-link';
 import { upsertSessions } from '../lib/upsert-session';
 import type { AppEnv, EventsDb } from '../types';
@@ -109,6 +109,9 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
       }
 
       if (inserted.unknownModels.size > 0) {
+        for (const model of inserted.unknownModels) {
+          unknownModelEventsTotal.inc({ model });
+        }
         logger.warn(
           { models: [...inserted.unknownModels], reqId },
           'ingest.events.unknown_model_zero_cost',

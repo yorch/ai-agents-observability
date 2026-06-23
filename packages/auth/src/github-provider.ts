@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { createGitHubClient } from '@ai-agents-observability/github';
+import { createGitHubClient, getAuthenticatedUserTeams } from '@ai-agents-observability/github';
 import { getGitHubHost, getOAuthBase } from './github-host';
 import type { ExternalIdentity, IdentityProvider, TeamMembership } from './provider';
 
@@ -81,11 +81,36 @@ export class GitHubProvider implements IdentityProvider {
       email,
       external_id: String(ghUser.id),
       provider_name: 'github',
-      raw: { avatar_url: ghUser.avatar_url, id: ghUser.id, login: ghUser.login },
+      // `access_token` is stashed transiently so `fetchTeams` can call the GitHub
+      // API on the caller's behalf during the same login request. It is never
+      // persisted — the OAuth callback consumes it in-memory and discards it.
+      raw: {
+        access_token: tokenBody.access_token,
+        avatar_url: ghUser.avatar_url,
+        id: ghUser.id,
+        login: ghUser.login,
+      },
     };
   }
 
-  async fetchTeams(_identity: ExternalIdentity): Promise<TeamMembership[]> {
-    return [];
+  async fetchTeams(identity: ExternalIdentity): Promise<TeamMembership[]> {
+    const token = (identity.raw as { access_token?: string }).access_token;
+    if (!token) {
+      return [];
+    }
+    const host = getGitHubHost();
+    const client = createGitHubClient({
+      host,
+      token,
+      ...(this.fetch ? { fetch: this.fetch } : {}),
+    });
+    const teams = await getAuthenticatedUserTeams(client);
+    return teams.map((t) => ({
+      org: t.orgLogin,
+      role: t.role,
+      team_github_id: t.id,
+      team_name: t.name,
+      team_slug: t.slug,
+    }));
   }
 }

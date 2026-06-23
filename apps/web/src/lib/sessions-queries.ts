@@ -213,6 +213,61 @@ export async function getSessionModelBreakdown(
   }));
 }
 
+export type SessionEvent = {
+  eventType: string;
+  mcpServer: string | null;
+  mcpTool: string | null;
+  model: string | null;
+  slashCommand: string | null;
+  toolName: string | null;
+  toolWasDenied: boolean | null;
+  ts: Date;
+};
+
+export async function getSessionEvents(
+  userId: string,
+  sessionId: string,
+): Promise<SessionEvent[]> {
+  const prisma = getPrisma();
+  const rows = await prisma.$queryRaw<
+    {
+      event_type: string;
+      mcp_server: string | null;
+      mcp_tool: string | null;
+      model: string | null;
+      slash_command: string | null;
+      tool_name: string | null;
+      tool_was_denied: boolean | null;
+      ts: Date;
+    }[]
+  >(Prisma.sql`
+    SELECT ts,
+           event_type,
+           tool_name,
+           tool_was_denied,
+           mcp_server,
+           mcp_tool,
+           slash_command,
+           model
+    FROM events
+    WHERE session_id = ${sessionId}::uuid
+      AND user_id = ${userId}::uuid
+    ORDER BY ts ASC
+    LIMIT 500
+  `);
+
+  return rows.map((r) => ({
+    eventType: r.event_type,
+    mcpServer: r.mcp_server,
+    mcpTool: r.mcp_tool,
+    model: r.model,
+    slashCommand: r.slash_command,
+    toolName: r.tool_name,
+    toolWasDenied: r.tool_was_denied,
+    ts: r.ts,
+  }));
+}
+
 export async function listDistinctRepos(userId: string): Promise<string[]> {
   const prisma = getPrisma();
 
