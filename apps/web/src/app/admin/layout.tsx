@@ -10,6 +10,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         <a href="/admin/jobs" className="text-brand-400 hover:underline">
           Jobs
         </a>
+        <a href="/admin/team-roles" className="text-brand-400 hover:underline">
+          Team roles
+        </a>
       </nav>
       {children}
     </div>

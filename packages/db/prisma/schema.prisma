@@ -35,6 +35,7 @@ enum AuditAction {
   admin_impersonate
   delete_request
   hook_token_issued
+  role_grant
 }
 
 enum AuthTokenKind {
