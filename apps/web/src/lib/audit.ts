@@ -32,7 +32,7 @@ export function normalizeJustification(raw: string | null | undefined): string |
 export type AuditParams = {
   action: AuditAction;
   actorUserId: string;
-  justification?: string;
+  justification?: string | null;
   targetSessionId?: string;
   targetTeamId?: string;
   targetUserId?: string;

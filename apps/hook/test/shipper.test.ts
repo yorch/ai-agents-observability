@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
-
 import type { ShipMarker } from '../src/shipper';
-import { writeShipMarker } from '../src/shipper';
+import { buildZstdBody, writeShipMarker } from '../src/shipper';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -178,6 +178,29 @@ describe('shipper upload', () => {
     } finally {
       server.stop(true);
     }
+  });
+
+  it('buildZstdBody streams to a zstd body whose hash matches the redacted join', async () => {
+    const transcriptPath = join(tmpTranscriptDir, 'stream.jsonl');
+    const lines = [
+      JSON.stringify({ content: 'first line with émoji 🚀', role: 'user' }),
+      JSON.stringify({ content: 'second AKIAIOSFODNN7EXAMPLE line', role: 'assistant' }),
+      JSON.stringify({ content: 'third line', role: 'user' }),
+    ];
+    writeTranscript(transcriptPath, lines);
+
+    const { body, hash } = await buildZstdBody(transcriptPath);
+
+    // Body is valid zstd and decompresses to the redacted, newline-joined lines.
+    const decompressed = await zstdDecompress(body);
+    expect(decompressed).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    expect(decompressed).toContain('[REDACTED');
+    expect(decompressed.split('\n')).toHaveLength(3);
+
+    // Hash is the sha256 of the uncompressed bytes (the idempotency key), so it
+    // must equal hashing the decompressed payload.
+    const expectedHash = createHash('sha256').update(decompressed, 'utf8').digest('hex');
+    expect(hash).toBe(expectedHash);
   });
 
   it('does not contain the raw AWS access key after redaction', async () => {

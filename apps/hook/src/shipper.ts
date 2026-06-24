@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { zstdCompressSync } from 'node:zlib';
+import { createZstdCompress } from 'node:zlib';
 
 import { loadHookToken } from './lib/identity';
 import { INGEST_BASE_URL } from './lib/ingest';
@@ -145,24 +145,38 @@ function keepOrAbandonStale(marker: ShipMarker, reason: string): boolean {
 // ── Bandwidth-throttled upload ────────────────────────────────────────────────
 
 /**
- * Collect all redacted lines into a zstd-compressed buffer.
+ * Stream the redacted transcript through a zstd compressor, hashing the
+ * uncompressed bytes as they pass. The full uncompressed transcript is never
+ * held in memory — only the (much smaller) compressed output is buffered, which
+ * the throttled upload needs in full to set Content-Length and pace chunks.
  * Matches the on-disk storage format (`.jsonl.zst`); the ingest service still
  * accepts gzip for backward compatibility, but zstd is the wire default.
  */
-async function buildZstdBody(filePath: string): Promise<{ body: Uint8Array; hash: string }> {
-  const lines: string[] = [];
+export async function buildZstdBody(filePath: string): Promise<{ body: Uint8Array; hash: string }> {
+  const hash = createHash('sha256');
+  const compressor = createZstdCompress();
+  const chunks: Buffer[] = [];
+  compressor.on('data', (chunk: Buffer) => chunks.push(chunk));
+  const finished = new Promise<void>((resolve, reject) => {
+    compressor.once('end', resolve);
+    compressor.once('error', reject);
+  });
+
+  // Frame lines exactly as `lines.join('\n')` did: a separator before every line
+  // except the first, so the hash (and decompressed bytes) are unchanged.
+  let first = true;
   for await (const line of redactedLines(filePath)) {
-    lines.push(line);
+    const piece = Buffer.from(first ? line : `\n${line}`, 'utf8');
+    first = false;
+    hash.update(piece);
+    if (!compressor.write(piece)) {
+      await new Promise<void>((resolve) => compressor.once('drain', resolve));
+    }
   }
-  const text = lines.join('\n');
-  const encoded = new TextEncoder().encode(text);
+  compressor.end();
+  await finished;
 
-  // Compute SHA-256 over the uncompressed bytes (idempotency key) before compressing.
-  const hash = createHash('sha256').update(encoded).digest('hex');
-
-  const body = new Uint8Array(zstdCompressSync(encoded));
-
-  return { body, hash };
+  return { body: new Uint8Array(Buffer.concat(chunks)), hash: hash.digest('hex') };
 }
 
 async function throttledUpload(

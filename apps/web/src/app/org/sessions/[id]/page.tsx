@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ModelsTab, ToolsTab } from '@/components/me/SessionTabs';
+import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
 import { StatusBadge } from '@/components/me/StatusBadge';
-import { Timeline } from '@/components/me/Timeline';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireOrgAdmin } from '@/lib/roles';
 import type { ModelBreakdownRow } from '@/lib/sessions-queries';
@@ -56,11 +55,6 @@ export default async function OrgSessionDetailPage({
   }
 
   const owner = ctx.displayName ?? (ctx.ownerLogin ? `@${ctx.ownerLogin}` : 'Unknown user');
-  const tabs = [
-    { href: '?tab=timeline', id: 'timeline', label: 'Timeline' },
-    { href: '?tab=tools', id: 'tools', label: 'Tools' },
-    { href: '?tab=models', id: 'models', label: 'Models' },
-  ];
 
   return (
     <div className="space-y-6">
@@ -95,27 +89,12 @@ export default async function OrgSessionDetailPage({
         </div>
       </div>
 
-      <div className="border-b border-white/10">
-        <nav className="flex gap-4 text-sm">
-          {tabs.map((t) => (
-            <a
-              key={t.id}
-              href={t.href}
-              className={`pb-3 border-b-2 transition-colors ${
-                tab === t.id
-                  ? 'border-brand-500 text-white'
-                  : 'border-transparent text-white/50 hover:text-white'
-              }`}
-            >
-              {t.label}
-            </a>
-          ))}
-        </nav>
-      </div>
-
-      {tab === 'timeline' && <Timeline events={sessionEvents} session={session} />}
-      {tab === 'tools' && <ToolsTab session={session} />}
-      {tab === 'models' && <ModelsTab costUsd={session.costUsd} rows={modelBreakdown} />}
+      <SessionDetailTabs
+        events={sessionEvents}
+        modelBreakdown={modelBreakdown}
+        session={session}
+        tab={tab}
+      />
     </div>
   );
 }

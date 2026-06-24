@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   void writeAuditLog({
     action: AuditAction.view_transcript,
     actorUserId: user.id,
-    justification: ctx.shareTranscriptsWithOrg ? undefined : (justification ?? undefined),
+    justification: ctx.shareTranscriptsWithOrg ? null : justification,
     targetSessionId: id,
     targetUserId: ctx.ownerUserId,
   });
