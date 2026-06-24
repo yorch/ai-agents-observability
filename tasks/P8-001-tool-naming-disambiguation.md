@@ -3,12 +3,30 @@ id: P8-001
 title: Tool-name disambiguation (<agent>:<tool> convention)
 phase: 8
 workstream: B
-status: ready
-owner: null
+status: review
+owner: claude
 depends_on: [P5-006]
 blocks: [P8-004]
 estimate: M
 ---
+
+## Decision
+
+**Query-time disambiguation (approach 2).** The write path already committed to
+this: `insert-events.ts` stores `tool_name` raw with the comment *"disambiguate by
+(agent_type, tool_name) at query time when needed"*, and the `daily_tool_usage`
+continuous aggregate already groups by `agent_type`. Prefix-on-write was rejected
+because it would (a) require a backfill of every historical `events` row, (b) mangle
+the displayed tool name for the single-agent (claude_code-only) deployments that are
+the norm today, and (c) fight the existing schema. Query-time keeps stored data
+untouched and is a no-op for single-agent reads.
+
+Implementation: every tool aggregate `GROUP BY tool_name` becomes
+`GROUP BY agent_type, tool_name`; a shared `labelToolRows()` helper
+(`apps/web/src/lib/tool-usage.ts`) prefixes `<agent_type>:<tool>` **only when the
+result set spans more than one agent**, so single-agent output is identical to today.
+Per-session breakdown needs no change — a session has exactly one `agent_type`, so
+same-named tools cannot collide within it.
 
 ## Goal
 

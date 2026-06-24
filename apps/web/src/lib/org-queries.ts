@@ -3,6 +3,7 @@ import type { EffectivenessDistribution } from './effectiveness-queries';
 import { getPrisma } from './prisma';
 import { searchTranscriptMatches } from './search-queries';
 import { type FrictionBand, frictionBandWhere } from './sessions-queries';
+import { labelToolRows } from './tool-usage';
 
 export type OrgSummary = {
   activeUsers: number;
@@ -294,19 +295,21 @@ export async function getOrgTopTools(since: Date, limit = 10): Promise<OrgToolUs
   }
 
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
-  const rows = await getPrisma().$queryRaw<{ call_count: bigint; tool_name: string }[]>(Prisma.sql`
-    SELECT tool_name, COUNT(*) AS call_count
+  const rows = await getPrisma().$queryRaw<
+    { agent_type: string; call_count: bigint; tool_name: string }[]
+  >(Prisma.sql`
+    SELECT agent_type, tool_name, COUNT(*) AS call_count
     FROM events
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
-    GROUP BY tool_name
+    GROUP BY agent_type, tool_name
     ORDER BY call_count DESC
     LIMIT ${limit}
   `);
 
-  return rows.map((r) => ({ callCount: Number(r.call_count), toolName: r.tool_name }));
+  return labelToolRows(rows);
 }
 
 /** Anomaly detection: cost spikes (>2σ over trailing 14-day baseline) and error spikes. */
