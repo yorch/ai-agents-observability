@@ -251,7 +251,7 @@ export default async function OrgSearchPage({
                         <span className="font-semibold text-white/60">{r.githubLogin}</span>
                         <span>·</span>
                         <a
-                          href={`/me/sessions/${r.sessionId}`}
+                          href={`/org/sessions/${r.sessionId}`}
                           className="text-brand-400 hover:underline font-mono"
                         >
                           {r.sessionId.slice(0, 8)}…
@@ -323,7 +323,7 @@ export default async function OrgSearchPage({
                         <td className="py-2">{s.githubLogin}</td>
                         <td className="py-2">
                           <a
-                            href={`/me/sessions/${s.sessionId}`}
+                            href={`/org/sessions/${s.sessionId}`}
                             className="font-mono text-xs text-brand-400 hover:underline"
                           >
                             {s.sessionId.slice(0, 8)}…

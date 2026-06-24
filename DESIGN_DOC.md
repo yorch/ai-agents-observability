@@ -560,9 +560,9 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 
 1. Read `~/.claude/projects/<encoded>/<session_id>.jsonl`
 2. Run redaction pass (see §9)
-3. zstd-compress
+3. Compress (the hook currently ships **gzip** on the wire; the ingest service decompresses, re-redacts as defense-in-depth, and re-compresses to **zstd** for storage — so the stored object is always `.jsonl.zst` regardless of the upload encoding)
 4. `PUT /v1/transcripts/{session_id}` with `Content-Range` for chunked / resumable upload
-5. Server writes to MinIO/S3 at `transcripts/{yyyy}/{mm}/{dd}/{session_id}.jsonl.zst`
+5. Server writes to MinIO/S3 at `transcripts/{yyyy}/{mm}/{dd}/{user_id}/{session_id}.jsonl.zst`
 6. On final chunk, update `sessions.transcript_*` columns
 
 ### 6.5 Identity Trust Model
@@ -680,7 +680,7 @@ Before upload to object storage, the client (yes, client-side, because we don't 
 - Generic `.env`-style lines (`KEY=value` where key matches `*_KEY`, `*_TOKEN`, `*_SECRET`, `*_PASSWORD`)
 - Private key headers (`-----BEGIN ... PRIVATE KEY-----`)
 
-Matches are replaced with `<REDACTED:type>` placeholders. The transcript is tagged `transcript_redacted=true` with a list of redaction classes encountered.
+Matches are replaced with `[REDACTED:type]` placeholders (square brackets, not angle brackets — the markers must survive being rendered as HTML in the transcript-search excerpt view without being mistaken for a tag). The transcript is tagged `transcript_redacted=true` with a list of redaction classes encountered.
 
 ### 9.2 Deferred Redaction Work
 
