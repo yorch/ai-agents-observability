@@ -3,12 +3,32 @@ id: P8-006
 title: Cost reconciliation (design + scaffold)
 phase: 8
 workstream: B
-status: ready
-owner: null
+status: review
+owner: claude
 depends_on: [P8-002]
 blocks: []
 estimate: M
 ---
+
+## Reconciliation design
+
+- **Vendor API (first real impl, gated):** Anthropic admin/usage API
+  (`GET /v1/organizations/usage_report` style) for `claude_code`. Each agent maps to
+  its own `BillingSource`; the interface is keyed by `(agentType, year, month)` so a
+  second agent (e.g. an OpenAI-backed one) plugs in without touching reconciliation logic.
+- **Cadence:** monthly granularity (billing APIs report monthly). The job runs on a
+  daily timer but always reconciles the **previous full calendar month** (UTC) — re-running
+  is idempotent (it just re-sets the gauges), so a daily tick is cheap and avoids
+  month-boundary edge cases. No hourly polling (wastes quota, no accuracy gain).
+- **Alignment:** client cost = `SUM(events.cost_usd)` over `[firstOfPrevMonth, firstOfThisMonth)`
+  grouped by `agent_type`; vendor cost = `fetchBilledCost(agent, year, month)` for the same
+  month. Both org-level (no per-developer reconciliation).
+- **Surfacing:** `cost_reconciliation_delta_usd{agent_type}` (client − vendor) and
+  `cost_reconciliation_drift_ratio{agent_type}` (|delta| / vendor) gauges; drift above the
+  threshold (default 5%) increments `cost_reconciliation_threshold_exceeded_total{agent_type}`
+  so Alertmanager/Grafana can alert. Complements (does not replace) `unknown_model_events_total`.
+- **Gated:** ships with `NullBillingSource` (returns null → no comparison, gauges set to 0);
+  disabled unless `BILLING_RECONCILIATION_ENABLED=true`. No real vendor client built here.
 
 ## Goal
 
@@ -76,3 +96,13 @@ bun --filter '@app/ingest' test
 # With BILLING_RECONCILIATION_ENABLED=false (default): job does not run, no errors on scheduler init
 # With BILLING_RECONCILIATION_ENABLED=true + NullBillingSource: job runs, emits 0-value gauges, no crash
 ```
+
+> **Verification status (review):** `reconcile-cost.test.ts` (3 cases — prev-month window +
+> per-agent billing call, NullBillingSource no-crash, lock-skip) **passes locally** (db mocked)
+> + `biome check --error-on-warnings` clean. `BillingSource` interface + `NullBillingSource`
+> ship; `runReconcileCost` reconciles the previous calendar month per agent, emits
+> `cost_reconciliation_delta_usd` / `_drift_ratio` gauges + `_threshold_exceeded_total` counter
+> (default 5%). Wired into the scheduler as a daily timer **gated on
+> `BILLING_RECONCILIATION_ENABLED`** (default false, added to `loadConfig`); also dispatchable
+> via `triggerJob('reconcile-cost')`. No real vendor client built (gated). `typecheck` runs in CI
+> (Prisma client egress-blocked locally).

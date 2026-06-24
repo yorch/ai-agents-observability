@@ -2,6 +2,13 @@ import { z } from 'zod';
 
 const ConfigSchema = z.object({
   admin_secret: z.string().optional(),
+  // Gates the cost-reconciliation job (P8-006). Off by default — only the
+  // NullBillingSource ships, so enabling it without a real source is a no-op.
+  billing_reconciliation_enabled: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true')
+    .default(false),
   database_url: z.string().min(1),
   git_sha: z.string().default('dev'),
   github_sync_token: z.string().optional(),
@@ -27,6 +34,7 @@ export type Config = z.infer<typeof ConfigSchema>;
 export function loadConfig(): Config {
   return ConfigSchema.parse({
     admin_secret: process.env.ADMIN_SECRET,
+    billing_reconciliation_enabled: process.env.BILLING_RECONCILIATION_ENABLED,
     database_url: process.env.DATABASE_URL,
     git_sha: process.env.GIT_SHA ?? process.env.COMMIT_SHA,
     github_sync_token: process.env.GITHUB_SYNC_TOKEN,

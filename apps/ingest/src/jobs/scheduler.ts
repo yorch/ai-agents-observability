@@ -4,6 +4,7 @@ import type { Logger } from 'pino';
 
 import { runComputeEffectiveness, runComputeEffectivenessBackfill } from './compute-effectiveness';
 import { runIndexTranscripts } from './index-transcripts';
+import { NullBillingSource, runReconcileCost } from './reconcile-cost';
 import { runDeletions } from './run-deletions';
 import { runSweepAbandoned } from './sweep-abandoned';
 import { runSweepRetention } from './sweep-retention';
@@ -11,6 +12,7 @@ import { runSweepScratch } from './sweep-scratch';
 import { runSyncTeams } from './sync-teams';
 
 export type SchedulerDeps = {
+  billingReconciliationEnabled?: boolean;
   bucket: string;
   db: PrismaClient;
   githubSyncToken?: string;
@@ -82,6 +84,17 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       await runComputeEffectivenessBackfill(
         db as Parameters<typeof runComputeEffectivenessBackfill>[0],
         logger,
+      );
+      break;
+    // Gated cost reconciliation (P8-006). Ships with NullBillingSource until a
+    // real vendor billing client is plugged in.
+    case 'reconcile-cost':
+      await runReconcileCost(
+        db as Parameters<typeof runReconcileCost>[0],
+        new NullBillingSource(),
+        {
+          logger,
+        },
       );
       break;
     default:
@@ -254,7 +267,20 @@ export function startScheduler(deps: SchedulerDeps): void {
   );
   deletionsInterval.unref?.();
 
+  // Cost reconciliation (P8-006) — gated, disabled by default. Daily timer but
+  // always reconciles the previous calendar month, so a daily tick is idempotent.
+  if (deps.billingReconciliationEnabled) {
+    const reconcileInterval = setInterval(
+      guarded(() => triggerJob(deps, 'reconcile-cost'), 'reconcile-cost'),
+      24 * 60 * 60 * 1_000,
+    );
+    reconcileInterval.unref?.();
+  }
+
   logger?.info(
-    'Job scheduler started (DB-poll every 60s: sweep-retention/index-transcripts/compute-effectiveness; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h)',
+    {
+      reconcileCost: deps.billingReconciliationEnabled === true,
+    },
+    'Job scheduler started (DB-poll every 60s: sweep-retention/index-transcripts/compute-effectiveness; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; reconcile-cost daily when enabled)',
   );
 }

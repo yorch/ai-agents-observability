@@ -49,6 +49,7 @@ const server = Bun.serve({
 logger.info({ port: config.port, version: config.git_sha }, 'ingest service started');
 
 startScheduler({
+  billingReconciliationEnabled: config.billing_reconciliation_enabled,
   bucket: config.s3_bucket,
   db,
   ...(config.github_sync_token ? { githubSyncToken: config.github_sync_token } : {}),
