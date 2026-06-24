@@ -3,8 +3,8 @@ id: P9-001
 title: Alert rules engine (scheduled evaluation)
 phase: 9
 workstream: B
-status: ready
-owner: null
+status: in-progress
+owner: claude
 depends_on: [P4-004, P4-005]
 blocks: [P9-002]
 estimate: L
@@ -93,3 +93,16 @@ bun --filter '@ai-agents-observability/ingest' test
 # Confirm tables exist:
 # \d alert_rules   \d alert_events
 ```
+
+> **Verification status (review):** `alert-transition.test.ts` (4 cases — fire-once,
+> no-double-fire, resolve-once, no-op) **passes locally** + biome clean across all touched
+> files. The idempotency core (`applyAlertTransition`) was split into a Prisma-free module so
+> it's testable without the generated client; the SQL evaluators + schema + migration run in CI.
+>
+> **Decisions:** (1) Thresholds live in `packages/schemas/src/alerts.ts` (not `org-queries.ts`)
+> because `apps/ingest` cannot import from `apps/web`; `getAnomalies` now imports the same
+> constants, so dashboard banners and the alert engine can't drift. (2) `evaluate-alerts` is a
+> CONFIGURABLE job (job_config row seeded, default 01:00 UTC, UI-editable + manual-trigger),
+> consistent with the other nightly jobs; finer-grained per-rule `cadence_minutes` is plumbed in
+> the schema for a future scheduler upgrade. (3) Built-in rules are seeded in the migration so
+> alerting works before any admin UI. `typecheck` + DB tests run in CI (Prisma egress-blocked).

@@ -3,6 +3,7 @@ import type { S3Client } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
 import { runComputeEffectiveness, runComputeEffectivenessBackfill } from './compute-effectiveness';
+import { runEvaluateAlerts } from './evaluate-alerts';
 import { runIndexTranscripts } from './index-transcripts';
 import { NullBillingSource, runReconcileCost } from './reconcile-cost';
 import { runDeletions } from './run-deletions';
@@ -26,6 +27,7 @@ const CONFIGURABLE_JOBS = [
   'sweep-retention',
   'index-transcripts',
   'compute-effectiveness',
+  'evaluate-alerts',
 ] as const;
 
 // All job names accepted by the manual-trigger endpoint.
@@ -77,6 +79,10 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
     case 'compute-effectiveness':
       await runComputeEffectiveness(db as Parameters<typeof runComputeEffectiveness>[0], logger);
       break;
+    // Scheduled alert evaluation (P9-001). Records firing/resolving transitions.
+    case 'evaluate-alerts':
+      await runEvaluateAlerts(db as Parameters<typeof runEvaluateAlerts>[0], logger);
+      break;
     // One-shot historical backfill (P7-001). Dispatchable here for operator-run
     // scripts; deliberately absent from CONFIGURABLE_JOBS (no cadence) and
     // ALL_KNOWN_JOBS (not reachable via the HTTP manual-trigger endpoint).
@@ -113,7 +119,8 @@ export function startScheduler(deps: SchedulerDeps): void {
         VALUES
           ('sweep-retention',       true, 2, 0),
           ('index-transcripts',     true, 3, 30),
-          ('compute-effectiveness', true, 5, 0)
+          ('compute-effectiveness', true, 5, 0),
+          ('evaluate-alerts',       true, 1, 0)
         ON CONFLICT (job_name) DO NOTHING
       `;
       logger?.info('Scheduler: seeded job_config defaults');

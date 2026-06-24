@@ -397,3 +397,36 @@ model JobConfig {
 
   @@map("job_config")
 }
+
+// ── Alerting (P9-001) ─────────────────────────────────────────────────────────
+
+model AlertRule {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  ruleType       String   @map("rule_type")
+  params         Json     @default("{}")
+  enabled        Boolean  @default(true)
+  cadenceMinutes Int      @default(60) @map("cadence_minutes")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  events AlertEvent[]
+
+  @@index([enabled])
+  @@map("alert_rules")
+}
+
+model AlertEvent {
+  id         BigInt    @id @default(autoincrement())
+  ruleId     String    @map("rule_id") @db.Uuid
+  firedAt    DateTime  @default(now()) @map("fired_at") @db.Timestamptz(6)
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
+  severity   String
+  details    Json      @default("{}")
+
+  rule AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  // One open (unresolved) event per rule — the firing/resolving transition is
+  // recorded once. Enforced in the job; the index speeds the open-event lookup.
+  @@index([ruleId, resolvedAt])
+  @@map("alert_events")
+}

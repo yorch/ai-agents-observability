@@ -1,4 +1,13 @@
 import { type $Enums, Prisma } from '@ai-agents-observability/db';
+import {
+  ERROR_RATE_CRITICAL,
+  ERROR_RATE_MIN_CALLS,
+  ERROR_RATE_WARN,
+  SPEND_SPIKE_BASELINE_DAYS,
+  SPEND_SPIKE_CRITICAL_SIGMA,
+  SPEND_SPIKE_WARN_SIGMA,
+  SPEND_SPIKE_WINDOW_DAYS,
+} from '@ai-agents-observability/schemas';
 import type { EffectivenessDistribution } from './effectiveness-queries';
 import { getPrisma } from './prisma';
 import { searchTranscriptMatches } from './search-queries';
@@ -317,10 +326,12 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
   const prisma = getPrisma();
   const anomalies: AnomalyRow[] = [];
 
-  // Cost spike detection: compare last 7 days vs prior 14-day baseline
+  // Cost spike detection: compare the recent window vs the prior baseline window.
   const now = new Date();
-  const last7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const baselineStart = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000);
+  const last7 = new Date(now.getTime() - SPEND_SPIKE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const baselineStart = new Date(
+    now.getTime() - (SPEND_SPIKE_WINDOW_DAYS + SPEND_SPIKE_BASELINE_DAYS) * 24 * 60 * 60 * 1000,
+  );
 
   const [currentPeriod, baseline] = await Promise.all([
     prisma.session.aggregate({
@@ -356,12 +367,12 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
   const avgCost = Number(baseline[0]?.avg_cost ?? 0);
   const stddev = Number(baseline[0]?.stddev_cost ?? 0);
 
-  if (avgCost > 0 && stddev > 0 && currentCost > avgCost + 2 * stddev) {
+  if (avgCost > 0 && stddev > 0 && currentCost > avgCost + SPEND_SPIKE_WARN_SIGMA * stddev) {
     anomalies.push({
       kind: 'spend_spike',
       label: 'Spend spike',
-      message: `Last 7-day cost ($${currentCost.toFixed(2)}) is more than 2σ above the 14-day baseline ($${avgCost.toFixed(2)} ± $${stddev.toFixed(2)}/day).`,
-      severity: currentCost > avgCost + 3 * stddev ? 'critical' : 'warn',
+      message: `Last ${SPEND_SPIKE_WINDOW_DAYS}-day cost ($${currentCost.toFixed(2)}) is more than ${SPEND_SPIKE_WARN_SIGMA}σ above the ${SPEND_SPIKE_BASELINE_DAYS}-day baseline ($${avgCost.toFixed(2)} ± $${stddev.toFixed(2)}/day).`,
+      severity: currentCost > avgCost + SPEND_SPIKE_CRITICAL_SIGMA * stddev ? 'critical' : 'warn',
     });
   }
 
@@ -379,12 +390,12 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
 
   const totalCalls = Number(errorStats._sum.toolCallCount ?? 0);
   const totalErrors = Number(errorStats._sum.toolErrorCount ?? 0);
-  if (totalCalls > 100 && totalErrors / totalCalls > 0.1) {
+  if (totalCalls >= ERROR_RATE_MIN_CALLS && totalErrors / totalCalls > ERROR_RATE_WARN) {
     anomalies.push({
       kind: 'error_spike',
       label: 'High tool error rate',
-      message: `${((totalErrors / totalCalls) * 100).toFixed(1)}% of tool calls failed in the last 7 days (${totalErrors} errors / ${totalCalls} calls).`,
-      severity: totalErrors / totalCalls > 0.25 ? 'critical' : 'warn',
+      message: `${((totalErrors / totalCalls) * 100).toFixed(1)}% of tool calls failed in the last ${SPEND_SPIKE_WINDOW_DAYS} days (${totalErrors} errors / ${totalCalls} calls).`,
+      severity: totalErrors / totalCalls > ERROR_RATE_CRITICAL ? 'critical' : 'warn',
     });
   }
 

@@ -1,0 +1,203 @@
+import type { PrismaClient } from '@ai-agents-observability/db';
+import { Prisma } from '@ai-agents-observability/db';
+import {
+  ERROR_RATE_CRITICAL,
+  ERROR_RATE_MIN_CALLS,
+  ERROR_RATE_WARN,
+  SPEND_SPIKE_BASELINE_DAYS,
+  SPEND_SPIKE_CRITICAL_SIGMA,
+  SPEND_SPIKE_WARN_SIGMA,
+  SPEND_SPIKE_WINDOW_DAYS,
+  UNKNOWN_MODEL_SURGE_DEFAULT,
+  UNKNOWN_MODEL_WINDOW_HOURS,
+} from '@ai-agents-observability/schemas';
+import type { Logger } from 'pino';
+
+import { type AlertEvaluation, applyAlertTransition } from './alert-transition';
+
+type AlertsDb = Pick<PrismaClient, 'jobRun' | 'alertRule' | 'alertEvent'> & {
+  $queryRaw: PrismaClient['$queryRaw'];
+};
+
+type RuleRow = {
+  id: string;
+  name: string;
+  params: unknown;
+  ruleType: string;
+};
+
+type Evaluation = AlertEvaluation;
+
+function paramsObject(params: unknown): Record<string, unknown> {
+  return params && typeof params === 'object' ? (params as Record<string, unknown>) : {};
+}
+
+async function evalSpendSpike(db: AlertsDb): Promise<Evaluation> {
+  const now = Date.now();
+  const windowStart = new Date(now - SPEND_SPIKE_WINDOW_DAYS * 86_400_000);
+  const baselineStart = new Date(
+    now - (SPEND_SPIKE_WINDOW_DAYS + SPEND_SPIKE_BASELINE_DAYS) * 86_400_000,
+  );
+
+  const rows = await db.$queryRaw<{ avg_cost: number; current: number; stddev_cost: number }[]>(
+    Prisma.sql`
+      WITH cur AS (
+        SELECT COALESCE(SUM(s.total_cost_usd), 0) AS current
+        FROM sessions s
+        JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+        LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+        WHERE s.started_at >= ${windowStart}
+          AND COALESCE(vp.share_metadata_with_org, true) = true
+      ),
+      base AS (
+        SELECT AVG(daily) AS avg_cost, STDDEV(daily) AS stddev_cost
+        FROM (
+          SELECT date_trunc('day', s.started_at) AS day, SUM(s.total_cost_usd) AS daily
+          FROM sessions s
+          JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+          LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+          WHERE s.started_at >= ${baselineStart} AND s.started_at < ${windowStart}
+            AND COALESCE(vp.share_metadata_with_org, true) = true
+          GROUP BY date_trunc('day', s.started_at)
+        ) d
+      )
+      SELECT cur.current, base.avg_cost, base.stddev_cost FROM cur, base
+    `,
+  );
+
+  const current = Number(rows[0]?.current ?? 0);
+  const avg = Number(rows[0]?.avg_cost ?? 0);
+  const stddev = Number(rows[0]?.stddev_cost ?? 0);
+  if (avg <= 0 || stddev <= 0 || current <= avg + SPEND_SPIKE_WARN_SIGMA * stddev) {
+    return null;
+  }
+  return {
+    details: {
+      avgCost: avg,
+      currentCost: current,
+      sigma: (current - avg) / stddev,
+      stddev,
+      windowDays: SPEND_SPIKE_WINDOW_DAYS,
+    },
+    severity: current > avg + SPEND_SPIKE_CRITICAL_SIGMA * stddev ? 'critical' : 'warn',
+  };
+}
+
+async function evalHighErrorRate(db: AlertsDb): Promise<Evaluation> {
+  const windowStart = new Date(Date.now() - SPEND_SPIKE_WINDOW_DAYS * 86_400_000);
+  const rows = await db.$queryRaw<{ calls: number; errors: number }[]>(Prisma.sql`
+    SELECT COALESCE(SUM(s.tool_call_count), 0) AS calls,
+           COALESCE(SUM(s.tool_error_count), 0) AS errors
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    WHERE s.started_at >= ${windowStart}
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+  `);
+  const calls = Number(rows[0]?.calls ?? 0);
+  const errors = Number(rows[0]?.errors ?? 0);
+  if (calls < ERROR_RATE_MIN_CALLS || errors / calls <= ERROR_RATE_WARN) {
+    return null;
+  }
+  return {
+    details: { calls, errorRate: errors / calls, errors },
+    severity: errors / calls > ERROR_RATE_CRITICAL ? 'critical' : 'warn',
+  };
+}
+
+async function evalUnknownModelSurge(db: AlertsDb, params: unknown): Promise<Evaluation> {
+  const threshold = Number(paramsObject(params).threshold ?? UNKNOWN_MODEL_SURGE_DEFAULT);
+  const windowStart = new Date(Date.now() - UNKNOWN_MODEL_WINDOW_HOURS * 3_600_000);
+  const rows = await db.$queryRaw<{ c: number }[]>(Prisma.sql`
+    SELECT COUNT(*) AS c
+    FROM events
+    WHERE ts >= ${windowStart}
+      AND model IS NOT NULL
+      AND cost_usd = 0
+      AND input_tokens > 0
+  `);
+  const count = Number(rows[0]?.c ?? 0);
+  if (count <= threshold) {
+    return null;
+  }
+  return {
+    details: { count, threshold, windowHours: UNKNOWN_MODEL_WINDOW_HOURS },
+    severity: 'warn',
+  };
+}
+
+async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
+  switch (rule.ruleType) {
+    case 'spend_spike':
+      return evalSpendSpike(db);
+    case 'high_error_rate':
+      return evalHighErrorRate(db);
+    case 'unknown_model_surge':
+      return evalUnknownModelSurge(db, rule.params);
+    default:
+      // budget_threshold and any future types: unimplemented evaluators never fire
+      // rather than throwing, so one bad rule can't fail the whole sweep.
+      return null;
+  }
+}
+
+/**
+ * Scheduled alert evaluation (P9-001). Evaluates each enabled alert_rule against
+ * the aggregates and records firing/resolving transitions in alert_events. Uses
+ * the same statistical thresholds as the dashboard's getAnomalies (shared via
+ * @ai-agents-observability/schemas) so banners and alerts never disagree.
+ */
+export async function runEvaluateAlerts(db: AlertsDb, logger?: Logger): Promise<void> {
+  const jobName = 'evaluate-alerts';
+  const startedAt = new Date();
+
+  const lock = await db.$queryRaw<[{ pg_try_advisory_lock: boolean }]>`
+    SELECT pg_try_advisory_lock(hashtext(${`job:${jobName}`}))
+  `;
+  if (!lock[0]?.pg_try_advisory_lock) {
+    logger?.warn({ jobName }, 'Advisory lock not acquired, skipping');
+    return;
+  }
+
+  let jobRunId: bigint | undefined;
+  try {
+    const jobRun = await db.jobRun.create({ data: { jobName, startedAt, status: 'running' } });
+    jobRunId = jobRun.id;
+
+    const rules = (await db.alertRule.findMany({ where: { enabled: true } })) as RuleRow[];
+    let fired = 0;
+    let resolved = 0;
+    for (const rule of rules) {
+      try {
+        const evaluation = await evaluateRule(db, rule);
+        const outcome = await applyAlertTransition(db, rule.id, evaluation);
+        if (outcome === 'fired') {
+          fired++;
+        } else if (outcome === 'resolved') {
+          resolved++;
+        }
+      } catch (err) {
+        logger?.warn({ err, ruleId: rule.id }, 'Alert rule evaluation failed');
+      }
+    }
+
+    await db.jobRun.update({
+      data: { finishedAt: new Date(), status: 'success' },
+      where: { id: jobRunId },
+    });
+    logger?.info({ fired, jobName, resolved, rules: rules.length }, 'Alert evaluation complete');
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    logger?.error({ err, jobName }, 'Alert evaluation failed');
+    if (jobRunId !== undefined) {
+      await db.jobRun
+        .update({
+          data: { errorText, finishedAt: new Date(), status: 'error' },
+          where: { id: jobRunId },
+        })
+        .catch(() => {});
+    }
+  } finally {
+    await db.$queryRaw`SELECT pg_advisory_unlock(hashtext(${`job:${jobName}`}))`.catch(() => {});
+  }
+}
