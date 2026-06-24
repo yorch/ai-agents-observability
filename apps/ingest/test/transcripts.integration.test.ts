@@ -222,10 +222,10 @@ describe('POST /v1/transcripts/:session_id', () => {
 });
 
 describe('processTranscript', () => {
-  it('preserves line count and flags secrets per line (zstd input)', () => {
+  it('preserves line count and flags secrets per line (zstd input)', async () => {
     const input = ['ok line', 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'tail', ''].join('\n');
     const compressed = compress(input);
-    const result = processTranscript(compressed);
+    const result = await processTranscript(compressed);
     expect(result.redactionFlags).toContain('github-token');
 
     const decoded = new TextDecoder().decode(zstdDecompressSync(result.recompressed));
@@ -234,10 +234,10 @@ describe('processTranscript', () => {
     expect(decoded).not.toContain('ghp_aaaa');
   });
 
-  it('decompresses gzip input and recompresses output as zstd', () => {
+  it('decompresses gzip input and recompresses output as zstd', async () => {
     const input = ['ok line', 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'tail', ''].join('\n');
     const compressed = gzipCompress(input);
-    const result = processTranscript(compressed, 'application/gzip');
+    const result = await processTranscript(compressed, 'application/gzip');
     expect(result.redactionFlags).toContain('github-token');
 
     // Output must always be zstd regardless of input format
@@ -247,10 +247,10 @@ describe('processTranscript', () => {
     expect(decoded).not.toContain('ghp_aaaa');
   });
 
-  it('throws TranscriptTooLargeError when decompressed size exceeds the cap', () => {
+  it('throws TranscriptTooLargeError when decompressed size exceeds the cap', async () => {
     // A highly-compressible payload (10k repeated chars) that decompresses well
     // past a tiny injected cap — simulates a decompression bomb without 512 MB.
     const bomb = compress('A'.repeat(10_000));
-    expect(() => processTranscript(bomb, undefined, 64)).toThrow(TranscriptTooLargeError);
+    await expect(processTranscript(bomb, undefined, 64)).rejects.toThrow(TranscriptTooLargeError);
   });
 });
