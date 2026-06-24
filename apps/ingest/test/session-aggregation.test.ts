@@ -17,6 +17,12 @@ const PRICE_TABLE: PriceTable = {
   version: '1',
 };
 
+// Registry stub that prices every agent against this test's table.
+const PRICE_TABLES = {
+  forAgentParam: () => PRICE_TABLE,
+  resolve: () => PRICE_TABLE,
+};
+
 const BASE_CLIENT = {
   claude_code_version: '1.0.0',
   hostname_hash: 'sha256:abc',
@@ -62,7 +68,7 @@ function makeDb(): {
 describe('upsertSessions', () => {
   it('returns 0 for an empty batch and does not query', async () => {
     const db = makeDb();
-    const result = await upsertSessions(db, [], 'u1', new Map(), PRICE_TABLE);
+    const result = await upsertSessions(db, [], 'u1', new Map(), PRICE_TABLES);
     expect(result.sessionsTouched).toBe(0);
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
@@ -118,7 +124,7 @@ describe('upsertSessions', () => {
       }),
     ];
 
-    const result = await upsertSessions(db, events, 'u1', new Map(), PRICE_TABLE);
+    const result = await upsertSessions(db, events, 'u1', new Map(), PRICE_TABLES);
     expect(result.sessionsTouched).toBeGreaterThan(0);
 
     const call = db.captured[0];
@@ -141,7 +147,7 @@ describe('upsertSessions', () => {
       }),
     ];
 
-    await upsertSessions(db, events, 'u1', new Map(), PRICE_TABLE);
+    await upsertSessions(db, events, 'u1', new Map(), PRICE_TABLES);
 
     const call = db.captured[0];
     expect(call).toBeDefined();
@@ -170,7 +176,7 @@ describe('upsertSessions', () => {
       makeEvent({ event_id: '01906a44-0000-7000-8000-000000000002', event_type: 'Stop', llm }),
     ];
 
-    await upsertSessions(db, events, 'u1', new Map(), PRICE_TABLE);
+    await upsertSessions(db, events, 'u1', new Map(), PRICE_TABLES);
 
     const call = db.captured[0];
     // Sums are 400 / 160 / 200 — confirm at least the input total is present.
@@ -201,7 +207,7 @@ describe('upsertSessions', () => {
     });
     const repoIds = new Map<string, string>([['acme/proj', 'r1']]);
 
-    await upsertSessions(db, [event], 'u1', repoIds, PRICE_TABLE);
+    await upsertSessions(db, [event], 'u1', repoIds, PRICE_TABLES);
     expect(db.captured[0]?.params).toContain('r1');
   });
 
@@ -224,7 +230,7 @@ describe('upsertSessions', () => {
     };
     const repoIds = new Map<string, string>([['acme/proj', 'r2']]);
 
-    await upsertSessions(db, [event], 'u1', repoIds, PRICE_TABLE, envelopeGit);
+    await upsertSessions(db, [event], 'u1', repoIds, PRICE_TABLES, envelopeGit);
     expect(db.captured[0]?.params).toContain('r2');
     expect(db.captured[0]?.params).toContain('main');
   });

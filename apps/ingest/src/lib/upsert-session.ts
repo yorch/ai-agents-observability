@@ -1,7 +1,8 @@
 import { Prisma } from '@ai-agents-observability/db';
-import type { Event, GitContext, PriceTable } from '@ai-agents-observability/schemas';
+import type { Event, GitContext } from '@ai-agents-observability/schemas';
 
 import { computeCostUsd } from './cost';
+import type { PriceTableRegistry } from './price-tables';
 
 type RawDb = {
   $executeRaw: (query: Prisma.Sql) => Promise<number>;
@@ -82,7 +83,7 @@ function isEndEvent(eventType: Event['event_type']): boolean {
   return eventType === 'Stop' || eventType === 'SessionEnd' || eventType === 'SubagentStop';
 }
 
-function applyEvent(agg: SessionAgg, event: Event, priceTable: PriceTable): void {
+function applyEvent(agg: SessionAgg, event: Event, priceTables: PriceTableRegistry): void {
   const ts = new Date(event.ts);
   if (ts.getTime() > agg.lastTs.getTime()) {
     agg.lastTs = ts;
@@ -102,7 +103,9 @@ function applyEvent(agg: SessionAgg, event: Event, priceTable: PriceTable): void
       event.llm.output_tokens,
       event.llm.cache_read_tokens,
       event.llm.cache_creation_tokens,
-      priceTable,
+      priceTables.resolve(event.agent_type),
+      undefined,
+      event.agent_type,
     );
     if (!agg.primaryModel) {
       agg.primaryModel = event.llm.model;
@@ -145,7 +148,7 @@ export async function upsertSessions(
   events: Event[],
   userId: string,
   repoIdByKey: Map<string, string>,
-  priceTable: PriceTable,
+  priceTables: PriceTableRegistry,
   envelopeGit: GitContext | null = null,
 ): Promise<UpsertResult> {
   if (events.length === 0) {
@@ -182,7 +185,7 @@ export async function upsertSessions(
       }
       bySession.set(ev.session_id, agg);
     }
-    applyEvent(agg, ev, priceTable);
+    applyEvent(agg, ev, priceTables);
   }
 
   const rows = Array.from(bySession.values()).map(

@@ -3,8 +3,8 @@ id: P8-002
 title: Per-agent versioned price tables
 phase: 8
 workstream: B
-status: ready
-owner: null
+status: review
+owner: claude
 depends_on: [P1-013]
 blocks: [P8-004, P8-006]
 estimate: M
@@ -63,3 +63,16 @@ curl http://localhost:3001/v1/price-table | jq '.version'
 curl 'http://localhost:3001/v1/price-table?agent=opencode' | jq '.version'
 curl 'http://localhost:3001/v1/price-table?agent=unknown_agent' # should 404 or return claude_code default — document the choice
 ```
+
+> **Verification status (review):** `apps/ingest/test/price-tables.test.ts` (4 cases) **passes
+> locally** + `biome check --error-on-warnings` clean on all 9 touched files. DB-backed ingest
+> tests (`session-aggregation`, `price-table`, `events.integration`) run in CI (Prisma client
+> egress-blocked locally); `session-aggregation.test.ts` was updated to pass a registry stub.
+>
+> **Decisions:** (1) `price-table.v1.json` was `git mv`'d to `price-table.claude_code.v1.json`;
+> `price-table.opencode.v1.json` is an **empty-prices placeholder** (real prices = P8-004).
+> (2) `resolve()` returns an **empty table** for unknown agents so their models bill $0 and
+> surface via `unknown_model_events_total` rather than mispricing against another agent's table.
+> (3) `GET /v1/price-table?agent=<unknown>` → **404**; no `agent` param → claude_code default.
+> (4) `claude_code` cost is unchanged. `PriceTableSchema` needed no change (agent is the lookup
+> key, not table payload).
