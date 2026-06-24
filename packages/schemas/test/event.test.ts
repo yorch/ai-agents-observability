@@ -123,6 +123,33 @@ describe('EventSchema', () => {
       expect('unknown_field' in result.data.tool).toBe(false);
     }
   });
+
+  it('requires a tool block on PreToolUse and PostToolUse', () => {
+    const { tool: _tool, ...noTool } = validEvent;
+    expect(EventSchema.safeParse({ ...noTool, event_type: 'PostToolUse' }).success).toBe(false);
+    expect(EventSchema.safeParse({ ...noTool, event_type: 'PreToolUse' }).success).toBe(false);
+  });
+
+  it('accepts a minimal tool block on PostToolUse and fills defaults', () => {
+    const { tool: _tool, ...noTool } = validEvent;
+    const result = EventSchema.safeParse({
+      ...noTool,
+      event_type: 'PostToolUse',
+      tool: { name: 'Edit' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.tool) {
+      expect(result.data.tool.category).toBe('other');
+      expect(result.data.tool.duration_ms).toBe(0);
+      expect(result.data.tool.was_denied).toBe(false);
+    }
+  });
+
+  it('does not require a tool block on lifecycle events', () => {
+    const { tool: _tool, ...noTool } = validEvent;
+    expect(EventSchema.safeParse({ ...noTool, event_type: 'SessionStart' }).success).toBe(true);
+    expect(EventSchema.safeParse({ ...noTool, event_type: 'Stop' }).success).toBe(true);
+  });
 });
 
 describe('EventsBatchSchema', () => {

@@ -9,7 +9,7 @@ export {
   READ_TOOLS,
   WRITE_TOOLS,
 } from './effectiveness';
-export type { AgentType, Event, EventsBatch, EventType } from './event';
+export type { AgentType, Event, EventsBatch, EventType, ToolInfo } from './event';
 export { AgentTypeSchema, EventSchema, EventsBatchSchema, EventTypeSchema } from './event';
 export type { ModelPrice, PriceTable } from './price-table';
 export { PriceTableSchema } from './price-table';
