@@ -144,3 +144,16 @@ Source of truth for task status. Update this in the same commit as the task file
 | [P5-004](./P5-004-jira-integration.md) | Jira integration (key extraction + link) | done | claude | M | — |
 | [P5-005](./P5-005-github-checks.md) | GitHub Checks correlation | done | claude | M | P2-003 |
 | [P5-006](./P5-006-multi-agent-readiness.md) | Multi-agent readiness (enum widening, schema decoupling) | done | claude | S | P1-006, P1-003 |
+
+## Phase 6 — Hardening & scale-readiness
+
+See [`P6-roadmap.md`](./P6-roadmap.md) for full rationale, deferrals, and triggers.
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| P6-001 | Event-schema discriminated union + hook tool emission | done | claude | M | P1-006 |
+| P6-002 | Prometheus coverage for web + github-app | done | claude | S | — |
+| P6-003 | Non-blocking transcript pipeline | done | claude | M | P1-012 |
+| P6-004 | Explicit org-admin team-lead grants (`/admin/team-roles`) | done | claude | M | P3-001 |
+| P6-005 | Per-agent price tables | deferred | — | M | — |
+| P6-006 | Hook adapter seam (2nd agent) | deferred | — | L | P5-006 |
