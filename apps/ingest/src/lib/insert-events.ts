@@ -1,7 +1,8 @@
 import { Prisma } from '@ai-agents-observability/db';
-import type { Event, PriceTable } from '@ai-agents-observability/schemas';
+import type { Event } from '@ai-agents-observability/schemas';
 
 import { computeCostUsd } from './cost';
+import type { PriceTableRegistry } from './price-tables';
 
 type RawDb = {
   $queryRaw: <T>(query: Prisma.Sql) => Promise<T>;
@@ -19,7 +20,7 @@ export async function insertEventsBatch(
   db: RawDb,
   events: Event[],
   userId: string,
-  priceTable: PriceTable,
+  priceTables: PriceTableRegistry,
 ): Promise<InsertResult> {
   const unknownModels = new Set<string>();
   if (events.length === 0) {
@@ -34,8 +35,9 @@ export async function insertEventsBatch(
           e.llm.output_tokens,
           e.llm.cache_read_tokens,
           e.llm.cache_creation_tokens,
-          priceTable,
+          priceTables.resolve(e.agent_type),
           unknownModels,
+          e.agent_type,
         )
       : null;
 
@@ -45,7 +47,7 @@ export async function insertEventsBatch(
       ${e.session_id}::uuid,
       ${userId}::uuid,
       ${new Date(e.ts)},
-      ${e.agent_type.replaceAll('-', '_')},
+      ${e.agent_type},
       ${e.event_type},
       ${e.turn_number ?? null},
       ${e.parent_event_id ?? null}::uuid,

@@ -18,7 +18,7 @@ function authedDeps() {
   authStub.findFirst = vi.fn().mockResolvedValue({
     expiresAt: null,
     id: 'tok-1',
-    kind: 'hook',
+    kind: 'HOOK',
     revokedAt: null,
     userId: USER_ID,
   });

@@ -1,5 +1,5 @@
 import { createGitHubClient } from '@ai-agents-observability/github';
-import type { RepoConfig } from '@ai-agents-observability/schemas';
+import { multiAgentLabels, type RepoConfig } from '@ai-agents-observability/schemas';
 
 // Minimal shape matching the PRRollup model (no dependency on generated client)
 type PRRollupLike = {
@@ -19,8 +19,19 @@ function formatDuration(seconds: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-export function buildCommentBody(rollup: PRRollupLike, config: RepoConfig): string {
-  const lines: string[] = [COMMENT_MARKER, '🤖 **AI agent summary**'];
+export function buildCommentBody(
+  rollup: PRRollupLike,
+  config: RepoConfig,
+  // Distinct agent_types of the contributing sessions. The header names them only
+  // when the set isn't just the default claude_code, so single-agent PRs are
+  // visually unchanged while a multi-agent (or non-Claude) PR is labelled.
+  agentTypes: string[] = [],
+): string {
+  const agents = multiAgentLabels(agentTypes);
+  const header = agents
+    ? `🤖 **AI agent summary** (${agents.join(', ')})`
+    : '🤖 **AI agent summary**';
+  const lines: string[] = [COMMENT_MARKER, header];
 
   const sessions = rollup.contributingSessionIds.length;
   const contributors = rollup.contributingUserIds.length;

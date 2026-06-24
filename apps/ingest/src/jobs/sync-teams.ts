@@ -168,7 +168,7 @@ async function syncUserTeams(
         await db.teamMember.upsert({
           create: {
             leftAt: null,
-            roleInTeam: 'member',
+            roleInTeam: 'MEMBER',
             syncedAt: new Date(),
             teamId: dbTeam.id,
             userId: dbUser.id,

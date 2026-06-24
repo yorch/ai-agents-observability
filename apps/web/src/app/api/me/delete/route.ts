@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }),
     prisma.auditLog.create({
       data: {
-        action: 'delete_request',
+        action: 'DELETE_REQUEST',
         actorUserId: user.id,
         ip: clientIp(req.headers),
         justification: 'User requested data deletion',

@@ -28,7 +28,7 @@ const logger = pino({ level: 'silent' });
 type FakeToken = {
   expiresAt: Date | null;
   id: string;
-  kind: 'access' | 'hook' | 'refresh';
+  kind: 'ACCESS' | 'HOOK' | 'REFRESH';
   revokedAt: Date | null;
   tokenHash: string;
   userId: string;
@@ -42,7 +42,7 @@ function makeTokenStore(overrides?: Partial<FakeToken>) {
   const record: FakeToken = {
     expiresAt: new Date(Date.now() + 3_600_000),
     id: crypto.randomUUID(),
-    kind: 'hook',
+    kind: 'HOOK',
     revokedAt: null,
     tokenHash,
     userId: VALID_USER_ID,

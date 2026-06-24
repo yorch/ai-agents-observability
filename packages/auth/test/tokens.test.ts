@@ -31,7 +31,7 @@ afterEach(() => {
 type FakeToken = {
   expiresAt: Date | null;
   id: string;
-  kind: 'access' | 'hook' | 'refresh';
+  kind: 'ACCESS' | 'HOOK' | 'REFRESH';
   revokedAt: Date | null;
   tokenHash: string;
   userId: string;
@@ -92,7 +92,7 @@ describe('issueAccessToken / verifyAccessToken', () => {
     const jwt = await issueAccessToken(userId);
     const payload = await verifyAccessToken(jwt);
     expect(payload.userId).toBe(userId);
-    expect(payload.kind).toBe('access');
+    expect(payload.kind).toBe('ACCESS');
   });
 
   it('rejects a malformed JWT', async () => {
@@ -121,7 +121,7 @@ describe('issueRefreshToken / verifyOpaqueToken', () => {
 
     const payload = await verifyOpaqueToken(db, token);
     expect(payload.userId).toBe(userId);
-    expect(payload.kind).toBe('refresh');
+    expect(payload.kind).toBe('REFRESH');
   });
 
   it('rejects a token not in the store', async () => {
@@ -147,7 +147,7 @@ describe('issueHookToken', () => {
     const userId = crypto.randomUUID();
     const token = await issueHookToken(db, userId);
     const payload = await verifyOpaqueToken(db, token);
-    expect(payload.kind).toBe('hook');
+    expect(payload.kind).toBe('HOOK');
   });
 });
 

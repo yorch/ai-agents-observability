@@ -65,7 +65,7 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
 
   it('creates and reads a TeamMember', async () => {
     const member = await prisma.teamMember.create({
-      data: { roleInTeam: 'member', teamId, userId },
+      data: { roleInTeam: 'MEMBER', teamId, userId },
     });
     expect(member.teamId).toBe(teamId);
     expect(member.userId).toBe(userId);
@@ -94,7 +94,7 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
 
   it('creates and reads an AuthToken', async () => {
     const token = await prisma.authToken.create({
-      data: { kind: 'hook', tokenHash: `sha256:${suffix}`, userId },
+      data: { kind: 'HOOK', tokenHash: `sha256:${suffix}`, userId },
     });
     expect(token.kind).toBe('hook');
     expect(token.userId).toBe(userId);
@@ -103,13 +103,13 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
   it('creates and reads an AuditLog entry', async () => {
     const entry = await prisma.auditLog.create({
       data: {
-        action: 'view_session',
+        action: 'VIEW_SESSION',
         actorUserId: userId,
         justification: 'integration test',
         targetUserId: userId,
       },
     });
-    expect(entry.action).toBe('view_session');
+    expect(entry.action).toBe('VIEW_SESSION');
     expect(typeof entry.id).toBe('bigint');
   });
 
@@ -122,13 +122,13 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
         repoId,
         sessionId: sid,
         startedAt: now,
-        status: 'active',
+        status: 'ACTIVE',
         userId,
       },
     });
     sessionId = session.sessionId;
     expect(session.sessionId).toBe(sid);
-    expect(session.agentType).toBe('claude_code');
+    expect(session.agentType).toBe('CLAUDE_CODE');
     expect(session.totalCostUsd.toString()).toBe('0');
   });
 
@@ -139,18 +139,18 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
         githubId: BigInt(githubIdBase + 2),
         prNumber: 1,
         repoId,
-        state: 'open',
+        state: 'OPEN',
       },
     });
     expect(pr.prNumber).toBe(1);
-    expect(pr.state).toBe('open');
+    expect(pr.state).toBe('OPEN');
   });
 
   it('creates and reads a SessionPRLink', async () => {
     const link = await prisma.sessionPRLink.create({
-      data: { linkSource: 'session_start', prNumber: 1, repoId, sessionId },
+      data: { linkSource: 'SESSION_START', prNumber: 1, repoId, sessionId },
     });
-    expect(link.linkSource).toBe('session_start');
+    expect(link.linkSource).toBe('SESSION_START');
   });
 
   it('creates and reads a PRRollup', async () => {

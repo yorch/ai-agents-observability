@@ -2,8 +2,10 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 import type { S3Client } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
-import { runComputeEffectiveness } from './compute-effectiveness';
+import { runComputeEffectiveness, runComputeEffectivenessBackfill } from './compute-effectiveness';
+import { runEvaluateAlerts } from './evaluate-alerts';
 import { runIndexTranscripts } from './index-transcripts';
+import { NullBillingSource, runReconcileCost } from './reconcile-cost';
 import { runDeletions } from './run-deletions';
 import { runSweepAbandoned } from './sweep-abandoned';
 import { runSweepRetention } from './sweep-retention';
@@ -11,10 +13,13 @@ import { runSweepScratch } from './sweep-scratch';
 import { runSyncTeams } from './sync-teams';
 
 export type SchedulerDeps = {
+  appBaseUrl?: string;
+  billingReconciliationEnabled?: boolean;
   bucket: string;
   db: PrismaClient;
   githubSyncToken?: string;
   logger?: Logger;
+  orgMaxRetentionDays: number;
   s3: S3Client;
   transcriptRetentionDays: number;
 };
@@ -24,6 +29,7 @@ const CONFIGURABLE_JOBS = [
   'sweep-retention',
   'index-transcripts',
   'compute-effectiveness',
+  'evaluate-alerts',
 ] as const;
 
 // All job names accepted by the manual-trigger endpoint.
@@ -47,7 +53,16 @@ function slotKey(date: Date): string {
 
 /** Dispatch a named job using the full deps context. */
 export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<void> {
-  const { bucket, db, githubSyncToken, logger, s3, transcriptRetentionDays } = deps;
+  const {
+    appBaseUrl,
+    bucket,
+    db,
+    githubSyncToken,
+    logger,
+    orgMaxRetentionDays,
+    s3,
+    transcriptRetentionDays,
+  } = deps;
   switch (jobName) {
     case 'sync-teams':
       await runSyncTeams(db, githubSyncToken, logger);
@@ -62,7 +77,7 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       await runDeletions(db, s3, bucket, logger);
       break;
     case 'sweep-retention':
-      await runSweepRetention(db, s3, bucket, transcriptRetentionDays, logger);
+      await runSweepRetention(db, s3, bucket, transcriptRetentionDays, orgMaxRetentionDays, logger);
       break;
     case 'index-transcripts':
       await runIndexTranscripts(
@@ -74,6 +89,30 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       break;
     case 'compute-effectiveness':
       await runComputeEffectiveness(db as Parameters<typeof runComputeEffectiveness>[0], logger);
+      break;
+    // Scheduled alert evaluation (P9-001). Records firing/resolving transitions.
+    case 'evaluate-alerts':
+      await runEvaluateAlerts(db as Parameters<typeof runEvaluateAlerts>[0], logger, appBaseUrl);
+      break;
+    // One-shot historical backfill (P7-001). Dispatchable here for operator-run
+    // scripts; deliberately absent from CONFIGURABLE_JOBS (no cadence) and
+    // ALL_KNOWN_JOBS (not reachable via the HTTP manual-trigger endpoint).
+    case 'compute-effectiveness-backfill':
+      await runComputeEffectivenessBackfill(
+        db as Parameters<typeof runComputeEffectivenessBackfill>[0],
+        logger,
+      );
+      break;
+    // Gated cost reconciliation (P8-006). Ships with NullBillingSource until a
+    // real vendor billing client is plugged in.
+    case 'reconcile-cost':
+      await runReconcileCost(
+        db as Parameters<typeof runReconcileCost>[0],
+        new NullBillingSource(),
+        {
+          logger,
+        },
+      );
       break;
     default:
       logger?.warn({ jobName }, 'triggerJob: unknown job name');
@@ -91,7 +130,8 @@ export function startScheduler(deps: SchedulerDeps): void {
         VALUES
           ('sweep-retention',       true, 2, 0),
           ('index-transcripts',     true, 3, 30),
-          ('compute-effectiveness', true, 5, 0)
+          ('compute-effectiveness', true, 5, 0),
+          ('evaluate-alerts',       true, 1, 0)
         ON CONFLICT (job_name) DO NOTHING
       `;
       logger?.info('Scheduler: seeded job_config defaults');
@@ -245,7 +285,20 @@ export function startScheduler(deps: SchedulerDeps): void {
   );
   deletionsInterval.unref?.();
 
+  // Cost reconciliation (P8-006) — gated, disabled by default. Daily timer but
+  // always reconciles the previous calendar month, so a daily tick is idempotent.
+  if (deps.billingReconciliationEnabled) {
+    const reconcileInterval = setInterval(
+      guarded(() => triggerJob(deps, 'reconcile-cost'), 'reconcile-cost'),
+      24 * 60 * 60 * 1_000,
+    );
+    reconcileInterval.unref?.();
+  }
+
   logger?.info(
-    'Job scheduler started (DB-poll every 60s: sweep-retention/index-transcripts/compute-effectiveness; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h)',
+    {
+      reconcileCost: deps.billingReconciliationEnabled === true,
+    },
+    'Job scheduler started (DB-poll every 60s: sweep-retention/index-transcripts/compute-effectiveness; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; reconcile-cost daily when enabled)',
   );
 }

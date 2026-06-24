@@ -5,7 +5,7 @@ import { enrichGitContext } from '../src/flusher';
 
 function makeEvent(cwd: string, git: GitContext | null = null): Record<string, unknown> {
   return {
-    agent_type: 'claude-code',
+    agent_type: 'CLAUDE_CODE',
     event_id: '01906a44-0000-7000-8000-000000000001',
     event_type: 'PostToolUse',
     session_context: { cwd, git, is_resume: false, mode: 'normal' },

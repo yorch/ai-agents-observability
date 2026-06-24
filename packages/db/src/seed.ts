@@ -50,7 +50,7 @@ async function main() {
 
   // TeamMember
   await db.teamMember.create({
-    data: { roleInTeam: 'member', teamId: team.id, userId: user.id },
+    data: { roleInTeam: 'MEMBER', teamId: team.id, userId: user.id },
   });
 
   // VisibilityPolicy — transcripts off by default per §10
@@ -106,7 +106,7 @@ async function main() {
 
       const session = await db.session.create({
         data: {
-          agentType: 'claude_code',
+          agentType: 'CLAUDE_CODE',
           agentVersion: '1.0.0',
           claudeCodeVersion: '1.0.0',
           cwd: `/home/${DEMO_USER_LOGIN}/projects/demo-app`,
@@ -126,7 +126,7 @@ async function main() {
           repoId: repo.id,
           sessionId: faker.string.uuid(),
           startedAt,
-          status: 'completed',
+          status: 'COMPLETED',
           toolCallCount: toolCalls,
           toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.1), min: 0 }),
           totalCacheCreation: BigInt(cacheCreation),
@@ -158,7 +158,7 @@ async function main() {
             model, input_tokens, output_tokens, cost_usd, mode
           ) VALUES (
             ${eventId}::uuid, ${session.sessionId}::uuid, ${user.id}::uuid, ${ts},
-            'claude_code', ${eventType},
+            'CLAUDE_CODE', ${eventType},
             'claude-sonnet-4-6',
             ${faker.number.int({ max: 2000, min: 100 })},
             ${faker.number.int({ max: 500, min: 50 })},
@@ -206,7 +206,7 @@ async function main() {
         repoId: repo.id,
         reviewCount: faker.number.int({ max: 4, min: 1 }),
         reviewerLogins: ['reviewer-a', 'reviewer-b'],
-        state: pr.state === 'merged' ? 'merged' : pr.state === 'closed' ? 'closed' : 'open',
+        state: pr.state === 'merged' ? 'MERGED' : pr.state === 'closed' ? 'CLOSED' : 'OPEN',
         title: pr.title,
       },
     });
@@ -215,7 +215,7 @@ async function main() {
     const linkedSessions = faker.helpers.arrayElements(sessions, 2);
     for (const sessionId of linkedSessions) {
       await db.sessionPRLink.upsert({
-        create: { linkSource: 'session_start', prNumber: pr.number, repoId: repo.id, sessionId },
+        create: { linkSource: 'SESSION_START', prNumber: pr.number, repoId: repo.id, sessionId },
         update: {},
         where: { sessionId_repoId_prNumber: { prNumber: pr.number, repoId: repo.id, sessionId } },
       });

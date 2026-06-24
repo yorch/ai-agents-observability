@@ -20,6 +20,11 @@ export default async function OrgSearchPage({
   const repoId = params.repo ?? undefined;
   const model = params.model ?? undefined;
   const toolName = params.tool ?? undefined;
+  const shape = params.shape || undefined;
+  const agent = params.agent || undefined;
+  const bandRaw = params.band;
+  const frictionBand =
+    bandRaw === 'low' || bandRaw === 'medium' || bandRaw === 'high' ? bandRaw : undefined;
   const page = Math.max(1, Number(params.page ?? '1') || 1);
 
   let dateFrom: Date | undefined;
@@ -39,7 +44,15 @@ export default async function OrgSearchPage({
 
   // Load filter options for dropdowns
   const prisma = getPrisma();
-  const [teams, repos, models] = await Promise.all([
+  // Facet dropdowns must respect visibility: a user who opted out of org metadata
+  // sharing must not surface their models/shapes/agents in the org facet lists.
+  const orgVisibleSession = {
+    user: {
+      deactivatedAt: null,
+      OR: [{ visibilityPolicy: { shareMetadataWithOrg: true } }, { visibilityPolicy: null }],
+    },
+  };
+  const [teams, repos, models, shapeFacets, agentFacets] = await Promise.all([
     prisma.team.findMany({
       orderBy: { name: 'asc' },
       select: { githubSlug: true, id: true, name: true },
@@ -54,14 +67,37 @@ export default async function OrgSearchPage({
       by: ['primaryModel'],
       orderBy: { _count: { primaryModel: 'desc' } },
       take: 20,
-      where: { primaryModel: { not: null } },
+      where: { ...orgVisibleSession, primaryModel: { not: null } },
+    }),
+    // Available effectiveness/agent facets, visibility-scoped (single GROUP BY each).
+    prisma.session.groupBy({
+      _count: { _all: true },
+      by: ['shapeLabel'],
+      where: { ...orgVisibleSession, shapeLabel: { not: null } },
+    }),
+    prisma.session.groupBy({
+      _count: { _all: true },
+      by: ['agentType'],
+      where: orgVisibleSession,
     }),
   ]);
 
   // Session search (faceted)
   const sessionResults = canView
     ? await searchSessions(
-        { dateFrom, dateTo, model, page, repoId, teamId, toolName, userId },
+        {
+          agentTypes: agent ? [agent] : undefined,
+          dateFrom,
+          dateTo,
+          frictionBand,
+          model,
+          page,
+          repoId,
+          shapeLabels: shape ? [shape] : undefined,
+          teamId,
+          toolName,
+          userId,
+        },
         canView,
       )
     : { page: 1, pageSize: 50, results: [], total: 0 };
@@ -208,6 +244,70 @@ export default async function OrgSearchPage({
                   defaultValue={dateTo?.toISOString().split('T')[0] ?? ''}
                   className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="filter-shape"
+                  className="text-xs text-white/50 uppercase tracking-wide"
+                >
+                  Session shape
+                </label>
+                <select
+                  id="filter-shape"
+                  name="shape"
+                  defaultValue={shape ?? ''}
+                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                >
+                  <option value="">All shapes</option>
+                  {shapeFacets.map((f) => (
+                    <option key={f.shapeLabel ?? ''} value={f.shapeLabel ?? ''}>
+                      {f.shapeLabel} ({f._count._all})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="filter-band"
+                  className="text-xs text-white/50 uppercase tracking-wide"
+                >
+                  Friction band
+                </label>
+                <select
+                  id="filter-band"
+                  name="band"
+                  defaultValue={frictionBand ?? ''}
+                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                >
+                  <option value="">Any friction</option>
+                  <option value="low">Low (&lt; 0.3)</option>
+                  <option value="medium">Medium (0.3–0.6)</option>
+                  <option value="high">High (&gt; 0.6)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="filter-agent"
+                  className="text-xs text-white/50 uppercase tracking-wide"
+                >
+                  Agent
+                </label>
+                <select
+                  id="filter-agent"
+                  name="agent"
+                  defaultValue={agent ?? ''}
+                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                >
+                  <option value="">All agents</option>
+                  {agentFacets.map((f) => (
+                    <option key={f.agentType} value={f.agentType}>
+                      {f.agentType} ({f._count._all})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

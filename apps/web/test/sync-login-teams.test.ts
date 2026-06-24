@@ -7,7 +7,7 @@ type Membership = Parameters<typeof syncLoginTeams>[2][number];
 function membership(over: Partial<Membership> = {}): Membership {
   return {
     org: 'acme',
-    role: 'member',
+    role: 'MEMBER',
     team_github_id: 1,
     team_name: 'Engineering',
     team_slug: 'eng',
@@ -33,8 +33,8 @@ describe('syncLoginTeams', () => {
     expect(teamMemberUpsert).toHaveBeenCalledTimes(1);
     const arg = teamMemberUpsert.mock.calls[0][0];
     // create may set the role (first insert), but update must NOT — otherwise a
-    // lead/maintainer is downgraded to 'member' on every sign-in.
-    expect(arg.create.roleInTeam).toBe('member');
+    // lead/maintainer is downgraded to 'MEMBER' on every sign-in.
+    expect(arg.create.roleInTeam).toBe('MEMBER');
     expect(arg.update).not.toHaveProperty('roleInTeam');
   });
 

@@ -16,7 +16,7 @@ const mockSessions = [
     repo: { githubName: 'app', githubOwner: 'acme' },
     sessionId: 'sess-1',
     startedAt: start,
-    status: 'completed',
+    status: 'COMPLETED',
     toolCallCount: 5,
     totalCostUsd: '0.25',
     userId: 'u1',
@@ -65,6 +65,43 @@ describe('listSessions', () => {
 
     expect(total).toBe(0);
     expect(sessions).toHaveLength(0);
+  });
+
+  it('applies shape, friction-band, and agent filters in the where clause', async () => {
+    mockPrisma.session.count.mockResolvedValueOnce(0);
+    mockPrisma.session.findMany.mockResolvedValueOnce([]);
+
+    const { listSessions } = await import('../src/lib/sessions-queries.js');
+    await listSessions('u1', {
+      agentTypes: ['CLAUDE_CODE'],
+      frictionBand: 'high',
+      page: 1,
+      shapeLabels: ['debugging', 'focused-edit'],
+    });
+
+    expect(mockPrisma.session.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          agentType: { in: ['CLAUDE_CODE'] },
+          frictionScore: { gt: 0.6 },
+          shapeLabel: { in: ['debugging', 'focused-edit'] },
+          userId: 'u1',
+        }),
+      }),
+    );
+  });
+
+  it('omits effectiveness predicates when no filters are supplied', async () => {
+    mockPrisma.session.count.mockResolvedValueOnce(0);
+    mockPrisma.session.findMany.mockResolvedValueOnce([]);
+
+    const { listSessions } = await import('../src/lib/sessions-queries.js');
+    await listSessions('u1', { page: 1 });
+
+    const call = mockPrisma.session.findMany.mock.calls.at(-1)?.[0];
+    expect(call.where).not.toHaveProperty('shapeLabel');
+    expect(call.where).not.toHaveProperty('frictionScore');
+    expect(call.where).not.toHaveProperty('agentType');
   });
 });
 

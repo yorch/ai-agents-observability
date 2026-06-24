@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
+import { Prisma } from '@ai-agents-observability/db';
 import type { S3Client } from '@aws-sdk/client-s3';
 import {
   DeleteObjectCommand,
@@ -7,24 +8,27 @@ import {
 } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
+export { effectiveRetentionDays } from './retention-policy';
+
 /**
- * Enforces configurable transcript retention.
- * Deletes S3 objects whose corresponding session ended more than
- * `retentionDays` ago, then clears the transcript pointer in Postgres.
- * Also sweeps orphaned S3 keys (objects with no matching session row).
- * Skips if retentionDays === 0 (retention disabled).
+ * Enforces configurable transcript retention, honoring per-team overrides.
+ * Deletes S3 objects whose session's transcript is older than the session
+ * owner's team's effective retention, then clears the transcript pointer in
+ * Postgres. Also sweeps orphaned S3 keys. Skips if the global default is 0
+ * (retention disabled org-wide).
  */
 export async function runSweepRetention(
   db: PrismaClient,
   s3: S3Client,
   bucket: string,
   retentionDays: number,
+  orgMaxRetentionDays: number,
   logger?: Logger,
 ): Promise<void> {
-  if (retentionDays === 0) {
-    logger?.debug('Transcript retention disabled (TRANSCRIPT_RETENTION_DAYS=0), skipping');
-    return;
-  }
+  // Note: we do NOT early-return when the global default is 0. A global of 0
+  // disables retention only for sessions with no per-team override; a team that
+  // sets its own retention_days must still be swept (P9-004). The per-row SQL
+  // below treats 0 (global or team) as "disabled" via NULLIF and skips those rows.
 
   const jobName = 'sweep-retention';
   const startedAt = new Date();
@@ -45,16 +49,34 @@ export async function runSweepRetention(
     });
     jobRunId = jobRun.id;
 
-    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-
-    // Find sessions with transcripts older than retention window
-    const expired = await db.session.findMany({
-      select: { sessionId: true, transcriptS3Key: true },
-      where: {
-        transcriptS3Key: { not: null },
-        transcriptUploadedAt: { lt: cutoff },
-      },
-    });
+    // Find sessions whose transcript is older than the OWNER's team effective
+    // retention. Effective days = team override (if set & non-zero) else the
+    // global default; clamped to the org max. `NULLIF(x, 0)` makes 0 mean
+    // "disabled" at BOTH levels: a team retention_days of 0 falls back to the
+    // global default (it must NEVER mean "delete everything"), and when the
+    // resolved value is NULL (global 0 with no override) the row is excluded —
+    // retention is disabled for that session. Note LEAST() ignores NULLs, so the
+    // `IS NOT NULL` guard is required to keep disabled rows from clamping to the
+    // org max. Computed per-row so one query covers every team's policy.
+    const expiredRows = await db.$queryRaw<{ session_id: string; transcript_s3_key: string }[]>(
+      Prisma.sql`
+        SELECT s.session_id::text AS session_id, s.transcript_s3_key
+        FROM sessions s
+        JOIN users u ON u.id = s.user_id
+        LEFT JOIN teams t ON t.id = u.primary_team_id
+        WHERE s.transcript_s3_key IS NOT NULL
+          AND COALESCE(NULLIF(t.retention_days, 0), NULLIF(${retentionDays}::int, 0)) IS NOT NULL
+          AND s.transcript_uploaded_at <
+            NOW() - (LEAST(
+                       COALESCE(NULLIF(t.retention_days, 0), NULLIF(${retentionDays}::int, 0)),
+                       ${orgMaxRetentionDays}::int
+                     ) * INTERVAL '1 day')
+      `,
+    );
+    const expired = expiredRows.map((r) => ({
+      sessionId: r.session_id,
+      transcriptS3Key: r.transcript_s3_key,
+    }));
 
     let purged = 0;
     for (const session of expired) {

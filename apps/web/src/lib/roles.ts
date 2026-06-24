@@ -1,7 +1,8 @@
-import type { User } from '@ai-agents-observability/db';
+import type { PrismaClient, User } from '@ai-agents-observability/db';
 import { OrgRole, TeamRole } from '@ai-agents-observability/db';
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from './auth';
+import { grantCovers } from './grant-policy';
 import { getPrisma } from './prisma';
 
 export type TeamContext = {
@@ -12,7 +13,7 @@ export type TeamContext = {
   user: User;
 };
 
-export const LEAD_ROLES: TeamRole[] = [TeamRole.lead, TeamRole.maintainer];
+export const LEAD_ROLES: TeamRole[] = [TeamRole.LEAD, TeamRole.MAINTAINER];
 
 async function resolveTeam(slug: string) {
   const team = await getPrisma().team.findUnique({
@@ -51,13 +52,13 @@ async function requireTeamRole(
 
   // Org admins may view any team (consistent with canViewIndividuals) without a
   // team membership. Non-admins must be active members passing the role check.
-  const isAdmin = user.orgRole === OrgRole.org_admin;
+  const isAdmin = user.orgRole === OrgRole.ORG_ADMIN;
   if (!isAdmin && (!membership || !check(membership.roleInTeam))) {
     notFound();
   }
 
   return {
-    role: membership?.roleInTeam ?? TeamRole.lead,
+    role: membership?.roleInTeam ?? TeamRole.LEAD,
     teamId: team.id,
     teamName: team.name,
     teamSlug: team.githubSlug,
@@ -106,7 +107,7 @@ export async function requireOrgAdmin(): Promise<OrgContext> {
   if (!user) {
     redirect('/login');
   }
-  if (user.orgRole !== OrgRole.org_admin) {
+  if (user.orgRole !== OrgRole.ORG_ADMIN) {
     notFound();
   }
   return { orgRole: user.orgRole, user };
@@ -121,16 +122,103 @@ export async function requireOrgViewer(): Promise<OrgContext> {
   if (!user) {
     redirect('/login');
   }
-  if (user.orgRole === OrgRole.member) {
+  if (user.orgRole === OrgRole.MEMBER) {
     notFound();
   }
   return { orgRole: user.orgRole, user };
 }
 
 export function isOrgAdmin(role: OrgRole): boolean {
-  return role === OrgRole.org_admin;
+  return role === OrgRole.ORG_ADMIN;
 }
 
 export function canViewIndividuals(role: OrgRole): boolean {
-  return role === OrgRole.org_admin;
+  // Investigators are deliberately NOT here — they reach individual sessions ONLY
+  // through an active access grant (hasActiveGrant), never standing. See below.
+  return role === OrgRole.ORG_ADMIN;
+}
+
+/**
+ * Who may *request* a time-boxed access grant (P9-003/P9-005): org_admins and
+ * investigators (Audience B). viewer_aggregate cannot.
+ *
+ * TRUST RATIONALE — do not "simplify" investigator into standing individual
+ * access. The project's posture (DESIGN_DOC §8/§11) requires access to another
+ * person's session content to be requested-with-justification, org_admin-approved,
+ * time-boxed, and visible to the viewed user. A standing role satisfies none of
+ * these. Investigators therefore can only REQUEST grants; the grant (approved +
+ * expiring + audited) is the access path, and when it expires `hasActiveGrant`
+ * returns false and access reverts to aggregate-only with no code change.
+ */
+export function canRequestGrants(role: OrgRole): boolean {
+  return role === OrgRole.ORG_ADMIN || role === OrgRole.INVESTIGATOR;
+}
+
+/** Asserts the caller may request access grants (org_admin or investigator). */
+export async function requireGrantRequester(): Promise<OrgContext> {
+  const user = await currentUser();
+  if (!user) {
+    redirect('/login');
+  }
+  if (!canRequestGrants(user.orgRole)) {
+    notFound();
+  }
+  return { orgRole: user.orgRole, user };
+}
+
+/**
+ * Whether `granteeId` holds an active, scope-covering access grant for the target
+ * (P9-003, DESIGN_DOC §8.4). This is the gate for viewing a non-sharing user's
+ * transcript: pass the session's owner as `targetUserId` and the session id as
+ * `targetSessionId` so either a `user_sessions` or a `single_session` grant can
+ * match. The active window (approved, not revoked, not expired) is enforced in the
+ * query; `grantCovers` decides scope. An expired grant is treated exactly like no
+ * grant — callers must not branch on "grant existed but expired".
+ */
+export async function hasActiveGrant(
+  db: Pick<PrismaClient, 'accessGrant'>,
+  target: { granteeId: string; targetSessionId?: string; targetUserId?: string },
+): Promise<boolean> {
+  const grants = await db.accessGrant.findMany({
+    select: { scope: true, targetSessionId: true, targetUserId: true },
+    where: {
+      expiresAt: { gt: new Date() },
+      grantedAt: { not: null },
+      granteeUserId: target.granteeId,
+      revokedAt: null,
+    },
+  });
+  return grants.some((g) => grantCovers(g, target));
+}
+
+/**
+ * How (if at all) `user` may view one other user's individual session — the
+ * single decision shared by the org session-detail page, transcript page, and
+ * transcript API route (DESIGN_DOC §8.4):
+ *   - 'admin': org_admin standing access. Transcript content still needs the
+ *     owner's opt-in OR a written justification, recorded loudly on the audit row.
+ *   - 'grant': a non-admin (investigator) holding an active, scope-covering access
+ *     grant. The approved, time-boxed grant IS the authorization, so transcript
+ *     content needs no extra per-view justification.
+ *   - null: no access — callers map to 404 (page) / 403 (API).
+ * Pure decision (no redirect/throw) so each caller controls its own response.
+ */
+export async function resolveOrgSessionAccess(
+  user: Pick<User, 'id' | 'orgRole'>,
+  target: { ownerUserId: string; sessionId: string },
+): Promise<'admin' | 'grant' | null> {
+  if (canViewIndividuals(user.orgRole)) {
+    return 'admin';
+  }
+  if (
+    canRequestGrants(user.orgRole) &&
+    (await hasActiveGrant(getPrisma(), {
+      granteeId: user.id,
+      targetSessionId: target.sessionId,
+      targetUserId: target.ownerUserId,
+    }))
+  ) {
+    return 'grant';
+  }
+  return null;
 }

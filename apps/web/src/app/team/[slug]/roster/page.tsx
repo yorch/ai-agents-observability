@@ -21,7 +21,7 @@ export default async function TeamRosterPage({ params }: { params: Promise<{ slu
 
   // Audit write is fire-and-forget per P3-005: never throws, errors logged to stderr.
   void writeAuditLog({
-    action: AuditAction.export_team,
+    action: AuditAction.EXPORT_TEAM,
     actorUserId: user.id,
     targetTeamId: teamId,
   });

@@ -10,62 +10,74 @@ datasource db {
 // ── Enums ────────────────────────────────────────────────────────────────────
 
 enum SessionStatus {
-  active
-  completed
-  crashed
-  timed_out
-  abandoned
+  ACTIVE
+  COMPLETED
+  CRASHED
+  TIMED_OUT
+  ABANDONED
 }
 
 enum AgentType {
-  claude_code
-  cursor
-  aider
-  copilot
-  codex
-  windsurf
-  opencode
+  CLAUDE_CODE
+  CURSOR
+  AIDER
+  COPILOT
+  CODEX
+  WINDSURF
+  OPENCODE
 }
 
 enum AuditAction {
-  view_session
-  view_transcript
-  export_team
-  export_org
-  admin_impersonate
-  delete_request
-  hook_token_issued
-  role_grant
+  VIEW_SESSION
+  VIEW_TRANSCRIPT
+  EXPORT_TEAM
+  EXPORT_ORG
+  ADMIN_IMPERSONATE
+  DELETE_REQUEST
+  HOOK_TOKEN_ISSUED
+  ROLE_GRANT
+  RETENTION_OVERRIDE_CHANGED
+  GRANT_REQUESTED
+  GRANT_APPROVED
+  GRANT_REVOKED
+}
+
+enum GrantScope {
+  USER_SESSIONS
+  SINGLE_SESSION
 }
 
 enum AuthTokenKind {
-  access
-  refresh
-  hook
+  ACCESS
+  REFRESH
+  HOOK
 }
 
 enum TeamRole {
-  member
-  lead
-  maintainer
+  MEMBER
+  LEAD
+  MAINTAINER
 }
 
 enum OrgRole {
-  member
-  org_admin
-  viewer_aggregate
+  MEMBER
+  ORG_ADMIN
+  VIEWER_AGGREGATE
+  // Audience-B researcher (P9-005). Aggregate access like VIEWER_AGGREGATE PLUS
+  // the ability to REQUEST time-boxed grants — never standing individual access.
+  INVESTIGATOR
 }
 
 enum PRState {
-  open
-  closed
-  merged
+  OPEN
+  CLOSED
+  MERGED
 }
 
 enum LinkSource {
-  session_start
-  webhook_reconcile
-  manual
+  SESSION_START
+  WEBHOOK_RECONCILE
+  MANUAL
 }
 
 // ── Dimension tables ─────────────────────────────────────────────────────────
@@ -77,6 +89,8 @@ model Team {
   name         String
   parentTeamId String?  @map("parent_team_id") @db.Uuid
   syncedAt     DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  // Per-team transcript retention override (P9-004). null = use global default.
+  retentionDays Int?    @map("retention_days")
 
   parentTeam   Team?        @relation("TeamHierarchy", fields: [parentTeamId], references: [id])
   childTeams   Team[]       @relation("TeamHierarchy")
@@ -96,7 +110,7 @@ model User {
   passwordHash  String?   @map("password_hash")
   displayName   String?   @map("display_name")
   primaryTeamId String?   @map("primary_team_id") @db.Uuid
-  orgRole       OrgRole   @default(member) @map("org_role")
+  orgRole       OrgRole   @default(MEMBER) @map("org_role")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz(6)
   deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(6)
@@ -110,6 +124,7 @@ model User {
   targetAuditLogs   AuditLog[]        @relation("AuditTarget")
   pullRequests      PullRequest[]
   deletionRequests  DeletionRequest[]
+  accessGrants      AccessGrant[]     @relation("GrantGrantee")
 
   @@index([lastSeenAt])
   @@map("users")
@@ -206,7 +221,7 @@ model AuditLog {
 model Session {
   sessionId            String        @id @map("session_id") @db.Uuid
   userId               String        @map("user_id") @db.Uuid
-  agentType            AgentType     @default(claude_code) @map("agent_type")
+  agentType            AgentType     @default(CLAUDE_CODE) @map("agent_type")
   agentVersion         String?       @map("agent_version")
   startedAt            DateTime      @map("started_at") @db.Timestamptz(6)
   endedAt              DateTime?     @map("ended_at") @db.Timestamptz(6)
@@ -396,4 +411,87 @@ model JobConfig {
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("job_config")
+}
+
+// ── Alerting (P9-001) ─────────────────────────────────────────────────────────
+
+model AlertRule {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  ruleType       String   @map("rule_type")
+  params         Json     @default("{}")
+  enabled        Boolean  @default(true)
+  cadenceMinutes Int      @default(60) @map("cadence_minutes")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  events AlertEvent[]
+
+  @@index([enabled])
+  @@map("alert_rules")
+}
+
+// ── Access grants (P9-003) ────────────────────────────────────────────────────
+
+// Time-boxed, scoped, audited transcript access (DESIGN_DOC §8.4). Replaces
+// implicit standing org-admin reach: access to a non-sharing user's transcript
+// requires an approved, non-expired, non-revoked grant whose scope covers the target.
+model AccessGrant {
+  id              String     @id @default(uuid()) @db.Uuid
+  granteeUserId   String     @map("grantee_user_id") @db.Uuid
+  // target_user_id / target_session_id are plain UUIDs (not Prisma relations) to
+  // avoid extra User back-relations; resolved on read where needed.
+  targetUserId    String?    @map("target_user_id") @db.Uuid
+  targetSessionId String?    @map("target_session_id") @db.Uuid
+  scope           GrantScope
+  justification   String
+  grantedByUserId String?    @map("granted_by_user_id") @db.Uuid
+  requestedAt     DateTime   @default(now()) @map("requested_at") @db.Timestamptz(6)
+  grantedAt       DateTime?  @map("granted_at") @db.Timestamptz(6)
+  expiresAt       DateTime?  @map("expires_at") @db.Timestamptz(6)
+  revokedAt       DateTime?  @map("revoked_at") @db.Timestamptz(6)
+
+  grantee User @relation("GrantGrantee", fields: [granteeUserId], references: [id], onDelete: Cascade)
+
+  @@index([granteeUserId, expiresAt])
+  @@index([grantedAt, revokedAt])
+  @@map("access_grants")
+}
+
+model AlertEvent {
+  id         BigInt    @id @default(autoincrement())
+  ruleId     String    @map("rule_id") @db.Uuid
+  firedAt    DateTime  @default(now()) @map("fired_at") @db.Timestamptz(6)
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
+  severity   String
+  details    Json      @default("{}")
+
+  rule AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  // One open (unresolved) event per rule — the firing/resolving transition is
+  // recorded once. Enforced in the job; the index speeds the open-event lookup.
+  @@index([ruleId, resolvedAt])
+  @@map("alert_events")
+}
+
+// Org-level notification channels (P9-002). Runtime-editable (no redeploy).
+model AlertChannelConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  channelType String   @map("channel_type")
+  config      Json     @default("{}")
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("alert_channel_config")
+}
+
+// Per-attempt delivery outcome (P9-002). Surfaces persistent failures in the UI.
+model AlertDeliveryLog {
+  id          BigInt   @id @default(autoincrement())
+  channelType String   @map("channel_type")
+  attemptedAt DateTime @default(now()) @map("attempted_at") @db.Timestamptz(6)
+  success     Boolean
+  error       String?
+
+  @@index([attemptedAt(sort: Desc)])
+  @@map("alert_delivery_log")
 }

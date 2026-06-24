@@ -27,7 +27,7 @@ export default async function TeamMemberSessionsPage({
 
   // P3-005: fire-and-forget audit — never throws, errors logged to stderr.
   void writeAuditLog({
-    action: AuditAction.view_session,
+    action: AuditAction.VIEW_SESSION,
     actorUserId: user.id,
     targetUserId: member.userId,
   });

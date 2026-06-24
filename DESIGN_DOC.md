@@ -34,7 +34,7 @@ The primary purpose is **developer experience and effectiveness research** (audi
 ### 2.2 Non-Goals (v1)
 
 - Multi-tenancy. This is single-org, single-tenant.
-- Real-time alerting / SIEM-style behavioral analytics on session content.
+- Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting — spend spikes, error-rate, unknown-model surges — is scoped into Phase 9 §12.9 (`budget_threshold` reserved, not yet evaluated). SIEM-style behavioral analytics on transcript content remains out of scope.)*
 - Replacing any existing observability stack (Datadog, Splunk, etc.) — this is purpose-built for AI coding agent telemetry.
 - **Model-level observability** — inference latency, prompt evaluation, model drift, RAG quality. Out of scope by design; that's a different product.
 - Capturing telemetry from non-Claude-Code agents (Cursor, Aider, Copilot, etc.) **in v1 implementation** — but the data model is designed to accept them in a later phase without schema migration.
@@ -55,8 +55,8 @@ The name `ai-agents-observability` is deliberately plural. Claude Code is the fi
 
 Concretely, this means:
 
-- An `agent_type` dimension exists on every event and session (defaulting to `claude_code` in v1)
-- Tool naming uses a `<agent>:<tool>` convention internally to prevent collisions when other agents have similarly-named tools (e.g. `claude_code:Edit` vs `cursor:Edit`)
+- An `agent_type` dimension exists on every event and session (defaulting to `CLAUDE_CODE` in v1)
+- Tool naming uses a `<agent>:<tool>` convention internally to prevent collisions when other agents have similarly-named tools (e.g. `CLAUDE_CODE:Edit` vs `CURSOR:Edit`)
 - The hook contract (§6.3) is agent-agnostic — any agent that can emit equivalent lifecycle events can produce conformant payloads via its own adapter
 - "My Agents" (the self-service dashboard, §8) is named for the plural case from day one
 - Cost computation accepts per-agent price tables, not a global one
@@ -183,7 +183,7 @@ CREATE TABLE teams (
 CREATE TABLE team_members (
   team_id             UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role_in_team        TEXT NOT NULL CHECK (role_in_team IN ('member','lead','maintainer')),
+  role_in_team        TEXT NOT NULL CHECK (role_in_team IN ('MEMBER','LEAD','MAINTAINER')),
   synced_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (team_id, user_id)
 );
@@ -246,8 +246,8 @@ CREATE TABLE sessions (
   session_id              UUID PRIMARY KEY,
   user_id                 UUID NOT NULL REFERENCES users(id),
 
-  -- Agent dimension (forward-compatible; defaults to claude_code in v1)
-  agent_type              TEXT NOT NULL DEFAULT 'claude_code',
+  -- Agent dimension (forward-compatible; defaults to CLAUDE_CODE in v1)
+  agent_type              TEXT NOT NULL DEFAULT 'CLAUDE_CODE',
   agent_version           TEXT,
 
   -- Lifecycle
@@ -255,7 +255,7 @@ CREATE TABLE sessions (
   ended_at                TIMESTAMPTZ,
   last_event_at           TIMESTAMPTZ NOT NULL,
   status                  TEXT NOT NULL CHECK (status IN
-                            ('active','completed','crashed','timed_out','abandoned')),
+                            ('ACTIVE','COMPLETED','CRASHED','TIMED_OUT','ABANDONED')),
   end_reason              TEXT,
 
   -- Resume / chaining
@@ -320,7 +320,7 @@ CREATE TABLE events (
   ts                    TIMESTAMPTZ NOT NULL,
 
   -- Agent dimension
-  agent_type            TEXT NOT NULL DEFAULT 'claude_code',
+  agent_type            TEXT NOT NULL DEFAULT 'CLAUDE_CODE',
 
   event_type            TEXT NOT NULL,
     -- SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,
@@ -387,7 +387,7 @@ CREATE TABLE pull_requests (
   title               TEXT,
   author_user_id      UUID REFERENCES users(id),
   author_github_login TEXT NOT NULL,
-  state               TEXT NOT NULL CHECK (state IN ('open','closed','merged')),
+  state               TEXT NOT NULL CHECK (state IN ('OPEN','CLOSED','MERGED')),
   base_branch         TEXT,
   head_branch         TEXT,
   opened_at           TIMESTAMPTZ,
@@ -658,9 +658,14 @@ Every team_lead or org_admin view of someone else's session writes an `audit_log
 
 This sounds paranoid; it is the difference between adoption and sabotage. **Non-negotiable.**
 
-### 8.4 Org Admin Investigation Path
+### 8.4 Investigation Paths
 
-Even with `share_transcripts_with_org=false`, an org admin can request transcript access for a specific session by providing a `justification` (e.g., "security incident #1234"). This is logged loudly and visibly. The user sees the access in their own audit feed.
+Even with `share_transcripts_with_org=false`, another user's session/transcript can be reached through one of two audited paths (`resolveOrgSessionAccess` in `apps/web/src/lib/roles.ts` is the single decision shared by the org session-detail page, transcript page, and transcript API route):
+
+- **Org admin — justification at view (standing).** An org admin can request transcript access for a specific session by providing a `justification` (e.g., "security incident #1234"). This is logged loudly and visibly; the user sees the access in their own audit feed.
+- **Investigator — time-boxed grant (no standing access).** An `investigator` (Audience B) has *no* standing individual reach. They request an access grant for a specific session or a user's sessions, citing justification; an org admin approves it; the grant is time-boxed and expires. While the grant is active (`hasActiveGrant`), the investigator views the in-scope session and transcript with no per-view justification — the approved grant is itself the authorization. When it expires, access reverts to aggregate-only with no code change. Every view is still audited (§8.3).
+
+Individual session *search/discovery* stays org-admin-only; investigators reach sessions by a known URL plus an active grant (sampled-session discovery UX is a follow-up).
 
 ---
 
@@ -901,6 +906,50 @@ Resist the urge to build all of it. The MVP that proves value:
 25. Optional: bug correlation via Jira integration
 26. Optional: CI correlation via GitHub Checks
 
+### 12.6 Phase 6 — Hardening & Scale-Readiness
+
+Post-spine review of data-integrity, observability, and access-model gaps. Discriminated-union event schema + structured tool emission, Prometheus coverage for web + github-app, non-blocking transcript pipeline, explicit org-admin team-lead grants. Per-agent price tables and the hook adapter seam were deferred here and are decomposed in Phase 8. See `tasks/P6-roadmap.md`.
+
+### 12.7 Phase 7 — Insight Surfaces & Search
+
+Close the gap between *captured* and *surfaced*. The friction score and session-shape label (Phase 5) are computed nightly but rendered in no UI; transcript full-text search exists only at the org level.
+
+27. Effectiveness widgets on "My Agents" — friction trend, session-shape mix, per-session friction band (honoring the §10.6 caveat: no misleading numbers for low-data sessions, version-pinned)
+28. Team + org effectiveness distributions, gated by `visibility_policies`
+29. Per-user transcript full-text search (scoped to own sessions)
+30. Faceted-search enrichment — shape, friction band, agent-type facets
+31. Backfill of effectiveness signals over historical sessions
+32. Gated spike: semantic (pgvector) transcript search — decision + prototype, not a production commitment
+
+**Success criteria:** a dev sees their own friction trend and can search their own transcripts; a team lead sees a friction distribution without any individual's score leaking.
+
+### 12.8 Phase 8 — Multi-Agent & Cost Model
+
+Prove the multi-agent spine §2.4 with a real second agent, and build the cost machinery a non-Anthropic agent needs.
+
+33. `<agent>:<tool>` tool-name disambiguation (documented in §2.4, not yet built)
+34. Per-agent + versioned price tables (the deferred P6-005) — cost keyed on `(agent_type, model)`, historically reproducible
+35. Hook adapter seam (the deferred P6-006) — agent-neutral transport reused behind an adapter interface
+36. A real second-agent adapter (`opencode`) that validates the seam end-to-end
+37. Agent-driven user-facing copy (no hard-coded "Claude")
+38. Gated: cost reconciliation against a vendor billing API (§13 Q4) — scaffolded behind a flag
+
+A **third** adapter (`codex`, P8-007) was added after the phase's original scope. OpenAI Codex CLI's only stable hook is its turn-level `notify` program, with tool calls + token usage living in a separate rollout JSONL — so it exercised, and minimally extended, the seam: an optional `mapBatch` lets one turn-complete notification expand into the turn's tool events + a usage-bearing Stop read from the rollout (the first two adapters emit one event per hook and are unchanged). It ships an empty `codex` price table — every Codex model bills `$0` via the table until real OpenAI rates are filled in.
+
+**Success criteria:** a second agent's sessions ingest, price correctly, render with correct labels, and never collide on tool names; the transport is shared between adapters without a fork.
+
+### 12.9 Phase 9 — Alerting & Governance
+
+Move from passive dashboards to proactive, trust-preserving operation.
+
+39. Alert rules engine — scheduled evaluation of spend spike / error rate / unknown-model thresholds (`budget_threshold` is reserved in the rule-type enum but not yet evaluated), with persisted firing/resolving history (promotes the render-time anomaly detection of §12.4)
+40. Notification delivery (email / Slack / webhook) + `/admin/alerts` config — aggregate data only, never individual content
+41. Time-boxed transcript access grants — the §8.4 request/approve/expire workflow, replacing implicit standing org-admin reach
+42. Per-team retention overrides on top of the global default
+43. A narrow, grant-scoped research/investigator capability for Audience B (§3) — sampled session access only within an active, expiring, audited grant; no standing access
+
+**Success criteria:** a spend spike fires a notification within one evaluation cycle; every privileged transcript view is the owner or a time-boxed approved grant, logged and visible to the viewed user.
+
 ---
 
 ## 13. Open Questions
@@ -976,3 +1025,4 @@ Beyond Phase 5, the natural extensions:
 | Date       | Author              | Change        |
 | ---------- | ------------------- | ------------- |
 | 2026-05-16 | Jorge (with Claude) | Initial draft |
+| 2026-06-24 | Jorge (with Claude) | Added Phases 6–9 to §12 (Hardening, Insight Surfaces & Search, Multi-Agent & Cost Model, Alerting & Governance); scoped threshold-based alerting out of the §2.2 non-goal |

@@ -30,6 +30,22 @@ describe('buildCommentBody', () => {
     expect(body).toContain('$3.40 total cost · 87 tool calls');
     expect(body).toContain('Active time: 1h 1m');
   });
+
+  it('leaves the header unlabelled for a single claude_code agent (unchanged)', () => {
+    const body = buildCommentBody(rollup, repoConfig, ['CLAUDE_CODE']);
+    expect(body).toContain('🤖 **AI agent summary**');
+    expect(body).not.toContain('(');
+  });
+
+  it('labels the header for a single non-Claude agent', () => {
+    const body = buildCommentBody(rollup, repoConfig, ['OPENCODE']);
+    expect(body).toContain('🤖 **AI agent summary** (opencode)');
+  });
+
+  it('lists all distinct agents for a multi-agent PR', () => {
+    const body = buildCommentBody(rollup, repoConfig, ['CLAUDE_CODE', 'OPENCODE', 'CLAUDE_CODE']);
+    expect(body).toContain('🤖 **AI agent summary** (Claude Code, opencode)');
+  });
 });
 
 describe('postPRComment idempotency', () => {

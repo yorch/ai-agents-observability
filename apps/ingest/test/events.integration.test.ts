@@ -6,7 +6,7 @@ import { makeTestDeps } from './helpers';
 const BATCH_FIXTURE = {
   events: [
     {
-      agent_type: 'claude-code',
+      agent_type: 'CLAUDE_CODE',
       client: { claude_code_version: '1.0.0', hostname_hash: 'abc123', os: 'linux' },
       event_id: '01906a44-0000-7000-8000-000000000001',
       event_type: 'SessionStart',
@@ -45,7 +45,7 @@ describe('POST /v1/events', () => {
     authTokenStub.findFirst = vi.fn().mockResolvedValue({
       expiresAt: null,
       id: 'tok-1',
-      kind: 'hook',
+      kind: 'HOOK',
       revokedAt: null,
       userId: '00000000-0000-0000-0000-000000000001',
     });
@@ -81,7 +81,7 @@ describe('POST /v1/events', () => {
     authTokenStub.findFirst = vi.fn().mockResolvedValue({
       expiresAt: null,
       id: 'tok-1',
-      kind: 'hook',
+      kind: 'HOOK',
       revokedAt: null,
       userId: '00000000-0000-0000-0000-000000000001',
     });
@@ -129,7 +129,7 @@ describe('POST /v1/events', () => {
     authTokenStub.findFirst = vi.fn().mockResolvedValue({
       expiresAt: null,
       id: 'tok-1',
-      kind: 'hook',
+      kind: 'HOOK',
       revokedAt: null,
       userId: '00000000-0000-0000-0000-000000000001',
     });
@@ -171,7 +171,7 @@ describe('POST /v1/events', () => {
     authTokenStub.findFirst = vi.fn().mockResolvedValue({
       expiresAt: null,
       id: 'tok-1',
-      kind: 'hook',
+      kind: 'HOOK',
       revokedAt: null,
       userId: '00000000-0000-0000-0000-000000000001',
     });
@@ -199,7 +199,7 @@ describe('POST /v1/events', () => {
     authTokenStub.findFirst = vi.fn().mockResolvedValue({
       expiresAt: null,
       id: 'tok-1',
-      kind: 'hook',
+      kind: 'HOOK',
       revokedAt: null,
       userId: '00000000-0000-0000-0000-000000000001',
     });

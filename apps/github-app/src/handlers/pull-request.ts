@@ -25,12 +25,12 @@ export async function handlePullRequest(
   logger.info({ action, pr: pr.number, repo: repo.full_name }, 'pr.webhook');
 
   if (action === 'opened' || action === 'synchronize') {
-    await upsertPullRequest(db, repo, pr as Parameters<typeof upsertPullRequest>[2], 'open');
+    await upsertPullRequest(db, repo, pr as Parameters<typeof upsertPullRequest>[2], 'OPEN');
     return;
   }
 
   if (action === 'closed') {
-    const state = pr.merged ? 'merged' : 'closed';
+    const state = pr.merged ? 'MERGED' : 'CLOSED';
     const { repoId, prNumber } = await upsertPullRequest(
       db,
       repo,
@@ -148,7 +148,18 @@ async function maybePostComment(
     return;
   }
 
-  const body = buildCommentBody(rollup, repoConfig);
+  // Distinct agents that contributed to this PR — drives the comment header
+  // label (single claude_code is left unlabelled by multiAgentLabels).
+  const agentRows = rollup.contributingSessionIds.length
+    ? await db.session.findMany({
+        distinct: ['agentType'],
+        select: { agentType: true },
+        where: { sessionId: { in: rollup.contributingSessionIds } },
+      })
+    : [];
+  const agentTypes = agentRows.map((r) => r.agentType as string);
+
+  const body = buildCommentBody(rollup, repoConfig, agentTypes);
   const posted = await postPRComment(owner, name, prNumber, body, installToken, config.github_host);
   logger.info(
     { posted, pr: prNumber, repo: repo.full_name },

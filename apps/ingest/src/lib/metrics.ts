@@ -1,4 +1,4 @@
-import { Counter, collectDefaultMetrics, Histogram, Registry } from 'prom-client';
+import { Counter, collectDefaultMetrics, Gauge, Histogram, Registry } from 'prom-client';
 
 export const registry = new Registry();
 collectDefaultMetrics({ register: registry });
@@ -40,5 +40,28 @@ export const transcriptsStoredTotal = new Counter({
 export const unknownModelEventsTotal = new Counter({
   help: 'Events whose model was absent from the price table (billed $0)',
   name: 'unknown_model_events_total',
+  registers: [registry],
+});
+
+// Cost reconciliation (P8-006). Client-computed cost vs vendor-billed cost for the
+// previous calendar month, per agent. Labelled by agent_type (a small bounded set).
+export const costReconciliationDeltaUsd = new Gauge({
+  help: 'Client-computed minus vendor-billed cost (USD) for the reconciled month',
+  labelNames: ['agent_type'],
+  name: 'cost_reconciliation_delta_usd',
+  registers: [registry],
+});
+
+export const costReconciliationDriftRatio = new Gauge({
+  help: 'Absolute drift ratio |client - vendor| / vendor for the reconciled month',
+  labelNames: ['agent_type'],
+  name: 'cost_reconciliation_drift_ratio',
+  registers: [registry],
+});
+
+export const costReconciliationThresholdExceededTotal = new Counter({
+  help: 'Reconciliation runs where drift exceeded the configured threshold',
+  labelNames: ['agent_type'],
+  name: 'cost_reconciliation_threshold_exceeded_total',
   registers: [registry],
 });

@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
 import { MIN_JUSTIFICATION_LENGTH, normalizeJustification } from '@/lib/audit';
-import { requireOrgAdmin } from '@/lib/roles';
+import { currentUser } from '@/lib/auth';
+import { resolveOrgSessionAccess } from '@/lib/roles';
 import { getSession, getSessionOrgContext } from '@/lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
@@ -18,11 +19,23 @@ export default async function OrgTranscriptPage({
   searchParams: Promise<SearchParams>;
 }) {
   const { id } = await params;
-  // Org-admin only — viewer_aggregate must never reach an individual transcript.
-  await requireOrgAdmin();
+  const user = await currentUser();
+  if (!user) {
+    redirect('/login');
+  }
 
   const ctx = await getSessionOrgContext(id);
   if (!ctx) {
+    notFound();
+  }
+
+  // org_admin (standing) OR investigator with an active grant (§8.4). viewer_aggregate
+  // must never reach an individual transcript.
+  const access = await resolveOrgSessionAccess(user, {
+    ownerUserId: ctx.ownerUserId,
+    sessionId: id,
+  });
+  if (!access) {
     notFound();
   }
 
@@ -45,7 +58,10 @@ export default async function OrgTranscriptPage({
   }
 
   const justification = normalizeJustification((await searchParams).justification);
-  const hasAccess = ctx.shareTranscriptsWithOrg || justification !== null;
+  // A grant-holding investigator is already authorized by the approved, time-boxed
+  // grant — no per-view justification. Admins still need the owner's opt-in or a
+  // written justification.
+  const hasAccess = access === 'grant' || ctx.shareTranscriptsWithOrg || justification !== null;
 
   // §8.4: the owner has not shared with the org — require a written justification
   // before any content is requested. Submitting reloads with `?justification=…`,

@@ -1,4 +1,4 @@
-import type { Event, PriceTable } from '@ai-agents-observability/schemas';
+import type { Event } from '@ai-agents-observability/schemas';
 import { EventSchema, EventsBatchEnvelopeSchema } from '@ai-agents-observability/schemas';
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
@@ -8,6 +8,7 @@ import type { Logger } from 'pino';
 import { verifyIdentityClaim } from '../lib/identity';
 import { insertEventsBatch } from '../lib/insert-events';
 import { eventsIngestedTotal, unknownModelEventsTotal } from '../lib/metrics';
+import type { PriceTableRegistry } from '../lib/price-tables';
 import { linkSessionToPR } from '../lib/session-pr-link';
 import { upsertSessions } from '../lib/upsert-session';
 import type { AppEnv, EventsDb } from '../types';
@@ -18,7 +19,11 @@ import type { AppEnv, EventsDb } from '../types';
 // still bounding memory per request.
 const MAX_BODY_BYTES = 8 * 1_048_576; // 8 MB
 
-export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logger): Hono<AppEnv> {
+export function eventsRouter(
+  db: EventsDb,
+  priceTables: PriceTableRegistry,
+  logger: Logger,
+): Hono<AppEnv> {
   const router = new Hono<AppEnv>();
 
   router.post(
@@ -101,7 +106,7 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
       // single transaction makes the retry re-insert AND re-aggregate together.
       const { acceptedEvents, inserted, aggregated } = await db.$transaction(
         async (tx) => {
-          const insertedTx = await insertEventsBatch(tx, batch.events, userId, priceTable);
+          const insertedTx = await insertEventsBatch(tx, batch.events, userId, priceTables);
 
           // Only feed newly-inserted events into the per-session accumulator.
           const acceptedEventsTx = batch.events.filter((e) =>
@@ -112,7 +117,7 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
             acceptedEventsTx,
             userId,
             repoIdByKey,
-            priceTable,
+            priceTables,
             topGit,
           );
           return {
@@ -129,7 +134,7 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
 
       // Increment Prometheus counter for each accepted event, labelled by agent type.
       if (inserted.accepted > 0) {
-        const agentType = batch.events[0]?.agent_type ?? 'claude-code';
+        const agentType = batch.events[0]?.agent_type ?? 'CLAUDE_CODE';
         eventsIngestedTotal.inc({ agent_type: agentType }, inserted.accepted);
       }
 

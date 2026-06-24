@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 25;
 
-const VALID_ACTIONS = new Set(['view_session', 'view_transcript', 'export_team']);
+const VALID_ACTIONS = new Set(['VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM']);
 
 const DATE_OPTIONS = [
   { days: 7, label: 'Last 7 days' },

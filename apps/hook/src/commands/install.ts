@@ -2,16 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
-const HOOK_KINDS = [
-  'session-start',
-  'pre-tool-use',
-  'post-tool-use',
-  'stop',
-  'user-prompt-submit',
-  'pre-compact',
-  'subagent-stop',
-  'notification',
-] as const;
+import { type HookAdapter, selectAdapter } from '../adapters';
 
 const FLUSHER_LABEL = 'com.claude-telemetry.flusher';
 const SHIPPER_LABEL = 'com.claude-telemetry.shipper';
@@ -67,13 +58,10 @@ WantedBy=default.target
 `;
 }
 
-function printHookSnippet(bin: string): void {
-  const hooks: Record<string, string> = {};
-  for (const kind of HOOK_KINDS) {
-    hooks[kind] = `${bin} hook ${kind}`;
-  }
-  process.stdout.write('Add to ~/.claude/settings.json:\n\n');
-  process.stdout.write(`${JSON.stringify({ hooks }, null, 2)}\n`);
+function printHookSnippet(bin: string, adapter: HookAdapter): void {
+  const cfg = adapter.installConfig();
+  process.stdout.write(`${cfg.settingsHint}\n\n`);
+  process.stdout.write(`${cfg.renderSnippet(bin)}\n`);
 }
 
 function resolvedBinaryPath(): string {
@@ -94,7 +82,7 @@ function resolvedBinaryPath(): string {
   return bin;
 }
 
-function installDarwin(bin: string): number {
+function installDarwin(bin: string, adapter: HookAdapter): number {
   const dir = join(homedir(), 'Library', 'LaunchAgents');
   mkdirSync(dir, { recursive: true });
 
@@ -116,11 +104,11 @@ function installDarwin(bin: string): number {
   process.stdout.write(`  launchctl load ${flusherPath}\n`);
   process.stdout.write(`  launchctl load ${shipperPath}\n\n`);
 
-  printHookSnippet(bin);
+  printHookSnippet(bin, adapter);
   return 0;
 }
 
-function installLinux(bin: string): number {
+function installLinux(bin: string, adapter: HookAdapter): number {
   const dir = join(homedir(), '.config', 'systemd', 'user');
   mkdirSync(dir, { recursive: true });
 
@@ -143,21 +131,21 @@ function installLinux(bin: string): number {
   process.stdout.write('  systemctl --user enable --now claude-telemetry-flusher\n');
   process.stdout.write('  systemctl --user enable --now claude-telemetry-shipper\n\n');
 
-  printHookSnippet(bin);
+  printHookSnippet(bin, adapter);
   return 0;
 }
 
-export function runInstall(): number {
+export function runInstall(adapter: HookAdapter = selectAdapter()): number {
   const bin = resolvedBinaryPath();
 
   if (process.platform === 'darwin') {
-    return installDarwin(bin);
+    return installDarwin(bin, adapter);
   }
   if (process.platform === 'linux') {
-    return installLinux(bin);
+    return installLinux(bin, adapter);
   }
 
   process.stderr.write(`Unsupported platform: ${process.platform}. Manual setup required.\n\n`);
-  printHookSnippet(bin);
+  printHookSnippet(bin, adapter);
   return 1;
 }

@@ -3,13 +3,13 @@ import { z } from 'zod';
 import { SessionContextSchema } from './session-context';
 
 export const AgentTypeSchema = z.enum([
-  'claude-code',
-  'cursor',
-  'aider',
-  'copilot',
-  'codex',
-  'windsurf',
-  'opencode',
+  'CLAUDE_CODE',
+  'CURSOR',
+  'AIDER',
+  'COPILOT',
+  'CODEX',
+  'WINDSURF',
+  'OPENCODE',
 ]);
 export type AgentType = z.infer<typeof AgentTypeSchema>;
 
@@ -69,7 +69,7 @@ const LLMInfoSchema = z.object({
 // Fields shared by every event variant. `event_type`, `tool`, and `llm` are added
 // per-variant by the discriminated union below.
 const baseEventShape = {
-  agent_type: AgentTypeSchema.default('claude-code'),
+  agent_type: AgentTypeSchema.default('CLAUDE_CODE'),
   client: ClientInfoSchema,
   event_id: z.uuidv7(),
   llm: LLMInfoSchema.nullable().optional(),

@@ -35,7 +35,7 @@ vi.mock('@ai-agents-observability/db', () => ({
 vi.mock('@ai-agents-observability/auth', () => ({
   verifyAccessToken: vi.fn(async (token: string) => {
     if (token === 'good') {
-      return { kind: 'access', userId: 'u1' };
+      return { kind: 'ACCESS', userId: 'u1' };
     }
     throw new Error('bad token');
   }),

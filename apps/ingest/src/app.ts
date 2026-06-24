@@ -1,13 +1,11 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
-import type { PriceTable } from '@ai-agents-observability/schemas';
-import { PriceTableSchema } from '@ai-agents-observability/schemas';
 import type { S3Client } from '@aws-sdk/client-s3';
 import { Hono } from 'hono';
 import type { Logger } from 'pino';
 
 import type { Config } from './config';
-import rawPriceTable from './data/price-table.v1.json' with { type: 'json' };
 import { httpRequestDurationMs, httpRequestsTotal, registry } from './lib/metrics';
+import { buildPriceTableRegistry } from './lib/price-tables';
 import { authRequired } from './middleware/auth';
 import { loggerMiddleware } from './middleware/logger';
 import { rateLimitMiddleware } from './middleware/rate-limit';
@@ -29,7 +27,7 @@ export type AppDeps = {
   s3: { bucket: string; client: S3Client };
 };
 
-const priceTable: PriceTable = PriceTableSchema.parse(rawPriceTable);
+const priceTables = buildPriceTableRegistry();
 
 export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
@@ -87,11 +85,11 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
 
   // Public v1 routes — registered before auth middleware so they bypass it
   app.use('/v1/*', rateLimitMiddleware());
-  app.route('/v1/price-table', priceTableRouter(priceTable));
+  app.route('/v1/price-table', priceTableRouter(priceTables));
 
   // Auth middleware applies to all remaining /v1/* routes
   app.use('/v1/*', authRequired(deps.db, deps.logger));
-  app.route('/v1/events', eventsRouter(deps.db, priceTable, deps.logger));
+  app.route('/v1/events', eventsRouter(deps.db, priceTables, deps.logger));
   app.route('/v1/transcripts', transcriptsRouter({ db: deps.db, s3: deps.s3 }, deps.logger));
 
   // Catch-all for unhandled throws (e.g. DB errors on the events hot path).

@@ -7,7 +7,7 @@ import { writeAuditLog } from '@/lib/audit';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
-const ASSIGNABLE: ReadonlySet<TeamRole> = new Set<TeamRole>(['member', 'lead']);
+const ASSIGNABLE: ReadonlySet<TeamRole> = new Set<TeamRole>(['MEMBER', 'LEAD']);
 
 /**
  * Org-admin action: explicitly set a team member's role (member ↔ lead). This is
@@ -37,7 +37,7 @@ export async function setTeamRole(formData: FormData): Promise<void> {
 
   if (count > 0) {
     await writeAuditLog({
-      action: AuditAction.role_grant,
+      action: AuditAction.ROLE_GRANT,
       actorUserId: user.id,
       justification: `Set team role to ${role}`,
       targetTeamId: teamId,

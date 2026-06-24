@@ -8,7 +8,7 @@ import { getMemberForTeam } from '@/lib/team-queries';
 
 export const dynamic = 'force-dynamic';
 
-const LEAD_ROLES = ['lead', 'maintainer'] as const;
+const LEAD_ROLES = ['LEAD', 'MAINTAINER'] as const;
 
 export async function GET(
   _req: NextRequest,

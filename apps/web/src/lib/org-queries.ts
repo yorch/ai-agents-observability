@@ -1,5 +1,19 @@
-import { Prisma } from '@ai-agents-observability/db';
+import { type $Enums, Prisma } from '@ai-agents-observability/db';
+import {
+  ERROR_RATE_CRITICAL,
+  ERROR_RATE_MIN_CALLS,
+  ERROR_RATE_WARN,
+  ERROR_RATE_WINDOW_DAYS,
+  SPEND_SPIKE_BASELINE_DAYS,
+  SPEND_SPIKE_CRITICAL_SIGMA,
+  SPEND_SPIKE_WARN_SIGMA,
+  SPEND_SPIKE_WINDOW_DAYS,
+} from '@ai-agents-observability/schemas';
+import type { EffectivenessDistribution } from './effectiveness-queries';
 import { getPrisma } from './prisma';
+import { searchTranscriptMatches } from './search-queries';
+import { type FrictionBand, frictionBandWhere } from './sessions-queries';
+import { labelToolRows } from './tool-usage';
 
 export type OrgSummary = {
   activeUsers: number;
@@ -214,6 +228,59 @@ export async function getCostByModel(since: Date): Promise<ModelCostRow[]> {
   }));
 }
 
+/**
+ * Org-wide friction percentiles + shape mix for the trailing window. The
+ * `share_metadata_with_org` visibility filter is part of the query (not a
+ * post-fetch filter), matching the other org-queries: a member who hasn't shared
+ * metadata with the org never contributes to the aggregate. Null friction scores
+ * are excluded (never counted as 0). Returns the shared EffectivenessDistribution
+ * shape; the <5-session suppression is enforced in the rendering component.
+ */
+export async function getOrgEffectiveness(since: Date): Promise<EffectivenessDistribution> {
+  const prisma = getPrisma();
+  const [pctRows, shapeRows] = await Promise.all([
+    prisma.$queryRaw<
+      { count: bigint; p25: number | null; p50: number | null; p75: number | null }[]
+    >(Prisma.sql`
+      SELECT
+        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY s.friction_score) AS p25,
+        PERCENTILE_CONT(0.5)  WITHIN GROUP (ORDER BY s.friction_score) AS p50,
+        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY s.friction_score) AS p75,
+        COUNT(s.friction_score)                                        AS count
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      WHERE s.started_at >= ${since}
+        AND s.friction_score IS NOT NULL
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+    `),
+    prisma.$queryRaw<{ count: bigint; shape_label: string }[]>(Prisma.sql`
+      SELECT s.shape_label, COUNT(*) AS count
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      WHERE s.started_at >= ${since}
+        AND s.shape_label IS NOT NULL
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+      GROUP BY s.shape_label
+    `),
+  ]);
+
+  const pct = pctRows[0];
+  const scoredSessions = pct ? Number(pct.count) : 0;
+  const friction =
+    pct && pct.p50 !== null ? { p25: pct.p25 ?? 0, p50: pct.p50, p75: pct.p75 ?? 0 } : null;
+
+  // Integer counts (NOT proportions) — ShapeDistributionChart renders counts and
+  // derives proportions itself; feeding proportions broke its tooltip (showed 0.33).
+  const shapeMix: Record<string, number> = {};
+  for (const r of shapeRows) {
+    shapeMix[r.shape_label] = Number(r.count);
+  }
+
+  return { friction, scoredSessions, shapeMix };
+}
+
 export async function getWeeklyCostTrend(weeks = 12): Promise<DailyCostRow[]> {
   const since = new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000);
   const rows = await getPrisma().$queryRaw<{ cost_usd: number; week: Date }[]>(Prisma.sql`
@@ -239,19 +306,21 @@ export async function getOrgTopTools(since: Date, limit = 10): Promise<OrgToolUs
   }
 
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
-  const rows = await getPrisma().$queryRaw<{ call_count: bigint; tool_name: string }[]>(Prisma.sql`
-    SELECT tool_name, COUNT(*) AS call_count
+  const rows = await getPrisma().$queryRaw<
+    { agent_type: string; call_count: bigint; tool_name: string }[]
+  >(Prisma.sql`
+    SELECT agent_type, tool_name, COUNT(*) AS call_count
     FROM events
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
-    GROUP BY tool_name
+    GROUP BY agent_type, tool_name
     ORDER BY call_count DESC
     LIMIT ${limit}
   `);
 
-  return rows.map((r) => ({ callCount: Number(r.call_count), toolName: r.tool_name }));
+  return labelToolRows(rows);
 }
 
 /** Anomaly detection: cost spikes (>2σ over trailing 14-day baseline) and error spikes. */
@@ -259,10 +328,12 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
   const prisma = getPrisma();
   const anomalies: AnomalyRow[] = [];
 
-  // Cost spike detection: compare last 7 days vs prior 14-day baseline
+  // Cost spike detection: compare the recent window vs the prior baseline window.
   const now = new Date();
-  const last7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const baselineStart = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000);
+  const last7 = new Date(now.getTime() - SPEND_SPIKE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const baselineStart = new Date(
+    now.getTime() - (SPEND_SPIKE_WINDOW_DAYS + SPEND_SPIKE_BASELINE_DAYS) * 24 * 60 * 60 * 1000,
+  );
 
   const [currentPeriod, baseline] = await Promise.all([
     prisma.session.aggregate({
@@ -298,20 +369,21 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
   const avgCost = Number(baseline[0]?.avg_cost ?? 0);
   const stddev = Number(baseline[0]?.stddev_cost ?? 0);
 
-  if (avgCost > 0 && stddev > 0 && currentCost > avgCost + 2 * stddev) {
+  if (avgCost > 0 && stddev > 0 && currentCost > avgCost + SPEND_SPIKE_WARN_SIGMA * stddev) {
     anomalies.push({
       kind: 'spend_spike',
       label: 'Spend spike',
-      message: `Last 7-day cost ($${currentCost.toFixed(2)}) is more than 2σ above the 14-day baseline ($${avgCost.toFixed(2)} ± $${stddev.toFixed(2)}/day).`,
-      severity: currentCost > avgCost + 3 * stddev ? 'critical' : 'warn',
+      message: `Last ${SPEND_SPIKE_WINDOW_DAYS}-day cost ($${currentCost.toFixed(2)}) is more than ${SPEND_SPIKE_WARN_SIGMA}σ above the ${SPEND_SPIKE_BASELINE_DAYS}-day baseline ($${avgCost.toFixed(2)} ± $${stddev.toFixed(2)}/day).`,
+      severity: currentCost > avgCost + SPEND_SPIKE_CRITICAL_SIGMA * stddev ? 'critical' : 'warn',
     });
   }
 
-  // High error rate: tool errors > 10% of tool calls in last 7 days
+  // High error rate over its own (independently-tunable) window.
+  const errorWindowStart = new Date(now.getTime() - ERROR_RATE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const errorStats = await prisma.session.aggregate({
     _sum: { toolCallCount: true, toolErrorCount: true },
     where: {
-      startedAt: { gte: last7 },
+      startedAt: { gte: errorWindowStart },
       user: {
         deactivatedAt: null,
         OR: [{ visibilityPolicy: { shareMetadataWithOrg: true } }, { visibilityPolicy: null }],
@@ -321,12 +393,12 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
 
   const totalCalls = Number(errorStats._sum.toolCallCount ?? 0);
   const totalErrors = Number(errorStats._sum.toolErrorCount ?? 0);
-  if (totalCalls > 100 && totalErrors / totalCalls > 0.1) {
+  if (totalCalls >= ERROR_RATE_MIN_CALLS && totalErrors / totalCalls > ERROR_RATE_WARN) {
     anomalies.push({
       kind: 'error_spike',
       label: 'High tool error rate',
-      message: `${((totalErrors / totalCalls) * 100).toFixed(1)}% of tool calls failed in the last 7 days (${totalErrors} errors / ${totalCalls} calls).`,
-      severity: totalErrors / totalCalls > 0.25 ? 'critical' : 'warn',
+      message: `${((totalErrors / totalCalls) * 100).toFixed(1)}% of tool calls failed in the last ${ERROR_RATE_WINDOW_DAYS} days (${totalErrors} errors / ${totalCalls} calls).`,
+      severity: totalErrors / totalCalls > ERROR_RATE_CRITICAL ? 'critical' : 'warn',
     });
   }
 
@@ -336,11 +408,14 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
 // ── Faceted search ─────────────────────────────────────────────────────────────
 
 export type SessionSearchFilters = {
+  agentTypes?: string[] | undefined;
   dateFrom?: Date | undefined;
   dateTo?: Date | undefined;
+  frictionBand?: FrictionBand | undefined;
   model?: string | undefined;
   page?: number | undefined;
   repoId?: string | undefined;
+  shapeLabels?: string[] | undefined;
   teamId?: string | undefined;
   toolName?: string | undefined;
   userId?: string | undefined;
@@ -414,6 +489,11 @@ export async function searchSessions(
       : {}),
     ...(filters.model ? { primaryModel: filters.model } : {}),
     ...(filters.repoId ? { repoId: filters.repoId } : {}),
+    ...(filters.shapeLabels?.length ? { shapeLabel: { in: filters.shapeLabels } } : {}),
+    ...(filters.agentTypes?.length
+      ? { agentType: { in: filters.agentTypes as $Enums.AgentType[] } }
+      : {}),
+    ...(filters.frictionBand ? { frictionScore: frictionBandWhere(filters.frictionBand) } : {}),
   };
 
   // Tool filter requires a sub-query on events table (not in Prisma where)
@@ -485,50 +565,24 @@ export async function searchTranscripts(
   canViewIndividuals: boolean,
   limit = 20,
 ): Promise<TranscriptSearchResult[]> {
+  // Org transcript search: only sessions from users who opted into org transcript
+  // sharing. Delegates to the shared FTS core; the scope predicate stays in SQL.
   if (!canViewIndividuals || !query.trim()) {
     return [];
   }
 
-  // Only search transcripts of users who share with org AND opted in to transcript sharing
-  const prisma = getPrisma();
+  const matches = await searchTranscriptMatches(
+    query,
+    Prisma.sql`AND COALESCE(vp.share_transcripts_with_org, false) = true`,
+    limit,
+  );
 
-  const rows = await prisma.$queryRaw<
-    {
-      content_text: string;
-      github_login: string | null;
-      message_idx: number;
-      role: string;
-      session_id: string;
-      ts: Date | null;
-    }[]
-  >(Prisma.sql`
-    SELECT
-      ti.session_id::text,
-      ti.message_idx,
-      ti.role,
-      ti.ts,
-      ts_headline('english', ti.content_text,
-        plainto_tsquery('english', ${query}),
-        'MaxWords=40, MinWords=15, ShortWord=3'
-      ) AS content_text,
-      u.github_login
-    FROM transcript_index ti
-    JOIN sessions s ON s.session_id = ti.session_id
-    JOIN users u ON u.id = s.user_id
-    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE ti.content_tsv @@ plainto_tsquery('english', ${query})
-      AND u.deactivated_at IS NULL
-      AND COALESCE(vp.share_transcripts_with_org, false) = true
-    ORDER BY ts_rank(ti.content_tsv, plainto_tsquery('english', ${query})) DESC
-    LIMIT ${limit}
-  `);
-
-  return rows.map((r) => ({
-    excerpt: r.content_text,
-    githubLogin: r.github_login,
-    messageIdx: r.message_idx,
-    role: r.role,
-    sessionId: r.session_id,
-    ts: r.ts,
+  return matches.map((m) => ({
+    excerpt: m.excerpt,
+    githubLogin: m.githubLogin,
+    messageIdx: m.messageIdx,
+    role: m.role,
+    sessionId: m.sessionId,
+    ts: m.ts,
   }));
 }

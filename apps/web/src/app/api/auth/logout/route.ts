@@ -16,7 +16,7 @@ export async function POST() {
       // `hook` token, which would silently kill the developer's CLI telemetry.
       await getPrisma().authToken.updateMany({
         data: { revokedAt: new Date() },
-        where: { kind: 'refresh', revokedAt: null, userId },
+        where: { kind: 'REFRESH', revokedAt: null, userId },
       });
     } catch {
       // Best-effort revocation — still clear cookies

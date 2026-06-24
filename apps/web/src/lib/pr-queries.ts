@@ -47,7 +47,7 @@ export async function getUserPRs(
     orderBy: [{ mergedAt: 'desc' }, { openedAt: 'desc' }],
     where: {
       prLinks: { some: { session: { userId } } },
-      ...(state === 'open' ? { state: 'open' } : state === 'merged' ? { state: 'merged' } : {}),
+      ...(state === 'open' ? { state: 'OPEN' } : state === 'merged' ? { state: 'MERGED' } : {}),
     },
   });
 

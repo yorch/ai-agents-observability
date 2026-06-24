@@ -7,7 +7,7 @@ import { buildBatchEnvelope } from '../src/flusher';
 // Each event carries its own session_context; the batch envelope reuses it.
 function makeEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    agent_type: 'claude-code',
+    agent_type: 'CLAUDE_CODE',
     client: { claude_code_version: '1.0.0', hostname_hash: 'abc123', os: 'linux' },
     event_id: '01906a44-0000-7000-8000-000000000001',
     event_type: 'Stop',

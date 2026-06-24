@@ -1,6 +1,7 @@
 import { Prisma } from '@ai-agents-observability/db';
 
 import { getPrisma } from './prisma';
+import { labelToolRows } from './tool-usage';
 
 const toUuidList = (ids: string[]) => Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`));
 
@@ -126,19 +127,21 @@ export async function getTeamTopTools(
   }
 
   const uuids = toUuidList(visibleIds);
-  const rows = await getPrisma().$queryRaw<{ call_count: bigint; tool_name: string }[]>(Prisma.sql`
-    SELECT tool_name, COUNT(*) AS call_count
+  const rows = await getPrisma().$queryRaw<
+    { agent_type: string; call_count: bigint; tool_name: string }[]
+  >(Prisma.sql`
+    SELECT agent_type, tool_name, COUNT(*) AS call_count
     FROM events
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
-    GROUP BY tool_name
+    GROUP BY agent_type, tool_name
     ORDER BY call_count DESC
     LIMIT ${limit}
   `);
 
-  return rows.map((r) => ({ callCount: Number(r.call_count), toolName: r.tool_name }));
+  return labelToolRows(rows);
 }
 
 export async function getTeamModelMix(since: Date, visibleIds: string[]): Promise<TeamModelMix[]> {

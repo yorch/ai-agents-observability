@@ -11,7 +11,7 @@ export function Nav({ user }: { user: User | null }) {
         ai-agents-observability
       </Link>
       <div className="flex items-center gap-4 text-sm">
-        {user && user.orgRole !== OrgRole.member && (
+        {user && user.orgRole !== OrgRole.MEMBER && (
           <Link href="/org/dashboard" className="text-white/60 hover:text-white hover:underline">
             Org
           </Link>

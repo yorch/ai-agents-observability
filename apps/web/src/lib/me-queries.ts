@@ -1,5 +1,6 @@
 import { Prisma } from '@ai-agents-observability/db';
 import { getPrisma } from './prisma';
+import { labelToolRows } from './tool-usage';
 
 export type UsageSummary = {
   repoCount: number;
@@ -86,19 +87,21 @@ export async function getTopTools(userId: string, since: Date, limit = 5): Promi
   // (one per completed tool call, matching sessions.tool_call_count semantics) so
   // PreToolUse doesn't double-count. Previously this grouped sessions by
   // primary_model and mislabeled model names as tools.
-  const rows = await prisma.$queryRaw<{ call_count: bigint; tool_name: string }[]>(Prisma.sql`
-    SELECT tool_name, COUNT(*) AS call_count
+  const rows = await prisma.$queryRaw<
+    { agent_type: string; call_count: bigint; tool_name: string }[]
+  >(Prisma.sql`
+    SELECT agent_type, tool_name, COUNT(*) AS call_count
     FROM events
     WHERE user_id = ${userId}::uuid
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
-    GROUP BY tool_name
+    GROUP BY agent_type, tool_name
     ORDER BY call_count DESC
     LIMIT ${limit}
   `);
 
-  return rows.map((r) => ({ callCount: Number(r.call_count), toolName: r.tool_name }));
+  return labelToolRows(rows);
 }
 
 export async function getModelMix(userId: string, since: Date): Promise<ModelMix[]> {

@@ -19,7 +19,7 @@ export async function linkSessionToPR(
   }
 
   await db.sessionPRLink.upsert({
-    create: { linkSource: 'session_start', prNumber, repoId, sessionId },
+    create: { linkSource: 'SESSION_START', prNumber, repoId, sessionId },
     update: {},
     where: { sessionId_repoId_prNumber: { prNumber, repoId, sessionId } },
   });

@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS events (
   user_id               UUID NOT NULL,
   ts                    TIMESTAMPTZ NOT NULL,
 
-  agent_type            TEXT NOT NULL DEFAULT 'claude_code',
+  agent_type            TEXT NOT NULL DEFAULT 'CLAUDE_CODE',
 
   event_type            TEXT NOT NULL,
   turn_number           INT,

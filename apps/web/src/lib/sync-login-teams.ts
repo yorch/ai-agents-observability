@@ -48,7 +48,7 @@ export async function syncLoginTeams(
     await db.teamMember.upsert({
       create: {
         leftAt: null,
-        roleInTeam: m.role,
+        roleInTeam: m.role === 'maintainer' ? 'MAINTAINER' : 'MEMBER',
         syncedAt: now,
         teamId: team.id,
         userId,
