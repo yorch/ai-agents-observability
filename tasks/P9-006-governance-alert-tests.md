@@ -3,8 +3,8 @@ id: P9-006
 title: Governance + alerting invariant test suite
 phase: 9
 workstream: F
-status: blocked
-owner: null
+status: in-progress
+owner: claude
 depends_on: [P9-002, P9-005]
 blocks: []
 estimate: M
@@ -89,3 +89,15 @@ bun run test
 bun --filter '@ai-agents-observability/ingest' test
 bun --filter '@ai-agents-observability/web' test
 ```
+
+> **Verification status (review):** consolidated invariant suites **pass locally** —
+> `apps/ingest/test/p9-invariants.test.ts` (4: retention bounds property-loop, idempotent
+> firing/resolution, payload sanitization with hostile injected ids) and
+> `apps/web/test/p9-invariants.test.ts` (4: grant-expiry property-loop incl. expired==no-grant,
+> empty-grant-set denial, mismatched-target denial across ≥5 combos). Investigator capability
+> invariants live in `roles.test.ts` (P9-005). biome clean.
+>
+> **Conventions:** tests placed under the repo's existing `apps/*/test/` dirs (where vitest is
+> configured) rather than the task's suggested `src/__tests__/`. Property-style coverage uses
+> in-test combinatorial loops over the Prisma-free policy helpers (no new dep; runs in CI without
+> a database). DB-backed end-to-end seeding is covered by the per-task tests + CI.
