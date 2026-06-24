@@ -36,6 +36,7 @@ enum AuditAction {
   delete_request
   hook_token_issued
   role_grant
+  retention_override_changed
 }
 
 enum AuthTokenKind {
@@ -77,6 +78,8 @@ model Team {
   name         String
   parentTeamId String?  @map("parent_team_id") @db.Uuid
   syncedAt     DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  // Per-team transcript retention override (P9-004). null = use global default.
+  retentionDays Int?    @map("retention_days")
 
   parentTeam   Team?        @relation("TeamHierarchy", fields: [parentTeamId], references: [id])
   childTeams   Team[]       @relation("TeamHierarchy")

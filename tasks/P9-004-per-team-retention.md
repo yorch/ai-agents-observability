@@ -3,8 +3,8 @@ id: P9-004
 title: Per-team retention override
 phase: 9
 workstream: B
-status: ready
-owner: null
+status: in-progress
+owner: claude
 depends_on: [P4-007]
 blocks: []
 estimate: M
@@ -85,3 +85,12 @@ bun --filter '@ai-agents-observability/ingest' test
 # Test: team with retention_days=null → behavior identical to pre-patch.
 # Test: team with retention_days=800, ORG_MAX=730 → clamped to 730.
 ```
+
+> **Verification status (review):** `retention-clamp.test.ts` (5 cases — null=global, shorter,
+> longer, clamp-above-max, global-above-max) **passes locally** + biome clean. The clamp formula
+> lives in a Prisma-free `retention-policy.ts` (testable without the generated client); the sweep
+> job computes effective retention per-row in SQL (`LEAST(COALESCE(team.retention_days, global),
+> orgMax)`) joined via `users.primary_team_id`. `teams.retention_days` column + `ORG_MAX_RETENTION_DAYS`
+> config (default 730) + `retention_override_changed` AuditAction added; org-admin sets/clears the
+> override at `/admin/retention` (audited). A team with null override behaves exactly as before.
+> `typecheck` + DB tests run in CI (Prisma egress-blocked locally).

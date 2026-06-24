@@ -54,6 +54,7 @@ startScheduler({
   db,
   ...(config.github_sync_token ? { githubSyncToken: config.github_sync_token } : {}),
   logger,
+  orgMaxRetentionDays: config.org_max_retention_days,
   s3,
   transcriptRetentionDays: config.transcript_retention_days,
 });

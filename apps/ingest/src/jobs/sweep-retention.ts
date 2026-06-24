@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
+import { Prisma } from '@ai-agents-observability/db';
 import type { S3Client } from '@aws-sdk/client-s3';
 import {
   DeleteObjectCommand,
@@ -7,18 +8,21 @@ import {
 } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
+export { effectiveRetentionDays } from './retention-policy';
+
 /**
- * Enforces configurable transcript retention.
- * Deletes S3 objects whose corresponding session ended more than
- * `retentionDays` ago, then clears the transcript pointer in Postgres.
- * Also sweeps orphaned S3 keys (objects with no matching session row).
- * Skips if retentionDays === 0 (retention disabled).
+ * Enforces configurable transcript retention, honoring per-team overrides.
+ * Deletes S3 objects whose session's transcript is older than the session
+ * owner's team's effective retention, then clears the transcript pointer in
+ * Postgres. Also sweeps orphaned S3 keys. Skips if the global default is 0
+ * (retention disabled org-wide).
  */
 export async function runSweepRetention(
   db: PrismaClient,
   s3: S3Client,
   bucket: string,
   retentionDays: number,
+  orgMaxRetentionDays: number,
   logger?: Logger,
 ): Promise<void> {
   if (retentionDays === 0) {
@@ -45,16 +49,27 @@ export async function runSweepRetention(
     });
     jobRunId = jobRun.id;
 
-    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-
-    // Find sessions with transcripts older than retention window
-    const expired = await db.session.findMany({
-      select: { sessionId: true, transcriptS3Key: true },
-      where: {
-        transcriptS3Key: { not: null },
-        transcriptUploadedAt: { lt: cutoff },
-      },
-    });
+    // Find sessions whose transcript is older than the OWNER's team effective
+    // retention: min(team override ?? global default, org max). A user with no
+    // primary team (or a team with no override) falls back to the global default,
+    // matching pre-P9-004 behavior. Computed per-row in SQL so one query covers
+    // every team's policy.
+    const expiredRows = await db.$queryRaw<{ session_id: string; transcript_s3_key: string }[]>(
+      Prisma.sql`
+        SELECT s.session_id::text AS session_id, s.transcript_s3_key
+        FROM sessions s
+        JOIN users u ON u.id = s.user_id
+        LEFT JOIN teams t ON t.id = u.primary_team_id
+        WHERE s.transcript_s3_key IS NOT NULL
+          AND s.transcript_uploaded_at <
+            NOW() - (LEAST(COALESCE(t.retention_days, ${retentionDays}), ${orgMaxRetentionDays})
+                     * INTERVAL '1 day')
+      `,
+    );
+    const expired = expiredRows.map((r) => ({
+      sessionId: r.session_id,
+      transcriptS3Key: r.transcript_s3_key,
+    }));
 
     let purged = 0;
     for (const session of expired) {

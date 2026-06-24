@@ -14,6 +14,9 @@ const ConfigSchema = z.object({
   github_sync_token: z.string().optional(),
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   node_env: z.enum(['development', 'production', 'test']).default('development'),
+  // Upper bound for per-team retention overrides (P9-004). A team override above
+  // this is clamped, never rejected. Default: 730 (2 years).
+  org_max_retention_days: z.coerce.number().int().min(1).default(730),
   port: z.coerce.number().int().min(1).max(65535).default(4000),
   s3_access_key_id: z.string().min(1),
   s3_bucket: z.string().min(1),
@@ -40,6 +43,7 @@ export function loadConfig(): Config {
     github_sync_token: process.env.GITHUB_SYNC_TOKEN,
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,
+    org_max_retention_days: process.env.ORG_MAX_RETENTION_DAYS,
     port: process.env.INGEST_PORT,
     s3_access_key_id: process.env.S3_ACCESS_KEY_ID,
     s3_bucket: process.env.S3_BUCKET,

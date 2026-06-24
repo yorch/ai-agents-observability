@@ -18,6 +18,7 @@ export type SchedulerDeps = {
   db: PrismaClient;
   githubSyncToken?: string;
   logger?: Logger;
+  orgMaxRetentionDays: number;
   s3: S3Client;
   transcriptRetentionDays: number;
 };
@@ -51,7 +52,8 @@ function slotKey(date: Date): string {
 
 /** Dispatch a named job using the full deps context. */
 export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<void> {
-  const { bucket, db, githubSyncToken, logger, s3, transcriptRetentionDays } = deps;
+  const { bucket, db, githubSyncToken, logger, orgMaxRetentionDays, s3, transcriptRetentionDays } =
+    deps;
   switch (jobName) {
     case 'sync-teams':
       await runSyncTeams(db, githubSyncToken, logger);
@@ -66,7 +68,7 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       await runDeletions(db, s3, bucket, logger);
       break;
     case 'sweep-retention':
-      await runSweepRetention(db, s3, bucket, transcriptRetentionDays, logger);
+      await runSweepRetention(db, s3, bucket, transcriptRetentionDays, orgMaxRetentionDays, logger);
       break;
     case 'index-transcripts':
       await runIndexTranscripts(
