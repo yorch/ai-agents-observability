@@ -3,8 +3,8 @@ id: P9-002
 title: Alert notification delivery + admin UI
 phase: 9
 workstream: E
-status: blocked
-owner: null
+status: in-progress
+owner: claude
 depends_on: [P9-001]
 blocks: [P9-006]
 estimate: M
@@ -96,3 +96,17 @@ bun run check
 # job, verify the listener receives a POST with no user-identifying fields.
 bun --filter '@ai-agents-observability/web' test
 ```
+
+> **Verification status (review):** `alert-notify.test.ts` (5 cases — payload shape, **trust
+> guardrail: no session/user/login/leak in serialized payload**, disabled-channel skip,
+> failure-logs-without-throwing + retry) **passes locally** + biome clean. Delivery layer
+> (`notify/`: payload, channel dispatcher with 3x backoff + delivery log, webhook/slack POST
+> channels, email seam) is separate from evaluation (P9-001) and wired in on FIRED transitions
+> only. `alert_channel_config` + `alert_delivery_log` tables + migration; `/admin/alerts` (rules
+> toggle, channel CRUD, aggregate-only history, recent failures).
+>
+> **Scope notes:** (1) email ships as a documented seam that throws "SMTP not configured" (no SMTP
+> dep in the pinned catalog — wiring it is a separate reviewed change); webhook + slack are real
+> POSTs. (2) Channel configs live in `alert_channel_config` (runtime-editable, not env). (3) Rule
+> param/threshold editing beyond enable/disable is a follow-up — thresholds are the shared
+> constants from P9-001. `typecheck` + DB tests run in CI (Prisma egress-blocked locally).

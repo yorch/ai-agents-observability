@@ -13,9 +13,14 @@ import {
 } from '@ai-agents-observability/schemas';
 import type { Logger } from 'pino';
 
+import { dispatchAlert } from '../lib/notify/channel';
+import { buildAlertPayload } from '../lib/notify/payload';
 import { type AlertEvaluation, applyAlertTransition } from './alert-transition';
 
-type AlertsDb = Pick<PrismaClient, 'jobRun' | 'alertRule' | 'alertEvent'> & {
+type AlertsDb = Pick<
+  PrismaClient,
+  'jobRun' | 'alertRule' | 'alertEvent' | 'alertChannelConfig' | 'alertDeliveryLog'
+> & {
   $queryRaw: PrismaClient['$queryRaw'];
 };
 
@@ -165,6 +170,9 @@ export async function runEvaluateAlerts(db: AlertsDb, logger?: Logger): Promise<
     jobRunId = jobRun.id;
 
     const rules = (await db.alertRule.findMany({ where: { enabled: true } })) as RuleRow[];
+    // Load notification channels once; only newly-FIRED transitions notify (no
+    // spam on still-firing or resolved). Delivery is best-effort and never throws.
+    const channels = await db.alertChannelConfig.findMany({ where: { enabled: true } });
     let fired = 0;
     let resolved = 0;
     for (const rule of rules) {
@@ -173,6 +181,14 @@ export async function runEvaluateAlerts(db: AlertsDb, logger?: Logger): Promise<
         const outcome = await applyAlertTransition(db, rule.id, evaluation);
         if (outcome === 'fired') {
           fired++;
+          if (evaluation && channels.length > 0) {
+            const payload = buildAlertPayload(rule, {
+              details: evaluation.details,
+              firedAt: new Date(),
+              severity: evaluation.severity,
+            });
+            await dispatchAlert(db, channels, payload, logger);
+          }
         } else if (outcome === 'resolved') {
           resolved++;
         }

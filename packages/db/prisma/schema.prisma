@@ -472,3 +472,26 @@ model AlertEvent {
   @@index([ruleId, resolvedAt])
   @@map("alert_events")
 }
+
+// Org-level notification channels (P9-002). Runtime-editable (no redeploy).
+model AlertChannelConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  channelType String   @map("channel_type")
+  config      Json     @default("{}")
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("alert_channel_config")
+}
+
+// Per-attempt delivery outcome (P9-002). Surfaces persistent failures in the UI.
+model AlertDeliveryLog {
+  id          BigInt   @id @default(autoincrement())
+  channelType String   @map("channel_type")
+  attemptedAt DateTime @default(now()) @map("attempted_at") @db.Timestamptz(6)
+  success     Boolean
+  error       String?
+
+  @@index([attemptedAt(sort: Desc)])
+  @@map("alert_delivery_log")
+}
