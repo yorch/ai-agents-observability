@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { TranscriptViewer } from '@/components/me/TranscriptViewer';
+import { TranscriptPanel } from '@/components/me/TranscriptPanel';
 import { MIN_JUSTIFICATION_LENGTH, normalizeJustification } from '@/lib/audit';
 import { requireOrgAdmin } from '@/lib/roles';
 import { getSession, getSessionOrgContext } from '@/lib/sessions-queries';
@@ -32,20 +32,15 @@ export default async function OrgTranscriptPage({
   }
 
   const owner = ctx.displayName ?? (ctx.ownerLogin ? `@${ctx.ownerLogin}` : 'Unknown user');
-  const backLink = (
-    <Link href={`/org/sessions/${id}`} className="text-sm text-white/50 hover:text-white">
-      ← Session
-    </Link>
-  );
 
   if (!session.transcriptS3Key) {
     return (
-      <div className="space-y-6">
-        {backLink}
-        <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center">
-          <p className="text-sm text-white/50">No transcript available for this session.</p>
-        </div>
-      </div>
+      <TranscriptPanel
+        backHref={`/org/sessions/${id}`}
+        hasTranscript={false}
+        sessionId={id}
+        subtitle={`${owner} · ${session.repoName ?? 'Unknown repo'} · ${session.startedAt.toLocaleString()}`}
+      />
     );
   }
 
@@ -58,7 +53,11 @@ export default async function OrgTranscriptPage({
   if (!hasAccess) {
     return (
       <div className="space-y-6">
-        {backLink}
+        <div className="flex items-center gap-3">
+          <Link href={`/org/sessions/${id}`} className="text-sm text-white/50 hover:text-white">
+            ← Session
+          </Link>
+        </div>
         <div>
           <h1 className="text-xl font-semibold">Request transcript access</h1>
           <p className="mt-1 text-sm text-white/50">
@@ -97,22 +96,19 @@ export default async function OrgTranscriptPage({
     : `/api/org/transcripts/${id}`;
 
   return (
-    <div className="space-y-6">
-      {backLink}
-
-      <div>
-        <h1 className="text-xl font-semibold">Transcript</h1>
-        <p className="mt-1 text-sm text-white/50">
-          {owner} · {session.repoName ?? 'Unknown repo'} · {session.startedAt.toLocaleString()}
-        </p>
-        {justification && (
+    <TranscriptPanel
+      apiUrl={apiUrl}
+      backHref={`/org/sessions/${id}`}
+      hasTranscript
+      notice={
+        justification ? (
           <p className="mt-2 text-xs text-amber-400/80">
             Accessed via justification — this view is recorded in {owner}&apos;s audit feed.
           </p>
-        )}
-      </div>
-
-      <TranscriptViewer sessionId={id} apiUrl={apiUrl} />
-    </div>
+        ) : undefined
+      }
+      sessionId={id}
+      subtitle={`${owner} · ${session.repoName ?? 'Unknown repo'} · ${session.startedAt.toLocaleString()}`}
+    />
   );
 }

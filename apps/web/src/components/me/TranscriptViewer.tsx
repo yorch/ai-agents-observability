@@ -231,7 +231,13 @@ function toParsed(raw: string): ParsedLine {
 // count bounded so a 100k-line transcript can't lock up the browser on mount.
 const WINDOW_STEP = 300;
 
-export function TranscriptViewer({ apiUrl, sessionId }: { apiUrl?: string; sessionId: string }) {
+export function TranscriptViewer({
+  apiUrl,
+  sessionId,
+}: {
+  apiUrl?: string | undefined;
+  sessionId: string;
+}) {
   const [lines, setLines] = useState<ParsedLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
