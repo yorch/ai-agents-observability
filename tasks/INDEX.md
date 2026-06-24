@@ -168,7 +168,7 @@ See [`P7-roadmap.md`](./P7-roadmap.md). Surfaces effectiveness signals (already 
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P7-001](./P7-001-effectiveness-backfill.md) | Effectiveness backfill (historical sessions) | ready | — | M | P5-001, P5-002 |
+| [P7-001](./P7-001-effectiveness-backfill.md) | Effectiveness backfill (historical sessions) | review | claude | M | P5-001, P5-002 |
 | [P7-002](./P7-002-effectiveness-query-layer.md) | Effectiveness query layer (web) | blocked | — | S | P7-001 |
 | [P7-003](./P7-003-me-effectiveness-widgets.md) | /me effectiveness widgets (friction trend + shape mix) | blocked | — | M | P7-002 |
 | [P7-004](./P7-004-team-org-effectiveness.md) | Team + org effectiveness dashboards | blocked | — | M | P7-002 |

@@ -2,7 +2,7 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 import type { S3Client } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
-import { runComputeEffectiveness } from './compute-effectiveness';
+import { runComputeEffectiveness, runComputeEffectivenessBackfill } from './compute-effectiveness';
 import { runIndexTranscripts } from './index-transcripts';
 import { runDeletions } from './run-deletions';
 import { runSweepAbandoned } from './sweep-abandoned';
@@ -74,6 +74,15 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       break;
     case 'compute-effectiveness':
       await runComputeEffectiveness(db as Parameters<typeof runComputeEffectiveness>[0], logger);
+      break;
+    // One-shot historical backfill (P7-001). Dispatchable here for operator-run
+    // scripts; deliberately absent from CONFIGURABLE_JOBS (no cadence) and
+    // ALL_KNOWN_JOBS (not reachable via the HTTP manual-trigger endpoint).
+    case 'compute-effectiveness-backfill':
+      await runComputeEffectivenessBackfill(
+        db as Parameters<typeof runComputeEffectivenessBackfill>[0],
+        logger,
+      );
       break;
     default:
       logger?.warn({ jobName }, 'triggerJob: unknown job name');

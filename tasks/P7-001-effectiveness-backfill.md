@@ -3,8 +3,8 @@ id: P7-001
 title: Effectiveness backfill (historical sessions)
 phase: 7
 workstream: B
-status: ready
-owner: null
+status: review
+owner: claude
 depends_on: [P5-001, P5-002]
 blocks: [P7-002, P7-006]
 estimate: M
@@ -65,3 +65,9 @@ Pagination cursor: `WHERE (friction_score IS NULL OR shape_label IS NULL) AND se
 ```bash
 bun --filter '@app/ingest' test
 ```
+
+> **Verification status (review):** implementation + `apps/ingest/test/compute-effectiveness.test.ts`
+> are written, but the test could **not be executed in the build sandbox**: generating the
+> Prisma client requires `binaries.prisma.sh`, which the environment's egress policy denies
+> (403), so the ingest module's `import { Prisma }` cannot load. The test must be run in CI
+> (which can fetch the engines). Acceptance checkboxes are left unchecked until CI is green.
