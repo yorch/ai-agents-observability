@@ -658,9 +658,14 @@ Every team_lead or org_admin view of someone else's session writes an `audit_log
 
 This sounds paranoid; it is the difference between adoption and sabotage. **Non-negotiable.**
 
-### 8.4 Org Admin Investigation Path
+### 8.4 Investigation Paths
 
-Even with `share_transcripts_with_org=false`, an org admin can request transcript access for a specific session by providing a `justification` (e.g., "security incident #1234"). This is logged loudly and visibly. The user sees the access in their own audit feed.
+Even with `share_transcripts_with_org=false`, another user's session/transcript can be reached through one of two audited paths (`resolveOrgSessionAccess` in `apps/web/src/lib/roles.ts` is the single decision shared by the org session-detail page, transcript page, and transcript API route):
+
+- **Org admin — justification at view (standing).** An org admin can request transcript access for a specific session by providing a `justification` (e.g., "security incident #1234"). This is logged loudly and visibly; the user sees the access in their own audit feed.
+- **Investigator — time-boxed grant (no standing access).** An `investigator` (Audience B) has *no* standing individual reach. They request an access grant for a specific session or a user's sessions, citing justification; an org admin approves it; the grant is time-boxed and expires. While the grant is active (`hasActiveGrant`), the investigator views the in-scope session and transcript with no per-view justification — the approved grant is itself the authorization. When it expires, access reverts to aggregate-only with no code change. Every view is still audited (§8.3).
+
+Individual session *search/discovery* stays org-admin-only; investigators reach sessions by a known URL plus an active grant (sampled-session discovery UX is a follow-up).
 
 ---
 
