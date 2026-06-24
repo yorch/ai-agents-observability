@@ -109,7 +109,8 @@ export default async function MeSearchPage({
                       <p
                         key={`${s.sessionId}-${e.role}-${e.ts?.toISOString() ?? ''}`}
                         className="text-sm text-white/70 leading-relaxed"
-                        // ts_headline returns sanitized <b>-wrapped excerpts from our own data.
+                        // Excerpt is HTML-escaped server-side (search-queries.highlightExcerpt),
+                        // with only <mark> tags re-introduced around matches — safe to render.
                         dangerouslySetInnerHTML={{ __html: e.excerpt }}
                       />
                     ))}

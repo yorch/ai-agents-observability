@@ -53,6 +53,7 @@ startScheduler({
   bucket: config.s3_bucket,
   db,
   ...(config.github_sync_token ? { githubSyncToken: config.github_sync_token } : {}),
+  appBaseUrl: config.app_base_url,
   logger,
   orgMaxRetentionDays: config.org_max_retention_days,
   s3,

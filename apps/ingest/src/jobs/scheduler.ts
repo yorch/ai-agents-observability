@@ -13,6 +13,7 @@ import { runSweepScratch } from './sweep-scratch';
 import { runSyncTeams } from './sync-teams';
 
 export type SchedulerDeps = {
+  appBaseUrl?: string;
   billingReconciliationEnabled?: boolean;
   bucket: string;
   db: PrismaClient;
@@ -52,8 +53,16 @@ function slotKey(date: Date): string {
 
 /** Dispatch a named job using the full deps context. */
 export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<void> {
-  const { bucket, db, githubSyncToken, logger, orgMaxRetentionDays, s3, transcriptRetentionDays } =
-    deps;
+  const {
+    appBaseUrl,
+    bucket,
+    db,
+    githubSyncToken,
+    logger,
+    orgMaxRetentionDays,
+    s3,
+    transcriptRetentionDays,
+  } = deps;
   switch (jobName) {
     case 'sync-teams':
       await runSyncTeams(db, githubSyncToken, logger);
@@ -83,7 +92,7 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       break;
     // Scheduled alert evaluation (P9-001). Records firing/resolving transitions.
     case 'evaluate-alerts':
-      await runEvaluateAlerts(db as Parameters<typeof runEvaluateAlerts>[0], logger);
+      await runEvaluateAlerts(db as Parameters<typeof runEvaluateAlerts>[0], logger, appBaseUrl);
       break;
     // One-shot historical backfill (P7-001). Dispatchable here for operator-run
     // scripts; deliberately absent from CONFIGURABLE_JOBS (no cadence) and

@@ -44,6 +44,14 @@ export default async function OrgSearchPage({
 
   // Load filter options for dropdowns
   const prisma = getPrisma();
+  // Facet dropdowns must respect visibility: a user who opted out of org metadata
+  // sharing must not surface their models/shapes/agents in the org facet lists.
+  const orgVisibleSession = {
+    user: {
+      deactivatedAt: null,
+      OR: [{ visibilityPolicy: { shareMetadataWithOrg: true } }, { visibilityPolicy: null }],
+    },
+  };
   const [teams, repos, models, shapeFacets, agentFacets] = await Promise.all([
     prisma.team.findMany({
       orderBy: { name: 'asc' },
@@ -59,17 +67,18 @@ export default async function OrgSearchPage({
       by: ['primaryModel'],
       orderBy: { _count: { primaryModel: 'desc' } },
       take: 20,
-      where: { primaryModel: { not: null } },
+      where: { ...orgVisibleSession, primaryModel: { not: null } },
     }),
-    // Available effectiveness/agent facets over the base scope (single GROUP BY each).
+    // Available effectiveness/agent facets, visibility-scoped (single GROUP BY each).
     prisma.session.groupBy({
       _count: { _all: true },
       by: ['shapeLabel'],
-      where: { shapeLabel: { not: null } },
+      where: { ...orgVisibleSession, shapeLabel: { not: null } },
     }),
     prisma.session.groupBy({
       _count: { _all: true },
       by: ['agentType'],
+      where: orgVisibleSession,
     }),
   ]);
 

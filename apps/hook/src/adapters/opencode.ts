@@ -1,5 +1,6 @@
 import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schemas';
 
+import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
 import { userIdClaim } from '../lib/identity';
 import { uuidv7 } from '../lib/uuid';
@@ -46,14 +47,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function num(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
-}
-
-function fieldBytes(value: unknown): number {
-  if (value == null) {
-    return 0;
-  }
-  const s = typeof value === 'string' ? value : JSON.stringify(value);
-  return Buffer.byteLength(s, 'utf8');
 }
 
 // Build the structured `tool` block from an opencode tool event. opencode tool

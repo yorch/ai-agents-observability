@@ -22,7 +22,9 @@ export type EffectivenessDistribution = {
   // Null when no session in scope has a friction score (never a misleading 0).
   friction: FrictionPercentiles | null;
   scoredSessions: number;
-  // { [shapeLabel]: proportion } where proportions sum to ~1.
+  // { [shapeLabel]: sessionCount } — integer counts (NOT proportions), so the
+  // shared ShapeDistributionChart (which renders counts) is fed consistently with
+  // the per-user shapeHistogram. The chart derives proportions itself.
   shapeMix: Record<string, number>;
 };
 
@@ -173,10 +175,9 @@ async function effectivenessDistribution(
   const friction =
     pct && pct.p50 !== null ? { p25: pct.p25 ?? 0, p50: pct.p50, p75: pct.p75 ?? 0 } : null;
 
-  const totalShape = shapeRows.reduce((s, r) => s + Number(r.count), 0);
   const shapeMix: Record<string, number> = {};
   for (const r of shapeRows) {
-    shapeMix[r.shape_label] = totalShape > 0 ? Number(r.count) / totalShape : 0;
+    shapeMix[r.shape_label] = Number(r.count);
   }
 
   return { friction, scoredSessions, shapeMix };

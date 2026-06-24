@@ -5,11 +5,6 @@ import type { AlertPayload } from './payload';
 import { sendSlack } from './slack';
 import { sendWebhook } from './webhook';
 
-export interface Channel {
-  send(payload: AlertPayload): Promise<void>;
-  readonly type: string;
-}
-
 export type ChannelConfigRow = {
   channelType: string;
   config: unknown;

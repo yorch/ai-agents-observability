@@ -55,7 +55,10 @@ export async function runReconcileCost(
   const jobName = 'reconcile-cost';
   const logger = opts.logger;
   const driftThreshold = opts.driftThreshold ?? DEFAULT_DRIFT_THRESHOLD;
-  const startedAt = opts.now ?? new Date();
+  // Single clock read — reused for both the jobRun timestamp and the month window
+  // so they can't skew apart across the advisory-lock acquire.
+  const ref = opts.now ?? new Date();
+  const startedAt = ref;
 
   const lockResult = await db.$queryRaw<[{ pg_try_advisory_lock: boolean }]>`
     SELECT pg_try_advisory_lock(hashtext(${`job:${jobName}`}))
@@ -73,7 +76,6 @@ export async function runReconcileCost(
     jobRunId = jobRun.id;
 
     // Previous full calendar month, in UTC.
-    const ref = opts.now ?? new Date();
     const monthStart = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() - 1, 1));
     const monthEnd = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1));
     const year = monthStart.getUTCFullYear();

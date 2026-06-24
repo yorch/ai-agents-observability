@@ -67,7 +67,15 @@ export async function approveGrant(formData: FormData): Promise<void> {
 
   const db = getPrisma();
   const expiresAt = new Date(Date.now() + hours * 3_600_000);
-  // updateMany so an already-approved/revoked grant (or tampered id) is a no-op,
+
+  // Read the grant's targets BEFORE the update so the audit row always has full
+  // context — a refetch after the write could race a concurrent grant deletion.
+  const grant = await db.accessGrant.findFirst({ where: { grantedAt: null, id, revokedAt: null } });
+  if (!grant) {
+    return;
+  }
+
+  // updateMany so a grant approved/revoked between the read and write is a no-op,
   // not a thrown P2025. Only approve grants that are still pending.
   const { count } = await db.accessGrant.updateMany({
     data: { expiresAt, grantedAt: new Date(), grantedByUserId: user.id },
@@ -75,13 +83,12 @@ export async function approveGrant(formData: FormData): Promise<void> {
   });
 
   if (count > 0) {
-    const grant = await db.accessGrant.findUnique({ where: { id } });
     await writeAuditLog({
       action: AuditAction.grant_approved,
       actorUserId: user.id,
       justification: `Approved grant, expires ${expiresAt.toISOString()}`,
-      targetSessionId: grant?.targetSessionId ?? undefined,
-      targetUserId: grant?.targetUserId ?? undefined,
+      targetSessionId: grant.targetSessionId ?? undefined,
+      targetUserId: grant.targetUserId ?? undefined,
     });
   }
 
@@ -98,18 +105,22 @@ export async function revokeGrant(formData: FormData): Promise<void> {
   }
 
   const db = getPrisma();
+  const grant = await db.accessGrant.findFirst({ where: { id, revokedAt: null } });
+  if (!grant) {
+    return;
+  }
+
   const { count } = await db.accessGrant.updateMany({
     data: { revokedAt: new Date() },
     where: { id, revokedAt: null },
   });
 
   if (count > 0) {
-    const grant = await db.accessGrant.findUnique({ where: { id } });
     await writeAuditLog({
       action: AuditAction.grant_revoked,
       actorUserId: user.id,
-      targetSessionId: grant?.targetSessionId ?? undefined,
-      targetUserId: grant?.targetUserId ?? undefined,
+      targetSessionId: grant.targetSessionId ?? undefined,
+      targetUserId: grant.targetUserId ?? undefined,
     });
   }
 

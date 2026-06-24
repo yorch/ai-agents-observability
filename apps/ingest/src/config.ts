@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 const ConfigSchema = z.object({
   admin_secret: z.string().optional(),
+  // Public base URL of the web app, used to build dashboard links in alert
+  // notifications (P9-002). Empty by default — links are then relative.
+  app_base_url: z.string().default(''),
   // Gates the cost-reconciliation job (P8-006). Off by default — only the
   // NullBillingSource ships, so enabling it without a real source is a no-op.
   billing_reconciliation_enabled: z
@@ -37,6 +40,7 @@ export type Config = z.infer<typeof ConfigSchema>;
 export function loadConfig(): Config {
   return ConfigSchema.parse({
     admin_secret: process.env.ADMIN_SECRET,
+    app_base_url: process.env.APP_BASE_URL,
     billing_reconciliation_enabled: process.env.BILLING_RECONCILIATION_ENABLED,
     database_url: process.env.DATABASE_URL,
     git_sha: process.env.GIT_SHA ?? process.env.COMMIT_SHA,

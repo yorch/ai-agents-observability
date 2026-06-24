@@ -37,11 +37,9 @@ function describe(ruleType: string, details: Record<string, unknown>): string {
   }
 }
 
-export function buildAlertPayload(
-  rule: RuleLike,
-  event: EventLike,
-  baseUrl = process.env.APP_BASE_URL ?? '',
-): AlertPayload {
+// `baseUrl` is injected from the Zod-validated loadConfig() (CLAUDE.md: only
+// loadConfig touches process.env). Empty → relative dashboard link.
+export function buildAlertPayload(rule: RuleLike, event: EventLike, baseUrl = ''): AlertPayload {
   return {
     description: describe(rule.ruleType, event.details),
     firedAt: event.firedAt.toISOString(),

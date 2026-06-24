@@ -25,10 +25,10 @@ export async function runSweepRetention(
   orgMaxRetentionDays: number,
   logger?: Logger,
 ): Promise<void> {
-  if (retentionDays === 0) {
-    logger?.debug('Transcript retention disabled (TRANSCRIPT_RETENTION_DAYS=0), skipping');
-    return;
-  }
+  // Note: we do NOT early-return when the global default is 0. A global of 0
+  // disables retention only for sessions with no per-team override; a team that
+  // sets its own retention_days must still be swept (P9-004). The per-row SQL
+  // below treats 0 (global or team) as "disabled" via NULLIF and skips those rows.
 
   const jobName = 'sweep-retention';
   const startedAt = new Date();
@@ -50,10 +50,14 @@ export async function runSweepRetention(
     jobRunId = jobRun.id;
 
     // Find sessions whose transcript is older than the OWNER's team effective
-    // retention: min(team override ?? global default, org max). A user with no
-    // primary team (or a team with no override) falls back to the global default,
-    // matching pre-P9-004 behavior. Computed per-row in SQL so one query covers
-    // every team's policy.
+    // retention. Effective days = team override (if set & non-zero) else the
+    // global default; clamped to the org max. `NULLIF(x, 0)` makes 0 mean
+    // "disabled" at BOTH levels: a team retention_days of 0 falls back to the
+    // global default (it must NEVER mean "delete everything"), and when the
+    // resolved value is NULL (global 0 with no override) the row is excluded —
+    // retention is disabled for that session. Note LEAST() ignores NULLs, so the
+    // `IS NOT NULL` guard is required to keep disabled rows from clamping to the
+    // org max. Computed per-row so one query covers every team's policy.
     const expiredRows = await db.$queryRaw<{ session_id: string; transcript_s3_key: string }[]>(
       Prisma.sql`
         SELECT s.session_id::text AS session_id, s.transcript_s3_key
@@ -61,9 +65,12 @@ export async function runSweepRetention(
         JOIN users u ON u.id = s.user_id
         LEFT JOIN teams t ON t.id = u.primary_team_id
         WHERE s.transcript_s3_key IS NOT NULL
+          AND COALESCE(NULLIF(t.retention_days, 0), NULLIF(${retentionDays}::int, 0)) IS NOT NULL
           AND s.transcript_uploaded_at <
-            NOW() - (LEAST(COALESCE(t.retention_days, ${retentionDays}), ${orgMaxRetentionDays})
-                     * INTERVAL '1 day')
+            NOW() - (LEAST(
+                       COALESCE(NULLIF(t.retention_days, 0), NULLIF(${retentionDays}::int, 0)),
+                       ${orgMaxRetentionDays}::int
+                     ) * INTERVAL '1 day')
       `,
     );
     const expired = expiredRows.map((r) => ({

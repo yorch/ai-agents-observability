@@ -5,7 +5,31 @@ import { getPrisma } from './prisma';
 // gives a clean user-facing message instead of a Postgres error.
 export const MIN_QUERY_LENGTH = 2;
 
-const HEADLINE_OPTS = 'MaxWords=40, MinWords=15, ShortWord=3';
+// `ts_headline` does NOT HTML-escape the surrounding text — it only wraps matched
+// terms. Since excerpts are rendered with dangerouslySetInnerHTML, returning raw
+// ts_headline output would be an XSS vector (a transcript containing `<script>`
+// or `onerror=` would execute). So we tell ts_headline to mark matches with
+// non-HTML control-char sentinels, then HTML-escape the whole excerpt and swap
+// the sentinels for safe `<mark>` tags in `highlightExcerpt`.
+// Control-char sentinels (STX/ETX) — impossible in normal transcript text and
+// survive HTML-escaping untouched, so they reliably mark match boundaries.
+const HL_START = String.fromCharCode(2);
+const HL_STOP = String.fromCharCode(3);
+const HEADLINE_OPTS = `StartSel=${HL_START}, StopSel=${HL_STOP}, MaxWords=40, MinWords=15, ShortWord=3`;
+
+function escapeHtml(s: string): string {
+  return s
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+/** Escape transcript text, then restore the match sentinels as `<mark>` tags. */
+function highlightExcerpt(raw: string): string {
+  return escapeHtml(raw).replaceAll(HL_START, '<mark>').replaceAll(HL_STOP, '</mark>');
+}
 
 export type TranscriptMatch = {
   excerpt: string;
@@ -71,7 +95,7 @@ export async function searchTranscriptMatches(
   `);
 
   return rows.map((r) => ({
-    excerpt: r.content_text,
+    excerpt: highlightExcerpt(r.content_text),
     githubLogin: r.github_login,
     messageIdx: r.message_idx,
     repoName: r.github_owner && r.github_name ? `${r.github_owner}/${r.github_name}` : null,

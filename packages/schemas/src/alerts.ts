@@ -20,7 +20,9 @@ export const SPEND_SPIKE_WARN_SIGMA = 2;
 export const SPEND_SPIKE_CRITICAL_SIGMA = 3;
 
 // High-error-rate: tool errors / tool calls over the recent window, only once a
-// minimum call volume is reached (avoids noise on tiny samples).
+// minimum call volume is reached (avoids noise on tiny samples). Its own window
+// constant so it can be tuned independently of the spend-spike window.
+export const ERROR_RATE_WINDOW_DAYS = 7;
 export const ERROR_RATE_WARN = 0.1;
 export const ERROR_RATE_CRITICAL = 0.25;
 export const ERROR_RATE_MIN_CALLS = 100;

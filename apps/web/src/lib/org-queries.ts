@@ -3,6 +3,7 @@ import {
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,
+  ERROR_RATE_WINDOW_DAYS,
   SPEND_SPIKE_BASELINE_DAYS,
   SPEND_SPIKE_CRITICAL_SIGMA,
   SPEND_SPIKE_WARN_SIGMA,
@@ -270,10 +271,11 @@ export async function getOrgEffectiveness(since: Date): Promise<EffectivenessDis
   const friction =
     pct && pct.p50 !== null ? { p25: pct.p25 ?? 0, p50: pct.p50, p75: pct.p75 ?? 0 } : null;
 
-  const totalShape = shapeRows.reduce((sum, r) => sum + Number(r.count), 0);
+  // Integer counts (NOT proportions) — ShapeDistributionChart renders counts and
+  // derives proportions itself; feeding proportions broke its tooltip (showed 0.33).
   const shapeMix: Record<string, number> = {};
   for (const r of shapeRows) {
-    shapeMix[r.shape_label] = totalShape > 0 ? Number(r.count) / totalShape : 0;
+    shapeMix[r.shape_label] = Number(r.count);
   }
 
   return { friction, scoredSessions, shapeMix };
@@ -376,11 +378,12 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
     });
   }
 
-  // High error rate: tool errors > 10% of tool calls in last 7 days
+  // High error rate over its own (independently-tunable) window.
+  const errorWindowStart = new Date(now.getTime() - ERROR_RATE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const errorStats = await prisma.session.aggregate({
     _sum: { toolCallCount: true, toolErrorCount: true },
     where: {
-      startedAt: { gte: last7 },
+      startedAt: { gte: errorWindowStart },
       user: {
         deactivatedAt: null,
         OR: [{ visibilityPolicy: { shareMetadataWithOrg: true } }, { visibilityPolicy: null }],
@@ -394,7 +397,7 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
     anomalies.push({
       kind: 'error_spike',
       label: 'High tool error rate',
-      message: `${((totalErrors / totalCalls) * 100).toFixed(1)}% of tool calls failed in the last ${SPEND_SPIKE_WINDOW_DAYS} days (${totalErrors} errors / ${totalCalls} calls).`,
+      message: `${((totalErrors / totalCalls) * 100).toFixed(1)}% of tool calls failed in the last ${ERROR_RATE_WINDOW_DAYS} days (${totalErrors} errors / ${totalCalls} calls).`,
       severity: totalErrors / totalCalls > ERROR_RATE_CRITICAL ? 'critical' : 'warn',
     });
   }

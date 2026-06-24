@@ -4,6 +4,7 @@ import {
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,
+  ERROR_RATE_WINDOW_DAYS,
   SPEND_SPIKE_BASELINE_DAYS,
   SPEND_SPIKE_CRITICAL_SIGMA,
   SPEND_SPIKE_WARN_SIGMA,
@@ -89,7 +90,7 @@ async function evalSpendSpike(db: AlertsDb): Promise<Evaluation> {
 }
 
 async function evalHighErrorRate(db: AlertsDb): Promise<Evaluation> {
-  const windowStart = new Date(Date.now() - SPEND_SPIKE_WINDOW_DAYS * 86_400_000);
+  const windowStart = new Date(Date.now() - ERROR_RATE_WINDOW_DAYS * 86_400_000);
   const rows = await db.$queryRaw<{ calls: number; errors: number }[]>(Prisma.sql`
     SELECT COALESCE(SUM(s.tool_call_count), 0) AS calls,
            COALESCE(SUM(s.tool_error_count), 0) AS errors
@@ -113,13 +114,18 @@ async function evalHighErrorRate(db: AlertsDb): Promise<Evaluation> {
 async function evalUnknownModelSurge(db: AlertsDb, params: unknown): Promise<Evaluation> {
   const threshold = Number(paramsObject(params).threshold ?? UNKNOWN_MODEL_SURGE_DEFAULT);
   const windowStart = new Date(Date.now() - UNKNOWN_MODEL_WINDOW_HOURS * 3_600_000);
+  // Visibility-scoped like the other evaluators: events from users who opted out
+  // of org metadata sharing don't contribute to this org-aggregate signal.
   const rows = await db.$queryRaw<{ c: number }[]>(Prisma.sql`
     SELECT COUNT(*) AS c
-    FROM events
-    WHERE ts >= ${windowStart}
-      AND model IS NOT NULL
-      AND cost_usd = 0
-      AND input_tokens > 0
+    FROM events e
+    JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    WHERE e.ts >= ${windowStart}
+      AND e.model IS NOT NULL
+      AND e.cost_usd = 0
+      AND e.input_tokens > 0
+      AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   const count = Number(rows[0]?.c ?? 0);
   if (count <= threshold) {
@@ -152,7 +158,11 @@ async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
  * the same statistical thresholds as the dashboard's getAnomalies (shared via
  * @ai-agents-observability/schemas) so banners and alerts never disagree.
  */
-export async function runEvaluateAlerts(db: AlertsDb, logger?: Logger): Promise<void> {
+export async function runEvaluateAlerts(
+  db: AlertsDb,
+  logger?: Logger,
+  appBaseUrl = '',
+): Promise<void> {
   const jobName = 'evaluate-alerts';
   const startedAt = new Date();
 
@@ -182,11 +192,11 @@ export async function runEvaluateAlerts(db: AlertsDb, logger?: Logger): Promise<
         if (outcome === 'fired') {
           fired++;
           if (evaluation && channels.length > 0) {
-            const payload = buildAlertPayload(rule, {
-              details: evaluation.details,
-              firedAt: new Date(),
-              severity: evaluation.severity,
-            });
+            const payload = buildAlertPayload(
+              rule,
+              { details: evaluation.details, firedAt: new Date(), severity: evaluation.severity },
+              appBaseUrl,
+            );
             await dispatchAlert(db, channels, payload, logger);
           }
         } else if (outcome === 'resolved') {

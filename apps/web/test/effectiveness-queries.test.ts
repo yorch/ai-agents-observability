@@ -106,7 +106,7 @@ describe('getUserEffectiveness', () => {
 // ── distribution helpers ──────────────────────────────────────────────────────
 
 describe('getOrgEffectivenessDistribution', () => {
-  it('returns percentiles and shape-mix proportions', async () => {
+  it('returns percentiles and shape-mix counts', async () => {
     mockPrisma.$queryRaw
       .mockResolvedValueOnce([{ count: 10n, p25: 0.1, p50: 0.3, p75: 0.6 }])
       .mockResolvedValueOnce([
@@ -119,8 +119,9 @@ describe('getOrgEffectivenessDistribution', () => {
 
     expect(result.friction).toEqual({ p25: 0.1, p50: 0.3, p75: 0.6 });
     expect(result.scoredSessions).toBe(10);
-    expect(result.shapeMix.exploratory).toBeCloseTo(0.75);
-    expect(result.shapeMix.debugging).toBeCloseTo(0.25);
+    // shapeMix is integer session counts (NOT proportions) — see EffectivenessDistribution.
+    expect(result.shapeMix.exploratory).toBe(3);
+    expect(result.shapeMix.debugging).toBe(1);
   });
 
   it('returns null friction when no session has a score', async () => {
