@@ -3,8 +3,8 @@ id: P7-003
 title: /me effectiveness widgets (friction trend + shape mix)
 phase: 7
 workstream: E
-status: blocked
-owner: null
+status: review
+owner: claude
 depends_on: [P7-002]
 blocks: []
 estimate: M
@@ -68,3 +68,8 @@ bun --filter '@app/web' test
 bun run typecheck
 bun run check
 ```
+
+> **Verification status (review):** widgets + page wiring implemented;
+> `biome check --error-on-warnings` is clean across all touched files. `typecheck` and the
+> full app test run require the Prisma client (egress-denied `binaries.prisma.sh` in the
+> sandbox) and run in CI. Visual/perf check of the rendered widgets is pending a running app.

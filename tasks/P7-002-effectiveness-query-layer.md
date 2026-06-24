@@ -3,8 +3,8 @@ id: P7-002
 title: Effectiveness query layer (web)
 phase: 7
 workstream: E
-status: blocked
-owner: null
+status: review
+owner: claude
 depends_on: [P7-001]
 blocks: [P7-003, P7-004]
 estimate: S
@@ -66,3 +66,8 @@ in Postgres works directly on the column.
 bun --filter '@app/web' test
 bun run typecheck
 ```
+
+> **Verification status (review):** `apps/web/test/effectiveness-queries.test.ts` (7 tests)
+> **passes locally** and `biome check --error-on-warnings` is clean. `typecheck` could not be
+> run in the sandbox (needs the Prisma client, whose generation requires the egress-denied
+> `binaries.prisma.sh`) — it runs in CI.
