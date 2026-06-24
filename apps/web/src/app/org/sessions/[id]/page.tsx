@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
-import { requireOrgAdmin } from '@/lib/roles';
+import { currentUser } from '@/lib/auth';
+import { resolveOrgSessionAccess } from '@/lib/roles';
 import type { ModelBreakdownRow } from '@/lib/sessions-queries';
 import {
   getSession,
@@ -25,15 +26,27 @@ export default async function OrgSessionDetailPage({
   searchParams: Promise<SearchParams>;
 }) {
   const { id } = await params;
-  // Org-admin only — viewer_aggregate must never reach an individual session.
-  const { user } = await requireOrgAdmin();
+  const user = await currentUser();
+  if (!user) {
+    redirect('/login');
+  }
 
   const ctx = await getSessionOrgContext(id);
   if (!ctx) {
     notFound();
   }
 
-  // §8.3: every org-admin view of another user's session is audited.
+  // org_admin (standing) OR investigator with an active grant (§8.4). Everyone
+  // else 404s — viewer_aggregate must never reach an individual session.
+  const access = await resolveOrgSessionAccess(user, {
+    ownerUserId: ctx.ownerUserId,
+    sessionId: id,
+  });
+  if (!access) {
+    notFound();
+  }
+
+  // §8.3: every privileged view of another user's session is audited.
   void writeAuditLog({
     action: AuditAction.view_session,
     actorUserId: user.id,
@@ -67,7 +80,9 @@ export default async function OrgSessionDetailPage({
         session={session}
         transcriptHref={session.transcriptS3Key ? `/org/sessions/${id}/transcript` : null}
         transcriptLabel={
-          ctx.shareTranscriptsWithOrg ? 'View transcript' : 'Request transcript access'
+          access === 'grant' || ctx.shareTranscriptsWithOrg
+            ? 'View transcript'
+            : 'Request transcript access'
         }
       />
 

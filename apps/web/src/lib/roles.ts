@@ -190,3 +190,35 @@ export async function hasActiveGrant(
   });
   return grants.some((g) => grantCovers(g, target));
 }
+
+/**
+ * How (if at all) `user` may view one other user's individual session — the
+ * single decision shared by the org session-detail page, transcript page, and
+ * transcript API route (DESIGN_DOC §8.4):
+ *   - 'admin': org_admin standing access. Transcript content still needs the
+ *     owner's opt-in OR a written justification, recorded loudly on the audit row.
+ *   - 'grant': a non-admin (investigator) holding an active, scope-covering access
+ *     grant. The approved, time-boxed grant IS the authorization, so transcript
+ *     content needs no extra per-view justification.
+ *   - null: no access — callers map to 404 (page) / 403 (API).
+ * Pure decision (no redirect/throw) so each caller controls its own response.
+ */
+export async function resolveOrgSessionAccess(
+  user: Pick<User, 'id' | 'orgRole'>,
+  target: { ownerUserId: string; sessionId: string },
+): Promise<'admin' | 'grant' | null> {
+  if (canViewIndividuals(user.orgRole)) {
+    return 'admin';
+  }
+  if (
+    canRequestGrants(user.orgRole) &&
+    (await hasActiveGrant(getPrisma(), {
+      granteeId: user.id,
+      targetSessionId: target.sessionId,
+      targetUserId: target.ownerUserId,
+    }))
+  ) {
+    return 'grant';
+  }
+  return null;
+}

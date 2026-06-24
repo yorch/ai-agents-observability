@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { AuditAction, normalizeJustification, writeAuditLog } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
-import { canViewIndividuals } from '@/lib/roles';
+import { resolveOrgSessionAccess } from '@/lib/roles';
 import { getS3Client, streamTranscript } from '@/lib/s3';
 import { getSessionOrgContext } from '@/lib/sessions-queries';
 
@@ -16,21 +16,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
-  // Only org_admin may read another user's individual data (viewer_aggregate cannot).
-  if (!canViewIndividuals(user.orgRole)) {
-    return new NextResponse('Forbidden', { status: 403 });
-  }
 
   const ctx = await getSessionOrgContext(id);
   if (!ctx) {
     return new NextResponse('Not found', { status: 404 });
   }
 
-  // Access requires EITHER the owner opted in (shareTranscriptsWithOrg) OR the
-  // admin supplied a §8.4 justification. This route is the single audit point
-  // for transcript content, so a direct hit cannot bypass the log.
+  // Either org_admin standing access OR a non-admin (investigator) with an active,
+  // scope-covering grant (§8.4). viewer_aggregate / no-grant callers get 403.
+  const access = await resolveOrgSessionAccess(user, {
+    ownerUserId: ctx.ownerUserId,
+    sessionId: id,
+  });
+  if (!access) {
+    return new NextResponse('Forbidden', { status: 403 });
+  }
+
+  // Admin path: content requires the owner's opt-in OR a §8.4 justification. Grant
+  // path: the approved, time-boxed grant is itself the authorization, so no extra
+  // per-view justification is needed. This route is the single audit point for
+  // transcript content, so a direct hit cannot bypass the log.
   const justification = normalizeJustification(req.nextUrl.searchParams.get('justification'));
-  if (!ctx.shareTranscriptsWithOrg && !justification) {
+  if (access === 'admin' && !ctx.shareTranscriptsWithOrg && !justification) {
     return new NextResponse('Not found', { status: 404 });
   }
 
@@ -38,12 +45,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return new NextResponse('Not found', { status: 404 });
   }
 
-  // Audit the privileged read before streaming any content back (§8.3). When the
-  // owner has NOT shared, the justification is recorded loudly on the row (§8.4).
+  // Audit the privileged read before streaming any content back (§8.3). When an
+  // admin reads a not-shared transcript, the justification is recorded loudly on
+  // the row (§8.4); grant-based reads are tied to the approved grant instead.
   void writeAuditLog({
     action: AuditAction.view_transcript,
     actorUserId: user.id,
-    justification: ctx.shareTranscriptsWithOrg ? null : justification,
+    justification: access === 'admin' && !ctx.shareTranscriptsWithOrg ? justification : null,
     targetSessionId: id,
     targetUserId: ctx.ownerUserId,
   });
