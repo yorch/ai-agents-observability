@@ -49,11 +49,14 @@ present in `apps/web/package.json`.
 
 ## Files touched
 
-- `apps/web/src/app/me/page.tsx`
-- `apps/web/src/app/me/sessions/[id]/page.tsx`
+- `apps/web/src/app/me/page.tsx` (friction-trend + shape-mix charts)
 - `apps/web/src/components/me/FrictionTrendChart.tsx` (new)
 - `apps/web/src/components/me/ShapeDistributionChart.tsx` (new)
 - `apps/web/src/components/me/FrictionBadge.tsx` (new)
+- `apps/web/src/components/me/SessionDetailHeader.tsx` — after the rebase onto `main`
+  (PR #51) the session-detail page was refactored into this shared header; the
+  friction badge + shape badge are rendered here, so they surface on the `/me`,
+  `/team`, and `/org` session-detail pages via the one component.
 
 ## Out of scope
 

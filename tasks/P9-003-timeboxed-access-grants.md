@@ -3,8 +3,8 @@ id: P9-003
 title: Time-boxed access grants (request/approve workflow)
 phase: 9
 workstream: C
-status: ready
-owner: null
+status: review
+owner: claude
 depends_on: [P3-005]
 blocks: [P9-005]
 estimate: L
@@ -80,13 +80,22 @@ with an explicit, scoped, expiring grant that the viewed user can see.
 
 - `packages/db/prisma/schema.prisma` (AccessGrant model, extend AuditAction enum)
 - `packages/db/sql/migrations/` (new migration)
-- `apps/web/src/lib/roles.ts` (`hasActiveGrant` helper, update transcript access checks)
+- `apps/web/src/lib/roles.ts` (`hasActiveGrant` helper + `resolveOrgSessionAccess`
+  shared decision)
+- `apps/web/src/lib/grant-policy.ts` (new; Prisma-free `grantCovers` / `isGrantActive`
+  scope + active-window predicates)
 - `apps/web/src/lib/audit.ts` (extend AuditAction, add audit calls)
 - `apps/web/src/app/admin/access-grants/page.tsx` (new)
 - `apps/web/src/app/admin/access-grants/new/page.tsx` (new)
 - `apps/web/src/app/admin/access-grants/actions.ts` (new Server Actions)
 - `apps/web/src/app/me/audit/page.tsx` (no structural change; new action types
   appear automatically via the existing query)
+- Reconciliation with the `main` §8.4 transcript routes (PR #51): `hasActiveGrant`
+  is now consumed by `resolveOrgSessionAccess` and wired into
+  `apps/web/src/app/org/sessions/[id]/page.tsx`, `.../transcript/page.tsx`, and
+  `apps/web/src/app/api/org/transcripts/[id]/route.ts` (the grant is the access
+  path for non-sharing users); reads `getSessionOrgContext` from
+  `apps/web/src/lib/sessions-queries.ts`.
 
 ## Out of scope
 
@@ -118,8 +127,10 @@ bun --filter '@ai-agents-observability/web' test
 > `/admin/access-grants/new` (request) ship; each lifecycle step writes an audit row with
 > `target_user_id`, so the viewed user sees it in `/me/audit`.
 >
-> **Scope note:** today the only org transcript path (org search) is opt-in-only, so grants are
-> the *additive* §8.4 override. `hasActiveGrant` is the primitive to gate a grant-backed transcript
-> view; wiring it into a concrete "view a non-sharing user's transcript under a grant" route (plus
-> the per-view audit) is the integration follow-up — the data model, workflow, and check are
-> complete. `typecheck` + DB tests run in CI (Prisma egress-blocked locally).
+> **Reconciliation (done):** after rebasing onto `main`, the §8.4 org transcript routes added by
+> PR #51 (`/org/sessions/[id]`, its `/transcript` page, and `/api/org/transcripts/[id]`) now gate on
+> the shared `resolveOrgSessionAccess` helper, which consumes `hasActiveGrant`. A non-sharing user's
+> transcript is therefore reachable under an active, scope-covering grant (no per-view justification —
+> the approved grant is the authorization), and each read still writes a `view_transcript` audit row.
+> org_admin keeps #51's justification-at-view path. `typecheck` + DB tests run in CI (Prisma
+> egress-blocked locally).

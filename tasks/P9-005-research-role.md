@@ -3,7 +3,7 @@ id: P9-005
 title: Research / investigator capability (Audience B)
 phase: 9
 workstream: C
-status: in-progress
+status: review
 owner: claude
 depends_on: [P9-003, P3-001]
 blocks: [P9-006]
@@ -89,10 +89,15 @@ them permanently) preserves all four properties. This is the intended design.
 
 - `packages/db/prisma/schema.prisma` (OrgRole enum or users boolean)
 - `packages/db/sql/migrations/` (new migration if enum changes)
-- `apps/web/src/lib/roles.ts` (investigator capability checks)
-- `apps/web/src/app/admin/org-roles/page.tsx` (new, or extend existing
-  `/admin/team-roles` if it already handles org roles)
-- `apps/web/src/lib/__tests__/roles.test.ts` (investigator access tests)
+- `apps/web/src/lib/roles.ts` (investigator capability checks: `canViewIndividuals`
+  excludes investigator, `canRequestGrants`/`requireGrantRequester` admit it, and
+  `resolveOrgSessionAccess` returns `'grant'` for an investigator holding an active grant)
+- `apps/web/src/app/admin/org-roles/page.tsx` + `actions.ts` (new; assign/audit roles)
+- `apps/web/test/roles.test.ts` (investigator access tests)
+- Grant-enforced view routes (where `resolveOrgSessionAccess` lets a grant-holding
+  investigator in): `apps/web/src/app/org/sessions/[id]/page.tsx`,
+  `.../transcript/page.tsx`, `apps/web/src/app/api/org/transcripts/[id]/route.ts`;
+  scope predicates in `apps/web/src/lib/grant-policy.ts`.
 
 ## Out of scope
 

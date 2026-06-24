@@ -34,7 +34,7 @@ The primary purpose is **developer experience and effectiveness research** (audi
 ### 2.2 Non-Goals (v1)
 
 - Multi-tenancy. This is single-org, single-tenant.
-- Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting — spend spikes, error-rate, budget — is scoped into Phase 9 §12.8. SIEM-style behavioral analytics on transcript content remains out of scope.)*
+- Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting — spend spikes, error-rate, unknown-model surges — is scoped into Phase 9 §12.9 (`budget_threshold` reserved, not yet evaluated). SIEM-style behavioral analytics on transcript content remains out of scope.)*
 - Replacing any existing observability stack (Datadog, Splunk, etc.) — this is purpose-built for AI coding agent telemetry.
 - **Model-level observability** — inference latency, prompt evaluation, model drift, RAG quality. Out of scope by design; that's a different product.
 - Capturing telemetry from non-Claude-Code agents (Cursor, Aider, Copilot, etc.) **in v1 implementation** — but the data model is designed to accept them in a later phase without schema migration.
@@ -940,7 +940,7 @@ Prove the multi-agent spine §2.4 with a real second agent, and build the cost m
 
 Move from passive dashboards to proactive, trust-preserving operation.
 
-39. Alert rules engine — scheduled evaluation of spend spike / error rate / unknown-model / budget thresholds, with persisted firing/resolving history (promotes the render-time anomaly detection of §12.4)
+39. Alert rules engine — scheduled evaluation of spend spike / error rate / unknown-model thresholds (`budget_threshold` is reserved in the rule-type enum but not yet evaluated), with persisted firing/resolving history (promotes the render-time anomaly detection of §12.4)
 40. Notification delivery (email / Slack / webhook) + `/admin/alerts` config — aggregate data only, never individual content
 41. Time-boxed transcript access grants — the §8.4 request/approve/expire workflow, replacing implicit standing org-admin reach
 42. Per-team retention overrides on top of the global default

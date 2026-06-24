@@ -3,7 +3,7 @@ id: P9-006
 title: Governance + alerting invariant test suite
 phase: 9
 workstream: F
-status: in-progress
+status: review
 owner: claude
 depends_on: [P9-002, P9-005]
 blocks: []
@@ -63,17 +63,18 @@ introduced in Phase 9. CI catches regressions before they become trust failures.
 - For grant tests, use the existing Prisma test client pattern established in
   `P3-006` (or equivalent) — seed rows, call the access check function directly,
   assert the result.
-- Tests for `apps/ingest` (alert engine, retention) go under
-  `apps/ingest/src/__tests__/`; tests for `apps/web` (access grants, research
-  role) go under `apps/web/src/lib/__tests__/`.
+- Tests live under each app's existing `test/` dir (the repo convention) — i.e.
+  `apps/ingest/test/` and `apps/web/test/` — not `src/__tests__/`.
 
 ## Files touched
 
-- `apps/ingest/src/__tests__/evaluate-alerts.test.ts` (new)
-- `apps/ingest/src/__tests__/sweep-retention-overrides.test.ts` (new)
-- `apps/ingest/src/__tests__/notify-sanitization.test.ts` (new)
-- `apps/web/src/lib/__tests__/access-grants.test.ts` (new)
-- `apps/web/src/lib/__tests__/investigator-role.test.ts` (new)
+The suite was consolidated into the repo's existing `apps/*/test/` dirs (see the
+note below) rather than the per-concern `src/__tests__/` files originally sketched:
+
+- `apps/ingest/test/p9-invariants.test.ts` (new; alert evaluation, sweep-retention
+  overrides, and aggregate-only notification sanitization invariants)
+- `apps/web/test/p9-invariants.test.ts` (new; access-grant active-window + scope invariants)
+- `apps/web/test/roles.test.ts` (investigator capability + `resolveOrgSessionAccess` cases)
 
 ## Out of scope
 

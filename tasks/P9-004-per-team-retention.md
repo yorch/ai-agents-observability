@@ -3,7 +3,7 @@ id: P9-004
 title: Per-team retention override
 phase: 9
 workstream: B
-status: in-progress
+status: review
 owner: claude
 depends_on: [P4-007]
 blocks: []
@@ -62,10 +62,11 @@ per-team overrides; a team with no override behaves exactly as today.
 - `packages/db/prisma/schema.prisma` (teams.retention_days column)
 - `packages/db/sql/migrations/` (new migration)
 - `apps/ingest/src/config.ts` (`ORG_MAX_RETENTION_DAYS`)
-- `apps/ingest/src/jobs/sweep-retention.ts`
+- `apps/ingest/src/jobs/sweep-retention.ts` (per-row clamp via `effectiveRetentionDays`)
+- `apps/ingest/src/jobs/retention-policy.ts` (new; Prisma-free `effectiveRetentionDays`)
 - `apps/web/src/lib/audit.ts` (extend AuditAction with `retention_override_changed`)
-- `apps/web/src/app/admin/teams/[slug]/page.tsx` (retention override field)
-  or equivalent admin team settings page
+- `apps/web/src/app/admin/retention/page.tsx` + `actions.ts` (the implementation is a
+  standalone `/admin/retention` override editor, not a per-team settings tab)
 
 ## Out of scope
 

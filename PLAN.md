@@ -157,13 +157,13 @@ Data-integrity, observability, and access-model fixes for the platform as it exi
 
 ---
 
-The next three phases were raised from a post-Phase-6 gap assessment (the platform spine is complete; these close the gap between *captured* and *surfaced*, prove the multi-agent spine, and add proactive/governed operation). They are decomposed into task files but not yet started.
+The next three phases were raised from a post-Phase-6 gap assessment (the platform spine is complete; these close the gap between *captured* and *surfaced*, prove the multi-agent spine, and add proactive/governed operation). They are decomposed into task files and implemented (`review`); see [`tasks/INDEX.md`](./tasks/INDEX.md) for current status. The §8.4 governance work was reconciled with the org transcript-access routes added in parallel on `main`.
 
 ### Phase 7 — Insight Surfaces & Search
 
 Surface the effectiveness signals that are already computed but rendered nowhere (`friction_score`, `shape_label`) across `/me`, team, and org views; give every dev full-text search over their **own** transcripts (today FTS is org-only); enrich faceted search with shape / friction / agent facets. A gated pgvector semantic-search spike is included but explicitly not a production commitment. Honors `DESIGN_DOC.md` §10.3 / §10.6 (surface-later + the effectiveness caveat — never show a misleading number for low-data sessions).
 
-Tasks P7-001–P7-007 decomposed in [`tasks/P7-roadmap.md`](./tasks/P7-roadmap.md).
+Tasks P7-001–P7-006 decomposed in [`tasks/P7-roadmap.md`](./tasks/P7-roadmap.md) and implemented (`review`); P7-007 (pgvector semantic-search) is a gated spike, intentionally not built.
 
 **Exit**: a dev sees their friction trend + shape mix on `/me`; a team lead sees a team friction distribution that honors visibility policies; a dev can search their own transcripts.
 
@@ -171,7 +171,7 @@ Tasks P7-001–P7-007 decomposed in [`tasks/P7-roadmap.md`](./tasks/P7-roadmap.m
 
 Build the remaining multi-agent foundation and validate it with a real second adapter. Implements the `<agent>:<tool>` collision-avoidance convention (`DESIGN_DOC.md` §2.4) that was documented but never built; per-agent + versioned price tables (the deferred P6-005); a hook adapter seam extracted from **two** real examples (the deferred P6-006), with `opencode` as the validating second agent; and agent-driven user-facing copy. Cost reconciliation against a vendor billing API is scaffolded behind a flag (gated per `DESIGN_DOC.md` §13 Q4).
 
-Tasks P8-001–P8-006 decomposed in [`tasks/P8-roadmap.md`](./tasks/P8-roadmap.md).
+Tasks P8-001–P8-006 decomposed in [`tasks/P8-roadmap.md`](./tasks/P8-roadmap.md) and implemented (`review`).
 
 **Exit**: a second agent's sessions ingest, price correctly, render with the right labels, and never collide on tool names; the hook transport is shared between two adapters without forking.
 
@@ -179,7 +179,7 @@ Tasks P8-001–P8-006 decomposed in [`tasks/P8-roadmap.md`](./tasks/P8-roadmap.m
 
 Turn render-time anomaly detection into a scheduled alert-evaluation job with persisted history and channel delivery (email / Slack / webhook); make privileged transcript access **time-boxed, requested, approved, and audited** (builds the §8.4 investigation path the audit actions already imply); add per-team retention overrides; and add a narrow, grant-scoped research/investigator capability for the Audience-B persona with **no standing access**. Real-time alerting was a v1 non-goal (`DESIGN_DOC.md` §2.2) now deliberately scoped for a later phase. Trust guardrails are first-class: alerts carry no individual-identifying data; every grant and view is auditable and expiring.
 
-Tasks P9-001–P9-006 decomposed in [`tasks/P9-roadmap.md`](./tasks/P9-roadmap.md).
+Tasks P9-001–P9-006 decomposed in [`tasks/P9-roadmap.md`](./tasks/P9-roadmap.md) and implemented (`review`). The alert engine evaluates spend-spike, error-rate, and unknown-model rules (`budget_threshold` is a reserved type, defined but not yet evaluated).
 
 **Exit**: a spend spike fires a notification within one evaluation cycle; every privileged transcript view is the owner or a time-boxed approved grant, logged and visible to the viewed user; zero standing individual access beyond org_admin.
 

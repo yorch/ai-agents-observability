@@ -3,7 +3,7 @@ id: P9-001
 title: Alert rules engine (scheduled evaluation)
 phase: 9
 workstream: B
-status: in-progress
+status: review
 owner: claude
 depends_on: [P4-004, P4-005]
 blocks: [P9-002]
@@ -72,8 +72,11 @@ once per transition — no duplicate spam.
 - `packages/db/prisma/schema.prisma` (AlertRule, AlertEvent models)
 - `packages/db/sql/migrations/` (new migration file)
 - `apps/ingest/src/jobs/evaluate-alerts.ts` (new)
+- `apps/ingest/src/jobs/alert-transition.ts` (new; idempotent fired/resolved transition)
 - `apps/ingest/src/jobs/scheduler.ts`
-- `apps/web/src/lib/org-queries.ts` (extract shared threshold constants)
+- `packages/schemas/src/alerts.ts` (new; shared threshold constants + `AlertRuleType`)
+- `apps/web/src/lib/org-queries.ts` (imports the shared thresholds from
+  `@ai-agents-observability/schemas` rather than defining them locally)
 
 ## Out of scope
 

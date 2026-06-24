@@ -3,7 +3,7 @@ id: P9-002
 title: Alert notification delivery + admin UI
 phase: 9
 workstream: E
-status: in-progress
+status: review
 owner: claude
 depends_on: [P9-001]
 blocks: [P9-006]
