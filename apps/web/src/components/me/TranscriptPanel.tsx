@@ -2,13 +2,6 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { TranscriptViewer } from '@/components/me/TranscriptViewer';
 
-/**
- * The "render a transcript" panel shared by the /me, /team, and /org transcript
- * pages: a back link, the heading + subtitle (and an optional notice), then
- * either the viewer or a "no transcript" placeholder. The pages own their
- * audience-specific auth/audit and any access-gating branches; this is only the
- * common presentation once access is decided.
- */
 export function TranscriptPanel({
   apiUrl,
   backHref,
