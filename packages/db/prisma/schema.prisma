@@ -63,6 +63,9 @@ enum OrgRole {
   member
   org_admin
   viewer_aggregate
+  // Audience-B researcher (P9-005). Aggregate access like viewer_aggregate PLUS
+  // the ability to REQUEST time-boxed grants — never standing individual access.
+  investigator
 }
 
 enum PRState {

@@ -3,8 +3,8 @@ id: P9-005
 title: Research / investigator capability (Audience B)
 phase: 9
 workstream: C
-status: blocked
-owner: null
+status: in-progress
+owner: claude
 depends_on: [P9-003, P3-001]
 blocks: [P9-006]
 estimate: M
@@ -111,3 +111,13 @@ bun --filter '@ai-agents-observability/web' test
 # Test: investigator with expired grant → 403/notFound (same as no grant).
 # Test: investigator cannot access /admin/alerts, /admin/org-roles edit actions.
 ```
+
+> **Verification status (review):** `roles.test.ts` gains investigator cases (canViewIndividuals
+> = false for investigator; canRequestGrants = true for org_admin + investigator only) — **23 web
+> role/grant tests pass locally** + biome clean. `investigator` added to OrgRole enum (+migration);
+> `requireOrgViewer` already admits it (aggregate access), `canViewIndividuals` deliberately excludes
+> it (no standing access), `canRequestGrants`/`requireGrantRequester` admit it. The grant request
+> flow + /admin/access-grants/new now accept investigators (approval still org_admin-only — no
+> self-approval). `/admin/org-roles` lets org_admin assign the role (audited role_grant). Trust
+> rationale documented in `roles.ts`. When a grant expires, hasActiveGrant returns false and access
+> reverts to aggregate-only with no code change. `typecheck` + DB tests run in CI.

@@ -43,7 +43,12 @@ const mockUser = { findUnique: vi.fn() };
 
 vi.mock('@ai-agents-observability/db', () => ({
   createClient: vi.fn(() => ({ team: mockTeam, teamMember: mockTeamMember, user: mockUser })),
-  OrgRole: { member: 'member', org_admin: 'org_admin', viewer_aggregate: 'viewer_aggregate' },
+  OrgRole: {
+    investigator: 'investigator',
+    member: 'member',
+    org_admin: 'org_admin',
+    viewer_aggregate: 'viewer_aggregate',
+  },
   TeamRole: { lead: 'lead', maintainer: 'maintainer', member: 'member' },
 }));
 
@@ -239,5 +244,25 @@ describe('isLeadOrAbove', () => {
   it('returns false for member', async () => {
     const { isLeadOrAbove } = await import('../src/lib/roles.js');
     expect(isLeadOrAbove('member' as never)).toBe(false);
+  });
+});
+
+describe('canViewIndividuals (P9-005 — investigator has no standing access)', () => {
+  it('only org_admin views individuals without a grant', async () => {
+    const { canViewIndividuals } = await import('../src/lib/roles.ts');
+    expect(canViewIndividuals('org_admin' as never)).toBe(true);
+    expect(canViewIndividuals('investigator' as never)).toBe(false);
+    expect(canViewIndividuals('viewer_aggregate' as never)).toBe(false);
+    expect(canViewIndividuals('member' as never)).toBe(false);
+  });
+});
+
+describe('canRequestGrants (P9-005)', () => {
+  it('org_admin and investigator may request grants; others may not', async () => {
+    const { canRequestGrants } = await import('../src/lib/roles.ts');
+    expect(canRequestGrants('org_admin' as never)).toBe(true);
+    expect(canRequestGrants('investigator' as never)).toBe(true);
+    expect(canRequestGrants('viewer_aggregate' as never)).toBe(false);
+    expect(canRequestGrants('member' as never)).toBe(false);
   });
 });

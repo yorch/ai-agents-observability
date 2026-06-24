@@ -133,7 +133,37 @@ export function isOrgAdmin(role: OrgRole): boolean {
 }
 
 export function canViewIndividuals(role: OrgRole): boolean {
+  // Investigators are deliberately NOT here — they reach individual sessions ONLY
+  // through an active access grant (hasActiveGrant), never standing. See below.
   return role === OrgRole.org_admin;
+}
+
+/**
+ * Who may *request* a time-boxed access grant (P9-003/P9-005): org_admins and
+ * investigators (Audience B). viewer_aggregate cannot.
+ *
+ * TRUST RATIONALE — do not "simplify" investigator into standing individual
+ * access. The project's posture (DESIGN_DOC §8/§11) requires access to another
+ * person's session content to be requested-with-justification, org_admin-approved,
+ * time-boxed, and visible to the viewed user. A standing role satisfies none of
+ * these. Investigators therefore can only REQUEST grants; the grant (approved +
+ * expiring + audited) is the access path, and when it expires `hasActiveGrant`
+ * returns false and access reverts to aggregate-only with no code change.
+ */
+export function canRequestGrants(role: OrgRole): boolean {
+  return role === OrgRole.org_admin || role === OrgRole.investigator;
+}
+
+/** Asserts the caller may request access grants (org_admin or investigator). */
+export async function requireGrantRequester(): Promise<OrgContext> {
+  const user = await currentUser();
+  if (!user) {
+    redirect('/login');
+  }
+  if (!canRequestGrants(user.orgRole)) {
+    notFound();
+  }
+  return { orgRole: user.orgRole, user };
 }
 
 /**

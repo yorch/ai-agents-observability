@@ -1,10 +1,10 @@
-import { requireOrgAdmin } from '@/lib/roles';
+import { requireGrantRequester } from '@/lib/roles';
 import { requestGrant } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewAccessGrantPage() {
-  await requireOrgAdmin();
+  await requireGrantRequester();
 
   return (
     <div className="mx-auto max-w-xl space-y-6">

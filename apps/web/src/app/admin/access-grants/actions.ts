@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 
 import { writeAuditLog } from '@/lib/audit';
 import { getPrisma } from '@/lib/prisma';
-import { requireOrgAdmin } from '@/lib/roles';
+import { requireGrantRequester, requireOrgAdmin } from '@/lib/roles';
 
 // Default grant lifetime when an approver doesn't specify one (P9-003).
 const DEFAULT_GRANT_HOURS = 48;
@@ -16,7 +16,9 @@ const DEFAULT_GRANT_HOURS = 48;
  * UNAPPROVED (granted_at null) — it grants nothing until an org_admin approves.
  */
 export async function requestGrant(formData: FormData): Promise<void> {
-  const { user } = await requireOrgAdmin();
+  // org_admin OR investigator (P9-005) — never viewer_aggregate. Approval still
+  // requires org_admin, so an investigator can't self-approve.
+  const { user } = await requireGrantRequester();
 
   const scope = String(formData.get('scope') ?? '') as GrantScope;
   const justification = String(formData.get('justification') ?? '').trim();
