@@ -63,7 +63,7 @@ export default async function TeamRolesAdminPage() {
                       <form action={setTeamRole}>
                         <input type="hidden" name="teamId" value={team.id} />
                         <input type="hidden" name="userId" value={m.userId} />
-                        <input type="hidden" name="role" value={isLead ? 'member' : 'lead'} />
+                        <input type="hidden" name="role" value={isLead ? 'MEMBER' : 'LEAD'} />
                         <button
                           type="submit"
                           className="rounded-md border border-white/10 px-3 py-1 text-xs text-white/70 transition-colors hover:bg-white/10"

@@ -2,7 +2,7 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 import type { Logger } from 'pino';
 
 /**
- * Sweeps sessions with status='active' and lastEventAt < now() - 24h to status='abandoned'.
+ * Sweeps sessions with status='ACTIVE' and lastEventAt < now() - 24h to status='ABANDONED'.
  * Uses pg advisory lock to avoid duplicate concurrent runs.
  * Writes a JobRun row for observability.
  */
@@ -35,10 +35,10 @@ export async function runSweepAbandoned(db: PrismaClient, logger?: Logger): Prom
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const result = await db.session.updateMany({
-      data: { status: 'abandoned' },
+      data: { status: 'ABANDONED' },
       where: {
         lastEventAt: { lt: cutoff },
-        status: 'active',
+        status: 'ACTIVE',
       },
     });
 

@@ -32,7 +32,7 @@ export async function backfillPRLinks(
 
   await db.sessionPRLink.createMany({
     data: sessions.map((s) => ({
-      linkSource: 'webhook_reconcile',
+      linkSource: 'WEBHOOK_RECONCILE',
       prNumber,
       repoId,
       sessionId: s.sessionId,

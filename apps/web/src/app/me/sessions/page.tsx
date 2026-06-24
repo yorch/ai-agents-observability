@@ -14,7 +14,7 @@ function parseDate(s: string | undefined): Date | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
-const SESSION_STATUSES = ['active', 'completed', 'crashed', 'timed_out', 'abandoned'] as const;
+const SESSION_STATUSES = ['ACTIVE', 'COMPLETED', 'CRASHED', 'TIMED_OUT', 'ABANDONED'] as const;
 const SHAPE_LABELS = [
   'exploratory',
   'focused-edit',

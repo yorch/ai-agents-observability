@@ -38,7 +38,7 @@ export function computeFrictionScore(inputs: FrictionInputs): number | null {
   const errorRate = toolCallCount > 0 ? Math.min(toolErrorCount / toolCallCount, 1) : 0;
   const interruptRate = userMessageCount > 0 ? Math.min(interruptCount / userMessageCount, 1) : 0;
   const shortAbandoned =
-    status === 'abandoned' && (durationSeconds == null || durationSeconds < 60) ? 1 : 0;
+    status === 'ABANDONED' && (durationSeconds == null || durationSeconds < 60) ? 1 : 0;
 
   return Math.min(
     1,

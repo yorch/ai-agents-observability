@@ -25,11 +25,11 @@ export default async function NewAccessGrantPage() {
           <select
             id="scope"
             name="scope"
-            defaultValue="single_session"
+            defaultValue="SINGLE_SESSION"
             className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
           >
-            <option value="single_session">A single session</option>
-            <option value="user_sessions">All sessions for one user</option>
+            <option value="SINGLE_SESSION">A single session</option>
+            <option value="USER_SESSIONS">All sessions for one user</option>
           </select>
         </div>
 

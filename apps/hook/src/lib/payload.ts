@@ -139,7 +139,7 @@ export function toEvent(kind: HookKind, raw: ClaudeCodeHookPayload): Event {
   const isToolEvent = eventType === 'PreToolUse' || eventType === 'PostToolUse';
 
   return {
-    agent_type: 'claude-code',
+    agent_type: 'CLAUDE_CODE',
     client: clientInfo(),
     event_id: uuidv7(),
     event_type: eventType,

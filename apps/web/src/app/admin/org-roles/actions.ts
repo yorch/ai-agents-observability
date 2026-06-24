@@ -8,10 +8,10 @@ import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
 const ASSIGNABLE: ReadonlySet<OrgRole> = new Set<OrgRole>([
-  OrgRole.member,
-  OrgRole.viewer_aggregate,
-  OrgRole.investigator,
-  OrgRole.org_admin,
+  OrgRole.MEMBER,
+  OrgRole.VIEWER_AGGREGATE,
+  OrgRole.INVESTIGATOR,
+  OrgRole.ORG_ADMIN,
 ]);
 
 /**
@@ -28,7 +28,7 @@ export async function setOrgRole(formData: FormData): Promise<void> {
     return;
   }
   // Guard against an admin removing their own admin access by accident.
-  if (targetUserId === user.id && role !== OrgRole.org_admin) {
+  if (targetUserId === user.id && role !== OrgRole.ORG_ADMIN) {
     return;
   }
 
@@ -39,7 +39,7 @@ export async function setOrgRole(formData: FormData): Promise<void> {
 
   if (count > 0) {
     await writeAuditLog({
-      action: AuditAction.role_grant,
+      action: AuditAction.ROLE_GRANT,
       actorUserId: user.id,
       justification: `Set org role to ${role}`,
       targetUserId,

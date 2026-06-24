@@ -152,7 +152,7 @@ function pushSession(
     permission_deny_count: 0,
     shape_label: null,
     started_at: new Date('2026-01-01T00:00:00Z'),
-    status: 'completed',
+    status: 'COMPLETED',
     tool_call_count: 0,
     tool_error_count: 0,
     user_message_count: 0,

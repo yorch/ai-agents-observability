@@ -6,9 +6,9 @@ import { opencodeAdapter } from '../src/adapters/opencode';
 describe('opencode adapter', () => {
   it('is selectable by --agent opencode and falls back to claude-code otherwise', () => {
     expect(selectAdapter('opencode')).toBe(opencodeAdapter);
-    expect(selectAdapter('claude-code').agentType).toBe('claude-code');
-    expect(selectAdapter(undefined).agentType).toBe('claude-code');
-    expect(selectAdapter('nonsense').agentType).toBe('claude-code');
+    expect(selectAdapter('claude-code').agentType).toBe('CLAUDE_CODE');
+    expect(selectAdapter(undefined).agentType).toBe('CLAUDE_CODE');
+    expect(selectAdapter('nonsense').agentType).toBe('CLAUDE_CODE');
   });
 
   it('recognizes opencode hook kinds', () => {
@@ -25,7 +25,7 @@ describe('opencode adapter', () => {
       sessionID: '01906a44-0000-7000-8000-000000000000',
       tool: 'bash',
     });
-    expect(ev.agent_type).toBe('opencode');
+    expect(ev.agent_type).toBe('OPENCODE');
     expect(ev.event_type).toBe('PostToolUse');
     expect(ev.tool?.name).toBe('bash');
     expect(ev.tool?.input_bytes).toBeGreaterThan(0);

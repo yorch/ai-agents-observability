@@ -25,12 +25,12 @@ export async function handlePullRequest(
   logger.info({ action, pr: pr.number, repo: repo.full_name }, 'pr.webhook');
 
   if (action === 'opened' || action === 'synchronize') {
-    await upsertPullRequest(db, repo, pr as Parameters<typeof upsertPullRequest>[2], 'open');
+    await upsertPullRequest(db, repo, pr as Parameters<typeof upsertPullRequest>[2], 'OPEN');
     return;
   }
 
   if (action === 'closed') {
-    const state = pr.merged ? 'merged' : 'closed';
+    const state = pr.merged ? 'MERGED' : 'CLOSED';
     const { repoId, prNumber } = await upsertPullRequest(
       db,
       repo,

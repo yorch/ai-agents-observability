@@ -134,7 +134,7 @@ export function eventsRouter(
 
       // Increment Prometheus counter for each accepted event, labelled by agent type.
       if (inserted.accepted > 0) {
-        const agentType = batch.events[0]?.agent_type ?? 'claude-code';
+        const agentType = batch.events[0]?.agent_type ?? 'CLAUDE_CODE';
         eventsIngestedTotal.inc({ agent_type: agentType }, inserted.accepted);
       }
 

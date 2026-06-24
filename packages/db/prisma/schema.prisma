@@ -10,74 +10,74 @@ datasource db {
 // ── Enums ────────────────────────────────────────────────────────────────────
 
 enum SessionStatus {
-  active
-  completed
-  crashed
-  timed_out
-  abandoned
+  ACTIVE
+  COMPLETED
+  CRASHED
+  TIMED_OUT
+  ABANDONED
 }
 
 enum AgentType {
-  claude_code
-  cursor
-  aider
-  copilot
-  codex
-  windsurf
-  opencode
+  CLAUDE_CODE
+  CURSOR
+  AIDER
+  COPILOT
+  CODEX
+  WINDSURF
+  OPENCODE
 }
 
 enum AuditAction {
-  view_session
-  view_transcript
-  export_team
-  export_org
-  admin_impersonate
-  delete_request
-  hook_token_issued
-  role_grant
-  retention_override_changed
-  grant_requested
-  grant_approved
-  grant_revoked
+  VIEW_SESSION
+  VIEW_TRANSCRIPT
+  EXPORT_TEAM
+  EXPORT_ORG
+  ADMIN_IMPERSONATE
+  DELETE_REQUEST
+  HOOK_TOKEN_ISSUED
+  ROLE_GRANT
+  RETENTION_OVERRIDE_CHANGED
+  GRANT_REQUESTED
+  GRANT_APPROVED
+  GRANT_REVOKED
 }
 
 enum GrantScope {
-  user_sessions
-  single_session
+  USER_SESSIONS
+  SINGLE_SESSION
 }
 
 enum AuthTokenKind {
-  access
-  refresh
-  hook
+  ACCESS
+  REFRESH
+  HOOK
 }
 
 enum TeamRole {
-  member
-  lead
-  maintainer
+  MEMBER
+  LEAD
+  MAINTAINER
 }
 
 enum OrgRole {
-  member
-  org_admin
-  viewer_aggregate
-  // Audience-B researcher (P9-005). Aggregate access like viewer_aggregate PLUS
+  MEMBER
+  ORG_ADMIN
+  VIEWER_AGGREGATE
+  // Audience-B researcher (P9-005). Aggregate access like VIEWER_AGGREGATE PLUS
   // the ability to REQUEST time-boxed grants — never standing individual access.
-  investigator
+  INVESTIGATOR
 }
 
 enum PRState {
-  open
-  closed
-  merged
+  OPEN
+  CLOSED
+  MERGED
 }
 
 enum LinkSource {
-  session_start
-  webhook_reconcile
-  manual
+  SESSION_START
+  WEBHOOK_RECONCILE
+  MANUAL
 }
 
 // ── Dimension tables ─────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ model User {
   passwordHash  String?   @map("password_hash")
   displayName   String?   @map("display_name")
   primaryTeamId String?   @map("primary_team_id") @db.Uuid
-  orgRole       OrgRole   @default(member) @map("org_role")
+  orgRole       OrgRole   @default(MEMBER) @map("org_role")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz(6)
   deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(6)
@@ -221,7 +221,7 @@ model AuditLog {
 model Session {
   sessionId            String        @id @map("session_id") @db.Uuid
   userId               String        @map("user_id") @db.Uuid
-  agentType            AgentType     @default(claude_code) @map("agent_type")
+  agentType            AgentType     @default(CLAUDE_CODE) @map("agent_type")
   agentVersion         String?       @map("agent_version")
   startedAt            DateTime      @map("started_at") @db.Timestamptz(6)
   endedAt              DateTime?     @map("ended_at") @db.Timestamptz(6)

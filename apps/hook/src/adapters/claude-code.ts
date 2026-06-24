@@ -26,7 +26,7 @@ function renderSnippet(bin: string): string {
 }
 
 export const claudeCodeAdapter: HookAdapter = {
-  agentType: 'claude-code',
+  agentType: 'CLAUDE_CODE',
 
   installConfig(): AdapterInstallConfig {
     return {

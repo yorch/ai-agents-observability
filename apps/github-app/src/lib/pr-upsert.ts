@@ -1,6 +1,6 @@
 import { isUniqueViolation, type PrismaClient } from '@ai-agents-observability/db';
 
-type PRState = 'open' | 'closed' | 'merged';
+type PRState = 'OPEN' | 'CLOSED' | 'MERGED';
 
 type PullRequestPayload = {
   additions?: number;

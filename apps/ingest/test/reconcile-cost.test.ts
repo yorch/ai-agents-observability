@@ -83,8 +83,8 @@ describe('runReconcileCost', () => {
   it('reconciles the previous calendar month and queries the billing source per agent', async () => {
     const db = makeMockDb({
       rows: [
-        { agent_type: 'claude_code', client_cost: 100 },
-        { agent_type: 'opencode', client_cost: 20 },
+        { agent_type: 'CLAUDE_CODE', client_cost: 100 },
+        { agent_type: 'OPENCODE', client_cost: 20 },
       ],
     });
     const fetchBilledCost = vi.fn(async () => 100);
@@ -93,14 +93,14 @@ describe('runReconcileCost', () => {
     await runReconcileCost(asDb(db), source, { now: new Date('2026-06-15T00:00:00Z') });
 
     // Previous month = May 2026 → year 2026, month 5 (1-based).
-    expect(fetchBilledCost).toHaveBeenCalledWith('claude_code', 2026, 5);
-    expect(fetchBilledCost).toHaveBeenCalledWith('opencode', 2026, 5);
+    expect(fetchBilledCost).toHaveBeenCalledWith('CLAUDE_CODE', 2026, 5);
+    expect(fetchBilledCost).toHaveBeenCalledWith('OPENCODE', 2026, 5);
     expect(db._jobRuns[0]?.jobName).toBe('reconcile-cost');
     expect(db._jobRuns[0]?.status).toBe('success');
   });
 
   it('runs with NullBillingSource without crashing (no comparison)', async () => {
-    const db = makeMockDb({ rows: [{ agent_type: 'claude_code', client_cost: 42 }] });
+    const db = makeMockDb({ rows: [{ agent_type: 'CLAUDE_CODE', client_cost: 42 }] });
 
     await runReconcileCost(asDb(db), new NullBillingSource(), {
       now: new Date('2026-03-10T00:00:00Z'),

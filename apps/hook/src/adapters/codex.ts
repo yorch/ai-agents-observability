@@ -72,7 +72,7 @@ function assemble(
   extra?: Partial<Event>,
 ): ConformantEvent {
   return {
-    agent_type: 'codex',
+    agent_type: 'CODEX',
     client: clientInfo(),
     event_id: uuidv7(),
     event_type: eventType,
@@ -346,7 +346,7 @@ function renderSnippet(bin: string): string {
 }
 
 export const codexAdapter: HookAdapter = {
-  agentType: 'codex',
+  agentType: 'CODEX',
 
   installConfig(): AdapterInstallConfig {
     return {

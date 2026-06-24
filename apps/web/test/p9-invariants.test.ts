@@ -36,7 +36,7 @@ describe('grant expiry invariant (P9-003)', () => {
 
 describe('no-grant denial invariant (P9-003 / P9-005)', () => {
   it('an empty active-grant set never permits access (≥5 targets)', () => {
-    const activeGrants: { scope: 'user_sessions'; targetSessionId: null; targetUserId: string }[] =
+    const activeGrants: { scope: 'USER_SESSIONS'; targetSessionId: null; targetUserId: string }[] =
       [];
     for (const t of ['s1', 's2', 's3', 's4', 's5']) {
       const permitted = activeGrants.some((g) =>
@@ -48,7 +48,7 @@ describe('no-grant denial invariant (P9-003 / P9-005)', () => {
 
   it('a grant for one target never covers a different target', () => {
     const single = {
-      scope: 'single_session' as const,
+      scope: 'SINGLE_SESSION' as const,
       targetSessionId: 's-allowed',
       targetUserId: null,
     };
@@ -58,7 +58,7 @@ describe('no-grant denial invariant (P9-003 / P9-005)', () => {
     expect(grantCovers(single, { targetSessionId: 's-allowed' })).toBe(true);
 
     const userScoped = {
-      scope: 'user_sessions' as const,
+      scope: 'USER_SESSIONS' as const,
       targetSessionId: null,
       targetUserId: 'u-allowed',
     };

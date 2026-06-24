@@ -53,7 +53,7 @@ function addDays(date: Date, days: number): Date {
 export async function issueAccessToken(userId: string): Promise<string> {
   const privateKey = await getPrivateKey();
   const now = Date.now();
-  return new SignJWT({ kind: 'access', sub: userId })
+  return new SignJWT({ kind: 'ACCESS', sub: userId })
     .setProtectedHeader({ alg: 'EdDSA' })
     .setIssuedAt(Math.floor(now / 1000))
     .setExpirationTime(Math.floor((now + ACCESS_TOKEN_TTL_MS) / 1000))
@@ -70,7 +70,7 @@ export async function verifyAccessToken(jwt: string): Promise<AccessTokenPayload
   const publicKey = await getPublicKey();
   const { payload } = await jwtVerify(jwt, publicKey, { algorithms: ['EdDSA'] });
 
-  if (payload.kind !== 'access') {
+  if (payload.kind !== 'ACCESS') {
     throw new Error('Token is not an access token');
   }
   if (typeof payload.sub !== 'string') {
@@ -85,11 +85,11 @@ export async function verifyAccessToken(jwt: string): Promise<AccessTokenPayload
 async function issueOpaqueToken(
   db: DbClient,
   userId: string,
-  kind: 'refresh' | 'hook',
+  kind: 'REFRESH' | 'HOOK',
 ): Promise<string> {
   const plaintext = generateOpaqueToken();
   const tokenHash = hashToken(plaintext);
-  const ttlDays = kind === 'hook' ? HOOK_TOKEN_TTL_DAYS : REFRESH_TOKEN_TTL_DAYS;
+  const ttlDays = kind === 'HOOK' ? HOOK_TOKEN_TTL_DAYS : REFRESH_TOKEN_TTL_DAYS;
   const expiresAt = addDays(new Date(), ttlDays);
 
   await db.authToken.create({
@@ -100,15 +100,15 @@ async function issueOpaqueToken(
 }
 
 export async function issueRefreshToken(db: DbClient, userId: string): Promise<string> {
-  return issueOpaqueToken(db, userId, 'refresh');
+  return issueOpaqueToken(db, userId, 'REFRESH');
 }
 
 export async function issueHookToken(db: DbClient, userId: string): Promise<string> {
-  return issueOpaqueToken(db, userId, 'hook');
+  return issueOpaqueToken(db, userId, 'HOOK');
 }
 
 export type OpaqueTokenPayload = {
-  kind: 'hook' | 'refresh';
+  kind: 'HOOK' | 'REFRESH';
   tokenId: string;
   userId: string;
 };
@@ -133,7 +133,7 @@ export async function verifyOpaqueToken(
   if (record.expiresAt && record.expiresAt < new Date()) {
     throw new Error('Token has expired');
   }
-  if (record.kind !== 'refresh' && record.kind !== 'hook') {
+  if (record.kind !== 'REFRESH' && record.kind !== 'HOOK') {
     throw new Error('Token has wrong kind');
   }
 
@@ -157,7 +157,7 @@ export async function rotateRefreshToken(
     // Only refresh tokens may be rotated into a web session. `verifyOpaqueToken`
     // also accepts long-lived `hook` tokens; without this guard a leaked hook
     // token could be exchanged for dashboard access tokens (privilege crossing).
-    if (kind !== 'refresh') {
+    if (kind !== 'REFRESH') {
       throw new Error('Token is not a refresh token');
     }
 
@@ -171,7 +171,7 @@ export async function rotateRefreshToken(
     }
 
     const [newRefresh, access] = await Promise.all([
-      issueOpaqueToken(tx as DbClient, userId, 'refresh'),
+      issueOpaqueToken(tx as DbClient, userId, 'REFRESH'),
       issueAccessToken(userId),
     ]);
 

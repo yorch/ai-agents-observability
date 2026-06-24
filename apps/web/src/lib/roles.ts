@@ -13,7 +13,7 @@ export type TeamContext = {
   user: User;
 };
 
-export const LEAD_ROLES: TeamRole[] = [TeamRole.lead, TeamRole.maintainer];
+export const LEAD_ROLES: TeamRole[] = [TeamRole.LEAD, TeamRole.MAINTAINER];
 
 async function resolveTeam(slug: string) {
   const team = await getPrisma().team.findUnique({
@@ -52,13 +52,13 @@ async function requireTeamRole(
 
   // Org admins may view any team (consistent with canViewIndividuals) without a
   // team membership. Non-admins must be active members passing the role check.
-  const isAdmin = user.orgRole === OrgRole.org_admin;
+  const isAdmin = user.orgRole === OrgRole.ORG_ADMIN;
   if (!isAdmin && (!membership || !check(membership.roleInTeam))) {
     notFound();
   }
 
   return {
-    role: membership?.roleInTeam ?? TeamRole.lead,
+    role: membership?.roleInTeam ?? TeamRole.LEAD,
     teamId: team.id,
     teamName: team.name,
     teamSlug: team.githubSlug,
@@ -107,7 +107,7 @@ export async function requireOrgAdmin(): Promise<OrgContext> {
   if (!user) {
     redirect('/login');
   }
-  if (user.orgRole !== OrgRole.org_admin) {
+  if (user.orgRole !== OrgRole.ORG_ADMIN) {
     notFound();
   }
   return { orgRole: user.orgRole, user };
@@ -122,20 +122,20 @@ export async function requireOrgViewer(): Promise<OrgContext> {
   if (!user) {
     redirect('/login');
   }
-  if (user.orgRole === OrgRole.member) {
+  if (user.orgRole === OrgRole.MEMBER) {
     notFound();
   }
   return { orgRole: user.orgRole, user };
 }
 
 export function isOrgAdmin(role: OrgRole): boolean {
-  return role === OrgRole.org_admin;
+  return role === OrgRole.ORG_ADMIN;
 }
 
 export function canViewIndividuals(role: OrgRole): boolean {
   // Investigators are deliberately NOT here — they reach individual sessions ONLY
   // through an active access grant (hasActiveGrant), never standing. See below.
-  return role === OrgRole.org_admin;
+  return role === OrgRole.ORG_ADMIN;
 }
 
 /**
@@ -151,7 +151,7 @@ export function canViewIndividuals(role: OrgRole): boolean {
  * returns false and access reverts to aggregate-only with no code change.
  */
 export function canRequestGrants(role: OrgRole): boolean {
-  return role === OrgRole.org_admin || role === OrgRole.investigator;
+  return role === OrgRole.ORG_ADMIN || role === OrgRole.INVESTIGATOR;
 }
 
 /** Asserts the caller may request access grants (org_admin or investigator). */

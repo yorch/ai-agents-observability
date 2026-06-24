@@ -48,7 +48,7 @@ export default async function OrgSessionDetailPage({
 
   // §8.3: every privileged view of another user's session is audited.
   void writeAuditLog({
-    action: AuditAction.view_session,
+    action: AuditAction.VIEW_SESSION,
     actorUserId: user.id,
     targetSessionId: id,
     targetUserId: ctx.ownerUserId,

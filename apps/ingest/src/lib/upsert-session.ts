@@ -45,7 +45,7 @@ type SessionAgg = {
 function emptyAgg(sessionId: string, userId: string, event: Event): SessionAgg {
   const ts = new Date(event.ts);
   return {
-    agentType: event.agent_type.replaceAll('-', '_'),
+    agentType: event.agent_type,
     claudeCodeVersion: event.client.claude_code_version,
     clearCount: 0,
     compactionCount: 0,
@@ -241,7 +241,7 @@ export async function upsertSessions(
       last_event_at        = GREATEST(sessions.last_event_at, EXCLUDED.last_event_at),
       ended_at             = COALESCE(sessions.ended_at, EXCLUDED.ended_at),
       status               = CASE
-                               WHEN EXCLUDED.ended_at IS NOT NULL AND sessions.ended_at IS NULL THEN 'completed'::"SessionStatus"
+                               WHEN EXCLUDED.ended_at IS NOT NULL AND sessions.ended_at IS NULL THEN 'COMPLETED'::"SessionStatus"
                                ELSE sessions.status
                              END,
       total_input_tokens   = sessions.total_input_tokens + EXCLUDED.total_input_tokens,

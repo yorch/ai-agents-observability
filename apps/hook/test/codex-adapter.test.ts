@@ -9,9 +9,9 @@ import { codexAdapter } from '../src/adapters/codex';
 describe('codex adapter — selection & mapping', () => {
   it('is selectable by --agent codex and falls back to claude-code otherwise', () => {
     expect(selectAdapter('codex')).toBe(codexAdapter);
-    expect(selectAdapter('codex').agentType).toBe('codex');
-    expect(selectAdapter(undefined).agentType).toBe('claude-code');
-    expect(selectAdapter('nonsense').agentType).toBe('claude-code');
+    expect(selectAdapter('codex').agentType).toBe('CODEX');
+    expect(selectAdapter(undefined).agentType).toBe('CLAUDE_CODE');
+    expect(selectAdapter('nonsense').agentType).toBe('CLAUDE_CODE');
   });
 
   it('recognizes codex hook kinds', () => {
@@ -25,7 +25,7 @@ describe('codex adapter — selection & mapping', () => {
       'last-assistant-message': 'done',
       'session-id': '01906a44-0000-7000-8000-000000000000',
     });
-    expect(ev.agent_type).toBe('codex');
+    expect(ev.agent_type).toBe('CODEX');
     expect(ev.event_type).toBe('Stop');
     expect(ev.session_id).toBe('01906a44-0000-7000-8000-000000000000');
   });
@@ -76,7 +76,7 @@ describe('codex adapter — rollout-backed mapBatch', () => {
     const stops = evs.filter((e) => e.event_type === 'Stop');
     expect(tools).toHaveLength(1);
     expect(tools[0]?.tool?.name).toBe('shell');
-    expect(tools[0]?.agent_type).toBe('codex');
+    expect(tools[0]?.agent_type).toBe('CODEX');
     expect(tools[0]?.session_id).toBe(sessionId);
     expect(stops).toHaveLength(1);
     expect(stops[0]?.llm?.model).toBe('gpt-5-codex');

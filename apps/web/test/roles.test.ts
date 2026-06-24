@@ -44,12 +44,12 @@ const mockUser = { findUnique: vi.fn() };
 vi.mock('@ai-agents-observability/db', () => ({
   createClient: vi.fn(() => ({ team: mockTeam, teamMember: mockTeamMember, user: mockUser })),
   OrgRole: {
-    investigator: 'investigator',
-    member: 'member',
-    org_admin: 'org_admin',
-    viewer_aggregate: 'viewer_aggregate',
+    INVESTIGATOR: 'INVESTIGATOR',
+    MEMBER: 'MEMBER',
+    ORG_ADMIN: 'ORG_ADMIN',
+    VIEWER_AGGREGATE: 'VIEWER_AGGREGATE',
   },
-  TeamRole: { lead: 'lead', maintainer: 'maintainer', member: 'member' },
+  TeamRole: { LEAD: 'LEAD', MAINTAINER: 'MAINTAINER', MEMBER: 'MEMBER' },
 }));
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ describe('requireTeamLead', () => {
   it('calls notFound() when team does not exist', async () => {
     setAuthCookie();
     const { verifyAccessToken } = await import('@ai-agents-observability/auth');
-    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'access', userId: 'u1' } as never);
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'ACCESS', userId: 'u1' } as never);
     mockUser.findUnique.mockResolvedValueOnce(USER);
     mockTeam.findUnique.mockResolvedValueOnce(null);
 
@@ -98,10 +98,10 @@ describe('requireTeamLead', () => {
   it('calls notFound() when user has only member role', async () => {
     setAuthCookie();
     const { verifyAccessToken } = await import('@ai-agents-observability/auth');
-    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'access', userId: 'u1' } as never);
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'ACCESS', userId: 'u1' } as never);
     mockUser.findUnique.mockResolvedValueOnce(USER);
     mockTeam.findUnique.mockResolvedValueOnce(TEAM);
-    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: null, roleInTeam: 'member' });
+    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: null, roleInTeam: 'MEMBER' });
 
     const { requireTeamLead } = await import('../src/lib/roles.js');
     await expect(requireTeamLead('eng')).rejects.toThrow('NOT_FOUND');
@@ -110,10 +110,10 @@ describe('requireTeamLead', () => {
   it('calls notFound() when user has left the team', async () => {
     setAuthCookie();
     const { verifyAccessToken } = await import('@ai-agents-observability/auth');
-    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'access', userId: 'u1' } as never);
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'ACCESS', userId: 'u1' } as never);
     mockUser.findUnique.mockResolvedValueOnce(USER);
     mockTeam.findUnique.mockResolvedValueOnce(TEAM);
-    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: new Date(), roleInTeam: 'lead' });
+    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: new Date(), roleInTeam: 'LEAD' });
 
     const { requireTeamLead } = await import('../src/lib/roles.js');
     await expect(requireTeamLead('eng')).rejects.toThrow('NOT_FOUND');
@@ -122,7 +122,7 @@ describe('requireTeamLead', () => {
   it('calls notFound() when user has no membership record', async () => {
     setAuthCookie();
     const { verifyAccessToken } = await import('@ai-agents-observability/auth');
-    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'access', userId: 'u1' } as never);
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'ACCESS', userId: 'u1' } as never);
     mockUser.findUnique.mockResolvedValueOnce(USER);
     mockTeam.findUnique.mockResolvedValueOnce(TEAM);
     mockTeamMember.findUnique.mockResolvedValueOnce(null);
@@ -134,10 +134,10 @@ describe('requireTeamLead', () => {
   it('returns TeamContext for a lead', async () => {
     setAuthCookie();
     const { verifyAccessToken } = await import('@ai-agents-observability/auth');
-    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'access', userId: 'u1' } as never);
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'ACCESS', userId: 'u1' } as never);
     mockUser.findUnique.mockResolvedValueOnce(USER);
     mockTeam.findUnique.mockResolvedValueOnce(TEAM);
-    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: null, roleInTeam: 'lead' });
+    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: null, roleInTeam: 'LEAD' });
 
     const { requireTeamLead } = await import('../src/lib/roles.js');
     const ctx = await requireTeamLead('eng');
@@ -145,22 +145,22 @@ describe('requireTeamLead', () => {
     expect(ctx.teamId).toBe('team-1');
     expect(ctx.teamSlug).toBe('eng');
     expect(ctx.teamName).toBe('Engineering');
-    expect(ctx.role).toBe('lead');
+    expect(ctx.role).toBe('LEAD');
     expect(ctx.user.id).toBe('u1');
   });
 
   it('returns TeamContext for a maintainer', async () => {
     setAuthCookie();
     const { verifyAccessToken } = await import('@ai-agents-observability/auth');
-    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'access', userId: 'u1' } as never);
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'ACCESS', userId: 'u1' } as never);
     mockUser.findUnique.mockResolvedValueOnce(USER);
     mockTeam.findUnique.mockResolvedValueOnce(TEAM);
-    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: null, roleInTeam: 'maintainer' });
+    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: null, roleInTeam: 'MAINTAINER' });
 
     const { requireTeamLead } = await import('../src/lib/roles.js');
     const ctx = await requireTeamLead('eng');
 
-    expect(ctx.role).toBe('maintainer');
+    expect(ctx.role).toBe('MAINTAINER');
   });
 });
 
@@ -173,10 +173,10 @@ describe('requireTeamMember', () => {
   it('calls notFound() when user has left the team', async () => {
     setAuthCookie();
     const { verifyAccessToken } = await import('@ai-agents-observability/auth');
-    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'access', userId: 'u1' } as never);
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'ACCESS', userId: 'u1' } as never);
     mockUser.findUnique.mockResolvedValueOnce(USER);
     mockTeam.findUnique.mockResolvedValueOnce(TEAM);
-    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: new Date(), roleInTeam: 'member' });
+    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: new Date(), roleInTeam: 'MEMBER' });
 
     const { requireTeamMember } = await import('../src/lib/roles.js');
     await expect(requireTeamMember('eng')).rejects.toThrow('NOT_FOUND');
@@ -185,15 +185,15 @@ describe('requireTeamMember', () => {
   it('returns TeamContext for a plain member', async () => {
     setAuthCookie();
     const { verifyAccessToken } = await import('@ai-agents-observability/auth');
-    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'access', userId: 'u1' } as never);
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({ kind: 'ACCESS', userId: 'u1' } as never);
     mockUser.findUnique.mockResolvedValueOnce(USER);
     mockTeam.findUnique.mockResolvedValueOnce(TEAM);
-    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: null, roleInTeam: 'member' });
+    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: null, roleInTeam: 'MEMBER' });
 
     const { requireTeamMember } = await import('../src/lib/roles.js');
     const ctx = await requireTeamMember('eng');
 
-    expect(ctx.role).toBe('member');
+    expect(ctx.role).toBe('MEMBER');
   });
 });
 
@@ -212,7 +212,7 @@ describe('getTeamRole', () => {
   });
 
   it('returns null when membership leftAt is set', async () => {
-    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: new Date(), roleInTeam: 'lead' });
+    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: new Date(), roleInTeam: 'LEAD' });
 
     const { getTeamRole } = await import('../src/lib/roles.js');
     const role = await getTeamRole('u1', 'team-1');
@@ -221,48 +221,48 @@ describe('getTeamRole', () => {
   });
 
   it('returns the role for an active member', async () => {
-    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: null, roleInTeam: 'lead' });
+    mockTeamMember.findUnique.mockResolvedValueOnce({ leftAt: null, roleInTeam: 'LEAD' });
 
     const { getTeamRole } = await import('../src/lib/roles.js');
     const role = await getTeamRole('u1', 'team-1');
 
-    expect(role).toBe('lead');
+    expect(role).toBe('LEAD');
   });
 });
 
 describe('isLeadOrAbove', () => {
   it('returns true for lead', async () => {
     const { isLeadOrAbove } = await import('../src/lib/roles.js');
-    expect(isLeadOrAbove('lead' as never)).toBe(true);
+    expect(isLeadOrAbove('LEAD' as never)).toBe(true);
   });
 
   it('returns true for maintainer', async () => {
     const { isLeadOrAbove } = await import('../src/lib/roles.js');
-    expect(isLeadOrAbove('maintainer' as never)).toBe(true);
+    expect(isLeadOrAbove('MAINTAINER' as never)).toBe(true);
   });
 
   it('returns false for member', async () => {
     const { isLeadOrAbove } = await import('../src/lib/roles.js');
-    expect(isLeadOrAbove('member' as never)).toBe(false);
+    expect(isLeadOrAbove('MEMBER' as never)).toBe(false);
   });
 });
 
 describe('canViewIndividuals (P9-005 — investigator has no standing access)', () => {
   it('only org_admin views individuals without a grant', async () => {
     const { canViewIndividuals } = await import('../src/lib/roles.ts');
-    expect(canViewIndividuals('org_admin' as never)).toBe(true);
-    expect(canViewIndividuals('investigator' as never)).toBe(false);
-    expect(canViewIndividuals('viewer_aggregate' as never)).toBe(false);
-    expect(canViewIndividuals('member' as never)).toBe(false);
+    expect(canViewIndividuals('ORG_ADMIN' as never)).toBe(true);
+    expect(canViewIndividuals('INVESTIGATOR' as never)).toBe(false);
+    expect(canViewIndividuals('VIEWER_AGGREGATE' as never)).toBe(false);
+    expect(canViewIndividuals('MEMBER' as never)).toBe(false);
   });
 });
 
 describe('canRequestGrants (P9-005)', () => {
   it('org_admin and investigator may request grants; others may not', async () => {
     const { canRequestGrants } = await import('../src/lib/roles.ts');
-    expect(canRequestGrants('org_admin' as never)).toBe(true);
-    expect(canRequestGrants('investigator' as never)).toBe(true);
-    expect(canRequestGrants('viewer_aggregate' as never)).toBe(false);
-    expect(canRequestGrants('member' as never)).toBe(false);
+    expect(canRequestGrants('ORG_ADMIN' as never)).toBe(true);
+    expect(canRequestGrants('INVESTIGATOR' as never)).toBe(true);
+    expect(canRequestGrants('VIEWER_AGGREGATE' as never)).toBe(false);
+    expect(canRequestGrants('MEMBER' as never)).toBe(false);
   });
 });

@@ -1,35 +1,38 @@
 // Human-readable agent labels, driven by agent_type rather than hard-coded
 // "Claude" strings (P8-005, DESIGN_DOC §2.4 — "My Agents" is plural by design).
 //
-// Accepts either spelling of the key: the wire/event enum uses hyphens
-// ('claude-code') while the Prisma/DB enum uses underscores ('claude_code'),
-// so both normalize to the same label.
+// agent_type is the uppercase, underscored value shared by the wire/event schema
+// and the Prisma/DB enum ('CLAUDE_CODE'). The key is normalized defensively so any
+// casing or hyphenation (legacy 'claude-code') resolves to the same label.
 
 const CANONICAL: Record<string, string> = {
-  aider: 'Aider',
-  claude_code: 'Claude Code',
-  codex: 'Codex',
-  copilot: 'Copilot',
-  cursor: 'Cursor',
-  opencode: 'opencode',
-  windsurf: 'Windsurf',
+  AIDER: 'Aider',
+  CLAUDE_CODE: 'Claude Code',
+  CODEX: 'Codex',
+  COPILOT: 'Copilot',
+  CURSOR: 'Cursor',
+  OPENCODE: 'opencode',
+  WINDSURF: 'Windsurf',
 };
 
 /** The default agent for single-agent deployments. */
-export const DEFAULT_AGENT_TYPE = 'claude_code';
+export const DEFAULT_AGENT_TYPE = 'CLAUDE_CODE';
+
+function normalizeKey(agentType: string): string {
+  return agentType.replaceAll('-', '_').toUpperCase();
+}
 
 export function agentDisplayName(agentType: string): string {
-  const key = agentType.replaceAll('-', '_');
-  return CANONICAL[key] ?? agentType;
+  return CANONICAL[normalizeKey(agentType)] ?? agentType;
 }
 
 /**
  * Distinct display names for a set of agent types, sorted. Returns null when the
  * set is empty or contains only the default agent — callers use that to keep
- * single-agent (claude_code-only) surfaces visually unchanged.
+ * single-agent (CLAUDE_CODE-only) surfaces visually unchanged.
  */
 export function multiAgentLabels(agentTypes: string[]): string[] | null {
-  const keys = new Set(agentTypes.map((a) => a.replaceAll('-', '_')));
+  const keys = new Set(agentTypes.map(normalizeKey));
   if (keys.size === 0) {
     return null;
   }

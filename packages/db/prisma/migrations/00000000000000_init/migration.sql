@@ -2,28 +2,31 @@
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
-CREATE TYPE "SessionStatus" AS ENUM ('active', 'completed', 'crashed', 'timed_out', 'abandoned');
+CREATE TYPE "SessionStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'CRASHED', 'TIMED_OUT', 'ABANDONED');
 
 -- CreateEnum
-CREATE TYPE "AgentType" AS ENUM ('claude_code', 'cursor', 'aider', 'copilot', 'codex', 'windsurf', 'opencode');
+CREATE TYPE "AgentType" AS ENUM ('CLAUDE_CODE', 'CURSOR', 'AIDER', 'COPILOT', 'CODEX', 'WINDSURF', 'OPENCODE');
 
 -- CreateEnum
-CREATE TYPE "AuditAction" AS ENUM ('view_session', 'view_transcript', 'export_team', 'export_org', 'admin_impersonate', 'delete_request', 'hook_token_issued', 'role_grant');
+CREATE TYPE "AuditAction" AS ENUM ('VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM', 'EXPORT_ORG', 'ADMIN_IMPERSONATE', 'DELETE_REQUEST', 'HOOK_TOKEN_ISSUED', 'ROLE_GRANT', 'RETENTION_OVERRIDE_CHANGED', 'GRANT_REQUESTED', 'GRANT_APPROVED', 'GRANT_REVOKED');
 
 -- CreateEnum
-CREATE TYPE "AuthTokenKind" AS ENUM ('access', 'refresh', 'hook');
+CREATE TYPE "GrantScope" AS ENUM ('USER_SESSIONS', 'SINGLE_SESSION');
 
 -- CreateEnum
-CREATE TYPE "TeamRole" AS ENUM ('member', 'lead', 'maintainer');
+CREATE TYPE "AuthTokenKind" AS ENUM ('ACCESS', 'REFRESH', 'HOOK');
 
 -- CreateEnum
-CREATE TYPE "OrgRole" AS ENUM ('member', 'org_admin', 'viewer_aggregate');
+CREATE TYPE "TeamRole" AS ENUM ('MEMBER', 'LEAD', 'MAINTAINER');
 
 -- CreateEnum
-CREATE TYPE "PRState" AS ENUM ('open', 'closed', 'merged');
+CREATE TYPE "OrgRole" AS ENUM ('MEMBER', 'ORG_ADMIN', 'VIEWER_AGGREGATE', 'INVESTIGATOR');
 
 -- CreateEnum
-CREATE TYPE "LinkSource" AS ENUM ('session_start', 'webhook_reconcile', 'manual');
+CREATE TYPE "PRState" AS ENUM ('OPEN', 'CLOSED', 'MERGED');
+
+-- CreateEnum
+CREATE TYPE "LinkSource" AS ENUM ('SESSION_START', 'WEBHOOK_RECONCILE', 'MANUAL');
 
 -- CreateTable
 CREATE TABLE "teams" (
@@ -33,6 +36,7 @@ CREATE TABLE "teams" (
     "name" TEXT NOT NULL,
     "parent_team_id" UUID,
     "synced_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "retention_days" INTEGER,
 
     CONSTRAINT "teams_pkey" PRIMARY KEY ("id")
 );
@@ -46,7 +50,7 @@ CREATE TABLE "users" (
     "password_hash" TEXT,
     "display_name" TEXT,
     "primary_team_id" UUID,
-    "org_role" "OrgRole" NOT NULL DEFAULT 'member',
+    "org_role" "OrgRole" NOT NULL DEFAULT 'MEMBER',
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_seen_at" TIMESTAMPTZ(6),
     "deactivated_at" TIMESTAMPTZ(6),
@@ -123,7 +127,7 @@ CREATE TABLE "audit_log" (
 CREATE TABLE "sessions" (
     "session_id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
-    "agent_type" "AgentType" NOT NULL DEFAULT 'claude_code',
+    "agent_type" "AgentType" NOT NULL DEFAULT 'CLAUDE_CODE',
     "agent_version" TEXT,
     "started_at" TIMESTAMPTZ(6) NOT NULL,
     "ended_at" TIMESTAMPTZ(6),
@@ -279,6 +283,70 @@ CREATE TABLE "webhook_deliveries" (
     CONSTRAINT "webhook_deliveries_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "alert_rules" (
+    "id" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+    "rule_type" TEXT NOT NULL,
+    "params" JSONB NOT NULL DEFAULT '{}',
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "cadence_minutes" INTEGER NOT NULL DEFAULT 60,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "alert_rules_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "access_grants" (
+    "id" UUID NOT NULL,
+    "grantee_user_id" UUID NOT NULL,
+    "target_user_id" UUID,
+    "target_session_id" UUID,
+    "scope" "GrantScope" NOT NULL,
+    "justification" TEXT NOT NULL,
+    "granted_by_user_id" UUID,
+    "requested_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "granted_at" TIMESTAMPTZ(6),
+    "expires_at" TIMESTAMPTZ(6),
+    "revoked_at" TIMESTAMPTZ(6),
+
+    CONSTRAINT "access_grants_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "alert_events" (
+    "id" BIGSERIAL NOT NULL,
+    "rule_id" UUID NOT NULL,
+    "fired_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "resolved_at" TIMESTAMPTZ(6),
+    "severity" TEXT NOT NULL,
+    "details" JSONB NOT NULL DEFAULT '{}',
+
+    CONSTRAINT "alert_events_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "alert_channel_config" (
+    "id" UUID NOT NULL,
+    "channel_type" TEXT NOT NULL,
+    "config" JSONB NOT NULL DEFAULT '{}',
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "alert_channel_config_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "alert_delivery_log" (
+    "id" BIGSERIAL NOT NULL,
+    "channel_type" TEXT NOT NULL,
+    "attempted_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "success" BOOLEAN NOT NULL,
+    "error" TEXT,
+
+    CONSTRAINT "alert_delivery_log_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "teams_github_slug_key" ON "teams"("github_slug");
 
@@ -354,6 +422,21 @@ CREATE INDEX "webhook_deliveries_event_type_received_at_idx" ON "webhook_deliver
 -- CreateIndex
 CREATE INDEX "webhook_deliveries_received_at_idx" ON "webhook_deliveries"("received_at" DESC);
 
+-- CreateIndex
+CREATE INDEX "alert_rules_enabled_idx" ON "alert_rules"("enabled");
+
+-- CreateIndex
+CREATE INDEX "access_grants_grantee_user_id_expires_at_idx" ON "access_grants"("grantee_user_id", "expires_at");
+
+-- CreateIndex
+CREATE INDEX "access_grants_granted_at_revoked_at_idx" ON "access_grants"("granted_at", "revoked_at");
+
+-- CreateIndex
+CREATE INDEX "alert_events_rule_id_resolved_at_idx" ON "alert_events"("rule_id", "resolved_at");
+
+-- CreateIndex
+CREATE INDEX "alert_delivery_log_attempted_at_idx" ON "alert_delivery_log"("attempted_at" DESC);
+
 -- AddForeignKey
 ALTER TABLE "teams" ADD CONSTRAINT "teams_parent_team_id_fkey" FOREIGN KEY ("parent_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
@@ -407,3 +490,9 @@ ALTER TABLE "pr_rollups" ADD CONSTRAINT "pr_rollups_repo_id_pr_number_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "deletion_requests" ADD CONSTRAINT "deletion_requests_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "access_grants" ADD CONSTRAINT "access_grants_grantee_user_id_fkey" FOREIGN KEY ("grantee_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "alert_events" ADD CONSTRAINT "alert_events_rule_id_fkey" FOREIGN KEY ("rule_id") REFERENCES "alert_rules"("id") ON DELETE CASCADE ON UPDATE CASCADE;

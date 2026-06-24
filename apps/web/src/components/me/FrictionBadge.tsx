@@ -31,7 +31,7 @@ function explain(score: number, i: FrictionInputsLite): string {
   const errorRate = i.toolCallCount > 0 ? i.toolErrorCount / i.toolCallCount : 0;
   const interruptRate = i.userMessageCount > 0 ? i.interruptCount / i.userMessageCount : 0;
   const shortAbandoned =
-    i.status === 'abandoned' && (i.durationSeconds == null || i.durationSeconds < 60);
+    i.status === 'ABANDONED' && (i.durationSeconds == null || i.durationSeconds < 60);
 
   // Rank by each signal's weighted contribution (same weights as the formula).
   const drivers = [

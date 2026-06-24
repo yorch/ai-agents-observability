@@ -3,7 +3,7 @@
 // (hasActiveGrant) handles the "active" window; these decide scope coverage and
 // document the activeness rule.
 
-export type GrantScope = 'user_sessions' | 'single_session';
+export type GrantScope = 'USER_SESSIONS' | 'SINGLE_SESSION';
 
 export type GrantTarget = { targetSessionId?: string; targetUserId?: string };
 
@@ -32,7 +32,7 @@ export function grantCovers(
   grant: { scope: GrantScope; targetSessionId: string | null; targetUserId: string | null },
   target: GrantTarget,
 ): boolean {
-  if (grant.scope === 'single_session') {
+  if (grant.scope === 'SINGLE_SESSION') {
     return grant.targetSessionId != null && grant.targetSessionId === target.targetSessionId;
   }
   return grant.targetUserId != null && grant.targetUserId === target.targetUserId;

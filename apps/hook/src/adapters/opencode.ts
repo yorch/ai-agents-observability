@@ -104,7 +104,7 @@ function mapPayload(kind: string, raw: Record<string, unknown>): ConformantEvent
   const llm = buildLlm(raw);
 
   return {
-    agent_type: 'opencode',
+    agent_type: 'OPENCODE',
     client: clientInfo(),
     event_id: uuidv7(),
     event_type: eventType,
@@ -150,7 +150,7 @@ function renderSnippet(bin: string): string {
 }
 
 export const opencodeAdapter: HookAdapter = {
-  agentType: 'opencode',
+  agentType: 'OPENCODE',
 
   installConfig(): AdapterInstallConfig {
     return {

@@ -10,11 +10,11 @@ export type ModelBreakdownRow = {
 };
 
 const VALID_STATUSES = new Set<string>([
-  'active',
-  'completed',
-  'crashed',
-  'timed_out',
-  'abandoned',
+  'ACTIVE',
+  'COMPLETED',
+  'CRASHED',
+  'TIMED_OUT',
+  'ABANDONED',
 ]);
 
 const MAX_PAGE = 10_000;

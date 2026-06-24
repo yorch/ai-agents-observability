@@ -6,10 +6,10 @@ import { setOrgRole } from './actions';
 export const dynamic = 'force-dynamic';
 
 const ROLES: OrgRole[] = [
-  OrgRole.member,
-  OrgRole.viewer_aggregate,
-  OrgRole.investigator,
-  OrgRole.org_admin,
+  OrgRole.MEMBER,
+  OrgRole.VIEWER_AGGREGATE,
+  OrgRole.INVESTIGATOR,
+  OrgRole.ORG_ADMIN,
 ];
 
 export default async function OrgRolesAdminPage() {

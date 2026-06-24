@@ -9,7 +9,7 @@ function asDb(mock: ReturnType<typeof makeMockDb>): PrismaClient {
 
 // ── Mock PrismaClient ────────────────────────────────────────────────────────
 
-type SessionStatus = 'active' | 'abandoned' | 'completed' | 'crashed' | 'timed_out';
+type SessionStatus = 'ACTIVE' | 'ABANDONED' | 'COMPLETED' | 'CRASHED' | 'TIMED_OUT';
 
 interface MockSession {
   lastEventAt: Date;
@@ -101,12 +101,12 @@ describe('runSweepAbandoned', () => {
     db._sessions.push({
       lastEventAt: twentyFiveHoursAgo,
       sessionId: 'session-old',
-      status: 'active',
+      status: 'ACTIVE',
     });
 
     await runSweepAbandoned(asDb(db));
 
-    expect(db._sessions[0]?.status).toBe('abandoned');
+    expect(db._sessions[0]?.status).toBe('ABANDONED');
   });
 
   it('does not mark sessions that are recent', async () => {
@@ -114,12 +114,12 @@ describe('runSweepAbandoned', () => {
     db._sessions.push({
       lastEventAt: oneHourAgo,
       sessionId: 'session-recent',
-      status: 'active',
+      status: 'ACTIVE',
     });
 
     await runSweepAbandoned(asDb(db));
 
-    expect(db._sessions[0]?.status).toBe('active');
+    expect(db._sessions[0]?.status).toBe('ACTIVE');
   });
 
   it('does not touch completed sessions even if old', async () => {
@@ -127,12 +127,12 @@ describe('runSweepAbandoned', () => {
     db._sessions.push({
       lastEventAt: old,
       sessionId: 'session-done',
-      status: 'completed',
+      status: 'COMPLETED',
     });
 
     await runSweepAbandoned(asDb(db));
 
-    expect(db._sessions[0]?.status).toBe('completed');
+    expect(db._sessions[0]?.status).toBe('COMPLETED');
   });
 
   it('writes a JobRun row with status=success', async () => {

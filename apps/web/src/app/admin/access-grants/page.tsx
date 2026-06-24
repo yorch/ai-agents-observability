@@ -64,7 +64,7 @@ export default async function AccessGrantsPage() {
               </div>
               <p className="text-white/70">{g.justification}</p>
               <p className="text-xs text-white/40 font-mono">
-                {g.scope === 'single_session'
+                {g.scope === 'SINGLE_SESSION'
                   ? `session ${g.targetSessionId?.slice(0, 8)}…`
                   : `user ${g.targetUserId?.slice(0, 8)}…`}
               </p>

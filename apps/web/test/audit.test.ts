@@ -9,13 +9,13 @@ beforeEach(() => {
 
 vi.mock('@ai-agents-observability/db', () => ({
   AuditAction: {
-    admin_impersonate: 'admin_impersonate',
-    delete_request: 'delete_request',
-    export_org: 'export_org',
-    export_team: 'export_team',
-    hook_token_issued: 'hook_token_issued',
-    view_session: 'view_session',
-    view_transcript: 'view_transcript',
+    admin_impersonate: 'ADMIN_IMPERSONATE',
+    delete_request: 'DELETE_REQUEST',
+    export_org: 'EXPORT_ORG',
+    export_team: 'EXPORT_TEAM',
+    hook_token_issued: 'HOOK_TOKEN_ISSUED',
+    view_session: 'VIEW_SESSION',
+    view_transcript: 'VIEW_TRANSCRIPT',
   },
   createClient: vi.fn(() => ({})),
 }));
@@ -44,7 +44,7 @@ describe('writeAuditLog', () => {
     const { AuditAction, writeAuditLog } = await import('../src/lib/audit.js');
     await writeAuditLog(
       {
-        action: AuditAction.view_session,
+        action: AuditAction.VIEW_SESSION,
         actorUserId: 'u-actor',
         targetSessionId: 's-123',
         targetUserId: 'u-target',
@@ -54,7 +54,7 @@ describe('writeAuditLog', () => {
 
     expect(mockCreate).toHaveBeenCalledOnce();
     const data = mockCreate.mock.calls[0][0].data;
-    expect(data.action).toBe(AuditAction.view_session);
+    expect(data.action).toBe(AuditAction.VIEW_SESSION);
     expect(data.actorUserId).toBe('u-actor');
     expect(data.targetUserId).toBe('u-target');
     expect(data.targetSessionId).toBe('s-123');
@@ -67,7 +67,7 @@ describe('writeAuditLog', () => {
 
     const { AuditAction, writeAuditLog } = await import('../src/lib/audit.js');
     await writeAuditLog(
-      { action: AuditAction.export_team, actorUserId: 'u1', targetTeamId: 't1' },
+      { action: AuditAction.EXPORT_TEAM, actorUserId: 'u1', targetTeamId: 't1' },
       mockDb,
     );
 
@@ -84,7 +84,7 @@ describe('writeAuditLog', () => {
     const { AuditAction, writeAuditLog } = await import('../src/lib/audit.js');
     await writeAuditLog(
       {
-        action: AuditAction.view_transcript,
+        action: AuditAction.VIEW_TRANSCRIPT,
         actorUserId: 'u1',
         justification: 'security incident #1234',
         targetSessionId: 's-1',
@@ -102,7 +102,7 @@ describe('writeAuditLog', () => {
 
     const { AuditAction, writeAuditLog } = await import('../src/lib/audit.js');
     await expect(
-      writeAuditLog({ action: AuditAction.view_transcript, actorUserId: 'u1' }, mockDb),
+      writeAuditLog({ action: AuditAction.VIEW_TRANSCRIPT, actorUserId: 'u1' }, mockDb),
     ).resolves.toBeUndefined();
   });
 
@@ -114,7 +114,7 @@ describe('writeAuditLog', () => {
     mockCreate.mockResolvedValueOnce({});
 
     const { AuditAction, writeAuditLog } = await import('../src/lib/audit.js');
-    await writeAuditLog({ action: AuditAction.export_team, actorUserId: 'u1' }, mockDb);
+    await writeAuditLog({ action: AuditAction.EXPORT_TEAM, actorUserId: 'u1' }, mockDb);
 
     const data = mockCreate.mock.calls[0][0].data;
     expect(data.ip).toBe('10.0.0.1');
@@ -178,12 +178,12 @@ describe('P3-005: audit action contract for cross-user page views', () => {
     const { AuditAction, writeAuditLog } = await import('../src/lib/audit.js');
 
     await writeAuditLog(
-      { action: AuditAction.export_team, actorUserId: 'u-lead', targetTeamId: 'team-1' },
+      { action: AuditAction.EXPORT_TEAM, actorUserId: 'u-lead', targetTeamId: 'team-1' },
       mockAuditDb,
     );
 
     const data = mockAuditCreate.mock.calls[0][0].data;
-    expect(data.action).toBe(AuditAction.export_team);
+    expect(data.action).toBe(AuditAction.EXPORT_TEAM);
     expect(data.actorUserId).toBe('u-lead');
     expect(data.targetTeamId).toBe('team-1');
     expect(data.targetUserId).toBeNull();
@@ -196,7 +196,7 @@ describe('P3-005: audit action contract for cross-user page views', () => {
 
     await writeAuditLog(
       {
-        action: AuditAction.view_session,
+        action: AuditAction.VIEW_SESSION,
         actorUserId: 'u-lead',
         targetSessionId: 's-123',
         targetUserId: 'u-member',
@@ -205,7 +205,7 @@ describe('P3-005: audit action contract for cross-user page views', () => {
     );
 
     const data = mockAuditCreate.mock.calls[0][0].data;
-    expect(data.action).toBe(AuditAction.view_session);
+    expect(data.action).toBe(AuditAction.VIEW_SESSION);
     expect(data.targetUserId).toBe('u-member');
     expect(data.targetSessionId).toBe('s-123');
     expect(data.targetTeamId).toBeNull();
@@ -217,7 +217,7 @@ describe('P3-005: audit action contract for cross-user page views', () => {
 
     await writeAuditLog(
       {
-        action: AuditAction.view_transcript,
+        action: AuditAction.VIEW_TRANSCRIPT,
         actorUserId: 'u-lead',
         targetSessionId: 's-456',
         targetUserId: 'u-member',
@@ -226,7 +226,7 @@ describe('P3-005: audit action contract for cross-user page views', () => {
     );
 
     const data = mockAuditCreate.mock.calls[0][0].data;
-    expect(data.action).toBe(AuditAction.view_transcript);
+    expect(data.action).toBe(AuditAction.VIEW_TRANSCRIPT);
     expect(data.targetUserId).toBe('u-member');
     expect(data.targetSessionId).toBe('s-456');
   });

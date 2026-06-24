@@ -49,7 +49,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // admin reads a not-shared transcript, the justification is recorded loudly on
   // the row (§8.4); grant-based reads are tied to the approved grant instead.
   void writeAuditLog({
-    action: AuditAction.view_transcript,
+    action: AuditAction.VIEW_TRANSCRIPT,
     actorUserId: user.id,
     justification: access === 'admin' && !ctx.shareTranscriptsWithOrg ? justification : null,
     targetSessionId: id,

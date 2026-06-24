@@ -77,7 +77,13 @@ Why this pattern: with **4 services** all needing the same migration state, "mig
 
 ### Database (`packages/db/`)
 
-Prisma 7 + **TimescaleDB** (custom Postgres image with hypertable extensions). Schema lives at `packages/db/prisma/schema.prisma`; generated client at `packages/db/src/generated/client` (gitignored). Raw SQL migrations live alongside in `packages/db/sql/` and are applied by `applySqlMigrations()` — this gives us TimescaleDB-specific DDL (hypertable creation, retention policies) that Prisma's DSL can't model.
+Prisma 7 + **TimescaleDB** (custom Postgres image with hypertable extensions). Schema lives at `packages/db/prisma/schema.prisma`; generated client at `packages/db/src/generated/client` (gitignored).
+
+Two migration layers, applied in order by the runner:
+1. **Relational schema** — a single squashed Prisma migration at `packages/db/prisma/migrations/00000000000000_init/` (the project is pre-deployment, so phase migrations were merged into one Prisma-generated migration). Regenerate/verify with `prisma migrate dev` (needs the Prisma engine, which is egress-blocked in CI sandboxes — see note below).
+2. **Custom SQL** — everything Prisma's DSL can't model lives in `packages/db/sql/migrations/` and is applied by `applySqlMigrations()` after `prisma migrate deploy`: TimescaleDB DDL (hypertables, continuous aggregates, retention policies) in `0001_init.sql`, and data seeds like the built-in alert rules in `0002_seed_builtin_alert_rules.sql`.
+
+**Enum convention:** all Prisma/DB enum values are **UPPER_SNAKE_CASE** (`OrgRole.ORG_ADMIN`, `AgentType.CLAUDE_CODE`). The telemetry wire schema (`packages/schemas`) uses the same casing, so `agent_type` flows hook → ingest → DB without translation.
 
 ### Storage (`apps/ingest` + MinIO/S3)
 
@@ -99,7 +105,7 @@ The CLI installs Claude Code hooks (`commands/install`), captures events via std
 - **Bun, not Node.** The runtime is Bun (Bun.serve for HTTP, bun build for compile, bun run for scripts). Don't add Node-specific build steps; don't introduce npm/yarn/pnpm to bun-only workspaces.
 - **Turbo + workspace foreach.** Cross-package commands go through `turbo run …`. When adding a new app or package, add it to `turbo.json` so cache + dependency ordering work.
 - **`/health`** is the canonical liveness path on web, ingest, and github-app. Public, no DB call, returns build metadata.
-- **Migrations live in `packages/db/`** and apply via the `infra/migrations-runner/` container — **not** in app entrypoints. To add a migration: add a numbered file under `packages/db/sql/` (or run `prisma migrate dev` for schema-derived ones) + commit.
+- **Migrations live in `packages/db/`** and apply via the `infra/migrations-runner/` container — **not** in app entrypoints. Schema-derived relational changes go through Prisma (`prisma migrate dev`); TimescaleDB DDL and data seeds Prisma can't model go in a numbered file under `packages/db/sql/migrations/`. Keep custom SQL out of the Prisma migration so it stays regenerable.
 - **TimescaleDB persists to a bind mount** (`./data/postgres`), as do MinIO, Prometheus, and Grafana. The stack runs the `timescale/timescaledb` image (standard Postgres uid handling), so bind mounts are intentional and keep all stack state under `./data/` for easy backup/inspection. (The older `timescaledb-ha` image required named volumes for uid reasons; that constraint no longer applies.)
 - **`apps/web` uses `@ai-agents-observability/auth`** — never introduce NextAuth. Use `currentUser()` from `apps/web/src/lib/auth.ts` in server components / route handlers (see [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) for the full conventions).
 - **Redaction runs before S3 writes.** Transcripts pass through `packages/redaction` first — never write raw transcripts to MinIO/S3. New telemetry shapes that carry user-pasted content must add their own redaction rules to that package.

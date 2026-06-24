@@ -38,7 +38,7 @@ const BASE_CTX = {
 
 function makeEvent(overrides: Partial<Event> & Pick<Event, 'event_id' | 'event_type'>): Event {
   return {
-    agent_type: 'claude-code',
+    agent_type: 'CLAUDE_CODE',
     client: BASE_CLIENT,
     metadata: {},
     redaction_flags: [],
@@ -157,8 +157,8 @@ describe('upsertSessions', () => {
       (p) => p instanceof Date && p.toISOString() === stopTimestamp,
     );
     expect(endedAtPresent).toBe(true);
-    // The status literal 'completed' appears in the row VALUES.
-    expect(call?.params).toContain('completed');
+    // The status literal 'COMPLETED' appears in the row VALUES.
+    expect(call?.params).toContain('COMPLETED');
   });
 
   it('accumulates llm token totals into the per-session row', async () => {

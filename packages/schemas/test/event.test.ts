@@ -70,7 +70,7 @@ describe('EventSchema', () => {
 
   it('applies defaults: agent_type, redaction_flags, metadata', () => {
     const result = EventSchema.parse(validEvent);
-    expect(result.agent_type).toBe('claude-code');
+    expect(result.agent_type).toBe('CLAUDE_CODE');
     expect(result.redaction_flags).toEqual([]);
     expect(result.metadata).toEqual({});
   });

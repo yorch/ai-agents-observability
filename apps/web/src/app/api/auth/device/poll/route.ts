@@ -114,7 +114,7 @@ export async function POST(request: Request) {
 
     await db.auditLog.create({
       data: {
-        action: 'hook_token_issued',
+        action: 'HOOK_TOKEN_ISSUED',
         actorUserId: user.id,
         ip: clientIp(request.headers),
         justification: 'Device-code hook token issued',

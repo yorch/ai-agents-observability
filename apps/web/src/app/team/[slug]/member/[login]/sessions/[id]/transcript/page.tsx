@@ -50,7 +50,7 @@ export default async function TeamMemberTranscriptPage({
 
   // P3-005: fire-and-forget audit — never throws, errors logged to stderr.
   void writeAuditLog({
-    action: AuditAction.view_transcript,
+    action: AuditAction.VIEW_TRANSCRIPT,
     actorUserId: user.id,
     targetSessionId: id,
     targetUserId: member.userId,

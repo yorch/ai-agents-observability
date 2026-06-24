@@ -36,7 +36,7 @@ export async function setTeamRetention(formData: FormData): Promise<void> {
 
   if (count > 0) {
     await writeAuditLog({
-      action: AuditAction.retention_override_changed,
+      action: AuditAction.RETENTION_OVERRIDE_CHANGED,
       actorUserId: user.id,
       justification:
         retentionDays === null

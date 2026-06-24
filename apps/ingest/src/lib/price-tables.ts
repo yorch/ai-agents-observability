@@ -15,7 +15,7 @@ export const DEFAULT_AGENT = 'claude_code';
 
 // agent_type is normalized to underscores on write (insert-events); normalize here
 // too so 'claude-code' and 'claude_code' resolve to the same table.
-const normalize = (agentType: string): string => agentType.replaceAll('-', '_');
+const normalize = (agentType: string): string => agentType.replaceAll('-', '_').toLowerCase();
 
 const tables: Record<string, PriceTable> = {
   claude_code: PriceTableSchema.parse(rawClaudeCode),

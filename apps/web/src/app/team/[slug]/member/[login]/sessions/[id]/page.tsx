@@ -30,7 +30,7 @@ export default async function TeamMemberSessionDetailPage({
 
   // P3-005: fire-and-forget audit written before data is returned.
   void writeAuditLog({
-    action: AuditAction.view_session,
+    action: AuditAction.VIEW_SESSION,
     actorUserId: user.id,
     targetSessionId: id,
     targetUserId: member.userId,

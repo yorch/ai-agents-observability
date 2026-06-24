@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 
-export type User = { expiresAt: Date | null; id: string; kind: 'hook' };
+export type User = { expiresAt: Date | null; id: string; kind: 'HOOK' };
 
 export type AppEnv = {
   Variables: {

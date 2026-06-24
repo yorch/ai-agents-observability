@@ -28,10 +28,10 @@ export async function requestGrant(formData: FormData): Promise<void> {
   if (justification.length < 3) {
     return;
   }
-  if (scope === 'single_session' && !targetSessionId) {
+  if (scope === 'SINGLE_SESSION' && !targetSessionId) {
     return;
   }
-  if (scope === 'user_sessions' && !targetUserId) {
+  if (scope === 'USER_SESSIONS' && !targetUserId) {
     return;
   }
 
@@ -40,7 +40,7 @@ export async function requestGrant(formData: FormData): Promise<void> {
   });
 
   await writeAuditLog({
-    action: AuditAction.grant_requested,
+    action: AuditAction.GRANT_REQUESTED,
     actorUserId: user.id,
     justification,
     targetSessionId: targetSessionId ?? undefined,
@@ -84,7 +84,7 @@ export async function approveGrant(formData: FormData): Promise<void> {
 
   if (count > 0) {
     await writeAuditLog({
-      action: AuditAction.grant_approved,
+      action: AuditAction.GRANT_APPROVED,
       actorUserId: user.id,
       justification: `Approved grant, expires ${expiresAt.toISOString()}`,
       targetSessionId: grant.targetSessionId ?? undefined,
@@ -117,7 +117,7 @@ export async function revokeGrant(formData: FormData): Promise<void> {
 
   if (count > 0) {
     await writeAuditLog({
-      action: AuditAction.grant_revoked,
+      action: AuditAction.GRANT_REVOKED,
       actorUserId: user.id,
       targetSessionId: grant.targetSessionId ?? undefined,
       targetUserId: grant.targetUserId ?? undefined,

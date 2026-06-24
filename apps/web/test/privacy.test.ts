@@ -23,7 +23,7 @@ const mockPrisma = {
 vi.mock('@ai-agents-observability/db', () => ({
   createClient: vi.fn(() => mockPrisma),
   Prisma: {},
-  TeamRole: { lead: 'lead', maintainer: 'maintainer', member: 'member' },
+  TeamRole: { LEAD: 'LEAD', MAINTAINER: 'MAINTAINER', MEMBER: 'MEMBER' },
 }));
 
 // ── getVisibilityPolicy ──────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ function makeMembership(opts: {
   userId?: string;
 }) {
   return {
-    roleInTeam: opts.roleInTeam ?? 'member',
+    roleInTeam: opts.roleInTeam ?? 'MEMBER',
     user: {
       displayName: opts.displayName ?? null,
       githubLogin: opts.githubLogin ?? 'testuser',
@@ -238,8 +238,8 @@ describe('privacy enforcement — property tests (≥200 runs each)', () => {
     const { isLeadOrAbove } = await import('../src/lib/roles.js');
 
     await fc.assert(
-      fc.property(fc.constantFrom('lead', 'maintainer', 'member'), (role) => {
-        if (role === 'lead' || role === 'maintainer') {
+      fc.property(fc.constantFrom('LEAD', 'MAINTAINER', 'MEMBER'), (role) => {
+        if (role === 'LEAD' || role === 'MAINTAINER') {
           return isLeadOrAbove(role as never);
         }
         return !isLeadOrAbove(role as never);
