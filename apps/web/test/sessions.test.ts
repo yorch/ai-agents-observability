@@ -150,8 +150,9 @@ describe('getSessionOrgContext', () => {
     );
   });
 
-  it('reads shareTranscriptsWithOrg from the owner policy', async () => {
+  it('reads shareTranscriptsWithOrg + transcript pointer from the owner row', async () => {
     mockPrisma.session.findUnique.mockResolvedValueOnce({
+      transcriptS3Key: 'transcripts/2026/01/15/owner-1/sess-1.jsonl.zst',
       user: {
         displayName: 'Dee',
         githubLogin: 'dev',
@@ -166,6 +167,7 @@ describe('getSessionOrgContext', () => {
     expect(ctx?.ownerUserId).toBe('owner-1');
     expect(ctx?.ownerLogin).toBe('dev');
     expect(ctx?.shareTranscriptsWithOrg).toBe(true);
+    expect(ctx?.transcriptS3Key).toBe('transcripts/2026/01/15/owner-1/sess-1.jsonl.zst');
   });
 
   it('defaults shareTranscriptsWithOrg to false when no policy row exists', async () => {

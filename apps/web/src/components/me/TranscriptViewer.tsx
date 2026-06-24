@@ -218,12 +218,21 @@ function parseLine(raw: string): Line {
   }
 }
 
+// A parsed line plus its lowercased searchable text, computed once at parse time
+// so the in-page filter is a cheap substring check instead of re-flattening every
+// line's content on every keystroke.
+type ParsedLine = { line: Line; search: string };
+function toParsed(raw: string): ParsedLine {
+  const line = parseLine(raw);
+  return { line, search: lineSearchText(line).toLowerCase() };
+}
+
 // How many messages to add to the DOM per "Show more" — keeps the rendered node
 // count bounded so a 100k-line transcript can't lock up the browser on mount.
 const WINDOW_STEP = 300;
 
 export function TranscriptViewer({ apiUrl, sessionId }: { apiUrl?: string; sessionId: string }) {
-  const [lines, setLines] = useState<Line[]>([]);
+  const [lines, setLines] = useState<ParsedLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -251,7 +260,7 @@ export function TranscriptViewer({ apiUrl, sessionId }: { apiUrl?: string; sessi
         if (!reader) {
           const text = await res.text();
           if (!cancelled) {
-            setLines(text.trim().split('\n').filter(Boolean).map(parseLine));
+            setLines(text.trim().split('\n').filter(Boolean).map(toParsed));
             setLoading(false);
           }
           return;
@@ -259,7 +268,7 @@ export function TranscriptViewer({ apiUrl, sessionId }: { apiUrl?: string; sessi
 
         const decoder = new TextDecoder();
         let buf = '';
-        let pending: Line[] = [];
+        let pending: ParsedLine[] = [];
         const flush = () => {
           if (pending.length > 0) {
             const batch = pending;
@@ -282,7 +291,7 @@ export function TranscriptViewer({ apiUrl, sessionId }: { apiUrl?: string; sessi
             const raw = buf.slice(0, nl);
             buf = buf.slice(nl + 1);
             if (raw.trim()) {
-              pending.push(parseLine(raw));
+              pending.push(toParsed(raw));
             }
             nl = buf.indexOf('\n');
           }
@@ -291,8 +300,11 @@ export function TranscriptViewer({ apiUrl, sessionId }: { apiUrl?: string; sessi
             flush();
           }
         }
+        // Flush any bytes the decoder is still holding (an incomplete multi-byte
+        // UTF-8 sequence at the final chunk boundary) before parsing the tail.
+        buf += decoder.decode();
         if (buf.trim()) {
-          pending.push(parseLine(buf));
+          pending.push(toParsed(buf));
         }
         flush();
         if (!cancelled) {
@@ -318,7 +330,7 @@ export function TranscriptViewer({ apiUrl, sessionId }: { apiUrl?: string; sessi
     if (!needle) {
       return lines;
     }
-    return lines.filter((l) => lineSearchText(l).toLowerCase().includes(needle));
+    return lines.filter((pl) => pl.search.includes(needle));
   }, [lines, query]);
 
   if (loading && lines.length === 0) {
@@ -357,8 +369,8 @@ export function TranscriptViewer({ apiUrl, sessionId }: { apiUrl?: string; sessi
         <p className="text-sm text-white/40">No lines match “{query}”.</p>
       ) : (
         <div className="space-y-2 font-mono text-sm">
-          {visible.map((line, i) => (
-            <TranscriptLine key={i} line={line} />
+          {visible.map((pl, i) => (
+            <TranscriptLine key={i} line={pl.line} />
           ))}
         </div>
       )}

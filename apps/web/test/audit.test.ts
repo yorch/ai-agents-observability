@@ -147,6 +147,15 @@ describe('normalizeJustification', () => {
     const { normalizeJustification } = await import('../src/lib/audit.js');
     expect(normalizeJustification('  security incident #1234  ')).toBe('security incident #1234');
   });
+
+  it('accepts justifications exactly at the MIN and MAX bounds', async () => {
+    const { MAX_JUSTIFICATION_LENGTH, MIN_JUSTIFICATION_LENGTH, normalizeJustification } =
+      await import('../src/lib/audit.js');
+    const atMin = 'x'.repeat(MIN_JUSTIFICATION_LENGTH);
+    const atMax = 'x'.repeat(MAX_JUSTIFICATION_LENGTH);
+    expect(normalizeJustification(atMin)).toBe(atMin);
+    expect(normalizeJustification(atMax)).toBe(atMax);
+  });
 });
 
 // ── P3-005: audit write contract tests ────────────────────────────────────────

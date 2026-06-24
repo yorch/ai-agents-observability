@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 import { AuditAction, normalizeJustification, writeAuditLog } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
-import { getPrisma } from '@/lib/prisma';
 import { canViewIndividuals } from '@/lib/roles';
 import { getS3Client, streamTranscript } from '@/lib/s3';
 import { getSessionOrgContext } from '@/lib/sessions-queries';
@@ -35,11 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return new NextResponse('Not found', { status: 404 });
   }
 
-  const session = await getPrisma().session.findFirst({
-    select: { transcriptS3Key: true },
-    where: { sessionId: id, userId: ctx.ownerUserId },
-  });
-  if (!session?.transcriptS3Key) {
+  if (!ctx.transcriptS3Key) {
     return new NextResponse('Not found', { status: 404 });
   }
 
@@ -54,7 +49,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   });
 
   try {
-    const stream = await streamTranscript(getS3Client(), session.transcriptS3Key);
+    const stream = await streamTranscript(getS3Client(), ctx.transcriptS3Key);
     return new NextResponse(stream, {
       headers: { 'Content-Type': 'application/x-ndjson' },
     });
