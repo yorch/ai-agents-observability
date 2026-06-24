@@ -55,8 +55,8 @@ The name `ai-agents-observability` is deliberately plural. Claude Code is the fi
 
 Concretely, this means:
 
-- An `agent_type` dimension exists on every event and session (defaulting to `claude_code` in v1)
-- Tool naming uses a `<agent>:<tool>` convention internally to prevent collisions when other agents have similarly-named tools (e.g. `claude_code:Edit` vs `cursor:Edit`)
+- An `agent_type` dimension exists on every event and session (defaulting to `CLAUDE_CODE` in v1)
+- Tool naming uses a `<agent>:<tool>` convention internally to prevent collisions when other agents have similarly-named tools (e.g. `CLAUDE_CODE:Edit` vs `CURSOR:Edit`)
 - The hook contract (§6.3) is agent-agnostic — any agent that can emit equivalent lifecycle events can produce conformant payloads via its own adapter
 - "My Agents" (the self-service dashboard, §8) is named for the plural case from day one
 - Cost computation accepts per-agent price tables, not a global one
@@ -183,7 +183,7 @@ CREATE TABLE teams (
 CREATE TABLE team_members (
   team_id             UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role_in_team        TEXT NOT NULL CHECK (role_in_team IN ('member','lead','maintainer')),
+  role_in_team        TEXT NOT NULL CHECK (role_in_team IN ('MEMBER','LEAD','MAINTAINER')),
   synced_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (team_id, user_id)
 );
@@ -246,8 +246,8 @@ CREATE TABLE sessions (
   session_id              UUID PRIMARY KEY,
   user_id                 UUID NOT NULL REFERENCES users(id),
 
-  -- Agent dimension (forward-compatible; defaults to claude_code in v1)
-  agent_type              TEXT NOT NULL DEFAULT 'claude_code',
+  -- Agent dimension (forward-compatible; defaults to CLAUDE_CODE in v1)
+  agent_type              TEXT NOT NULL DEFAULT 'CLAUDE_CODE',
   agent_version           TEXT,
 
   -- Lifecycle
@@ -255,7 +255,7 @@ CREATE TABLE sessions (
   ended_at                TIMESTAMPTZ,
   last_event_at           TIMESTAMPTZ NOT NULL,
   status                  TEXT NOT NULL CHECK (status IN
-                            ('active','completed','crashed','timed_out','abandoned')),
+                            ('ACTIVE','COMPLETED','CRASHED','TIMED_OUT','ABANDONED')),
   end_reason              TEXT,
 
   -- Resume / chaining
@@ -320,7 +320,7 @@ CREATE TABLE events (
   ts                    TIMESTAMPTZ NOT NULL,
 
   -- Agent dimension
-  agent_type            TEXT NOT NULL DEFAULT 'claude_code',
+  agent_type            TEXT NOT NULL DEFAULT 'CLAUDE_CODE',
 
   event_type            TEXT NOT NULL,
     -- SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,
@@ -387,7 +387,7 @@ CREATE TABLE pull_requests (
   title               TEXT,
   author_user_id      UUID REFERENCES users(id),
   author_github_login TEXT NOT NULL,
-  state               TEXT NOT NULL CHECK (state IN ('open','closed','merged')),
+  state               TEXT NOT NULL CHECK (state IN ('OPEN','CLOSED','MERGED')),
   base_branch         TEXT,
   head_branch         TEXT,
   opened_at           TIMESTAMPTZ,
