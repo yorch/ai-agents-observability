@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { zstdCompressSync } from 'node:zlib';
 
 import { loadHookToken } from './lib/identity';
 import { INGEST_BASE_URL } from './lib/ingest';
@@ -144,10 +145,11 @@ function keepOrAbandonStale(marker: ShipMarker, reason: string): boolean {
 // ── Bandwidth-throttled upload ────────────────────────────────────────────────
 
 /**
- * Collect all redacted lines into a gzip-compressed buffer.
- * Using gzip, not zstd, pending Bun native zstd support.
+ * Collect all redacted lines into a zstd-compressed buffer.
+ * Matches the on-disk storage format (`.jsonl.zst`); the ingest service still
+ * accepts gzip for backward compatibility, but zstd is the wire default.
  */
-async function buildGzipBody(filePath: string): Promise<{ body: Uint8Array; hash: string }> {
+async function buildZstdBody(filePath: string): Promise<{ body: Uint8Array; hash: string }> {
   const lines: string[] = [];
   for await (const line of redactedLines(filePath)) {
     lines.push(line);
@@ -155,11 +157,10 @@ async function buildGzipBody(filePath: string): Promise<{ body: Uint8Array; hash
   const text = lines.join('\n');
   const encoded = new TextEncoder().encode(text);
 
-  // Compute SHA-256 before compression
+  // Compute SHA-256 over the uncompressed bytes (idempotency key) before compressing.
   const hash = createHash('sha256').update(encoded).digest('hex');
 
-  // Gzip compress
-  const body = Bun.gzipSync(encoded);
+  const body = new Uint8Array(zstdCompressSync(encoded));
 
   return { body, hash };
 }
@@ -213,7 +214,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
   let body: Uint8Array;
   let hash: string;
   try {
-    ({ body, hash } = await buildGzipBody(transcript_path));
+    ({ body, hash } = await buildZstdBody(transcript_path));
   } catch (err) {
     log('warn', 'shipper.read_error', { message: (err as Error).message, session_id });
     recordRetryableFailure(marker, 'read_error');
@@ -224,7 +225,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
   try {
     const res = await throttledUpload(url, body, {
       Authorization: `Bearer ${jwt}`,
-      'Content-Type': 'application/gzip',
+      'Content-Type': 'application/x-zstd',
       'X-Content-Hash': hash,
     });
 

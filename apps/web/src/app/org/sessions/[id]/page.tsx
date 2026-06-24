@@ -84,12 +84,12 @@ export default async function OrgSessionDetailPage({
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-white/70">${session.costUsd.toFixed(4)}</span>
-          {session.transcriptS3Key && ctx.shareTranscriptsWithOrg && (
+          {session.transcriptS3Key && (
             <Link
               href={`/org/sessions/${id}/transcript`}
               className="rounded-md border border-white/10 px-3 py-1.5 text-xs hover:bg-white/10 transition-colors"
             >
-              View transcript
+              {ctx.shareTranscriptsWithOrg ? 'View transcript' : 'Request transcript access'}
             </Link>
           )}
         </div>

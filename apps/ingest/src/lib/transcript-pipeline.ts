@@ -30,7 +30,7 @@ export class TranscriptTooLargeError extends Error {
 }
 
 // Decompress → split JSONL → redact each line → recompress as zstd.
-// Accepts zstd (server-to-server) or gzip (hook client, pending native Bun zstd).
+// Accepts zstd (hook client + server-to-server) or gzip (legacy hook clients).
 // Memory-bounded by `maxOutputLength` so a decompression bomb can't OOM the
 // process. v1 keeps the whole transcript in memory because single-PUT to MinIO
 // is simpler than streaming multipart; switch to a streaming pipeline

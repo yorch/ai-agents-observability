@@ -560,7 +560,7 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 
 1. Read `~/.claude/projects/<encoded>/<session_id>.jsonl`
 2. Run redaction pass (see §9)
-3. Compress (the hook currently ships **gzip** on the wire; the ingest service decompresses, re-redacts as defense-in-depth, and re-compresses to **zstd** for storage — so the stored object is always `.jsonl.zst` regardless of the upload encoding)
+3. Compress with **zstd** (`Bun.zstdCompressSync`). The ingest service still accepts **gzip** for backward compatibility, but it always decompresses, re-redacts as defense-in-depth, and re-compresses to zstd for storage — so the stored object is always `.jsonl.zst` regardless of the upload encoding
 4. `PUT /v1/transcripts/{session_id}` with `Content-Range` for chunked / resumable upload
 5. Server writes to MinIO/S3 at `transcripts/{yyyy}/{mm}/{dd}/{user_id}/{session_id}.jsonl.zst`
 6. On final chunk, update `sessions.transcript_*` columns
