@@ -157,3 +157,51 @@ See [`P6-roadmap.md`](./P6-roadmap.md) for full rationale, deferrals, and trigge
 | P6-004 | Explicit org-admin team-lead grants (`/admin/team-roles`) | done | claude | M | P3-001 |
 | P6-005 | Per-agent price tables | deferred | — | M | — |
 | P6-006 | Hook adapter seam (2nd agent) | deferred | — | L | P5-006 |
+
+> P6-005 and P6-006 are superseded by Phase 8 (`P8-002` and `P8-003`/`P8-004`), which decompose them now that the second-agent work has been scoped.
+
+---
+
+## Phase 7 — Insight Surfaces & Search
+
+See [`P7-roadmap.md`](./P7-roadmap.md). Surfaces effectiveness signals (already computed, never rendered) and deepens search.
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P7-001](./P7-001-effectiveness-backfill.md) | Effectiveness backfill (historical sessions) | ready | — | M | P5-001, P5-002 |
+| [P7-002](./P7-002-effectiveness-query-layer.md) | Effectiveness query layer (web) | blocked | — | S | P7-001 |
+| [P7-003](./P7-003-me-effectiveness-widgets.md) | /me effectiveness widgets (friction trend + shape mix) | blocked | — | M | P7-002 |
+| [P7-004](./P7-004-team-org-effectiveness.md) | Team + org effectiveness dashboards | blocked | — | M | P7-002 |
+| [P7-005](./P7-005-me-transcript-search.md) | /me transcript search (per-user FTS) | ready | — | M | P4-003 |
+| [P7-006](./P7-006-search-facet-enrichment.md) | Search facet enrichment (shape, friction band, agent type) | blocked | — | S | P4-002, P7-001 |
+| [P7-007](./P7-007-semantic-transcript-search.md) | Semantic transcript search (gated spike) | ready | — | L | P4-003 |
+
+---
+
+## Phase 8 — Multi-Agent & Cost Model
+
+See [`P8-roadmap.md`](./P8-roadmap.md). Builds the remaining multi-agent foundation and lands a real second adapter to validate it. Subsumes deferred P6-005 / P6-006.
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P8-001](./P8-001-tool-naming-disambiguation.md) | Tool-name disambiguation (`<agent>:<tool>` convention) | ready | — | M | P5-006 |
+| [P8-002](./P8-002-per-agent-price-tables.md) | Per-agent versioned price tables | ready | — | M | P1-013 |
+| [P8-003](./P8-003-hook-adapter-seam.md) | Hook adapter seam | ready | — | L | P5-006 |
+| [P8-004](./P8-004-second-agent-adapter.md) | Second-agent adapter (opencode) | blocked | — | L | P8-003, P8-001, P8-002 |
+| [P8-005](./P8-005-de-claude-ify-copy.md) | De-Claude-ify user-facing copy | ready | — | S | P5-006 |
+| [P8-006](./P8-006-cost-reconciliation.md) | Cost reconciliation (design + scaffold) | ready | — | M | P8-002 |
+
+---
+
+## Phase 9 — Alerting & Governance
+
+See [`P9-roadmap.md`](./P9-roadmap.md). Turns passive dashboards into proactive alerts; makes privileged access time-boxed, requested, and narrowly scoped.
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P9-001](./P9-001-alert-rules-engine.md) | Alert rules engine (scheduled evaluation) | ready | — | L | P4-004, P4-005 |
+| [P9-002](./P9-002-alert-notifications.md) | Alert notification delivery + admin UI | blocked | — | M | P9-001 |
+| [P9-003](./P9-003-timeboxed-access-grants.md) | Time-boxed access grants (request/approve workflow) | ready | — | L | P3-005 |
+| [P9-004](./P9-004-per-team-retention.md) | Per-team retention override | ready | — | M | P4-007 |
+| [P9-005](./P9-005-research-role.md) | Research / investigator capability (Audience B) | blocked | — | M | P9-003, P3-001 |
+| [P9-006](./P9-006-governance-alert-tests.md) | Governance + alerting invariant test suite | blocked | — | M | P9-002, P9-005 |

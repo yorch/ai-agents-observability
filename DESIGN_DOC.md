@@ -34,7 +34,7 @@ The primary purpose is **developer experience and effectiveness research** (audi
 ### 2.2 Non-Goals (v1)
 
 - Multi-tenancy. This is single-org, single-tenant.
-- Real-time alerting / SIEM-style behavioral analytics on session content.
+- Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting — spend spikes, error-rate, budget — is scoped into Phase 9 §12.8. SIEM-style behavioral analytics on transcript content remains out of scope.)*
 - Replacing any existing observability stack (Datadog, Splunk, etc.) — this is purpose-built for AI coding agent telemetry.
 - **Model-level observability** — inference latency, prompt evaluation, model drift, RAG quality. Out of scope by design; that's a different product.
 - Capturing telemetry from non-Claude-Code agents (Cursor, Aider, Copilot, etc.) **in v1 implementation** — but the data model is designed to accept them in a later phase without schema migration.
@@ -901,6 +901,48 @@ Resist the urge to build all of it. The MVP that proves value:
 25. Optional: bug correlation via Jira integration
 26. Optional: CI correlation via GitHub Checks
 
+### 12.6 Phase 6 — Hardening & Scale-Readiness
+
+Post-spine review of data-integrity, observability, and access-model gaps. Discriminated-union event schema + structured tool emission, Prometheus coverage for web + github-app, non-blocking transcript pipeline, explicit org-admin team-lead grants. Per-agent price tables and the hook adapter seam were deferred here and are decomposed in Phase 8. See `tasks/P6-roadmap.md`.
+
+### 12.7 Phase 7 — Insight Surfaces & Search
+
+Close the gap between *captured* and *surfaced*. The friction score and session-shape label (Phase 5) are computed nightly but rendered in no UI; transcript full-text search exists only at the org level.
+
+27. Effectiveness widgets on "My Agents" — friction trend, session-shape mix, per-session friction band (honoring the §10.6 caveat: no misleading numbers for low-data sessions, version-pinned)
+28. Team + org effectiveness distributions, gated by `visibility_policies`
+29. Per-user transcript full-text search (scoped to own sessions)
+30. Faceted-search enrichment — shape, friction band, agent-type facets
+31. Backfill of effectiveness signals over historical sessions
+32. Gated spike: semantic (pgvector) transcript search — decision + prototype, not a production commitment
+
+**Success criteria:** a dev sees their own friction trend and can search their own transcripts; a team lead sees a friction distribution without any individual's score leaking.
+
+### 12.8 Phase 8 — Multi-Agent & Cost Model
+
+Prove the multi-agent spine §2.4 with a real second agent, and build the cost machinery a non-Anthropic agent needs.
+
+33. `<agent>:<tool>` tool-name disambiguation (documented in §2.4, not yet built)
+34. Per-agent + versioned price tables (the deferred P6-005) — cost keyed on `(agent_type, model)`, historically reproducible
+35. Hook adapter seam (the deferred P6-006) — agent-neutral transport reused behind an adapter interface
+36. A real second-agent adapter (`opencode`) that validates the seam end-to-end
+37. Agent-driven user-facing copy (no hard-coded "Claude")
+38. Gated: cost reconciliation against a vendor billing API (§13 Q4) — scaffolded behind a flag
+
+**Success criteria:** a second agent's sessions ingest, price correctly, render with correct labels, and never collide on tool names; the transport is shared between two adapters without a fork.
+
+### 12.9 Phase 9 — Alerting & Governance
+
+Move from passive dashboards to proactive, trust-preserving operation.
+
+39. Alert rules engine — scheduled evaluation of spend spike / error rate / unknown-model / budget thresholds, with persisted firing/resolving history (promotes the render-time anomaly detection of §12.4)
+40. Notification delivery (email / Slack / webhook) + `/admin/alerts` config — aggregate data only, never individual content
+41. Time-boxed transcript access grants — the §8.4 request/approve/expire workflow, replacing implicit standing org-admin reach
+42. Per-team retention overrides on top of the global default
+43. A narrow, grant-scoped research/investigator capability for Audience B (§3) — sampled session access only within an active, expiring, audited grant; no standing access
+
+**Success criteria:** a spend spike fires a notification within one evaluation cycle; every privileged transcript view is the owner or a time-boxed approved grant, logged and visible to the viewed user.
+
 ---
 
 ## 13. Open Questions
@@ -976,3 +1018,4 @@ Beyond Phase 5, the natural extensions:
 | Date       | Author              | Change        |
 | ---------- | ------------------- | ------------- |
 | 2026-05-16 | Jorge (with Claude) | Initial draft |
+| 2026-06-24 | Jorge (with Claude) | Added Phases 6–9 to §12 (Hardening, Insight Surfaces & Search, Multi-Agent & Cost Model, Alerting & Governance); scoped threshold-based alerting out of the §2.2 non-goal |
