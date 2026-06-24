@@ -21,6 +21,7 @@ References: DESIGN_DOC.md §2.4 (Multi-Agent Extensibility), §6.3 (hook payload
 - **P8-004 Second-agent adapter** (WS D, L) — implement a real second-agent adapter (opencode) that exercises the seam end-to-end and finalizes the `Adapter` interface from real usage.
 - **P8-005 De-Claude-ify copy** (WS E, S) — drive all user-facing agent labels from `agent_type` instead of hard-coding "Claude" in the PR-bot comment and /me dashboard.
 - **P8-006 Cost reconciliation** (WS B, M) — design + scaffold reconciliation of client-computed cost against a vendor billing API; gated per DESIGN_DOC.md §13 Q4 / PLAN §5.
+- **P8-007 Codex CLI adapter** (WS D, M) — a *third* adapter (added after the phase's original scope) for OpenAI Codex CLI. Codex's only stable hook is its turn-level `notify` program, with tool calls + usage in a separate rollout JSONL — so it exercises the seam's new multi-event path (`mapBatch`) and confirms the contract extends to a third, differently-shaped agent. Ships an empty codex price table (real OpenAI rates deferred).
 
 ## Exit criteria
 

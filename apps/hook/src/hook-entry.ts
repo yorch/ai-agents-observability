@@ -63,7 +63,9 @@ export async function runHook(
       return;
     }
 
-    const event = adapter.mapPayload(kind, payload);
+    // An adapter may expand one hook invocation into several events (codex reads a
+    // turn's tool calls + usage out of its rollout file); otherwise it's one event.
+    const events = adapter.mapBatch?.(kind, payload) ?? [adapter.mapPayload(kind, payload)];
 
     let queue: ReturnType<typeof openQueue>;
     try {
@@ -73,14 +75,16 @@ export async function runHook(
       return;
     }
 
-    try {
-      queue.enqueue({
-        event_id: event.event_id,
-        payload_json: JSON.stringify(event),
-        ts: event.ts,
-      });
-    } catch (err) {
-      log('error', 'hook.queue.enqueue_failed', { kind, message: (err as Error).message });
+    for (const event of events) {
+      try {
+        queue.enqueue({
+          event_id: event.event_id,
+          payload_json: JSON.stringify(event),
+          ts: event.ts,
+        });
+      } catch (err) {
+        log('error', 'hook.queue.enqueue_failed', { kind, message: (err as Error).message });
+      }
     }
 
     // For terminal events, the adapter tells us where the transcript lives; write

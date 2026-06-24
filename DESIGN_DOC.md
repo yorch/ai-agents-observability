@@ -934,7 +934,9 @@ Prove the multi-agent spine §2.4 with a real second agent, and build the cost m
 37. Agent-driven user-facing copy (no hard-coded "Claude")
 38. Gated: cost reconciliation against a vendor billing API (§13 Q4) — scaffolded behind a flag
 
-**Success criteria:** a second agent's sessions ingest, price correctly, render with correct labels, and never collide on tool names; the transport is shared between two adapters without a fork.
+A **third** adapter (`codex`, P8-007) was added after the phase's original scope. OpenAI Codex CLI's only stable hook is its turn-level `notify` program, with tool calls + token usage living in a separate rollout JSONL — so it exercised, and minimally extended, the seam: an optional `mapBatch` lets one turn-complete notification expand into the turn's tool events + a usage-bearing Stop read from the rollout (the first two adapters emit one event per hook and are unchanged). It ships an empty `codex` price table — every Codex model bills `$0` via the table until real OpenAI rates are filled in.
+
+**Success criteria:** a second agent's sessions ingest, price correctly, render with correct labels, and never collide on tool names; the transport is shared between adapters without a fork.
 
 ### 12.9 Phase 9 — Alerting & Governance
 

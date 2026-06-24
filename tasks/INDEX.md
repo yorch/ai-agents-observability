@@ -190,6 +190,7 @@ See [`P8-roadmap.md`](./P8-roadmap.md). Builds the remaining multi-agent foundat
 | [P8-004](./P8-004-second-agent-adapter.md) | Second-agent adapter (opencode) | review | claude | L | P8-003, P8-001, P8-002 |
 | [P8-005](./P8-005-de-claude-ify-copy.md) | De-Claude-ify user-facing copy | review | claude | S | P5-006 |
 | [P8-006](./P8-006-cost-reconciliation.md) | Cost reconciliation (design + scaffold) | review | claude | M | P8-002 |
+| [P8-007](./P8-007-codex-adapter.md) | Codex CLI adapter (notify + rollout parsing) | review | claude | M | P8-003, P8-004, P8-001, P8-002 |
 
 ---
 

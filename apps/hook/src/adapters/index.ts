@@ -1,6 +1,7 @@
 import type { Event } from '@ai-agents-observability/schemas';
 
 import { claudeCodeAdapter } from './claude-code';
+import { codexAdapter } from './codex';
 import { opencodeAdapter } from './opencode';
 
 // A hook adapter translates one agent's native hook protocol into the
@@ -8,9 +9,12 @@ import { opencodeAdapter } from './opencode';
 // The transport (queue.ts, flusher.ts, shipper.ts, retry/abandon) never branches
 // on agent — everything agent-specific lives behind this contract.
 //
-// PROVISIONAL (P8-003): this interface is intentionally narrow and will be
-// validated/finalized against a real second adapter in P8-004. Resist widening
-// it for hypothetical needs before that second example exists.
+// VALIDATED (P8-003 → P8-004): the interface held unchanged across a real second
+// adapter (opencode). It was extended ONCE, with the optional `mapBatch`, for the
+// third adapter (codex, P8-007): Codex's `notify` fires once per turn but the
+// turn's tool calls + usage live in a separate rollout file, so one invocation
+// legitimately yields N events. Adding it as OPTIONAL kept claude-code/opencode
+// byte-for-byte identical (they emit one event per hook and omit it).
 
 export type ConformantEvent = Event;
 
@@ -35,6 +39,14 @@ export interface HookAdapter {
   installConfig(): AdapterInstallConfig;
   /** True if `value` is a hook kind this adapter handles. */
   isHookKind(value: string): boolean;
+  /**
+   * Optional: translate ONE hook invocation into MANY events. When present and it
+   * returns a non-null array, the transport enqueues every event and skips
+   * `mapPayload`; returning null falls back to the single-event `mapPayload`. Added
+   * for codex (P8-007), whose per-turn `notify` expands into the turn's tool calls
+   * + a usage-bearing Stop read from the rollout file.
+   */
+  mapBatch?(kind: string, raw: Record<string, unknown>): ConformantEvent[] | null;
   /** Translate a raw stdin hook payload for `kind` into a ConformantEvent. */
   mapPayload(kind: string, raw: Record<string, unknown>): ConformantEvent;
   /** For a terminal event, the transcript to ship (null when none applies). */
@@ -43,6 +55,7 @@ export interface HookAdapter {
 
 const ADAPTERS: Record<string, HookAdapter> = {
   'claude-code': claudeCodeAdapter,
+  codex: codexAdapter,
   opencode: opencodeAdapter,
 };
 

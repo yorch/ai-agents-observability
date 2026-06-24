@@ -20,6 +20,16 @@ describe('price-table registry', () => {
     expect(t.prices['claude-sonnet-4-5-20250929']?.input_per_mtok).toBeGreaterThan(0);
   });
 
+  it('registers a codex table (P8-007 placeholder: known agent, intentionally empty prices)', () => {
+    // Codex is a KNOWN agent (so forAgentParam serves it, not null) but ships an
+    // empty price table until real OpenAI rates are filled in — every model bills
+    // $0 via the empty table rather than the unknown-agent fallback.
+    const t = registry.resolve('codex');
+    expect(t.version).toBe('codex.v1');
+    expect(Object.keys(t.prices)).toHaveLength(0);
+    expect(registry.forAgentParam('codex')).toBe(t);
+  });
+
   it('returns an empty table for an unknown agent (so models bill $0)', () => {
     const t = registry.resolve('totally-unknown-agent');
     expect(Object.keys(t.prices)).toHaveLength(0);

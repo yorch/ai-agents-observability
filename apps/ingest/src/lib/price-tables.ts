@@ -2,6 +2,7 @@ import type { PriceTable } from '@ai-agents-observability/schemas';
 import { PriceTableSchema } from '@ai-agents-observability/schemas';
 
 import rawClaudeCode from '../data/price-table.claude_code.v1.json' with { type: 'json' };
+import rawCodex from '../data/price-table.codex.v1.json' with { type: 'json' };
 import rawOpencode from '../data/price-table.opencode.v1.json' with { type: 'json' };
 
 // Per-agent price tables (P8-002, DESIGN_DOC §11.6). Cost is keyed on
@@ -18,6 +19,7 @@ const normalize = (agentType: string): string => agentType.replaceAll('-', '_');
 
 const tables: Record<string, PriceTable> = {
   claude_code: PriceTableSchema.parse(rawClaudeCode),
+  codex: PriceTableSchema.parse(rawCodex),
   opencode: PriceTableSchema.parse(rawOpencode),
 };
 
