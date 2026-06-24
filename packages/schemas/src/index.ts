@@ -1,5 +1,6 @@
 export const EVENTS_API_VERSION = '1' as const;
 
+export { agentDisplayName, DEFAULT_AGENT_TYPE, multiAgentLabels } from './agent-display';
 export type { FrictionInputs, ShapeLabel, ToolHistogram } from './effectiveness';
 export {
   classifySessionShape,

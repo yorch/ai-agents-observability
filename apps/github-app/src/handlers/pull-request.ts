@@ -148,7 +148,18 @@ async function maybePostComment(
     return;
   }
 
-  const body = buildCommentBody(rollup, repoConfig);
+  // Distinct agents that contributed to this PR — drives the comment header
+  // label (single claude_code is left unlabelled by multiAgentLabels).
+  const agentRows = rollup.contributingSessionIds.length
+    ? await db.session.findMany({
+        distinct: ['agentType'],
+        select: { agentType: true },
+        where: { sessionId: { in: rollup.contributingSessionIds } },
+      })
+    : [];
+  const agentTypes = agentRows.map((r) => r.agentType as string);
+
+  const body = buildCommentBody(rollup, repoConfig, agentTypes);
   const posted = await postPRComment(owner, name, prNumber, body, installToken, config.github_host);
   logger.info(
     { posted, pr: prNumber, repo: repo.full_name },

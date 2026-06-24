@@ -3,8 +3,8 @@ id: P8-005
 title: De-Claude-ify user-facing copy
 phase: 8
 workstream: E
-status: ready
-owner: null
+status: review
+owner: claude
 depends_on: [P5-006]
 blocks: []
 estimate: S
@@ -66,3 +66,15 @@ bun --filter '@app/github-app' test
 # 2. Trigger the PR-bot comment flow — confirm header does not say "Claude Code"
 # 3. Visit /me — confirm no hard-coded "Claude" agent labels appear for opencode sessions
 ```
+
+> **Verification status (review):** `agent-display.test.ts` (5) + `pr-comment.test.ts` (7) **pass
+> locally**; biome clean. `agentDisplayName` + `multiAgentLabels` added to `packages/schemas`.
+> The PR-bot header was already agent-neutral ("AI agent summary"); it now appends the distinct
+> contributing agents — suppressed for the single-claude_code case (header unchanged), shown for
+> a single non-Claude agent ("(opencode)") or multiple ("(Claude Code, opencode)"). The handler
+> derives distinct agents from the rollup's contributing sessions. `/me` empty-state copy is
+> helper-driven (DEFAULT_AGENT_TYPE → "Claude Code", identical output).
+>
+> **Scope note:** onboarding/install prose ("install the hook … run Claude Code") is product copy
+> for the primary agent and left as-is per the out-of-scope note + the "single-agent unchanged"
+> criterion. typecheck runs in CI (Prisma client egress-blocked locally).

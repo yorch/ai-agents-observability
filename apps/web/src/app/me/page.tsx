@@ -1,3 +1,4 @@
+import { agentDisplayName, DEFAULT_AGENT_TYPE } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ModelMixChart } from '@/components/me/ModelMix';
@@ -72,7 +73,7 @@ function EmptyState() {
     <div className="rounded-lg border border-white/10 p-8 text-center">
       <p className="text-lg font-medium">No sessions yet</p>
       <p className="mt-2 text-sm text-white/50">
-        Install the hook to start tracking your Claude Code sessions.
+        Install the hook to start tracking your {agentDisplayName(DEFAULT_AGENT_TYPE)} sessions.
       </p>
       <a
         href="/install"
