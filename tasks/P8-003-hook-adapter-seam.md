@@ -3,12 +3,31 @@ id: P8-003
 title: Hook adapter seam
 phase: 8
 workstream: D
-status: ready
-owner: null
+status: review
+owner: claude
 depends_on: [P5-006]
 blocks: [P8-004]
 estimate: L
 ---
+
+## Decision (provisional interface)
+
+`HookAdapter` (`apps/hook/src/adapters/index.ts`) is: `agentType`, `isHookKind`,
+`mapPayload(kind, raw)`, `transcriptTarget(kind, raw)`, `installConfig()`.
+
+Two honest deviations from the sketch, both because the spec's premise about
+`paths.ts` was inaccurate:
+- **`transcriptTarget(kind, raw)` instead of `transcriptPath(sessionId, cwd)`.**
+  Claude Code does not compute a transcript path — it *sends* `transcript_path` in
+  the Stop payload. `paths.ts` is the telemetry tool's own state dir
+  (`~/.claude-telemetry/`), which is agent-neutral and stays put. So the real seam
+  is "given a terminal payload, where's the transcript" — returned from the payload.
+- **`flusher.ts` / `shipper.ts` were left untouched** — they already import only the
+  neutral `paths.ts` (telemetry home) and never `payload.ts`; the transcript path
+  rides in the ship marker the adapter produces. The transport was already
+  agent-agnostic; nothing to re-route.
+
+Interface remains **provisional** until P8-004 validates it against opencode.
 
 ## Goal
 
@@ -84,3 +103,12 @@ bun --filter '@app/hook' test
 # Smoke: install still writes correct claude settings
 bun run --cwd apps/hook dev -- install --dry-run
 ```
+
+> **Verification status (review): fully verified locally** (the hook has no Prisma
+> dependency, so the egress block doesn't apply here). `cd apps/hook && bun test` →
+> **43 pass / 0 fail, no test files modified** (acceptance #3); `tsc --noEmit` → clean;
+> `biome check --error-on-warnings` → clean. Claude Code adapter delegates to the
+> existing `payload.ts` (`toEvent`/`isHookKind`) so behavior is byte-for-byte identical.
+> `hook-entry.ts`, `cli.ts`, and `install.ts` go through the adapter; transport files
+> (`flusher`/`shipper`/`queue`) untouched. `--agent` selects the adapter (default
+> `claude-code`).

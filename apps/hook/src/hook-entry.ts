@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 
+import { type HookAdapter, selectAdapter } from './adapters';
 import { log } from './lib/log';
 import { pausedPath } from './lib/paths';
-import { type HookKind, toEvent } from './lib/payload';
 import { openQueue } from './lib/queue';
 import { readStdinBounded } from './lib/stdin';
 import { writeShipMarker } from './shipper';
@@ -25,7 +25,11 @@ function safeParse(raw: string): Record<string, unknown> | null {
 
 // Run a single hook entrypoint. Always resolves; the caller exits 0 regardless.
 // Errors are logged and swallowed — a broken hook MUST NOT break Claude Code.
-export async function runHook(kind: HookKind, _opts: Options): Promise<void> {
+export async function runHook(
+  kind: string,
+  _opts: Options,
+  adapter: HookAdapter = selectAdapter(),
+): Promise<void> {
   try {
     if (existsSync(pausedPath())) {
       return;
@@ -59,7 +63,7 @@ export async function runHook(kind: HookKind, _opts: Options): Promise<void> {
       return;
     }
 
-    const event = toEvent(kind, payload);
+    const event = adapter.mapPayload(kind, payload);
 
     let queue: ReturnType<typeof openQueue>;
     try {
@@ -79,16 +83,11 @@ export async function runHook(kind: HookKind, _opts: Options): Promise<void> {
       log('error', 'hook.queue.enqueue_failed', { kind, message: (err as Error).message });
     }
 
-    // For stop events, write a ship marker so the shipper can upload the
-    // transcript. transcript_path comes from Claude Code's hook payload.
-    if (
-      kind === 'stop' &&
-      typeof payload.transcript_path === 'string' &&
-      payload.transcript_path.length > 0 &&
-      typeof payload.session_id === 'string' &&
-      payload.session_id.length > 0
-    ) {
-      writeShipMarker(payload.session_id, payload.transcript_path, false);
+    // For terminal events, the adapter tells us where the transcript lives; write
+    // a ship marker so the shipper can upload it.
+    const target = adapter.transcriptTarget(kind, payload);
+    if (target) {
+      writeShipMarker(target.sessionId, target.transcriptPath, false);
     }
 
     try {

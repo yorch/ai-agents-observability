@@ -1,3 +1,4 @@
+import { type HookAdapter, selectAdapter } from './adapters';
 import { runInstall } from './commands/install';
 import { runLogin } from './commands/login';
 import { runPause } from './commands/pause';
@@ -8,8 +9,20 @@ import { runUninstall } from './commands/uninstall';
 import { runFlusher } from './flusher';
 import { runHook } from './hook-entry';
 import { log } from './lib/log';
-import { isHookKind } from './lib/payload';
 import { runShipper } from './shipper';
+
+// Parse `--agent <name>` / `--agent=<name>`; defaults to claude-code.
+function parseAgent(args: string[]): string | undefined {
+  const eq = args.find((a) => a.startsWith('--agent='));
+  if (eq) {
+    return eq.slice('--agent='.length);
+  }
+  const idx = args.indexOf('--agent');
+  if (idx >= 0 && args[idx + 1] && !args[idx + 1]?.startsWith('-')) {
+    return args[idx + 1];
+  }
+  return undefined;
+}
 
 const VERSION = '0.1.0';
 
@@ -46,6 +59,7 @@ async function main(): Promise<number> {
   const quiet = args.includes('--quiet');
   const positional = args.filter((a) => !a.startsWith('-'));
   const cmd = positional[0];
+  const adapter: HookAdapter = selectAdapter(parseAgent(args));
 
   if (args.includes('--version') || args.includes('-V')) {
     process.stdout.write(`${VERSION}\n`);
@@ -59,11 +73,11 @@ async function main(): Promise<number> {
 
   if (cmd === 'hook') {
     const kind = positional[1];
-    if (!kind || !isHookKind(kind)) {
+    if (!kind || !adapter.isHookKind(kind)) {
       log('warn', 'hook.invalid_kind', { kind: kind ?? null });
       return 0;
     }
-    await runHook(kind, { quiet });
+    await runHook(kind, { quiet }, adapter);
     return 0;
   }
 
@@ -98,7 +112,7 @@ async function main(): Promise<number> {
   }
 
   if (cmd === 'install') {
-    return runInstall();
+    return runInstall(adapter);
   }
 
   if (cmd === 'uninstall') {
