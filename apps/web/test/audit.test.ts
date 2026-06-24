@@ -78,6 +78,25 @@ describe('writeAuditLog', () => {
     expect(data.justification).toBeNull();
   });
 
+  it('persists a justification when provided (§8.4)', async () => {
+    mockCreate.mockResolvedValueOnce({});
+
+    const { AuditAction, writeAuditLog } = await import('../src/lib/audit.js');
+    await writeAuditLog(
+      {
+        action: AuditAction.view_transcript,
+        actorUserId: 'u1',
+        justification: 'security incident #1234',
+        targetSessionId: 's-1',
+        targetUserId: 'u-target',
+      },
+      mockDb,
+    );
+
+    const data = mockCreate.mock.calls[0][0].data;
+    expect(data.justification).toBe('security incident #1234');
+  });
+
   it('does not throw when the DB insert fails', async () => {
     mockCreate.mockRejectedValueOnce(new Error('db connection lost'));
 
@@ -99,6 +118,43 @@ describe('writeAuditLog', () => {
 
     const data = mockCreate.mock.calls[0][0].data;
     expect(data.ip).toBe('10.0.0.1');
+  });
+});
+
+// ── normalizeJustification (§8.4 override) ─────────────────────────────────────
+
+describe('normalizeJustification', () => {
+  it('returns null for absent / empty input', async () => {
+    const { normalizeJustification } = await import('../src/lib/audit.js');
+    expect(normalizeJustification(null)).toBeNull();
+    expect(normalizeJustification(undefined)).toBeNull();
+    expect(normalizeJustification('   ')).toBeNull();
+  });
+
+  it('rejects justifications below the minimum length', async () => {
+    const { normalizeJustification } = await import('../src/lib/audit.js');
+    expect(normalizeJustification('too short')).toBeNull(); // 9 chars
+  });
+
+  it('rejects justifications above the maximum length', async () => {
+    const { MAX_JUSTIFICATION_LENGTH, normalizeJustification } = await import(
+      '../src/lib/audit.js'
+    );
+    expect(normalizeJustification('x'.repeat(MAX_JUSTIFICATION_LENGTH + 1))).toBeNull();
+  });
+
+  it('trims and returns a valid justification', async () => {
+    const { normalizeJustification } = await import('../src/lib/audit.js');
+    expect(normalizeJustification('  security incident #1234  ')).toBe('security incident #1234');
+  });
+
+  it('accepts justifications exactly at the MIN and MAX bounds', async () => {
+    const { MAX_JUSTIFICATION_LENGTH, MIN_JUSTIFICATION_LENGTH, normalizeJustification } =
+      await import('../src/lib/audit.js');
+    const atMin = 'x'.repeat(MIN_JUSTIFICATION_LENGTH);
+    const atMax = 'x'.repeat(MAX_JUSTIFICATION_LENGTH);
+    expect(normalizeJustification(atMin)).toBe(atMin);
+    expect(normalizeJustification(atMax)).toBe(atMax);
   });
 });
 

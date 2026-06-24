@@ -29,6 +29,7 @@ const mockPrisma = {
     count: vi.fn(),
     findFirst: vi.fn(),
     findMany: vi.fn(),
+    findUnique: vi.fn(),
   },
 };
 
@@ -120,6 +121,65 @@ describe('getSession', () => {
     expect(result?.branch).toBe('main');
     expect(result?.commitSha).toBe('abc1234');
     expect(result?.durationSeconds).toBe(30 * 60);
+  });
+});
+
+// ── getSessionOrgContext ───────────────────────────────────────────────────────
+
+describe('getSessionOrgContext', () => {
+  it('returns null if the session does not exist', async () => {
+    mockPrisma.session.findUnique.mockResolvedValueOnce(null);
+
+    const { getSessionOrgContext } = await import('../src/lib/sessions-queries.js');
+    expect(await getSessionOrgContext('nope')).toBeNull();
+  });
+
+  it('does NOT scope by userId — org-admin drill-in resolves any session by id', async () => {
+    mockPrisma.session.findUnique.mockResolvedValueOnce({
+      user: { displayName: 'Dee', githubLogin: 'dev', visibilityPolicy: null },
+      userId: 'owner-1',
+    });
+
+    const { getSessionOrgContext } = await import('../src/lib/sessions-queries.js');
+    await getSessionOrgContext('sess-1');
+
+    // The lookup is intentionally unscoped — gating happens in the page/route via
+    // requireOrgAdmin() + audit, not here.
+    expect(mockPrisma.session.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sessionId: 'sess-1' } }),
+    );
+  });
+
+  it('reads shareTranscriptsWithOrg + transcript pointer from the owner row', async () => {
+    mockPrisma.session.findUnique.mockResolvedValueOnce({
+      transcriptS3Key: 'transcripts/2026/01/15/owner-1/sess-1.jsonl.zst',
+      user: {
+        displayName: 'Dee',
+        githubLogin: 'dev',
+        visibilityPolicy: { shareTranscriptsWithOrg: true },
+      },
+      userId: 'owner-1',
+    });
+
+    const { getSessionOrgContext } = await import('../src/lib/sessions-queries.js');
+    const ctx = await getSessionOrgContext('sess-1');
+
+    expect(ctx?.ownerUserId).toBe('owner-1');
+    expect(ctx?.ownerLogin).toBe('dev');
+    expect(ctx?.shareTranscriptsWithOrg).toBe(true);
+    expect(ctx?.transcriptS3Key).toBe('transcripts/2026/01/15/owner-1/sess-1.jsonl.zst');
+  });
+
+  it('defaults shareTranscriptsWithOrg to false when no policy row exists', async () => {
+    mockPrisma.session.findUnique.mockResolvedValueOnce({
+      user: { displayName: null, githubLogin: 'dev', visibilityPolicy: null },
+      userId: 'owner-1',
+    });
+
+    const { getSessionOrgContext } = await import('../src/lib/sessions-queries.js');
+    const ctx = await getSessionOrgContext('sess-1');
+
+    expect(ctx?.shareTranscriptsWithOrg).toBe(false);
   });
 });
 

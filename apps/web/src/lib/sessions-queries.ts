@@ -265,6 +265,48 @@ export async function getSessionEvents(userId: string, sessionId: string): Promi
   }));
 }
 
+export type SessionOrgContext = {
+  displayName: string | null;
+  ownerLogin: string | null;
+  ownerUserId: string;
+  shareTranscriptsWithOrg: boolean;
+  transcriptS3Key: string | null;
+};
+
+/**
+ * Resolves the owner, org-transcript-sharing policy, and transcript pointer for a
+ * session, WITHOUT scoping to the caller. For org-admin drill-in only — callers
+ * MUST gate with `requireOrgAdmin()` and write an audit row before using the
+ * result. Returns null if the session does not exist.
+ */
+export async function getSessionOrgContext(sessionId: string): Promise<SessionOrgContext | null> {
+  const s = await getPrisma().session.findUnique({
+    select: {
+      transcriptS3Key: true,
+      user: {
+        select: {
+          displayName: true,
+          githubLogin: true,
+          visibilityPolicy: { select: { shareTranscriptsWithOrg: true } },
+        },
+      },
+      userId: true,
+    },
+    where: { sessionId },
+  });
+  if (!s) {
+    return null;
+  }
+  return {
+    displayName: s.user.displayName,
+    ownerLogin: s.user.githubLogin,
+    ownerUserId: s.userId,
+    // Conservative default: if no policy row exists, transcripts are NOT org-shared.
+    shareTranscriptsWithOrg: s.user.visibilityPolicy?.shareTranscriptsWithOrg ?? false,
+    transcriptS3Key: s.transcriptS3Key,
+  };
+}
+
 export async function listDistinctRepos(userId: string): Promise<string[]> {
   const prisma = getPrisma();
 

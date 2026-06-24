@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { currentUser } from '@/lib/auth';
 import { getPrisma } from '@/lib/prisma';
-import { fetchAndDecompressTranscript, getS3Client } from '@/lib/s3';
+import { getS3Client, streamTranscript } from '@/lib/s3';
 import { getMemberForTeam } from '@/lib/team-queries';
 
 export const dynamic = 'force-dynamic';
@@ -53,8 +53,8 @@ export async function GET(
   }
 
   try {
-    const decompressed = await fetchAndDecompressTranscript(getS3Client(), session.transcriptS3Key);
-    return new NextResponse(decompressed, {
+    const stream = await streamTranscript(getS3Client(), session.transcriptS3Key);
+    return new NextResponse(stream, {
       headers: { 'Content-Type': 'application/x-ndjson' },
     });
   } catch (err) {

@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
+import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 import type { ShipMarker } from '../src/shipper';
-import { writeShipMarker } from '../src/shipper';
+import { buildZstdBody, writeShipMarker } from '../src/shipper';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,9 +53,9 @@ function startMockIngestServer(statusCode = 200): {
   return { port: server.port, received, server };
 }
 
-/** Decompress a gzip buffer into a string. */
-async function gunzip(data: Uint8Array): Promise<string> {
-  return new TextDecoder().decode(Bun.gunzipSync(data));
+/** Decompress a zstd buffer into a string. */
+async function zstdDecompress(data: Uint8Array): Promise<string> {
+  return new TextDecoder().decode(zstdDecompressSync(data));
 }
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
@@ -102,7 +103,7 @@ describe('writeShipMarker', () => {
 });
 
 describe('shipper upload', () => {
-  it('uploads transcript, deletes marker, sends gzip body with correct headers', async () => {
+  it('uploads transcript, deletes marker, sends zstd body with correct headers', async () => {
     const sessionId = 'session-upload-test';
     const transcriptPath = join(tmpTranscriptDir, 'transcript.jsonl');
 
@@ -133,9 +134,8 @@ describe('shipper upload', () => {
     process.env.INGEST_BASE_URL = `http://localhost:${port}`;
 
     try {
-      // Simulate what the shipper does: build gzip body and PUT to endpoint
+      // Simulate what the shipper does: build zstd body and PUT to endpoint
       const { redactedLines } = await import('../src/lib/transcript-stream');
-      const { createHash } = await import('node:crypto');
 
       const redactedLinesList: string[] = [];
       for await (const line of redactedLines(transcriptPath)) {
@@ -144,7 +144,7 @@ describe('shipper upload', () => {
       const text = redactedLinesList.join('\n');
       const encoded = new TextEncoder().encode(text);
       const hash = createHash('sha256').update(encoded).digest('hex');
-      const body = Bun.gzipSync(encoded);
+      const body = new Uint8Array(zstdCompressSync(encoded));
 
       const markerPath = join(tmpHome, 'ship-queue', `${sessionId}.json`);
       expect(existsSync(markerPath)).toBe(true);
@@ -154,7 +154,7 @@ describe('shipper upload', () => {
         body,
         headers: {
           Authorization: 'Bearer test-jwt-token',
-          'Content-Type': 'application/gzip',
+          'Content-Type': 'application/x-zstd',
           'X-Content-Hash': hash,
         },
         method: 'POST',
@@ -166,17 +166,40 @@ describe('shipper upload', () => {
       const upload = received[0];
       expect(upload.sessionId).toBe(sessionId);
       expect(upload.contentEncoding).toBeNull();
-      expect(upload.contentType).toBe('application/gzip');
+      expect(upload.contentType).toBe('application/x-zstd');
       expect(upload.contentHash).toBe(hash);
 
       // Decompress and verify AWS key was redacted
-      const decompressed = await gunzip(upload.bodyBytes);
+      const decompressed = await zstdDecompress(upload.bodyBytes);
       expect(decompressed).not.toContain('AKIAIOSFODNN7EXAMPLE');
       // Should contain redacted placeholder instead
       expect(decompressed).toContain('[REDACTED');
     } finally {
       server.stop(true);
     }
+  });
+
+  it('buildZstdBody streams to a zstd body whose hash matches the redacted join', async () => {
+    const transcriptPath = join(tmpTranscriptDir, 'stream.jsonl');
+    const lines = [
+      JSON.stringify({ content: 'first line with émoji 🚀', role: 'user' }),
+      JSON.stringify({ content: 'second AKIAIOSFODNN7EXAMPLE line', role: 'assistant' }),
+      JSON.stringify({ content: 'third line', role: 'user' }),
+    ];
+    writeTranscript(transcriptPath, lines);
+
+    const { body, hash } = await buildZstdBody(transcriptPath);
+
+    // Body is valid zstd and decompresses to the redacted, newline-joined lines.
+    const decompressed = await zstdDecompress(body);
+    expect(decompressed).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    expect(decompressed).toContain('[REDACTED');
+    expect(decompressed.split('\n')).toHaveLength(3);
+
+    // Hash is the sha256 of the uncompressed bytes (the idempotency key), so it
+    // must equal hashing the decompressed payload.
+    const expectedHash = createHash('sha256').update(decompressed, 'utf8').digest('hex');
+    expect(hash).toBe(expectedHash);
   });
 
   it('does not contain the raw AWS access key after redaction', async () => {

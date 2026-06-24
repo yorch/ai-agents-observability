@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { createZstdCompress } from 'node:zlib';
 
 import { loadHookToken } from './lib/identity';
 import { INGEST_BASE_URL } from './lib/ingest';
@@ -144,24 +145,46 @@ function keepOrAbandonStale(marker: ShipMarker, reason: string): boolean {
 // ── Bandwidth-throttled upload ────────────────────────────────────────────────
 
 /**
- * Collect all redacted lines into a gzip-compressed buffer.
- * Using gzip, not zstd, pending Bun native zstd support.
+ * Stream the redacted transcript through a zstd compressor, hashing the
+ * uncompressed bytes as they pass. The full uncompressed transcript is never
+ * held in memory — only the (much smaller) compressed output is buffered, which
+ * the throttled upload needs in full to set Content-Length and pace chunks.
+ * Matches the on-disk storage format (`.jsonl.zst`); the ingest service still
+ * accepts gzip for backward compatibility, but zstd is the wire default.
  */
-async function buildGzipBody(filePath: string): Promise<{ body: Uint8Array; hash: string }> {
-  const lines: string[] = [];
-  for await (const line of redactedLines(filePath)) {
-    lines.push(line);
+export async function buildZstdBody(filePath: string): Promise<{ body: Uint8Array; hash: string }> {
+  const hash = createHash('sha256');
+  const compressor = createZstdCompress();
+  const chunks: Buffer[] = [];
+  compressor.on('data', (chunk: Buffer) => chunks.push(chunk));
+  const finished = new Promise<void>((resolve, reject) => {
+    compressor.once('end', resolve);
+    compressor.once('error', reject);
+  });
+
+  try {
+    // Frame lines exactly as `lines.join('\n')` did: a separator before every
+    // line except the first, so the hash (and decompressed bytes) are unchanged.
+    let first = true;
+    for await (const line of redactedLines(filePath)) {
+      const piece = Buffer.from(first ? line : `\n${line}`, 'utf8');
+      first = false;
+      hash.update(piece);
+      if (!compressor.write(piece)) {
+        await new Promise<void>((resolve) => compressor.once('drain', resolve));
+      }
+    }
+    compressor.end();
+    await finished;
+  } catch (err) {
+    // If reading/redaction throws mid-stream, tear the compressor down so its
+    // buffered output is freed promptly; swallow any late rejection from it.
+    compressor.destroy();
+    finished.catch(() => {});
+    throw err;
   }
-  const text = lines.join('\n');
-  const encoded = new TextEncoder().encode(text);
 
-  // Compute SHA-256 before compression
-  const hash = createHash('sha256').update(encoded).digest('hex');
-
-  // Gzip compress
-  const body = Bun.gzipSync(encoded);
-
-  return { body, hash };
+  return { body: new Uint8Array(Buffer.concat(chunks)), hash: hash.digest('hex') };
 }
 
 async function throttledUpload(
@@ -213,7 +236,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
   let body: Uint8Array;
   let hash: string;
   try {
-    ({ body, hash } = await buildGzipBody(transcript_path));
+    ({ body, hash } = await buildZstdBody(transcript_path));
   } catch (err) {
     log('warn', 'shipper.read_error', { message: (err as Error).message, session_id });
     recordRetryableFailure(marker, 'read_error');
@@ -224,7 +247,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
   try {
     const res = await throttledUpload(url, body, {
       Authorization: `Bearer ${jwt}`,
-      'Content-Type': 'application/gzip',
+      'Content-Type': 'application/x-zstd',
       'X-Content-Hash': hash,
     });
 
