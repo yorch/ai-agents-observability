@@ -91,11 +91,11 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
 }
 
 function MessageContent({ content }: { content: string | ContentBlock[] | undefined }) {
-  if (content === undefined || content === null) {
+  if (content == null) {
     return null;
   }
   if (typeof content === 'string') {
-    return <p className="whitespace-pre-wrap text-white/80 text-sm leading-relaxed">{content}</p>;
+    return <TextBlockView block={{ text: content, type: 'text' }} />;
   }
   if (Array.isArray(content)) {
     return (

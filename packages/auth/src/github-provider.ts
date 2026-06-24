@@ -1,5 +1,9 @@
 import { randomBytes } from 'node:crypto';
-import { createGitHubClient, getAuthenticatedUserTeams } from '@ai-agents-observability/github';
+import {
+  createGitHubClient,
+  type GitHubClient,
+  getAuthenticatedUserTeams,
+} from '@ai-agents-observability/github';
 import { getGitHubHost, getOAuthBase } from './github-host';
 import type { ExternalIdentity, IdentityProvider, TeamMembership } from './provider';
 
@@ -64,11 +68,7 @@ export class GitHubProvider implements IdentityProvider {
       throw new Error(`GitHub OAuth error: ${tokenBody.error ?? 'no token'}`);
     }
 
-    const client = createGitHubClient({
-      host,
-      token: tokenBody.access_token,
-      ...(this.fetch ? { fetch: this.fetch } : {}),
-    });
+    const client = this.clientFor(tokenBody.access_token);
     const { data: ghUser } = await client.rest.users.getAuthenticated();
 
     let email: string | null = ghUser.email ?? null;
@@ -95,17 +95,22 @@ export class GitHubProvider implements IdentityProvider {
     return identity;
   }
 
+  // Build an Octokit client for the configured host, carrying the optional fetch
+  // override. Shared by completeAuthorize and fetchTeams.
+  private clientFor(token: string): GitHubClient {
+    return createGitHubClient({
+      host: getGitHubHost(),
+      token,
+      ...(this.fetch ? { fetch: this.fetch } : {}),
+    });
+  }
+
   async fetchTeams(identity: ExternalIdentity): Promise<TeamMembership[]> {
     const token = accessTokenByIdentity.get(identity);
     if (!token) {
       return [];
     }
-    const host = getGitHubHost();
-    const client = createGitHubClient({
-      host,
-      token,
-      ...(this.fetch ? { fetch: this.fetch } : {}),
-    });
+    const client = this.clientFor(token);
     const teams = await getAuthenticatedUserTeams(client);
     return teams.map((t) => ({
       org: t.orgLogin,
