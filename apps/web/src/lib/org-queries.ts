@@ -1,6 +1,7 @@
 import { Prisma } from '@ai-agents-observability/db';
 import type { EffectivenessDistribution } from './effectiveness-queries';
 import { getPrisma } from './prisma';
+import { searchTranscriptMatches } from './search-queries';
 
 export type OrgSummary = {
   activeUsers: number;
@@ -538,50 +539,24 @@ export async function searchTranscripts(
   canViewIndividuals: boolean,
   limit = 20,
 ): Promise<TranscriptSearchResult[]> {
+  // Org transcript search: only sessions from users who opted into org transcript
+  // sharing. Delegates to the shared FTS core; the scope predicate stays in SQL.
   if (!canViewIndividuals || !query.trim()) {
     return [];
   }
 
-  // Only search transcripts of users who share with org AND opted in to transcript sharing
-  const prisma = getPrisma();
+  const matches = await searchTranscriptMatches(
+    query,
+    Prisma.sql`AND COALESCE(vp.share_transcripts_with_org, false) = true`,
+    limit,
+  );
 
-  const rows = await prisma.$queryRaw<
-    {
-      content_text: string;
-      github_login: string | null;
-      message_idx: number;
-      role: string;
-      session_id: string;
-      ts: Date | null;
-    }[]
-  >(Prisma.sql`
-    SELECT
-      ti.session_id::text,
-      ti.message_idx,
-      ti.role,
-      ti.ts,
-      ts_headline('english', ti.content_text,
-        plainto_tsquery('english', ${query}),
-        'MaxWords=40, MinWords=15, ShortWord=3'
-      ) AS content_text,
-      u.github_login
-    FROM transcript_index ti
-    JOIN sessions s ON s.session_id = ti.session_id
-    JOIN users u ON u.id = s.user_id
-    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE ti.content_tsv @@ plainto_tsquery('english', ${query})
-      AND u.deactivated_at IS NULL
-      AND COALESCE(vp.share_transcripts_with_org, false) = true
-    ORDER BY ts_rank(ti.content_tsv, plainto_tsquery('english', ${query})) DESC
-    LIMIT ${limit}
-  `);
-
-  return rows.map((r) => ({
-    excerpt: r.content_text,
-    githubLogin: r.github_login,
-    messageIdx: r.message_idx,
-    role: r.role,
-    sessionId: r.session_id,
-    ts: r.ts,
+  return matches.map((m) => ({
+    excerpt: m.excerpt,
+    githubLogin: m.githubLogin,
+    messageIdx: m.messageIdx,
+    role: m.role,
+    sessionId: m.sessionId,
+    ts: m.ts,
   }));
 }

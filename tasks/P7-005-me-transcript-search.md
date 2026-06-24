@@ -3,8 +3,8 @@ id: P7-005
 title: /me transcript search (per-user FTS)
 phase: 7
 workstream: E
-status: ready
-owner: null
+status: review
+owner: claude
 depends_on: [P4-003]
 blocks: []
 estimate: M
@@ -71,3 +71,13 @@ bun --filter '@app/web' test
 bun run typecheck
 bun run check
 ```
+
+> **Verification status (review):** `apps/web/test/search-queries.test.ts` (4 tests) **passes
+> locally** (grouping/≤3-excerpt cap/pagination/short-query guard) and `biome
+> check --error-on-warnings` is clean. Shared FTS core (`searchTranscriptMatches`) extracted to
+> `search-queries.ts`; `org-queries.searchTranscripts` now delegates to it (org behavior
+> unchanged, SQL de-duplicated). `/me/search` scopes via `AND s.user_id = $userId` in the SQL.
+> `typecheck` runs in CI (Prisma client egress-blocked locally).
+>
+> Note: the org search page was left unchanged — the shared-core refactor lives in the query
+> layer (`org-queries.searchTranscripts` delegates), so the page needs no edit.
