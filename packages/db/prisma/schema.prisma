@@ -37,6 +37,14 @@ enum AuditAction {
   hook_token_issued
   role_grant
   retention_override_changed
+  grant_requested
+  grant_approved
+  grant_revoked
+}
+
+enum GrantScope {
+  user_sessions
+  single_session
 }
 
 enum AuthTokenKind {
@@ -113,6 +121,7 @@ model User {
   targetAuditLogs   AuditLog[]        @relation("AuditTarget")
   pullRequests      PullRequest[]
   deletionRequests  DeletionRequest[]
+  accessGrants      AccessGrant[]     @relation("GrantGrantee")
 
   @@index([lastSeenAt])
   @@map("users")
@@ -416,6 +425,33 @@ model AlertRule {
 
   @@index([enabled])
   @@map("alert_rules")
+}
+
+// ── Access grants (P9-003) ────────────────────────────────────────────────────
+
+// Time-boxed, scoped, audited transcript access (DESIGN_DOC §8.4). Replaces
+// implicit standing org-admin reach: access to a non-sharing user's transcript
+// requires an approved, non-expired, non-revoked grant whose scope covers the target.
+model AccessGrant {
+  id              String     @id @default(uuid()) @db.Uuid
+  granteeUserId   String     @map("grantee_user_id") @db.Uuid
+  // target_user_id / target_session_id are plain UUIDs (not Prisma relations) to
+  // avoid extra User back-relations; resolved on read where needed.
+  targetUserId    String?    @map("target_user_id") @db.Uuid
+  targetSessionId String?    @map("target_session_id") @db.Uuid
+  scope           GrantScope
+  justification   String
+  grantedByUserId String?    @map("granted_by_user_id") @db.Uuid
+  requestedAt     DateTime   @default(now()) @map("requested_at") @db.Timestamptz(6)
+  grantedAt       DateTime?  @map("granted_at") @db.Timestamptz(6)
+  expiresAt       DateTime?  @map("expires_at") @db.Timestamptz(6)
+  revokedAt       DateTime?  @map("revoked_at") @db.Timestamptz(6)
+
+  grantee User @relation("GrantGrantee", fields: [granteeUserId], references: [id], onDelete: Cascade)
+
+  @@index([granteeUserId, expiresAt])
+  @@index([grantedAt, revokedAt])
+  @@map("access_grants")
 }
 
 model AlertEvent {

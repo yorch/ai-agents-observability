@@ -1,7 +1,8 @@
-import type { User } from '@ai-agents-observability/db';
+import type { PrismaClient, User } from '@ai-agents-observability/db';
 import { OrgRole, TeamRole } from '@ai-agents-observability/db';
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from './auth';
+import { grantCovers } from './grant-policy';
 import { getPrisma } from './prisma';
 
 export type TeamContext = {
@@ -133,4 +134,29 @@ export function isOrgAdmin(role: OrgRole): boolean {
 
 export function canViewIndividuals(role: OrgRole): boolean {
   return role === OrgRole.org_admin;
+}
+
+/**
+ * Whether `granteeId` holds an active, scope-covering access grant for the target
+ * (P9-003, DESIGN_DOC §8.4). This is the gate for viewing a non-sharing user's
+ * transcript: pass the session's owner as `targetUserId` and the session id as
+ * `targetSessionId` so either a `user_sessions` or a `single_session` grant can
+ * match. The active window (approved, not revoked, not expired) is enforced in the
+ * query; `grantCovers` decides scope. An expired grant is treated exactly like no
+ * grant — callers must not branch on "grant existed but expired".
+ */
+export async function hasActiveGrant(
+  db: Pick<PrismaClient, 'accessGrant'>,
+  target: { granteeId: string; targetSessionId?: string; targetUserId?: string },
+): Promise<boolean> {
+  const grants = await db.accessGrant.findMany({
+    select: { scope: true, targetSessionId: true, targetUserId: true },
+    where: {
+      expiresAt: { gt: new Date() },
+      grantedAt: { not: null },
+      granteeUserId: target.granteeId,
+      revokedAt: null,
+    },
+  });
+  return grants.some((g) => grantCovers(g, target));
 }

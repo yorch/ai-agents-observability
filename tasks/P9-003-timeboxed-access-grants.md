@@ -108,3 +108,18 @@ bun --filter '@ai-agents-observability/web' test
 # Positive: insert a valid access_grants row, verify access succeeds.
 # Expiry: backdate expires_at, verify access is denied.
 ```
+
+> **Verification status (review):** `grant-policy.test.ts` (6 cases — active window incl.
+> expired-as-no-grant, and single_session vs user_sessions scope coverage) **passes locally**
+> + biome clean. Pure predicates live in `grant-policy.ts` (Prisma-free, testable); `hasActiveGrant`
+> in roles.ts pushes the active-window filter into the query and uses `grantCovers` for scope.
+> `AccessGrant` model + `GrantScope` enum + `grant_requested/approved/revoked` AuditActions +
+> migration added. `/admin/access-grants` (list + approve-with-expiry + revoke) and
+> `/admin/access-grants/new` (request) ship; each lifecycle step writes an audit row with
+> `target_user_id`, so the viewed user sees it in `/me/audit`.
+>
+> **Scope note:** today the only org transcript path (org search) is opt-in-only, so grants are
+> the *additive* §8.4 override. `hasActiveGrant` is the primitive to gate a grant-backed transcript
+> view; wiring it into a concrete "view a non-sharing user's transcript under a grant" route (plus
+> the per-view audit) is the integration follow-up — the data model, workflow, and check are
+> complete. `typecheck` + DB tests run in CI (Prisma egress-blocked locally).

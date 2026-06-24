@@ -201,7 +201,7 @@ See [`P9-roadmap.md`](./P9-roadmap.md). Turns passive dashboards into proactive 
 |---|---|---|---|---|---|
 | [P9-001](./P9-001-alert-rules-engine.md) | Alert rules engine (scheduled evaluation) | review | claude | L | P4-004, P4-005 |
 | [P9-002](./P9-002-alert-notifications.md) | Alert notification delivery + admin UI | blocked | — | M | P9-001 |
-| [P9-003](./P9-003-timeboxed-access-grants.md) | Time-boxed access grants (request/approve workflow) | ready | — | L | P3-005 |
+| [P9-003](./P9-003-timeboxed-access-grants.md) | Time-boxed access grants (request/approve workflow) | review | claude | L | P3-005 |
 | [P9-004](./P9-004-per-team-retention.md) | Per-team retention override | review | claude | M | P4-007 |
 | [P9-005](./P9-005-research-role.md) | Research / investigator capability (Audience B) | blocked | — | M | P9-003, P3-001 |
 | [P9-006](./P9-006-governance-alert-tests.md) | Governance + alerting invariant test suite | blocked | — | M | P9-002, P9-005 |
