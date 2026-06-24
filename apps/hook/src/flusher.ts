@@ -1,7 +1,10 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import type { GitContext } from '@ai-agents-observability/schemas';
+
 import { backoffSleep } from './lib/backoff';
+import { getGitContext } from './lib/git';
 import { loadHookToken } from './lib/identity';
 import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
@@ -65,6 +68,39 @@ export function buildBatchEnvelope(events: unknown[]): {
   return { events, session_context: newest?.session_context ?? null };
 }
 
+// ── Git enrichment ────────────────────────────────────────────────────────────
+
+type EnrichableEvent = {
+  session_context?: { cwd?: unknown; git?: GitContext | null } | null;
+};
+
+/**
+ * Fill in `session_context.git` for events captured without it. The hook
+ * deliberately leaves git context null on the hot path (P1-021); the flusher is
+ * the documented enrichment point. Results are cached per cwd so a batch
+ * spanning many events in one repo runs `git` only once.
+ */
+export function enrichGitContext(
+  events: unknown[],
+  resolve: (cwd: string) => GitContext | null = getGitContext,
+): void {
+  const cache = new Map<string, GitContext | null>();
+  for (const ev of events as EnrichableEvent[]) {
+    const ctx = ev?.session_context;
+    if (!ctx || ctx.git || typeof ctx.cwd !== 'string' || ctx.cwd.length === 0) {
+      continue;
+    }
+    let git = cache.get(ctx.cwd);
+    if (git === undefined) {
+      git = resolve(ctx.cwd);
+      cache.set(ctx.cwd, git);
+    }
+    if (git) {
+      ctx.git = git;
+    }
+  }
+}
+
 // ── Flusher loop ──────────────────────────────────────────────────────────────
 
 export async function runFlusher(): Promise<void> {
@@ -112,6 +148,7 @@ export async function runFlusher(): Promise<void> {
 
       const eventIds = rows.map((r) => r.event_id);
       const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
+      enrichGitContext(events);
       const body = JSON.stringify(buildBatchEnvelope(events));
 
       let success = false;

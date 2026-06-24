@@ -13,6 +13,15 @@ export type TeamSummary = {
   slug: string;
 };
 
+/** A team the authenticated user belongs to, across all of their orgs. */
+export type UserTeamSummary = {
+  id: number;
+  name: string;
+  orgLogin: string;
+  role: 'member' | 'maintainer';
+  slug: string;
+};
+
 export type RepoSummary = {
   default_branch: string;
   full_name: string;

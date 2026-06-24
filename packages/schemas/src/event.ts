@@ -35,22 +35,27 @@ const ClientInfoSchema = z.object({
   os: z.enum(['darwin', 'linux', 'win32']),
 });
 
+// Tool fields that aren't knowable at capture time (duration, exit, output size)
+// default rather than being required, so the hook can emit a tool block from
+// just `tool_name` + `tool_input`. `name` is the only hard requirement.
 const ToolInfoSchema = z.object({
-  category: z.string(),
-  duration_ms: z.number().int().nonnegative(),
-  exit_status: z.number().int().nullable(),
-  input_bytes: z.number().int().nonnegative(),
-  input_hash: z.string().nullable(),
-  mcp_server: z.string().nullable(),
-  mcp_tool: z.string().nullable(),
+  category: z.string().default('other'),
+  duration_ms: z.number().int().nonnegative().default(0),
+  exit_status: z.number().int().nullable().default(null),
+  input_bytes: z.number().int().nonnegative().default(0),
+  input_hash: z.string().nullable().default(null),
+  mcp_server: z.string().nullable().default(null),
+  mcp_tool: z.string().nullable().default(null),
   name: z.string(),
-  output_bytes: z.number().int().nonnegative(),
-  skill: z.string().nullable(),
-  slash_command: z.string().nullable(),
-  subagent_type: z.string().nullable(),
-  was_denied: z.boolean(),
-  was_interrupted: z.boolean(),
+  output_bytes: z.number().int().nonnegative().default(0),
+  skill: z.string().nullable().default(null),
+  slash_command: z.string().nullable().default(null),
+  subagent_type: z.string().nullable().default(null),
+  was_denied: z.boolean().default(false),
+  was_interrupted: z.boolean().default(false),
 });
+
+export type ToolInfo = z.infer<typeof ToolInfoSchema>;
 
 const LLMInfoSchema = z.object({
   cache_creation_tokens: z.number().int().nonnegative(),
@@ -61,14 +66,12 @@ const LLMInfoSchema = z.object({
   output_tokens: z.number().int().nonnegative(),
 });
 
-// v1: tool and llm are optional across all event types for simplicity. A future version should
-// use z.discriminatedUnion('event_type', [...]) to enforce that PostToolUse/PreToolUse require
-// tool, that LLM-producing events require llm, and that SessionStart carries neither.
-export const EventSchema = z.object({
+// Fields shared by every event variant. `event_type`, `tool`, and `llm` are added
+// per-variant by the discriminated union below.
+const baseEventShape = {
   agent_type: AgentTypeSchema.default('claude-code'),
   client: ClientInfoSchema,
   event_id: z.uuidv7(),
-  event_type: EventTypeSchema,
   llm: LLMInfoSchema.nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).default({}),
   parent_event_id: z.uuidv7().nullable().optional(),
@@ -80,11 +83,28 @@ export const EventSchema = z.object({
   schema_version: z.literal(1),
   session_context: SessionContextSchema,
   session_id: z.uuid(),
-  tool: ToolInfoSchema.nullable().optional(),
   ts: z.iso.datetime({ offset: true }),
   turn_number: z.number().int().nonnegative().optional(),
   user_id_claim: z.string(),
-});
+};
+
+// `tool` is REQUIRED on the two tool-lifecycle events (so analytics that count
+// tool calls / read tool_name can rely on it — see upsert-session.ts and
+// insert-events.ts) and optional elsewhere. Keeping the key present (optional)
+// on every variant lets consumers use `e.tool?.…` uniformly across the union.
+const toolOptional = ToolInfoSchema.nullable().optional();
+
+export const EventSchema = z.discriminatedUnion('event_type', [
+  z.object({ ...baseEventShape, event_type: z.literal('PreToolUse'), tool: ToolInfoSchema }),
+  z.object({ ...baseEventShape, event_type: z.literal('PostToolUse'), tool: ToolInfoSchema }),
+  z.object({ ...baseEventShape, event_type: z.literal('SubagentStop'), tool: toolOptional }),
+  z.object({ ...baseEventShape, event_type: z.literal('SessionStart'), tool: toolOptional }),
+  z.object({ ...baseEventShape, event_type: z.literal('Stop'), tool: toolOptional }),
+  z.object({ ...baseEventShape, event_type: z.literal('SessionEnd'), tool: toolOptional }),
+  z.object({ ...baseEventShape, event_type: z.literal('UserPromptSubmit'), tool: toolOptional }),
+  z.object({ ...baseEventShape, event_type: z.literal('PreCompact'), tool: toolOptional }),
+  z.object({ ...baseEventShape, event_type: z.literal('Notification'), tool: toolOptional }),
+]);
 
 export type Event = z.infer<typeof EventSchema>;
 
@@ -94,3 +114,15 @@ export const EventsBatchSchema = z.object({
 });
 
 export type EventsBatch = z.infer<typeof EventsBatchSchema>;
+
+// Lenient envelope for tolerant ingestion: the `events` array is left unparsed
+// so the caller can validate each event individually (EventSchema.safeParse) and
+// accept the valid ones rather than rejecting the whole batch — which, because
+// the flusher treats a 4xx as "bad data" and drops the rows, would otherwise
+// turn one malformed event into the loss of every co-batched event.
+export const EventsBatchEnvelopeSchema = z.object({
+  events: z.array(z.unknown()),
+  session_context: SessionContextSchema,
+});
+
+export type EventsBatchEnvelope = z.infer<typeof EventsBatchEnvelopeSchema>;

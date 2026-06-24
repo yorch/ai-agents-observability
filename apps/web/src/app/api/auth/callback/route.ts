@@ -6,6 +6,7 @@ import { getProvider } from '@/lib/auth-provider';
 import { ensureVisibilityPolicy } from '@/lib/ensure-visibility-policy';
 import { getPrisma } from '@/lib/prisma';
 import { consumeNextCookie, getStateCookie, hashState, setAuthCookies } from '@/lib/session-cookie';
+import { syncLoginTeams } from '@/lib/sync-login-teams';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -51,6 +52,15 @@ export async function GET(request: Request) {
   });
 
   await ensureVisibilityPolicy(db, user.id);
+
+  // Sync the user's GitHub team membership at login so `/team/*` has data
+  // immediately. Best-effort: a GitHub/API failure must not block sign-in.
+  try {
+    const memberships = await getProvider().fetchTeams(identity);
+    await syncLoginTeams(db, user.id, memberships);
+  } catch {
+    // non-fatal — the org-wide sync-teams cron will reconcile later
+  }
 
   const [access, refresh] = await Promise.all([
     issueAccessToken(user.id),

@@ -1,6 +1,11 @@
-import { gunzipSync, zstdCompressSync, zstdDecompressSync } from 'node:zlib';
+import { promisify } from 'node:util';
+import { gunzip, zstdCompress, zstdDecompress } from 'node:zlib';
 
 import { redact } from '@ai-agents-observability/redaction';
+
+const gunzipAsync = promisify(gunzip);
+const zstdDecompressAsync = promisify(zstdDecompress);
+const zstdCompressAsync = promisify(zstdCompress);
 
 export type PipelineResult = {
   outputBytes: number;
@@ -30,17 +35,20 @@ export class TranscriptTooLargeError extends Error {
 // process. v1 keeps the whole transcript in memory because single-PUT to MinIO
 // is simpler than streaming multipart; switch to a streaming pipeline
 // (`createZstdDecompress` + `node:readline`) if real sessions approach the cap.
-export function processTranscript(
+//
+// All zlib ops run on the libuv threadpool (async variants) so they don't block
+// the single-threaded Bun.serve event loop during compress/decompress.
+export async function processTranscript(
   compressed: Uint8Array,
   contentType?: string,
   maxDecompressedBytes: number = MAX_DECOMPRESSED_BYTES,
-): PipelineResult {
+): Promise<PipelineResult> {
   let decompressed: Buffer;
   try {
     decompressed =
       contentType === 'application/gzip'
-        ? gunzipSync(compressed, { maxOutputLength: maxDecompressedBytes })
-        : zstdDecompressSync(compressed, { maxOutputLength: maxDecompressedBytes });
+        ? await gunzipAsync(compressed, { maxOutputLength: maxDecompressedBytes })
+        : await zstdDecompressAsync(compressed, { maxOutputLength: maxDecompressedBytes });
   } catch (err) {
     // node:zlib throws RangeError ERR_BUFFER_TOO_LARGE when maxOutputLength is hit.
     if ((err as { code?: string }).code === 'ERR_BUFFER_TOO_LARGE') {
@@ -58,7 +66,17 @@ export function processTranscript(
   const trailingNewline = text.endsWith('\n');
   const lines = trailingNewline ? text.slice(0, -1).split('\n') : text.split('\n');
 
-  for (const line of lines) {
+  // Process lines with a cooperative yield every 2000 lines so the CPU-bound
+  // redaction loop cannot starve other event-loop tasks (e.g. /v1/events).
+  // setImmediate is used rather than Promise.resolve() because it places the
+  // continuation after I/O callbacks in Bun's event loop, giving pending network
+  // handlers a chance to run.
+  const YIELD_INTERVAL = 2000;
+  for (let i = 0; i < lines.length; i++) {
+    if (i > 0 && i % YIELD_INTERVAL === 0) {
+      await new Promise<void>((r) => setImmediate(r));
+    }
+    const line = lines[i] as string;
     if (line.length === 0) {
       redactedLines.push('');
       continue;
@@ -72,7 +90,7 @@ export function processTranscript(
 
   const out = redactedLines.join('\n') + (trailingNewline ? '\n' : '');
   const outBytes = new TextEncoder().encode(out);
-  const recompressed = new Uint8Array(zstdCompressSync(outBytes));
+  const recompressed = new Uint8Array(await zstdCompressAsync(outBytes));
 
   return {
     outputBytes: recompressed.byteLength,

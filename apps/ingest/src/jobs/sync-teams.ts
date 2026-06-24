@@ -3,13 +3,18 @@ import { createGitHubClient, getOrgTeams, getTeamMembers } from '@ai-agents-obse
 import type { Logger } from 'pino';
 
 /**
- * Syncs Team + TeamMember rows from GitHub orgs for all users.
+ * Org-wide reconciler for Team + TeamMember rows from GitHub orgs.
  * Uses pg advisory lock to avoid duplicate concurrent runs.
  * Writes a JobRun row for observability.
  *
- * NOTE: GitHub tokens are not currently stored on User rows — this job
- * logs a warning and skips users without tokens. Token storage will be
- * wired up in Phase 4 when the credential store is added.
+ * This complements the per-user sync that runs at login
+ * (`GitHubProvider.fetchTeams` → `syncLoginTeams` in apps/web): a developer's
+ * own membership is current the moment they sign in, and this cron catches
+ * membership changes for users who are not actively logging in.
+ *
+ * NOTE: per-user GitHub OAuth tokens are not persisted, so this job runs with a
+ * single shared `githubSyncToken` (a service/org token). Without it, the job
+ * logs a warning and no-ops — login-time sync still keeps active users current.
  */
 export async function runSyncTeams(
   db: PrismaClient,
@@ -40,7 +45,8 @@ export async function runSyncTeams(
     });
     jobRunId = jobRun.id;
 
-    // Get all users (GitHub token storage is out of scope — skip gracefully)
+    // Per-user OAuth tokens are not persisted; the shared token (if any) drives
+    // org-wide reconciliation, while login-time sync covers active users.
     const users = await db.user.findMany({
       select: {
         githubLogin: true,
@@ -55,11 +61,12 @@ export async function runSyncTeams(
     logger?.info({ count: users.length, jobName }, 'Processing users for team sync');
 
     for (const user of users) {
-      // Tokens are not stored on User yet — this is a stub for future wiring
+      // No shared service token configured — login-time sync still covers
+      // active users, so this is a soft skip rather than an error.
       if (!githubSyncToken) {
         logger?.warn(
           { githubLogin: user.githubLogin, userId: user.id },
-          'No GitHub token available for team sync; skipping user (token storage not yet implemented)',
+          'No shared GitHub sync token configured; relying on login-time team sync for this user',
         );
         continue;
       }

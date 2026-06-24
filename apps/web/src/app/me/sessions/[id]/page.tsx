@@ -5,7 +5,7 @@ import { StatusBadge } from '@/components/me/StatusBadge';
 import { Timeline } from '@/components/me/Timeline';
 import { currentUser } from '@/lib/auth';
 import type { ModelBreakdownRow } from '@/lib/sessions-queries';
-import { getSession, getSessionModelBreakdown } from '@/lib/sessions-queries';
+import { getSession, getSessionEvents, getSessionModelBreakdown } from '@/lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,11 +29,12 @@ export default async function SessionDetailPage({
 
   // The breakdown only needs userId+sessionId (not the session row), so when the
   // models tab is active run both queries concurrently instead of serially.
-  const [session, modelBreakdown] = await Promise.all([
+  const [session, modelBreakdown, sessionEvents] = await Promise.all([
     getSession(user.id, id),
     tab === 'models'
       ? getSessionModelBreakdown(user.id, id)
       : Promise.resolve([] as ModelBreakdownRow[]),
+    tab === 'timeline' ? getSessionEvents(user.id, id) : Promise.resolve([]),
   ]);
   if (!session) {
     notFound();
@@ -99,7 +100,7 @@ export default async function SessionDetailPage({
       </div>
 
       {/* Tab content */}
-      {tab === 'timeline' && <Timeline session={session} />}
+      {tab === 'timeline' && <Timeline events={sessionEvents} session={session} />}
       {tab === 'tools' && <ToolsTab session={session} />}
       {tab === 'models' && <ModelsTab costUsd={session.costUsd} rows={modelBreakdown} />}
     </div>

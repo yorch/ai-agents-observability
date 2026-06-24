@@ -9,6 +9,8 @@ export type ExternalIdentity = {
 export type TeamMembership = {
   org: string;
   role: 'member' | 'maintainer';
+  team_github_id: number;
+  team_name: string;
   team_slug: string;
 };
 

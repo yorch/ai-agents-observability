@@ -207,9 +207,9 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
 
         const reqId = c.get('requestId');
         const startMs = Date.now();
-        let result: ReturnType<typeof processTranscript>;
+        let result: Awaited<ReturnType<typeof processTranscript>>;
         try {
-          result = processTranscript(compressed, mime ?? undefined);
+          result = await processTranscript(compressed, mime ?? undefined);
         } catch (err) {
           if (err instanceof TranscriptTooLargeError) {
             return c.json({ error: 'Transcript too large after decompression' }, 413);

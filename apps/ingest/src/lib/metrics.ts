@@ -30,3 +30,15 @@ export const transcriptsStoredTotal = new Counter({
   name: 'transcripts_stored_total',
   registers: [registry],
 });
+
+// A model absent from the price table bills $0 despite real token usage. This
+// counter makes that visible on the ops dashboard rather than only in logs, so
+// an unpriced (e.g. newly released, or non-Anthropic) model is caught quickly.
+// Intentionally unlabelled: the model string is client-supplied and unbounded,
+// so using it as a label risks cardinality blowup. The model names are recorded
+// in the accompanying warn log for triage.
+export const unknownModelEventsTotal = new Counter({
+  help: 'Events whose model was absent from the price table (billed $0)',
+  name: 'unknown_model_events_total',
+  registers: [registry],
+});

@@ -12,7 +12,7 @@ export type TeamContext = {
   user: User;
 };
 
-const LEAD_ROLES: TeamRole[] = [TeamRole.lead, TeamRole.maintainer];
+export const LEAD_ROLES: TeamRole[] = [TeamRole.lead, TeamRole.maintainer];
 
 async function resolveTeam(slug: string) {
   const team = await getPrisma().team.findUnique({

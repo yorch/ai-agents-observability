@@ -1,5 +1,5 @@
-import type { PriceTable } from '@ai-agents-observability/schemas';
-import { EventsBatchSchema } from '@ai-agents-observability/schemas';
+import type { Event, PriceTable } from '@ai-agents-observability/schemas';
+import { EventSchema, EventsBatchEnvelopeSchema } from '@ai-agents-observability/schemas';
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -7,7 +7,7 @@ import type { Logger } from 'pino';
 
 import { verifyIdentityClaim } from '../lib/identity';
 import { insertEventsBatch } from '../lib/insert-events';
-import { eventsIngestedTotal } from '../lib/metrics';
+import { eventsIngestedTotal, unknownModelEventsTotal } from '../lib/metrics';
 import { linkSessionToPR } from '../lib/session-pr-link';
 import { upsertSessions } from '../lib/upsert-session';
 import type { AppEnv, EventsDb } from '../types';
@@ -27,18 +27,43 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
       maxSize: MAX_BODY_BYTES,
       onError: (c) => c.json({ error: 'Request body too large' }, 413),
     }),
-    zValidator('json', EventsBatchSchema, (result, c) => {
+    // Validate the envelope structure (and the fallback session_context) up
+    // front, but leave the events array unparsed — each event is validated
+    // individually below so one malformed event can't reject the whole batch.
+    zValidator('json', EventsBatchEnvelopeSchema, (result, c) => {
       if (!result.success) {
         return c.json({ error: 'Validation error', issues: result.error.issues }, 400);
       }
       return;
     }),
     async (c) => {
-      const batch = c.req.valid('json');
+      const envelope = c.req.valid('json');
 
-      if (batch.events.length > 500) {
+      if (envelope.events.length > 500) {
         return c.json({ error: 'Batch exceeds 500 events' }, 413);
       }
+
+      // Tolerant per-event validation: keep the valid events, drop + count the
+      // rejected ones. Dropping invalid events is correct (a retry would replay
+      // the same bad data); the flusher deletes the rows on our 202.
+      const events: Event[] = [];
+      let rejected = 0;
+      for (const raw of envelope.events) {
+        const parsed = EventSchema.safeParse(raw);
+        if (parsed.success) {
+          events.push(parsed.data);
+        } else {
+          rejected += 1;
+        }
+      }
+      if (rejected > 0) {
+        logger.warn(
+          { rejected, reqId: c.get('requestId'), total: envelope.events.length },
+          'ingest.events.rejected_invalid',
+        );
+      }
+
+      const batch = { events, session_context: envelope.session_context };
 
       const userId = verifyIdentityClaim(c, batch.events[0]?.user_id_claim, logger);
 
@@ -109,6 +134,7 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
       }
 
       if (inserted.unknownModels.size > 0) {
+        unknownModelEventsTotal.inc(inserted.unknownModels.size);
         logger.warn(
           { models: [...inserted.unknownModels], reqId },
           'ingest.events.unknown_model_zero_cost',
@@ -148,6 +174,7 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
         {
           accepted: inserted.accepted,
           deduped: inserted.deduped,
+          rejected,
           request_id: reqId,
           sessions_touched: aggregated.sessionsTouched,
         },

@@ -1,66 +1,57 @@
-type Counter = { failed: number; processed: number; received: number };
-type CircularBuffer = { buf: number[]; size: number; head: number };
+import { Counter, collectDefaultMetrics, Histogram, Registry } from 'prom-client';
 
-const counters = new Map<string, Counter>();
-const latencies = new Map<string, CircularBuffer>();
+export const registry = new Registry();
+collectDefaultMetrics({ register: registry });
 
-const WINDOW_SIZE = 1000;
+export const webhookEventsTotal = new Counter({
+  help: 'Total webhook events by event type and processing status',
+  labelNames: ['event', 'status'] as const,
+  name: 'webhook_events_total',
+  registers: [registry],
+});
 
-function getCounter(event: string): Counter {
-  let c = counters.get(event);
-  if (!c) {
-    c = { failed: 0, processed: 0, received: 0 };
-    counters.set(event, c);
-  }
-  return c;
-}
-
-function recordLatency(event: string, ms: number): void {
-  let buf = latencies.get(event);
-  if (!buf) {
-    buf = { buf: [], head: 0, size: WINDOW_SIZE };
-    latencies.set(event, buf);
-  }
-  if (buf.buf.length < buf.size) {
-    buf.buf.push(ms);
-  } else {
-    buf.buf[buf.head % buf.size] = ms;
-    buf.head++;
-  }
-}
-
-function p99(event: string): number | null {
-  const buf = latencies.get(event);
-  if (!buf || buf.buf.length === 0) {
-    return null;
-  }
-  const sorted = [...buf.buf].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length * 0.99)] ?? sorted[sorted.length - 1] ?? null;
-}
+export const webhookProcessingDuration = new Histogram({
+  buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500],
+  help: 'Webhook processing duration in milliseconds by event type',
+  labelNames: ['event'] as const,
+  name: 'webhook_processing_duration_ms',
+  registers: [registry],
+});
 
 export function recordReceived(event: string): void {
-  getCounter(event).received++;
+  webhookEventsTotal.inc({ event, status: 'received' });
 }
 
 export function recordProcessed(event: string, ms: number): void {
-  getCounter(event).processed++;
-  recordLatency(event, ms);
+  webhookEventsTotal.inc({ event, status: 'processed' });
+  webhookProcessingDuration.observe({ event }, ms);
 }
 
 export function recordFailed(event: string): void {
-  getCounter(event).failed++;
+  webhookEventsTotal.inc({ event, status: 'failed' });
 }
 
-export function getMetrics(): Record<
-  string,
-  { failed: number; p99_ms: number | null; processed: number; received: number }
-> {
-  const result: Record<
-    string,
-    { failed: number; p99_ms: number | null; processed: number; received: number }
-  > = {};
-  for (const [event, c] of counters) {
-    result[event] = { ...c, p99_ms: p99(event) };
+export type DeliveryCounts = { failed: number; processed: number; received: number };
+
+/**
+ * Per-event delivery counts for the admin health endpoint (GET /admin/health),
+ * derived from the same prom-client counter that `/metrics` exposes (so the two
+ * never drift). The full time series — including latency — is on `/metrics`.
+ */
+export async function getMetrics(): Promise<Record<string, DeliveryCounts>> {
+  const metric = await webhookEventsTotal.get();
+  const out: Record<string, DeliveryCounts> = {};
+  for (const v of metric.values) {
+    const event = String(v.labels.event ?? 'unknown');
+    const status = String(v.labels.status ?? '');
+    let bucket = out[event];
+    if (!bucket) {
+      bucket = { failed: 0, processed: 0, received: 0 };
+      out[event] = bucket;
+    }
+    if (status === 'received' || status === 'processed' || status === 'failed') {
+      bucket[status] = v.value;
+    }
   }
-  return result;
+  return out;
 }
