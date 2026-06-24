@@ -7,6 +7,12 @@ function generateState(): string {
   return randomBytes(32).toString('hex');
 }
 
+// Associates a freshly-issued identity with its OAuth access token WITHOUT
+// exposing the secret as an enumerable property of `ExternalIdentity` (which
+// could leak if the identity is ever logged or serialized). The entry lives only
+// as long as the identity object the login flow holds, then is garbage-collected.
+const accessTokenByIdentity = new WeakMap<ExternalIdentity, string>();
+
 export class GitHubProvider implements IdentityProvider {
   readonly name = 'github';
 
@@ -76,25 +82,21 @@ export class GitHubProvider implements IdentityProvider {
       }
     }
 
-    return {
+    const identity: ExternalIdentity = {
       display_name: ghUser.name ?? ghUser.login,
       email,
       external_id: String(ghUser.id),
       provider_name: 'github',
-      // `access_token` is stashed transiently so `fetchTeams` can call the GitHub
-      // API on the caller's behalf during the same login request. It is never
-      // persisted — the OAuth callback consumes it in-memory and discards it.
-      raw: {
-        access_token: tokenBody.access_token,
-        avatar_url: ghUser.avatar_url,
-        id: ghUser.id,
-        login: ghUser.login,
-      },
+      raw: { avatar_url: ghUser.avatar_url, id: ghUser.id, login: ghUser.login },
     };
+    // Stash the token off-band so `fetchTeams` can call GitHub during the same
+    // login request without the secret riding along on the storable identity.
+    accessTokenByIdentity.set(identity, tokenBody.access_token);
+    return identity;
   }
 
   async fetchTeams(identity: ExternalIdentity): Promise<TeamMembership[]> {
-    const token = (identity.raw as { access_token?: string }).access_token;
+    const token = accessTokenByIdentity.get(identity);
     if (!token) {
       return [];
     }

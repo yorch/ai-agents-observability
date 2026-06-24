@@ -109,9 +109,7 @@ export function eventsRouter(db: EventsDb, priceTable: PriceTable, logger: Logge
       }
 
       if (inserted.unknownModels.size > 0) {
-        for (const model of inserted.unknownModels) {
-          unknownModelEventsTotal.inc({ model });
-        }
+        unknownModelEventsTotal.inc(inserted.unknownModels.size);
         logger.warn(
           { models: [...inserted.unknownModels], reqId },
           'ingest.events.unknown_model_zero_cost',

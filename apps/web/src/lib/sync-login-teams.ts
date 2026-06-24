@@ -16,6 +16,16 @@ export async function syncLoginTeams(
   userId: string,
   memberships: TeamMembership[],
 ): Promise<void> {
+  // An empty membership list is ambiguous: the user may genuinely be on no
+  // teams, but it also results from a token-less provider (e.g. NoopProvider in
+  // dev) or a transient GitHub error that returns 200 + []. Treating it as
+  // authoritative would soft-delete every membership and lock the user out of
+  // /team/*, so bail before any destructive reconciliation — org-wide departure
+  // handling is owned by the sync-teams cron.
+  if (memberships.length === 0) {
+    return;
+  }
+
   const now = new Date();
   const teamIds: string[] = [];
 
@@ -43,9 +53,13 @@ export async function syncLoginTeams(
         teamId: team.id,
         userId,
       },
+      // Deliberately NOT updating roleInTeam: GitHub's /user/teams endpoint
+      // can't report maintainer, so `m.role` is always 'member'. Writing it on
+      // every login would downgrade a lead/maintainer promoted elsewhere (the
+      // cron, or a manual grant). Role is set once on first insert, then left
+      // untouched.
       update: {
         leftAt: null,
-        roleInTeam: m.role,
         syncedAt: now,
       },
       where: { teamId_userId: { teamId: team.id, userId } },
@@ -54,13 +68,10 @@ export async function syncLoginTeams(
     teamIds.push(team.id);
   }
 
-  // Soft-delete memberships that are no longer present. An empty `teamIds`
-  // (user is on no teams) correctly clears all of this user's active rows.
+  // Reconcile departures: soft-delete this user's active memberships for teams
+  // we did NOT just observe. `teamIds` is non-empty here, so `notIn` is safe.
   await db.teamMember.updateMany({
     data: { leftAt: now },
-    where:
-      teamIds.length === 0
-        ? { leftAt: null, userId }
-        : { leftAt: null, teamId: { notIn: teamIds }, userId },
+    where: { leftAt: null, teamId: { notIn: teamIds }, userId },
   });
 }

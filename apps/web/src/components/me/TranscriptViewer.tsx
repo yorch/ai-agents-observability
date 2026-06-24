@@ -49,7 +49,11 @@ function ToolUseBlockView({ block }: { block: ToolUseBlock }) {
 
 function ToolResultBlockView({ block }: { block: ToolResultBlock }) {
   const raw =
-    typeof block.content === 'string' ? block.content : JSON.stringify(block.content, null, 2);
+    typeof block.content === 'string'
+      ? block.content
+      : // JSON.stringify returns `undefined` (not a string) for an absent/undefined
+        // content field; coalesce so the `.length` access below can't crash the viewer.
+        (JSON.stringify(block.content, null, 2) ?? '');
   const isLong = raw.length > 500;
   return (
     <details className="rounded border border-white/10 bg-white/5 text-sm">

@@ -79,7 +79,7 @@ function emptyAgg(sessionId: string, userId: string, event: Event): SessionAgg {
 }
 
 function isEndEvent(eventType: Event['event_type']): boolean {
-  return eventType === 'Stop' || eventType === 'SubagentStop';
+  return eventType === 'Stop' || eventType === 'SessionEnd' || eventType === 'SubagentStop';
 }
 
 function applyEvent(agg: SessionAgg, event: Event, priceTable: PriceTable): void {

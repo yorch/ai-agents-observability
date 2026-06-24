@@ -58,7 +58,7 @@ function describeEvent(ev: SessionEvent): {
     const sublabel = denied ? 'denied' : ev.mcpServer ? `via ${ev.mcpServer}` : undefined;
     return { color, label, sublabel };
   }
-  if (ev.eventType === 'UserPromptSubmit' || ev.slashCommand) {
+  if (ev.eventType === 'UserPromptSubmit') {
     return {
       color: 'bg-sky-400',
       label: ev.slashCommand ? `/${ev.slashCommand}` : 'User message',
