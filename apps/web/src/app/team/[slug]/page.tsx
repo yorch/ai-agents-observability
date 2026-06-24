@@ -1,5 +1,8 @@
+import { FrictionDistributionChart } from '@/components/me/FrictionDistributionChart';
 import { ModelMixChart } from '@/components/me/ModelMix';
+import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
+import { getTeamEffectivenessDistribution } from '@/lib/effectiveness-queries';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamModelMix,
@@ -19,10 +22,11 @@ export default async function TeamOverviewPage({ params }: { params: Promise<{ s
   const since = daysAgo(30);
   const { totalCount, visibleIds } = await resolveTeamVisibility(teamId);
 
-  const [summary, tools, models] = await Promise.all([
+  const [summary, tools, models, effectiveness] = await Promise.all([
     getTeamSummary(since, visibleIds, totalCount),
     getTeamTopTools(since, visibleIds),
     getTeamModelMix(since, visibleIds),
+    getTeamEffectivenessDistribution(visibleIds, { since }),
   ]);
 
   const hasData = summary.sessionCount > 0;
@@ -48,10 +52,16 @@ export default async function TeamOverviewPage({ params }: { params: Promise<{ s
       {!hasData ? (
         <EmptyState />
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
-          <TopTools title="Top Tools" tools={tools} />
-          <ModelMixChart models={models} />
-        </div>
+        <>
+          <div className="grid gap-6 md:grid-cols-2">
+            <TopTools title="Top Tools" tools={tools} />
+            <ModelMixChart models={models} />
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <FrictionDistributionChart distribution={effectiveness} />
+            <ShapeDistributionChart histogram={effectiveness.shapeMix} />
+          </div>
+        </>
       )}
     </div>
   );

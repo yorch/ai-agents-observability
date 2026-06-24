@@ -171,7 +171,7 @@ See [`P7-roadmap.md`](./P7-roadmap.md). Surfaces effectiveness signals (already 
 | [P7-001](./P7-001-effectiveness-backfill.md) | Effectiveness backfill (historical sessions) | review | claude | M | P5-001, P5-002 |
 | [P7-002](./P7-002-effectiveness-query-layer.md) | Effectiveness query layer (web) | review | claude | S | P7-001 |
 | [P7-003](./P7-003-me-effectiveness-widgets.md) | /me effectiveness widgets (friction trend + shape mix) | review | claude | M | P7-002 |
-| [P7-004](./P7-004-team-org-effectiveness.md) | Team + org effectiveness dashboards | blocked | — | M | P7-002 |
+| [P7-004](./P7-004-team-org-effectiveness.md) | Team + org effectiveness dashboards | review | claude | M | P7-002 |
 | [P7-005](./P7-005-me-transcript-search.md) | /me transcript search (per-user FTS) | ready | — | M | P4-003 |
 | [P7-006](./P7-006-search-facet-enrichment.md) | Search facet enrichment (shape, friction band, agent type) | blocked | — | S | P4-002, P7-001 |
 | [P7-007](./P7-007-semantic-transcript-search.md) | Semantic transcript search (gated spike) | ready | — | L | P4-003 |

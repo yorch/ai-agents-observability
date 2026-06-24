@@ -1,9 +1,12 @@
+import { FrictionDistributionChart } from '@/components/me/FrictionDistributionChart';
+import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
 import {
   getAnomalies,
   getCostByModel,
   getCostByRepo,
   getCostByTeam,
+  getOrgEffectiveness,
   getOrgSummary,
   getOrgTopTools,
   getWeeklyCostTrend,
@@ -20,15 +23,17 @@ export default async function OrgDashboardPage() {
   const since = daysAgo(30);
   const isAdmin = isOrgAdmin(orgRole);
 
-  const [summary, teamCost, repoCost, modelCost, tools, trend, anomalies] = await Promise.all([
-    getOrgSummary(since),
-    getCostByTeam(since),
-    getCostByRepo(since),
-    getCostByModel(since),
-    getOrgTopTools(since),
-    getWeeklyCostTrend(12),
-    getAnomalies(),
-  ]);
+  const [summary, teamCost, repoCost, modelCost, tools, trend, anomalies, effectiveness] =
+    await Promise.all([
+      getOrgSummary(since),
+      getCostByTeam(since),
+      getCostByRepo(since),
+      getCostByModel(since),
+      getOrgTopTools(since),
+      getWeeklyCostTrend(12),
+      getAnomalies(),
+      getOrgEffectiveness(since),
+    ]);
 
   const modelTotalCost = modelCost.reduce((s, r) => s + r.costUsd, 0);
 
@@ -175,6 +180,15 @@ export default async function OrgDashboardPage() {
 
         {/* Top tools */}
         <TopTools title="Top Tools (org-wide)" tools={tools} />
+      </div>
+
+      {/* Effectiveness — aggregate only, visibility-scoped */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <FrictionDistributionChart
+          distribution={effectiveness}
+          title="Friction distribution (org)"
+        />
+        <ShapeDistributionChart histogram={effectiveness.shapeMix} />
       </div>
 
       {!isAdmin && (

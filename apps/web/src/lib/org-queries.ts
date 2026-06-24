@@ -1,4 +1,5 @@
 import { Prisma } from '@ai-agents-observability/db';
+import type { EffectivenessDistribution } from './effectiveness-queries';
 import { getPrisma } from './prisma';
 
 export type OrgSummary = {
@@ -212,6 +213,58 @@ export async function getCostByModel(since: Date): Promise<ModelCostRow[]> {
     outputTokens: r.output_tokens,
     sessionCount: Number(r.session_count),
   }));
+}
+
+/**
+ * Org-wide friction percentiles + shape mix for the trailing window. The
+ * `share_metadata_with_org` visibility filter is part of the query (not a
+ * post-fetch filter), matching the other org-queries: a member who hasn't shared
+ * metadata with the org never contributes to the aggregate. Null friction scores
+ * are excluded (never counted as 0). Returns the shared EffectivenessDistribution
+ * shape; the <5-session suppression is enforced in the rendering component.
+ */
+export async function getOrgEffectiveness(since: Date): Promise<EffectivenessDistribution> {
+  const prisma = getPrisma();
+  const [pctRows, shapeRows] = await Promise.all([
+    prisma.$queryRaw<
+      { count: bigint; p25: number | null; p50: number | null; p75: number | null }[]
+    >(Prisma.sql`
+      SELECT
+        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY s.friction_score) AS p25,
+        PERCENTILE_CONT(0.5)  WITHIN GROUP (ORDER BY s.friction_score) AS p50,
+        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY s.friction_score) AS p75,
+        COUNT(s.friction_score)                                        AS count
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      WHERE s.started_at >= ${since}
+        AND s.friction_score IS NOT NULL
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+    `),
+    prisma.$queryRaw<{ count: bigint; shape_label: string }[]>(Prisma.sql`
+      SELECT s.shape_label, COUNT(*) AS count
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      WHERE s.started_at >= ${since}
+        AND s.shape_label IS NOT NULL
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+      GROUP BY s.shape_label
+    `),
+  ]);
+
+  const pct = pctRows[0];
+  const scoredSessions = pct ? Number(pct.count) : 0;
+  const friction =
+    pct && pct.p50 !== null ? { p25: pct.p25 ?? 0, p50: pct.p50, p75: pct.p75 ?? 0 } : null;
+
+  const totalShape = shapeRows.reduce((sum, r) => sum + Number(r.count), 0);
+  const shapeMix: Record<string, number> = {};
+  for (const r of shapeRows) {
+    shapeMix[r.shape_label] = totalShape > 0 ? Number(r.count) / totalShape : 0;
+  }
+
+  return { friction, scoredSessions, shapeMix };
 }
 
 export async function getWeeklyCostTrend(weeks = 12): Promise<DailyCostRow[]> {

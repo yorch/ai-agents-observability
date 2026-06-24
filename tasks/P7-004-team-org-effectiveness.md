@@ -3,8 +3,8 @@ id: P7-004
 title: Team + org effectiveness dashboards
 phase: 7
 workstream: E
-status: blocked
-owner: null
+status: review
+owner: claude
 depends_on: [P7-002]
 blocks: []
 estimate: M
@@ -68,3 +68,11 @@ bun --filter '@app/web' test
 bun run typecheck
 bun run check
 ```
+
+> **Verification status (review):** team + org effectiveness panels implemented;
+> `biome check --error-on-warnings` clean across all touched files. Team uses the
+> already-resolved `visibleIds` (share_metadata_with_team); org uses a new
+> `getOrgEffectiveness` whose `share_metadata_with_org` filter is in the SQL JOIN
+> (matching the other org-queries). `<5` scored-session suppression + FRICTION_VERSION
+> live in `FrictionDistributionChart`. `typecheck` runs in CI (Prisma client is
+> egress-blocked in the sandbox).
