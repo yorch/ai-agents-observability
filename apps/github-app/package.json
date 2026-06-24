@@ -20,6 +20,7 @@
     "hono": "catalog:",
     "jose": "catalog:",
     "pino": "catalog:",
+    "prom-client": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

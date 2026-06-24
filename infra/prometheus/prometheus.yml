@@ -8,6 +8,16 @@ scrape_configs:
       - targets: ['host.docker.internal:4000']
     metrics_path: /metrics
 
+  - job_name: github-app
+    static_configs:
+      - targets: ['host.docker.internal:4001']
+    metrics_path: /metrics
+
+  - job_name: web
+    static_configs:
+      - targets: ['host.docker.internal:3000']
+    metrics_path: /metrics
+
   - job_name: prometheus
     static_configs:
       - targets: ['localhost:9090']
