@@ -162,19 +162,27 @@ export async function buildZstdBody(filePath: string): Promise<{ body: Uint8Arra
     compressor.once('error', reject);
   });
 
-  // Frame lines exactly as `lines.join('\n')` did: a separator before every line
-  // except the first, so the hash (and decompressed bytes) are unchanged.
-  let first = true;
-  for await (const line of redactedLines(filePath)) {
-    const piece = Buffer.from(first ? line : `\n${line}`, 'utf8');
-    first = false;
-    hash.update(piece);
-    if (!compressor.write(piece)) {
-      await new Promise<void>((resolve) => compressor.once('drain', resolve));
+  try {
+    // Frame lines exactly as `lines.join('\n')` did: a separator before every
+    // line except the first, so the hash (and decompressed bytes) are unchanged.
+    let first = true;
+    for await (const line of redactedLines(filePath)) {
+      const piece = Buffer.from(first ? line : `\n${line}`, 'utf8');
+      first = false;
+      hash.update(piece);
+      if (!compressor.write(piece)) {
+        await new Promise<void>((resolve) => compressor.once('drain', resolve));
+      }
     }
+    compressor.end();
+    await finished;
+  } catch (err) {
+    // If reading/redaction throws mid-stream, tear the compressor down so its
+    // buffered output is freed promptly; swallow any late rejection from it.
+    compressor.destroy();
+    finished.catch(() => {});
+    throw err;
   }
-  compressor.end();
-  await finished;
 
   return { body: new Uint8Array(Buffer.concat(chunks)), hash: hash.digest('hex') };
 }

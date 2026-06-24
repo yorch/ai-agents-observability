@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
-import { StatusBadge } from '@/components/me/StatusBadge';
 import { currentUser } from '@/lib/auth';
 import type { ModelBreakdownRow } from '@/lib/sessions-queries';
 import { getSession, getSessionEvents, getSessionModelBreakdown } from '@/lib/sessions-queries';
@@ -47,31 +47,10 @@ export default async function SessionDetailPage({
       </Link>
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold">{session.repoName ?? 'Unknown repo'}</h1>
-            <StatusBadge status={session.status} />
-          </div>
-          <div className="flex flex-wrap gap-3 text-xs text-white/50">
-            {session.branch && <span>branch: {session.branch}</span>}
-            {session.commitSha && <span>commit: {session.commitSha.slice(0, 7)}</span>}
-            <span>started: {session.startedAt.toLocaleString()}</span>
-            {session.endedAt && <span>ended: {session.endedAt.toLocaleString()}</span>}
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-white/70">${session.costUsd.toFixed(4)}</span>
-          {session.transcriptS3Key && (
-            <Link
-              href={`/me/sessions/${id}/transcript`}
-              className="rounded-md border border-white/10 px-3 py-1.5 text-xs hover:bg-white/10 transition-colors"
-            >
-              View transcript
-            </Link>
-          )}
-        </div>
-      </div>
+      <SessionDetailHeader
+        session={session}
+        transcriptHref={session.transcriptS3Key ? `/me/sessions/${id}/transcript` : null}
+      />
 
       <SessionDetailTabs
         events={sessionEvents}

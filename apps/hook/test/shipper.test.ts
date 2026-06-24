@@ -136,7 +136,6 @@ describe('shipper upload', () => {
     try {
       // Simulate what the shipper does: build zstd body and PUT to endpoint
       const { redactedLines } = await import('../src/lib/transcript-stream');
-      const { createHash } = await import('node:crypto');
 
       const redactedLinesList: string[] = [];
       for await (const line of redactedLines(transcriptPath)) {
