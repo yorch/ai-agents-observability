@@ -3,8 +3,8 @@ id: P7-006
 title: Search facet enrichment (shape, friction band, agent type)
 phase: 7
 workstream: E
-status: blocked
-owner: null
+status: review
+owner: claude
 depends_on: [P4-002, P7-001]
 blocks: []
 estimate: S
@@ -73,3 +73,16 @@ bun --filter '@app/web' test
 bun run typecheck
 bun run check
 ```
+
+> **Verification status (review):** query-layer filters added to both `listSessions`
+> (/me) and `searchSessions` (/org) with predicates built conditionally; `sessions.test.ts`
+> gains 2 cases (filters land in `where`; absent when unset) — all 19 web query-layer tests
+> pass locally, `biome check --error-on-warnings` clean. `/org/search` shows shape + agent
+> facets from a single `GROUP BY` each (with counts) plus a fixed friction-band select; `/me`
+> session list gains the same three. Friction band → `frictionScore` range (null scores never
+> match). `typecheck` runs in CI (Prisma client egress-blocked locally).
+>
+> **Scope note:** the query layer accepts arrays for shape/agent (multi-select-capable and
+> covered by tests), but the page UI ships **single-select** dropdowns to avoid reworking the
+> existing pages' single-value param parsing. Multi-select UI (chips) is a small follow-up;
+> URL state, compose-with-existing-filters, and facet availability all work today.

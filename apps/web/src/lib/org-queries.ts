@@ -1,7 +1,8 @@
-import { Prisma } from '@ai-agents-observability/db';
+import { type $Enums, Prisma } from '@ai-agents-observability/db';
 import type { EffectivenessDistribution } from './effectiveness-queries';
 import { getPrisma } from './prisma';
 import { searchTranscriptMatches } from './search-queries';
+import { type FrictionBand, frictionBandWhere } from './sessions-queries';
 
 export type OrgSummary = {
   activeUsers: number;
@@ -390,11 +391,14 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
 // ── Faceted search ─────────────────────────────────────────────────────────────
 
 export type SessionSearchFilters = {
+  agentTypes?: string[] | undefined;
   dateFrom?: Date | undefined;
   dateTo?: Date | undefined;
+  frictionBand?: FrictionBand | undefined;
   model?: string | undefined;
   page?: number | undefined;
   repoId?: string | undefined;
+  shapeLabels?: string[] | undefined;
   teamId?: string | undefined;
   toolName?: string | undefined;
   userId?: string | undefined;
@@ -468,6 +472,11 @@ export async function searchSessions(
       : {}),
     ...(filters.model ? { primaryModel: filters.model } : {}),
     ...(filters.repoId ? { repoId: filters.repoId } : {}),
+    ...(filters.shapeLabels?.length ? { shapeLabel: { in: filters.shapeLabels } } : {}),
+    ...(filters.agentTypes?.length
+      ? { agentType: { in: filters.agentTypes as $Enums.AgentType[] } }
+      : {}),
+    ...(filters.frictionBand ? { frictionScore: frictionBandWhere(filters.frictionBand) } : {}),
   };
 
   // Tool filter requires a sub-query on events table (not in Prisma where)

@@ -19,6 +19,21 @@ const VALID_STATUSES = new Set<string>([
 
 const MAX_PAGE = 10_000;
 
+export type FrictionBand = 'low' | 'medium' | 'high';
+
+// Maps a friction band to a frictionScore range predicate. Bands per P7-003:
+// Low < 0.3, Medium 0.3–0.6, High > 0.6. Range comparisons on a nullable column
+// never match NULL, so insufficient-data sessions are excluded from every band.
+export function frictionBandWhere(band: FrictionBand): Prisma.FloatNullableFilter {
+  if (band === 'low') {
+    return { lt: 0.3 };
+  }
+  if (band === 'high') {
+    return { gt: 0.6 };
+  }
+  return { gte: 0.3, lte: 0.6 };
+}
+
 export type SessionRow = {
   costUsd: number;
   durationSeconds: number | null;
@@ -65,10 +80,13 @@ const PAGE_SIZE = 50;
 export async function listSessions(
   userId: string,
   opts: {
+    agentTypes?: string[];
     dateFrom?: Date;
     dateTo?: Date;
+    frictionBand?: FrictionBand;
     page: number;
     repo?: string;
+    shapeLabels?: string[];
     status?: string;
   },
 ): Promise<{ sessions: SessionRow[]; total: number }> {
@@ -101,6 +119,11 @@ export async function listSessions(
           },
         }
       : {}),
+    ...(opts.shapeLabels?.length ? { shapeLabel: { in: opts.shapeLabels } } : {}),
+    ...(opts.agentTypes?.length
+      ? { agentType: { in: opts.agentTypes as $Enums.AgentType[] } }
+      : {}),
+    ...(opts.frictionBand ? { frictionScore: frictionBandWhere(opts.frictionBand) } : {}),
   };
 
   const [total, rows] = await Promise.all([
