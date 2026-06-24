@@ -196,7 +196,7 @@ export async function upsertSessions(
       ${a.firstTs},
       ${a.lastTs},
       ${a.endedAt},
-      ${a.endedAt ? 'completed' : 'active'}::"SessionStatus",
+      ${a.endedAt ? 'COMPLETED' : 'ACTIVE'}::"SessionStatus",
       ${a.isResume},
       ${a.compactionCount},
       ${a.clearCount},

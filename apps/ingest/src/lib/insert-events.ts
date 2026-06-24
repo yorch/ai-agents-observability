@@ -47,7 +47,7 @@ export async function insertEventsBatch(
       ${e.session_id}::uuid,
       ${userId}::uuid,
       ${new Date(e.ts)},
-      ,
+      ${e.agent_type},
       ${e.event_type},
       ${e.turn_number ?? null},
       ${e.parent_event_id ?? null}::uuid,

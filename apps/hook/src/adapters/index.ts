@@ -61,7 +61,13 @@ const ADAPTERS: Record<string, HookAdapter> = {
 
 export const DEFAULT_ADAPTER = 'claude-code';
 
-/** Select an adapter by agent name; falls back to the default (claude-code). */
+/**
+ * Select an adapter by agent name; falls back to the default (claude-code).
+ * The registry keys are the lowercase-hyphen CLI names (`--agent codex`), but the
+ * canonical `agent_type` is UPPER_SNAKE (`CODEX`, `CLAUDE_CODE`) — so normalize the
+ * input to lowercase-hyphen, letting either form resolve to the same adapter.
+ */
 export function selectAdapter(agent: string = DEFAULT_ADAPTER): HookAdapter {
-  return ADAPTERS[agent] ?? claudeCodeAdapter;
+  const key = agent.toLowerCase().replaceAll('_', '-');
+  return ADAPTERS[key] ?? claudeCodeAdapter;
 }

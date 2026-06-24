@@ -73,7 +73,7 @@ export function authRequired(db: DbClient, logger: Logger): MiddlewareHandler<Ap
         return c.json({ error: 'Unauthorized' }, 401);
       }
 
-      if (record.kind !== 'hook') {
+      if (record.kind !== 'HOOK') {
         logger.warn({ kind: record.kind, reqId: c.get('requestId') }, 'auth: wrong token kind');
         return c.json({ error: 'Unauthorized' }, 401);
       }

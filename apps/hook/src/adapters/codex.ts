@@ -137,8 +137,9 @@ function codexSessionsDir(): string {
 }
 
 // Recursively collect rollout files (newer Codex nests them under YYYY/MM/DD/),
-// newest first. Bounded depth; never throws.
-function listRollouts(dir: string, depth = 0): string[] {
+// newest first. Bounded depth; never throws. Each file is stat'd exactly once —
+// the recursive call carries mtime up rather than the parent re-statting.
+function collectRollouts(dir: string, depth = 0): { path: string; mtime: number }[] {
   if (depth > 5 || !existsSync(dir)) {
     return [];
   }
@@ -158,18 +159,18 @@ function listRollouts(dir: string, depth = 0): string[] {
       continue;
     }
     if (st.isDirectory()) {
-      for (const p of listRollouts(full, depth + 1)) {
-        try {
-          out.push({ mtime: statSync(p).mtimeMs, path: p });
-        } catch {
-          // ignore
-        }
-      }
+      out.push(...collectRollouts(full, depth + 1));
     } else if (ROLLOUT_RE.test(name)) {
       out.push({ mtime: st.mtimeMs, path: full });
     }
   }
-  return out.sort((a, b) => b.mtime - a.mtime).map((x) => x.path);
+  return out;
+}
+
+function listRollouts(dir: string): string[] {
+  return collectRollouts(dir)
+    .sort((a, b) => b.mtime - a.mtime)
+    .map((x) => x.path);
 }
 
 function sessionIdFromPath(path: string): string | null {
@@ -178,10 +179,26 @@ function sessionIdFromPath(path: string): string | null {
 
 type RolloutLocation = { path: string; sessionId: string; cwd: string };
 
+// One hook invocation (one process) calls locateRollout twice — mapBatch and
+// transcriptTarget both need it — and each call is a full recursive directory
+// walk + stat of ~/.codex/sessions. Memoize on the payload object so the walk
+// runs once per invocation. (The cache is keyed by reference and the process is
+// short-lived, so it never grows.)
+const locationMemo = new WeakMap<object, RolloutLocation | null>();
+
+function locateRollout(raw: Record<string, unknown>): RolloutLocation | null {
+  if (locationMemo.has(raw)) {
+    return locationMemo.get(raw) ?? null;
+  }
+  const result = locateRolloutUncached(raw);
+  locationMemo.set(raw, result);
+  return result;
+}
+
 // Find the rollout file for this notify event: an explicit path on the payload if
 // Codex provides one, else the file whose name contains the payload's session id,
 // else the most recently modified rollout. Returns null when none is found.
-function locateRollout(raw: Record<string, unknown>): RolloutLocation | null {
+function locateRolloutUncached(raw: Record<string, unknown>): RolloutLocation | null {
   const cwd = str(raw.cwd ?? raw['working-directory'] ?? raw.directory, process.cwd());
 
   const explicit = firstStr(raw, [
