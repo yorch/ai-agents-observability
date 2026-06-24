@@ -187,7 +187,7 @@ See [`P8-roadmap.md`](./P8-roadmap.md). Builds the remaining multi-agent foundat
 | [P8-001](./P8-001-tool-naming-disambiguation.md) | Tool-name disambiguation (`<agent>:<tool>` convention) | review | claude | M | P5-006 |
 | [P8-002](./P8-002-per-agent-price-tables.md) | Per-agent versioned price tables | review | claude | M | P1-013 |
 | [P8-003](./P8-003-hook-adapter-seam.md) | Hook adapter seam | review | claude | L | P5-006 |
-| [P8-004](./P8-004-second-agent-adapter.md) | Second-agent adapter (opencode) | blocked | — | L | P8-003, P8-001, P8-002 |
+| [P8-004](./P8-004-second-agent-adapter.md) | Second-agent adapter (opencode) | review | claude | L | P8-003, P8-001, P8-002 |
 | [P8-005](./P8-005-de-claude-ify-copy.md) | De-Claude-ify user-facing copy | review | claude | S | P5-006 |
 | [P8-006](./P8-006-cost-reconciliation.md) | Cost reconciliation (design + scaffold) | review | claude | M | P8-002 |
 

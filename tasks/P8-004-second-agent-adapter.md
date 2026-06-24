@@ -3,12 +3,34 @@ id: P8-004
 title: Second-agent adapter (opencode)
 phase: 8
 workstream: D
-status: blocked
-owner: null
+status: review
+owner: claude
 depends_on: [P8-003, P8-001, P8-002]
 blocks: []
 estimate: L
 ---
+
+## Interface verdict (finalization)
+
+The provisional `HookAdapter` from P8-003 **held for opencode with zero breaking
+changes** — finalized as-is, backward-compatible with the Claude Code adapter. The
+findings from the second example:
+
+- **Transcript shipping is the one genuinely agent-shaped piece.** Claude Code emits
+  a single `.jsonl` transcript path in the Stop payload; opencode stores history as a
+  *directory* of per-message JSON under `~/.local/share/opencode/storage`. The shipper
+  reads a single file, so opencode transcript upload needs an export step — deferred
+  (follow-up). `transcriptTarget` already returns `TranscriptTarget | null`; opencode
+  returns null and ships events only. No interface change required — the nullable
+  return was the right escape hatch, validated by an agent that actually needs it.
+- `client.claude_code_version` is a Claude-shaped field in the wire schema; the
+  opencode adapter reuses the neutral `clientInfo()` (hostname_hash + os). Schema-
+  cosmetic follow-up; not blocking.
+
+> **Note:** the opencode event field names (`sessionID`, `tool`, `args`, `tokens`)
+> are mapped from opencode's documented plugin-bus event shape and are defensive
+> (multiple key fallbacks). They should be tightened against a live opencode run —
+> this task delivers the seam-validating baseline, not a production distribution.
 
 ## Goal
 
@@ -72,3 +94,10 @@ bun --filter '@app/hook' test
 # 4. Confirm tool names carry the opencode: prefix (P8-001)
 # 5. Confirm cost is non-zero for known opencode models
 ```
+
+> **Verification status (review):** hook portion **fully verified locally** — `cd apps/hook
+> && bun test` → 48 pass/0 fail (5 new opencode cases), `tsc --noEmit` clean, biome clean.
+> `apps/ingest/test/price-tables.test.ts` (opencode table now populated) passes locally too.
+> DB-backed end-to-end ingest of opencode events runs in CI / the docker stack. Tool
+> disambiguation (`opencode:Edit` vs `claude_code:Edit`) is automatic via P8-001's query-time
+> labelling; cost prices via the populated opencode table (P8-002). Transport files unchanged.

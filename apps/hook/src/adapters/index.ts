@@ -1,6 +1,7 @@
 import type { Event } from '@ai-agents-observability/schemas';
 
 import { claudeCodeAdapter } from './claude-code';
+import { opencodeAdapter } from './opencode';
 
 // A hook adapter translates one agent's native hook protocol into the
 // agent-neutral transport (queue → flusher → ingest; ship marker → shipper).
@@ -42,6 +43,7 @@ export interface HookAdapter {
 
 const ADAPTERS: Record<string, HookAdapter> = {
   'claude-code': claudeCodeAdapter,
+  opencode: opencodeAdapter,
 };
 
 export const DEFAULT_ADAPTER = 'claude-code';
