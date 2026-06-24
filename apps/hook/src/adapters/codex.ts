@@ -4,6 +4,7 @@ import {
   mkdirSync,
   openSync,
   readdirSync,
+  readFileSync,
   readSync,
   statSync,
   writeFileSync,
@@ -177,6 +178,29 @@ function sessionIdFromPath(path: string): string | null {
   return path.match(UUID_RE)?.[0] ?? null;
 }
 
+// Session/conversation id and working dir, read from a Codex notify payload under
+// any of the field spellings Codex has used. Shared by mapPayload (fallback Stop)
+// and locateRollout so the two never drift on which keys they accept.
+const SESSION_ID_KEYS = [
+  'session-id',
+  'session_id',
+  'sessionId',
+  'conversation-id',
+  'conversation_id',
+  'thread-id',
+  'thread_id',
+  'turn-id',
+  'turn_id',
+];
+
+function sessionIdFromPayload(raw: Record<string, unknown>): string | null {
+  return firstStr(raw, SESSION_ID_KEYS);
+}
+
+function cwdFromPayload(raw: Record<string, unknown>): string {
+  return str(raw.cwd ?? raw['working-directory'] ?? raw.directory, process.cwd());
+}
+
 type RolloutLocation = { path: string; sessionId: string; cwd: string };
 
 // One hook invocation (one process) calls locateRollout twice — mapBatch and
@@ -199,7 +223,7 @@ function locateRollout(raw: Record<string, unknown>): RolloutLocation | null {
 // Codex provides one, else the file whose name contains the payload's session id,
 // else the most recently modified rollout. Returns null when none is found.
 function locateRolloutUncached(raw: Record<string, unknown>): RolloutLocation | null {
-  const cwd = str(raw.cwd ?? raw['working-directory'] ?? raw.directory, process.cwd());
+  const cwd = cwdFromPayload(raw);
 
   const explicit = firstStr(raw, [
     'rollout-path',
@@ -218,17 +242,7 @@ function locateRolloutUncached(raw: Record<string, unknown>): RolloutLocation | 
     return null;
   }
 
-  const id = firstStr(raw, [
-    'session-id',
-    'session_id',
-    'sessionId',
-    'conversation-id',
-    'conversation_id',
-    'thread-id',
-    'thread_id',
-    'turn-id',
-    'turn_id',
-  ]);
+  const id = sessionIdFromPayload(raw);
   const path = (id ? files.find((f) => f.includes(id)) : undefined) ?? newest;
   return { cwd, path, sessionId: sessionIdFromPath(path) ?? id ?? NIL_UUID };
 }
@@ -243,17 +257,10 @@ function cursorPath(sessionId: string): string {
 
 function readCursor(sessionId: string): Cursor {
   try {
-    const fd = openSync(cursorPath(sessionId), 'r');
-    try {
-      const size = statSync(cursorPath(sessionId)).size;
-      const buf = Buffer.allocUnsafe(size);
-      readSync(fd, buf, 0, size, 0);
-      const parsed = JSON.parse(buf.toString('utf8'));
-      if (parsed && typeof parsed.offset === 'number') {
-        return { offset: parsed.offset, usage: parsed.usage ?? null };
-      }
-    } finally {
-      closeSync(fd);
+    // Small JSON file — one read beats open + stat + readSync + close.
+    const parsed = JSON.parse(readFileSync(cursorPath(sessionId), 'utf8'));
+    if (parsed && typeof parsed.offset === 'number') {
+      return { offset: parsed.offset, usage: parsed.usage ?? null };
     }
   } catch {
     // no cursor yet
@@ -305,10 +312,8 @@ function safeJson(line: string): unknown {
 
 function mapPayload(kind: string, raw: Record<string, unknown>): ConformantEvent {
   const eventType = CODEX_EVENT_TYPE[kind] ?? 'Notification';
-  const sessionId =
-    firstStr(raw, ['session-id', 'session_id', 'sessionId', 'turn-id', 'turn_id']) ?? NIL_UUID;
-  const cwd = str(raw.cwd ?? raw['working-directory'] ?? raw.directory, process.cwd());
-  return assemble(eventType, sessionId, cwd);
+  const sessionId = sessionIdFromPayload(raw) ?? NIL_UUID;
+  return assemble(eventType, sessionId, cwdFromPayload(raw));
 }
 
 // Multi-event path: on turn-complete, read the rollout records appended since the

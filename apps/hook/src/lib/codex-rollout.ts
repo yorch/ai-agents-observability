@@ -68,7 +68,9 @@ function unwrap(rec: Record<string, unknown>): { type: string; body: Record<stri
 //   { input_tokens, output_tokens, cached_input_tokens }
 //   { info: { total_token_usage: { input_tokens, … } } }
 //   { usage: { input_tokens, … } }
-function extractUsage(body: Record<string, unknown>): CodexUsage | null {
+// Returns token counts only; the model is owned by parseRolloutRecords (it lives
+// on different records than the usage block), so it's attached there once.
+function extractUsage(body: Record<string, unknown>): Omit<CodexUsage, 'model'> | null {
   const info = isRecord(body.info) ? body.info : undefined;
   const candidates: unknown[] = [
     body,
@@ -88,7 +90,6 @@ function extractUsage(body: Record<string, unknown>): CodexUsage | null {
         cacheReadTokens: numOr0(c.cached_input_tokens ?? c.cache_read_tokens ?? c.cache_read),
         cacheWriteTokens: numOr0(c.cache_creation_tokens ?? c.cache_write_tokens ?? c.cache_write),
         inputTokens: numOr0(input),
-        model: null,
         outputTokens: numOr0(output),
       };
     }
@@ -100,7 +101,7 @@ export function parseRolloutRecords(records: unknown[]): RolloutParse {
   const byCallId = new Map<string, CodexToolCall>();
   const ordered: CodexToolCall[] = [];
   let model: string | null = null;
-  let cumulative: CodexUsage | null = null;
+  let cumulative: Omit<CodexUsage, 'model'> | null = null;
 
   for (const rec of records) {
     if (!isRecord(rec)) {
@@ -158,10 +159,10 @@ export function parseRolloutRecords(records: unknown[]): RolloutParse {
     }
   }
 
-  if (cumulative) {
-    cumulative.model = model ?? cumulative.model;
-  }
-  return { cumulativeUsage: cumulative, toolCalls: ordered };
+  return {
+    cumulativeUsage: cumulative ? { ...cumulative, model } : null,
+    toolCalls: ordered,
+  };
 }
 
 // Per-turn usage = current cumulative − previously-seen cumulative (clamped at 0
