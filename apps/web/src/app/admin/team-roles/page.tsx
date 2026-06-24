@@ -1,10 +1,9 @@
 import { getPrisma } from '@/lib/prisma';
-import { requireOrgAdmin } from '@/lib/roles';
+import { LEAD_ROLES, requireOrgAdmin } from '@/lib/roles';
+
 import { setTeamRole } from './actions';
 
 export const dynamic = 'force-dynamic';
-
-const LEAD_ROLES = new Set(['lead', 'maintainer']);
 
 export default async function TeamRolesAdminPage() {
   await requireOrgAdmin();
@@ -44,7 +43,7 @@ export default async function TeamRolesAdminPage() {
             ) : (
               <ul className="divide-y divide-white/5 rounded-lg border border-white/10 bg-white/5">
                 {team.members.map((m) => {
-                  const isLead = LEAD_ROLES.has(m.roleInTeam);
+                  const isLead = LEAD_ROLES.includes(m.roleInTeam);
                   const name = m.user.displayName ?? `@${m.user.githubLogin ?? m.user.id}`;
                   return (
                     <li

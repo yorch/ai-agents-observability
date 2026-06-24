@@ -27,18 +27,23 @@ export async function setTeamRole(formData: FormData): Promise<void> {
   }
 
   const db = getPrisma();
-  await db.teamMember.update({
+  // updateMany (not update) so a row removed between page render and submit, or a
+  // tampered (teamId,userId), is a no-op rather than a thrown P2025 that would
+  // surface as an error with no audit trail.
+  const { count } = await db.teamMember.updateMany({
     data: { roleInTeam: role },
-    where: { teamId_userId: { teamId, userId } },
+    where: { teamId, userId },
   });
 
-  await writeAuditLog({
-    action: AuditAction.role_grant,
-    actorUserId: user.id,
-    justification: `Set team role to ${role}`,
-    targetTeamId: teamId,
-    targetUserId: userId,
-  });
+  if (count > 0) {
+    await writeAuditLog({
+      action: AuditAction.role_grant,
+      actorUserId: user.id,
+      justification: `Set team role to ${role}`,
+      targetTeamId: teamId,
+      targetUserId: userId,
+    });
+  }
 
   revalidatePath('/admin/team-roles');
 }

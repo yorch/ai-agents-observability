@@ -114,3 +114,15 @@ export const EventsBatchSchema = z.object({
 });
 
 export type EventsBatch = z.infer<typeof EventsBatchSchema>;
+
+// Lenient envelope for tolerant ingestion: the `events` array is left unparsed
+// so the caller can validate each event individually (EventSchema.safeParse) and
+// accept the valid ones rather than rejecting the whole batch — which, because
+// the flusher treats a 4xx as "bad data" and drops the rows, would otherwise
+// turn one malformed event into the loss of every co-batched event.
+export const EventsBatchEnvelopeSchema = z.object({
+  events: z.array(z.unknown()),
+  session_context: SessionContextSchema,
+});
+
+export type EventsBatchEnvelope = z.infer<typeof EventsBatchEnvelopeSchema>;

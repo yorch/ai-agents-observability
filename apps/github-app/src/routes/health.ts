@@ -19,7 +19,7 @@ export function healthRouter(startedAt: number, gitSha: string): Hono<AppEnv> {
 export function adminRouter(adminSecret: string | undefined): Hono<AppEnv> {
   const router = new Hono<AppEnv>();
 
-  router.get('/health', (c) => {
+  router.get('/health', async (c) => {
     // The admin endpoint exposes delivery counters/event types. It is reachable
     // on the same public listener as the webhook, so it must be gated. When no
     // secret is configured the endpoint is disabled entirely (404) rather than
@@ -31,7 +31,7 @@ export function adminRouter(adminSecret: string | undefined): Hono<AppEnv> {
       return c.json({ error: 'Unauthorized' }, 401);
     }
     return c.json({
-      deliveries: getMetrics(),
+      deliveries: await getMetrics(),
       uptime_s: Math.floor(process.uptime()),
     });
   });

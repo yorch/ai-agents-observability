@@ -75,6 +75,54 @@ describe('POST /v1/events', () => {
     expect(body).toHaveProperty('request_id');
   });
 
+  it('accepts valid events and drops invalid ones without rejecting the batch', async () => {
+    const deps = makeTestDeps();
+    const authTokenStub = deps.db.authToken as unknown as { findFirst: ReturnType<typeof vi.fn> };
+    authTokenStub.findFirst = vi.fn().mockResolvedValue({
+      expiresAt: null,
+      id: 'tok-1',
+      kind: 'hook',
+      revokedAt: null,
+      userId: '00000000-0000-0000-0000-000000000001',
+    });
+    const dbStub = deps.db as unknown as {
+      $executeRaw: ReturnType<typeof vi.fn>;
+      $queryRaw: ReturnType<typeof vi.fn>;
+    };
+    dbStub.$queryRaw = vi
+      .fn()
+      .mockResolvedValue([{ event_id: '01906a44-0000-7000-8000-000000000001' }]);
+    dbStub.$executeRaw = vi.fn().mockResolvedValue(1);
+
+    // One valid SessionStart + one invalid PostToolUse (missing the required
+    // `tool` block). The invalid event must not poison the whole batch.
+    const mixedBatch = {
+      events: [
+        BATCH_FIXTURE.events[0],
+        {
+          ...BATCH_FIXTURE.events[0],
+          event_id: '01906a44-0000-7000-8000-000000000002',
+          event_type: 'PostToolUse',
+        },
+      ],
+      session_context: BATCH_FIXTURE.session_context,
+    };
+
+    const app = createApp({} as unknown as Config, deps);
+    const res = await app.request('/v1/events', {
+      body: JSON.stringify(mixedBatch),
+      headers: {
+        Authorization: 'Bearer cct_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    });
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { accepted: number; rejected: number };
+    expect(body.rejected).toBe(1);
+    expect(body.accepted).toBe(1);
+  });
+
   it('only aggregates accepted (newly-inserted) events, not duplicates', async () => {
     const deps = makeTestDeps();
     const authTokenStub = deps.db.authToken as unknown as { findFirst: ReturnType<typeof vi.fn> };
