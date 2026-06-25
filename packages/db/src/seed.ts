@@ -108,6 +108,55 @@ const SEED_PW_PASSWORD = 'demo1234';
 const SEED_ADMIN_EMAIL = 'admin@example.com';
 const SEED_ADMIN_PASSWORD = 'admin1234';
 
+// ── Extra teams for multi-team demo ──────────────────────────────────────────
+
+const EXTRA_TEAMS = [
+  {
+    githubId: BigInt(3_000_001),
+    githubSlug: 'demo-frontend',
+    name: 'Frontend Team',
+    repo: {
+      cwdSuffix: 'projects/frontend-app',
+      githubId: BigInt(555_777_001),
+      name: 'frontend-app',
+    },
+    users: [
+      {
+        email: 'alice@frontend.example.com',
+        name: 'Alice Chen',
+        password: 'alice1234',
+        role: 'LEAD' as const,
+      },
+      {
+        email: 'bob@frontend.example.com',
+        name: 'Bob Torres',
+        password: 'bob1234',
+        role: 'MEMBER' as const,
+      },
+    ],
+  },
+  {
+    githubId: BigInt(3_000_002),
+    githubSlug: 'demo-backend',
+    name: 'Backend Team',
+    repo: { cwdSuffix: 'projects/backend-api', githubId: BigInt(555_777_002), name: 'backend-api' },
+    users: [
+      {
+        email: 'carol@backend.example.com',
+        name: 'Carol Mbeki',
+        password: 'carol1234',
+        role: 'LEAD' as const,
+      },
+      {
+        email: 'dave@backend.example.com',
+        name: 'Dave Park',
+        password: 'dave1234',
+        role: 'MEMBER' as const,
+      },
+    ],
+  },
+];
+
 // ── Transcript conversation templates ─────────────────────────────────────────
 
 type Msg = { role: 'user' | 'assistant'; text: string };
@@ -574,6 +623,8 @@ async function basicSeed() {
   }
   const existingAdmin = await db.user.findUnique({ where: { email: SEED_ADMIN_EMAIL } });
   if (existingAdmin) {
+    await db.$executeRaw`DELETE FROM events WHERE user_id = ${existingAdmin.id}::uuid`;
+    await db.session.deleteMany({ where: { userId: existingAdmin.id } });
     await db.auditLog.deleteMany({ where: { actorUserId: existingAdmin.id } });
     await db.user.delete({ where: { id: existingAdmin.id } });
   }
@@ -585,6 +636,21 @@ async function basicSeed() {
   const existingTeam = await db.team.findUnique({ where: { githubSlug: 'demo-org' } });
   if (existingTeam) {
     await db.team.delete({ where: { id: existingTeam.id } });
+  }
+  for (const teamDef of EXTRA_TEAMS) {
+    const extraEmails = teamDef.users.map((u) => u.email);
+    const extraUsers = await db.user.findMany({ where: { email: { in: extraEmails } } });
+    const extraIds = extraUsers.map((u: { id: string }) => u.id);
+    if (extraIds.length > 0) {
+      for (const uid of extraIds) {
+        await db.$executeRaw`DELETE FROM events WHERE user_id = ${uid}::uuid`;
+      }
+      await db.session.deleteMany({ where: { userId: { in: extraIds } } });
+      await db.auditLog.deleteMany({ where: { actorUserId: { in: extraIds } } });
+      await db.user.deleteMany({ where: { id: { in: extraIds } } });
+    }
+    await db.repo.deleteMany({ where: { githubOwner: teamDef.githubSlug } });
+    await db.team.deleteMany({ where: { githubSlug: teamDef.githubSlug } });
   }
 
   const team = await db.team.create({
@@ -858,6 +924,119 @@ async function basicSeed() {
     }
   }
 
+  // ── Extra teams ────────────────────────────────────────────────────────────────
+  for (const teamDef of EXTRA_TEAMS) {
+    const extraTeam = await db.team.create({
+      data: {
+        githubId: teamDef.githubId,
+        githubSlug: teamDef.githubSlug,
+        name: teamDef.name,
+        syncedAt: new Date(),
+      },
+    });
+    const extraRepo = await db.repo.create({
+      data: {
+        defaultBranch: 'main',
+        githubId: teamDef.repo.githubId,
+        githubName: teamDef.repo.name,
+        githubOwner: teamDef.githubSlug,
+        owningTeamId: extraTeam.id,
+      },
+    });
+    for (const userDef of teamDef.users) {
+      const uHash = await hashPassword(userDef.password);
+      const extraUser = await db.user.create({
+        data: {
+          displayName: userDef.name,
+          email: userDef.email,
+          lastSeenAt: new Date(),
+          passwordHash: uHash,
+          primaryTeamId: extraTeam.id,
+          visibilityPolicy: {
+            create: {
+              shareMetadataWithOrg: true,
+              shareMetadataWithTeam: true,
+              shareTranscriptsWithOrg: false,
+              shareTranscriptsWithTeam: false,
+            },
+          },
+        },
+      });
+      await db.teamMember.create({
+        data: { roleInTeam: userDef.role, teamId: extraTeam.id, userId: extraUser.id },
+      });
+      for (let day = 19; day >= 0; day--) {
+        const dayCount = faker.number.int({ max: 2, min: 1 });
+        for (let i = 0; i < dayCount; i++) {
+          const startedAt = new Date(
+            now - day * 86_400_000 - faker.number.int({ max: 8 * 3_600_000, min: 0 }),
+          );
+          const durationMs = weightedDurationMs();
+          const endedAt = new Date(startedAt.getTime() + durationMs);
+          const inputTokens = faker.number.int({ max: 60000, min: 500 });
+          const outputTokens = faker.number.int({ max: 12000, min: 200 });
+          const cacheRead = faker.number.int({ max: 25000, min: 0 });
+          const cacheCreation = faker.number.int({ max: 6000, min: 0 });
+          const toolCalls = faker.number.int({ max: 100, min: 2 });
+          const model = faker.helpers.weightedArrayElement(MODELS);
+          const status = faker.helpers.weightedArrayElement(SESSION_STATUSES);
+          const extraSession = await db.session.create({
+            data: {
+              agentType: 'CLAUDE_CODE',
+              agentVersion: faker.helpers.arrayElement(CC_VERSIONS),
+              claudeCodeVersion: faker.helpers.arrayElement(CC_VERSIONS),
+              cwd: `/home/${userDef.name.toLowerCase().replace(' ', '-')}/${teamDef.repo.cwdSuffix}`,
+              endedAt,
+              gitBranch: faker.helpers.arrayElement([
+                'main',
+                'feat/new-feature',
+                'fix/bug',
+                'chore/deps',
+              ]),
+              gitCommit: faker.git.commitSha({ length: 40 }),
+              lastEventAt: endedAt,
+              os: faker.helpers.arrayElement(['darwin', 'linux']),
+              permissionDenyCount: faker.number.int({ max: 3, min: 0 }),
+              permissionPromptCount: faker.number.int({ max: 8, min: 0 }),
+              primaryModel: model,
+              repoId: extraRepo.id,
+              sessionId: faker.string.uuid(),
+              startedAt,
+              status,
+              toolCallCount: toolCalls,
+              toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.1), min: 0 }),
+              totalCacheCreation: BigInt(cacheCreation),
+              totalCacheRead: BigInt(cacheRead),
+              totalCostUsd: calcCost(inputTokens, outputTokens, cacheRead, cacheCreation),
+              totalInputTokens: BigInt(inputTokens),
+              totalOutputTokens: BigInt(outputTokens),
+              userId: extraUser.id,
+              userMessageCount: faker.number.int({ max: 25, min: 1 }),
+            },
+          });
+          await insertEvents(
+            extraSession.sessionId,
+            extraUser.id,
+            startedAt,
+            durationMs,
+            toolCalls,
+            model,
+          );
+          if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.4 })) {
+            await insertTranscript(extraSession.sessionId, startedAt, durationMs);
+            await uploadTranscriptToS3(
+              extraSession.sessionId,
+              extraUser.id,
+              startedAt,
+              durationMs,
+              model,
+            );
+          }
+        }
+      }
+    }
+  }
+
   const prData = [
     { merged: true, number: 101, state: 'merged' as const, title: 'feat: add user dashboard' },
     { merged: true, number: 102, state: 'merged' as const, title: 'fix: token expiry check' },
@@ -928,12 +1107,21 @@ async function basicSeed() {
     }
   }
 
+  const totalTeams = 1 + EXTRA_TEAMS.length;
+  const totalUsers = 3 + EXTRA_TEAMS.reduce((n, t) => n + t.users.length, 0);
+  const totalRepos = 1 + EXTRA_TEAMS.length;
   console.log(
-    `Seed complete. Created: 1 team, 3 users, 1 repo, ${sessions.length} sessions, 5 PRs.`,
+    `Seed complete. Created: ${totalTeams} teams, ${totalUsers} users, ${totalRepos} repos, ${sessions.length}+ sessions, 5 PRs.`,
   );
   console.log(`  GitHub user  : ${BASIC_EMAIL} (login via GitHub OAuth)`);
   console.log(`  Password user: ${SEED_PW_EMAIL} / ${SEED_PW_PASSWORD}`);
   console.log(`  Admin user   : ${SEED_ADMIN_EMAIL} / ${SEED_ADMIN_PASSWORD} (ORG_ADMIN)`);
+  for (const teamDef of EXTRA_TEAMS) {
+    console.log(`  ${teamDef.name}:`);
+    for (const u of teamDef.users) {
+      console.log(`    ${u.email} / ${u.password} (${u.role})`);
+    }
+  }
 }
 
 // ── Extensive seed ────────────────────────────────────────────────────────────
