@@ -94,7 +94,7 @@ export async function insertEventsBatch(
         cache_read_tokens, cache_creation_tokens, cost_usd,
         mode, metadata
       ) VALUES ${Prisma.join(rows)}
-      ON CONFLICT (event_id) DO NOTHING
+      ON CONFLICT (event_id, ts) DO NOTHING
       RETURNING event_id
     `,
   );
