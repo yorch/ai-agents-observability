@@ -9,13 +9,13 @@ type DbWithRaw = Pick<PrismaClient, 'session' | 'jobRun'> & {
   $queryRaw: PrismaClient['$queryRaw'];
 };
 
-type TranscriptMessage = {
+export type TranscriptMessage = {
   content?: unknown;
   role?: string;
   timestamp?: string;
 };
 
-function extractTextContent(content: unknown): string {
+export function extractTextContent(content: unknown): string {
   if (typeof content === 'string') {
     return content;
   }
@@ -34,6 +34,50 @@ function extractTextContent(content: unknown): string {
       .join(' ');
   }
   return '';
+}
+
+export async function downloadAndParseTranscript(
+  s3: S3Client,
+  bucket: string,
+  key: string,
+  logger?: Logger,
+): Promise<TranscriptMessage[] | null> {
+  const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  if (!obj.Body) {
+    return null;
+  }
+
+  const compressed = Buffer.from(await obj.Body.transformToByteArray());
+  const MAX_COMPRESSED_BYTES = 100 * 1024 * 1024; // 100 MB
+  if (compressed.length > MAX_COMPRESSED_BYTES) {
+    logger?.warn({ bytes: compressed.length, key }, 'Transcript too large, skipping');
+    return null;
+  }
+
+  let decompressed: Buffer;
+  try {
+    decompressed = zstdDecompressSync(compressed, { maxOutputLength: 512 * 1024 * 1024 });
+  } catch {
+    try {
+      decompressed = gunzipSync(compressed, { maxOutputLength: 512 * 1024 * 1024 });
+    } catch {
+      logger?.warn({ key }, 'Failed to decompress transcript, skipping');
+      return null;
+    }
+  }
+
+  const text = new TextDecoder('utf-8').decode(decompressed);
+  const lines = text.split('\n').filter((l) => l.trim());
+
+  const messages: TranscriptMessage[] = [];
+  for (const line of lines) {
+    try {
+      messages.push(JSON.parse(line) as TranscriptMessage);
+    } catch {
+      // skip malformed lines
+    }
+  }
+  return messages;
 }
 
 /**
@@ -79,50 +123,14 @@ export async function runIndexTranscripts(
     let indexed = 0;
     for (const row of unindexed) {
       try {
-        const obj = await s3.send(
-          new GetObjectCommand({ Bucket: bucket, Key: row.transcript_s3_key }),
+        const messages = await downloadAndParseTranscript(
+          s3,
+          bucket,
+          row.transcript_s3_key,
+          logger,
         );
-        if (!obj.Body) {
+        if (messages === null) {
           continue;
-        }
-
-        const compressed = Buffer.from(await obj.Body.transformToByteArray());
-
-        // Guard against unexpectedly large or corrupt S3 objects
-        const MAX_COMPRESSED_BYTES = 100 * 1024 * 1024; // 100 MB
-        if (compressed.length > MAX_COMPRESSED_BYTES) {
-          logger?.warn(
-            { bytes: compressed.length, key: row.transcript_s3_key },
-            'Transcript too large to index, skipping',
-          );
-          continue;
-        }
-
-        let decompressed: Buffer;
-        try {
-          decompressed = zstdDecompressSync(compressed, { maxOutputLength: 512 * 1024 * 1024 });
-        } catch {
-          try {
-            decompressed = gunzipSync(compressed, { maxOutputLength: 512 * 1024 * 1024 });
-          } catch {
-            logger?.warn(
-              { key: row.transcript_s3_key },
-              'Failed to decompress transcript, skipping',
-            );
-            continue;
-          }
-        }
-
-        const text = new TextDecoder('utf-8').decode(decompressed);
-        const lines = text.split('\n').filter((l) => l.trim());
-
-        const messages: TranscriptMessage[] = [];
-        for (const line of lines) {
-          try {
-            messages.push(JSON.parse(line) as TranscriptMessage);
-          } catch {
-            // Skip malformed lines
-          }
         }
 
         // Collect all indexable messages, then insert in one round-trip.
