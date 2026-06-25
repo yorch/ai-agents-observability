@@ -64,13 +64,25 @@ function weightedDurationMs() {
 }
 
 const TOOL_NAMES = [
-  { value: 'Bash', weight: 35 },
-  { value: 'Read', weight: 25 },
-  { value: 'Edit', weight: 20 },
-  { value: 'Grep', weight: 10 },
+  { value: 'Bash', weight: 30 },
+  { value: 'Read', weight: 22 },
+  { value: 'Edit', weight: 18 },
+  { value: 'Grep', weight: 9 },
   { value: 'Glob', weight: 5 },
   { value: 'Write', weight: 3 },
-  { value: 'Agent', weight: 2 },
+  { value: 'Agent', weight: 8 },
+  { value: 'MultiEdit', weight: 5 },
+];
+
+const SUBAGENT_TYPES = [
+  { value: 'Explore', weight: 25 },
+  { value: 'code-reviewer', weight: 20 },
+  { value: 'implementer', weight: 15 },
+  { value: 'Plan', weight: 12 },
+  { value: 'general-purpose', weight: 10 },
+  { value: 'feature-dev:code-architect', weight: 8 },
+  { value: 'guardian', weight: 5 },
+  { value: 'feature-dev:code-reviewer', weight: 5 },
 ];
 
 const SKILL_NAMES = [
@@ -511,6 +523,21 @@ async function insertEvents(
                   'CLAUDE_CODE', 'PostToolUse',
                   ${toolName}, ${toolDurMs}, ${wasDenied},
                   ${outputToks}, ${costVal}, ${mcpServer}, ${mcpTool}, ${turnNum}, ${model}, 'normal')
+          ON CONFLICT (session_id, event_id, ts) DO NOTHING
+        `;
+      } else if (toolName === 'Agent') {
+        const subagentType = faker.helpers.weightedArrayElement(SUBAGENT_TYPES);
+        const subagentDurMs = faker.number.int({ max: 120_000, min: 5_000 });
+        const subagentOutputToks = faker.number.int({ max: 4000, min: 200 });
+        const subagentCost = faker.number.float({ fractionDigits: 6, max: 0.15, min: 0.005 });
+        await db.$executeRaw`
+          INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
+                              tool_name, subagent_type, tool_duration_ms, tool_was_denied,
+                              output_tokens, cost_usd, turn_number, model, mode)
+          VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
+                  'CLAUDE_CODE', 'PostToolUse',
+                  'Agent', ${subagentType}, ${subagentDurMs}, ${wasDenied},
+                  ${subagentOutputToks}, ${subagentCost}, ${turnNum}, ${model}, 'normal')
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else {
@@ -1510,7 +1537,7 @@ async function extensiveSeed() {
   await db.teamMember.create({ data: { roleInTeam: 'LEAD', teamId: team.id, userId: pwUser.id } });
 
   const adminHash = await hashPassword(SEED_ADMIN_PASSWORD);
-  await db.user.create({
+  const extAdminUser = await db.user.create({
     data: {
       displayName: 'Org Admin',
       email: SEED_ADMIN_EMAIL,
@@ -1527,6 +1554,9 @@ async function extensiveSeed() {
         },
       },
     },
+  });
+  await db.teamMember.create({
+    data: { roleInTeam: 'LEAD', teamId: team.id, userId: extAdminUser.id },
   });
 
   // ── Repos ─────────────────────────────────────────────────────────────────────
@@ -1739,6 +1769,99 @@ async function extensiveSeed() {
     }
   }
 
+  // ── Admin sessions ────────────────────────────────────────────────────────────
+  const adminRepo = EXT_REPOS[0];
+  const adminRepoId = adminRepo ? repoMap.get(adminRepo.name) : undefined;
+  let adminSessionCount = 0;
+  if (adminRepo && adminRepoId) {
+    for (let daysAgo = 20; daysAgo >= 0; daysAgo--) {
+      const date = new Date(now - daysAgo * 86_400_000);
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      if (isWeekend && faker.datatype.boolean({ probability: 0.7 })) {
+        continue;
+      }
+      const dayCount = faker.number.int({ max: 2, min: 1 });
+      for (let i = 0; i < dayCount; i++) {
+        const model = faker.helpers.weightedArrayElement(MODELS);
+        const status = faker.helpers.weightedArrayElement(SESSION_STATUSES);
+        const ccVersion = faker.helpers.arrayElement(CC_VERSIONS);
+        const workdayOffset = faker.number.int({ max: 10 * 3_600_000, min: 7 * 3_600_000 });
+        const startedAt = new Date(date.getTime() + workdayOffset + i * 3_600_000);
+        let durationMs = weightedDurationMs();
+        if (status === 'CRASHED') {
+          durationMs = Math.round(durationMs * faker.number.float({ max: 0.5, min: 0.1 }));
+        }
+        if (status === 'TIMED_OUT') {
+          durationMs = Math.round(durationMs * faker.number.float({ max: 2.5, min: 1.2 }));
+        }
+        if (status === 'ABANDONED') {
+          durationMs = Math.round(durationMs * faker.number.float({ max: 0.8, min: 0.2 }));
+        }
+        const endedAt = new Date(startedAt.getTime() + durationMs);
+        const inputTokens = faker.number.int({ max: 80000, min: 500 });
+        const outputTokens = faker.number.int({ max: 15000, min: 200 });
+        const cacheRead = faker.number.int({ max: 40000, min: 0 });
+        const cacheCreation = faker.number.int({ max: 8000, min: 0 });
+        const toolCalls = faker.number.int({ max: 120, min: 2 });
+        const session = await db.session.create({
+          data: {
+            agentType: 'CLAUDE_CODE',
+            agentVersion: ccVersion,
+            claudeCodeVersion: ccVersion,
+            compactionCount: faker.number.int({ max: 4, min: 0 }),
+            cwd: `/home/admin/${adminRepo.cwdSuffix}`,
+            endedAt,
+            frictionScore: faker.datatype.boolean({ probability: 0.3 })
+              ? faker.number.float({ fractionDigits: 2, max: 1.0, min: 0.0 })
+              : null,
+            gitBranch: faker.helpers.arrayElement(adminRepo.branches),
+            gitCommit: faker.git.commitSha({ length: 40 }),
+            gitIsDirty: faker.datatype.boolean({ probability: 0.3 }),
+            isResume: faker.datatype.boolean({ probability: 0.08 }),
+            lastEventAt: endedAt,
+            os: faker.helpers.arrayElement(['darwin', 'darwin', 'linux']),
+            permissionDenyCount: faker.number.int({ max: 5, min: 0 }),
+            permissionPromptCount: faker.number.int({ max: 10, min: 0 }),
+            primaryModel: model,
+            repoId: adminRepoId,
+            sessionId: faker.string.uuid(),
+            startedAt,
+            status,
+            toolCallCount: toolCalls,
+            toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.12), min: 0 }),
+            totalCacheCreation: BigInt(cacheCreation),
+            totalCacheRead: BigInt(cacheRead),
+            totalCostUsd: calcCost(inputTokens, outputTokens, cacheRead, cacheCreation),
+            totalInputTokens: BigInt(inputTokens),
+            totalOutputTokens: BigInt(outputTokens),
+            userId: extAdminUser.id,
+            userMessageCount: faker.number.int({ max: 30, min: 1 }),
+          },
+        });
+        totalSessions++;
+        adminSessionCount++;
+        await insertEvents(
+          session.sessionId,
+          extAdminUser.id,
+          startedAt,
+          durationMs,
+          toolCalls,
+          model,
+        );
+        if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.35 })) {
+          await insertTranscript(session.sessionId, startedAt, durationMs);
+          await uploadTranscriptToS3(
+            session.sessionId,
+            extAdminUser.id,
+            startedAt,
+            durationMs,
+            model,
+          );
+        }
+      }
+    }
+  }
+
   const mergedCount = EXT_PRS.filter((p) => p.state === 'MERGED').length;
   console.log(`\nExtensive seed complete.`);
   console.log(`  Team    : ${EXT_ORG}`);
@@ -1746,7 +1869,9 @@ async function extensiveSeed() {
   console.log(`  Sessions: ${totalSessions} across ${EXT_DEVS.length} devs`);
   console.log(`  PRs     : ${EXT_PRS.length} (${mergedCount} merged)`);
   console.log(`  Password user: ${SEED_PW_EMAIL} / ${SEED_PW_PASSWORD}`);
-  console.log(`  Admin user   : ${SEED_ADMIN_EMAIL} / ${SEED_ADMIN_PASSWORD} (ORG_ADMIN)`);
+  console.log(
+    `  Admin user   : ${SEED_ADMIN_EMAIL} / ${SEED_ADMIN_PASSWORD} (ORG_ADMIN, ${adminSessionCount} sessions)`,
+  );
   for (const dev of EXT_DEVS) {
     const count = sessionsByDev.get(dev.login)?.length ?? 0;
     console.log(`  ${dev.name.padEnd(15)}: ${dev.email} / ${dev.password}  (${count} sessions)`);
