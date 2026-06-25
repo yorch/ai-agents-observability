@@ -456,7 +456,7 @@
     <div class="eyebrow">Design Philosophy → Privacy</div>
     <h2>Privacy-first by default</h2>
     <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.8em">
+    <div class="cols2" style="margin-top:0.2em">
       <div>
         <pre><code class="language-sql">-- Per-user visibility policy
 -- Conservative defaults
@@ -477,11 +477,11 @@ alice  view_transcript  bob   09:12
 alice  export_team      —     09:14</code></pre>
           <p style="color:var(--text-dim);margin-top:0.4em">Any time a team lead or researcher views another user's session, it's recorded — actor, target, justification, IP.</p>
         </div>
-        <div class="card" style="margin-top:0.7em;font-size:0.65em">
+        <div class="card" style="margin-top:0.45em;font-size:0.65em">
           <div class="label">Selective session sharing</div>
           <p style="color:var(--text-dim)">Beyond the blanket policy flags, owners can share individual sessions with any colleague — time-boxed (1/7/30d) grants, auto-approved. The grantee gets a direct link; the owner can revoke at any time. All views remain audit-logged.</p>
         </div>
-        <div class="card" style="margin-top:0.7em;font-size:0.65em">
+        <div class="card" style="margin-top:0.3em;font-size:0.65em">
           <div class="label">Redaction before S3</div>
           <p style="color:var(--text-dim)">Every transcript passes through <code>packages/redaction</code> — tokens, secrets, PII patterns stripped before the JSONL hits object storage. Raw content never written.</p>
         </div>
@@ -918,7 +918,7 @@ infra/
     <div class="eyebrow">Product</div>
     <h2>Dashboard experience — four surfaces</h2>
     <div class="divider"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.5em;margin-top:0.4em;font-size:0.76em">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.4em;margin-top:0.3em;font-size:0.68em">
       <div class="card card-green">
         <div class="label" style="color:var(--green)">C — My Agents <code style="font-size:0.8em">/me</code></div>
         <ul style="margin-top:0.4em">
@@ -937,22 +937,22 @@ infra/
         <ul style="margin-top:0.4em">
           <li>Aggregate cost + usage trends</li>
           <li>Adoption funnel (active / inactive)</li>
-          <li>Sessions tab — team-wide session listing</li>
+          <li>Sessions tab — team-wide listing with per-session drill-down</li>
           <li>PR tab — cost &amp; session count per PR + delivery stats</li>
           <li>Tools tab — per-tool breakdown</li>
           <li>Skills analytics — invocations, cost impact, top users</li>
-          <li>Date-range picker (7 / 30 / 90d) with deltas</li>
-          <li>Roster — per-member aggregates</li>
+          <li>MCP tab — per-server health, latency, cost</li>
+          <li>Agents tab — sub-agent spawns and cost</li>
         </ul>
       </div>
       <div class="card card-amber">
         <div class="label" style="color:var(--amber)">A — Org <code style="font-size:0.8em">/org</code></div>
         <ul style="margin-top:0.4em">
           <li>Org-wide cost by team</li>
-          <li>Top repos &amp; models used</li>
-          <li>Unapproved model detection</li>
+          <li>Models — cache efficiency, routing, governance</li>
+          <li>MCP integrations — utilization, error rates, cost</li>
+          <li>Agents — sub-agent spawns, types, cost</li>
           <li>Adoption funnel across org</li>
-          <li>Benchmarks — per-team comparison</li>
           <li>Delivery stats — time-to-merge, top repos</li>
           <li>Tool usage breakdown + FTS search</li>
           <li>Skills analytics — trends, adoption funnel, drill-down detail</li>
@@ -1133,6 +1133,10 @@ Cache efficiency: 68%</code></pre>
             <div class="timeline-dot dot-green"></div>
             <div><strong>Session sharing</strong> — owner-initiated, time-boxed (1/7/30d), member-to-member, grant-based access in resolveOrgSessionAccess</div>
           </div>
+          <div class="timeline-item">
+            <div class="timeline-dot dot-green"></div>
+            <div><strong>MCP &amp; Agents dashboards</strong> — /org/mcp + /team/*/mcp (utilization, error rates, cost); /org/models (cache efficiency, routing); /org/agents + /team/*/agents (sub-agent breakdown)</div>
+          </div>
         </div>
 
         <div class="label" style="margin-top:0.9em">In review — Phases 7–9</div>
@@ -1240,7 +1244,213 @@ agent_type IN (
 </section>
 
 <!-- ════════════════════════════════════════════════
-     10. CLOSING
+     10. OPPORTUNITIES — WHAT THIS DATA UNLOCKS
+════════════════════════════════════════════════ -->
+<section>
+  <section>
+    <div class="eyebrow">Opportunities</div>
+    <h2>Beyond dashboards — what this data unlocks</h2>
+    <div class="divider"></div>
+    <div class="cols3" style="font-size:0.68em;gap:0.7em">
+      <div>
+        <div class="card card-green">
+          <div class="label" style="color:var(--green)">ROI &amp; Finance</div>
+          <ul style="margin-top:0.4em">
+            <li><strong>Cost-per-PR trend</strong> — already in schema; leadership dashboard</li>
+            <li><strong>Cost-per-feature</strong> — Jira key extraction is built; join pending</li>
+            <li><strong>Revert cost</strong> — AI spend on PRs that were reverted, measurable today</li>
+            <li><strong>Spend forecasting</strong> — session rate × cost/session → next-month projection</li>
+            <li><strong>Vendor negotiation leverage</strong> — detailed usage data for volume discount talks</li>
+          </ul>
+        </div>
+        <div class="card" style="margin-top:0.25em">
+          <div class="label">Model Cost Optimization</div>
+          <ul style="margin-top:0.4em">
+            <li>Per-turn model captured — are devs using Opus for file reads?</li>
+            <li>Cache efficiency already shown as stat card — teachable 30–50% savings</li>
+            <li>Model routing recommendations from session-shape + model data</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="card card-blue">
+          <div class="label" style="color:var(--blue)">Quality &amp; Risk</div>
+          <ul style="margin-top:0.4em">
+            <li><strong>Revert correlation</strong> — do high-friction sessions predict reverts?</li>
+            <li><strong>CI failure correlation</strong> — check_failures_count vs. session tool mix</li>
+            <li><strong>Review burden analysis</strong> — AI PRs larger → slower review? Measurable.</li>
+            <li><strong>Documentation gaps</strong> — aggregate "explain this module" patterns in FTS</li>
+          </ul>
+        </div>
+        <div class="card" style="margin-top:0.25em">
+          <div class="label">Developer Skill Progression</div>
+          <ul style="margin-top:0.4em">
+            <li>Friction score trend over 60 days → AI proficiency growth curve</li>
+            <li>Session shape shift: exploratory → implementation on new codebases</li>
+            <li>Onboarding acceleration: time-to-first-merged-PR with AI vs. baseline</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="card card-purple">
+          <div class="label" style="color:var(--purple)">Security &amp; Compliance</div>
+          <ul style="margin-top:0.4em">
+            <li><strong>AI data exposure map</strong> — MCP calls to external services, by team</li>
+            <li><strong>Secret exposure rate</strong> — redaction hit counts per developer as a training signal</li>
+            <li><strong>Unauthorized model detection</strong> — model governance already built; drive alerting</li>
+            <li><strong>SOC 2 audit trail</strong> — every privileged data access is already logged</li>
+          </ul>
+        </div>
+        <div class="card" style="margin-top:0.25em">
+          <div class="label">MCP Portfolio Management</div>
+          <ul style="margin-top:0.4em">
+            <li>Which integrations have zero invocations? Deprecation candidates.</li>
+            <li>Error rates per MCP server → treat each as a service with an SLO</li>
+            <li>Cross-team MCP adoption = organic knowledge transfer signal</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="deep-dive-hint">prioritized opportunities ↓</div>
+  </section>
+
+  <!-- vertical: prioritized opportunities -->
+  <section>
+    <div class="eyebrow">Opportunities → Prioritized</div>
+    <h2>Impact × Effort — what to build next</h2>
+    <div class="divider"></div>
+    <div style="font-size:0.58em;margin-top:0.4em">
+      <table style="width:100%;border-collapse:collapse;font-family:var(--font-mono)">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);color:var(--text-dim)">
+            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">#</th>
+            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">Opportunity</th>
+            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">Impact</th>
+            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">Effort</th>
+            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">Data ready?</th>
+            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">What's missing</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:0.4em 0.6em;color:var(--green);font-weight:700">1</td>
+            <td style="padding:0.4em 0.6em"><strong>Model cost optimization</strong> — routing + cache guidance</td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-green">High</span></td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-green">Low</span></td>
+            <td style="padding:0.4em 0.6em;color:var(--green)">✓ per-turn model + cache tokens</td>
+            <td style="padding:0.4em 0.6em;color:var(--green)">✓ shipped as /org/models — cache efficiency, routing analysis</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:0.4em 0.6em;color:var(--green);font-weight:700">2</td>
+            <td style="padding:0.4em 0.6em"><strong>MCP portfolio dashboard</strong> — utilization, error rate, SLO</td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium-High</span></td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-green">Low</span></td>
+            <td style="padding:0.4em 0.6em;color:var(--green)">✓ mcp_server + exit_status captured</td>
+            <td style="padding:0.4em 0.6em;color:var(--green)">✓ shipped as /org/mcp + /team/*/mcp — utilization, error rates, cost</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:0.4em 0.6em;color:var(--amber);font-weight:700">3</td>
+            <td style="padding:0.4em 0.6em"><strong>Outcome-based ROI</strong> — cost-per-PR trend, revert &amp; CI correlation</td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-green">High</span></td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium</span></td>
+            <td style="padding:0.4em 0.6em;color:var(--green)">✓ PR rollups, reverts, CI failures</td>
+            <td style="padding:0.4em 0.6em;color:var(--text-dim)">Joins are internal; needs exec dashboard</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:0.4em 0.6em;color:var(--amber);font-weight:700">4</td>
+            <td style="padding:0.4em 0.6em"><strong>Developer skill progression</strong> — friction trend, shape over time</td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium-High</span></td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium</span></td>
+            <td style="padding:0.4em 0.6em;color:var(--green)">✓ friction + shape computed nightly</td>
+            <td style="padding:0.4em 0.6em;color:var(--text-dim)">Time-series UX (P7 starts this for /me)</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:0.4em 0.6em;color:var(--amber);font-weight:700">5</td>
+            <td style="padding:0.4em 0.6em"><strong>Security data exposure reporting</strong> — sensitive repos, MCP egress</td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-green">High</span></td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium</span></td>
+            <td style="padding:0.4em 0.6em;color:var(--green)">✓ tool categories, redaction metadata</td>
+            <td style="padding:0.4em 0.6em;color:var(--text-dim)">Security-focused dashboard page</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:0.4em 0.6em;color:var(--red);font-weight:700">6</td>
+            <td style="padding:0.4em 0.6em"><strong>Knowledge gap detection</strong> — aggregate transcript topic clustering</td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium</span></td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-amber">Medium-High</span></td>
+            <td style="padding:0.4em 0.6em;color:var(--green)">✓ FTS index built</td>
+            <td style="padding:0.4em 0.6em;color:var(--text-dim)">Topic taxonomy or embeddings; UX design</td>
+          </tr>
+          <tr>
+            <td style="padding:0.4em 0.6em;color:var(--red);font-weight:700">7</td>
+            <td style="padding:0.4em 0.6em"><strong>Multi-tool comparison</strong> — Claude vs Cursor vs Copilot cost &amp; productivity</td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-green">High</span></td>
+            <td style="padding:0.4em 0.6em"><span class="tag tag-amber">High</span></td>
+            <td style="padding:0.4em 0.6em;color:var(--green)">✓ agent_type schema; opencode + codex adapters</td>
+            <td style="padding:0.4em 0.6em;color:var(--text-dim)">Cursor/Copilot adapters; controlled rollout</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:0.8em;font-size:0.55em;color:var(--text-dim);font-family:var(--font-mono)">
+      <span class="green">✓ #1 and #2 shipped — /org/models and /org/mcp + /team/*/mcp now live.</span>
+      &nbsp;|&nbsp; Full analysis in <code>OPPORTUNITIES.md</code>
+    </div>
+  </section>
+
+  <!-- vertical: trust constraint -->
+  <section>
+    <div class="eyebrow">Opportunities → Constraint</div>
+    <h2>Trust is the gating factor — not data</h2>
+    <div class="divider"></div>
+    <div class="cols2" style="margin-top:0.7em;font-size:0.75em">
+      <div>
+        <div class="card card-green">
+          <div class="label">The flywheel</div>
+          <div style="display:flex;flex-direction:column;gap:0.5em;margin-top:0.5em;font-size:0.85em">
+            <div style="display:flex;align-items:center;gap:0.6em">
+              <div style="width:2.2em;height:2.2em;border-radius:50%;background:var(--green-dim);display:flex;align-items:center;justify-content:center;color:var(--green);font-weight:700;flex-shrink:0">1</div>
+              <span>Developer finds "My Agents" genuinely useful for themselves</span>
+            </div>
+            <div style="text-align:center;color:var(--text-dim)">↓</div>
+            <div style="display:flex;align-items:center;gap:0.6em">
+              <div style="width:2.2em;height:2.2em;border-radius:50%;background:var(--green-dim);display:flex;align-items:center;justify-content:center;color:var(--green);font-weight:700;flex-shrink:0">2</div>
+              <span>Developer opts into sharing metadata with their team</span>
+            </div>
+            <div style="text-align:center;color:var(--text-dim)">↓</div>
+            <div style="display:flex;align-items:center;gap:0.6em">
+              <div style="width:2.2em;height:2.2em;border-radius:50%;background:var(--green-dim);display:flex;align-items:center;justify-content:center;color:var(--green);font-weight:700;flex-shrink:0">3</div>
+              <span>Team-level and org-level data becomes rich enough to be useful</span>
+            </div>
+            <div style="text-align:center;color:var(--text-dim)">↓</div>
+            <div style="display:flex;align-items:center;gap:0.6em">
+              <div style="width:2.2em;height:2.2em;border-radius:50%;background:var(--green-dim);display:flex;align-items:center;justify-content:center;color:var(--green);font-weight:700;flex-shrink:0">4</div>
+              <span>Org gets the ROI analysis, governance, and research value</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card card-amber">
+          <div class="label">The anti-pattern to avoid</div>
+          <ul style="margin-top:0.4em">
+            <li>Building the manager dashboard <strong>before</strong> the developer dashboard</li>
+            <li>Expanding analysis scope to individual behavior without developer benefit</li>
+            <li>Defaulting transcript sharing to <em>on</em> — this is a political fault line</li>
+            <li>Adding "performance" framing to any individual metric</li>
+          </ul>
+        </div>
+        <div class="card" style="margin-top:0.7em">
+          <div class="label">Design rule for every new analysis surface</div>
+          <p style="font-size:0.85em;color:var(--text-dim);margin-top:0.3em">Before building it, answer: <strong class="text">"What does the individual developer get from this?"</strong><br><br>
+          If the answer is nothing — reconsider whether to build it, or how to present it so it is also useful to the person whose data it is.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- ════════════════════════════════════════════════
+     11. CLOSING
 ════════════════════════════════════════════════ -->
 <section>
   <div class="slide-intro">
