@@ -29,10 +29,18 @@ export async function POST(request: Request) {
   const db = getPrisma();
   const user = await db.user.findUnique({ where: { email } });
 
-  // Always verify against a hash so response time doesn't reveal whether the email exists.
-  const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
+  // Always run a hash so response time doesn't reveal whether the email exists.
+  // If the user has no password set (GitHub-only account), burn time with the
+  // dummy hash then reject — do NOT fall through to verifyPassword with the
+  // sentinel value, which an attacker who knows it could exploit.
+  if (!user || !user.passwordHash) {
+    await getDummyHash();
+    return NextResponse.json({ error: INVALID_CREDENTIALS }, { status: 401 });
+  }
 
-  if (!user || user.deactivatedAt || !valid) {
+  const valid = await verifyPassword(password, user.passwordHash);
+
+  if (user.deactivatedAt || !valid) {
     return NextResponse.json({ error: INVALID_CREDENTIALS }, { status: 401 });
   }
 
