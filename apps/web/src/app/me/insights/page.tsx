@@ -1,4 +1,6 @@
 import { redirect } from 'next/navigation';
+import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
+import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { currentUser } from '@/lib/auth';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
 import {
@@ -15,8 +17,6 @@ import {
   type SubagentUsageRow,
   type ToolPerfRow,
 } from '@/lib/insights-queries';
-import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
-import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,12 +46,6 @@ function pct(num: number, den: number): string {
 }
 
 function fmtCost(usd: number): string {
-  if (usd === 0) {
-    return '$0.00';
-  }
-  if (usd < 0.01) {
-    return `$${usd.toFixed(4)}`;
-  }
   return `$${usd.toFixed(2)}`;
 }
 
@@ -91,13 +85,13 @@ export default async function InsightsPage({
     getSessionSummary(user.id, since),
   ]);
 
-  const hasAnyData =
+  const hasSessionData = summary.sessionCount > 0;
+  const hasEventData =
     mcp.length > 0 ||
     skills.length > 0 ||
     slashCmds.length > 0 ||
     subagents.length > 0 ||
-    toolPerf.length > 0 ||
-    summary.sessionCount > 0;
+    toolPerf.length > 0;
 
   return (
     <div className="space-y-8">
@@ -111,7 +105,7 @@ export default async function InsightsPage({
         <DaysSelector current={days} />
       </div>
 
-      {!hasAnyData ? (
+      {!hasSessionData && !hasEventData ? (
         <div className="rounded-lg border border-border bg-surface p-8 text-center">
           <p className="text-sm text-text-3">
             No data for the selected window. Run some sessions to see insights here.
@@ -119,25 +113,31 @@ export default async function InsightsPage({
         </div>
       ) : (
         <>
-          <SessionSummaryCards summary={summary} />
+          {hasSessionData && <SessionSummaryCards summary={summary} />}
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <FrictionTrendChart
-              points={effectiveness.trend}
-              scoredSessionCount={effectiveness.scoredSessionCount}
-            />
-            <ShapeDistributionChart histogram={effectiveness.shapeHistogram} />
-          </div>
+          {hasSessionData && (
+            <div className="grid gap-6 md:grid-cols-2">
+              <FrictionTrendChart
+                points={effectiveness.trend}
+                scoredSessionCount={effectiveness.scoredSessionCount}
+              />
+              <ShapeDistributionChart histogram={effectiveness.shapeHistogram} />
+            </div>
+          )}
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <McpSection rows={mcp} />
-            <SkillsSection rows={skills} />
-          </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            <SlashCommandsSection rows={slashCmds} />
-            <SubagentsSection rows={subagents} />
-          </div>
-          <ToolPerfSection rows={toolPerf} />
+          {hasEventData && (
+            <>
+              <div className="grid gap-6 md:grid-cols-2">
+                <McpSection rows={mcp} />
+                <SkillsSection rows={skills} />
+              </div>
+              <div className="grid gap-6 md:grid-cols-2">
+                <SlashCommandsSection rows={slashCmds} />
+                <SubagentsSection rows={subagents} />
+              </div>
+              <ToolPerfSection rows={toolPerf} />
+            </>
+          )}
         </>
       )}
     </div>
@@ -173,10 +173,7 @@ function SessionSummaryCards({ summary: s }: { summary: SessionSummaryRow }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
       {cards.map(({ label, value }) => (
-        <div
-          key={label}
-          className="rounded-lg border border-border bg-surface px-4 py-3 space-y-1"
-        >
+        <div key={label} className="rounded-lg border border-border bg-surface px-4 py-3 space-y-1">
           <p className="text-xs text-text-3">{label}</p>
           <p className="text-lg font-semibold tabular-nums text-text">{value}</p>
         </div>

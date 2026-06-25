@@ -21,9 +21,7 @@ export function FrictionTrendChart({
       <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
         Friction over time
       </h2>
-      <span className="text-[10px] uppercase tracking-wide text-text-3">
-        v{FRICTION_VERSION}
-      </span>
+      <span className="text-[10px] uppercase tracking-wide text-text-3">v{FRICTION_VERSION}</span>
     </div>
   );
 
