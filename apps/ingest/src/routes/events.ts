@@ -30,7 +30,13 @@ export function eventsRouter(
     '/',
     bodyLimit({
       maxSize: MAX_BODY_BYTES,
-      onError: (c) => c.json({ error: 'Request body too large' }, 413),
+      onError: (c) => {
+        logger.warn(
+          { reqId: c.get('requestId'), size_limit_bytes: MAX_BODY_BYTES },
+          'ingest.events.body_too_large',
+        );
+        return c.json({ error: 'Request body too large' }, 413);
+      },
     }),
     // Validate the envelope structure (and the fallback session_context) up
     // front, but leave the events array unparsed — each event is validated
@@ -45,6 +51,10 @@ export function eventsRouter(
       const envelope = c.req.valid('json');
 
       if (envelope.events.length > 500) {
+        logger.warn(
+          { batch_size: envelope.events.length, reqId: c.get('requestId') },
+          'ingest.events.batch_too_large',
+        );
         return c.json({ error: 'Batch exceeds 500 events' }, 413);
       }
 
@@ -162,15 +172,22 @@ export function eventsRouter(
             }
             return linkSessionToPR(db, e.session_id, repoId, git.pr_number);
           }),
-      ).catch(() => {});
+      ).then((results) => {
+        const failures = results.filter((r) => r.status === 'rejected');
+        if (failures.length > 0) {
+          logger.debug({ count: failures.length, reqId }, 'ingest.events.pr_link_failed');
+        }
+      });
 
       logger.info(
         {
           accepted: inserted.accepted,
           deduped: inserted.deduped,
           duration_ms: Date.now() - start,
+          rejected,
           reqId,
           sessions_touched: aggregated.sessionsTouched,
+          total: envelope.events.length,
         },
         'ingest.events.accepted',
       );

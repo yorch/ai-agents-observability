@@ -250,7 +250,14 @@ export function startScheduler(deps: SchedulerDeps): void {
         return;
       }
       running = true;
+      const start = Date.now();
       fn()
+        .then(() => {
+          logger?.info(
+            { duration_ms: Date.now() - start, jobName: name },
+            'Scheduler: job completed',
+          );
+        })
         .catch((err) => logger?.error({ err }, `Unhandled error in ${name} job`))
         .finally(() => {
           running = false;
