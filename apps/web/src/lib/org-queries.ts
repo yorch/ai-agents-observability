@@ -1,4 +1,5 @@
 import { type $Enums, Prisma } from '@ai-agents-observability/db';
+import { daysAgo } from './time';
 import {
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
@@ -17,6 +18,7 @@ import { labelToolRows } from './tool-usage';
 
 export type OrgSummary = {
   activeUsers: number;
+  cacheHitRate: number;
   sessionCount: number;
   teamCount: number;
   totalCostUsd: number;
@@ -82,16 +84,19 @@ async function orgVisibleUserIds(since: Date): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
-export async function getOrgSummary(since: Date): Promise<OrgSummary> {
+async function getOrgSummaryWindow(since: Date, until?: Date): Promise<OrgSummary> {
   const prisma = getPrisma();
 
-  const [teamCount, agg, [hoursRow], distinctUsers] = await Promise.all([
+  const untilFilter = until ? { lt: until } : {};
+  const untilClause = until ? Prisma.sql`AND s.started_at < ${until}` : Prisma.sql``;
+
+  const [teamCount, agg, [hoursRow], distinctUsers, [cacheRow]] = await Promise.all([
     prisma.team.count(),
     prisma.session.aggregate({
       _count: { sessionId: true },
       _sum: { totalCostUsd: true },
       where: {
-        startedAt: { gte: since },
+        startedAt: { gte: since, ...untilFilter },
         user: {
           deactivatedAt: null,
           OR: [{ visibilityPolicy: { shareMetadataWithOrg: true } }, { visibilityPolicy: null }],
@@ -104,6 +109,7 @@ export async function getOrgSummary(since: Date): Promise<OrgSummary> {
       JOIN users u ON u.id = s.user_id
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
       WHERE s.started_at >= ${since}
+        ${untilClause}
         AND u.deactivated_at IS NULL
         AND COALESCE(vp.share_metadata_with_org, true) = true
         AND s.ended_at IS NOT NULL
@@ -111,22 +117,44 @@ export async function getOrgSummary(since: Date): Promise<OrgSummary> {
     prisma.session.groupBy({
       by: ['userId'],
       where: {
-        startedAt: { gte: since },
+        startedAt: { gte: since, ...untilFilter },
         user: {
           deactivatedAt: null,
           OR: [{ visibilityPolicy: { shareMetadataWithOrg: true } }, { visibilityPolicy: null }],
         },
       },
     }),
+    prisma.$queryRaw<[{ cache_read: bigint; input_tokens: bigint }]>(Prisma.sql`
+      SELECT
+        COALESCE(SUM(s.total_cache_read), 0)    AS cache_read,
+        COALESCE(SUM(s.total_input_tokens), 0)  AS input_tokens
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      WHERE s.started_at >= ${since}
+        ${untilClause}
+        AND u.deactivated_at IS NULL
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+    `),
   ]);
+
+  const cacheRead = Number(cacheRow?.cache_read ?? 0);
+  const inputTokens = Number(cacheRow?.input_tokens ?? 0);
+  const denom = inputTokens + cacheRead;
+  const cacheHitRate = denom > 0 ? (cacheRead / denom) * 100 : 0;
 
   return {
     activeUsers: distinctUsers.length,
+    cacheHitRate,
     sessionCount: agg._count.sessionId,
     teamCount,
     totalCostUsd: Number(agg._sum.totalCostUsd ?? 0),
     totalHours: Number(hoursRow?.total_seconds ?? 0) / 3600,
   };
+}
+
+export async function getOrgSummary(since: Date): Promise<OrgSummary> {
+  return getOrgSummaryWindow(since);
 }
 
 export async function getCostByTeam(since: Date): Promise<TeamCostRow[]> {
@@ -1196,4 +1224,210 @@ export async function getTeamBenchmarks(since: Date, weeks = 4): Promise<TeamBen
     },
     teams,
   };
+}
+
+// ── Feature B + E: org delta-aware summary ─────────────────────────────────────
+
+export async function getOrgSummaryWithDelta(range: number): Promise<{
+  current: OrgSummary;
+  deltas: {
+    activeUsers: number | null;
+    cacheHitRate: number | null;
+    sessionCount: number | null;
+    totalCostUsd: number | null;
+  };
+}> {
+  const currentStart = daysAgo(range);
+  const priorStart = daysAgo(2 * range);
+  const priorEnd = currentStart;
+
+  const [current, prior] = await Promise.all([
+    getOrgSummaryWindow(currentStart),
+    getOrgSummaryWindow(priorStart, priorEnd),
+  ]);
+
+  const delta = (cur: number, prev: number): number | null =>
+    prev > 0 ? (cur - prev) / prev : null;
+
+  return {
+    current,
+    deltas: {
+      activeUsers: delta(current.activeUsers, prior.activeUsers),
+      cacheHitRate: delta(current.cacheHitRate, prior.cacheHitRate),
+      sessionCount: delta(current.sessionCount, prior.sessionCount),
+      totalCostUsd: delta(current.totalCostUsd, prior.totalCostUsd),
+    },
+  };
+}
+
+// ── Feature D: adoption funnel ─────────────────────────────────────────────────
+
+export type OrgAdoptionFunnel = {
+  active30d: number;
+  active30dDelta: number | null;
+  active7d: number;
+  everUsers: number;
+  newThisMonth: number;
+};
+
+export async function getOrgAdoptionFunnel(range: number): Promise<OrgAdoptionFunnel> {
+  const prisma = getPrisma();
+
+  const currentWindowStart = daysAgo(range);
+  const thirtyDaysAgo = daysAgo(30);
+  const sevenDaysAgo = daysAgo(7);
+  const sixtyDaysAgo = daysAgo(60);
+
+  // Visibility predicate fragment (reused across queries)
+  const [everRow, active30dRow, active7dRow, newThisMonthRow, priorActive30dRow] =
+    await Promise.all([
+      // everUsers: org-visible non-deactivated users with at least one session ever
+      prisma.$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
+        SELECT COUNT(DISTINCT u.id) AS cnt
+        FROM users u
+        JOIN sessions s ON s.user_id = u.id
+        LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+        WHERE u.deactivated_at IS NULL
+          AND COALESCE(vp.share_metadata_with_org, true) = true
+      `),
+      // active30d: distinct org-visible users with a session in the last 30 days
+      prisma.$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
+        SELECT COUNT(DISTINCT u.id) AS cnt
+        FROM users u
+        JOIN sessions s ON s.user_id = u.id
+        LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+        WHERE u.deactivated_at IS NULL
+          AND COALESCE(vp.share_metadata_with_org, true) = true
+          AND s.started_at >= ${thirtyDaysAgo}
+      `),
+      // active7d: distinct org-visible users with a session in the last 7 days
+      prisma.$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
+        SELECT COUNT(DISTINCT u.id) AS cnt
+        FROM users u
+        JOIN sessions s ON s.user_id = u.id
+        LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+        WHERE u.deactivated_at IS NULL
+          AND COALESCE(vp.share_metadata_with_org, true) = true
+          AND s.started_at >= ${sevenDaysAgo}
+      `),
+      // newThisMonth: users whose FIRST-ever session falls within [daysAgo(range), now)
+      prisma.$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
+        SELECT COUNT(*) AS cnt
+        FROM (
+          SELECT u.id
+          FROM users u
+          JOIN sessions s ON s.user_id = u.id
+          LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+          WHERE u.deactivated_at IS NULL
+            AND COALESCE(vp.share_metadata_with_org, true) = true
+          GROUP BY u.id
+          HAVING MIN(s.started_at) >= ${currentWindowStart}
+        ) t
+      `),
+      // prior active30d: sessions in [daysAgo(60), daysAgo(30))
+      prisma.$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
+        SELECT COUNT(DISTINCT u.id) AS cnt
+        FROM users u
+        JOIN sessions s ON s.user_id = u.id
+        LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+        WHERE u.deactivated_at IS NULL
+          AND COALESCE(vp.share_metadata_with_org, true) = true
+          AND s.started_at >= ${sixtyDaysAgo}
+          AND s.started_at < ${thirtyDaysAgo}
+      `),
+    ]);
+
+  const active30d = Number(active30dRow[0]?.cnt ?? 0);
+  const priorActive30d = Number(priorActive30dRow[0]?.cnt ?? 0);
+  const active30dDelta = priorActive30d > 0 ? (active30d - priorActive30d) / priorActive30d : null;
+
+  return {
+    active30d,
+    active30dDelta,
+    active7d: Number(active7dRow[0]?.cnt ?? 0),
+    everUsers: Number(everRow[0]?.cnt ?? 0),
+    newThisMonth: Number(newThisMonthRow[0]?.cnt ?? 0),
+  };
+}
+
+// ── Feature F: team model governance ──────────────────────────────────────────
+
+export type TeamModelGovernanceRow = {
+  modelCostPct: number;
+  teamName: string;
+  teamSlug: string;
+  topModel: string;
+  topModelCostUsd: number;
+  totalCostUsd: number;
+};
+
+export async function getTeamModelGovernance(
+  since: Date,
+  limit = 10,
+): Promise<TeamModelGovernanceRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    {
+      team_name: string;
+      team_slug: string;
+      top_model: string;
+      top_model_cost: string;
+      total_cost: string;
+    }[]
+  >(Prisma.sql`
+    WITH team_model AS (
+      SELECT
+        t.id                                          AS team_id,
+        t.name                                        AS team_name,
+        t.github_slug                                 AS team_slug,
+        COALESCE(s.primary_model, 'unknown')          AS model,
+        SUM(s.total_cost_usd)                         AS model_cost
+      FROM teams t
+      JOIN team_members tm ON tm.team_id = t.id AND tm.left_at IS NULL
+      JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      JOIN sessions s ON s.user_id = u.id AND s.started_at >= ${since}
+      WHERE COALESCE(vp.share_metadata_with_org, true) = true
+      GROUP BY t.id, t.name, t.github_slug, COALESCE(s.primary_model, 'unknown')
+    ),
+    team_total AS (
+      SELECT
+        team_id,
+        team_name,
+        team_slug,
+        SUM(model_cost) AS total_cost
+      FROM team_model
+      GROUP BY team_id, team_name, team_slug
+    ),
+    top_model AS (
+      SELECT DISTINCT ON (team_id)
+        team_id,
+        model,
+        model_cost
+      FROM team_model
+      ORDER BY team_id, model_cost DESC
+    )
+    SELECT
+      tt.team_name,
+      tt.team_slug,
+      tm.model          AS top_model,
+      tm.model_cost     AS top_model_cost,
+      tt.total_cost
+    FROM team_total tt
+    JOIN top_model tm ON tm.team_id = tt.team_id
+    ORDER BY tt.total_cost DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((r) => {
+    const totalCostUsd = Number(r.total_cost ?? 0);
+    const topModelCostUsd = Number(r.top_model_cost ?? 0);
+    return {
+      modelCostPct: totalCostUsd > 0 ? (topModelCostUsd / totalCostUsd) * 100 : 0,
+      teamName: r.team_name,
+      teamSlug: r.team_slug,
+      topModel: r.top_model,
+      topModelCostUsd,
+      totalCostUsd,
+    };
+  });
 }
