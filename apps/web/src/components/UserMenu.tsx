@@ -15,19 +15,19 @@ export function UserMenu({ displayName }: { displayName: string }) {
 
   return (
     <div className="flex items-center gap-3">
-      <Link href="/me" className="text-white/80 hover:text-white">
+      <Link href="/me" className="text-sm text-text-2 hover:text-text transition-colors">
         {displayName}
       </Link>
-      <Link href="/install" className="text-xs text-white/40 hover:text-white/70">
+      <Link href="/install" className="text-xs text-text-3 hover:text-text-2 transition-colors">
         Install
       </Link>
       <button
         type="button"
         onClick={signOut}
         disabled={pending}
-        className="rounded-md border border-white/20 px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-50"
+        className="text-xs text-text-3 hover:text-text-2 transition-colors disabled:opacity-40"
       >
-        {pending ? 'Signing out…' : 'Sign out'}
+        {pending ? 'signing out…' : 'sign out'}
       </button>
     </div>
   );

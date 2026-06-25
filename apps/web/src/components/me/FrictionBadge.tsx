@@ -1,7 +1,5 @@
 import { FRICTION_VERSION } from '@/lib/effectiveness';
 
-// The friction inputs needed to explain what drove a session's score. Mirrors the
-// fields computeFrictionScore consumes.
 export type FrictionInputsLite = {
   durationSeconds: number | null;
   interruptCount: number;
@@ -12,15 +10,14 @@ export type FrictionInputsLite = {
   userMessageCount: number;
 };
 
-// Bands per P7-003: Low < 0.3, Medium 0.3–0.6, High > 0.6.
 function band(score: number): { color: string; label: string } {
   if (score < 0.3) {
-    return { color: 'bg-green-500/20 text-green-300', label: 'Low' };
+    return { color: 'bg-green-500/15 text-green-400', label: 'Low' };
   }
   if (score <= 0.6) {
-    return { color: 'bg-yellow-500/20 text-yellow-300', label: 'Medium' };
+    return { color: 'bg-yellow-500/15 text-yellow-400', label: 'Medium' };
   }
-  return { color: 'bg-red-500/20 text-red-300', label: 'High' };
+  return { color: 'bg-red-500/15 text-red-400', label: 'High' };
 }
 
 function explain(score: number, i: FrictionInputsLite): string {
@@ -33,7 +30,6 @@ function explain(score: number, i: FrictionInputsLite): string {
   const shortAbandoned =
     i.status === 'ABANDONED' && (i.durationSeconds == null || i.durationSeconds < 60);
 
-  // Rank by each signal's weighted contribution (same weights as the formula).
   const drivers = [
     { label: `tool errors (${Math.round(errorRate * 100)}% of calls)`, value: errorRate * 0.3 },
     {
@@ -51,11 +47,6 @@ function explain(score: number, i: FrictionInputsLite): string {
   return top && top.value > 0 ? `Driven mainly by ${top.label}.` : 'Mixed minor friction signals.';
 }
 
-/**
- * Friction band + plain-English explanation for a single session. Shows
- * "Insufficient data" (not a misleading 0) when the score is null per
- * DESIGN_DOC §10.6.
- */
 export function FrictionBadge({
   inputs,
   score,
@@ -65,7 +56,7 @@ export function FrictionBadge({
 }) {
   if (score === null) {
     return (
-      <span className="inline-flex items-center rounded-md bg-white/10 px-2 py-1 text-xs text-white/40">
+      <span className="inline-flex items-center rounded bg-surface-2 px-2 py-1 text-xs text-text-3">
         Friction: Insufficient data
       </span>
     );
@@ -74,10 +65,12 @@ export function FrictionBadge({
   const b = band(score);
   return (
     <div className="flex flex-col gap-0.5">
-      <span className={`inline-flex w-fit items-center rounded-md px-2 py-1 text-xs ${b.color}`}>
+      <span
+        className={`inline-flex w-fit items-center rounded px-2 py-1 text-xs font-mono ${b.color}`}
+      >
         Friction: {b.label} · {score.toFixed(2)}
       </span>
-      <span className="text-[10px] text-white/40">
+      <span className="text-[10px] text-text-3">
         {explain(score, inputs)} · Friction v{FRICTION_VERSION}
       </span>
     </div>

@@ -8,14 +8,6 @@ const TABS = [
   { href: '?tab=models', id: 'models', label: 'Models' },
 ] as const;
 
-/**
- * The session-detail tab bar plus the three tab bodies. Identical across the
- * /me, /team, and /org session-detail pages — those pages own the audience-
- * specific auth/audit/header and delegate the body to this component.
- *
- * `events` is only read by the Timeline tab and `modelBreakdown` only by the
- * Models tab, so callers may pass empty arrays for the inactive tabs.
- */
 export function SessionDetailTabs({
   events,
   modelBreakdown,
@@ -29,16 +21,16 @@ export function SessionDetailTabs({
 }) {
   return (
     <>
-      <div className="border-b border-white/10">
-        <nav className="flex gap-4 text-sm">
+      <div className="border-b border-border">
+        <nav className="flex gap-6 text-sm">
           {TABS.map((t) => (
             <a
               key={t.id}
               href={t.href}
               className={`pb-3 border-b-2 transition-colors ${
                 tab === t.id
-                  ? 'border-brand-500 text-white'
-                  : 'border-transparent text-white/50 hover:text-white'
+                  ? 'border-accent text-text'
+                  : 'border-transparent text-text-2 hover:text-text'
               }`}
             >
               {t.label}

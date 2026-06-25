@@ -17,17 +17,17 @@ const ADMIN_NAV = [
 export function AdminNav() {
   const pathname = usePathname();
   return (
-    <nav className="mb-6 flex flex-wrap gap-6 border-b border-white/10">
+    <nav className="mb-8 flex flex-wrap border-b border-border text-sm">
       {ADMIN_NAV.map(({ href, label }) => {
-        const active = pathname.startsWith(href);
+        const isActive = pathname.startsWith(href);
         return (
           <Link
             key={href}
             href={href}
-            className={`pb-3 text-sm transition-colors ${
-              active
-                ? 'border-b-2 border-brand-500 text-white'
-                : 'text-white/50 hover:text-white/80'
+            className={`relative mr-6 pb-3 transition-colors ${
+              isActive
+                ? 'text-text after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-px after:bg-accent'
+                : 'text-text-2 hover:text-text'
             }`}
           >
             {label}

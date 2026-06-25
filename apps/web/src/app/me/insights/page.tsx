@@ -24,13 +24,19 @@ function parseDays(raw: string | undefined): Days {
 }
 
 function fmtDuration(ms: number | null): string {
-  if (ms == null) return '—';
-  if (ms < 1000) return `${ms}ms`;
+  if (ms == null) {
+    return '—';
+  }
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
 function pct(num: number, den: number): string {
-  if (den === 0) return '—';
+  if (den === 0) {
+    return '—';
+  }
   return `${((num / den) * 100).toFixed(1)}%`;
 }
 
@@ -40,7 +46,9 @@ export default async function InsightsPage({
   searchParams: Promise<Record<string, string>>;
 }) {
   const user = await currentUser();
-  if (!user) redirect('/login');
+  if (!user) {
+    redirect('/login');
+  }
 
   const params = await searchParams;
   const days = parseDays(params.days);
@@ -65,8 +73,8 @@ export default async function InsightsPage({
     <div className="space-y-8">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Insights</h1>
-          <p className="mt-1 text-sm text-white/50">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Insights</h1>
+          <p className="mt-1 text-sm text-text-2">
             MCP servers · skills · commands · subagents · tool performance
           </p>
         </div>
@@ -74,8 +82,8 @@ export default async function InsightsPage({
       </div>
 
       {!hasAnyData ? (
-        <div className="rounded-lg border border-white/10 p-8 text-center">
-          <p className="text-sm text-white/50">
+        <div className="rounded-lg border border-border bg-surface p-8 text-center">
+          <p className="text-sm text-text-3">
             No data for the selected window. Run some sessions to see insights here.
           </p>
         </div>
@@ -98,15 +106,13 @@ export default async function InsightsPage({
 
 function DaysSelector({ current }: { current: Days }) {
   return (
-    <div className="flex gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+    <div className="flex gap-1 rounded-lg border border-border bg-surface p-1">
       {DAYS_OPTS.map((d) => (
         <a
           key={d}
           href={`/me/insights?days=${d}`}
-          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-            current === d
-              ? 'bg-brand-500 text-white'
-              : 'text-white/50 hover:text-white hover:bg-white/10'
+          className={`rounded-md px-3 py-1 text-xs font-medium font-mono transition-colors ${
+            current === d ? 'bg-accent text-bg' : 'text-text-3 hover:text-text hover:bg-surface-2'
           }`}
         >
           {d}d
@@ -126,13 +132,9 @@ function SectionShell({
   title: string;
 }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-white/70">{title}</h2>
-      {empty ? (
-        <p className="text-sm text-white/30">No data in this window.</p>
-      ) : (
-        children
-      )}
+    <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">{title}</h2>
+      {empty ? <p className="text-sm text-text-3">No data in this window.</p> : children}
     </section>
   );
 }
@@ -148,8 +150,8 @@ function McpSection({ rows }: { rows: McpUsageRow[] }) {
         return (
           <div key={server} className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-mono font-medium text-white/80">{server}</span>
-              <span className="text-white/40">
+              <span className="font-mono font-medium text-text">{server}</span>
+              <span className="text-text-3">
                 {totalCalls} calls · {pct(totalErrors, totalCalls)} errors
               </span>
             </div>
@@ -158,10 +160,10 @@ function McpSection({ rows }: { rows: McpUsageRow[] }) {
               .map((r) => (
                 <div
                   key={`${r.mcpServer}-${r.mcpTool}`}
-                  className="ml-3 flex items-center justify-between text-xs text-white/60"
+                  className="ml-3 flex items-center justify-between text-xs text-text-2"
                 >
                   <span className="font-mono">{r.mcpTool}</span>
-                  <span className="text-white/40">
+                  <span className="text-text-3">
                     {r.callCount}×
                     {r.avgDurationMs != null && (
                       <span className="ml-2">{fmtDuration(r.avgDurationMs)}</span>
@@ -186,14 +188,14 @@ function SkillsSection({ rows }: { rows: SkillUsageRow[] }) {
             className="flex items-center justify-between text-sm"
           >
             <div>
-              <span className="font-mono text-xs text-white/80">{r.skillName}</span>
+              <span className="font-mono text-xs text-text">{r.skillName}</span>
               {r.skillPath && (
-                <span className="ml-2 text-xs text-white/30 truncate max-w-[140px] inline-block align-bottom">
+                <span className="ml-2 text-xs text-text-3 truncate max-w-[140px] inline-block align-bottom">
                   {r.skillPath}
                 </span>
               )}
             </div>
-            <span className="text-xs text-white/50">{r.useCount}×</span>
+            <span className="text-xs text-text-2">{r.useCount}×</span>
           </div>
         ))}
       </div>
@@ -211,12 +213,12 @@ function SlashCommandsSection({ rows }: { rows: SlashCommandRow[] }) {
           return (
             <div key={r.command} className="space-y-0.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-mono text-white/80">{r.command}</span>
-                <span className="text-white/40">{r.useCount}×</span>
+                <span className="font-mono text-text">{r.command}</span>
+                <span className="text-text-3">{r.useCount}×</span>
               </div>
-              <div className="h-1 rounded-full bg-white/10">
+              <div className="h-1 rounded-full bg-surface-2">
                 <div
-                  className="h-full rounded-full bg-brand-500/60"
+                  className="h-full rounded-full bg-accent/50"
                   style={{ width: `${barPct.toFixed(1)}%` }}
                 />
               </div>
@@ -235,8 +237,8 @@ function SubagentsSection({ rows }: { rows: SubagentUsageRow[] }) {
       <div className="space-y-2">
         {rows.map((r) => (
           <div key={r.subagentType} className="flex items-center justify-between text-sm">
-            <span className="font-mono text-xs text-white/80">{r.subagentType}</span>
-            <div className="flex items-center gap-3 text-xs text-white/50">
+            <span className="font-mono text-xs text-text">{r.subagentType}</span>
+            <div className="flex items-center gap-3 text-xs text-text-2">
               <span>{r.useCount}×</span>
               <span>{pct(r.useCount, total)}</span>
             </div>
@@ -249,15 +251,17 @@ function SubagentsSection({ rows }: { rows: SubagentUsageRow[] }) {
 
 function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-white/70">Tool performance</h2>
+    <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+        Tool performance
+      </h2>
       {rows.length === 0 ? (
-        <p className="text-sm text-white/30">No PostToolUse events in this window.</p>
+        <p className="text-sm text-text-3">No PostToolUse events in this window.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-white/40 border-b border-white/10">
+              <tr className="text-left text-text-3 border-b border-border">
                 <th className="pb-2 font-medium">Tool</th>
                 <th className="pb-2 font-medium">Category</th>
                 <th className="pb-2 font-medium text-right">Calls</th>
@@ -267,30 +271,30 @@ function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
                 <th className="pb-2 font-medium text-right">p95</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-border-subtle">
               {rows.map((r) => (
                 <tr key={r.toolName}>
-                  <td className="py-2 font-mono text-xs text-white/80">{r.toolName}</td>
-                  <td className="py-2 text-xs text-white/40">{r.toolCategory ?? '—'}</td>
-                  <td className="py-2 text-right text-white/60">{r.callCount}</td>
+                  <td className="py-2 font-mono text-xs text-text">{r.toolName}</td>
+                  <td className="py-2 text-xs text-text-3">{r.toolCategory ?? '—'}</td>
+                  <td className="py-2 text-right text-text-2">{r.callCount}</td>
                   <td
                     className={`py-2 text-right text-xs ${
-                      r.errorCount > 0 ? 'text-red-400' : 'text-white/30'
+                      r.errorCount > 0 ? 'text-red-400' : 'text-text-3'
                     }`}
                   >
                     {r.errorCount > 0 ? `${r.errorCount} (${pct(r.errorCount, r.callCount)})` : '—'}
                   </td>
                   <td
                     className={`py-2 text-right text-xs ${
-                      r.deniedCount > 0 ? 'text-yellow-400' : 'text-white/30'
+                      r.deniedCount > 0 ? 'text-yellow-400' : 'text-text-3'
                     }`}
                   >
                     {r.deniedCount > 0 ? r.deniedCount : '—'}
                   </td>
-                  <td className="py-2 text-right font-mono text-xs text-white/60">
+                  <td className="py-2 text-right font-mono text-xs text-text-2">
                     {fmtDuration(r.avgDurationMs)}
                   </td>
-                  <td className="py-2 text-right font-mono text-xs text-white/50">
+                  <td className="py-2 text-right font-mono text-xs text-text-3">
                     {fmtDuration(r.p95DurationMs)}
                   </td>
                 </tr>

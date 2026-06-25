@@ -1,13 +1,13 @@
-const MODEL_COLORS = ['bg-brand-500', 'bg-brand-600', 'bg-brand-700'];
+const MODEL_COLORS = ['bg-accent', 'bg-accent/60', 'bg-accent/30'];
 
 type ModelEntry = { costUsd: number; model: string; sessionCount: number; turns: number };
 
 export function ModelMixChart({ models }: { models: ModelEntry[] }) {
   if (models.length === 0) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-        <h2 className="text-sm font-medium text-white/70 mb-4">Model Usage</h2>
-        <p className="text-sm text-white/40">No data</p>
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <h2 className="text-xs text-text-3 uppercase tracking-widest mb-4">Model Usage</h2>
+        <p className="text-sm text-text-3">No data</p>
       </div>
     );
   }
@@ -18,11 +18,11 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
   );
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-      <h2 className="text-sm font-medium text-white/70 mb-4">Model Usage</h2>
+    <div className="rounded-lg border border-border bg-surface p-4">
+      <h2 className="text-xs text-text-3 uppercase tracking-widest mb-4">Model Usage</h2>
 
       {/* Segmented bar — proportional to turns */}
-      <div className="flex h-3 w-full overflow-hidden rounded-full mb-4">
+      <div className="flex h-1.5 w-full overflow-hidden rounded-full mb-4 bg-surface-2">
         {models.map((m, i) => (
           <div
             key={m.model}
@@ -35,20 +35,22 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
 
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-white/40 border-b border-white/10">
+          <tr className="text-text-3 border-b border-border">
             <th className="text-left pb-2">Model</th>
-            <th className="text-right pb-2">Turns</th>
-            <th className="text-right pb-2">Sessions</th>
-            <th className="text-right pb-2">Cost</th>
+            <th className="text-right pb-2 font-mono">Turns</th>
+            <th className="text-right pb-2 font-mono">Sessions</th>
+            <th className="text-right pb-2 font-mono">Cost</th>
           </tr>
         </thead>
         <tbody>
           {models.map((m) => (
-            <tr key={m.model} className="border-b border-white/5">
-              <td className="py-1.5 text-white/80 truncate max-w-[120px]">{m.model}</td>
-              <td className="py-1.5 text-right text-white/60">{m.turns.toLocaleString()}</td>
-              <td className="py-1.5 text-right text-white/60">{m.sessionCount}</td>
-              <td className="py-1.5 text-right text-white/60">${m.costUsd.toFixed(3)}</td>
+            <tr key={m.model} className="border-b border-border-subtle">
+              <td className="py-1.5 text-text-2 truncate max-w-[120px]">{m.model}</td>
+              <td className="py-1.5 text-right text-text-2 font-mono">
+                {m.turns.toLocaleString()}
+              </td>
+              <td className="py-1.5 text-right text-text-2 font-mono">{m.sessionCount}</td>
+              <td className="py-1.5 text-right text-text-2 font-mono">${m.costUsd.toFixed(3)}</td>
             </tr>
           ))}
         </tbody>

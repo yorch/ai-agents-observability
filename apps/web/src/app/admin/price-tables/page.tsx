@@ -47,14 +47,19 @@ export default async function PriceTablesPage() {
   if (!ingestUrl) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-semibold">Price tables</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+          Price tables
+        </h1>
         <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm">
-          <p className="font-medium text-yellow-300">INGEST_URL not configured</p>
-          <p className="mt-1 text-white/60">
-            Set the <code className="font-mono text-xs bg-white/10 px-1 py-0.5 rounded">INGEST_URL</code> environment
-            variable in the web app to point at the ingest service (e.g.{' '}
-            <code className="font-mono text-xs bg-white/10 px-1 py-0.5 rounded">http://ingest:3001</code>) to view
-            current price tables.
+          <p className="font-medium text-yellow-400">INGEST_URL not configured</p>
+          <p className="mt-1 text-text-2">
+            Set the{' '}
+            <code className="font-mono text-xs bg-surface-2 px-1 py-0.5 rounded">INGEST_URL</code>{' '}
+            environment variable in the web app to point at the ingest service (e.g.{' '}
+            <code className="font-mono text-xs bg-surface-2 px-1 py-0.5 rounded">
+              http://ingest:3001
+            </code>
+            ) to view current price tables.
           </p>
         </div>
       </div>
@@ -68,34 +73,39 @@ export default async function PriceTablesPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold">Price tables</h1>
-        <p className="text-sm text-white/50">
-          Per-agent LLM pricing used for cost computation. Tables are JSON fixtures loaded by the ingest service
-          at startup. Update the files under{' '}
-          <code className="font-mono text-xs">apps/ingest/src/data/</code> and redeploy to change pricing.
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+          Price tables
+        </h1>
+        <p className="text-sm text-text-2">
+          Per-agent LLM pricing used for cost computation. Tables are JSON fixtures loaded by the
+          ingest service at startup. Update the files under{' '}
+          <code className="font-mono text-xs">apps/ingest/src/data/</code> and redeploy to change
+          pricing.
         </p>
       </div>
 
       {results.map(({ agent, result }) => (
         <section key={agent} className="space-y-3">
-          <h2 className="flex items-center gap-3 text-sm font-semibold">
-            <span className="font-mono text-white/80">{agent}</span>
+          <h2 className="flex items-center gap-3 text-sm font-semibold text-text">
+            <span className="font-mono">{agent}</span>
             {result.ok && (
-              <span className="text-xs text-white/30 font-normal">
+              <span className="text-xs text-text-3 font-normal">
                 v{result.version} · generated {new Date(result.generated_at).toLocaleDateString()}
               </span>
             )}
           </h2>
 
           {!result.ok ? (
-            <p className="text-sm text-white/30 italic">{result.reason}</p>
+            <p className="text-sm text-text-3 italic">{result.reason}</p>
           ) : Object.keys(result.prices).length === 0 ? (
-            <p className="text-sm text-white/30 italic">No models configured (all sessions bill $0)</p>
+            <p className="text-sm text-text-3 italic">
+              No models configured (all sessions bill $0)
+            </p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-white/10">
+            <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/10 bg-white/5 text-left text-xs text-white/40">
+                  <tr className="border-b border-border bg-surface text-left text-xs text-text-3">
                     <th className="px-4 py-2 font-medium">Model</th>
                     <th className="px-4 py-2 font-medium text-right">Input /Mtok</th>
                     <th className="px-4 py-2 font-medium text-right">Output /Mtok</th>
@@ -103,14 +113,22 @@ export default async function PriceTablesPage() {
                     <th className="px-4 py-2 font-medium text-right">Cache write /Mtok</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-border-subtle">
                   {Object.entries(result.prices).map(([model, p]) => (
-                    <tr key={model} className="hover:bg-white/5">
-                      <td className="px-4 py-2 font-mono text-xs text-white/80">{model}</td>
-                      <td className="px-4 py-2 text-right text-xs text-white/60">{fmt(p.input_per_mtok)}</td>
-                      <td className="px-4 py-2 text-right text-xs text-white/60">{fmt(p.output_per_mtok)}</td>
-                      <td className="px-4 py-2 text-right text-xs text-white/40">{fmt(p.cache_read_per_mtok)}</td>
-                      <td className="px-4 py-2 text-right text-xs text-white/40">{fmt(p.cache_write_per_mtok)}</td>
+                    <tr key={model} className="hover:bg-surface-2 transition-colors">
+                      <td className="px-4 py-2 font-mono text-xs text-text">{model}</td>
+                      <td className="px-4 py-2 text-right font-mono text-xs text-text-2">
+                        {fmt(p.input_per_mtok)}
+                      </td>
+                      <td className="px-4 py-2 text-right font-mono text-xs text-text-2">
+                        {fmt(p.output_per_mtok)}
+                      </td>
+                      <td className="px-4 py-2 text-right font-mono text-xs text-text-3">
+                        {fmt(p.cache_read_per_mtok)}
+                      </td>
+                      <td className="px-4 py-2 text-right font-mono text-xs text-text-3">
+                        {fmt(p.cache_write_per_mtok)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

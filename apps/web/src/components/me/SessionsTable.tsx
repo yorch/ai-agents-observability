@@ -51,18 +51,18 @@ export function SessionsTable({
 
   if (sessions.length === 0) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center">
-        <p className="text-sm text-white/50">No sessions found</p>
+      <div className="rounded-lg border border-border bg-surface p-8 text-center">
+        <p className="text-sm text-text-3">No sessions found</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-white/10">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/10 text-white/40 text-xs">
+            <tr className="border-b border-border text-text-3 text-xs">
               <th className="text-left px-4 py-3">Started</th>
               <th className="text-left px-4 py-3">Repo</th>
               <th className="text-left px-4 py-3">Shape</th>
@@ -75,7 +75,6 @@ export function SessionsTable({
           </thead>
           <tbody>
             {sessions.map((s) => {
-              // Fall back to on-the-fly computation if not yet computed by nightly job
               const friction =
                 s.frictionScore ??
                 computeFrictionScore({
@@ -91,14 +90,17 @@ export function SessionsTable({
               return (
                 <tr
                   key={s.sessionId}
-                  className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                  className="border-b border-border-subtle hover:bg-surface transition-colors"
                 >
-                  <td className="px-4 py-3 text-white/70">
-                    <Link href={`${basePath}/${s.sessionId}`} className="hover:text-white">
+                  <td className="px-4 py-3 text-text-2 font-mono text-xs">
+                    <Link
+                      href={`${basePath}/${s.sessionId}`}
+                      className="hover:text-accent transition-colors"
+                    >
                       {formatDate(s.startedAt)}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-white/70 max-w-[200px] truncate">
+                  <td className="px-4 py-3 text-text-2 max-w-[200px] truncate">
                     {s.repoName ?? '—'}
                   </td>
                   <td className="px-4 py-3">
@@ -109,24 +111,28 @@ export function SessionsTable({
                         {s.shapeLabel}
                       </span>
                     ) : (
-                      <span className="text-white/20 text-xs">—</span>
+                      <span className="text-text-3 text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right text-white/60">
+                  <td className="px-4 py-3 text-right text-text-2 font-mono text-xs">
                     {formatDuration(s.durationSeconds)}
                   </td>
-                  <td className="px-4 py-3 text-right text-white/60">{s.eventCount}</td>
-                  <td className="px-4 py-3 text-right text-white/60">${s.costUsd.toFixed(3)}</td>
+                  <td className="px-4 py-3 text-right text-text-2 font-mono text-xs">
+                    {s.eventCount}
+                  </td>
+                  <td className="px-4 py-3 text-right text-text-2 font-mono text-xs">
+                    ${s.costUsd.toFixed(3)}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     {badge ? (
                       <span
-                        className={`text-xs font-medium ${badge.color}`}
+                        className={`text-xs font-medium font-mono ${badge.color}`}
                         title={`${((friction ?? 0) * 100).toFixed(0)}%`}
                       >
                         {badge.label}
                       </span>
                     ) : (
-                      <span className="text-white/20 text-xs">—</span>
+                      <span className="text-text-3 text-xs">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -141,7 +147,7 @@ export function SessionsTable({
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">
-          <p className="text-white/40">
+          <p className="text-text-3 font-mono text-xs">
             {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of{' '}
             {total}
           </p>
@@ -149,7 +155,7 @@ export function SessionsTable({
             {hasPrev && (
               <a
                 href={`?page=${currentPage - 1}`}
-                className="rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
               >
                 ← Prev
               </a>
@@ -157,7 +163,7 @@ export function SessionsTable({
             {hasNext && (
               <a
                 href={`?page=${currentPage + 1}`}
-                className="rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
               >
                 Next →
               </a>

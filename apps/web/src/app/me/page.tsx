@@ -50,13 +50,13 @@ export default async function MePage({
   const hasData = thisPeriod.sessionCount > 0;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+    <div className="mx-auto max-w-5xl space-y-8">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">My Agents</h1>
-          <p className="mt-1 text-sm text-white/50">
-            {user.displayName ?? user.githubLogin}
-          </p>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+            My Agents
+          </h1>
+          <p className="mt-1 text-sm text-text-2">{user.displayName ?? user.githubLogin}</p>
         </div>
         <DaysSelector current={days} />
       </div>
@@ -70,7 +70,9 @@ export default async function MePage({
             <ModelMixChart models={models} />
           </div>
           <div>
-            <p className="mb-3 text-xs text-white/40">Effectiveness · trailing 30 days</p>
+            <p className="mb-3 text-xs text-text-3 uppercase tracking-widest">
+              Effectiveness · trailing 30 days
+            </p>
             <div className="grid gap-6 md:grid-cols-2">
               <FrictionTrendChart
                 points={effectiveness.trend}
@@ -88,15 +90,13 @@ export default async function MePage({
 
 function DaysSelector({ current }: { current: Days }) {
   return (
-    <div className="flex gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+    <div className="flex gap-1 rounded-lg border border-border bg-surface p-1">
       {DAYS_OPTS.map((d) => (
         <a
           key={d}
           href={`/me?days=${d}`}
-          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-            current === d
-              ? 'bg-brand-500 text-white'
-              : 'text-white/50 hover:text-white hover:bg-white/10'
+          className={`rounded-md px-3 py-1 text-xs font-medium font-mono transition-colors ${
+            current === d ? 'bg-accent text-bg' : 'text-text-3 hover:text-text hover:bg-surface-2'
           }`}
         >
           {d}d
@@ -108,14 +108,14 @@ function DaysSelector({ current }: { current: Days }) {
 
 function EmptyState() {
   return (
-    <div className="rounded-lg border border-white/10 p-8 text-center">
-      <p className="text-lg font-medium">No sessions yet</p>
-      <p className="mt-2 text-sm text-white/50">
+    <div className="rounded-lg border border-border bg-surface p-8 text-center">
+      <p className="text-lg font-semibold text-text">No sessions yet</p>
+      <p className="mt-2 text-sm text-text-2">
         Install the hook to start tracking your {agentDisplayName(DEFAULT_AGENT_TYPE)} sessions.
       </p>
       <a
         href="/install"
-        className="mt-4 inline-block rounded-md bg-brand-500 px-4 py-2 text-sm font-medium"
+        className="mt-4 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg hover:opacity-90 transition-opacity"
       >
         Install instructions
       </a>

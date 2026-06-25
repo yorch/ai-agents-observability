@@ -5,7 +5,7 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
     return null;
   }
   if (previous === 0) {
-    return <span className="text-xs text-green-400">↑ new</span>;
+    return <span className="text-xs text-green-400 font-mono">↑ new</span>;
   }
 
   const pct = ((current - previous) / previous) * 100;
@@ -15,7 +15,7 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
 
   const up = pct > 0;
   return (
-    <span className={`text-xs ${up ? 'text-green-400' : 'text-red-400'}`}>
+    <span className={`text-xs font-mono ${up ? 'text-green-400' : 'text-red-400'}`}>
       {up ? '↑' : '↓'} {Math.abs(pct).toFixed(0)}%
     </span>
   );
@@ -30,9 +30,9 @@ type CardProps = {
 
 function Card({ label, thisWeek, lastWeek, format }: CardProps) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-1">
-      <p className="text-xs text-white/50">{label}</p>
-      <p className="text-2xl font-semibold">{format(thisWeek)}</p>
+    <div className="rounded-lg border border-border bg-surface p-4 space-y-1">
+      <p className="text-xs text-text-3 uppercase tracking-widest">{label}</p>
+      <p className="text-2xl font-mono font-semibold text-text">{format(thisWeek)}</p>
       <DeltaBadge current={thisWeek} previous={lastWeek} />
     </div>
   );
@@ -54,7 +54,7 @@ export function SummaryCards({
         format={(v) => v.toString()}
       />
       <Card
-        label="Cost (USD)"
+        label="Cost"
         thisWeek={thisWeek.totalCostUsd}
         lastWeek={lastWeek.totalCostUsd}
         format={(v) => `$${v.toFixed(2)}`}

@@ -7,17 +7,19 @@ import { type FrictionBand, listDistinctRepos, listSessions } from '@/lib/sessio
 export const dynamic = 'force-dynamic';
 
 function buildExportUrl(filters: {
-  agent?: string;
-  band?: string;
-  from?: string;
-  repo?: string;
-  shape?: string;
-  status?: string;
-  to?: string;
+  agent?: string | undefined;
+  band?: string | undefined;
+  from?: string | undefined;
+  repo?: string | undefined;
+  shape?: string | undefined;
+  status?: string | undefined;
+  to?: string | undefined;
 }): string {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(filters)) {
-    if (v) p.set(k, v);
+    if (v) {
+      p.set(k, v);
+    }
   }
   return `/api/me/export?${p.toString()}`;
 }
@@ -54,6 +56,9 @@ type SearchParams = {
   status?: string;
   to?: string;
 };
+
+const selectClass =
+  'rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
 
 export default async function SessionsPage({
   searchParams,
@@ -95,20 +100,14 @@ export default async function SessionsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Sessions</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Sessions</h1>
 
-      {/* Filter bar */}
       <form method="GET" className="flex flex-wrap gap-3 items-end">
         <div className="flex flex-col gap-1">
-          <label htmlFor="repo-filter" className="text-xs text-white/50">
+          <label htmlFor="repo-filter" className="text-xs text-text-3">
             Repo
           </label>
-          <select
-            id="repo-filter"
-            name="repo"
-            defaultValue={repo ?? ''}
-            className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-          >
+          <select id="repo-filter" name="repo" defaultValue={repo ?? ''} className={selectClass}>
             <option value="">All repos</option>
             {repos.map((r) => (
               <option key={r} value={r}>
@@ -119,14 +118,14 @@ export default async function SessionsPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="status-filter" className="text-xs text-white/50">
+          <label htmlFor="status-filter" className="text-xs text-text-3">
             Status
           </label>
           <select
             id="status-filter"
             name="status"
             defaultValue={status ?? ''}
-            className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className={selectClass}
           >
             <option value="">All statuses</option>
             {SESSION_STATUSES.map((s) => (
@@ -138,7 +137,7 @@ export default async function SessionsPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="from-filter" className="text-xs text-white/50">
+          <label htmlFor="from-filter" className="text-xs text-text-3">
             From
           </label>
           <input
@@ -146,12 +145,12 @@ export default async function SessionsPage({
             type="date"
             name="from"
             defaultValue={params.from ?? ''}
-            className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className={selectClass}
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="to-filter" className="text-xs text-white/50">
+          <label htmlFor="to-filter" className="text-xs text-text-3">
             To
           </label>
           <input
@@ -159,20 +158,15 @@ export default async function SessionsPage({
             type="date"
             name="to"
             defaultValue={params.to ?? ''}
-            className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className={selectClass}
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="shape-filter" className="text-xs text-white/50">
+          <label htmlFor="shape-filter" className="text-xs text-text-3">
             Shape
           </label>
-          <select
-            id="shape-filter"
-            name="shape"
-            defaultValue={shape ?? ''}
-            className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-          >
+          <select id="shape-filter" name="shape" defaultValue={shape ?? ''} className={selectClass}>
             <option value="">All shapes</option>
             {SHAPE_LABELS.map((s) => (
               <option key={s} value={s}>
@@ -183,14 +177,14 @@ export default async function SessionsPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="band-filter" className="text-xs text-white/50">
+          <label htmlFor="band-filter" className="text-xs text-text-3">
             Friction
           </label>
           <select
             id="band-filter"
             name="band"
             defaultValue={frictionBand ?? ''}
-            className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className={selectClass}
           >
             <option value="">Any</option>
             <option value="low">Low</option>
@@ -201,14 +195,14 @@ export default async function SessionsPage({
 
         {agentTypes.length > 1 && (
           <div className="flex flex-col gap-1">
-            <label htmlFor="agent-filter" className="text-xs text-white/50">
+            <label htmlFor="agent-filter" className="text-xs text-text-3">
               Agent
             </label>
             <select
               id="agent-filter"
               name="agent"
               defaultValue={agent ?? ''}
-              className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className={selectClass}
             >
               <option value="">All agents</option>
               {agentTypes.map((a) => (
@@ -222,7 +216,7 @@ export default async function SessionsPage({
 
         <button
           type="submit"
-          className="rounded-md bg-brand-500 px-4 py-1.5 text-sm font-medium hover:bg-brand-600 transition-colors"
+          className="rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-bg hover:opacity-90 transition-opacity"
         >
           Filter
         </button>
@@ -230,7 +224,7 @@ export default async function SessionsPage({
         {(repo || status || params.from || params.to || shape || agent || frictionBand) && (
           <a
             href="/me/sessions"
-            className="rounded-md border border-white/10 px-4 py-1.5 text-sm hover:bg-white/10 transition-colors"
+            className="rounded-lg border border-border px-4 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
           >
             Clear
           </a>
@@ -240,8 +234,16 @@ export default async function SessionsPage({
       {/* Export */}
       <div className="flex justify-end">
         <a
-          href={buildExportUrl({ repo, status, from: params.from, to: params.to, shape, agent, band: frictionBand })}
-          className="rounded-md border border-white/10 px-3 py-1.5 text-xs text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+          href={buildExportUrl({
+            agent,
+            band: frictionBand,
+            from: params.from,
+            repo,
+            shape,
+            status,
+            to: params.to,
+          })}
+          className="rounded-md border border-border px-3 py-1.5 text-xs text-text-3 hover:text-text hover:bg-surface-2 transition-colors"
         >
           Export CSV
         </a>

@@ -28,19 +28,19 @@ type Line = {
 // ── Content block renderers ───────────────────────────────────────────────────
 
 function TextBlockView({ block }: { block: TextBlock }) {
-  return <p className="whitespace-pre-wrap text-white/80 text-sm leading-relaxed">{block.text}</p>;
+  return <p className="whitespace-pre-wrap text-text-2 text-sm leading-relaxed">{block.text}</p>;
 }
 
 function ToolUseBlockView({ block }: { block: ToolUseBlock }) {
   const inputJson = JSON.stringify(block.input, null, 2);
   return (
-    <details className="rounded border border-brand-500/20 bg-brand-500/5 text-sm">
-      <summary className="cursor-pointer px-3 py-1.5 text-brand-400 font-mono select-none list-none flex items-center gap-2">
-        <span className="text-white/30">▶</span>
-        <span className="text-xs text-white/40">tool</span>
+    <details className="rounded border border-accent/20 bg-accent/5 text-sm">
+      <summary className="cursor-pointer px-3 py-1.5 text-accent font-mono select-none list-none flex items-center gap-2">
+        <span className="text-text-3">▶</span>
+        <span className="text-xs text-text-3">tool</span>
         <span className="font-semibold">{block.name}</span>
       </summary>
-      <pre className="px-3 pb-2 pt-1 text-xs text-white/60 overflow-x-auto whitespace-pre-wrap break-words">
+      <pre className="px-3 pb-2 pt-1 text-xs text-text-2 overflow-x-auto whitespace-pre-wrap break-words">
         {inputJson}
       </pre>
     </details>
@@ -51,18 +51,16 @@ function ToolResultBlockView({ block }: { block: ToolResultBlock }) {
   const raw =
     typeof block.content === 'string'
       ? block.content
-      : // JSON.stringify returns `undefined` (not a string) for an absent/undefined
-        // content field; coalesce so the `.length` access below can't crash the viewer.
-        (JSON.stringify(block.content, null, 2) ?? '');
+      : (JSON.stringify(block.content, null, 2) ?? '');
   const isLong = raw.length > 500;
   return (
-    <details className="rounded border border-white/10 bg-white/5 text-sm">
-      <summary className="cursor-pointer px-3 py-1.5 text-white/40 font-mono select-none list-none flex items-center gap-2">
-        <span className="text-white/20">▶</span>
+    <details className="rounded border border-border bg-surface text-sm">
+      <summary className="cursor-pointer px-3 py-1.5 text-text-3 font-mono select-none list-none flex items-center gap-2">
+        <span className="text-text-3">▶</span>
         <span className="text-xs">tool result</span>
-        {isLong && <span className="text-white/20 text-xs">({raw.length} chars)</span>}
+        {isLong && <span className="text-text-3 text-xs">({raw.length} chars)</span>}
       </summary>
-      <pre className="px-3 pb-2 pt-1 text-xs text-white/50 overflow-x-auto whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+      <pre className="px-3 pb-2 pt-1 text-xs text-text-3 overflow-x-auto whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
         {isLong ? `${raw.slice(0, 500)}…` : raw}
       </pre>
     </details>
@@ -71,7 +69,7 @@ function ToolResultBlockView({ block }: { block: ToolResultBlock }) {
 
 function UnknownBlockView({ block }: { block: { type: string; [key: string]: unknown } }) {
   return (
-    <pre className="rounded bg-white/5 px-3 py-2 text-xs text-white/30 overflow-x-auto whitespace-pre-wrap break-words">
+    <pre className="rounded bg-surface px-3 py-2 text-xs text-text-3 overflow-x-auto whitespace-pre-wrap break-words">
       {JSON.stringify(block)}
     </pre>
   );
@@ -107,13 +105,12 @@ function MessageContent({ content }: { content: string | ContentBlock[] | undefi
     );
   }
   return (
-    <pre className="text-xs text-white/30 whitespace-pre-wrap break-words">
+    <pre className="text-xs text-text-3 whitespace-pre-wrap break-words">
       {JSON.stringify(content)}
     </pre>
   );
 }
 
-// Flattened, lowercase text used for in-page search across a line's content.
 function lineSearchText(line: Line): string {
   if (line.raw !== undefined) {
     return String(line.raw);
@@ -155,7 +152,7 @@ function CopyButton({ value }: { value: unknown }) {
           () => {},
         );
       }}
-      className="text-[10px] uppercase tracking-wide text-white/30 hover:text-white/70 transition-colors"
+      className="text-[10px] uppercase tracking-wide text-text-3 hover:text-accent transition-colors"
     >
       {copied ? 'copied' : 'copy'}
     </button>
@@ -163,12 +160,11 @@ function CopyButton({ value }: { value: unknown }) {
 }
 
 function TranscriptLine({ line }: { line: Line }) {
-  // Handle raw (unparseable) lines
   if (line.raw !== undefined) {
     return (
-      <div className="rounded px-3 py-2 bg-white/3 border border-white/5">
-        <span className="text-xs text-white/20 mr-2">raw</span>
-        <span className="text-xs text-white/30 font-mono">{String(line.raw)}</span>
+      <div className="rounded px-3 py-2 bg-surface border border-border-subtle">
+        <span className="text-xs text-text-3 mr-2">raw</span>
+        <span className="text-xs text-text-3 font-mono">{String(line.raw)}</span>
       </div>
     );
   }
@@ -189,20 +185,20 @@ function TranscriptLine({ line }: { line: Line }) {
     <div
       className={`rounded px-3 py-2 space-y-1 ${
         isUser
-          ? 'bg-white/5'
+          ? 'bg-surface border border-border-subtle'
           : isAssistant
-            ? 'bg-brand-500/5 border border-brand-500/10'
-            : 'bg-white/3 border border-white/5'
+            ? 'bg-accent/5 border border-accent/15'
+            : 'bg-surface border border-border-subtle'
       }`}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="block text-xs text-white/40 capitalize">{effectiveRole}</span>
+        <span className="block text-xs text-text-3 capitalize">{effectiveRole}</span>
         <CopyButton value={message ?? line} />
       </div>
       {message ? (
         <MessageContent content={message.content} />
       ) : (
-        <pre className="text-xs text-white/30 whitespace-pre-wrap break-words">
+        <pre className="text-xs text-text-3 whitespace-pre-wrap break-words">
           {JSON.stringify(line)}
         </pre>
       )}
@@ -218,17 +214,12 @@ function parseLine(raw: string): Line {
   }
 }
 
-// A parsed line plus its lowercased searchable text, computed once at parse time
-// so the in-page filter is a cheap substring check instead of re-flattening every
-// line's content on every keystroke.
 type ParsedLine = { line: Line; search: string };
 function toParsed(raw: string): ParsedLine {
   const line = parseLine(raw);
   return { line, search: lineSearchText(line).toLowerCase() };
 }
 
-// How many messages to add to the DOM per "Show more" — keeps the rendered node
-// count bounded so a 100k-line transcript can't lock up the browser on mount.
 const WINDOW_STEP = 300;
 
 export function TranscriptViewer({
@@ -246,8 +237,6 @@ export function TranscriptViewer({
 
   const url = apiUrl ?? `/api/me/transcripts/${sessionId}`;
 
-  // Stream the NDJSON response and parse it line-by-line as bytes arrive, rather
-  // than buffering the whole body and splitting it in one blocking pass.
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
@@ -301,13 +290,10 @@ export function TranscriptViewer({
             }
             nl = buf.indexOf('\n');
           }
-          // Flush in bounded batches so the UI paints progressively.
           if (pending.length >= 200) {
             flush();
           }
         }
-        // Flush any bytes the decoder is still holding (an incomplete multi-byte
-        // UTF-8 sequence at the final chunk boundary) before parsing the tail.
         buf += decoder.decode();
         if (buf.trim()) {
           pending.push(toParsed(buf));
@@ -340,13 +326,13 @@ export function TranscriptViewer({
   }, [lines, query]);
 
   if (loading && lines.length === 0) {
-    return <div className="animate-pulse h-96 bg-white/5 rounded-lg" />;
+    return <div className="animate-pulse h-96 bg-surface rounded-lg" />;
   }
   if (error) {
     return <p className="text-sm text-red-400">Error: {error}</p>;
   }
   if (lines.length === 0) {
-    return <p className="text-sm text-white/40">Transcript is empty.</p>;
+    return <p className="text-sm text-text-3">Transcript is empty.</p>;
   }
 
   const visible = filtered.slice(0, visibleCount);
@@ -363,16 +349,16 @@ export function TranscriptViewer({
             setVisibleCount(WINDOW_STEP);
           }}
           placeholder="Search in transcript…"
-          className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm"
+          className="flex-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text placeholder-text-3 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
-        <span className="text-xs text-white/40 whitespace-nowrap">
+        <span className="text-xs text-text-3 font-mono whitespace-nowrap">
           {query.trim() ? `${filtered.length} / ${lines.length}` : `${lines.length} lines`}
           {loading ? ' · loading…' : ''}
         </span>
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-white/40">No lines match “{query}”.</p>
+        <p className="text-sm text-text-3">No lines match &quot;{query}&quot;.</p>
       ) : (
         <div className="space-y-2 font-mono text-sm">
           {visible.map((pl, i) => (
@@ -385,7 +371,7 @@ export function TranscriptViewer({
         <button
           type="button"
           onClick={() => setVisibleCount((c) => c + WINDOW_STEP)}
-          className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10 transition-colors"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
         >
           Show {Math.min(remaining, WINDOW_STEP)} more ({remaining} hidden)
         </button>

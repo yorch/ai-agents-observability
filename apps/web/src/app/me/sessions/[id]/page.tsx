@@ -26,8 +26,6 @@ export default async function SessionDetailPage({
   const { id } = await params;
   const { tab = 'timeline' } = await searchParams;
 
-  // The breakdown only needs userId+sessionId (not the session row), so when the
-  // models tab is active run both queries concurrently instead of serially.
   const [session, modelBreakdown, sessionEvents] = await Promise.all([
     getSession(user.id, id),
     tab === 'models'
@@ -41,12 +39,10 @@ export default async function SessionDetailPage({
 
   return (
     <div className="space-y-6">
-      {/* Back link */}
-      <Link href="/me/sessions" className="text-sm text-white/50 hover:text-white">
+      <Link href="/me/sessions" className="text-sm text-text-3 hover:text-accent transition-colors">
         ← Sessions
       </Link>
 
-      {/* Header */}
       <SessionDetailHeader
         session={session}
         transcriptHref={session.transcriptS3Key ? `/me/sessions/${id}/transcript` : null}
