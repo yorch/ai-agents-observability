@@ -3,9 +3,6 @@ services:
     build:
       context: .
       dockerfile: infra/migrations-runner/Dockerfile
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_agents_observability}
     restart: "no"
@@ -16,8 +13,6 @@ services:
       dockerfile: apps/github-app/Dockerfile
     init: true
     depends_on:
-      postgres:
-        condition: service_healthy
       migrations:
         condition: service_completed_successfully
     environment:
@@ -45,10 +40,6 @@ services:
     init: true
     command: bun run --watch apps/ingest/src/index.ts
     depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
       migrations:
         condition: service_completed_successfully
     environment:
@@ -79,8 +70,6 @@ services:
     init: true
     command: bunx next dev --port 3000
     depends_on:
-      postgres:
-        condition: service_healthy
       migrations:
         condition: service_completed_successfully
     environment:
