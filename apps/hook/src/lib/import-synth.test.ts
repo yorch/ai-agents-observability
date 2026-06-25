@@ -2,9 +2,9 @@ import { describe, expect, it } from 'bun:test';
 
 import { EventSchema } from '@ai-agents-observability/schemas';
 
-import { createSynthCtx, entryToEvents, type SynthCtx } from '../src/lib/import-synth';
-import type { ClaudeEntry } from '../src/lib/transcript-parser';
-import { deterministicEventId } from '../src/lib/uuid5';
+import { createSynthCtx, entryToEvents, type SynthCtx } from './import-synth';
+import type { ClaudeEntry } from './transcript-parser';
+import { deterministicEventId } from './uuid5';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runImport } from '../src/commands/import';
+import { runImport } from './import';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
