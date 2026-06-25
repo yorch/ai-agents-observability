@@ -178,7 +178,7 @@ describe('runImport — auth checks', () => {
 
     const fetchCalls: string[] = [];
     const origFetch = globalThis.fetch;
-    globalThis.fetch = (input: RequestInfo | URL, _init?: RequestInit) => {
+    globalThis.fetch = (input: string | URL | Request, _init?: RequestInit) => {
       fetchCalls.push(String(input));
       return origFetch(input, _init);
     };

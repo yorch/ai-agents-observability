@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { EventSchema } from '@ai-agents-observability/schemas';
+import { type Event, EventSchema } from '@ai-agents-observability/schemas';
 
 import { createSynthCtx, entryToEvents, type SynthCtx } from './import-synth';
 import type { ClaudeEntry } from './transcript-parser';
@@ -239,7 +239,7 @@ describe('entryToEvents — user (string content)', () => {
     const ctx2 = makeCtx();
     const events1 = entryToEvents(makeUserStringEntry(), ctx1);
     const events2 = entryToEvents(makeUserStringEntry(), ctx2);
-    expect(events1[0]?.event_id).toBe(events2[0]?.event_id);
+    expect((events1[0] as Event).event_id).toBe((events2[0] as Event).event_id);
   });
 
   it('event_id matches deterministicEventId output', () => {
@@ -324,7 +324,7 @@ describe('entryToEvents — user (tool_result content)', () => {
     ctx2.toolNameMap.set(TOOL_USE_ID, 'Read');
     const e1 = entryToEvents(makeUserToolResultEntry(), ctx1);
     const e2 = entryToEvents(makeUserToolResultEntry(), ctx2);
-    expect(e1[0]?.event_id).toBe(e2[0]?.event_id);
+    expect((e1[0] as Event).event_id).toBe((e2[0] as Event).event_id);
   });
 
   it('passes EventSchema.safeParse', () => {

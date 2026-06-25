@@ -48,6 +48,7 @@ Commands:
   install       Write launchd/systemd service files and print the hook snippet
   uninstall     Remove service files (does not remove local data)
 
+  import        Import historical sessions from ~/.claude/projects into the server
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
   flusher       Drain the SQLite queue and POST batches to /v1/events (long-running)
   shipper       Watch for transcript files and upload them to /v1/transcripts (long-running)
@@ -124,6 +125,37 @@ Also prints the JSON snippet to paste into `~/.claude/settings.json`.
 
 Removes the service files written by `install`. Does **not** remove local data (`purge-local` does that).
 
+### `import`
+
+Reads all `.jsonl` session files from `~/.claude/projects/` (or `$CLAUDE_PROJECTS_DIR`), synthesizes telemetry events, and POSTs them to the ingest server. Events are deduplicated server-side — safe to re-run.
+
+```bash
+# Import everything
+claude-telemetry import
+
+# Dry run (no network calls, no auth required)
+claude-telemetry import --dry-run
+
+# Only sessions on or after a date
+claude-telemetry import --since 2025-01-01
+
+# One specific session
+claude-telemetry import --session <session-id>
+
+# Events only, skip transcript uploads
+claude-telemetry import --no-transcripts
+```
+
+Requires authentication (`claude-telemetry login`) unless `--dry-run` is passed.
+
+| Flag | Description |
+|------|-------------|
+| `--since YYYY-MM-DD` | Skip entries older than this date |
+| `--session <id>` | Import only one session |
+| `--no-transcripts` | Skip transcript uploads |
+| `--dry-run` | Parse + count without posting anything |
+| `--quiet` | Suppress per-session progress output |
+
 ### `hook <kind>`
 
 Low-level entrypoint invoked directly by Claude Code. Reads a JSON payload from stdin, converts it to an event, and appends it to the local SQLite queue. Should not be invoked manually.
@@ -150,8 +182,9 @@ Hook entrypoints (`hook <kind>`) always exit 0 regardless of errors — a broken
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CLAUDE_TELEMETRY_API` | `http://localhost:3000` | Web app base URL (used by `login` and `purge-local`) |
-| `INGEST_BASE_URL` | `http://localhost:4000` | Ingest API base URL (used by `flusher` and `shipper`) |
+| `INGEST_BASE_URL` | `http://localhost:4000` | Ingest API base URL (used by `flusher`, `shipper`, and `import`) |
 | `CLAUDE_TELEMETRY_HOME` | `~/.claude-telemetry` | Override the local data directory (useful for tests) |
+| `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Override the Claude Code projects directory (used by `import`) |
 
 ## Local data layout
 

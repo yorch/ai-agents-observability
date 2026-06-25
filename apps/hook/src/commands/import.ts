@@ -84,7 +84,7 @@ function parseImportArgs(args: string[]): ImportOptions | 'help' {
 }
 
 export async function runImport(args: string[]): Promise<number> {
-  const parseResult = parseImportArgs(args.filter((a) => a !== 'import')); // remove 'import' positional
+  const parseResult = parseImportArgs(args.slice(1)); // remove 'import' positional
   if (parseResult === 'help') {
     process.stdout.write(`${IMPORT_HELP}\n`);
     return 0;
@@ -92,14 +92,11 @@ export async function runImport(args: string[]): Promise<number> {
   const opts: ImportOptions = parseResult;
 
   // Auth check (skip for --dry-run)
-  const rawJwt = opts.dryRun ? null : loadHookToken();
-  if (!rawJwt && !opts.dryRun) {
+  const jwt = opts.dryRun ? null : loadHookToken();
+  if (!jwt && !opts.dryRun) {
     process.stderr.write('Not authenticated. Run `claude-telemetry login` first.\n');
     return 1;
   }
-  // After the early return above, rawJwt is either null (dryRun) or a valid string.
-  // Cast to string for use in non-dryRun paths.
-  const jwt: string | null = rawJwt;
 
   // Discover session files
   const files = listSessionFiles();
@@ -131,15 +128,11 @@ export async function runImport(args: string[]): Promise<number> {
   for (const file of filtered) {
     try {
       // --- Event synthesis ---
-      let sessionId = file.sessionId;
-      let cwd = process.cwd();
-      let version: string | null = null;
-      let ctx = createSynthCtx(sessionId, cwd, version);
+      const ctx = createSynthCtx(file.sessionId, process.cwd(), null);
       const batch: Event[] = [];
       let sessionAccepted = 0;
       let sessionDeduped = 0;
       let sessionRejected = 0;
-      let contextResolved = false;
 
       async function flushBatch(force = false): Promise<void> {
         if (batch.length === 0) {
@@ -157,40 +150,58 @@ export async function runImport(args: string[]): Promise<number> {
         const token = jwt as string;
         while (batch.length >= BATCH_SIZE) {
           const slice = batch.splice(0, BATCH_SIZE);
-          const result = await postEventBatch(slice, token);
-          sessionAccepted += result.accepted;
-          sessionDeduped += result.deduped;
-          sessionRejected += result.rejected;
+          try {
+            const result = await postEventBatch(slice, token);
+            sessionAccepted += result.accepted;
+            sessionDeduped += result.deduped;
+            sessionRejected += result.rejected;
+          } catch (err) {
+            batch.unshift(...slice); // restore on failure so events aren't lost
+            throw err;
+          }
         }
         if (force && batch.length > 0) {
           const slice = batch.splice(0, batch.length);
-          const result = await postEventBatch(slice, token);
-          sessionAccepted += result.accepted;
-          sessionDeduped += result.deduped;
-          sessionRejected += result.rejected;
+          try {
+            const result = await postEventBatch(slice, token);
+            sessionAccepted += result.accepted;
+            sessionDeduped += result.deduped;
+            sessionRejected += result.rejected;
+          } catch (err) {
+            batch.unshift(...slice);
+            throw err;
+          }
         }
       }
 
       for await (const entry of parseSessionFile(file.path)) {
-        // Update ctx from the first entry that has context fields
-        if (!contextResolved) {
-          if (entry.sessionId) {
-            sessionId = entry.sessionId;
-          }
-          if (entry.cwd) {
-            cwd = entry.cwd;
-          }
-          if (entry.version) {
-            version = entry.version;
-          }
-          ctx = createSynthCtx(sessionId, cwd, version);
-          contextResolved = true;
+        // Always update ctx from entries that carry context fields (not just the first)
+        if (entry.sessionId) {
+          ctx.sessionId = entry.sessionId;
+        }
+        if (entry.cwd) {
+          ctx.cwd = entry.cwd;
+        }
+        if (entry.version) {
+          ctx.version = entry.version;
         }
 
-        // Apply --since filter using timestamp of entry
+        // Apply --since filter; for assistant entries still register tool names
         if (opts.since && entry.timestamp) {
           const entryDate = new Date(entry.timestamp);
           if (entryDate < opts.since) {
+            if (entry.type === 'assistant' && Array.isArray(entry.message?.content)) {
+              const content = entry.message?.content as Array<{
+                type?: string;
+                id?: string;
+                name?: string;
+              }>;
+              for (const block of content) {
+                if (block.type === 'tool_use' && block.id && block.name) {
+                  ctx.toolNameMap.set(block.id, block.name);
+                }
+              }
+            }
             continue;
           }
         }
@@ -210,7 +221,7 @@ export async function runImport(args: string[]): Promise<number> {
       // --- Transcript upload ---
       let transcriptStatus = 'skipped';
       if (!opts.noTranscripts && !opts.dryRun && jwt) {
-        const result = await uploadTranscript(sessionId, file.path, jwt);
+        const result = await uploadTranscript(ctx.sessionId, file.path, jwt);
         if (result.ok) {
           transcriptStatus = `ok (${result.bytes} bytes)`;
           totalTranscripts++;
@@ -224,7 +235,7 @@ export async function runImport(args: string[]): Promise<number> {
           ? `would import ~${sessionAccepted}`
           : `accepted=${sessionAccepted} deduped=${sessionDeduped} rejected=${sessionRejected}`;
         process.stdout.write(
-          `  ${sessionId}  events: ${eventSummary}  transcript: ${transcriptStatus}\n`,
+          `  ${ctx.sessionId}  events: ${eventSummary}  transcript: ${transcriptStatus}\n`,
         );
       }
     } catch (err) {

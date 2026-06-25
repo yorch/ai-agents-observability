@@ -66,6 +66,9 @@ export class AuthError extends Error {
   }
 }
 
+// Must match the bodyLimit on POST /v1/transcripts/:id in apps/ingest
+const MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024;
+
 export type UploadResult =
   | { ok: true; bytes: number }
   | { ok: false; reason: 'session_not_found' | 'skipped' | 'error'; message: string };
@@ -77,6 +80,7 @@ export type UploadResult =
  * Returns { ok: true } on 2xx.
  * Returns { ok: false, reason: 'session_not_found' } on 404 (events not yet created, or
  *   session empty — warn, don't retry).
+ * Returns { ok: false, reason: 'skipped' } when the compressed body exceeds 16 MB.
  * Returns { ok: false, reason: 'error', message } on other failures.
  */
 export async function uploadTranscript(
@@ -93,6 +97,14 @@ export async function uploadTranscript(
       message: `Failed to read/compress transcript: ${(err as Error).message}`,
       ok: false,
       reason: 'error',
+    };
+  }
+
+  if (body.byteLength > MAX_TRANSCRIPT_BYTES) {
+    return {
+      message: `Compressed transcript (${body.byteLength} bytes) exceeds ${MAX_TRANSCRIPT_BYTES}-byte server limit — skipped`,
+      ok: false,
+      reason: 'skipped',
     };
   }
 

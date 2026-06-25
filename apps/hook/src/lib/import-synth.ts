@@ -1,5 +1,5 @@
 import type { Event, ToolInfo } from '@ai-agents-observability/schemas';
-
+import { fieldBytes } from './bytes';
 import { clientInfo } from './client-info';
 import { userIdClaim } from './identity';
 import type { ClaudeEntry, MessageContent } from './transcript-parser';
@@ -44,8 +44,8 @@ function buildImportToolInfo(name: string, input: unknown, output: unknown): Too
       ? input.subagent_type
       : null;
 
-  const inputBytes = input != null ? (JSON.stringify(input)?.length ?? 0) : 0;
-  const outputBytes = output != null ? (JSON.stringify(output)?.length ?? 0) : 0;
+  const inputBytes = fieldBytes(input);
+  const outputBytes = fieldBytes(output);
 
   return {
     category: isMcp ? 'mcp' : 'builtin',
@@ -147,8 +147,16 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
         return [base as Event];
       }
 
-      // Has tool_result blocks → PostToolUse per block
-      return toolResultBlocks.map((block) => {
+      const events: Event[] = [];
+
+      // If the content array also has text blocks, emit a UserPromptSubmit too
+      const hasText = (content as MessageContent[]).some((b) => b.type === 'text');
+      if (hasText) {
+        events.push(baseEvent('UserPromptSubmit', `${entry.uuid ?? ts}:user`, ts, ctx) as Event);
+      }
+
+      // PostToolUse per tool_result block
+      for (const block of toolResultBlocks) {
         const toolResultBlock = block as {
           type: 'tool_result';
           tool_use_id: string;
@@ -156,20 +164,21 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
         };
         const toolName = ctx.toolNameMap.get(toolResultBlock.tool_use_id) ?? 'unknown';
         const base = baseEvent('PostToolUse', `${toolResultBlock.tool_use_id}:posttool`, ts, ctx);
-        return {
+        events.push({
           ...base,
           tool: buildImportToolInfo(toolName, undefined, toolResultBlock.content),
-        } as Event;
-      });
+        } as Event);
+      }
+
+      return events;
     }
 
     case 'assistant': {
       const events: Event[] = [];
-      const ts2 = ts;
       const usage = entry.message?.usage;
 
       // Always emit a Stop event
-      const stopBase = baseEvent('Stop', `${entry.uuid ?? ts2}:stop`, ts2, ctx);
+      const stopBase = baseEvent('Stop', `${entry.uuid ?? ts}:stop`, ts, ctx);
       if (usage) {
         const stopEvent: Event = {
           ...stopBase,
@@ -198,9 +207,8 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
               name: string;
               input: unknown;
             };
-            // Register in toolNameMap for later PostToolUse lookup
             ctx.toolNameMap.set(toolBlock.id, toolBlock.name);
-            const preBase = baseEvent('PreToolUse', `${toolBlock.id}:pretool`, ts2, ctx);
+            const preBase = baseEvent('PreToolUse', `${toolBlock.id}:pretool`, ts, ctx);
             const preEvent: Event = {
               ...preBase,
               tool: buildImportToolInfo(toolBlock.name, toolBlock.input, undefined),
