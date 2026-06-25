@@ -1,7 +1,38 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { TranscriptStatsBar } from '@/components/me/TranscriptStatsBar';
+import { TranscriptTurnView } from '@/components/me/TranscriptTurnView';
+import { computeStats, type ParsedLine, parseTranscriptLine } from '@/lib/transcript-parser';
 
-// ── Transcript line types ─────────────────────────────────────────────────────
+// ── Legacy types for raw mode rendering ──────────────────────────────────────
+
+type RawContent = { type?: string; [key: string]: unknown };
+type RawMessage = { role?: string; content?: string | RawContent[]; [key: string]: unknown };
+type RawLine = { type?: string; message?: RawMessage; raw?: string; [key: string]: unknown };
+
+// ── Raw mode renderers (unchanged from original) ──────────────────────────────
+
+function CopyButton({ value }: { value: unknown }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        navigator.clipboard?.writeText(text).then(
+          () => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1200);
+          },
+          () => {},
+        );
+      }}
+      className="text-[10px] uppercase tracking-wide text-text-3 hover:text-accent transition-colors"
+    >
+      {copied ? 'copied' : 'copy'}
+    </button>
+  );
+}
 
 type TextBlock = { type: 'text'; text: string };
 type ToolUseBlock = { type: 'tool_use'; name: string; input: unknown };
@@ -11,21 +42,6 @@ type ContentBlock =
   | ToolUseBlock
   | ToolResultBlock
   | { type: string; [key: string]: unknown };
-
-type Message = {
-  role?: string;
-  content?: string | ContentBlock[];
-  [key: string]: unknown;
-};
-
-type Line = {
-  type?: string;
-  message?: Message;
-  raw?: string;
-  [key: string]: unknown;
-};
-
-// ── Content block renderers ───────────────────────────────────────────────────
 
 function TextBlockView({ block }: { block: TextBlock }) {
   return <p className="whitespace-pre-wrap text-text-2 text-sm leading-relaxed">{block.text}</p>;
@@ -111,55 +127,7 @@ function MessageContent({ content }: { content: string | ContentBlock[] | undefi
   );
 }
 
-function lineSearchText(line: Line): string {
-  if (line.raw !== undefined) {
-    return String(line.raw);
-  }
-  const message = line.message;
-  if (!message) {
-    return JSON.stringify(line);
-  }
-  const parts: string[] = [];
-  if (message.role) {
-    parts.push(message.role);
-  }
-  if (typeof message.content === 'string') {
-    parts.push(message.content);
-  } else if (Array.isArray(message.content)) {
-    for (const block of message.content) {
-      if (block.type === 'text') {
-        parts.push((block as TextBlock).text);
-      } else {
-        parts.push(JSON.stringify(block));
-      }
-    }
-  }
-  return parts.join(' ');
-}
-
-function CopyButton({ value }: { value: unknown }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-        navigator.clipboard?.writeText(text).then(
-          () => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
-          },
-          () => {},
-        );
-      }}
-      className="text-[10px] uppercase tracking-wide text-text-3 hover:text-accent transition-colors"
-    >
-      {copied ? 'copied' : 'copy'}
-    </button>
-  );
-}
-
-function TranscriptLine({ line }: { line: Line }) {
+function RawLine({ line }: { line: RawLine }) {
   if (line.raw !== undefined) {
     return (
       <div className="rounded px-3 py-2 bg-surface border border-border-subtle">
@@ -177,7 +145,6 @@ function TranscriptLine({ line }: { line: Line }) {
         : (line.type ?? 'unknown');
   const message = line.message;
   const effectiveRole = message?.role ?? role;
-
   const isUser = effectiveRole === 'user';
   const isAssistant = effectiveRole === 'assistant';
 
@@ -196,7 +163,7 @@ function TranscriptLine({ line }: { line: Line }) {
         <CopyButton value={message ?? line} />
       </div>
       {message ? (
-        <MessageContent content={message.content} />
+        <MessageContent content={message.content as string | ContentBlock[] | undefined} />
       ) : (
         <pre className="text-xs text-text-3 whitespace-pre-wrap break-words">
           {JSON.stringify(line)}
@@ -206,19 +173,42 @@ function TranscriptLine({ line }: { line: Line }) {
   );
 }
 
-function parseLine(raw: string): Line {
-  try {
-    return JSON.parse(raw) as Line;
-  } catch {
-    return { raw } as Line;
+// ── Search helpers ────────────────────────────────────────────────────────────
+
+function conversationSearchText(line: ParsedLine): string {
+  if (line.kind === 'user-message') {
+    return line.content;
   }
+  if (line.kind === 'tool-results') {
+    return line.results
+      .map(
+        (r) =>
+          `${r.toolName ?? ''} ${typeof r.content === 'string' ? r.content : JSON.stringify(r.content)}`,
+      )
+      .join(' ');
+  }
+  if (line.kind === 'assistant-turn') {
+    return line.blocks
+      .map((b) => {
+        if (b.type === 'text') {
+          return (b as { text: string }).text ?? '';
+        }
+        if (b.type === 'tool_use') {
+          const tb = b as { name: string; input: unknown };
+          return `${tb.name} ${JSON.stringify(tb.input)}`;
+        }
+        return '';
+      })
+      .join(' ');
+  }
+  return JSON.stringify(line.src);
 }
 
-type ParsedLine = { line: Line; search: string };
-function toParsed(raw: string): ParsedLine {
-  const line = parseLine(raw);
-  return { line, search: lineSearchText(line).toLowerCase() };
+function rawSearchText(line: ParsedLine): string {
+  return JSON.stringify(line.src);
 }
+
+// ── Viewer ────────────────────────────────────────────────────────────────────
 
 const WINDOW_STEP = 300;
 
@@ -229,18 +219,22 @@ export function TranscriptViewer({
   apiUrl?: string | undefined;
   sessionId: string;
 }) {
-  const [lines, setLines] = useState<ParsedLine[]>([]);
+  const [parsedLines, setParsedLines] = useState<ParsedLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(WINDOW_STEP);
+  const [viewMode, setViewMode] = useState<'conversation' | 'raw'>('conversation');
+
+  const toolNameMapRef = useRef<Map<string, string>>(new Map());
 
   const url = apiUrl ?? `/api/me/transcripts/${sessionId}`;
 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    setLines([]);
+    toolNameMapRef.current = new Map();
+    setParsedLines([]);
     setLoading(true);
     setError(null);
     setVisibleCount(WINDOW_STEP);
@@ -255,7 +249,12 @@ export function TranscriptViewer({
         if (!reader) {
           const text = await res.text();
           if (!cancelled) {
-            setLines(text.trim().split('\n').filter(Boolean).map(toParsed));
+            const lines = text
+              .trim()
+              .split('\n')
+              .filter(Boolean)
+              .map((l) => parseTranscriptLine(l, toolNameMapRef.current));
+            setParsedLines(lines);
             setLoading(false);
           }
           return;
@@ -268,7 +267,7 @@ export function TranscriptViewer({
           if (pending.length > 0) {
             const batch = pending;
             pending = [];
-            setLines((prev) => prev.concat(batch));
+            setParsedLines((prev) => prev.concat(batch));
           }
         };
 
@@ -286,7 +285,7 @@ export function TranscriptViewer({
             const raw = buf.slice(0, nl);
             buf = buf.slice(nl + 1);
             if (raw.trim()) {
-              pending.push(toParsed(raw));
+              pending.push(parseTranscriptLine(raw, toolNameMapRef.current));
             }
             nl = buf.indexOf('\n');
           }
@@ -296,7 +295,7 @@ export function TranscriptViewer({
         }
         buf += decoder.decode();
         if (buf.trim()) {
-          pending.push(toParsed(buf));
+          pending.push(parseTranscriptLine(buf, toolNameMapRef.current));
         }
         flush();
         if (!cancelled) {
@@ -317,21 +316,30 @@ export function TranscriptViewer({
     };
   }, [url]);
 
+  const stats = useMemo(() => computeStats(parsedLines), [parsedLines]);
+
+  const modeFiltered = useMemo(
+    () =>
+      viewMode === 'conversation' ? parsedLines.filter((l) => l.kind !== 'metadata') : parsedLines,
+    [parsedLines, viewMode],
+  );
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) {
-      return lines;
+      return modeFiltered;
     }
-    return lines.filter((pl) => pl.search.includes(needle));
-  }, [lines, query]);
+    const searchFn = viewMode === 'conversation' ? conversationSearchText : rawSearchText;
+    return modeFiltered.filter((l) => searchFn(l).toLowerCase().includes(needle));
+  }, [modeFiltered, query, viewMode]);
 
-  if (loading && lines.length === 0) {
+  if (loading && parsedLines.length === 0) {
     return <div className="animate-pulse h-96 bg-surface rounded-lg" />;
   }
   if (error) {
     return <p className="text-sm text-red-400">Error: {error}</p>;
   }
-  if (lines.length === 0) {
+  if (parsedLines.length === 0) {
     return <p className="text-sm text-text-3">Transcript is empty.</p>;
   }
 
@@ -340,6 +348,8 @@ export function TranscriptViewer({
 
   return (
     <div className="space-y-3">
+      {(stats.userTurns > 0 || stats.toolCalls > 0) && <TranscriptStatsBar stats={stats} />}
+
       <div className="flex items-center gap-3">
         <input
           type="search"
@@ -352,18 +362,52 @@ export function TranscriptViewer({
           className="flex-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text placeholder-text-3 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
         <span className="text-xs text-text-3 font-mono whitespace-nowrap">
-          {query.trim() ? `${filtered.length} / ${lines.length}` : `${lines.length} lines`}
+          {query.trim()
+            ? `${filtered.length} / ${modeFiltered.length}`
+            : `${modeFiltered.length} lines`}
           {loading ? ' · loading…' : ''}
         </span>
+        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setViewMode('conversation');
+              setVisibleCount(WINDOW_STEP);
+            }}
+            className={`rounded px-2.5 py-1 text-xs transition-colors ${
+              viewMode === 'conversation'
+                ? 'bg-accent/20 text-accent'
+                : 'text-text-3 hover:text-text'
+            }`}
+          >
+            Conversation
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setViewMode('raw');
+              setVisibleCount(WINDOW_STEP);
+            }}
+            className={`rounded px-2.5 py-1 text-xs transition-colors ${
+              viewMode === 'raw' ? 'bg-accent/20 text-accent' : 'text-text-3 hover:text-text'
+            }`}
+          >
+            Raw
+          </button>
+        </div>
       </div>
 
       {filtered.length === 0 ? (
         <p className="text-sm text-text-3">No lines match &quot;{query}&quot;.</p>
       ) : (
         <div className="space-y-2 font-mono text-sm">
-          {visible.map((pl, i) => (
-            <TranscriptLine key={i} line={pl.line} />
-          ))}
+          {visible.map((line, i) =>
+            viewMode === 'conversation' ? (
+              <TranscriptTurnView key={i} line={line} />
+            ) : (
+              <RawLine key={i} line={line.src as RawLine} />
+            ),
+          )}
         </div>
       )}
 
