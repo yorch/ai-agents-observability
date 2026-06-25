@@ -10,9 +10,6 @@ import { uuidv7 } from './uuid';
 type ClaudeCodeHookPayload = {
   cwd?: unknown;
   hook_event_name?: unknown;
-  // Present on UserPromptSubmit — the raw user message (may include a leading
-  // slash command like "/deep-research some query"). Flows to metadata as-is;
-  // we additionally extract the command name into metadata.slash_command.
   prompt?: unknown;
   session_id?: unknown;
   tool_input?: unknown;
@@ -24,6 +21,7 @@ type ClaudeCodeHookPayload = {
 const KNOWN_KEYS = new Set([
   'cwd',
   'hook_event_name',
+  'prompt',
   'session_id',
   'tool_input',
   'tool_name',
@@ -103,10 +101,7 @@ function buildToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
       ? raw.tool_input.subagent_type
       : null;
 
-  // Detect Skill tool invocations — mirrors the Task/subagent_type pattern.
-  // The Skill tool's input carries a `skill` field with the skill identifier
-  // (e.g. "deep-research"), which is also the slash command name (without the
-  // leading "/"). Both columns are populated from the same value.
+  // Skill names equal their slash command (e.g. "deep-research" ↔ /deep-research).
   const skill =
     name === 'Skill' && isRecord(raw.tool_input) && typeof raw.tool_input.skill === 'string'
       ? raw.tool_input.skill
@@ -152,10 +147,6 @@ export function toEvent(kind: HookKind, raw: ClaudeCodeHookPayload): Event {
   const isToolEvent = eventType === 'PreToolUse' || eventType === 'PostToolUse';
 
   const metadata = pickMetadata(raw);
-  // Best-effort slash-command extraction from the user's prompt. Claude Code
-  // includes `prompt` in UserPromptSubmit payloads; if the message starts with
-  // a "/" we pull out the command name and add it as metadata.slash_command so
-  // analytics can group by it without parsing the full prompt text.
   if (eventType === 'UserPromptSubmit' && typeof raw.prompt === 'string') {
     const match = /^\/([a-zA-Z][\w-]*)/.exec(raw.prompt.trimStart());
     if (match) {

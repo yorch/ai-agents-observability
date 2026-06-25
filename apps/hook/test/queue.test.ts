@@ -87,7 +87,7 @@ describe('payload → Event', () => {
       cwd: '/home/dev/project',
       hook_event_name: 'PreToolUse',
       session_id: '550e8400-e29b-41d4-a716-446655440000',
-      tool_input: { skill: 'deep-research', args: 'quantum computing trends' },
+      tool_input: { args: 'quantum computing trends', skill: 'deep-research' },
       tool_name: 'Skill',
     });
     expect(ev.tool?.name).toBe('Skill');
@@ -116,6 +116,8 @@ describe('payload → Event', () => {
     });
     expect(ev.event_type).toBe('UserPromptSubmit');
     expect(ev.metadata.slash_command).toBe('deep-research');
+    // prompt is in KNOWN_KEYS — raw user messages must not land in metadata JSONB
+    expect(ev.metadata.prompt).toBeUndefined();
   });
 
   it('leaves slash_command absent in metadata for plain UserPromptSubmit prompts', () => {
@@ -126,6 +128,7 @@ describe('payload → Event', () => {
       session_id: '550e8400-e29b-41d4-a716-446655440000',
     });
     expect(ev.metadata.slash_command).toBeUndefined();
+    expect(ev.metadata.prompt).toBeUndefined();
   });
 
   it('handles missing prompt on UserPromptSubmit gracefully', () => {
