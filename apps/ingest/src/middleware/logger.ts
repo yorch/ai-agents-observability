@@ -8,7 +8,7 @@ export function loggerMiddleware(logger: Logger): MiddlewareHandler<AppEnv> {
     const start = Date.now();
     const reqId = c.get('requestId');
 
-    logger.info({ method: c.req.method, path: c.req.path, reqId }, 'req');
+    logger.debug({ method: c.req.method, path: c.req.path, reqId }, 'req');
 
     await next();
 
