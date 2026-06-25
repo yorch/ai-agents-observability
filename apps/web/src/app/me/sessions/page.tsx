@@ -6,6 +6,22 @@ import { type FrictionBand, listDistinctRepos, listSessions } from '@/lib/sessio
 
 export const dynamic = 'force-dynamic';
 
+function buildExportUrl(filters: {
+  agent?: string;
+  band?: string;
+  from?: string;
+  repo?: string;
+  shape?: string;
+  status?: string;
+  to?: string;
+}): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (v) p.set(k, v);
+  }
+  return `/api/me/export?${p.toString()}`;
+}
+
 function parseDate(s: string | undefined): Date | undefined {
   if (!s) {
     return undefined;
@@ -220,6 +236,16 @@ export default async function SessionsPage({
           </a>
         )}
       </form>
+
+      {/* Export */}
+      <div className="flex justify-end">
+        <a
+          href={buildExportUrl({ repo, status, from: params.from, to: params.to, shape, agent, band: frictionBand })}
+          className="rounded-md border border-white/10 px-3 py-1.5 text-xs text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+        >
+          Export CSV
+        </a>
+      </div>
 
       <SessionsTable sessions={sessions} total={total} currentPage={page} />
     </div>

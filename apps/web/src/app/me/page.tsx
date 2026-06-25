@@ -12,41 +12,59 @@ import { getModelMix, getRecentSessions, getTopTools, getUsageSummary } from '@/
 
 export const dynamic = 'force-dynamic';
 
-export default async function MePage() {
+const DAYS_OPTS = [7, 30, 90] as const;
+type Days = (typeof DAYS_OPTS)[number];
+
+function parseDays(raw: string | undefined): Days {
+  const n = Number(raw);
+  return (DAYS_OPTS as readonly number[]).includes(n) ? (n as Days) : 7;
+}
+
+export default async function MePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string>>;
+}) {
   const user = await currentUser();
   if (!user) {
     redirect('/login');
   }
 
+  const params = await searchParams;
+  const days = parseDays(params.days);
+
   const now = new Date();
-  const thisWeekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const lastWeekStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+  const periodStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const prevPeriodStart = new Date(now.getTime() - 2 * days * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const [thisWeek, lastWeek, tools, models, sessions, effectiveness] = await Promise.all([
-    getUsageSummary(user.id, thisWeekStart),
-    getUsageSummary(user.id, lastWeekStart, thisWeekStart),
-    getTopTools(user.id, thisWeekStart),
-    getModelMix(user.id, thisWeekStart),
+  const [thisPeriod, lastPeriod, tools, models, sessions, effectiveness] = await Promise.all([
+    getUsageSummary(user.id, periodStart),
+    getUsageSummary(user.id, prevPeriodStart, periodStart),
+    getTopTools(user.id, periodStart),
+    getModelMix(user.id, periodStart),
     getRecentSessions(user.id),
     getUserEffectiveness(user.id, { since: thirtyDaysAgo }),
   ]);
 
-  const hasData = thisWeek.sessionCount > 0;
+  const hasData = thisPeriod.sessionCount > 0;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
-      <div>
-        <h1 className="text-2xl font-semibold">My Agents</h1>
-        <p className="mt-1 text-sm text-white/50">
-          Trailing 7 days · {user.displayName ?? user.githubLogin}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">My Agents</h1>
+          <p className="mt-1 text-sm text-white/50">
+            {user.displayName ?? user.githubLogin}
+          </p>
+        </div>
+        <DaysSelector current={days} />
       </div>
       {!hasData ? (
         <EmptyState />
       ) : (
         <>
-          <SummaryCards thisWeek={thisWeek} lastWeek={lastWeek} />
+          <SummaryCards thisWeek={thisPeriod} lastWeek={lastPeriod} />
           <div className="grid gap-6 md:grid-cols-2">
             <TopTools tools={tools} />
             <ModelMixChart models={models} />
@@ -64,6 +82,26 @@ export default async function MePage() {
           <RecentSessions sessions={sessions} />
         </>
       )}
+    </div>
+  );
+}
+
+function DaysSelector({ current }: { current: Days }) {
+  return (
+    <div className="flex gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+      {DAYS_OPTS.map((d) => (
+        <a
+          key={d}
+          href={`/me?days=${d}`}
+          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+            current === d
+              ? 'bg-brand-500 text-white'
+              : 'text-white/50 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          {d}d
+        </a>
+      ))}
     </div>
   );
 }
