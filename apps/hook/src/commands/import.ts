@@ -2,7 +2,7 @@ import type { Event } from '@ai-agents-observability/schemas';
 
 import { listSessionFiles } from '../lib/claude-projects';
 import { loadHookToken } from '../lib/identity';
-import { AuthError, postEventBatch, uploadTranscript } from '../lib/import-ship';
+import { AuthError, checkServerReady, postEventBatch, uploadTranscript } from '../lib/import-ship';
 import { createSynthCtx, entryToEvents } from '../lib/import-synth';
 import { parseSessionFile } from '../lib/transcript-parser';
 
@@ -96,6 +96,15 @@ export async function runImport(args: string[]): Promise<number> {
   if (!jwt && !opts.dryRun) {
     process.stderr.write('Not authenticated. Run `claude-telemetry login` first.\n');
     return 1;
+  }
+
+  // Pre-flight: verify server is reachable and ready before processing any files
+  if (!opts.dryRun) {
+    const ready = await checkServerReady();
+    if (!ready.ok) {
+      process.stderr.write(`Error: ${ready.message}\n`);
+      return 1;
+    }
   }
 
   // Discover session files

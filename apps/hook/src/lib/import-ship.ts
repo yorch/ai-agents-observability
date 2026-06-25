@@ -8,6 +8,42 @@ function ingestBaseUrl(): string {
   return process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
 }
 
+export type ServerReadyResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * GET /readyz — verifies the ingest server is reachable and its DB + S3 dependencies are healthy.
+ * Call before starting a large import to fail fast rather than processing thousands of events
+ * only to have them rejected at the network layer.
+ */
+export async function checkServerReady(): Promise<ServerReadyResult> {
+  try {
+    const res = await fetch(`${ingestBaseUrl()}/readyz`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) {
+      return { ok: true };
+    }
+    try {
+      const data = (await res.json()) as { checks?: Record<string, string> };
+      const failed = Object.entries(data.checks ?? {})
+        .filter(([, v]) => v !== 'ok')
+        .map(([k]) => k)
+        .join(', ');
+      return {
+        message: `Server not ready (${res.status}): ${failed || 'unknown check failed'}. Check server logs.`,
+        ok: false,
+      };
+    } catch {
+      return { message: `Server not ready (${res.status}). Check server logs.`, ok: false };
+    }
+  } catch (err) {
+    return {
+      message: `Cannot reach ingest server at ${ingestBaseUrl()}: ${(err as Error).message}`,
+      ok: false,
+    };
+  }
+}
+
 export type BatchResult = {
   accepted: number;
   deduped: number;
