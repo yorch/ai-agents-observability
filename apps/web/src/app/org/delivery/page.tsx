@@ -3,8 +3,6 @@ import { StatCard } from '@/components/team-org/StatCard';
 import { getOrgPRDeliveryStats, getPRWeeklyTrend, getTopReposByPR } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
-import { OrgSubNav } from '../layout';
-
 export const dynamic = 'force-dynamic';
 
 function fmtHours(hours: number | null): string {
@@ -17,14 +15,21 @@ function fmtHours(hours: number | null): string {
   return `${(hours / 24).toFixed(1)}d`;
 }
 
-export default async function OrgDeliveryPage() {
+export default async function OrgDeliveryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
   await requireOrgViewer();
 
-  const since = daysAgo(90);
+  const { range: rangeParam } = await searchParams;
+  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 90) as 7 | 30 | 90;
+  const since = daysAgo(range);
+  const trendWeeks = range === 7 ? 4 : range === 30 ? 12 : 26;
 
   const [stats, weeklyTrend, topRepos] = await Promise.all([
     getOrgPRDeliveryStats(since),
-    getPRWeeklyTrend(12),
+    getPRWeeklyTrend(trendWeeks),
     getTopReposByPR(since),
   ]);
 
@@ -34,16 +39,15 @@ export default async function OrgDeliveryPage() {
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Org"
-        description="PR throughput, cycle time, and cost · trailing 90 days"
+        description={`PR throughput, cycle time, and cost · trailing ${range} days`}
+        range={range}
         title="Delivery"
       />
-
-      <OrgSubNav active="delivery" />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard
-          label="PRs opened (90d)"
+          label={`PRs opened (${range}d)`}
           value={stats.totalPRs.toString()}
           sub={`${stats.mergedPRs} merged`}
         />
@@ -84,7 +88,9 @@ export default async function OrgDeliveryPage() {
       {/* Weekly PR trend */}
       {weeklyTrend.length > 0 && (
         <section className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h2 className="text-sm font-semibold text-white/70 mb-4">Weekly merged PRs (12 weeks)</h2>
+          <h2 className="text-sm font-semibold text-white/70 mb-4">
+            Weekly merged PRs ({trendWeeks} weeks)
+          </h2>
           <div className="flex items-end gap-1 h-24">
             {weeklyTrend.map((w) => {
               const height = Math.max(4, (w.mergedPRs / maxPRs) * 96);
@@ -110,7 +116,7 @@ export default async function OrgDeliveryPage() {
 
       {/* Top repos by PR activity */}
       <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white/70">Top repos by merged PRs (90d)</h2>
+        <h2 className="text-sm font-semibold text-white/70">Top repos by merged PRs ({range}d)</h2>
         {topRepos.length === 0 ? (
           <p className="text-sm text-white/40">No merged PR data available.</p>
         ) : (

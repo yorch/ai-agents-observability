@@ -5,8 +5,6 @@ import type { OrgModelDetailRow, OrgModelRoutingRow } from '@/lib/org-queries';
 import { getOrgModelDetail, getOrgModelRoutingBreakdown } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
-import { OrgSubNav } from '../layout';
-
 export const dynamic = 'force-dynamic';
 
 // Models whose names contain these substrings are considered premium-tier.
@@ -86,10 +84,16 @@ function computeRoutingInsights(
   return insights.sort((a, b) => b.estimatedSavingsUsd - a.estimatedSavingsUsd);
 }
 
-export default async function OrgModelsPage() {
+export default async function OrgModelsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
   await requireOrgViewer();
 
-  const since = daysAgo(30);
+  const { range: rangeParam } = await searchParams;
+  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
+  const since = daysAgo(range);
   const [models, routing] = await Promise.all([
     getOrgModelDetail(since),
     getOrgModelRoutingBreakdown(since),
@@ -111,16 +115,15 @@ export default async function OrgModelsPage() {
     <div className="space-y-8">
       <PageHeader
         breadcrumb="Org"
-        description="Trailing 30 days · model spend, cache efficiency, and routing guidance"
+        description={`Trailing ${range} days · model spend, cache efficiency, and routing guidance`}
+        range={range}
         title="Model Cost Optimization"
       />
-
-      <OrgSubNav active="models" />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard
-          label="LLM spend (30d)"
+          label={`LLM spend (${range}d)`}
           value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
         />
         <StatCard
@@ -141,7 +144,7 @@ export default async function OrgModelsPage() {
       </div>
 
       {models.length === 0 ? (
-        <EmptyState>No model usage recorded in the last 30 days.</EmptyState>
+        <EmptyState>No model usage recorded in the last {range} days.</EmptyState>
       ) : (
         <>
           {/* Routing insights */}

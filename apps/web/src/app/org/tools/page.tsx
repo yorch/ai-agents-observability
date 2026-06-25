@@ -22,14 +22,18 @@ import {
 } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
-import { OrgSubNav } from '../layout';
-
 export const dynamic = 'force-dynamic';
 
-export default async function OrgToolsPage() {
+export default async function OrgToolsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
   await requireOrgViewer();
 
-  const since = daysAgo(30);
+  const { range: rangeParam } = await searchParams;
+  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
+  const since = daysAgo(range);
 
   const [
     tools,
@@ -67,15 +71,14 @@ export default async function OrgToolsPage() {
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Org"
-        description="Trailing 30 days · tool usage across the org"
+        description={`Trailing ${range} days · tool usage across the org`}
+        range={range}
         title="Tools & Skills"
       />
 
-      <OrgSubNav active="tool usage" />
-
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Tool calls (30d)" value={totalCalls.toLocaleString()} />
+        <StatCard label={`Tool calls (${range}d)`} value={totalCalls.toLocaleString()} />
         <StatCard label="Unique tools" value={uniqueTools.toString()} />
         <StatCard
           label="Denial rate"
@@ -91,14 +94,16 @@ export default async function OrgToolsPage() {
       {/* Daily volume trend */}
       {dailyVolume.length > 0 && (
         <section className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h2 className="text-sm font-semibold text-white/70 mb-4">Daily tool call volume (30d)</h2>
+          <h2 className="text-sm font-semibold text-white/70 mb-4">
+            Daily tool call volume ({range}d)
+          </h2>
           <DailyVolumeBars volume={dailyVolume} />
         </section>
       )}
 
       {/* Top tools table */}
       <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white/70">Top tools (30d)</h2>
+        <h2 className="text-sm font-semibold text-white/70">Top tools ({range}d)</h2>
         {tools.length === 0 ? (
           <p className="text-sm text-white/40">No tool data available.</p>
         ) : (
@@ -133,8 +138,8 @@ export default async function OrgToolsPage() {
         <h2 className="text-sm font-semibold text-white/70">Skills & slash commands</h2>
         {skills.length === 0 ? (
           <p className="text-sm text-white/40">
-            No skill or slash command invocations in the last 30 days. Skills are captured when the{' '}
-            <span className="font-mono text-white/60">Skill</span> tool fires (e.g.{' '}
+            No skill or slash command invocations in the last {range} days. Skills are captured when
+            the <span className="font-mono text-white/60">Skill</span> tool fires (e.g.{' '}
             <span className="font-mono text-white/60">/code-review</span>,{' '}
             <span className="font-mono text-white/60">/commit</span>).
           </p>

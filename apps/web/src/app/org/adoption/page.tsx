@@ -8,23 +8,25 @@ import {
 } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
-import { OrgSubNav } from '../layout';
-
 export const dynamic = 'force-dynamic';
 
-export default async function OrgAdoptionPage() {
+export default async function OrgAdoptionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
   const { orgRole } = await requireOrgViewer();
   const isAdmin = isOrgAdmin(orgRole);
 
-  const since30 = daysAgo(30);
-  const since90 = daysAgo(90);
+  const { range: rangeParam } = await searchParams;
+  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
+  const since = daysAgo(range);
 
-  const [summary30, summary90, weeklyTrend, adoptionByTeam, frequencyDist] = await Promise.all([
-    getOrgSummary(since30),
-    getOrgSummary(since90),
-    getActiveUsersTrend(since90, 'week'),
-    getAdoptionByTeam(since30),
-    getSessionFrequencyDistribution(since30),
+  const [summary, weeklyTrend, adoptionByTeam, frequencyDist] = await Promise.all([
+    getOrgSummary(since),
+    getActiveUsersTrend(since, 'week'),
+    getAdoptionByTeam(since),
+    getSessionFrequencyDistribution(since),
   ]);
 
   const maxFreq = Math.max(...frequencyDist.map((b) => b.userCount), 1);
@@ -34,22 +36,26 @@ export default async function OrgAdoptionPage() {
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Org"
-        description="How the org is ramping on AI coding agents · trailing 30 / 90 days"
+        description={`How the org is ramping on AI coding agents · trailing ${range} days`}
+        range={range}
         title="Adoption"
       />
 
-      <OrgSubNav active="adoption" />
-
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Active users (30d)" value={summary30.activeUsers.toString()} />
-        <StatCard label="Active users (90d)" value={summary90.activeUsers.toString()} />
-        <StatCard label="Total sessions (30d)" value={summary30.sessionCount.toString()} />
+        <StatCard label={`Active users (${range}d)`} value={summary.activeUsers.toString()} />
+        <StatCard label={`Total sessions (${range}d)`} value={summary.sessionCount.toString()} />
         <StatCard
-          label="Sessions / user (30d)"
+          label={`Sessions / user (${range}d)`}
           value={
-            summary30.activeUsers > 0
-              ? (summary30.sessionCount / summary30.activeUsers).toFixed(1)
+            summary.activeUsers > 0 ? (summary.sessionCount / summary.activeUsers).toFixed(1) : '—'
+          }
+        />
+        <StatCard
+          label={`Avg cost / session (${range}d)`}
+          value={
+            summary.sessionCount > 0 && summary.totalCostUsd > 0
+              ? `$${(summary.totalCostUsd / summary.sessionCount).toFixed(2)}`
               : '—'
           }
         />
@@ -58,7 +64,7 @@ export default async function OrgAdoptionPage() {
       {/* Weekly active users trend */}
       <section className="rounded-lg border border-white/10 bg-white/5 p-4">
         <h2 className="text-sm font-semibold text-white/70 mb-4">
-          Weekly active users (trailing 90 days)
+          Weekly active users (trailing {range} days)
         </h2>
         {weeklyTrend.length === 0 ? (
           <p className="text-sm text-white/40">No data yet.</p>
@@ -70,7 +76,7 @@ export default async function OrgAdoptionPage() {
       <div className="grid gap-6 md:grid-cols-2">
         {/* Session frequency distribution */}
         <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-white/70">Session frequency (30d)</h2>
+          <h2 className="text-sm font-semibold text-white/70">Session frequency ({range}d)</h2>
           <p className="text-xs text-white/40">
             Among org-sharing users — how often are they using Claude Code?
           </p>
@@ -104,7 +110,7 @@ export default async function OrgAdoptionPage() {
 
         {/* Adoption by team */}
         <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-white/70">Team adoption rate (30d)</h2>
+          <h2 className="text-sm font-semibold text-white/70">Team adoption rate ({range}d)</h2>
           <p className="text-xs text-white/40">
             Active members / total team members with sessions in the window.
           </p>

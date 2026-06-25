@@ -1,11 +1,8 @@
+import { PageHeader } from '@/components/team-org/PageHeader';
 import { getTeamBenchmarks } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
-import { OrgSubNav } from '../layout';
-
 export const dynamic = 'force-dynamic';
-
-const WEEKS = 4;
 
 function delta(value: number, median: number, lowerIsBetter = false): 'above' | 'below' | 'at' {
   const pct = median > 0 ? Math.abs(value - median) / median : 0;
@@ -39,24 +36,28 @@ function DeltaBadge({
   );
 }
 
-export default async function OrgBenchmarksPage() {
+export default async function OrgBenchmarksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
   const { orgRole } = await requireOrgViewer();
   const isAdmin = isOrgAdmin(orgRole);
 
-  const since = daysAgo(WEEKS * 7);
-  const { teams, medians } = await getTeamBenchmarks(since, WEEKS);
+  const { range: rangeParam } = await searchParams;
+  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
+  const weeks = Math.round(range / 7);
+  const since = daysAgo(range);
+  const { teams, medians } = await getTeamBenchmarks(since, weeks);
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Org</p>
-        <h1 className="text-2xl font-semibold">Team Benchmarks</h1>
-        <p className="mt-1 text-sm text-white/50">
-          Cross-team efficiency comparison · trailing {WEEKS} weeks · teams with ≥5 sessions
-        </p>
-      </div>
-
-      <OrgSubNav active="benchmarks" />
+      <PageHeader
+        breadcrumb="Org"
+        description={`Cross-team efficiency comparison · trailing ${weeks} week${weeks !== 1 ? 's' : ''} · teams with ≥5 sessions`}
+        range={range}
+        title="Team Benchmarks"
+      />
 
       {/* Org median reference */}
       <section className="rounded-lg border border-white/10 bg-white/5 p-4">
@@ -90,7 +91,7 @@ export default async function OrgBenchmarksPage() {
       {teams.length === 0 ? (
         <section className="rounded-lg border border-white/10 bg-white/5 p-4">
           <p className="text-sm text-white/40">
-            No team data yet. Teams need ≥5 sessions from org-sharing users in the last {WEEKS}{' '}
+            No team data yet. Teams need ≥5 sessions from org-sharing users in the last {weeks}{' '}
             weeks to appear here.
           </p>
         </section>
@@ -190,7 +191,7 @@ export default async function OrgBenchmarksPage() {
           </li>
         </ul>
         <p className="pt-1">
-          Only teams with ≥5 sessions from org-sharing users in the last {WEEKS} weeks are shown.
+          Only teams with ≥5 sessions from org-sharing users in the last {weeks} weeks are shown.
           Benchmarks compare within the org, not against external baselines.
         </p>
       </div>
