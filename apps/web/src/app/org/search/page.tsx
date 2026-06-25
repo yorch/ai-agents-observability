@@ -322,7 +322,7 @@ export default async function OrgSearchPage({
               />
               <button
                 type="submit"
-                className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium hover:bg-brand-600"
+                className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-bg hover:bg-brand-600"
               >
                 Search
               </button>

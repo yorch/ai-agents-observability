@@ -142,7 +142,7 @@ export default async function AdminJobsPage() {
                         <input type="hidden" name="jobName" value={cfg.jobName} />
                         <button
                           type="submit"
-                          className="rounded px-3 py-1 text-xs font-medium bg-brand-500 hover:bg-brand-600 text-white"
+                          className="rounded px-3 py-1 text-xs font-medium bg-brand-500 hover:bg-brand-600 text-bg"
                         >
                           Run now
                         </button>

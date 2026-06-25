@@ -41,7 +41,7 @@ export default async function AccessGrantsPage() {
         </div>
         <a
           href="/admin/access-grants/new"
-          className="rounded-md bg-brand-500 px-3 py-1.5 text-sm font-medium hover:bg-brand-600"
+          className="rounded-md bg-brand-500 px-3 py-1.5 text-sm font-medium text-bg hover:bg-brand-600"
         >
           New request
         </a>
@@ -82,7 +82,7 @@ export default async function AccessGrantsPage() {
                     />
                     <button
                       type="submit"
-                      className="rounded-md bg-brand-500 px-3 py-1 text-xs font-medium hover:bg-brand-600"
+                      className="rounded-md bg-brand-500 px-3 py-1 text-xs font-medium text-bg hover:bg-brand-600"
                     >
                       Approve (h)
                     </button>

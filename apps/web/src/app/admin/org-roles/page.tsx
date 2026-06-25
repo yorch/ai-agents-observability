@@ -64,7 +64,7 @@ export default async function OrgRolesAdminPage() {
                   </select>
                   <button
                     type="submit"
-                    className="rounded-md bg-brand-500 px-3 py-1 text-xs font-medium hover:bg-brand-600"
+                    className="rounded-md bg-brand-500 px-3 py-1 text-xs font-medium text-bg hover:bg-brand-600"
                   >
                     Save
                   </button>

@@ -248,7 +248,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
 
         <button
           type="submit"
-          className="rounded-md bg-brand-500 px-4 py-1.5 text-sm font-medium hover:bg-brand-600 transition-colors"
+          className="rounded-md bg-brand-500 px-4 py-1.5 text-sm font-medium text-bg hover:bg-brand-600 transition-colors"
         >
           Filter
         </button>

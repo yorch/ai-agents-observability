@@ -51,7 +51,7 @@ export default async function AlertsAdminPage() {
                 <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
                 <button
                   type="submit"
-                  className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-brand-500/80 hover:bg-brand-600' : 'border border-white/10 hover:bg-white/10'}`}
+                  className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-brand-500/80 hover:bg-brand-600 text-bg' : 'border border-white/10 hover:bg-white/10'}`}
                 >
                   {r.enabled ? 'Enabled' : 'Disabled'}
                 </button>
@@ -114,7 +114,7 @@ export default async function AlertsAdminPage() {
           />
           <button
             type="submit"
-            className="rounded-md bg-brand-500 px-3 py-1 text-sm font-medium hover:bg-brand-600"
+            className="rounded-md bg-brand-500 px-3 py-1 text-sm font-medium text-bg hover:bg-brand-600"
           >
             Add channel
           </button>
