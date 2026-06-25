@@ -155,9 +155,29 @@ To populate this section:
 
 ### Infrastructure requirement
 
-The prototype requires switching the Postgres image to `timescale/timescaledb-ha:latest-pg18` (from `timescale/timescaledb:latest-pg18`) to get the bundled pgvector extension. This change is backward-compatible with bind-mount volumes per CLAUDE.md. Existing deployments that have already started with the standard image need to either:
-- Start fresh (destroy and recreate the volume), or
-- Manually install the `postgresql-18-pgvector` package in the container before running the migration
+The prototype DDL (`CREATE EXTENSION vector`, the `transcript_embeddings` table, and the IVFFlat index) is in **`packages/db/sql/prototypes/prototype_semantic_search.sql`** — NOT in `packages/db/sql/migrations/`. The migrations runner does not scan subdirectories, so it will **not** auto-apply this file. Apply it manually against a pgvector-capable Postgres before running the embed script.
+
+**Getting pgvector:**
+- Use `timescale/timescaledb-ha:latest-pg18` (bundles pgvector) — note: the `-ha` image historically had uid issues with bind mounts, so prefer a fresh volume or verify your local setup
+- Or install `postgresql-18-pgvector` in the container manually (e.g. `apt-get install postgresql-18-pgvector`)
+- Or use any Postgres build with pgvector compiled in
+
+`docker-compose.infra.yml` ships the standard `timescale/timescaledb:latest-pg18` image (no pgvector) to avoid breaking the baseline stack for developers not running this spike.
+
+### Running the prototype
+
+```bash
+# 1. Apply the prototype schema manually (requires pgvector in your Postgres)
+psql $DATABASE_URL -f packages/db/sql/prototypes/prototype_semantic_search.sql
+
+# 2. Optionally rebuild the IVFFlat index AFTER populating data:
+#    DROP INDEX transcript_embeddings_ivfflat_idx;
+#    CREATE INDEX … (same DDL as in the file)
+
+# 3. Run the backfill + measurement script
+SEMANTIC_SEARCH_ENABLED=1 OPENAI_API_KEY=sk-... \
+  bun run apps/ingest/src/jobs/embed-transcripts.ts --sample 200 --measure
+```
 
 ### Flag behavior
 

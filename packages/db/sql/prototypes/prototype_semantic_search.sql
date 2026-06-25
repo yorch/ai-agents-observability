@@ -1,8 +1,7 @@
-/* P7-007 PROTOTYPE — semantic transcript search spike.
-   Requires pgvector extension (included in timescale/timescaledb-ha image).
-   Gated at the application layer via SEMANTIC_SEARCH_ENABLED env flag.
-   Table is inert unless the embed-transcripts prototype script populates it.
-   Tracked by _db_sql_migrations — applied exactly once. */
+/* P7-007 PROTOTYPE — apply manually before running embed-transcripts.ts.
+   NOT in packages/db/sql/migrations/ — the auto-runner does not pick this up.
+   Requires pgvector: use timescale/timescaledb-ha or install pgvector separately.
+   The IVFFlat index should be built AFTER populating data (REINDEX or drop+recreate). */
 
 CREATE EXTENSION IF NOT EXISTS vector;
 

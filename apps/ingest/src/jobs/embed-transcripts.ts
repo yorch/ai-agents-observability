@@ -84,7 +84,6 @@ async function embedBatch(
   apiKey: string,
   logger: pino.Logger,
 ): Promise<number[][] | null> {
-  const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
   let backoff = 1000;
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -99,7 +98,7 @@ async function embedBatch(
 
     if (res.status === 429) {
       logger.warn({ attempt, backoff }, 'OpenAI rate limit, backing off');
-      await delay(backoff);
+      await new Promise((r) => setTimeout(r, backoff));
       backoff *= 2;
       continue;
     }
@@ -123,9 +122,14 @@ function vectorLiteral(embedding: number[]): string {
 }
 
 function jaccard(setA: Set<string>, setB: Set<string>): number {
-  const intersection = new Set([...setA].filter((x) => setB.has(x)));
-  const union = new Set([...setA, ...setB]);
-  return union.size === 0 ? 0 : intersection.size / union.size;
+  let intersection = 0;
+  for (const x of setA) {
+    if (setB.has(x)) {
+      intersection++;
+    }
+  }
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 0 : intersection / union;
 }
 
 function parseArgs(argv: string[]): { measure: boolean; sample: number | null } {
@@ -178,7 +182,7 @@ async function runEmbedTranscripts(): Promise<void> {
   `;
   if (!lockResult[0]?.pg_try_advisory_lock) {
     logger.warn({ jobName: JOB_NAME }, 'Advisory lock not acquired, another instance running');
-    process.exit(0);
+    return;
   }
 
   let jobRunId: bigint | undefined;
@@ -188,16 +192,18 @@ async function runEmbedTranscripts(): Promise<void> {
     });
     jobRunId = jobRun.id;
 
-    const limitClause = sample != null ? `LIMIT ${sample}` : 'LIMIT 10000';
-    const unembedded = await db.$queryRaw<{ session_id: string; transcript_s3_key: string }[]>`
-      SELECT s.session_id, s.transcript_s3_key
-      FROM sessions s
-      WHERE s.transcript_s3_key IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM transcript_embeddings te WHERE te.session_id = s.session_id::uuid
-        )
-      ${limitClause}
-    `;
+    const sampleLimit = sample != null ? sample : 10_000;
+    const unembedded = await db.$queryRawUnsafe<
+      { session_id: string; transcript_s3_key: string }[]
+    >(
+      `SELECT s.session_id, s.transcript_s3_key
+       FROM sessions s
+       WHERE s.transcript_s3_key IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM transcript_embeddings te WHERE te.session_id = s.session_id::uuid
+         )
+       LIMIT ${sampleLimit}`,
+    );
 
     logger.info({ count: unembedded.length, jobName: JOB_NAME }, 'Sessions to embed');
 
@@ -329,9 +335,12 @@ async function runMeasure(
 
     const semanticRows = await db.$queryRaw<{ session_id: string }[]>`
       SELECT DISTINCT session_id::text
-      FROM transcript_embeddings
-      ORDER BY embedding <=> ${vecLiteral}::vector
-      LIMIT 20
+      FROM (
+        SELECT session_id
+        FROM transcript_embeddings
+        ORDER BY embedding <=> ${vecLiteral}::vector
+        LIMIT 200
+      ) AS ranked
     `;
 
     const keywordRows = await db.$queryRaw<{ session_id: string }[]>`
