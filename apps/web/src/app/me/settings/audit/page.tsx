@@ -24,7 +24,11 @@ const ACTION_LABELS: Record<string, string> = {
 
 type SearchParams = { action?: string; days?: string; page?: string };
 
-export default async function AuditPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+export default async function SettingsAuditPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const user = await currentUser();
   if (!user) {
     redirect('/login');
@@ -50,18 +54,17 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Audit log</h1>
-        <p className="mt-1 text-sm text-white/50">
+        <h2 className="text-lg font-semibold">Audit log</h2>
+        <p className="mt-0.5 text-sm text-text-2">
           Records of when your data was accessed by team or org members.
         </p>
       </div>
 
-      {/* Filters */}
       <form method="GET" className="flex flex-wrap gap-3">
         <select
           name="action"
           defaultValue={actionFilter ?? ''}
-          className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text-2 focus:outline-none focus:ring-1 focus:ring-accent"
         >
           <option value="">All actions</option>
           {Object.entries(ACTION_LABELS).map(([value, label]) => (
@@ -73,7 +76,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
         <select
           name="days"
           defaultValue={daysFilter?.toString() ?? ''}
-          className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text-2 focus:outline-none focus:ring-1 focus:ring-accent"
         >
           {DATE_OPTIONS.map((o) => (
             <option key={o.label} value={o.days ?? ''}>
@@ -83,14 +86,14 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
         </select>
         <button
           type="submit"
-          className="rounded-md border border-white/10 px-3 py-1.5 text-sm hover:bg-white/10 transition-colors"
+          className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2 transition-colors"
         >
           Filter
         </button>
         {(actionFilter || daysFilter) && (
           <a
-            href="/me/audit"
-            className="rounded-md border border-white/10 px-3 py-1.5 text-sm hover:bg-white/10 transition-colors text-white/50"
+            href="/me/settings/audit"
+            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2 transition-colors text-text-2"
           >
             Clear
           </a>

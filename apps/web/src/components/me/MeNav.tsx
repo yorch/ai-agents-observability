@@ -9,9 +9,6 @@ const BASE_NAV = [
   { exact: false, href: '/me/insights', label: 'Insights' },
   { exact: false, href: '/me/prs', label: 'Pull Requests' },
   { exact: false, href: '/me/search', label: 'Search' },
-  { exact: false, href: '/me/profile', label: 'Profile' },
-  { exact: false, href: '/me/privacy', label: 'Privacy' },
-  { exact: false, href: '/me/audit', label: 'Audit log' },
 ];
 
 const GRANTS_ENTRY = { exact: false, href: '/me/grants', label: 'Grants' };

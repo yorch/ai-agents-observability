@@ -1,7 +1,7 @@
 'use client';
 import { useState, useTransition } from 'react';
 
-import { saveProfile } from '@/app/me/profile/actions';
+import { saveProfile } from '@/app/me/settings/profile/actions';
 
 type Props = {
   initialDisplayName: string | null;
@@ -24,9 +24,9 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
     startTransition(async () => {
       const result = await saveProfile(formData);
       if (result.ok) {
-        setStatus({ ok: true, message: 'Saved' });
+        setStatus({ message: 'Saved', ok: true });
       } else {
-        setStatus({ ok: false, message: result.error });
+        setStatus({ message: result.error, ok: false });
       }
     });
   }
@@ -35,7 +35,7 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
     <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-4">
       {githubLogin && (
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-white/50">GitHub login</label>
+          <p className="block text-xs font-medium text-white/50">GitHub login</p>
           <p className="text-sm text-white/70 font-mono">{githubLogin}</p>
           <p className="text-xs text-white/30">Set by GitHub OAuth — not editable here.</p>
         </div>
@@ -49,7 +49,10 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
           id="displayName"
           type="text"
           value={displayName}
-          onChange={(e) => { setDisplayName(e.target.value); setStatus(null); }}
+          onChange={(e) => {
+            setDisplayName(e.target.value);
+            setStatus(null);
+          }}
           maxLength={120}
           placeholder="Your name"
           className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
@@ -64,7 +67,10 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
           id="email"
           type="email"
           value={email}
-          onChange={(e) => { setEmail(e.target.value); setStatus(null); }}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setStatus(null);
+          }}
           placeholder="you@example.com"
           className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         />
