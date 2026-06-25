@@ -194,6 +194,7 @@ CREATE TABLE "pull_requests" (
     "reverted_at" TIMESTAMPTZ(6),
     "revert_of_pr_number" INTEGER,
     "jira_key" TEXT,
+    "is_draft" BOOLEAN,
 
     CONSTRAINT "pull_requests_pkey" PRIMARY KEY ("repo_id","pr_number")
 );
