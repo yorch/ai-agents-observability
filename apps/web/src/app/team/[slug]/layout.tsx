@@ -8,7 +8,7 @@ export function TeamSubNav({
   slug,
   active,
 }: {
-  active: 'overview' | 'roster' | 'sessions' | 'adoption' | 'tools' | 'prs';
+  active: 'overview' | 'roster' | 'sessions' | 'adoption' | 'tools' | 'skills' | 'prs';
   slug: string;
 }) {
   const linkClass = (tab: string) =>
@@ -30,6 +30,9 @@ export function TeamSubNav({
       </Link>
       <Link href={`/team/${slug}/tools`} className={linkClass('tools')}>
         Tools
+      </Link>
+      <Link href={`/team/${slug}/skills`} className={linkClass('skills')}>
+        Skills
       </Link>
       <Link href={`/team/${slug}/prs`} className={linkClass('prs')}>
         PRs
