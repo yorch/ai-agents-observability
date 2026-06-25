@@ -5,7 +5,8 @@ import type { GitContext } from '@ai-agents-observability/schemas';
 
 import { backoffSleep } from './lib/backoff';
 import { getGitContext } from './lib/git';
-import { fetchOpenPrNumber } from './lib/github-pr';
+import { fetchOpenPrNumber, fetchPrSnapshot } from './lib/github-pr';
+import type { PrSnapshot } from './lib/github-pr';
 import { loadHookToken } from './lib/identity';
 import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
@@ -109,7 +110,9 @@ type GitEnrichedEvent = {
     git?: {
       branch?: string | null;
       owner?: string | null;
+      pr_ci_status?: string;
       pr_number?: number | null;
+      pr_review_decision?: string;
       remote_url?: string | null;
       repo?: string | null;
     } | null;
@@ -150,6 +153,42 @@ export async function enrichPrNumbers(
     }
     if (pr != null) {
       git.pr_number = pr;
+    }
+  }
+}
+
+// ── PR snapshot enrichment ────────────────────────────────────────────────────
+
+type SnapshotResolver = (owner: string, repo: string, prNumber: number) => PrSnapshot | null;
+
+/**
+ * Populate `pr_ci_status` and `pr_review_decision` on events that already
+ * have a PR number. Results are cached per owner/repo/prNumber within the
+ * batch. Runs synchronously (gh CLI via spawnSync) — safe in the flusher
+ * daemon, never on the hook hot path.
+ */
+export function enrichPrSnapshot(
+  events: unknown[],
+  resolve: SnapshotResolver = fetchPrSnapshot,
+): void {
+  const cache = new Map<string, PrSnapshot | null>();
+  for (const ev of events as GitEnrichedEvent[]) {
+    const git = ev?.session_context?.git;
+    if (!git?.owner || !git?.repo || git.pr_number == null) {
+      continue;
+    }
+    if (git.pr_ci_status !== undefined || git.pr_review_decision !== undefined) {
+      continue;
+    }
+    const key = `${git.owner}/${git.repo}#${git.pr_number}`;
+    let snap = cache.get(key);
+    if (snap === undefined) {
+      snap = resolve(git.owner, git.repo, git.pr_number);
+      cache.set(key, snap ?? null);
+    }
+    if (snap) {
+      git.pr_ci_status = snap.ciStatus ?? undefined;
+      git.pr_review_decision = snap.reviewDecision ?? undefined;
     }
   }
 }
@@ -203,6 +242,7 @@ export async function runFlusher(): Promise<void> {
       const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
       enrichGitContext(events);
       await enrichPrNumbers(events);
+      enrichPrSnapshot(events);
       const body = JSON.stringify(buildBatchEnvelope(events));
 
       let success = false;

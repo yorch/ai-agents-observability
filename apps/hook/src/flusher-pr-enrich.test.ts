@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'bun:test';
 
-import { enrichPrNumbers } from './flusher';
+import { enrichPrNumbers, enrichPrSnapshot } from './flusher';
+import type { PrSnapshot } from './lib/github-pr';
 
 type FakeGitEvent = {
   session_context: {
     git: {
       branch: string | null;
       owner: string | null;
+      pr_ci_status?: string;
       pr_number: number | null;
+      pr_review_decision?: string;
       remote_url: string | null;
       repo: string | null;
     } | null;
@@ -71,5 +74,84 @@ describe('enrichPrNumbers', () => {
     const events = [makeEvent('acme', 'widget', 'feature/no-pr')];
     await enrichPrNumbers(events, async () => null);
     expect((events[0] as FakeGitEvent).session_context.git?.pr_number).toBeNull();
+  });
+});
+
+// ── enrichPrSnapshot ────────────────────────────────────────────────────────
+
+const SNAP_OK: PrSnapshot = { ciStatus: 'SUCCESS', reviewDecision: 'APPROVED' };
+
+function makeSnapshotEvent(
+  owner: string | null,
+  repo: string | null,
+  prNumber: number | null,
+): FakeGitEvent {
+  return {
+    session_context: {
+      git: owner ? { branch: 'main', owner, pr_number: prNumber, remote_url: null, repo } : null,
+    },
+  };
+}
+
+describe('enrichPrSnapshot', () => {
+  it('populates ci_status and review_decision from the resolver', () => {
+    const events = [makeSnapshotEvent('acme', 'widget', 7)];
+    enrichPrSnapshot(events, () => SNAP_OK);
+    const git = (events[0] as FakeGitEvent).session_context.git;
+    expect(git?.pr_ci_status).toBe('SUCCESS');
+    expect(git?.pr_review_decision).toBe('APPROVED');
+  });
+
+  it('calls the resolver only once per unique owner/repo/prNumber', () => {
+    const calls: string[] = [];
+    const events = [
+      makeSnapshotEvent('acme', 'widget', 7),
+      makeSnapshotEvent('acme', 'widget', 7),
+      makeSnapshotEvent('acme', 'widget', 8),
+    ];
+    enrichPrSnapshot(events, (owner, repo, prNum) => {
+      calls.push(`${owner}/${repo}#${prNum}`);
+      return SNAP_OK;
+    });
+    expect(calls).toEqual(['acme/widget#7', 'acme/widget#8']);
+  });
+
+  it('skips events that already have pr_ci_status set', () => {
+    const calls: string[] = [];
+    const event = makeSnapshotEvent('acme', 'widget', 7);
+    (event.session_context.git as { pr_ci_status?: string }).pr_ci_status = 'PENDING';
+    enrichPrSnapshot([event], () => {
+      calls.push('called');
+      return SNAP_OK;
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('skips events with no pr_number', () => {
+    const calls: string[] = [];
+    const events = [makeSnapshotEvent('acme', 'widget', null)];
+    enrichPrSnapshot(events, () => {
+      calls.push('called');
+      return SNAP_OK;
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('skips events with no git context', () => {
+    const calls: string[] = [];
+    const events = [makeSnapshotEvent(null, null, null)];
+    enrichPrSnapshot(events, () => {
+      calls.push('called');
+      return SNAP_OK;
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('leaves fields unset when resolver returns null', () => {
+    const events = [makeSnapshotEvent('acme', 'widget', 7)];
+    enrichPrSnapshot(events, () => null);
+    const git = (events[0] as FakeGitEvent).session_context.git;
+    expect(git?.pr_ci_status).toBeUndefined();
+    expect(git?.pr_review_decision).toBeUndefined();
   });
 });

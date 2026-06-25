@@ -148,6 +148,8 @@ CREATE TABLE "sessions" (
     "git_remote_url" TEXT,
     "git_is_dirty" BOOLEAN,
     "pr_number" INTEGER,
+    "pr_ci_status" TEXT,
+    "pr_review_decision" TEXT,
     "total_input_tokens" BIGINT NOT NULL DEFAULT 0,
     "total_output_tokens" BIGINT NOT NULL DEFAULT 0,
     "total_cache_read" BIGINT NOT NULL DEFAULT 0,

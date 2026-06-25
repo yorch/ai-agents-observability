@@ -104,3 +104,79 @@ export async function fetchOpenPrNumber(
     (await fetchPrNumberViaApi(owner, repo, branch, remoteUrl))
   );
 }
+
+// ── PR snapshot (CI status + review decision) ─────────────────────────────
+
+export type CiStatus = 'SUCCESS' | 'FAILURE' | 'PENDING';
+export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED';
+
+export type PrSnapshot = {
+  ciStatus: CiStatus | null;
+  reviewDecision: ReviewDecision | null;
+};
+
+type GhCheck = { conclusion: string | null; status: string };
+
+function deriveCiStatus(checks: GhCheck[]): CiStatus | null {
+  if (checks.length === 0) {
+    return null;
+  }
+  const FAIL = new Set(['FAILURE', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE']);
+  const PASS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED', 'CANCELLED']);
+  let hasPending = false;
+  for (const { conclusion, status } of checks) {
+    if (FAIL.has(conclusion ?? '')) {
+      return 'FAILURE';
+    }
+    if (status !== 'COMPLETED' || !PASS.has(conclusion ?? '')) {
+      hasPending = true;
+    }
+  }
+  return hasPending ? 'PENDING' : 'SUCCESS';
+}
+
+/**
+ * Fetch a point-in-time snapshot of a PR's CI status and review decision via
+ * the gh CLI. Returns null when gh is unavailable or the call fails.
+ */
+export function fetchPrSnapshot(owner: string, repo: string, prNumber: number): PrSnapshot | null {
+  try {
+    const proc = Bun.spawnSync(
+      [
+        'gh',
+        'pr',
+        'view',
+        String(prNumber),
+        '--repo',
+        `${owner}/${repo}`,
+        '--json',
+        'reviewDecision,statusCheckRollup',
+      ],
+      { stderr: 'ignore', stdout: 'pipe' },
+    );
+    if (proc.exitCode !== 0) {
+      return null;
+    }
+    const data = JSON.parse(new TextDecoder().decode(proc.stdout)) as {
+      reviewDecision: string | null;
+      statusCheckRollup: GhCheck[] | null;
+    };
+
+    const VALID_REVIEW: Set<string> = new Set([
+      'APPROVED',
+      'CHANGES_REQUESTED',
+      'REVIEW_REQUIRED',
+    ]);
+    const reviewDecision =
+      data.reviewDecision && VALID_REVIEW.has(data.reviewDecision)
+        ? (data.reviewDecision as ReviewDecision)
+        : null;
+
+    return {
+      ciStatus: deriveCiStatus(data.statusCheckRollup ?? []),
+      reviewDecision,
+    };
+  } catch {
+    return null;
+  }
+}

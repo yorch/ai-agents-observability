@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { fetchOpenPrNumber, isGitHubRemote } from './github-pr';
+import { fetchOpenPrNumber, fetchPrSnapshot, isGitHubRemote } from './github-pr';
 
 // ── isGitHubRemote ──────────────────────────────────────────────────────────
 
@@ -64,6 +64,16 @@ describe('fetchOpenPrNumber', () => {
       'main',
       'git@github.com:acme/widget.git',
     );
+    expect(result).toBeNull();
+  });
+});
+
+// ── fetchPrSnapshot ─────────────────────────────────────────────────────────
+
+describe('fetchPrSnapshot', () => {
+  it('returns null when gh is unavailable (not authenticated)', () => {
+    // In CI the gh CLI is not authenticated; spawnSync exits non-zero → null.
+    const result = fetchPrSnapshot('acme', 'widget', 1);
     expect(result).toBeNull();
   });
 });

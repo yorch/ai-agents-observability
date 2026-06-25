@@ -242,6 +242,8 @@ model Session {
   gitRemoteUrl         String?       @map("git_remote_url")
   gitIsDirty           Boolean?      @map("git_is_dirty")
   prNumber             Int?          @map("pr_number")
+  prCiStatus           String?       @map("pr_ci_status")
+  prReviewDecision     String?       @map("pr_review_decision")
 
   totalInputTokens      BigInt  @default(0) @map("total_input_tokens")
   totalOutputTokens     BigInt  @default(0) @map("total_output_tokens")
