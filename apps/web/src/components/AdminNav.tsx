@@ -10,6 +10,8 @@ const ADMIN_NAV = [
   { href: '/admin/alerts', label: 'Alerts' },
   { href: '/admin/access-grants', label: 'Access grants' },
   { href: '/admin/retention', label: 'Retention' },
+  { href: '/admin/adapters', label: 'Adapters' },
+  { href: '/admin/price-tables', label: 'Price tables' },
 ];
 
 export function AdminNav() {
