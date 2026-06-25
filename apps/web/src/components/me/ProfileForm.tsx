@@ -1,7 +1,7 @@
 'use client';
 import { useState, useTransition } from 'react';
 
-import { saveProfile } from '@/app/me/profile/actions';
+import { saveProfile } from '@/app/me/settings/profile/actions';
 
 type Props = {
   initialDisplayName: string | null;

@@ -129,7 +129,7 @@ export function UserMenu({ displayName }: Props) {
             <IconAgents /> My Agents
           </Link>
           <Link
-            href="/me/profile"
+            href="/me/settings/profile"
             role="menuitem"
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-2 hover:text-text hover:bg-surface-2 transition-colors"
@@ -137,7 +137,7 @@ export function UserMenu({ displayName }: Props) {
             <IconProfile /> Profile
           </Link>
           <Link
-            href="/me/privacy"
+            href="/me/settings/privacy"
             role="menuitem"
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-2 hover:text-text hover:bg-surface-2 transition-colors"
