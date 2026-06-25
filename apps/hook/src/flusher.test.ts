@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { openQueueReader } from '../src/lib/queue-reader';
+import { openQueueReader } from './lib/queue-reader';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

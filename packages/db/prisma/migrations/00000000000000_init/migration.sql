@@ -148,6 +148,11 @@ CREATE TABLE "sessions" (
     "git_remote_url" TEXT,
     "git_is_dirty" BOOLEAN,
     "pr_number" INTEGER,
+    "pr_ci_status" TEXT,
+    "pr_review_decision" TEXT,
+    "github_login" TEXT,
+    "github_team" TEXT,
+    "project_name" TEXT,
     "total_input_tokens" BIGINT NOT NULL DEFAULT 0,
     "total_output_tokens" BIGINT NOT NULL DEFAULT 0,
     "total_cache_read" BIGINT NOT NULL DEFAULT 0,
@@ -194,6 +199,7 @@ CREATE TABLE "pull_requests" (
     "reverted_at" TIMESTAMPTZ(6),
     "revert_of_pr_number" INTEGER,
     "jira_key" TEXT,
+    "is_draft" BOOLEAN,
 
     CONSTRAINT "pull_requests_pkey" PRIMARY KEY ("repo_id","pr_number")
 );

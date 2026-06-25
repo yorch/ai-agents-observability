@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { EventsBatchSchema } from '@ai-agents-observability/schemas';
 
-import { buildBatchEnvelope } from '../src/flusher';
+import { buildBatchEnvelope } from './flusher';
 
 // A queued event payload as produced by the hook (see lib/payload.ts → toEvent).
 // Each event carries its own session_context; the batch envelope reuses it.

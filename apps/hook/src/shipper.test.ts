@@ -4,8 +4,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
-import type { ShipMarker } from '../src/shipper';
-import { buildZstdBody, writeShipMarker } from '../src/shipper';
+import type { ShipMarker } from './shipper';
+import { buildZstdBody, writeShipMarker } from './shipper';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

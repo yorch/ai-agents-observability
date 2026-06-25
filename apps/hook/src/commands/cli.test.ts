@@ -3,11 +3,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runPause } from '../src/commands/pause';
-import { runPurge } from '../src/commands/purge';
-import { runResume } from '../src/commands/resume';
-import { runStatus } from '../src/commands/status';
-import { runHook } from '../src/hook-entry';
+import { runPause } from './pause';
+import { runPurge } from './purge';
+import { runResume } from './resume';
+import { runStatus } from './status';
+import { runHook } from '../hook-entry';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

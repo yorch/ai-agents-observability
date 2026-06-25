@@ -8,6 +8,7 @@ type PullRequestPayload = {
   body?: string | null;
   changed_files?: number;
   deletions?: number;
+  draft?: boolean;
   head: { ref: string };
   html_url: string;
   id: number; // github_id
@@ -92,6 +93,7 @@ async function doUpsert(
       filesChanged: prPl.changed_files ?? null,
       githubId: BigInt(prPl.id),
       headBranch: prPl.head.ref,
+      isDraft: prPl.draft ?? null,
       jiraKey,
       labels: prPl.labels.map((l) => l.name),
       linesAdded: prPl.additions ?? null,
@@ -108,6 +110,7 @@ async function doUpsert(
       authorUserId: authorUser?.id ?? null,
       closedAt: prPl.closed_at ? new Date(prPl.closed_at) : null,
       filesChanged: prPl.changed_files ?? null,
+      isDraft: prPl.draft ?? null,
       jiraKey,
       labels: prPl.labels.map((l) => l.name),
       linesAdded: prPl.additions ?? null,

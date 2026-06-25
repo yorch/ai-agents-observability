@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 
 import { type HookAdapter, selectAdapter } from './adapters';
+import { getGitContext } from './lib/git';
 import { log } from './lib/log';
 import { pausedPath } from './lib/paths';
 import { openQueue } from './lib/queue';
@@ -66,6 +67,23 @@ export async function runHook(
     // An adapter may expand one hook invocation into several events (codex reads a
     // turn's tool calls + usage out of its rollout file); otherwise it's one event.
     const events = adapter.mapBatch?.(kind, payload) ?? [adapter.mapPayload(kind, payload)];
+
+    // Snapshot git context at session-start time so the session row records the
+    // branch as of when work began, not when the flusher drains. The flusher
+    // skips events that already have git set, so this value is preserved.
+    // Only runs once per session (SessionStart fires once) — acceptable latency.
+    for (const event of events) {
+      if (
+        event.event_type === 'SessionStart' &&
+        event.session_context.git === null &&
+        event.session_context.cwd.length > 0
+      ) {
+        const git = getGitContext(event.session_context.cwd);
+        if (git) {
+          event.session_context.git = git;
+        }
+      }
+    }
 
     let queue: ReturnType<typeof openQueue>;
     try {

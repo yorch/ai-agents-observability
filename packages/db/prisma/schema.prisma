@@ -242,6 +242,11 @@ model Session {
   gitRemoteUrl         String?       @map("git_remote_url")
   gitIsDirty           Boolean?      @map("git_is_dirty")
   prNumber             Int?          @map("pr_number")
+  prCiStatus           String?       @map("pr_ci_status")
+  prReviewDecision     String?       @map("pr_review_decision")
+  githubLogin          String?       @map("github_login")
+  githubTeam           String?       @map("github_team")
+  projectName          String?       @map("project_name")
 
   totalInputTokens      BigInt  @default(0) @map("total_input_tokens")
   totalOutputTokens     BigInt  @default(0) @map("total_output_tokens")
@@ -303,6 +308,7 @@ model PullRequest {
   revertOfPrNumber    Int?      @map("revert_of_pr_number")
   // P5-004: Jira issue key extracted from head branch name (e.g. PROJ-123)
   jiraKey             String?   @map("jira_key")
+  isDraft             Boolean?  @map("is_draft")
 
   repo       Repo          @relation(fields: [repoId], references: [id], onDelete: Cascade)
   authorUser User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)

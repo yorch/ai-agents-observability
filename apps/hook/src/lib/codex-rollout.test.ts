@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { type CodexUsage, parseRolloutRecords, usageDelta } from '../src/lib/codex-rollout';
+import { type CodexUsage, parseRolloutRecords, usageDelta } from './codex-rollout';
 
 describe('parseRolloutRecords', () => {
   it('pairs a flat function_call with its output and counts bytes', () => {

@@ -18,6 +18,8 @@ type SessionAgg = {
   firstTs: Date;
   gitBranch: string | null;
   gitCommit: string | null;
+  githubLogin: string | null;
+  githubTeam: string | null;
   gitIsDirty: boolean | null;
   gitRemoteUrl: string | null;
   hostHash: string | null;
@@ -27,8 +29,13 @@ type SessionAgg = {
   os: string | null;
   permissionDenyCount: number;
   permissionPromptCount: number;
-  prNumber: number | null;
+  githubLogin: string | null;
+  githubTeam: string | null;
+  prCiStatus: string | null;
   primaryModel: string | null;
+  prNumber: number | null;
+  projectName: string | null;
+  prReviewDecision: string | null;
   repoId: string | null;
   sessionId: string;
   toolCallCount: number;
@@ -54,6 +61,8 @@ function emptyAgg(sessionId: string, userId: string, event: Event): SessionAgg {
     firstTs: ts,
     gitBranch: event.session_context.git?.branch ?? null,
     gitCommit: event.session_context.git?.commit ?? null,
+    githubLogin: event.session_context.git?.github_login ?? null,
+    githubTeam: event.session_context.git?.team ?? null,
     gitIsDirty: event.session_context.git?.is_dirty ?? null,
     gitRemoteUrl: event.session_context.git?.remote_url ?? null,
     hostHash: event.client.hostname_hash,
@@ -63,8 +72,11 @@ function emptyAgg(sessionId: string, userId: string, event: Event): SessionAgg {
     os: event.client.os,
     permissionDenyCount: 0,
     permissionPromptCount: 0,
+    prCiStatus: event.session_context.git?.pr_ci_status ?? null,
     primaryModel: null,
     prNumber: event.session_context.git?.pr_number ?? null,
+    projectName: event.session_context.project_name ?? null,
+    prReviewDecision: event.session_context.git?.pr_review_decision ?? null,
     repoId: null,
     sessionId,
     toolCallCount: 0,
@@ -210,6 +222,11 @@ export async function upsertSessions(
       ${a.gitRemoteUrl},
       ${a.gitIsDirty},
       ${a.prNumber},
+      ${a.prCiStatus},
+      ${a.prReviewDecision},
+      ${a.githubLogin},
+      ${a.githubTeam},
+      ${a.projectName},
       ${a.totalInputTokens},
       ${a.totalOutputTokens},
       ${a.totalCacheRead},
@@ -232,6 +249,8 @@ export async function upsertSessions(
       is_resume, compaction_count, clear_count,
       host_hash, claude_code_version, os, cwd, repo_id,
       git_branch, git_commit, git_remote_url, git_is_dirty, pr_number,
+      pr_ci_status, pr_review_decision,
+      github_login, github_team, project_name,
       total_input_tokens, total_output_tokens, total_cache_read, total_cache_creation,
       total_cost_usd, tool_call_count, tool_error_count,
       permission_prompt_count, permission_deny_count, interrupt_count,
@@ -256,7 +275,12 @@ export async function upsertSessions(
       user_message_count   = sessions.user_message_count + EXCLUDED.user_message_count,
       compaction_count     = sessions.compaction_count + EXCLUDED.compaction_count,
       primary_model        = COALESCE(sessions.primary_model, EXCLUDED.primary_model),
-      repo_id              = COALESCE(sessions.repo_id, EXCLUDED.repo_id)
+      repo_id              = COALESCE(sessions.repo_id, EXCLUDED.repo_id),
+      pr_ci_status         = COALESCE(sessions.pr_ci_status, EXCLUDED.pr_ci_status),
+      pr_review_decision   = COALESCE(sessions.pr_review_decision, EXCLUDED.pr_review_decision),
+      github_login         = COALESCE(sessions.github_login, EXCLUDED.github_login),
+      github_team          = COALESCE(sessions.github_team, EXCLUDED.github_team),
+      project_name         = COALESCE(sessions.project_name, EXCLUDED.project_name)
   `);
 
   return { sessionsTouched: affected };
