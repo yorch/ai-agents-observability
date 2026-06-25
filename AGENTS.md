@@ -21,6 +21,10 @@ bun run test               # turbo run test
 bun run check              # biome check --error-on-warnings .
 bun run format             # biome format --write .
 
+# Per-app typecheck (faster during focused work)
+bun run --cwd apps/web typecheck
+bun run --cwd apps/ingest typecheck
+
 # Per-app dev (run in separate terminals)
 bun run --cwd apps/web dev          # Next.js 16 (Turbopack default)
 bun run --cwd apps/ingest dev       # Hono server (telemetry ingestion)
@@ -38,6 +42,19 @@ bun run docker:app:logs             # tail logs across all services
 # Hook CLI — cross-compile single-binary artifacts for distribution
 bun run --cwd apps/hook build:all   # darwin-arm64 + darwin-x64 + linux-arm64 + linux-x64
 ```
+
+## Pre-commit gate (MANDATORY)
+
+**Before every `git commit`, all four gates must pass.** Do not commit if any gate fails — fix the issue first.
+
+```bash
+bun run check        # Biome lint + format (zero warnings allowed — --error-on-warnings is set)
+bun run typecheck    # tsc --noEmit across all workspaces
+bun run build        # ensure all packages compile
+bun run test         # vitest across all workspaces
+```
+
+Run them in this order: lint → typecheck → build → test. Fix each failure before moving to the next gate. A commit that breaks any gate must not land on `main`.
 
 ## Architecture
 
