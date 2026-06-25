@@ -17,6 +17,7 @@ const ConfigSchema = z.object({
   github_sync_token: z.string().optional(),
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   node_env: z.enum(['development', 'production', 'test']).default('development'),
+  openai_api_key: z.string().optional(),
   // Upper bound for per-team retention overrides (P9-004). A team override above
   // this is clamped, never rejected. Default: 730 (2 years).
   org_max_retention_days: z.coerce.number().int().min(1).default(730),
@@ -31,6 +32,13 @@ const ConfigSchema = z.object({
     .default(true),
   s3_region: z.string().default('us-east-1'),
   s3_secret_access_key: z.string().min(1),
+  // P7-007 spike. Gates semantic-search prototype. Accepts "1" or "true". No effect on
+  // production paths when unset.
+  semantic_search_enabled: z
+    .string()
+    .optional()
+    .transform((v) => v === '1' || v === 'true')
+    .default(false),
   // Configurable transcript retention (days). Default: 365. Set to 0 to disable.
   transcript_retention_days: z.coerce.number().int().min(0).default(365),
 });
@@ -47,6 +55,7 @@ export function loadConfig(): Config {
     github_sync_token: process.env.GITHUB_SYNC_TOKEN,
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,
+    openai_api_key: process.env.OPENAI_API_KEY,
     org_max_retention_days: process.env.ORG_MAX_RETENTION_DAYS,
     port: process.env.INGEST_PORT,
     s3_access_key_id: process.env.S3_ACCESS_KEY_ID,
@@ -55,6 +64,7 @@ export function loadConfig(): Config {
     s3_force_path_style: process.env.S3_FORCE_PATH_STYLE,
     s3_region: process.env.S3_REGION,
     s3_secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
+    semantic_search_enabled: process.env.SEMANTIC_SEARCH_ENABLED,
     transcript_retention_days: process.env.TRANSCRIPT_RETENTION_DAYS,
   });
 }
