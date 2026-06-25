@@ -1006,13 +1006,13 @@ async function basicSeed() {
   }
 
   console.log(`\nBasic seed complete.`);
-  console.log(
-    `  Team    : Platform Team (demo-platform) — 1 repo, ${sessions.length} sessions, 5 PRs`,
-  );
-  console.log(`  Users   :`);
-  console.log(`    ${BASIC_EMAIL.padEnd(28)} GitHub OAuth       demo-dev`);
-  console.log(`    ${SEED_PW_EMAIL.padEnd(28)} ${SEED_PW_PASSWORD.padEnd(10)} LEAD`);
-  console.log(`    ${SEED_ADMIN_EMAIL.padEnd(28)} ${SEED_ADMIN_PASSWORD.padEnd(10)} ORG_ADMIN`);
+  console.log(`\n  Platform Team`);
+  console.log(`    repo: demo-app · ${sessions.length} sessions · 5 PRs`);
+  console.log(`\n    ${'Email'.padEnd(30)}  ${'Password'.padEnd(12)}  Role`);
+  console.log(`    ${'─'.repeat(60)}`);
+  console.log(`    ${BASIC_EMAIL.padEnd(30)}  ${'[GitHub OAuth]'.padEnd(12)}  MEMBER  (demo-dev)`);
+  console.log(`    ${SEED_PW_EMAIL.padEnd(30)}  ${SEED_PW_PASSWORD.padEnd(12)}  LEAD`);
+  console.log(`    ${SEED_ADMIN_EMAIL.padEnd(30)}  ${SEED_ADMIN_PASSWORD.padEnd(12)}  ORG_ADMIN`);
 }
 
 // ── Extensive seed ────────────────────────────────────────────────────────────
@@ -1816,30 +1816,32 @@ async function extensiveSeed() {
   const totalUsers = 3 + EXT_DEVS.length + EXTRA_TEAMS.reduce((n, t) => n + t.users.length, 0);
   console.log(`\nExtensive seed complete (builds on basic seed).`);
   console.log(
-    `  ${totalTeams} teams · ${totalUsers} users · ${EXT_PRS.length} PRs (${mergedCount} merged)`,
+    `  ${totalTeams} teams · ${totalUsers} users · ${totalSessions} extensive sessions (+~120 from basic) · ${EXT_PRS.length} PRs (${mergedCount} merged)`,
   );
-  console.log(`  Extensive sessions: ${totalSessions}  Basic sessions: ~120`);
-  console.log(``);
+
+  console.log(`\n  Platform Team`);
+  console.log(`    repos: ${EXT_REPOS.map((r) => r.name).join(', ')}`);
+  console.log(`\n    ${'Email'.padEnd(32)}  ${'Password'.padEnd(12)}  Role`);
+  console.log(`    ${'─'.repeat(64)}`);
+  console.log(`    ${BASIC_EMAIL.padEnd(32)}  ${'[GitHub OAuth]'.padEnd(12)}  MEMBER  (demo-dev)`);
+  console.log(`    ${SEED_PW_EMAIL.padEnd(32)}  ${SEED_PW_PASSWORD.padEnd(12)}  LEAD`);
   console.log(
-    `  Platform Team (demo-platform) — repos: ${EXT_REPOS.map((r) => r.name).join(', ')}`,
-  );
-  console.log(`    ${SEED_PW_EMAIL.padEnd(34)} ${SEED_PW_PASSWORD.padEnd(10)} LEAD`);
-  console.log(
-    `    ${SEED_ADMIN_EMAIL.padEnd(34)} ${SEED_ADMIN_PASSWORD.padEnd(10)} ORG_ADMIN  +${adminSessionCount} sessions`,
+    `    ${SEED_ADMIN_EMAIL.padEnd(32)}  ${SEED_ADMIN_PASSWORD.padEnd(12)}  ORG_ADMIN   +${adminSessionCount} sessions`,
   );
   for (const dev of EXT_DEVS) {
     const count = sessionsByDev.get(dev.login)?.length ?? 0;
-    const role = dev.role.padEnd(6);
-    const orgTag = 'orgRole' in dev ? '  ORG_ADMIN' : '';
+    const orgTag = 'orgRole' in dev ? '  [ORG_ADMIN]' : '';
     console.log(
-      `    ${dev.email.padEnd(34)} ${dev.password.padEnd(10)} ${role}  ${count} sessions${orgTag}`,
+      `    ${dev.email.padEnd(32)}  ${dev.password.padEnd(12)}  ${dev.role.padEnd(8)}  ${String(count).padStart(3)} sessions${orgTag}`,
     );
   }
   for (const teamDef of EXTRA_TEAMS) {
-    console.log(``);
-    console.log(`  ${teamDef.name} (${teamDef.githubSlug}) — repo: ${teamDef.repo.name}`);
+    console.log(`\n  ${teamDef.name}`);
+    console.log(`    repo: ${teamDef.repo.name}`);
+    console.log(`\n    ${'Email'.padEnd(32)}  ${'Password'.padEnd(12)}  Role`);
+    console.log(`    ${'─'.repeat(64)}`);
     for (const u of teamDef.users) {
-      console.log(`    ${u.email.padEnd(34)} ${u.password.padEnd(10)} ${u.role}`);
+      console.log(`    ${u.email.padEnd(32)}  ${u.password.padEnd(12)}  ${u.role}`);
     }
   }
 }
