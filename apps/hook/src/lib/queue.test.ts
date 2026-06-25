@@ -4,9 +4,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runHook } from '../src/hook-entry';
-import { toEvent } from '../src/lib/payload';
-import { openQueue } from '../src/lib/queue';
+import { runHook } from '../hook-entry';
+import { toEvent } from './payload';
+import { openQueue } from './queue';
 
 let tmpHome: string;
 

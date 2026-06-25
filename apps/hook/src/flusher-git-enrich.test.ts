@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import type { GitContext } from '@ai-agents-observability/schemas';
 
-import { enrichGitContext } from '../src/flusher';
+import { enrichGitContext } from './flusher';
 
 function makeEvent(cwd: string, git: GitContext | null = null): Record<string, unknown> {
   return {

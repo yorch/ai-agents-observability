@@ -3,8 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { selectAdapter } from '../src/adapters';
-import { codexAdapter } from '../src/adapters/codex';
+import { selectAdapter } from '.';
+import { codexAdapter } from './codex';
 
 describe('codex adapter — selection & mapping', () => {
   it('is selectable by --agent codex and falls back to claude-code otherwise', () => {

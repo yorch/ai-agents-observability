@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { fetchOpenPrNumber, isGitHubRemote, resolveGitHubToken } from '../src/lib/github-pr';
+import { fetchOpenPrNumber, isGitHubRemote, resolveGitHubToken } from './github-pr';
 
 // ── isGitHubRemote ──────────────────────────────────────────────────────────
 

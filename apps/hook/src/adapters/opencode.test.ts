@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
-import { selectAdapter } from '../src/adapters';
-import { opencodeAdapter } from '../src/adapters/opencode';
+import { selectAdapter } from '.';
+import { opencodeAdapter } from './opencode';
 
 describe('opencode adapter', () => {
   it('is selectable by --agent opencode and falls back to claude-code otherwise', () => {

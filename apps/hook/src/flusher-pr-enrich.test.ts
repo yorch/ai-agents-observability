@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { enrichPrNumbers } from '../src/flusher';
+import { enrichPrNumbers } from './flusher';
 
 type FakeGitEvent = {
   session_context: {
