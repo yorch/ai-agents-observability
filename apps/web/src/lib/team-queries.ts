@@ -259,6 +259,27 @@ export type MemberProfile = {
   userId: string;
 };
 
+export async function getMemberForTeamByUserId(
+  teamId: string,
+  userId: string,
+): Promise<MemberProfile | null> {
+  const membership = await getPrisma().teamMember.findFirst({
+    include: { user: { include: { visibilityPolicy: true } } },
+    where: { leftAt: null, teamId, userId },
+  });
+  if (!membership) {
+    return null;
+  }
+  return {
+    canViewStats: membership.user.visibilityPolicy?.shareMetadataWithTeam ?? true,
+    canViewTranscripts: membership.user.visibilityPolicy?.shareTranscriptsWithTeam ?? false,
+    displayName: membership.user.displayName,
+    githubLogin: membership.user.githubLogin,
+    role: membership.roleInTeam as string,
+    userId: membership.userId,
+  };
+}
+
 export async function getMemberForTeam(
   teamId: string,
   githubLogin: string,
@@ -1035,6 +1056,91 @@ export async function getTeamSkillCostComparison(
     avgCostUsd: r.avg_cost_usd != null ? Number(r.avg_cost_usd) : 0,
     hasSkill: r.has_skill,
     sessionCount: Number(r.session_count),
+  }));
+}
+
+// ── Team MCP queries ──────────────────────────────────────────────────────────
+
+export type McpTeamDetailRow = {
+  avgDurationMs: number | null;
+  callCount: number;
+  denyCount: number;
+  distinctUsers: number;
+  errorCount: number;
+  mcpServer: string;
+  mcpTool: string | null;
+  p95DurationMs: number | null;
+  serverDistinctUsers: number;
+  totalCostUsd: number;
+};
+
+export async function getTeamMcpDetails(
+  visibleIds: string[],
+  since: Date,
+): Promise<McpTeamDetailRow[]> {
+  if (visibleIds.length === 0) {
+    return [];
+  }
+  const uuids = toUuidList(visibleIds);
+  const rows = await getPrisma().$queryRaw<
+    {
+      avg_duration_ms: number | null;
+      call_count: bigint;
+      deny_count: bigint;
+      distinct_users: bigint;
+      error_count: bigint;
+      mcp_server: string;
+      mcp_tool: string | null;
+      p95_duration_ms: number | null;
+      server_distinct_users: bigint;
+      total_cost_usd: number;
+    }[]
+  >(Prisma.sql`
+    WITH tool_stats AS (
+      SELECT
+        mcp_server,
+        mcp_tool,
+        COUNT(*)                                                                      AS call_count,
+        COUNT(*) FILTER (WHERE tool_was_denied = true)                                AS deny_count,
+        COUNT(*) FILTER (WHERE tool_exit_status IS NOT NULL
+                           AND tool_exit_status != 0
+                           AND tool_was_denied IS DISTINCT FROM true)                 AS error_count,
+        AVG(tool_duration_ms)                                                         AS avg_duration_ms,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tool_duration_ms)               AS p95_duration_ms,
+        COUNT(DISTINCT user_id)                                                       AS distinct_users,
+        COALESCE(SUM(cost_usd), 0)                                                   AS total_cost_usd
+      FROM events
+      WHERE user_id IN (${uuids})
+        AND ts >= ${since}
+        AND event_type = 'PostToolUse'
+        AND mcp_server IS NOT NULL
+      GROUP BY mcp_server, mcp_tool
+    ),
+    server_users AS (
+      SELECT mcp_server, COUNT(DISTINCT user_id) AS distinct_users
+      FROM events
+      WHERE user_id IN (${uuids})
+        AND ts >= ${since}
+        AND event_type = 'PostToolUse'
+        AND mcp_server IS NOT NULL
+      GROUP BY mcp_server
+    )
+    SELECT t.*, s.distinct_users AS server_distinct_users
+    FROM tool_stats t
+    JOIN server_users s USING (mcp_server)
+    ORDER BY t.call_count DESC
+  `);
+  return rows.map((r) => ({
+    avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
+    callCount: Number(r.call_count),
+    denyCount: Number(r.deny_count),
+    distinctUsers: Number(r.distinct_users),
+    errorCount: Number(r.error_count),
+    mcpServer: r.mcp_server,
+    mcpTool: r.mcp_tool,
+    p95DurationMs: r.p95_duration_ms !== null ? Math.round(Number(r.p95_duration_ms)) : null,
+    serverDistinctUsers: Number(r.server_distinct_users),
+    totalCostUsd: Number(r.total_cost_usd),
   }));
 }
 

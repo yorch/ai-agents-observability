@@ -73,9 +73,7 @@ export function TeamSessionsTable({
           <tbody>
             {sessions.map((s) => {
               const login = s.ownerLogin;
-              const sessionPath = login
-                ? `/team/${slug}/member/${login}/sessions/${s.sessionId}`
-                : null;
+              const sessionPath = `/team/${slug}/sessions/${s.sessionId}`;
               const friction =
                 s.frictionScore ??
                 computeFrictionScore({
@@ -106,13 +104,9 @@ export function TeamSessionsTable({
                     )}
                   </td>
                   <td className="px-4 py-3 text-text-2 font-mono text-xs">
-                    {sessionPath ? (
-                      <Link href={sessionPath} className="hover:text-accent transition-colors">
-                        {formatDate(s.startedAt)}
-                      </Link>
-                    ) : (
-                      formatDate(s.startedAt)
-                    )}
+                    <Link href={sessionPath} className="hover:text-accent transition-colors">
+                      {formatDate(s.startedAt)}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-text-2 max-w-[180px] truncate">
                     {s.repoName ?? '—'}
