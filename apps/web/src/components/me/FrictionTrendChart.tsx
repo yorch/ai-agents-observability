@@ -18,18 +18,18 @@ export function FrictionTrendChart({
 }) {
   const header = (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-sm font-medium text-white/70">Friction over time</h2>
-      <span className="text-[10px] uppercase tracking-wide text-white/30">
-        Friction v{FRICTION_VERSION}
-      </span>
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+        Friction over time
+      </h2>
+      <span className="text-[10px] uppercase tracking-wide text-text-3">v{FRICTION_VERSION}</span>
     </div>
   );
 
   if (scoredSessionCount < MIN_SCORED || points.length === 0) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+      <div className="rounded-lg border border-border bg-surface p-4">
         {header}
-        <p className="text-sm text-white/40">
+        <p className="text-sm text-text-3">
           Not enough data yet — friction needs at least {MIN_SCORED} scored sessions in this period.
         </p>
       </div>
@@ -45,7 +45,7 @@ export function FrictionTrendChart({
   const area = `${line} L${x(n - 1).toFixed(1)},${H.toFixed(1)} L${x(0).toFixed(1)},${H.toFixed(1)} Z`;
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+    <div className="rounded-lg border border-border bg-surface p-4">
       {header}
       <svg
         viewBox={`0 0 ${W} ${H}`}
@@ -57,7 +57,7 @@ export function FrictionTrendChart({
         <path d={area} className="fill-brand-500/15" />
         <path d={line} className="fill-none stroke-brand-500" strokeWidth={1.5} />
       </svg>
-      <div className="mt-2 flex justify-between text-[10px] text-white/30">
+      <div className="mt-2 flex justify-between text-[10px] text-text-3">
         <span>{points[0]?.date}</span>
         <span>0 (low) – 1 (high)</span>
         <span>{points[n - 1]?.date}</span>
