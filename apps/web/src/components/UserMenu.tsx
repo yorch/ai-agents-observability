@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useTransition } from 'react';
 
 export function UserMenu({ displayName }: { displayName: string }) {
@@ -14,7 +15,12 @@ export function UserMenu({ displayName }: { displayName: string }) {
 
   return (
     <div className="flex items-center gap-3">
-      <span className="text-white/80">{displayName}</span>
+      <Link href="/me" className="text-white/80 hover:text-white">
+        {displayName}
+      </Link>
+      <Link href="/install" className="text-xs text-white/40 hover:text-white/70">
+        Install
+      </Link>
       <button
         type="button"
         onClick={signOut}
