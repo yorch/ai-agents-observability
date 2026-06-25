@@ -1,8 +1,9 @@
 import type { GitContext } from '@ai-agents-observability/schemas';
 
 // Run a git command in `cwd`, returning trimmed stdout or null on any failure
-// (non-zero exit, git missing, cwd gone). Synchronous: only ever called off the
-// hot path (in the flusher daemon), never from the hook entrypoint.
+// (non-zero exit, git missing, cwd gone). Synchronous. Called from two sites:
+// the flusher daemon (off the hot path) and hook-entry for SessionStart events
+// (once per session, so the one-time latency is acceptable).
 function run(cwd: string, args: string[]): string | null {
   try {
     const proc = Bun.spawnSync(['git', '-C', cwd, ...args], {
@@ -39,10 +40,9 @@ function parseOwnerRepo(remoteUrl: string | null): {
  * Resolve git context for a working directory. Returns null when `cwd` is not a
  * git repository (or git is unavailable), so the caller leaves `git: null`.
  *
- * Computed at flush time rather than capture time to keep the hook hot path
- * under budget (P1-021). For short-lived sessions this is effectively
- * capture-time; a session that switches branches between an event and the flush
- * records the branch as of the flush — an accepted v1 trade-off.
+ * Called at session-start capture time (hook-entry.ts) to lock in the branch as
+ * of when the session began. Also called by the flusher to backfill git on all
+ * other event types, where flush-time branch is an acceptable approximation.
  */
 export function getGitContext(cwd: string): GitContext | null {
   const commit = run(cwd, ['rev-parse', 'HEAD']);

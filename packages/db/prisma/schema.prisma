@@ -303,6 +303,7 @@ model PullRequest {
   revertOfPrNumber    Int?      @map("revert_of_pr_number")
   // P5-004: Jira issue key extracted from head branch name (e.g. PROJ-123)
   jiraKey             String?   @map("jira_key")
+  isDraft             Boolean?  @map("is_draft")
 
   repo       Repo          @relation(fields: [repoId], references: [id], onDelete: Cascade)
   authorUser User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
