@@ -1,11 +1,11 @@
 import {
+  type CategoryStatRow,
+  type DailyToolVolumeRow,
   getDailyToolVolume,
   getMcpServerUsage,
   getSkillUsage,
   getToolCategoryBreakdown,
   getToolStats,
-  type CategoryStatRow,
-  type DailyToolVolumeRow,
   type McpServerRow,
   type SkillRow,
   type ToolStatRow,
@@ -33,9 +33,7 @@ export default async function OrgToolsPage() {
   const totalDenials = tools.reduce((s, t) => s + t.denyCount, 0);
   const overallDenyRate = totalCalls > 0 ? totalDenials / totalCalls : 0;
   const uniqueTools = tools.length;
-  const avgDurations = tools
-    .map((t) => t.avgDurationMs)
-    .filter((d): d is number => d !== null);
+  const avgDurations = tools.map((t) => t.avgDurationMs).filter((d): d is number => d !== null);
   const overallAvgDuration =
     avgDurations.length > 0
       ? Math.round(avgDurations.reduce((s, d) => s + d, 0) / avgDurations.length)
@@ -117,15 +115,7 @@ export default async function OrgToolsPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  warn,
-}: {
-  label: string;
-  value: string;
-  warn?: boolean;
-}) {
+function StatCard({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-1">
       <p className="text-xs text-white/50">{label}</p>
@@ -203,9 +193,7 @@ function ToolsTable({ tools }: { tools: ToolStatRow[] }) {
               <td className="py-2">
                 <CategoryBadge category={t.category} />
               </td>
-              <td className="py-2 text-right font-mono text-xs">
-                {t.callCount.toLocaleString()}
-              </td>
+              <td className="py-2 text-right font-mono text-xs">{t.callCount.toLocaleString()}</td>
               <td className="py-2 text-right font-mono text-xs text-white/60">
                 {t.denyCount > 0 ? t.denyCount.toLocaleString() : '—'}
               </td>
@@ -261,7 +249,10 @@ function CategoryBreakdown({ categories }: { categories: CategoryStatRow[] }) {
 }
 
 function McpTable({ servers }: { servers: McpServerRow[] }) {
-  const grouped = new Map<string, { tools: McpServerRow[]; totalCalls: number; users: Set<number> }>();
+  const grouped = new Map<
+    string,
+    { tools: McpServerRow[]; totalCalls: number; users: Set<number> }
+  >();
   for (const row of servers) {
     if (!grouped.has(row.mcpServer)) {
       grouped.set(row.mcpServer, { tools: [], totalCalls: 0, users: new Set() });
@@ -337,9 +328,7 @@ function SkillsTable({ skills }: { skills: SkillRow[] }) {
                   {s.kind === 'skill' ? 'skill' : '/cmd'}
                 </span>
               </td>
-              <td className="py-2 text-right font-mono text-xs">
-                {s.callCount.toLocaleString()}
-              </td>
+              <td className="py-2 text-right font-mono text-xs">{s.callCount.toLocaleString()}</td>
               <td className="py-2 text-right text-xs text-white/60">{s.distinctUsers}</td>
             </tr>
           ))}
@@ -350,17 +339,15 @@ function SkillsTable({ skills }: { skills: SkillRow[] }) {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  file_ops: 'bg-sky-500/20 text-sky-300',
-  shell: 'bg-orange-500/20 text-orange-300',
-  search: 'bg-violet-500/20 text-violet-300',
-  browser: 'bg-green-500/20 text-green-300',
   agent: 'bg-pink-500/20 text-pink-300',
+  browser: 'bg-green-500/20 text-green-300',
+  file_ops: 'bg-sky-500/20 text-sky-300',
   mcp: 'bg-yellow-500/20 text-yellow-300',
+  search: 'bg-violet-500/20 text-violet-300',
+  shell: 'bg-orange-500/20 text-orange-300',
 };
 
 function CategoryBadge({ category }: { category: string }) {
   const cls = CATEGORY_COLORS[category] ?? 'bg-white/10 text-white/50';
-  return (
-    <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${cls}`}>{category}</span>
-  );
+  return <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${cls}`}>{category}</span>;
 }

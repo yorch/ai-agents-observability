@@ -364,7 +364,9 @@ export type DailyToolVolumeRow = {
 
 export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow[]> {
   const userIds = await orgVisibleUserIds(since);
-  if (userIds.length === 0) return [];
+  if (userIds.length === 0) {
+    return [];
+  }
 
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<
@@ -410,7 +412,9 @@ export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow
 
 export async function getToolCategoryBreakdown(since: Date): Promise<CategoryStatRow[]> {
   const userIds = await orgVisibleUserIds(since);
-  if (userIds.length === 0) return [];
+  if (userIds.length === 0) {
+    return [];
+  }
 
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<
@@ -437,7 +441,9 @@ export async function getToolCategoryBreakdown(since: Date): Promise<CategorySta
 
 export async function getMcpServerUsage(since: Date): Promise<McpServerRow[]> {
   const userIds = await orgVisibleUserIds(since);
-  if (userIds.length === 0) return [];
+  if (userIds.length === 0) {
+    return [];
+  }
 
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<
@@ -473,7 +479,9 @@ export async function getMcpServerUsage(since: Date): Promise<McpServerRow[]> {
 
 export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
   const userIds = await orgVisibleUserIds(since);
-  if (userIds.length === 0) return [];
+  if (userIds.length === 0) {
+    return [];
+  }
 
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<
@@ -503,7 +511,9 @@ export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
 
 export async function getDailyToolVolume(since: Date): Promise<DailyToolVolumeRow[]> {
   const userIds = await orgVisibleUserIds(since);
-  if (userIds.length === 0) return [];
+  if (userIds.length === 0) {
+    return [];
+  }
 
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<
