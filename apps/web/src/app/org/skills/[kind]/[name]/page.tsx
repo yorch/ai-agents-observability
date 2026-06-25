@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { OrgSubNav } from '@/app/org/layout';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import {
   getOrgSkillCostComparison,
@@ -68,8 +67,6 @@ export default async function OrgSkillDetailPage({
         </div>
         <DateRangePicker range={range} />
       </div>
-
-      <OrgSubNav active="skills" />
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">

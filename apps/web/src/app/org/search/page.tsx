@@ -1,8 +1,6 @@
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
 import { getPrisma } from '@/lib/prisma';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
-import { OrgSubNav } from '../layout';
-
 export const dynamic = 'force-dynamic';
 
 export default async function OrgSearchPage({
@@ -116,8 +114,6 @@ export default async function OrgSearchPage({
           Faceted session search · transcript full-text search
         </p>
       </div>
-
-      <OrgSubNav active="search" />
 
       {!canView && (
         <div className="rounded-lg border border-white/10 p-6 text-center text-sm text-white/50">

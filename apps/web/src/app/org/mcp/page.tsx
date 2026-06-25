@@ -5,8 +5,6 @@ import { StatCard } from '@/components/team-org/StatCard';
 import { getMcpServerDetails, type McpServerDetailRow } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
-import { OrgSubNav } from '../layout';
-
 export const dynamic = 'force-dynamic';
 
 export default async function OrgMcpPage({
@@ -82,8 +80,6 @@ export default async function OrgMcpPage({
         range={range}
         title="MCP Integrations"
       />
-
-      <OrgSubNav active="mcp" />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label={`MCP calls (${range}d)`} value={totalCalls.toLocaleString()} />

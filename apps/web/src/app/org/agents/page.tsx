@@ -5,8 +5,6 @@ import { StatCard } from '@/components/team-org/StatCard';
 import { getOrgSubagentStats } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
-import { OrgSubNav } from '../layout';
-
 export const dynamic = 'force-dynamic';
 
 export default async function OrgAgentsPage({
@@ -33,8 +31,6 @@ export default async function OrgAgentsPage({
         range={range}
         title="Sub-agent Usage"
       />
-
-      <OrgSubNav active="agents" />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label={`Agent spawns (${range}d)`} value={totalSpawns.toLocaleString()} />

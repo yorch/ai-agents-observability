@@ -1,4 +1,7 @@
-import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { PageHeader } from '@/components/team-org/PageHeader';
+import { SectionCard } from '@/components/team-org/SectionCard';
+import { SectionHeader } from '@/components/team-org/SectionHeader';
+import { StatCard } from '@/components/team-org/StatCard';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamSessionFrequencyDistribution, resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
@@ -31,42 +34,29 @@ export default async function TeamAdoptionPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Team</p>
-          <h1 className="text-2xl font-semibold">{teamName}</h1>
-          <p className="mt-1 text-sm text-white/50">Adoption · trailing {range} days</p>
-        </div>
-        <DateRangePicker range={range} />
-      </div>
+      <PageHeader
+        breadcrumb="Team"
+        description={`Adoption · trailing ${range} days`}
+        range={range}
+        title={teamName}
+      />
 
       <TeamSubNav slug={slug} active="adoption" />
 
-      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Total members', value: totalCount.toString() },
-          { label: `Active (${range}d)`, value: activeCount.toString() },
-          { label: 'Adoption rate', value: `${Math.round(adoptionRate * 100)}%` },
-        ].map((c) => (
-          <div key={c.label} className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <p className="text-xs text-white/40 uppercase tracking-wider">{c.label}</p>
-            <p className="mt-1 text-2xl font-semibold font-mono">{c.value}</p>
-          </div>
-        ))}
+        <StatCard label="Total members" value={totalCount.toString()} />
+        <StatCard label={`Active (${range}d)`} value={activeCount.toString()} />
+        <StatCard label="Adoption rate" value={`${Math.round(adoptionRate * 100)}%`} />
       </div>
 
-      {/* Frequency distribution */}
-      <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-        <h3 className="text-xs text-white/40 uppercase tracking-widest mb-4">
-          Session frequency distribution
-        </h3>
+      <SectionCard>
+        <SectionHeader>Session frequency distribution</SectionHeader>
         <div className="space-y-3">
           {distribution.map((b) => (
             <div key={b.bucket}>
-              <div className="flex items-center justify-between mb-1">
+              <div className="mb-1 flex items-center justify-between">
                 <span className="text-sm text-white/80">{b.bucket}</span>
-                <span className="text-sm font-mono text-white/50">
+                <span className="font-mono text-sm text-white/50">
                   {b.userCount} member{b.userCount !== 1 ? 's' : ''}
                 </span>
               </div>
@@ -83,7 +73,7 @@ export default async function TeamAdoptionPage({
           Based on {visibleIds.length} of {totalCount} members who share metadata. Buckets: Inactive
           = 0 sessions, Light = 1–4, Moderate = 5–19, Active = 20–49, Power = 50+.
         </p>
-      </div>
+      </SectionCard>
     </div>
   );
 }

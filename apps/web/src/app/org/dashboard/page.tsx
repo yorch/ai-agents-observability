@@ -19,8 +19,6 @@ import {
 } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
-import { OrgSubNav } from '../layout';
-
 export const dynamic = 'force-dynamic';
 
 export default async function OrgDashboardPage({
@@ -73,8 +71,6 @@ export default async function OrgDashboardPage({
         </div>
         <DateRangePicker range={range} />
       </div>
-
-      <OrgSubNav active="dashboard" />
 
       {/* Anomaly banners */}
       {anomalies.length > 0 && (

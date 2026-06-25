@@ -2,8 +2,6 @@ import Link from 'next/link';
 
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
-import { OrgSubNav } from '../layout';
-
 export const dynamic = 'force-dynamic';
 
 export default async function OrgTeamsPage() {
@@ -24,8 +22,6 @@ export default async function OrgTeamsPage() {
         <h1 className="font-display text-2xl font-semibold text-white">Teams</h1>
         <p className="mt-1 text-sm text-white/50">{teams.length} teams in this organisation</p>
       </div>
-
-      <OrgSubNav active="teams" />
 
       {teams.length === 0 ? (
         <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center text-sm text-white/40">

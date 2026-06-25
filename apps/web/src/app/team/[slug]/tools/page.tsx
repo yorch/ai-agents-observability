@@ -1,5 +1,9 @@
+import { DataTable } from '@/components/team-org/DataTable';
 import { EmptyState } from '@/components/team-org/EmptyState';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import { SectionCard } from '@/components/team-org/SectionCard';
+import { SectionHeader } from '@/components/team-org/SectionHeader';
+import { StatCard } from '@/components/team-org/StatCard';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamSkillUsage,
@@ -48,24 +52,15 @@ export default async function TeamToolsPage({
 
       <TeamSubNav slug={slug} active="tools" />
 
-      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Tool calls', value: totalCalls.toLocaleString() },
-          { label: 'Unique tools', value: tools.length.toString() },
-          { label: 'Denial rate', value: `${(denyRate * 100).toFixed(1)}%` },
-        ].map((c) => (
-          <div key={c.label} className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <p className="text-xs text-white/40 uppercase tracking-wider">{c.label}</p>
-            <p className="mt-1 text-2xl font-semibold font-mono">{c.value}</p>
-          </div>
-        ))}
+        <StatCard label="Tool calls" value={totalCalls.toLocaleString()} />
+        <StatCard label="Unique tools" value={tools.length.toString()} />
+        <StatCard label="Denial rate" value={`${(denyRate * 100).toFixed(1)}%`} />
       </div>
 
-      {/* Tool category breakdown */}
       {categories.length > 0 && (
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h3 className="text-xs text-white/40 uppercase tracking-widest mb-3">By category</h3>
+        <SectionCard>
+          <SectionHeader>By category</SectionHeader>
           <div className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <div
@@ -79,83 +74,73 @@ export default async function TeamToolsPage({
               </div>
             ))}
           </div>
-        </div>
+        </SectionCard>
       )}
 
-      {/* Top tools table */}
       {tools.length > 0 ? (
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h3 className="text-xs text-white/40 uppercase tracking-widest mb-3">Top tools</h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-white/40 text-xs border-b border-white/10">
-                <th className="text-left pb-2">Tool</th>
-                <th className="text-right pb-2 font-mono">Calls</th>
-                <th className="text-right pb-2 font-mono">Denied</th>
-                <th className="text-right pb-2 font-mono">Deny %</th>
-                <th className="text-right pb-2 font-mono">Avg ms</th>
-                <th className="text-right pb-2 font-mono">Users</th>
+        <SectionCard>
+          <SectionHeader>Top tools</SectionHeader>
+          <DataTable
+            columns={[
+              { label: 'Tool' },
+              { align: 'right', label: 'Calls', mono: true },
+              { align: 'right', label: 'Denied', mono: true },
+              { align: 'right', label: 'Deny %', mono: true },
+              { align: 'right', label: 'Avg ms', mono: true },
+              { align: 'right', label: 'Users', mono: true },
+            ]}
+          >
+            {tools.map((r) => (
+              <tr key={r.toolName} className="border-b border-white/5">
+                <td className="py-2 font-mono text-white/80">{r.toolName}</td>
+                <td className="py-2 text-right font-mono text-white/60">
+                  {r.callCount.toLocaleString()}
+                </td>
+                <td
+                  className={`py-2 text-right font-mono ${r.denyCount > 0 ? 'text-amber-400' : 'text-white/30'}`}
+                >
+                  {r.denyCount > 0 ? r.denyCount : '—'}
+                </td>
+                <td className="py-2 text-right font-mono text-white/50">
+                  {r.denyRate > 0 ? `${(r.denyRate * 100).toFixed(1)}%` : '—'}
+                </td>
+                <td className="py-2 text-right font-mono text-white/50">
+                  {r.avgDurationMs !== null ? r.avgDurationMs : '—'}
+                </td>
+                <td className="py-2 text-right font-mono text-white/50">{r.distinctUsers}</td>
               </tr>
-            </thead>
-            <tbody>
-              {tools.map((r) => (
-                <tr key={r.toolName} className="border-b border-white/5">
-                  <td className="py-2 font-mono text-white/80">{r.toolName}</td>
-                  <td className="py-2 text-right font-mono text-white/60">
-                    {r.callCount.toLocaleString()}
-                  </td>
-                  <td
-                    className={`py-2 text-right font-mono ${r.denyCount > 0 ? 'text-amber-400' : 'text-white/30'}`}
-                  >
-                    {r.denyCount > 0 ? r.denyCount : '—'}
-                  </td>
-                  <td className="py-2 text-right font-mono text-white/50">
-                    {r.denyRate > 0 ? `${(r.denyRate * 100).toFixed(1)}%` : '—'}
-                  </td>
-                  <td className="py-2 text-right font-mono text-white/50">
-                    {r.avgDurationMs !== null ? r.avgDurationMs : '—'}
-                  </td>
-                  <td className="py-2 text-right font-mono text-white/50">{r.distinctUsers}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </DataTable>
+        </SectionCard>
       ) : (
         <EmptyState>No tool activity in this period</EmptyState>
       )}
 
-      {/* Skills & slash commands */}
       {skills.length > 0 && (
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h3 className="text-xs text-white/40 uppercase tracking-widest mb-3">
-            Skills & slash commands
-          </h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-white/40 text-xs border-b border-white/10">
-                <th className="text-left pb-2">Name</th>
-                <th className="text-left pb-2">Type</th>
-                <th className="text-right pb-2 font-mono">Invocations</th>
-                <th className="text-right pb-2 font-mono">Users</th>
-                <th className="text-right pb-2 font-mono">Avg session $</th>
+        <SectionCard>
+          <SectionHeader>Skills &amp; slash commands</SectionHeader>
+          <DataTable
+            columns={[
+              { label: 'Name' },
+              { label: 'Type' },
+              { align: 'right', label: 'Invocations', mono: true },
+              { align: 'right', label: 'Users', mono: true },
+              { align: 'right', label: 'Avg session $', mono: true },
+            ]}
+          >
+            {skills.map((r) => (
+              <tr key={`${r.kind}:${r.name}`} className="border-b border-white/5">
+                <td className="py-2 font-mono text-white/80">/{r.name}</td>
+                <td className="py-2 text-xs capitalize text-white/40">{r.kind}</td>
+                <td className="py-2 text-right font-mono text-white/60">{r.callCount}</td>
+                <td className="py-2 text-right font-mono text-white/50">{r.distinctUsers}</td>
+                <td className="py-2 text-right font-mono text-white/50">
+                  {r.avgSessionCostUsd !== null ? `$${r.avgSessionCostUsd.toFixed(3)}` : '—'}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {skills.map((r) => (
-                <tr key={`${r.kind}:${r.name}`} className="border-b border-white/5">
-                  <td className="py-2 font-mono text-white/80">/{r.name}</td>
-                  <td className="py-2 text-xs text-white/40 capitalize">{r.kind}</td>
-                  <td className="py-2 text-right font-mono text-white/60">{r.callCount}</td>
-                  <td className="py-2 text-right font-mono text-white/50">{r.distinctUsers}</td>
-                  <td className="py-2 text-right font-mono text-white/50">
-                    {r.avgSessionCostUsd !== null ? `$${r.avgSessionCostUsd.toFixed(3)}` : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </DataTable>
+        </SectionCard>
       )}
     </div>
   );

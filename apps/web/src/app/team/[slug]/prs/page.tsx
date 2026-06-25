@@ -1,4 +1,5 @@
-import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { PageHeader } from '@/components/team-org/PageHeader';
+import { StatCard } from '@/components/team-org/StatCard';
 import { TeamPrRollupTable } from '@/components/team-org/TeamPrRollupTable';
 import { requireTeamLead } from '@/lib/roles';
 import {
@@ -43,35 +44,23 @@ export default async function TeamPrsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Team</p>
-          <h1 className="text-2xl font-semibold">{teamName}</h1>
-          <p className="mt-1 text-sm text-white/50">Trailing {range} days</p>
-        </div>
-        <DateRangePicker range={range} />
-      </div>
+      <PageHeader
+        breadcrumb="Team"
+        description={`Trailing ${range} days`}
+        range={range}
+        title={teamName}
+      />
 
       <TeamSubNav slug={slug} active="prs" />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {[
-          { label: 'PRs opened', value: delivery.totalPRs.toString() },
-          { label: 'Merge rate', value: `${Math.round(delivery.mergeRate * 100)}%` },
-          {
-            label: 'Median time to merge',
-            value: fmtHours(delivery.medianTimeToMergeHours),
-          },
-          {
-            label: 'Avg cost / PR',
-            value: delivery.avgCostPerPR > 0 ? `$${delivery.avgCostPerPR.toFixed(2)}` : '—',
-          },
-        ].map((card) => (
-          <div key={card.label} className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <p className="text-xs text-white/40 uppercase tracking-wider">{card.label}</p>
-            <p className="mt-1 text-2xl font-semibold font-mono">{card.value}</p>
-          </div>
-        ))}
+        <StatCard label="PRs opened" value={delivery.totalPRs.toString()} />
+        <StatCard label="Merge rate" value={`${Math.round(delivery.mergeRate * 100)}%`} />
+        <StatCard label="Median time to merge" value={fmtHours(delivery.medianTimeToMergeHours)} />
+        <StatCard
+          label="Avg cost / PR"
+          value={delivery.avgCostPerPR > 0 ? `$${delivery.avgCostPerPR.toFixed(2)}` : '—'}
+        />
       </div>
 
       <TeamPrRollupTable rows={prs} />
