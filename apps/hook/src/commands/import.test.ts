@@ -84,12 +84,20 @@ function startMockServer(options: {
   eventsStatus?: number;
   transcriptStatus?: number;
   eventsResponse?: object;
+  readyzStatus?: number;
+  readyzChecks?: { postgres?: string; s3?: string };
 }): {
   port: number;
   received: ReceivedRequest[];
   server: ReturnType<typeof Bun.serve>;
 } {
-  const { eventsStatus = 202, transcriptStatus = 201, eventsResponse } = options;
+  const {
+    eventsStatus = 202,
+    transcriptStatus = 201,
+    eventsResponse,
+    readyzStatus = 200,
+    readyzChecks = { postgres: 'ok', s3: 'ok' },
+  } = options;
   const received: ReceivedRequest[] = [];
 
   const server = Bun.serve({
@@ -112,6 +120,13 @@ function startMockServer(options: {
 
       received.push({ body, headers, method: req.method, url: pathname });
 
+      if (req.method === 'GET' && pathname === '/readyz') {
+        const ok = readyzStatus < 300;
+        return new Response(JSON.stringify({ checks: readyzChecks, ok }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: readyzStatus,
+        });
+      }
       if (req.method === 'POST' && pathname === '/v1/events') {
         const responseBody = eventsResponse ?? { accepted: 3, deduped: 0, rejected: 0 };
         return new Response(JSON.stringify(responseBody), {
@@ -360,6 +375,76 @@ describe('runImport — --no-transcripts', () => {
     } finally {
       server.stop(true);
     }
+  });
+});
+
+describe('runImport — pre-flight server check', () => {
+  it('returns 1 and prints error when server is unreachable', async () => {
+    const sessionId = 'session-preflight-001';
+    makeSessionFile(tmpProjects, sessionId, [userEntry(sessionId, 'uuid-001')]);
+
+    writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'test-token' }), 'utf8');
+    // Point at a port nothing is listening on
+    process.env.INGEST_BASE_URL = 'http://localhost:1';
+
+    const stderrChunks: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (chunk: unknown) => {
+      stderrChunks.push(String(chunk));
+      return true;
+    };
+
+    try {
+      const code = await runImport(['import', '--quiet']);
+      expect(code).toBe(1);
+      expect(stderrChunks.join('')).toMatch(/cannot reach ingest server/i);
+    } finally {
+      process.stderr.write = origWrite;
+    }
+  });
+
+  it('returns 1 when server /readyz returns 503', async () => {
+    const sessionId = 'session-preflight-002';
+    makeSessionFile(tmpProjects, sessionId, [userEntry(sessionId, 'uuid-001')]);
+
+    writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'test-token' }), 'utf8');
+
+    const { port, received, server } = startMockServer({
+      readyzChecks: { postgres: 'error', s3: 'ok' },
+      readyzStatus: 503,
+    });
+    process.env.INGEST_BASE_URL = `http://localhost:${port}`;
+
+    const stderrChunks: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (chunk: unknown) => {
+      stderrChunks.push(String(chunk));
+      return true;
+    };
+
+    try {
+      const code = await runImport(['import', '--quiet']);
+      expect(code).toBe(1);
+      const stderr = stderrChunks.join('');
+      expect(stderr).toMatch(/server not ready/i);
+      expect(stderr).toMatch(/postgres/);
+      // No events should have been POSTed
+      expect(received.filter((r) => r.url === '/v1/events').length).toBe(0);
+    } finally {
+      server.stop(true);
+      process.stderr.write = origWrite;
+    }
+  });
+
+  it('skips pre-flight check on --dry-run', async () => {
+    const sessionId = 'session-preflight-003';
+    makeSessionFile(tmpProjects, sessionId, [userEntry(sessionId, 'uuid-001')]);
+
+    // No server at all — dry-run should still succeed
+    process.env.INGEST_BASE_URL = 'http://localhost:1';
+
+    const code = await runImport(['import', '--dry-run', '--quiet']);
+    expect(code).toBe(0);
   });
 });
 
