@@ -1,15 +1,20 @@
 import { FrictionDistributionChart } from '@/components/me/FrictionDistributionChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
+import { AdoptionFunnel } from '@/components/team-org/AdoptionFunnel';
+import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable';
+import { StatCardWithDelta } from '@/components/team-org/StatCardWithDelta';
 import {
   getAnomalies,
   getCostByModel,
   getCostByRepo,
   getCostByTeam,
-  getCostPerDeveloper,
+  getOrgAdoptionFunnel,
   getOrgEffectiveness,
-  getOrgSummary,
+  getOrgSummaryWithDelta,
   getOrgTopTools,
+  getTeamModelGovernance,
   getWeeklyCostTrend,
 } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
@@ -18,15 +23,24 @@ import { OrgSubNav } from '../layout';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OrgDashboardPage() {
-  const { orgRole } = await requireOrgViewer();
+export default async function OrgDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
+  const { range: rangeParam } = await searchParams;
+  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as
+    | 7
+    | 30
+    | 90;
+  const since = daysAgo(range);
 
-  const since = daysAgo(30);
+  const { orgRole } = await requireOrgViewer();
   const isAdmin = isOrgAdmin(orgRole);
 
-  const [summary, teamCost, repoCost, modelCost, tools, trend, anomalies, effectiveness, devCost] =
+  const [summaryWithDelta, teamCost, repoCost, modelCost, tools, trend, anomalies, effectiveness, funnel, modelGov] =
     await Promise.all([
-      getOrgSummary(since),
+      getOrgSummaryWithDelta(range),
       getCostByTeam(since),
       getCostByRepo(since),
       getCostByModel(since),
@@ -34,17 +48,23 @@ export default async function OrgDashboardPage() {
       getWeeklyCostTrend(12),
       getAnomalies(),
       getOrgEffectiveness(since),
-      isAdmin ? getCostPerDeveloper(since) : Promise.resolve([]),
+      getOrgAdoptionFunnel(range),
+      isAdmin ? getTeamModelGovernance(since) : Promise.resolve([]),
     ]);
+
+  const { current: summary, deltas } = summaryWithDelta;
 
   const modelTotalCost = modelCost.reduce((s, r) => s + r.costUsd, 0);
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Org</p>
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="mt-1 text-sm text-white/50">Trailing 30 days · aggregate view</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Org</p>
+          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <p className="mt-1 text-sm text-white/50">Trailing {range} days · aggregate view</p>
+        </div>
+        <DateRangePicker range={range} />
       </div>
 
       <OrgSubNav active="dashboard" />
@@ -68,11 +88,28 @@ export default async function OrgDashboardPage() {
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Total cost (30d)" value={`$${summary.totalCostUsd.toFixed(2)}`} />
-        <StatCard label="Sessions" value={summary.sessionCount.toString()} />
-        <StatCard label="Active users" value={summary.activeUsers.toString()} />
-        <StatCard label="Teams" value={summary.teamCount.toString()} />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <StatCardWithDelta
+          label={`Total cost (${range}d)`}
+          value={`$${summary.totalCostUsd.toFixed(2)}`}
+          delta={deltas.totalCostUsd}
+        />
+        <StatCardWithDelta
+          label="Sessions"
+          value={summary.sessionCount.toString()}
+          delta={deltas.sessionCount}
+        />
+        <StatCardWithDelta
+          label="Active users"
+          value={summary.activeUsers.toString()}
+          delta={deltas.activeUsers}
+        />
+        <StatCardWithDelta label="Teams" value={summary.teamCount.toString()} />
+        <StatCardWithDelta
+          label="Cache hit rate"
+          value={`${summary.cacheHitRate.toFixed(1)}%`}
+          delta={deltas.cacheHitRate}
+        />
       </div>
 
       {/* Weekly cost trend */}
@@ -82,6 +119,9 @@ export default async function OrgDashboardPage() {
           <WeeklyTrendBars trend={trend} />
         </section>
       )}
+
+      {/* Adoption funnel */}
+      <AdoptionFunnel funnel={funnel} />
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Cost by team */}
@@ -184,6 +224,9 @@ export default async function OrgDashboardPage() {
         <TopTools title="Top Tools (org-wide)" tools={tools} />
       </div>
 
+      {/* Per-team model governance (admin-only) */}
+      {isAdmin && <ModelGovernanceTable rows={modelGov} />}
+
       {/* Effectiveness — aggregate only, visibility-scoped */}
       <div className="grid gap-6 md:grid-cols-2">
         <FrictionDistributionChart
@@ -229,15 +272,6 @@ export default async function OrgDashboardPage() {
           role.
         </p>
       )}
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-1">
-      <p className="text-xs text-white/50">{label}</p>
-      <p className="text-2xl font-semibold">{value}</p>
     </div>
   );
 }
