@@ -639,7 +639,7 @@ async function basicSeed() {
   await db.teamMember.create({ data: { roleInTeam: 'LEAD', teamId: team.id, userId: pwUser.id } });
 
   const adminHash = await hashPassword(SEED_ADMIN_PASSWORD);
-  await db.user.create({
+  const adminUser = await db.user.create({
     data: {
       displayName: 'Org Admin',
       email: SEED_ADMIN_EMAIL,
@@ -656,6 +656,9 @@ async function basicSeed() {
         },
       },
     },
+  });
+  await db.teamMember.create({
+    data: { roleInTeam: 'LEAD', teamId: team.id, userId: adminUser.id },
   });
 
   const repo = await db.repo.create({
@@ -777,6 +780,80 @@ async function basicSeed() {
                   'normal')
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
+      }
+    }
+  }
+
+  // Admin user: 20 days × 1-2 sessions/day
+  for (let day = 19; day >= 0; day--) {
+    const dayCount = faker.number.int({ max: 2, min: 1 });
+    for (let i = 0; i < dayCount; i++) {
+      const startedAt = new Date(
+        now - day * 86_400_000 - faker.number.int({ max: 6 * 3_600_000, min: 0 }),
+      );
+      const durationMs = weightedDurationMs();
+      const endedAt = new Date(startedAt.getTime() + durationMs);
+      const inputTokens = faker.number.int({ max: 60000, min: 1000 });
+      const outputTokens = faker.number.int({ max: 12000, min: 500 });
+      const cacheRead = faker.number.int({ max: 25000, min: 0 });
+      const cacheCreation = faker.number.int({ max: 6000, min: 0 });
+      const toolCalls = faker.number.int({ max: 100, min: 5 });
+      const model = faker.helpers.weightedArrayElement(MODELS);
+      const status = faker.helpers.weightedArrayElement(SESSION_STATUSES);
+
+      const adminSession = await db.session.create({
+        data: {
+          agentType: 'CLAUDE_CODE',
+          agentVersion: '1.1.2',
+          claudeCodeVersion: '1.1.2',
+          cwd: `/home/admin/projects/demo-app`,
+          endedAt,
+          gitBranch: faker.helpers.arrayElement([
+            'main',
+            'feat/org-dashboard',
+            'fix/auth',
+            'chore/infra',
+          ]),
+          gitCommit: faker.git.commitSha({ length: 40 }),
+          lastEventAt: endedAt,
+          os: 'darwin',
+          permissionDenyCount: faker.number.int({ max: 3, min: 0 }),
+          permissionPromptCount: faker.number.int({ max: 8, min: 0 }),
+          primaryModel: model,
+          repoId: repo.id,
+          sessionId: faker.string.uuid(),
+          startedAt,
+          status,
+          toolCallCount: toolCalls,
+          toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.1), min: 0 }),
+          totalCacheCreation: BigInt(cacheCreation),
+          totalCacheRead: BigInt(cacheRead),
+          totalCostUsd: calcCost(inputTokens, outputTokens, cacheRead, cacheCreation),
+          totalInputTokens: BigInt(inputTokens),
+          totalOutputTokens: BigInt(outputTokens),
+          userId: adminUser.id,
+          userMessageCount: faker.number.int({ max: 25, min: 1 }),
+        },
+      });
+
+      await insertEvents(
+        adminSession.sessionId,
+        adminUser.id,
+        startedAt,
+        durationMs,
+        toolCalls,
+        model,
+      );
+
+      if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.6 })) {
+        await insertTranscript(adminSession.sessionId, startedAt, durationMs);
+        await uploadTranscriptToS3(
+          adminSession.sessionId,
+          adminUser.id,
+          startedAt,
+          durationMs,
+          model,
+        );
       }
     }
   }
