@@ -14,11 +14,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:push": "prisma db push",
-    "db:studio": "prisma studio",
-    "db:seed": "bun run src/seed.ts",
-    "db:seed:extensive": "bun run src/seed.ts --extensive"
+    "db:migrate": "bun run --env-file=../../.env prisma migrate dev",
+    "db:push": "bun run --env-file=../../.env prisma db push",
+    "db:reset": "bun run --env-file=../../.env prisma migrate reset",
+    "db:studio": "bun run --env-file=../../.env prisma studio",
+    "db:deploy": "bun --env-file=../../.env run src/deploy.ts",
+    "db:seed": "bun --env-file=../../.env run src/seed.ts",
+    "db:seed:extensive": "bun --env-file=../../.env run src/seed.ts --extensive"
   },
   "dependencies": {
     "@prisma/adapter-pg": "catalog:",
