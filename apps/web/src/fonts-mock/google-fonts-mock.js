@@ -36,22 +36,12 @@ function face(family, weight) {
 }
 
 var dmSansCSS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
-  .map(function (w) {
-    return face('DM Sans', w);
-  })
+  .map((w) => face('DM Sans', w))
   .join('\n');
 
-var ibmPlexMonoCSS = [400, 500, 600]
-  .map(function (w) {
-    return face('IBM Plex Mono', w);
-  })
-  .join('\n');
+var ibmPlexMonoCSS = [400, 500, 600].map((w) => face('IBM Plex Mono', w)).join('\n');
 
-var syneCSS = [400, 500, 600, 700, 800]
-  .map(function (w) {
-    return face('Syne', w);
-  })
-  .join('\n');
+var syneCSS = [400, 500, 600, 700, 800].map((w) => face('Syne', w)).join('\n');
 
 module.exports = {
   'https://fonts.googleapis.com/css2?family=DM+Sans:wght@100..1000&display=swap': dmSansCSS,
