@@ -9,7 +9,9 @@ const WEEKS = 4;
 
 function delta(value: number, median: number, lowerIsBetter = false): 'above' | 'below' | 'at' {
   const pct = median > 0 ? Math.abs(value - median) / median : 0;
-  if (pct < 0.1) return 'at';
+  if (pct < 0.1) {
+    return 'at';
+  }
   const better = lowerIsBetter ? value < median : value > median;
   return better ? 'above' : 'below';
 }
@@ -27,11 +29,7 @@ function DeltaBadge({
 }) {
   const dir = delta(value, median, lowerIsBetter);
   const color =
-    dir === 'above'
-      ? 'text-green-400'
-      : dir === 'below'
-        ? 'text-red-400'
-        : 'text-white/50';
+    dir === 'above' ? 'text-green-400' : dir === 'below' ? 'text-red-400' : 'text-white/50';
   const arrow = dir === 'above' ? '▲' : dir === 'below' ? '▼' : '–';
   return (
     <span className={`font-mono text-xs ${color}`} title={`Org median: ${median}`}>
@@ -82,8 +80,8 @@ export default async function OrgBenchmarksPage() {
           />
         </div>
         <p className="text-xs text-white/30 mt-3">
-          Arrows (▲ / ▼) in the table below indicate whether each team is above or below these
-          org medians. ▲ = better than median (lower cost, lower friction, higher activity, higher
+          Arrows (▲ / ▼) in the table below indicate whether each team is above or below these org
+          medians. ▲ = better than median (lower cost, lower friction, higher activity, higher
           success).
         </p>
       </section>
@@ -117,10 +115,7 @@ export default async function OrgBenchmarksPage() {
                   <tr key={t.teamSlug}>
                     <td className="py-2 pr-4">
                       {isAdmin ? (
-                        <a
-                          href={`/team/${t.teamSlug}`}
-                          className="text-brand-400 hover:underline"
-                        >
+                        <a href={`/team/${t.teamSlug}`} className="text-brand-400 hover:underline">
                           {t.teamName}
                         </a>
                       ) : (
@@ -177,21 +172,21 @@ export default async function OrgBenchmarksPage() {
         <p className="font-semibold text-white/60">Metric definitions</p>
         <ul className="space-y-1 list-disc list-inside">
           <li>
-            <strong className="text-white/50">Sessions/user/wk</strong> — average sessions per
-            team member per week. Higher = more active use.
+            <strong className="text-white/50">Sessions/user/wk</strong> — average sessions per team
+            member per week. Higher = more active use.
           </li>
           <li>
             <strong className="text-white/50">Cost/session</strong> — mean LLM cost per session.
             Lower = more efficient prompting or lighter workloads.
           </li>
           <li>
-            <strong className="text-white/50">Friction p50</strong> — median friction score
-            (0–1): composite of deny rate, error rate, interrupt rate. Lower = smoother sessions.
-            Null = fewer than 2 scored sessions.
+            <strong className="text-white/50">Friction p50</strong> — median friction score (0–1):
+            composite of deny rate, error rate, interrupt rate. Lower = smoother sessions. Null =
+            fewer than 2 scored sessions.
           </li>
           <li>
-            <strong className="text-white/50">Tool success rate</strong> — 1 − (tool errors /
-            tool calls). Higher = fewer tool failures.
+            <strong className="text-white/50">Tool success rate</strong> — 1 − (tool errors / tool
+            calls). Higher = fewer tool failures.
           </li>
         </ul>
         <p className="pt-1">

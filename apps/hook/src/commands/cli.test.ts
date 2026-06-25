@@ -2,12 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
+import { runHook } from '../hook-entry';
 import { runPause } from './pause';
 import { runPurge } from './purge';
 import { runResume } from './resume';
 import { runStatus } from './status';
-import { runHook } from '../hook-entry';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

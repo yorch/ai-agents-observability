@@ -25,7 +25,7 @@ export default async function OrgAdoptionPage() {
     getSessionFrequencyDistribution(since30),
   ]);
 
-  const adoptionRate =
+  const _adoptionRate =
     summary30.activeUsers > 0 && summary90.activeUsers > 0
       ? summary30.activeUsers / Math.max(summary30.activeUsers, summary90.activeUsers)
       : 0;
@@ -194,7 +194,6 @@ function ActiveUsersBars({ trend }: { trend: { activeUsers: number; day: Date }[
 
 function AdoptionBadge({ rate }: { rate: number }) {
   const pct = (rate * 100).toFixed(0);
-  const color =
-    rate >= 0.7 ? 'text-green-400' : rate >= 0.4 ? 'text-yellow-400' : 'text-white/40';
+  const color = rate >= 0.7 ? 'text-green-400' : rate >= 0.4 ? 'text-yellow-400' : 'text-white/40';
   return <span className={`font-mono ${color}`}>{pct}%</span>;
 }

@@ -162,11 +162,7 @@ export function fetchPrSnapshot(owner: string, repo: string, prNumber: number): 
       statusCheckRollup: GhCheck[] | null;
     };
 
-    const VALID_REVIEW: Set<string> = new Set([
-      'APPROVED',
-      'CHANGES_REQUESTED',
-      'REVIEW_REQUIRED',
-    ]);
+    const VALID_REVIEW: Set<string> = new Set(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']);
     const reviewDecision =
       data.reviewDecision && VALID_REVIEW.has(data.reviewDecision)
         ? (data.reviewDecision as ReviewDecision)

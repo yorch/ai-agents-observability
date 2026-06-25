@@ -1,8 +1,4 @@
-import {
-  getOrgPRDeliveryStats,
-  getPRWeeklyTrend,
-  getTopReposByPR,
-} from '@/lib/org-queries';
+import { getOrgPRDeliveryStats, getPRWeeklyTrend, getTopReposByPR } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
 import { OrgSubNav } from '../layout';
@@ -10,8 +6,12 @@ import { OrgSubNav } from '../layout';
 export const dynamic = 'force-dynamic';
 
 function fmtHours(hours: number | null): string {
-  if (hours == null) return '—';
-  if (hours < 24) return `${hours.toFixed(1)}h`;
+  if (hours == null) {
+    return '—';
+  }
+  if (hours < 24) {
+    return `${hours.toFixed(1)}h`;
+  }
   return `${(hours / 24).toFixed(1)}d`;
 }
 
@@ -77,9 +77,8 @@ export default async function OrgDeliveryPage() {
               : 'border-white/10 bg-white/5 text-white/60'
           }`}
         >
-          <span className="font-semibold">Revert rate:</span>{' '}
-          {(stats.revertRate * 100).toFixed(1)}% ({stats.revertedPRs} of {stats.mergedPRs} merged
-          PRs reverted)
+          <span className="font-semibold">Revert rate:</span> {(stats.revertRate * 100).toFixed(1)}%
+          ({stats.revertedPRs} of {stats.mergedPRs} merged PRs reverted)
           {stats.revertRate > 0.05 && ' — above 5% threshold, worth investigating.'}
         </div>
       )}
@@ -96,10 +95,7 @@ export default async function OrgDeliveryPage() {
                 month: 'short',
               });
               return (
-                <div
-                  key={w.week.toISOString()}
-                  className="flex-1 flex flex-col items-center gap-1"
-                >
+                <div key={w.week.toISOString()} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-[10px] text-white/40">{w.mergedPRs}</span>
                   <div
                     className="w-full rounded-t bg-brand-500/70 min-h-1"
@@ -157,15 +153,7 @@ export default async function OrgDeliveryPage() {
   );
 }
 
-function StatCard({
-  label,
-  sub,
-  value,
-}: {
-  label: string;
-  sub?: string;
-  value: string;
-}) {
+function StatCard({ label, sub, value }: { label: string; sub?: string; value: string }) {
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-1">
       <p className="text-xs text-white/50">{label}</p>

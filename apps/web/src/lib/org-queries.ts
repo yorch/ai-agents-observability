@@ -933,10 +933,7 @@ export type CostPerDeveloperRow = {
 };
 
 /** Admin-only: per-developer cost breakdown, ordered by cost desc. */
-export async function getCostPerDeveloper(
-  since: Date,
-  limit = 20,
-): Promise<CostPerDeveloperRow[]> {
+export async function getCostPerDeveloper(since: Date, limit = 20): Promise<CostPerDeveloperRow[]> {
   const rows = await getPrisma().$queryRaw<
     { github_login: string; session_count: bigint; total_cost_usd: number }[]
   >(Prisma.sql`
@@ -1008,10 +1005,10 @@ export async function getOrgPRDeliveryStats(since: Date): Promise<OrgPRDeliveryS
     avgCostPerPR: Number(r?.avg_cost_per_pr ?? 0),
     medianCostPerPR: r?.median_cost_per_pr != null ? Number(r.median_cost_per_pr) : null,
     medianTimeToMergeHours: r?.median_ttm_hours != null ? Number(r.median_ttm_hours) : null,
-    mergeRate: total > 0 ? merged / total : 0,
     mergedPRs: merged,
-    revertRate: merged > 0 ? reverted / merged : 0,
+    mergeRate: total > 0 ? merged / total : 0,
     revertedPRs: reverted,
+    revertRate: merged > 0 ? reverted / merged : 0,
     totalPRs: total,
   };
 }
@@ -1124,7 +1121,9 @@ export type TeamBenchmarksResult = {
 };
 
 function arrayMedian(sorted: number[]): number | null {
-  if (sorted.length === 0) return null;
+  if (sorted.length === 0) {
+    return null;
+  }
   return sorted[Math.floor(sorted.length / 2)];
 }
 
