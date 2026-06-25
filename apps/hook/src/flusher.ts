@@ -5,8 +5,8 @@ import type { GitContext } from '@ai-agents-observability/schemas';
 
 import { backoffSleep } from './lib/backoff';
 import { getGitContext } from './lib/git';
-import { fetchOpenPrNumber, fetchPrSnapshot } from './lib/github-pr';
 import type { PrSnapshot } from './lib/github-pr';
+import { fetchOpenPrNumber, fetchPrSnapshot } from './lib/github-pr';
 import { loadHookToken } from './lib/identity';
 import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
@@ -187,8 +187,12 @@ export function enrichPrSnapshot(
       cache.set(key, snap ?? null);
     }
     if (snap) {
-      git.pr_ci_status = snap.ciStatus ?? undefined;
-      git.pr_review_decision = snap.reviewDecision ?? undefined;
+      if (snap.ciStatus != null) {
+        git.pr_ci_status = snap.ciStatus;
+      }
+      if (snap.reviewDecision != null) {
+        git.pr_review_decision = snap.reviewDecision;
+      }
     }
   }
 }
