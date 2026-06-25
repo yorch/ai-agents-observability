@@ -73,6 +73,19 @@ const TOOL_NAMES = [
   { value: 'Agent', weight: 2 },
 ];
 
+const SKILL_NAMES = [
+  { value: { path: '.claude/commands/code-review.md', skillName: 'code-review' }, weight: 30 },
+  { value: { path: '.claude/commands/commit.md', skillName: 'commit' }, weight: 25 },
+  {
+    value: { path: '.claude/commands/systematic-debugging.md', skillName: 'systematic-debugging' },
+    weight: 15,
+  },
+  { value: { path: '.claude/commands/brainstorming.md', skillName: 'brainstorming' }, weight: 10 },
+  { value: { path: null as string | null, skillName: 'doc-update' }, weight: 10 },
+  { value: { path: null as string | null, skillName: 'refactor' }, weight: 5 },
+  { value: { path: null as string | null, skillName: 'ultrareview' }, weight: 5 },
+];
+
 const MODELS = [
   { value: 'claude-sonnet-4-6', weight: 60 },
   { value: 'claude-opus-4-8', weight: 25 },
@@ -418,9 +431,22 @@ async function insertEvents(
       const outputToks = faker.number.int({ max: 600, min: 10 });
       const costVal = faker.number.float({ fractionDigits: 6, max: 0.02, min: 0.0001 });
       const turnNum = Math.ceil(e / 4);
-      const useMcp = faker.datatype.boolean({ probability: 0.06 });
+      const useSkill = faker.datatype.boolean({ probability: 0.12 });
+      const useMcp = !useSkill && faker.datatype.boolean({ probability: 0.06 });
 
-      if (useMcp) {
+      if (useSkill) {
+        const { skillName, path: skillPath } = faker.helpers.weightedArrayElement(SKILL_NAMES);
+        await db.$executeRaw`
+          INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
+                              tool_name, skill_name, slash_command, skill_path,
+                              tool_duration_ms, output_tokens, cost_usd, turn_number, model, mode)
+          VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
+                  'CLAUDE_CODE', 'PostToolUse',
+                  'Skill', ${skillName}, ${skillName}, ${skillPath},
+                  ${toolDurMs}, ${outputToks}, ${costVal}, ${turnNum}, ${model}, 'normal')
+          ON CONFLICT (session_id, event_id, ts) DO NOTHING
+        `;
+      } else if (useMcp) {
         const mcpServer = faker.helpers.arrayElement(['github', 'filesystem', 'web-search']);
         const mcpTool = faker.helpers.arrayElement([
           'list_files',
@@ -543,14 +569,17 @@ async function basicSeed() {
   }
   const existingPw = await db.user.findUnique({ where: { email: SEED_PW_EMAIL } });
   if (existingPw) {
+    await db.auditLog.deleteMany({ where: { actorUserId: existingPw.id } });
     await db.user.delete({ where: { id: existingPw.id } });
   }
   const existingAdmin = await db.user.findUnique({ where: { email: SEED_ADMIN_EMAIL } });
   if (existingAdmin) {
+    await db.auditLog.deleteMany({ where: { actorUserId: existingAdmin.id } });
     await db.user.delete({ where: { id: existingAdmin.id } });
   }
   await db.repo.deleteMany({ where: { githubOwner: 'demo-org' } });
   if (existing) {
+    await db.auditLog.deleteMany({ where: { actorUserId: existing.id } });
     await db.user.delete({ where: { id: existing.id } });
   }
   const existingTeam = await db.team.findUnique({ where: { githubSlug: 'demo-org' } });
@@ -727,6 +756,28 @@ async function basicSeed() {
         durationMs,
         'claude-sonnet-4-6',
       );
+
+      const skillCount = faker.number.int({ max: 2, min: 0 });
+      for (let sk = 0; sk < skillCount; sk++) {
+        const skillTs = new Date(
+          startedAt.getTime() + faker.number.int({ max: durationMs, min: 1 }),
+        );
+        const { skillName, path: skillPath } = faker.helpers.weightedArrayElement(SKILL_NAMES);
+        const skillEventId = crypto.randomUUID();
+        await db.$executeRaw`
+          INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
+                              tool_name, skill_name, slash_command, skill_path,
+                              tool_duration_ms, output_tokens, cost_usd, mode)
+          VALUES (${skillEventId}::uuid, ${session.sessionId}::uuid, ${user.id}::uuid, ${skillTs},
+                  'CLAUDE_CODE', 'PostToolUse',
+                  'Skill', ${skillName}, ${skillName}, ${skillPath},
+                  ${faker.number.int({ max: 5000, min: 100 })},
+                  ${faker.number.int({ max: 300, min: 10 })},
+                  ${faker.number.float({ fractionDigits: 6, max: 0.02, min: 0.001 })},
+                  'normal')
+          ON CONFLICT (session_id, event_id, ts) DO NOTHING
+        `;
+      }
     }
   }
 
@@ -1124,6 +1175,7 @@ async function extensiveSeed() {
       await db.$executeRaw`DELETE FROM events WHERE user_id = ${uid}::uuid`;
     }
     await db.session.deleteMany({ where: { userId: { in: existingIds } } });
+    await db.auditLog.deleteMany({ where: { actorUserId: { in: existingIds } } });
   }
   await db.repo.deleteMany({ where: { githubOwner: EXT_ORG } });
   if (existingIds.length > 0) {

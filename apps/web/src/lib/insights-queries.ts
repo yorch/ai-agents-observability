@@ -54,9 +54,36 @@ export type McpUsageRow = {
 };
 
 export type SkillUsageRow = {
+  avgSessionCostUsd: number | null;
+  sessionCount: number;
   skillName: string;
   skillPath: string | null;
   useCount: number;
+};
+
+export type SkillOutcomeRow = {
+  sessionCount: number;
+  skillName: string;
+  status: string;
+};
+
+export type SkillTrendRow = {
+  day: Date;
+  skillName: string;
+  useCount: number;
+};
+
+export type SkillSubagentRow = {
+  avgSubagents: number;
+  maxSubagents: number;
+  sessionCount: number;
+  skillName: string;
+};
+
+export type SkillSequenceRow = {
+  fromSkill: string;
+  toSkill: string;
+  transitionCount: number;
 };
 
 export type SlashCommandRow = {
@@ -87,7 +114,28 @@ type McpRawRow = {
   mcp_tool: string | null;
 };
 
-type SkillRawRow = { skill_name: string; skill_path: string | null; use_count: bigint };
+type SkillUsageRawRow = {
+  avg_session_cost_usd: string | null;
+  session_count: bigint;
+  skill_name: string;
+  skill_path: string | null;
+  use_count: bigint;
+};
+
+type SkillOutcomeRawRow = { session_count: bigint; skill_name: string; status: string };
+type SkillTrendRawRow = { day: Date; skill_name: string; use_count: bigint };
+type SkillSubagentRawRow = {
+  avg_subagents: string;
+  max_subagents: bigint;
+  session_count: bigint;
+  skill_name: string;
+};
+type SkillSequenceRawRow = {
+  from_skill: string;
+  to_skill: string;
+  transition_count: bigint;
+};
+
 type SlashCommandRawRow = { slash_command: string; use_count: bigint };
 type SubagentRawRow = { subagent_type: string; use_count: bigint };
 
@@ -127,21 +175,145 @@ export async function getMcpUsage(userId: string, since: Date): Promise<McpUsage
   }));
 }
 
+// Tier 1: use count + session cost (avg cost of sessions that used this skill)
 export async function getSkillUsage(userId: string, since: Date): Promise<SkillUsageRow[]> {
-  const rows = await getPrisma().$queryRaw<SkillRawRow[]>(Prisma.sql`
-    SELECT skill_name, skill_path, COUNT(*) AS use_count
-    FROM events
-    WHERE user_id = ${userId}::uuid
-      AND ts       >= ${since}
-      AND skill_name IS NOT NULL
-    GROUP BY skill_name, skill_path
+  const rows = await getPrisma().$queryRaw<SkillUsageRawRow[]>(Prisma.sql`
+    WITH invocations AS (
+      SELECT skill_name, skill_path, session_id, COUNT(*) AS invocation_count
+      FROM events
+      WHERE user_id = ${userId}::uuid
+        AND ts       >= ${since}
+        AND skill_name IS NOT NULL
+      GROUP BY skill_name, skill_path, session_id
+    )
+    SELECT
+      i.skill_name,
+      i.skill_path,
+      SUM(i.invocation_count)::bigint           AS use_count,
+      COUNT(DISTINCT i.session_id)::bigint       AS session_count,
+      AVG(s.total_cost_usd)::text                AS avg_session_cost_usd
+    FROM invocations i
+    LEFT JOIN sessions s ON i.session_id = s.session_id
+    GROUP BY i.skill_name, i.skill_path
     ORDER BY use_count DESC
     LIMIT 50
   `);
-  return rows.map((r: SkillRawRow) => ({
+  return rows.map((r) => ({
+    avgSessionCostUsd: r.avg_session_cost_usd != null ? Number(r.avg_session_cost_usd) : null,
+    sessionCount: Number(r.session_count),
     skillName: r.skill_name,
     skillPath: r.skill_path,
     useCount: Number(r.use_count),
+  }));
+}
+
+// Tier 1: session outcome distribution per skill (COMPLETED / ABANDONED / ERROR)
+export async function getSkillOutcomes(userId: string, since: Date): Promise<SkillOutcomeRow[]> {
+  const rows = await getPrisma().$queryRaw<SkillOutcomeRawRow[]>(Prisma.sql`
+    SELECT
+      e.skill_name,
+      s.status,
+      COUNT(DISTINCT e.session_id)::bigint AS session_count
+    FROM events e
+    LEFT JOIN sessions s ON e.session_id = s.session_id
+    WHERE e.user_id = ${userId}::uuid
+      AND e.ts       >= ${since}
+      AND e.skill_name IS NOT NULL
+    GROUP BY e.skill_name, s.status
+    ORDER BY e.skill_name, session_count DESC
+  `);
+  return rows.map((r) => ({
+    sessionCount: Number(r.session_count),
+    skillName: r.skill_name,
+    status: r.status,
+  }));
+}
+
+// Tier 1: daily invocation trend per skill
+export async function getSkillTrend(userId: string, since: Date): Promise<SkillTrendRow[]> {
+  const rows = await getPrisma().$queryRaw<SkillTrendRawRow[]>(Prisma.sql`
+    SELECT
+      date_trunc('day', ts)   AS day,
+      skill_name,
+      COUNT(*)::bigint         AS use_count
+    FROM events
+    WHERE user_id    = ${userId}::uuid
+      AND ts         >= ${since}
+      AND skill_name IS NOT NULL
+    GROUP BY date_trunc('day', ts), skill_name
+    ORDER BY day ASC
+  `);
+  return rows.map((r) => ({
+    day: r.day,
+    skillName: r.skill_name,
+    useCount: Number(r.use_count),
+  }));
+}
+
+// Tier 2: avg subagents spawned in sessions that used each skill
+export async function getSkillSubagents(userId: string, since: Date): Promise<SkillSubagentRow[]> {
+  const rows = await getPrisma().$queryRaw<SkillSubagentRawRow[]>(Prisma.sql`
+    WITH sessions_with_skill AS (
+      SELECT DISTINCT skill_name, session_id
+      FROM events
+      WHERE user_id    = ${userId}::uuid
+        AND ts         >= ${since}
+        AND skill_name IS NOT NULL
+    ),
+    subagent_counts AS (
+      SELECT session_id, COUNT(*) AS subagent_count
+      FROM events
+      WHERE user_id    = ${userId}::uuid
+        AND ts         >= ${since}
+        AND event_type = 'SubagentStop'
+      GROUP BY session_id
+    )
+    SELECT
+      sws.skill_name,
+      COUNT(DISTINCT sws.session_id)::bigint           AS session_count,
+      AVG(COALESCE(sc.subagent_count, 0))::text        AS avg_subagents,
+      MAX(COALESCE(sc.subagent_count, 0))::bigint      AS max_subagents
+    FROM sessions_with_skill sws
+    LEFT JOIN subagent_counts sc ON sws.session_id = sc.session_id
+    GROUP BY sws.skill_name
+    ORDER BY avg_subagents DESC
+  `);
+  return rows.map((r) => ({
+    avgSubagents: r.avg_subagents != null ? Number(r.avg_subagents) : 0,
+    maxSubagents: Number(r.max_subagents),
+    sessionCount: Number(r.session_count),
+    skillName: r.skill_name,
+  }));
+}
+
+// Tier 3: most common skill → skill transitions within sessions
+export async function getSkillSequences(userId: string, since: Date): Promise<SkillSequenceRow[]> {
+  const rows = await getPrisma().$queryRaw<SkillSequenceRawRow[]>(Prisma.sql`
+    WITH skill_events AS (
+      SELECT
+        session_id,
+        skill_name,
+        LEAD(skill_name) OVER (PARTITION BY session_id ORDER BY ts) AS next_skill
+      FROM events
+      WHERE user_id    = ${userId}::uuid
+        AND ts         >= ${since}
+        AND skill_name IS NOT NULL
+    )
+    SELECT
+      skill_name           AS from_skill,
+      next_skill           AS to_skill,
+      COUNT(*)::bigint     AS transition_count
+    FROM skill_events
+    WHERE next_skill IS NOT NULL
+      AND skill_name != next_skill
+    GROUP BY skill_name, next_skill
+    ORDER BY transition_count DESC
+    LIMIT 20
+  `);
+  return rows.map((r) => ({
+    fromSkill: r.from_skill,
+    toSkill: r.to_skill,
+    transitionCount: Number(r.transition_count),
   }));
 }
 

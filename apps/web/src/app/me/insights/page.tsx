@@ -6,12 +6,20 @@ import { getUserEffectiveness } from '@/lib/effectiveness-queries';
 import {
   getMcpUsage,
   getSessionSummary,
+  getSkillOutcomes,
+  getSkillSequences,
+  getSkillSubagents,
+  getSkillTrend,
   getSkillUsage,
   getSlashCommands,
   getSubagentUsage,
   getToolPerf,
   type McpUsageRow,
   type SessionSummaryRow,
+  type SkillOutcomeRow,
+  type SkillSequenceRow,
+  type SkillSubagentRow,
+  type SkillTrendRow,
   type SkillUsageRow,
   type SlashCommandRow,
   type SubagentUsageRow,
@@ -75,9 +83,25 @@ export default async function InsightsPage({
   const days = parseDays(params.days);
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const [mcp, skills, slashCmds, subagents, toolPerf, effectiveness, summary] = await Promise.all([
+  const [
+    mcp,
+    skills,
+    skillOutcomes,
+    skillTrend,
+    skillSubagents,
+    skillSequences,
+    slashCmds,
+    subagents,
+    toolPerf,
+    effectiveness,
+    summary,
+  ] = await Promise.all([
     getMcpUsage(user.id, since),
     getSkillUsage(user.id, since),
+    getSkillOutcomes(user.id, since),
+    getSkillTrend(user.id, since),
+    getSkillSubagents(user.id, since),
+    getSkillSequences(user.id, since),
     getSlashCommands(user.id, since),
     getSubagentUsage(user.id, since),
     getToolPerf(user.id, since),
@@ -99,7 +123,7 @@ export default async function InsightsPage({
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Insights</h1>
           <p className="mt-1 text-sm text-text-2">
-            Sessions · friction · shapes · MCP servers · tools
+            Sessions · friction · shapes · MCP servers · tools · skills
           </p>
         </div>
         <DaysSelector current={days} />
@@ -129,13 +153,23 @@ export default async function InsightsPage({
             <>
               <div className="grid gap-6 md:grid-cols-2">
                 <McpSection rows={mcp} />
-                <SkillsSection rows={skills} />
+                <SlashCommandsSection rows={slashCmds} />
               </div>
               <div className="grid gap-6 md:grid-cols-2">
-                <SlashCommandsSection rows={slashCmds} />
                 <SubagentsSection rows={subagents} />
+                <ToolPerfSection rows={toolPerf} />
               </div>
-              <ToolPerfSection rows={toolPerf} />
+
+              {skills.length > 0 && (
+                <SkillsSection
+                  rows={skills}
+                  outcomes={skillOutcomes}
+                  trend={skillTrend}
+                  subagents={skillSubagents}
+                />
+              )}
+
+              {skillSequences.length > 0 && <SkillSequencesSection rows={skillSequences} />}
             </>
           )}
         </>
@@ -238,28 +272,182 @@ function McpSection({ rows }: { rows: McpUsageRow[] }) {
   );
 }
 
-function SkillsSection({ rows }: { rows: SkillUsageRow[] }) {
+const STATUS_COLORS: Record<string, string> = {
+  ABANDONED: 'bg-yellow-500/20 text-yellow-400',
+  COMPLETED: 'bg-emerald-500/20 text-emerald-400',
+  ERROR: 'bg-red-500/20 text-red-400',
+};
+
+function SkillsSection({
+  rows,
+  outcomes,
+  trend,
+  subagents,
+}: {
+  outcomes: SkillOutcomeRow[];
+  rows: SkillUsageRow[];
+  subagents: SkillSubagentRow[];
+  trend: SkillTrendRow[];
+}) {
+  // Index outcomes and subagents by skillName for fast lookup
+  const outcomesBySkill = new Map<string, SkillOutcomeRow[]>();
+  for (const o of outcomes) {
+    if (!outcomesBySkill.has(o.skillName)) {
+      outcomesBySkill.set(o.skillName, []);
+    }
+    outcomesBySkill.get(o.skillName)?.push(o);
+  }
+  const subagentBySkill = new Map(subagents.map((s) => [s.skillName, s]));
+
+  // Build a mini daily trend sparkline per skill
+  const days = Array.from(new Set(trend.map((t) => t.day.toISOString()))).sort();
+  const trendBySkill = new Map<string, number[]>();
+  for (const r of rows) {
+    const counts = days.map((d) => {
+      const match = trend.find((t) => t.skillName === r.skillName && t.day.toISOString() === d);
+      return match?.useCount ?? 0;
+    });
+    trendBySkill.set(r.skillName, counts);
+  }
+
+  const maxCalls = Math.max(...rows.map((r) => r.useCount), 1);
+
   return (
-    <SectionShell title="Skills" empty={rows.length === 0}>
-      <div className="space-y-1.5">
-        {rows.map((r) => (
+    <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">Skills</h2>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-text-3 border-b border-border text-xs">
+              <th className="pb-2 font-medium">Skill</th>
+              <th className="pb-2 font-medium text-right">Uses</th>
+              <th className="pb-2 font-medium text-right">Sessions</th>
+              <th className="pb-2 font-medium text-right">Avg session $</th>
+              <th className="pb-2 font-medium text-right">Avg subagents</th>
+              <th className="pb-2 font-medium">Outcomes</th>
+              <th className="pb-2 font-medium">Trend</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border-subtle">
+            {rows.map((r) => {
+              const skillOutcomes = outcomesBySkill.get(r.skillName) ?? [];
+              const totalOutcomeSessions = skillOutcomes.reduce((s, o) => s + o.sessionCount, 0);
+              const sub = subagentBySkill.get(r.skillName);
+              const sparkline = trendBySkill.get(r.skillName) ?? [];
+              const sparkMax = Math.max(...sparkline, 1);
+
+              return (
+                <tr key={`${r.skillName}-${r.skillPath ?? ''}`}>
+                  <td className="py-2 pr-4">
+                    <div className="space-y-1">
+                      <span className="font-mono text-xs text-text">{r.skillName}</span>
+                      {r.skillPath && (
+                        <span className="block text-xs text-text-3 truncate max-w-[160px]">
+                          {r.skillPath}
+                        </span>
+                      )}
+                      <div className="h-1 w-full rounded-full bg-surface-2">
+                        <div
+                          className="h-full rounded-full bg-accent/50"
+                          style={{ width: `${(r.useCount / maxCalls) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-2 text-right font-mono text-xs text-text">
+                    {r.useCount.toLocaleString()}
+                  </td>
+                  <td className="py-2 text-right font-mono text-xs text-text-2">
+                    {r.sessionCount.toLocaleString()}
+                  </td>
+                  <td className="py-2 text-right font-mono text-xs text-text-2">
+                    {r.avgSessionCostUsd != null ? fmtCost(r.avgSessionCostUsd) : '—'}
+                  </td>
+                  <td className="py-2 text-right font-mono text-xs text-text-2">
+                    {sub != null ? sub.avgSubagents.toFixed(1) : '—'}
+                  </td>
+                  <td className="py-2">
+                    <div className="flex flex-wrap gap-1">
+                      {skillOutcomes.map((o) => {
+                        const cls = STATUS_COLORS[o.status] ?? 'bg-surface-2 text-text-3';
+                        return (
+                          <span
+                            key={o.status}
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${cls}`}
+                          >
+                            {o.status.slice(0, 4)} {pct(o.sessionCount, totalOutcomeSessions)}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </td>
+                  <td className="py-2 pl-2">
+                    <MiniSparkline values={sparkline} max={sparkMax} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function MiniSparkline({ values, max }: { max: number; values: number[] }) {
+  if (values.length === 0) {
+    return <span className="text-text-3 text-xs">—</span>;
+  }
+  return (
+    <div className="flex items-end gap-px h-6 w-16">
+      {values.map((v, i) => {
+        const h = Math.max(2, (v / max) * 24);
+        return (
           <div
-            key={`${r.skillName}-${r.skillPath ?? ''}`}
-            className="flex items-center justify-between text-sm"
-          >
-            <div>
-              <span className="font-mono text-xs text-text">{r.skillName}</span>
-              {r.skillPath && (
-                <span className="ml-2 text-xs text-text-3 truncate max-w-[140px] inline-block align-bottom">
-                  {r.skillPath}
-                </span>
-              )}
+            key={i}
+            className="flex-1 rounded-sm bg-accent/60"
+            style={{ height: `${h}px` }}
+            title={String(v)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function SkillSequencesSection({ rows }: { rows: SkillSequenceRow[] }) {
+  const maxCount = Math.max(...rows.map((r) => r.transitionCount), 1);
+  return (
+    <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+          Skill workflows
+        </h2>
+        <p className="mt-1 text-xs text-text-3">
+          Most common consecutive skill pairs within sessions
+        </p>
+      </div>
+      <div className="space-y-2">
+        {rows.map((r) => (
+          <div key={`${r.fromSkill}→${r.toSkill}`} className="space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5 font-mono text-text">
+                <span className="text-text-2">{r.fromSkill}</span>
+                <span className="text-text-3">→</span>
+                <span className="text-accent">{r.toSkill}</span>
+              </span>
+              <span className="text-text-3">{r.transitionCount}×</span>
             </div>
-            <span className="text-xs text-text-2">{r.useCount}×</span>
+            <div className="h-1 rounded-full bg-surface-2">
+              <div
+                className="h-full rounded-full bg-accent/40"
+                style={{ width: `${(r.transitionCount / maxCount) * 100}%` }}
+              />
+            </div>
           </div>
         ))}
       </div>
-    </SectionShell>
+    </section>
   );
 }
 

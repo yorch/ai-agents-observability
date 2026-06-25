@@ -377,10 +377,38 @@ export type McpServerRow = {
 };
 
 export type SkillRow = {
+  avgSessionCostUsd: number | null;
   callCount: number;
   distinctUsers: number;
   kind: 'skill' | 'slash';
   name: string;
+};
+
+export type TeamSkillRow = {
+  callCount: number;
+  distinctUsers: number;
+  kind: 'skill' | 'slash';
+  name: string;
+  teamName: string;
+};
+
+export type SkillAdoptionRow = {
+  name: string;
+  newUsers: number;
+  recentUsers: number;
+  returningUsers: number;
+};
+
+export type OrgSkillSequenceRow = {
+  fromSkill: string;
+  toSkill: string;
+  transitionCount: number;
+};
+
+export type SkillRoiRow = {
+  ciStatus: string;
+  sessionCount: number;
+  skillName: string;
 };
 
 export type DailyToolVolumeRow = {
@@ -513,20 +541,89 @@ export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
 
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<
-    { call_count: bigint; distinct_users: bigint; kind: string; name: string }[]
+    {
+      avg_session_cost_usd: string | null;
+      call_count: bigint;
+      distinct_users: bigint;
+      kind: string;
+      name: string;
+    }[]
   >(Prisma.sql`
+    WITH invocations AS (
+      SELECT
+        COALESCE(skill_name, slash_command)                            AS name,
+        CASE WHEN skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END AS kind,
+        session_id,
+        user_id,
+        COUNT(*)                                                        AS invocation_count
+      FROM events
+      WHERE user_id IN (${uuids})
+        AND ts >= ${since}
+        AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
+      GROUP BY
+        COALESCE(skill_name, slash_command),
+        CASE WHEN skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END,
+        session_id,
+        user_id
+    )
     SELECT
-      COALESCE(skill_name, slash_command)                         AS name,
-      CASE WHEN skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END AS kind,
-      COUNT(*)                                                    AS call_count,
-      COUNT(DISTINCT user_id)                                     AS distinct_users
-    FROM events
-    WHERE user_id IN (${uuids})
-      AND ts >= ${since}
-      AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
-    GROUP BY skill_name, slash_command
+      i.name,
+      i.kind,
+      SUM(i.invocation_count)::bigint        AS call_count,
+      COUNT(DISTINCT i.user_id)::bigint      AS distinct_users,
+      AVG(s.total_cost_usd)::text            AS avg_session_cost_usd
+    FROM invocations i
+    LEFT JOIN sessions s ON i.session_id = s.session_id
+    GROUP BY i.name, i.kind
     ORDER BY call_count DESC
     LIMIT 20
+  `);
+
+  return rows.map((r) => ({
+    avgSessionCostUsd: r.avg_session_cost_usd != null ? Number(r.avg_session_cost_usd) : null,
+    callCount: Number(r.call_count),
+    distinctUsers: Number(r.distinct_users),
+    kind: r.kind as 'skill' | 'slash',
+    name: r.name,
+  }));
+}
+
+// Tier 2: per-team breakdown of skill/slash usage
+export async function getTeamSkillMatrix(since: Date): Promise<TeamSkillRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    {
+      call_count: bigint;
+      distinct_users: bigint;
+      kind: string;
+      name: string;
+      team_name: string;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      COALESCE(e.skill_name, e.slash_command)                                          AS name,
+      CASE WHEN e.skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END                 AS kind,
+      t.name                                                                            AS team_name,
+      COUNT(*)::bigint                                                                  AS call_count,
+      COUNT(DISTINCT e.user_id)::bigint                                                 AS distinct_users
+    FROM events e
+    JOIN team_members tm ON e.user_id = tm.user_id AND tm.left_at IS NULL
+    JOIN teams t ON tm.team_id = t.id
+    WHERE e.user_id IN (${uuids})
+      AND e.ts >= ${since}
+      AND (e.skill_name IS NOT NULL OR e.slash_command IS NOT NULL)
+    GROUP BY
+      COALESCE(e.skill_name, e.slash_command),
+      CASE WHEN e.skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END,
+      t.name,
+      t.id
+    ORDER BY call_count DESC
+    LIMIT 100
   `);
 
   return rows.map((r) => ({
@@ -534,6 +631,142 @@ export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
     distinctUsers: Number(r.distinct_users),
     kind: r.kind as 'skill' | 'slash',
     name: r.name,
+    teamName: r.team_name,
+  }));
+}
+
+// Tier 2: new vs returning users per skill in the given window
+export async function getSkillAdoptionFunnel(since: Date): Promise<SkillAdoptionRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    {
+      name: string;
+      new_users: bigint;
+      recent_users: bigint;
+      returning_users: bigint;
+    }[]
+  >(Prisma.sql`
+    WITH first_use AS (
+      SELECT
+        user_id,
+        COALESCE(skill_name, slash_command) AS name,
+        MIN(ts)                              AS first_ts
+      FROM events
+      WHERE user_id IN (${uuids})
+        AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
+      GROUP BY user_id, COALESCE(skill_name, slash_command)
+    ),
+    recent_users AS (
+      SELECT DISTINCT
+        user_id,
+        COALESCE(skill_name, slash_command) AS name
+      FROM events
+      WHERE user_id IN (${uuids})
+        AND ts >= ${since}
+        AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
+    )
+    SELECT
+      ru.name,
+      COUNT(DISTINCT ru.user_id)::bigint                                          AS recent_users,
+      COUNT(DISTINCT ru.user_id) FILTER (WHERE fu.first_ts >= ${since})::bigint  AS new_users,
+      COUNT(DISTINCT ru.user_id) FILTER (WHERE fu.first_ts < ${since})::bigint   AS returning_users
+    FROM recent_users ru
+    JOIN first_use fu ON ru.user_id = fu.user_id AND ru.name = fu.name
+    GROUP BY ru.name
+    ORDER BY recent_users DESC
+    LIMIT 20
+  `);
+
+  return rows.map((r) => ({
+    name: r.name,
+    newUsers: Number(r.new_users),
+    recentUsers: Number(r.recent_users),
+    returningUsers: Number(r.returning_users),
+  }));
+}
+
+// Tier 3: most common skill → skill transitions within sessions (org-wide)
+export async function getOrgSkillSequences(since: Date): Promise<OrgSkillSequenceRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    { from_skill: string; to_skill: string; transition_count: bigint }[]
+  >(Prisma.sql`
+    WITH skill_events AS (
+      SELECT
+        session_id,
+        COALESCE(skill_name, slash_command) AS name,
+        LEAD(COALESCE(skill_name, slash_command)) OVER (
+          PARTITION BY session_id ORDER BY ts
+        ) AS next_name
+      FROM events
+      WHERE user_id IN (${uuids})
+        AND ts >= ${since}
+        AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
+    )
+    SELECT
+      name             AS from_skill,
+      next_name        AS to_skill,
+      COUNT(*)::bigint AS transition_count
+    FROM skill_events
+    WHERE next_name IS NOT NULL
+      AND name != next_name
+    GROUP BY name, next_name
+    ORDER BY transition_count DESC
+    LIMIT 20
+  `);
+
+  return rows.map((r) => ({
+    fromSkill: r.from_skill,
+    toSkill: r.to_skill,
+    transitionCount: Number(r.transition_count),
+  }));
+}
+
+// Tier 3: skill correlation with PR CI status (proxy for code quality impact)
+export async function getSkillRoi(since: Date): Promise<SkillRoiRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    { ci_status: string; session_count: bigint; skill_name: string }[]
+  >(Prisma.sql`
+    WITH skill_sessions AS (
+      SELECT DISTINCT
+        COALESCE(e.skill_name, e.slash_command) AS skill_name,
+        e.session_id
+      FROM events e
+      WHERE e.user_id IN (${uuids})
+        AND e.ts >= ${since}
+        AND (e.skill_name IS NOT NULL OR e.slash_command IS NOT NULL)
+    )
+    SELECT
+      ss.skill_name,
+      s.pr_ci_status        AS ci_status,
+      COUNT(DISTINCT ss.session_id)::bigint AS session_count
+    FROM skill_sessions ss
+    JOIN sessions s ON ss.session_id = s.session_id
+    WHERE s.pr_ci_status IS NOT NULL
+    GROUP BY ss.skill_name, s.pr_ci_status
+    ORDER BY ss.skill_name, session_count DESC
+  `);
+
+  return rows.map((r) => ({
+    ciStatus: r.ci_status,
+    sessionCount: Number(r.session_count),
+    skillName: r.skill_name,
   }));
 }
 

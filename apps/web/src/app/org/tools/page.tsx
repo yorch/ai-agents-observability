@@ -3,11 +3,19 @@ import {
   type DailyToolVolumeRow,
   getDailyToolVolume,
   getMcpServerUsage,
+  getOrgSkillSequences,
+  getSkillAdoptionFunnel,
+  getSkillRoi,
   getSkillUsage,
+  getTeamSkillMatrix,
   getToolCategoryBreakdown,
   getToolStats,
   type McpServerRow,
+  type OrgSkillSequenceRow,
+  type SkillAdoptionRow,
+  type SkillRoiRow,
   type SkillRow,
+  type TeamSkillRow,
   type ToolStatRow,
 } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
@@ -21,12 +29,26 @@ export default async function OrgToolsPage() {
 
   const since = daysAgo(30);
 
-  const [tools, categories, mcpServers, skills, dailyVolume] = await Promise.all([
+  const [
+    tools,
+    categories,
+    mcpServers,
+    skills,
+    dailyVolume,
+    teamSkillMatrix,
+    skillAdoption,
+    skillSequences,
+    skillRoi,
+  ] = await Promise.all([
     getToolStats(since, 20),
     getToolCategoryBreakdown(since),
     getMcpServerUsage(since),
     getSkillUsage(since),
     getDailyToolVolume(since),
+    getTeamSkillMatrix(since),
+    getSkillAdoptionFunnel(since),
+    getOrgSkillSequences(since),
+    getSkillRoi(since),
   ]);
 
   const totalCalls = tools.reduce((s, t) => s + t.callCount, 0);
@@ -104,11 +126,55 @@ export default async function OrgToolsPage() {
         </section>
       </div>
 
-      {/* Skills & slash commands */}
-      {skills.length > 0 && (
+      {/* Skills & slash commands — always rendered so the section is visible even before data */}
+      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-white/70">Skills & slash commands</h2>
+        {skills.length === 0 ? (
+          <p className="text-sm text-white/40">
+            No skill or slash command invocations in the last 30 days. Skills are captured when the{' '}
+            <span className="font-mono text-white/60">Skill</span> tool fires (e.g.{' '}
+            <span className="font-mono text-white/60">/code-review</span>,{' '}
+            <span className="font-mono text-white/60">/commit</span>).
+          </p>
+        ) : (
+          <SkillsTable skills={skills} adoption={skillAdoption} />
+        )}
+      </section>
+
+      {/* Team skill matrix */}
+      {teamSkillMatrix.length > 0 && (
         <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-white/70">Skills & slash commands</h2>
-          <SkillsTable skills={skills} />
+          <div>
+            <h2 className="text-sm font-semibold text-white/70">Skill adoption by team</h2>
+            <p className="text-xs text-white/40 mt-0.5">Which skills each team uses most</p>
+          </div>
+          <TeamSkillMatrix rows={teamSkillMatrix} />
+        </section>
+      )}
+
+      {/* Skill workflows */}
+      {skillSequences.length > 0 && (
+        <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-white/70">Skill workflows</h2>
+            <p className="text-xs text-white/40 mt-0.5">
+              Most common consecutive skill pairs within sessions
+            </p>
+          </div>
+          <SkillSequences rows={skillSequences} />
+        </section>
+      )}
+
+      {/* Skill ROI */}
+      {skillRoi.length > 0 && (
+        <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-white/70">Skill × PR CI status</h2>
+            <p className="text-xs text-white/40 mt-0.5">
+              Sessions using each skill, broken down by PR CI outcome
+            </p>
+          </div>
+          <SkillRoiTable rows={skillRoi} />
         </section>
       )}
     </div>
@@ -293,8 +359,10 @@ function McpTable({ servers }: { servers: McpServerRow[] }) {
   );
 }
 
-function SkillsTable({ skills }: { skills: SkillRow[] }) {
+function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skills: SkillRow[] }) {
   const maxCalls = Math.max(...skills.map((s) => s.callCount), 1);
+  const adoptionByName = new Map(adoption.map((a) => [a.name, a]));
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -304,39 +372,210 @@ function SkillsTable({ skills }: { skills: SkillRow[] }) {
             <th className="pb-2 font-medium">Type</th>
             <th className="pb-2 font-medium text-right">Invocations</th>
             <th className="pb-2 font-medium text-right">Users</th>
+            <th className="pb-2 font-medium text-right">Avg session $</th>
+            <th className="pb-2 font-medium text-right">New / Return</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/5">
-          {skills.map((s) => (
-            <tr key={`${s.kind}:${s.name}`}>
-              <td className="py-2 pr-3">
-                <div className="space-y-1">
-                  <span className="font-mono text-xs text-white/90">{s.name}</span>
-                  <div className="h-1 w-full rounded-full bg-white/5">
-                    <div
-                      className="h-full rounded-full bg-brand-500/60"
-                      style={{ width: `${(s.callCount / maxCalls) * 100}%` }}
-                    />
+          {skills.map((s) => {
+            const adp = adoptionByName.get(s.name);
+            return (
+              <tr key={`${s.kind}:${s.name}`}>
+                <td className="py-2 pr-3">
+                  <div className="space-y-1">
+                    <span className="font-mono text-xs text-white/90">{s.name}</span>
+                    <div className="h-1 w-full rounded-full bg-white/5">
+                      <div
+                        className="h-full rounded-full bg-brand-500/60"
+                        style={{ width: `${(s.callCount / maxCalls) * 100}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td className="py-2">
+                </td>
+                <td className="py-2">
+                  <span
+                    className={`text-xs px-1.5 py-0.5 rounded font-mono ${
+                      s.kind === 'skill'
+                        ? 'bg-brand-500/20 text-brand-400'
+                        : 'bg-white/10 text-white/60'
+                    }`}
+                  >
+                    {s.kind === 'skill' ? 'skill' : '/cmd'}
+                  </span>
+                </td>
+                <td className="py-2 text-right font-mono text-xs">
+                  {s.callCount.toLocaleString()}
+                </td>
+                <td className="py-2 text-right text-xs text-white/60">{s.distinctUsers}</td>
+                <td className="py-2 text-right font-mono text-xs text-white/60">
+                  {s.avgSessionCostUsd != null ? `$${s.avgSessionCostUsd.toFixed(2)}` : '—'}
+                </td>
+                <td className="py-2 text-right text-xs text-white/60">
+                  {adp != null ? (
+                    <span>
+                      <span className="text-emerald-400">{adp.newUsers}</span>
+                      {' / '}
+                      <span>{adp.returningUsers}</span>
+                    </span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TeamSkillMatrix({ rows }: { rows: TeamSkillRow[] }) {
+  // Group skills by name, collect teams
+  const bySkill = new Map<string, { kind: string; teams: Map<string, number> }>();
+  for (const r of rows) {
+    if (!bySkill.has(r.name)) {
+      bySkill.set(r.name, { kind: r.kind, teams: new Map() });
+    }
+    bySkill.get(r.name)?.teams.set(r.teamName, r.callCount);
+  }
+
+  const allTeams = Array.from(new Set(rows.map((r) => r.teamName))).sort();
+
+  if (allTeams.length === 0) {
+    return <p className="text-sm text-white/40">No team membership data available.</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-white/40 text-left">
+            <th className="pb-2 font-medium pr-4">Skill</th>
+            {allTeams.map((t) => (
+              <th key={t} className="pb-2 font-medium text-right px-2 truncate max-w-20">
+                {t}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {[...bySkill.entries()].map(([name, { kind, teams }]) => (
+            <tr key={name}>
+              <td className="py-2 pr-4">
+                <span className="font-mono text-white/80">{name}</span>
                 <span
-                  className={`text-xs px-1.5 py-0.5 rounded font-mono ${
-                    s.kind === 'skill'
+                  className={`ml-2 text-[10px] px-1 py-0.5 rounded ${
+                    kind === 'skill'
                       ? 'bg-brand-500/20 text-brand-400'
-                      : 'bg-white/10 text-white/60'
+                      : 'bg-white/10 text-white/50'
                   }`}
                 >
-                  {s.kind === 'skill' ? 'skill' : '/cmd'}
+                  {kind === 'skill' ? 's' : '/'}
                 </span>
               </td>
-              <td className="py-2 text-right font-mono text-xs">{s.callCount.toLocaleString()}</td>
-              <td className="py-2 text-right text-xs text-white/60">{s.distinctUsers}</td>
+              {allTeams.map((t) => {
+                const count = teams.get(t);
+                return (
+                  <td key={t} className="py-2 text-right px-2 font-mono">
+                    {count != null ? (
+                      <span className="text-white/70">{count.toLocaleString()}</span>
+                    ) : (
+                      <span className="text-white/20">—</span>
+                    )}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function SkillSequences({ rows }: { rows: OrgSkillSequenceRow[] }) {
+  const maxCount = Math.max(...rows.map((r) => r.transitionCount), 1);
+  return (
+    <div className="space-y-2">
+      {rows.map((r) => (
+        <div key={`${r.fromSkill}→${r.toSkill}`} className="space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 font-mono">
+              <span className="text-white/70">{r.fromSkill}</span>
+              <span className="text-white/30">→</span>
+              <span className="text-brand-400">{r.toSkill}</span>
+            </span>
+            <span className="text-white/40">{r.transitionCount}×</span>
+          </div>
+          <div className="h-1 rounded-full bg-white/5">
+            <div
+              className="h-full rounded-full bg-brand-500/50"
+              style={{ width: `${(r.transitionCount / maxCount) * 100}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const CI_COLORS: Record<string, string> = {
+  failure: 'text-red-400',
+  pending: 'text-yellow-400',
+  success: 'text-emerald-400',
+};
+
+function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
+  // Group by skill name, then list CI statuses
+  const bySkill = new Map<string, SkillRoiRow[]>();
+  for (const r of rows) {
+    if (!bySkill.has(r.skillName)) {
+      bySkill.set(r.skillName, []);
+    }
+    bySkill.get(r.skillName)?.push(r);
+  }
+
+  return (
+    <div className="space-y-4">
+      {[...bySkill.entries()].map(([skill, ciRows]) => {
+        const total = ciRows.reduce((s, r) => s + r.sessionCount, 0);
+        const successCount = ciRows.find((r) => r.ciStatus === 'success')?.sessionCount ?? 0;
+        const passRate = total > 0 ? (successCount / total) * 100 : 0;
+        return (
+          <div key={skill} className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-mono text-white/80">{skill}</span>
+              <span className="text-emerald-400 font-mono">{passRate.toFixed(0)}% pass</span>
+            </div>
+            <div className="flex gap-1">
+              {ciRows.map((r) => {
+                const w = total > 0 ? (r.sessionCount / total) * 100 : 0;
+                const cls = CI_COLORS[r.ciStatus] ?? 'text-white/40';
+                return (
+                  <div
+                    key={r.ciStatus}
+                    className="text-[10px] font-mono"
+                    style={{ width: `${w}%` }}
+                  >
+                    <div
+                      className={`h-2 rounded-sm ${
+                        r.ciStatus === 'success'
+                          ? 'bg-emerald-500/40'
+                          : r.ciStatus === 'failure'
+                            ? 'bg-red-500/40'
+                            : 'bg-yellow-500/40'
+                      }`}
+                      title={`${r.ciStatus}: ${r.sessionCount} sessions`}
+                    />
+                    <span className={`${cls} block text-center`}>{r.ciStatus.slice(0, 4)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
