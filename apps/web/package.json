@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "bun run --env-file=../../.env next dev",
-    "build": "next build",
+    "build": "NEXT_FONT_GOOGLE_MOCKED_RESPONSES=$(pwd)/src/fonts-mock/google-fonts-mock.js next build --webpack",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"

@@ -1,37 +1,57 @@
 /**
  * Mocked Google Fonts CSS responses for offline/CI builds.
- * Set NEXT_FONT_GOOGLE_MOCKED_RESPONSES to the path of this file.
- * When this env var is set, next/font/google uses these responses instead of
- * hitting fonts.googleapis.com — required in egress-restricted environments.
  *
- * The font file URLs in src: url(...) are returned as-is as a Buffer when mocked,
- * so any non-empty string works.
+ * Set via NEXT_FONT_GOOGLE_MOCKED_RESPONSES env var in the build script.
+ * next/font/google checks this env var and uses these CSS responses instead
+ * of fetching from fonts.googleapis.com — required in network-restricted CI.
+ *
+ * Font file URLs must end in .woff/.woff2/.eot/.ttf/.otf so that next/font
+ * can extract the extension. When NEXT_FONT_GOOGLE_MOCKED_RESPONSES is set,
+ * next/font returns Buffer.from(url) as the font binary (a harmless stub).
  */
 
-// Helper to generate a minimal @font-face block
-function face(family, weight, url) {
-  return `/* latin */\n@font-face {\n  font-family: '${family}';\n  font-style: normal;\n  font-weight: ${weight};\n  font-display: swap;\n  src: url(${url}) format('woff2');\n  unicode-range: U+0000-00FF;\n}\n`;
+// Stub URL pattern: next/font uses the URL to infer the file extension only.
+// The actual bytes returned are Buffer.from(url) — a string, not a real font.
+// That's fine for CI builds where we only need compilation to succeed.
+const STUB = 'https://fonts.gstatic.com/s/stub/v1/mock.woff2';
+
+function face(family, weight) {
+  return (
+    '/* latin */\n' +
+    '@font-face {\n' +
+    "  font-family: '" +
+    family +
+    "';\n" +
+    '  font-style: normal;\n' +
+    '  font-weight: ' +
+    weight +
+    ';\n' +
+    '  font-display: swap;\n' +
+    '  src: url(' +
+    STUB +
+    ") format('woff2');\n" +
+    '  unicode-range: U+0000-00FF;\n' +
+    '}\n'
+  );
 }
 
-const dmSansUrl = 'https://fonts.gstatic.com/s/dmsans/v15/mock.woff2';
-const ibmPlexMonoUrl = 'https://fonts.gstatic.com/s/ibmplexmono/v19/mock.woff2';
-const syneUrl = 'https://fonts.gstatic.com/s/syne/v22/mock.woff2';
-
-// DM Sans: variable weight 100..1000
-// URL pattern: https://fonts.googleapis.com/css2?family=DM+Sans:wght@100..1000&display=swap
-const dmSansCSS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
-  .map((w) => face('DM Sans', w, dmSansUrl))
+var dmSansCSS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+  .map(function (w) {
+    return face('DM Sans', w);
+  })
   .join('\n');
 
-// IBM Plex Mono: weights 400, 500, 600
-// URL pattern: https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap
-const ibmPlexMonoCSS = [400, 500, 600]
-  .map((w) => face('IBM Plex Mono', w, ibmPlexMonoUrl))
+var ibmPlexMonoCSS = [400, 500, 600]
+  .map(function (w) {
+    return face('IBM Plex Mono', w);
+  })
   .join('\n');
 
-// Syne: weights 400, 500, 600, 700, 800
-// URL pattern: https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&display=swap
-const syneCSS = [400, 500, 600, 700, 800].map((w) => face('Syne', w, syneUrl)).join('\n');
+var syneCSS = [400, 500, 600, 700, 800]
+  .map(function (w) {
+    return face('Syne', w);
+  })
+  .join('\n');
 
 module.exports = {
   'https://fonts.googleapis.com/css2?family=DM+Sans:wght@100..1000&display=swap': dmSansCSS,

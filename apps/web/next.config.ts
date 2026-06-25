@@ -3,6 +3,12 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Skip Next.js's built-in TypeScript check — we run `tsc --noEmit` separately
+  // via `bun run typecheck`. Running two tsc instances in parallel causes SIGKILL
+  // in memory-constrained CI environments (the webpack build already spawns workers).
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   // Prisma's generated client is gitignored and created at build time.
   // Next.js's file tracer doesn't reliably pick up generated code, so we
   // force-include it here so the standalone bundle contains the client.
