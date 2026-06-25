@@ -1198,11 +1198,11 @@ Cache efficiency: 68%</code></pre>
     <div class="eyebrow">Roadmap → Multi-Agent</div>
     <h2>Designed for the plural case from day one</h2>
     <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.5em;font-size:0.7em">
+    <div class="cols2" style="margin-top:0.3em;font-size:0.65em">
       <div>
         <div class="card card-blue">
           <div class="label">agent_type on every row — live adapters</div>
-          <pre style="font-size:0.85em;margin:0.5em 0"><code>-- shipped adapters have ✓
+          <pre style="font-size:0.85em;margin:0.4em 0"><code>-- shipped adapters have ✓
 agent_type IN (
   'CLAUDE_CODE',  -- ✓ Phase 1
   'OPENCODE',     -- ✓ Phase 8
@@ -1224,14 +1224,14 @@ agent_type IN (
             <li>Codex adds optional <code>mapBatch</code> for multi-event hook fires</li>
           </ul>
         </div>
-        <div class="card" style="margin-top:0.4em">
+        <div class="card" style="margin-top:0.3em">
           <div class="label">Per-agent price tables</div>
           <ul style="margin-top:0.3em">
             <li>Cost keyed on <code>(agent_type, model)</code> — historically reproducible</li>
             <li>Codex ships empty table (<code>$0</code> until OpenAI rates filled in)</li>
           </ul>
         </div>
-        <div class="card" style="margin-top:0.4em">
+        <div class="card" style="margin-top:0.3em">
           <div class="label">Tool name namespacing</div>
           <ul style="margin-top:0.3em">
             <li><code>CLAUDE_CODE:Edit</code> vs <code>CURSOR:Edit</code> — no collision</li>
