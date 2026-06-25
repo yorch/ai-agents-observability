@@ -77,9 +77,6 @@
       "vitest": "4.1.6",
       "zod": "4.1.0",
       "@faker-js/faker": "9.8.0",
-      "@fontsource-variable/dm-sans": "5.2.8",
-      "@fontsource-variable/syne": "5.2.7",
-      "@fontsource/ibm-plex-mono": "5.2.7",
       "js-yaml": "4.1.0",
       "@types/js-yaml": "4.0.9",
       "prom-client": "15.1.3"

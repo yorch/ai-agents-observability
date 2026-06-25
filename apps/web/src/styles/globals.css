@@ -1,16 +1,11 @@
-@import "@fontsource-variable/dm-sans";
-@import "@fontsource-variable/syne";
-@import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/500.css";
-@import "@fontsource/ibm-plex-mono/600.css";
 @import "tailwindcss";
 
 /* ── Design tokens ────────────────────────────────────────────────────────── */
 
 @theme {
-  --font-display: "Syne Variable", ui-sans-serif, sans-serif;
-  --font-body: "DM Sans Variable", ui-sans-serif, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: ui-sans-serif, system-ui, sans-serif;
+  --font-body: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", SFMono-Regular, monospace;
 
   /* Semantic color aliases — values resolved from CSS custom properties      */
   /* so dark/light mode only needs to update the props, not Tailwind classes. */

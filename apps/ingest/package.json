@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "bun run --watch --env-file=../../.env src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun --external keytar",
+    "build": "bun build src/index.ts --outdir dist --target bun",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
