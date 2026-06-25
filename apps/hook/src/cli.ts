@@ -1,4 +1,5 @@
 import { type HookAdapter, selectAdapter } from './adapters';
+import { runImport } from './commands/import';
 import { runInstall } from './commands/install';
 import { runLogin } from './commands/login';
 import { runPause } from './commands/pause';
@@ -36,6 +37,7 @@ Commands:
   pause         Pause telemetry collection (writes a marker file)
   resume        Resume telemetry collection (removes the marker)
   purge-local   Remove all local data (queue, logs, identity) — use --yes to confirm
+  import         Import historical Claude Code sessions from ~/.claude/projects
   install       Write launchd/systemd service files and print the hook snippet
   uninstall     Remove service files (does not remove local data)
 
@@ -117,6 +119,10 @@ async function main(): Promise<number> {
 
   if (cmd === 'uninstall') {
     return runUninstall();
+  }
+
+  if (cmd === 'import') {
+    return runImport(args);
   }
 
   process.stderr.write(`Unknown command: ${cmd}\nRun \`claude-telemetry --help\` for usage.\n`);
