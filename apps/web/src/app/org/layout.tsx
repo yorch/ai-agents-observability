@@ -3,8 +3,11 @@ import type { ReactNode } from 'react';
 
 const NAV = [
   { href: '/org/dashboard', label: 'Dashboard' },
-  { href: '/org/search', label: 'Search' },
+  { href: '/org/adoption', label: 'Adoption' },
+  { href: '/org/delivery', label: 'Delivery' },
+  { href: '/org/benchmarks', label: 'Benchmarks' },
   { href: '/org/tools', label: 'Tools' },
+  { href: '/org/search', label: 'Search' },
 ];
 
 export function OrgSubNav({ active }: { active: string }) {
