@@ -7,6 +7,7 @@ const NAV = [
   { href: '/org/delivery', label: 'Delivery' },
   { href: '/org/benchmarks', label: 'Benchmarks' },
   { href: '/org/tools', label: 'Tool Usage' },
+  { href: '/org/mcp', label: 'MCP' },
   { href: '/org/skills', label: 'Skills' },
   { href: '/org/teams', label: 'Teams' },
   { href: '/org/search', label: 'Search' },
