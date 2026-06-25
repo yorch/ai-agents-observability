@@ -10,6 +10,10 @@ const DEMO_USER_LOGIN = 'demo-dev';
 const SEED_PW_EMAIL = 'local@example.com';
 const SEED_PW_PASSWORD = 'demo1234';
 
+// ORG_ADMIN user — full admin access for testing admin-gated pages.
+const SEED_ADMIN_EMAIL = 'admin@example.com';
+const SEED_ADMIN_PASSWORD = 'admin1234';
+
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
   throw new Error('DATABASE_URL is required');
@@ -18,20 +22,32 @@ const db = createClient(DATABASE_URL);
 
 async function main() {
   // Cleanup in FK-safe order: sessions (no cascade from user) → repos (cascade PRs/rollups) → user → team
-  const existing = await db.user.findUnique({ where: { githubLogin: DEMO_USER_LOGIN } });
+  const existing = await db.user.findUnique({
+    where: { githubLogin: DEMO_USER_LOGIN },
+  });
   if (existing) {
     await db.session.deleteMany({ where: { userId: existing.id } });
   }
   // Password-only user has no githubLogin — look up by email.
-  const existingPwUser = await db.user.findUnique({ where: { email: SEED_PW_EMAIL } });
+  const existingPwUser = await db.user.findUnique({
+    where: { email: SEED_PW_EMAIL },
+  });
   if (existingPwUser) {
     await db.user.delete({ where: { id: existingPwUser.id } });
+  }
+  const existingAdminUser = await db.user.findUnique({
+    where: { email: SEED_ADMIN_EMAIL },
+  });
+  if (existingAdminUser) {
+    await db.user.delete({ where: { id: existingAdminUser.id } });
   }
   await db.repo.deleteMany({ where: { githubOwner: 'demo-org' } });
   if (existing) {
     await db.user.delete({ where: { id: existing.id } });
   }
-  const existingTeam = await db.team.findUnique({ where: { githubSlug: 'demo-org' } });
+  const existingTeam = await db.team.findUnique({
+    where: { githubSlug: 'demo-org' },
+  });
   if (existingTeam) {
     await db.team.delete({ where: { id: existingTeam.id } });
   }
@@ -84,7 +100,28 @@ async function main() {
     },
   });
   await db.teamMember.create({
-    data: { roleInTeam: 'MEMBER', teamId: team.id, userId: pwUser.id },
+    data: { roleInTeam: 'LEAD', teamId: team.id, userId: pwUser.id },
+  });
+
+  // ORG_ADMIN user — use this to test admin-gated pages without GitHub OAuth.
+  const adminHash = await hashPassword(SEED_ADMIN_PASSWORD);
+  await db.user.create({
+    data: {
+      displayName: 'Org Admin',
+      email: SEED_ADMIN_EMAIL,
+      lastSeenAt: new Date(),
+      orgRole: 'ORG_ADMIN',
+      passwordHash: adminHash,
+      primaryTeamId: team.id,
+      visibilityPolicy: {
+        create: {
+          shareMetadataWithOrg: true,
+          shareMetadataWithTeam: true,
+          shareTranscriptsWithOrg: false,
+          shareTranscriptsWithTeam: false,
+        },
+      },
+    },
   });
 
   // VisibilityPolicy — transcripts off by default per §10
@@ -112,7 +149,12 @@ async function main() {
   // Sessions — 30 days × 3/day = 90
   const sessions: string[] = [];
   const now = Date.now();
-  const PRICE_PER_MTOK = { cache_read: 0.3, cache_write: 3.75, input: 3.0, output: 15.0 };
+  const PRICE_PER_MTOK = {
+    cache_read: 0.3,
+    cache_write: 3.75,
+    input: 3.0,
+    output: 15.0,
+  };
 
   for (let day = 29; day >= 0; day--) {
     for (let i = 0; i < 3; i++) {
@@ -121,9 +163,18 @@ async function main() {
       );
       // Long-tail distribution: most sessions 5–30 min, a few multi-hour
       const durationMs = faker.helpers.weightedArrayElement([
-        { value: faker.number.int({ max: 30, min: 5 }) * 60 * 1000, weight: 60 },
-        { value: faker.number.int({ max: 120, min: 30 }) * 60 * 1000, weight: 30 },
-        { value: faker.number.int({ max: 360, min: 120 }) * 60 * 1000, weight: 10 },
+        {
+          value: faker.number.int({ max: 30, min: 5 }) * 60 * 1000,
+          weight: 60,
+        },
+        {
+          value: faker.number.int({ max: 120, min: 30 }) * 60 * 1000,
+          weight: 30,
+        },
+        {
+          value: faker.number.int({ max: 360, min: 120 }) * 60 * 1000,
+          weight: 10,
+        },
       ]);
       const endedAt = new Date(startedAt.getTime() + durationMs);
       const inputTokens = faker.number.int({ max: 50000, min: 1000 });
@@ -162,7 +213,10 @@ async function main() {
           startedAt,
           status: 'COMPLETED',
           toolCallCount: toolCalls,
-          toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.1), min: 0 }),
+          toolErrorCount: faker.number.int({
+            max: Math.floor(toolCalls * 0.1),
+            min: 0,
+          }),
           totalCacheCreation: BigInt(cacheCreation),
           totalCacheRead: BigInt(cacheRead),
           totalCostUsd: costUsd,
@@ -207,11 +261,36 @@ async function main() {
 
   // Pull Requests — 5 total, 3 merged
   const prData = [
-    { merged: true, number: 101, state: 'merged' as const, title: 'feat: add user dashboard' },
-    { merged: true, number: 102, state: 'merged' as const, title: 'fix: token expiry check' },
-    { merged: true, number: 103, state: 'merged' as const, title: 'chore: update deps' },
-    { merged: false, number: 104, state: 'open' as const, title: 'feat: team view' },
-    { merged: false, number: 105, state: 'closed' as const, title: 'refactor: cleanup' },
+    {
+      merged: true,
+      number: 101,
+      state: 'merged' as const,
+      title: 'feat: add user dashboard',
+    },
+    {
+      merged: true,
+      number: 102,
+      state: 'merged' as const,
+      title: 'fix: token expiry check',
+    },
+    {
+      merged: true,
+      number: 103,
+      state: 'merged' as const,
+      title: 'chore: update deps',
+    },
+    {
+      merged: false,
+      number: 104,
+      state: 'open' as const,
+      title: 'feat: team view',
+    },
+    {
+      merged: false,
+      number: 105,
+      state: 'closed' as const,
+      title: 'refactor: cleanup',
+    },
   ];
 
   for (const pr of prData) {
@@ -249,9 +328,20 @@ async function main() {
     const linkedSessions = faker.helpers.arrayElements(sessions, 2);
     for (const sessionId of linkedSessions) {
       await db.sessionPRLink.upsert({
-        create: { linkSource: 'SESSION_START', prNumber: pr.number, repoId: repo.id, sessionId },
+        create: {
+          linkSource: 'SESSION_START',
+          prNumber: pr.number,
+          repoId: repo.id,
+          sessionId,
+        },
         update: {},
-        where: { sessionId_repoId_prNumber: { prNumber: pr.number, repoId: repo.id, sessionId } },
+        where: {
+          sessionId_repoId_prNumber: {
+            prNumber: pr.number,
+            repoId: repo.id,
+            sessionId,
+          },
+        },
       });
     }
 
@@ -261,13 +351,21 @@ async function main() {
         data: {
           contributingSessionIds: linkedSessions,
           contributingUserIds: [user.id],
-          costPerLoc: faker.number.float({ fractionDigits: 6, max: 0.05, min: 0.001 }),
+          costPerLoc: faker.number.float({
+            fractionDigits: 6,
+            max: 0.05,
+            min: 0.001,
+          }),
           firstSessionAt: openedAt,
           lastSessionAt: mergedAt,
           prNumber: pr.number,
           repoId: repo.id,
           totalActiveSeconds: faker.number.int({ max: 7200, min: 600 }),
-          totalCostUsd: faker.number.float({ fractionDigits: 6, max: 2.0, min: 0.01 }),
+          totalCostUsd: faker.number.float({
+            fractionDigits: 6,
+            max: 2.0,
+            min: 0.01,
+          }),
           totalInputTokens: BigInt(faker.number.int({ max: 50000, min: 5000 })),
           totalOutputTokens: BigInt(faker.number.int({ max: 10000, min: 1000 })),
           totalPermissionDenies: faker.number.int({ max: 5, min: 0 }),
@@ -279,10 +377,11 @@ async function main() {
   }
 
   console.log(
-    `Seed complete. Created: 1 team, 2 users, 1 repo, ${sessions.length} sessions, 5 PRs.`,
+    `Seed complete. Created: 1 team, 3 users, 1 repo, ${sessions.length} sessions, 5 PRs.`,
   );
   console.log(`  GitHub user : ${SEED_EMAIL} (login via GitHub OAuth)`);
   console.log(`  Password user: ${SEED_PW_EMAIL} / ${SEED_PW_PASSWORD}`);
+  console.log(`  Admin user  : ${SEED_ADMIN_EMAIL} / ${SEED_ADMIN_PASSWORD} (ORG_ADMIN)`);
   await db.$disconnect();
 }
 
