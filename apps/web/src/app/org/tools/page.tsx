@@ -257,7 +257,10 @@ function McpTable({ servers }: { servers: McpServerRow[] }) {
     if (!grouped.has(row.mcpServer)) {
       grouped.set(row.mcpServer, { tools: [], totalCalls: 0, users: new Set() });
     }
-    const entry = grouped.get(row.mcpServer)!;
+    const entry = grouped.get(row.mcpServer);
+    if (!entry) {
+      continue;
+    }
     entry.tools.push(row);
     entry.totalCalls += row.callCount;
   }
