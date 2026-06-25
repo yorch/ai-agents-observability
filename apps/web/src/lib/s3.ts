@@ -37,7 +37,12 @@ export async function streamTranscript(
     throw new Error('Empty body from S3');
   }
 
-  const source = Readable.fromWeb(obj.Body as import('stream/web').ReadableStream);
+  // AWS SDK v3 returns a ChecksumStream (Node.js Readable) in Node/Bun runtimes,
+  // not a Web ReadableStream — fromWeb() would throw. Only convert if needed.
+  const source =
+    obj.Body instanceof Readable
+      ? obj.Body
+      : Readable.fromWeb(obj.Body as import('stream/web').ReadableStream);
   const decompressor = createZstdDecompress();
   // `.pipe` does not forward source errors to the destination — wire them up so
   // an S3 read failure tears down the decompressor (and thus the HTTP response)
