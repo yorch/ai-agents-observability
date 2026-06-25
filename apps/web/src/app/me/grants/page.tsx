@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { OrgRole } from '@ai-agents-observability/db';
 import { getPrisma } from '@/lib/prisma';
 import { requireGrantRequester } from '@/lib/roles';
 
@@ -23,15 +22,43 @@ const STATUS_STYLES = {
   revoked: 'bg-red-500/20 text-red-300',
 };
 
+type Grant = {
+  expiresAt: Date | null;
+  grantedAt: Date | null;
+  grantedByUserId: string | null;
+  id: string;
+  justification: string;
+  requestedAt: Date;
+  revokedAt: Date | null;
+  scope: string;
+  targetSessionId: string | null;
+  targetUserId: string | null;
+};
+
 export default async function GrantsPage() {
   const { orgRole, user } = await requireGrantRequester();
-  const isAdmin = orgRole === OrgRole.ORG_ADMIN;
+  // ORG_ADMIN has standing access; investigators rely on individual grants
+  const isAdmin = orgRole === 'ORG_ADMIN';
 
-  const grants = await getPrisma().accessGrant.findMany({
+  const rawGrants = await getPrisma().accessGrant.findMany({
     orderBy: { requestedAt: 'desc' },
     take: 100,
     where: { granteeUserId: user.id },
   });
+
+  // Map to local type to keep JSX below typed
+  const grants: Grant[] = rawGrants.map((g: Grant & { scope: unknown }) => ({
+    expiresAt: g.expiresAt,
+    grantedAt: g.grantedAt,
+    grantedByUserId: g.grantedByUserId,
+    id: g.id,
+    justification: g.justification,
+    requestedAt: g.requestedAt,
+    revokedAt: g.revokedAt,
+    scope: g.scope as string,
+    targetSessionId: g.targetSessionId,
+    targetUserId: g.targetUserId,
+  }));
 
   const active = grants.filter((g) => grantStatus(g) === 'active');
   const pending = grants.filter((g) => grantStatus(g) === 'pending');
@@ -46,7 +73,7 @@ export default async function GrantsPage() {
         <div className="space-y-1">
           <h1 className="text-xl font-semibold">My access grants</h1>
           <p className="text-sm text-white/50">
-            Time-boxed grants give you access to another user's sessions and transcripts.
+            Time-boxed grants give you access to another user&apos;s sessions and transcripts.
             {isAdmin
               ? ' As org admin you also have standing access to all individual sessions.'
               : ' Each grant must be approved by an org admin before it becomes active.'}
@@ -64,7 +91,8 @@ export default async function GrantsPage() {
         <div className="rounded-lg border border-white/10 p-8 text-center">
           <p className="text-sm text-white/50">No access grants yet.</p>
           <p className="mt-1 text-xs text-white/30">
-            Request a grant above to gain time-boxed access to a specific user's sessions or a single session.
+            Request a grant above to gain time-boxed access to a specific user&apos;s sessions or a
+            single session.
           </p>
         </div>
       )}
@@ -99,19 +127,6 @@ export default async function GrantsPage() {
   );
 }
 
-type Grant = {
-  expiresAt: Date | null;
-  grantedAt: Date | null;
-  grantedByUserId: string | null;
-  id: string;
-  justification: string;
-  requestedAt: Date;
-  revokedAt: Date | null;
-  scope: string;
-  targetSessionId: string | null;
-  targetUserId: string | null;
-};
-
 function GrantCard({
   grant: g,
   status,
@@ -128,9 +143,13 @@ function GrantCard({
     <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2 text-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs">
-          <span className={`rounded px-1.5 py-0.5 font-medium ${STATUS_STYLES[status]}`}>{status}</span>
+          <span className={`rounded px-1.5 py-0.5 font-medium ${STATUS_STYLES[status]}`}>
+            {status}
+          </span>
           <span className="text-white/40">· scope: {g.scope}</span>
-          <span className="text-white/30">· requested {new Date(g.requestedAt).toLocaleDateString()}</span>
+          <span className="text-white/30">
+            · requested {new Date(g.requestedAt).toLocaleDateString()}
+          </span>
         </div>
         {sessionLink && (
           <Link
@@ -161,7 +180,9 @@ function GrantCard({
         </div>
       )}
       {g.revokedAt && (
-        <div className="text-xs text-red-300/60">Revoked {new Date(g.revokedAt).toLocaleString()}</div>
+        <div className="text-xs text-red-300/60">
+          Revoked {new Date(g.revokedAt).toLocaleString()}
+        </div>
       )}
     </div>
   );

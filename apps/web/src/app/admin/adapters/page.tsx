@@ -1,13 +1,12 @@
-import { AgentType } from '@ai-agents-observability/db';
 import { agentDisplayName } from '@ai-agents-observability/schemas';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
-// Known adapter agent types — what the hook ships; not every AgentType is an
-// active adapter (CURSOR, AIDER, COPILOT, WINDSURF are planned, not yet shipped).
-const ADAPTER_AGENTS: AgentType[] = [AgentType.CLAUDE_CODE, AgentType.CODEX, AgentType.OPENCODE];
+// Known adapter agent types — what the hook currently ships. Not every value in the
+// AgentType enum is an active adapter (CURSOR, AIDER, COPILOT, WINDSURF are planned).
+const ADAPTER_AGENTS = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'] as const;
 
 function fmtRelative(date: Date | null): string {
   if (!date) return 'never';
@@ -57,17 +56,20 @@ export default async function AdaptersPage() {
     }),
   ]);
 
-  const byAgent = (rows: { agentType: AgentType; _count: { _all: number } }[]) =>
+  const byAgent = (rows: { _count: { _all: number }; agentType: string }[]) =>
     new Map(rows.map((r) => [r.agentType, r._count._all]));
 
   const map7d = byAgent(counts7d);
   const map24h = byAgent(counts24h);
   const mapCrashes = byAgent(crashes7d);
-  const mapLastSeen = new Map(
-    lastSeenRows.map((r) => [r.agentType, r._max.startedAt ?? null]),
+  const mapLastSeen = new Map<string, Date | null>(
+    lastSeenRows.map((r: { agentType: string; _max: { startedAt: Date | null } }) => [
+      r.agentType,
+      (r._max.startedAt as Date | null) ?? null,
+    ]),
   );
 
-  const adapterRows = ADAPTER_AGENTS.map((agent) => {
+  const buildRow = (agent: string) => {
     const sessions7d = map7d.get(agent) ?? 0;
     const sessions24h = map24h.get(agent) ?? 0;
     const crashCount = mapCrashes.get(agent) ?? 0;
@@ -75,20 +77,15 @@ export default async function AdaptersPage() {
     const crashRate = sessions7d > 0 ? (crashCount / sessions7d) * 100 : null;
     const badge = statusBadge(lastSeen, sessions7d);
     return { agent, badge, crashRate, lastSeen, sessions24h, sessions7d };
-  });
+  };
 
-  // Also surface any OTHER agent types seen in data that are not in ADAPTER_AGENTS
+  const adapterRows = ADAPTER_AGENTS.map(buildRow);
+
+  // Surface any agent types seen in data that are not in the known adapter list
   const allAgents = new Set([...map7d.keys(), ...mapLastSeen.keys()]);
-  const otherAgents = [...allAgents].filter((a) => !(ADAPTER_AGENTS as string[]).includes(a));
-  const otherRows = otherAgents.map((agent) => {
-    const sessions7d = map7d.get(agent as AgentType) ?? 0;
-    const sessions24h = map24h.get(agent as AgentType) ?? 0;
-    const crashCount = mapCrashes.get(agent as AgentType) ?? 0;
-    const lastSeen = mapLastSeen.get(agent as AgentType) ?? null;
-    const crashRate = sessions7d > 0 ? (crashCount / sessions7d) * 100 : null;
-    const badge = statusBadge(lastSeen, sessions7d);
-    return { agent: agent as AgentType, badge, crashRate, lastSeen, sessions24h, sessions7d };
-  });
+  const otherRows = [...allAgents]
+    .filter((a) => !(ADAPTER_AGENTS as readonly string[]).includes(a))
+    .map(buildRow);
 
   const BADGE_STYLES = {
     active: 'bg-green-500/20 text-green-300',
@@ -103,7 +100,8 @@ export default async function AdaptersPage() {
       <div className="space-y-1">
         <h1 className="text-xl font-semibold">Adapter health</h1>
         <p className="text-sm text-white/50">
-          Session activity by agent type. An adapter is considered active if it sent a session in the last 48 hours.
+          Session activity by agent type. An adapter is considered active if it sent a session in
+          the last 48 hours.
         </p>
       </div>
 
@@ -152,8 +150,8 @@ export default async function AdaptersPage() {
       </div>
 
       <p className="text-xs text-white/30">
-        Adapters ship events from developer machines via the hook CLI. This view reflects sessions received by
-        the ingest service, not adapter binary availability.
+        Adapters ship events from developer machines via the hook CLI. This view reflects sessions
+        received by the ingest service, not adapter binary availability.
       </p>
     </div>
   );
