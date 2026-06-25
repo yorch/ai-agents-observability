@@ -1,3 +1,5 @@
+import { PageHeader } from '@/components/team-org/PageHeader';
+import { StatCard } from '@/components/team-org/StatCard';
 import {
   type CategoryStatRow,
   type DailyToolVolumeRow,
@@ -63,11 +65,11 @@ export default async function OrgToolsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Org</p>
-        <h1 className="text-2xl font-semibold">Tools & Skills</h1>
-        <p className="mt-1 text-sm text-white/50">Trailing 30 days · tool usage across the org</p>
-      </div>
+      <PageHeader
+        breadcrumb="Org"
+        description="Trailing 30 days · tool usage across the org"
+        title="Tools & Skills"
+      />
 
       <OrgSubNav active="tool usage" />
 
@@ -177,15 +179,6 @@ export default async function OrgToolsPage() {
           <SkillRoiTable rows={skillRoi} />
         </section>
       )}
-    </div>
-  );
-}
-
-function StatCard({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-1">
-      <p className="text-xs text-white/50">{label}</p>
-      <p className={`text-2xl font-semibold ${warn ? 'text-yellow-300' : ''}`}>{value}</p>
     </div>
   );
 }
@@ -581,7 +574,6 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  agent: 'bg-pink-500/20 text-pink-300',
   browser: 'bg-green-500/20 text-green-300',
   file_ops: 'bg-sky-500/20 text-sky-300',
   mcp: 'bg-yellow-500/20 text-yellow-300',

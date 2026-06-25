@@ -1,4 +1,5 @@
-import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { EmptyState } from '@/components/team-org/EmptyState';
+import { PageHeader } from '@/components/team-org/PageHeader';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamSkillUsage,
@@ -38,14 +39,12 @@ export default async function TeamToolsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Team</p>
-          <h1 className="text-2xl font-semibold">{teamName}</h1>
-          <p className="mt-1 text-sm text-white/50">Tool & skill usage · trailing {range} days</p>
-        </div>
-        <DateRangePicker range={range} />
-      </div>
+      <PageHeader
+        breadcrumb="Team"
+        description={`Tool & skill usage · trailing ${range} days`}
+        range={range}
+        title={teamName}
+      />
 
       <TeamSubNav slug={slug} active="tools" />
 
@@ -123,9 +122,7 @@ export default async function TeamToolsPage({
           </table>
         </div>
       ) : (
-        <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center text-sm text-white/40">
-          No tool activity in this period
-        </div>
+        <EmptyState>No tool activity in this period</EmptyState>
       )}
 
       {/* Skills & slash commands */}

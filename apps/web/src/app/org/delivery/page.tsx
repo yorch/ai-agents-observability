@@ -1,3 +1,5 @@
+import { PageHeader } from '@/components/team-org/PageHeader';
+import { StatCard } from '@/components/team-org/StatCard';
 import { getOrgPRDeliveryStats, getPRWeeklyTrend, getTopReposByPR } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -30,13 +32,11 @@ export default async function OrgDeliveryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Org</p>
-        <h1 className="text-2xl font-semibold">Delivery</h1>
-        <p className="mt-1 text-sm text-white/50">
-          PR throughput, cycle time, and cost · trailing 90 days
-        </p>
-      </div>
+      <PageHeader
+        breadcrumb="Org"
+        description="PR throughput, cycle time, and cost · trailing 90 days"
+        title="Delivery"
+      />
 
       <OrgSubNav active="delivery" />
 
@@ -147,16 +147,6 @@ export default async function OrgDeliveryPage() {
         PR cost reflects sessions from users who share metadata with the org. TTM = time from PR
         open to merge.
       </p>
-    </div>
-  );
-}
-
-function StatCard({ label, sub, value }: { label: string; sub?: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-1">
-      <p className="text-xs text-white/50">{label}</p>
-      <p className="text-2xl font-semibold">{value}</p>
-      {sub && <p className="text-xs text-white/30">{sub}</p>}
     </div>
   );
 }

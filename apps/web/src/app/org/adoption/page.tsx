@@ -1,3 +1,5 @@
+import { PageHeader } from '@/components/team-org/PageHeader';
+import { StatCard } from '@/components/team-org/StatCard';
 import {
   getActiveUsersTrend,
   getAdoptionByTeam,
@@ -30,13 +32,11 @@ export default async function OrgAdoptionPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Org</p>
-        <h1 className="text-2xl font-semibold">Adoption</h1>
-        <p className="mt-1 text-sm text-white/50">
-          How the org is ramping on AI coding agents · trailing 30 / 90 days
-        </p>
-      </div>
+      <PageHeader
+        breadcrumb="Org"
+        description="How the org is ramping on AI coding agents · trailing 30 / 90 days"
+        title="Adoption"
+      />
 
       <OrgSubNav active="adoption" />
 
@@ -148,15 +148,6 @@ export default async function OrgAdoptionPage() {
       <p className="text-xs text-white/30 text-center pt-2">
         Only users who have opted into org-level metadata sharing are counted in these aggregates.
       </p>
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-1">
-      <p className="text-xs text-white/50">{label}</p>
-      <p className="text-2xl font-semibold">{value}</p>
     </div>
   );
 }

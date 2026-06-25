@@ -256,6 +256,112 @@ export async function getCostByModel(since: Date): Promise<ModelCostRow[]> {
   }));
 }
 
+// ── Model cost detail + routing breakdown ────────────────────────────────────
+
+export type OrgModelDetailRow = {
+  cacheCreationTokens: number;
+  cacheEfficiency: number;
+  cacheReadTokens: number;
+  inputTokens: number;
+  model: string;
+  outputTokens: number;
+  sessionCount: number;
+  totalCostUsd: number;
+};
+
+export async function getOrgModelDetail(since: Date): Promise<OrgModelDetailRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) {
+    return [];
+  }
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    {
+      cache_creation_tokens: bigint;
+      cache_read_tokens: bigint;
+      input_tokens: bigint;
+      model: string;
+      output_tokens: bigint;
+      session_count: bigint;
+      total_cost_usd: number;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      model,
+      COUNT(DISTINCT session_id)                        AS session_count,
+      COALESCE(SUM(cost_usd), 0)                        AS total_cost_usd,
+      COALESCE(SUM(input_tokens), 0)                    AS input_tokens,
+      COALESCE(SUM(output_tokens), 0)                   AS output_tokens,
+      COALESCE(SUM(cache_read_tokens), 0)               AS cache_read_tokens,
+      COALESCE(SUM(cache_creation_tokens), 0)           AS cache_creation_tokens
+    FROM events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type IN ('PostToolUse', 'Stop')
+      AND model IS NOT NULL
+    GROUP BY model
+    ORDER BY total_cost_usd DESC
+  `);
+  return rows.map((r) => {
+    const input = Number(r.input_tokens);
+    const cacheRead = Number(r.cache_read_tokens);
+    const denom = input + cacheRead;
+    return {
+      cacheCreationTokens: Number(r.cache_creation_tokens),
+      cacheEfficiency: denom > 0 ? cacheRead / denom : 0,
+      cacheReadTokens: cacheRead,
+      inputTokens: input,
+      model: r.model,
+      outputTokens: Number(r.output_tokens),
+      sessionCount: Number(r.session_count),
+      totalCostUsd: Number(r.total_cost_usd),
+    };
+  });
+}
+
+export type OrgModelRoutingRow = {
+  callCount: number;
+  model: string;
+  toolCategory: string;
+  totalCostUsd: number;
+};
+
+export async function getOrgModelRoutingBreakdown(since: Date): Promise<OrgModelRoutingRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) {
+    return [];
+  }
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    {
+      call_count: bigint;
+      model: string;
+      tool_category: string;
+      total_cost_usd: number;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      model,
+      tool_category,
+      COUNT(*)                            AS call_count,
+      COALESCE(SUM(cost_usd), 0)         AS total_cost_usd
+    FROM events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND model IS NOT NULL
+      AND tool_category IS NOT NULL
+    GROUP BY model, tool_category
+    ORDER BY total_cost_usd DESC
+  `);
+  return rows.map((r) => ({
+    callCount: Number(r.call_count),
+    model: r.model,
+    toolCategory: r.tool_category,
+    totalCostUsd: Number(r.total_cost_usd),
+  }));
+}
+
 /**
  * Org-wide friction percentiles + shape mix for the trailing window. The
  * `share_metadata_with_org` visibility filter is part of the query (not a
@@ -449,6 +555,7 @@ export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
+      AND tool_category != 'agent'
     GROUP BY agent_type, tool_name, tool_category
     ORDER BY call_count DESC
     LIMIT ${limit}
@@ -484,6 +591,7 @@ export async function getToolCategoryBreakdown(since: Date): Promise<CategorySta
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
+      AND tool_category != 'agent'
     GROUP BY COALESCE(tool_category, 'other')
     ORDER BY call_count DESC
   `);
@@ -1919,4 +2027,52 @@ export async function getTeamModelGovernance(
       totalCostUsd,
     };
   });
+}
+
+export type SubagentStatRow = {
+  avgDurationMs: number | null;
+  distinctUsers: number;
+  spawnCount: number;
+  subagentType: string | null;
+  totalCostUsd: number;
+};
+
+export async function getOrgSubagentStats(since: Date): Promise<SubagentStatRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    {
+      avg_duration_ms: number | null;
+      distinct_users: bigint;
+      spawn_count: bigint;
+      subagent_type: string | null;
+      total_cost_usd: string | null;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      subagent_type,
+      COUNT(*)                    AS spawn_count,
+      COUNT(DISTINCT user_id)     AS distinct_users,
+      AVG(tool_duration_ms)       AS avg_duration_ms,
+      SUM(cost_usd)               AS total_cost_usd
+    FROM events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND tool_category = 'agent'
+    GROUP BY subagent_type
+    ORDER BY spawn_count DESC
+  `);
+
+  return rows.map((r) => ({
+    avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
+    distinctUsers: Number(r.distinct_users),
+    spawnCount: Number(r.spawn_count),
+    subagentType: r.subagent_type,
+    totalCostUsd: r.total_cost_usd !== null ? Number(r.total_cost_usd) : 0,
+  }));
 }

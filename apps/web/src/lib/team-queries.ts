@@ -8,6 +8,7 @@ import type {
   SkillCostComparisonRow,
   SkillRow,
   SkillTopUserRow,
+  SubagentStatRow,
   ToolStatRow,
 } from './org-queries';
 import { getPrisma } from './prisma';
@@ -605,6 +606,7 @@ export async function getTeamToolStats(
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
+      AND tool_category != 'agent'
     GROUP BY agent_type, tool_name, tool_category
     ORDER BY call_count DESC
     LIMIT ${limit}
@@ -641,6 +643,7 @@ export async function getTeamToolCategoryBreakdown(
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
+      AND tool_category != 'agent'
     GROUP BY COALESCE(tool_category, 'other')
     ORDER BY call_count DESC
   `);
@@ -1145,3 +1148,45 @@ export async function getTeamMcpDetails(
 }
 
 export type { DailySkillVolumeRow, SkillAdoptionRow, SkillCostComparisonRow, SkillTopUserRow };
+
+export async function getTeamSubagentStats(
+  visibleIds: string[],
+  since: Date,
+): Promise<SubagentStatRow[]> {
+  if (visibleIds.length === 0) {
+    return [];
+  }
+
+  const uuids = toUuidList(visibleIds);
+  const rows = await getPrisma().$queryRaw<
+    {
+      avg_duration_ms: number | null;
+      distinct_users: bigint;
+      spawn_count: bigint;
+      subagent_type: string | null;
+      total_cost_usd: string | null;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      subagent_type,
+      COUNT(*)                    AS spawn_count,
+      COUNT(DISTINCT user_id)     AS distinct_users,
+      AVG(tool_duration_ms)       AS avg_duration_ms,
+      SUM(cost_usd)               AS total_cost_usd
+    FROM events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND tool_category = 'agent'
+    GROUP BY subagent_type
+    ORDER BY spawn_count DESC
+  `);
+
+  return rows.map((r) => ({
+    avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
+    distinctUsers: Number(r.distinct_users),
+    spawnCount: Number(r.spawn_count),
+    subagentType: r.subagent_type,
+    totalCostUsd: r.total_cost_usd !== null ? Number(r.total_cost_usd) : 0,
+  }));
+}
