@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
+import { ShareSessionButton } from '@/components/me/ShareSessionButton';
 import { currentUser } from '@/lib/auth';
+import { getPrisma } from '@/lib/prisma';
 import type {
   ModelBreakdownRow,
   SessionSkillRow,
@@ -38,18 +40,32 @@ export default async function SessionDetailPage({
   const { tab = 'timeline' } = await searchParams;
 
   const noTools = { subagents: [] as SessionSubagentRow[], tools: [] as SessionToolRow[] };
-  const [session, modelBreakdown, sessionEvents, skillRows, toolBreakdown] = await Promise.all([
-    getSession(user.id, id),
-    tab === 'models'
-      ? getSessionModelBreakdown(user.id, id)
-      : Promise.resolve([] as ModelBreakdownRow[]),
-    tab === 'timeline' ? getSessionEvents(user.id, id) : Promise.resolve([]),
-    tab === 'skills' ? getSessionSkills(user.id, id) : Promise.resolve([] as SessionSkillRow[]),
-    tab === 'tools' ? getSessionToolBreakdown(user.id, id) : Promise.resolve(noTools),
-  ]);
+  const [session, modelBreakdown, sessionEvents, skillRows, toolBreakdown, rawShares] =
+    await Promise.all([
+      getSession(user.id, id),
+      tab === 'models'
+        ? getSessionModelBreakdown(user.id, id)
+        : Promise.resolve([] as ModelBreakdownRow[]),
+      tab === 'timeline' ? getSessionEvents(user.id, id) : Promise.resolve([]),
+      tab === 'skills' ? getSessionSkills(user.id, id) : Promise.resolve([] as SessionSkillRow[]),
+      tab === 'tools' ? getSessionToolBreakdown(user.id, id) : Promise.resolve(noTools),
+      getPrisma().accessGrant.findMany({
+        select: { expiresAt: true, grantee: { select: { email: true } }, id: true },
+        where: {
+          expiresAt: { gt: new Date() },
+          grantedAt: { not: null },
+          revokedAt: null,
+          targetSessionId: id,
+        },
+      }),
+    ]);
   if (!session) {
     notFound();
   }
+
+  const activeShares = rawShares
+    .filter((s): s is typeof s & { expiresAt: Date } => s.expiresAt !== null)
+    .map((s) => ({ expiresAt: s.expiresAt, granteeEmail: s.grantee.email, id: s.id }));
 
   return (
     <div className="space-y-6">
@@ -58,6 +74,7 @@ export default async function SessionDetailPage({
       </Link>
 
       <SessionDetailHeader
+        extra={<ShareSessionButton activeShares={activeShares} sessionId={id} />}
         session={session}
         transcriptHref={session.transcriptS3Key ? `/me/sessions/${id}/transcript` : null}
       />

@@ -210,13 +210,14 @@ export async function resolveOrgSessionAccess(
   if (canViewIndividuals(user.orgRole)) {
     return 'admin';
   }
+  // Any user (including regular MEMBER) may reach a session via an active grant —
+  // either an admin-requested+approved grant or an owner-initiated share.
   if (
-    canRequestGrants(user.orgRole) &&
-    (await hasActiveGrant(getPrisma(), {
+    await hasActiveGrant(getPrisma(), {
       granteeId: user.id,
       targetSessionId: target.sessionId,
       targetUserId: target.ownerUserId,
-    }))
+    })
   ) {
     return 'grant';
   }

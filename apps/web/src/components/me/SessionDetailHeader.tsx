@@ -1,15 +1,18 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { FrictionBadge } from '@/components/me/FrictionBadge';
 import { StatusBadge } from '@/components/me/StatusBadge';
 import { type ShapeLabel, shapeBadge } from '@/lib/effectiveness';
 import type { SessionDetail } from '@/lib/sessions-queries';
 
 export function SessionDetailHeader({
+  extra,
   ownerLabel,
   session,
   transcriptHref,
   transcriptLabel = 'View transcript',
 }: {
+  extra?: ReactNode;
   ownerLabel?: string;
   session: SessionDetail;
   transcriptHref?: string | null;
@@ -57,6 +60,7 @@ export function SessionDetailHeader({
       </div>
       <div className="flex items-center gap-3 shrink-0">
         <span className="text-sm font-mono text-text-2">${session.costUsd.toFixed(4)}</span>
+        {extra}
         {transcriptHref && (
           <Link
             href={transcriptHref}
