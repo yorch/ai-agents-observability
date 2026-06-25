@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "bun run --env-file=../../.env next dev",
-    "build": "next build --webpack",
+    "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"

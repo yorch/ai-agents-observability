@@ -22,12 +22,6 @@ const nextConfig: NextConfig = {
     '@ai-agents-observability/db',
     '@ai-agents-observability/github',
   ],
-  // Skip Next.js's built-in TypeScript check — we run `tsc --noEmit` separately
-  // via `bun run typecheck`. Running two tsc instances in parallel causes SIGKILL
-  // in memory-constrained CI environments (the webpack build already spawns workers).
-  typescript: {
-    ignoreBuildErrors: true,
-  },
 };
 
 export default nextConfig;
