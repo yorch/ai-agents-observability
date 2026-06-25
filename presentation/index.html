@@ -1,464 +1,667 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Agents Observability — Technical Presentation</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Agents Observability — Technical Presentation</title>
 
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
 
-  <!-- Reveal.js CDN -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css"
-        integrity="sha384-AJKv9Ui5SfA0VsFksFI9GuA1ztX9Ca3CLP6HGfX4YY/tYSVodC+PUszaQZFIlkuy"
-        crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"
-        integrity="sha384-YgvgKeZJykuztG+iQPoZHNZENTFZvOcOJ/uRzmJTje6GHYN9zAw+y5rx/L8MQKA/"
-        crossorigin="anonymous" />
+    <!-- Reveal.js CDN -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css"
+      integrity="sha384-AJKv9Ui5SfA0VsFksFI9GuA1ztX9Ca3CLP6HGfX4YY/tYSVodC+PUszaQZFIlkuy"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"
+      integrity="sha384-YgvgKeZJykuztG+iQPoZHNZENTFZvOcOJ/uRzmJTje6GHYN9zAw+y5rx/L8MQKA/"
+      crossorigin="anonymous"
+    />
 
-  <style>
-    /* ── Design tokens ─────────────────────────────── */
-    :root {
-      --bg:        #0d1117;
-      --bg-card:   #161b22;
-      --bg-code:   #1c2128;
-      --border:    #30363d;
-      --green:     #3fb950;
-      --green-dim: #238636;
-      --blue:      #58a6ff;
-      --amber:     #e3b341;
-      --red:       #f85149;
-      --purple:    #bc8cff;
-      --text:      #e6edf3;
-      --text-dim:  #8b949e;
-      --font-sans: 'Space Grotesk', system-ui, sans-serif;
-      --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-    }
+    <style>
+      /* ── Design tokens ─────────────────────────────── */
+      :root {
+        --bg: #0d1117;
+        --bg-card: #161b22;
+        --bg-code: #1c2128;
+        --border: #30363d;
+        --green: #3fb950;
+        --green-dim: #238636;
+        --blue: #58a6ff;
+        --amber: #e3b341;
+        --red: #f85149;
+        --purple: #bc8cff;
+        --text: #e6edf3;
+        --text-dim: #8b949e;
+        --font-sans: "Space Grotesk", system-ui, sans-serif;
+        --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+      }
 
-    /* ── Reveal overrides ──────────────────────────── */
-    .reveal-viewport { background: var(--bg); }
-    .reveal {
-      font-family: var(--font-sans);
-      font-size: 34px;
-      color: var(--text);
-    }
-    .reveal .slides section {
-      text-align: left;
-      height: 100%;
-    }
-    .reveal h1, .reveal h2, .reveal h3, .reveal h4 {
-      font-family: var(--font-sans);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      text-transform: none;
-      color: var(--text);
-      margin-bottom: 0.4em;
-    }
-    .reveal h1 { font-size: 2em; line-height: 1.1; }
-    .reveal h2 { font-size: 1.35em; color: var(--blue); }
-    .reveal h3 { font-size: 1em; color: var(--green); }
-    .reveal p  { margin: 0.4em 0; line-height: 1.5; }
-    .reveal a  { color: var(--blue); text-decoration: none; }
+      /* ── Reveal overrides ──────────────────────────── */
+      .reveal-viewport {
+        background: var(--bg);
+      }
+      .reveal {
+        font-family: var(--font-sans);
+        font-size: 34px;
+        color: var(--text);
+      }
+      .reveal .slides section {
+        text-align: left;
+        height: 100%;
+      }
+      .reveal h1,
+      .reveal h2,
+      .reveal h3,
+      .reveal h4 {
+        font-family: var(--font-sans);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        text-transform: none;
+        color: var(--text);
+        margin-bottom: 0.4em;
+      }
+      .reveal h1 {
+        font-size: 2em;
+        line-height: 1.1;
+      }
+      .reveal h2 {
+        font-size: 1.35em;
+        color: var(--blue);
+      }
+      .reveal h3 {
+        font-size: 1em;
+        color: var(--green);
+      }
+      .reveal p {
+        margin: 0.4em 0;
+        line-height: 1.5;
+      }
+      .reveal a {
+        color: var(--blue);
+        text-decoration: none;
+      }
 
-    .reveal pre {
-      font-family: var(--font-mono);
-      font-size: 0.58em;
-      background: var(--bg-code);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1em 1.2em;
-      box-shadow: none;
-      width: 100%;
-      margin: 0.5em 0;
-    }
-    .reveal code {
-      font-family: var(--font-mono);
-      background: var(--bg-code);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 0.1em 0.35em;
-      font-size: 0.85em;
-    }
-    .reveal pre code { background: none; border: none; padding: 0; font-size: 1em; }
+      .reveal pre {
+        font-family: var(--font-mono);
+        font-size: 0.58em;
+        background: var(--bg-code);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1em 1.2em;
+        box-shadow: none;
+        width: 100%;
+        margin: 0.5em 0;
+      }
+      .reveal code {
+        font-family: var(--font-mono);
+        background: var(--bg-code);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.1em 0.35em;
+        font-size: 0.85em;
+      }
+      .reveal pre code {
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 1em;
+      }
 
-    /* progress bar accent */
-    .reveal .progress { background: var(--border); }
-    .reveal .progress span { background: var(--green); }
+      /* progress bar accent */
+      .reveal .progress {
+        background: var(--border);
+      }
+      .reveal .progress span {
+        background: var(--green);
+      }
 
-    /* slide numbers */
-    .reveal .slide-number { color: var(--text-dim); font-family: var(--font-mono); font-size: 0.5em; }
+      /* slide numbers */
+      .reveal .slide-number {
+        color: var(--text-dim);
+        font-family: var(--font-mono);
+        font-size: 0.5em;
+      }
 
-    /* controls */
-    .reveal .controls { color: var(--green); }
+      /* controls */
+      .reveal .controls {
+        color: var(--green);
+      }
 
-    /* ── Layout helpers ────────────────────────────── */
-    .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5em; align-items: start; }
-    .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1em; align-items: start; }
+      /* ── Layout helpers ────────────────────────────── */
+      .cols2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5em;
+        align-items: start;
+      }
+      .cols3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1em;
+        align-items: start;
+      }
 
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1em 1.2em;
-    }
-    .card-green  { border-left: 3px solid var(--green); }
-    .card-blue   { border-left: 3px solid var(--blue); }
-    .card-amber  { border-left: 3px solid var(--amber); }
-    .card-purple { border-left: 3px solid var(--purple); }
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1em 1.2em;
+      }
+      .card-green {
+        border-left: 3px solid var(--green);
+      }
+      .card-blue {
+        border-left: 3px solid var(--blue);
+      }
+      .card-amber {
+        border-left: 3px solid var(--amber);
+      }
+      .card-purple {
+        border-left: 3px solid var(--purple);
+      }
 
-    .tag {
-      display: inline-block;
-      font-family: var(--font-mono);
-      font-size: 0.55em;
-      background: var(--bg-code);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 0.15em 0.6em;
-      margin: 0.15em 0.1em;
-      color: var(--text-dim);
-    }
-    .tag-green  { border-color: var(--green-dim); color: var(--green); }
-    .tag-blue   { border-color: #1f6feb; color: var(--blue); }
-    .tag-amber  { border-color: #9e6a03; color: var(--amber); }
-    .tag-purple { border-color: #6e40c9; color: var(--purple); }
+      .tag {
+        display: inline-block;
+        font-family: var(--font-mono);
+        font-size: 0.55em;
+        background: var(--bg-code);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.15em 0.6em;
+        margin: 0.15em 0.1em;
+        color: var(--text-dim);
+      }
+      .tag-green {
+        border-color: var(--green-dim);
+        color: var(--green);
+      }
+      .tag-blue {
+        border-color: #1f6feb;
+        color: var(--blue);
+      }
+      .tag-amber {
+        border-color: #9e6a03;
+        color: var(--amber);
+      }
+      .tag-purple {
+        border-color: #6e40c9;
+        color: var(--purple);
+      }
 
-    .label {
-      font-size: 0.45em;
-      font-family: var(--font-mono);
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 0.3em;
-    }
+      .label {
+        font-size: 0.45em;
+        font-family: var(--font-mono);
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.3em;
+      }
 
-    .big-stat {
-      font-family: var(--font-mono);
-      font-size: 2.2em;
-      font-weight: 700;
-      line-height: 1;
-    }
+      .big-stat {
+        font-family: var(--font-mono);
+        font-size: 2.2em;
+        font-weight: 700;
+        line-height: 1;
+      }
 
-    .dim { color: var(--text-dim); }
-    .green { color: var(--green); }
-    .blue  { color: var(--blue); }
-    .amber { color: var(--amber); }
-    .purple{ color: var(--purple); }
-    .red   { color: var(--red); }
+      .dim {
+        color: var(--text-dim);
+      }
+      .green {
+        color: var(--green);
+      }
+      .blue {
+        color: var(--blue);
+      }
+      .amber {
+        color: var(--amber);
+      }
+      .purple {
+        color: var(--purple);
+      }
+      .red {
+        color: var(--red);
+      }
 
-    .slide-intro {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
+      .slide-intro {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
 
-    .eyebrow {
-      font-family: var(--font-mono);
-      font-size: 0.45em;
-      color: var(--green);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      margin-bottom: 0.6em;
-    }
+      .eyebrow {
+        font-family: var(--font-mono);
+        font-size: 0.45em;
+        color: var(--green);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 0.6em;
+      }
 
-    .subtitle {
-      font-size: 0.6em;
-      color: var(--text-dim);
-      margin-top: 0.3em;
-    }
+      .subtitle {
+        font-size: 0.6em;
+        color: var(--text-dim);
+        margin-top: 0.3em;
+      }
 
-    .divider {
-      width: 3em;
-      height: 2px;
-      background: var(--green);
-      margin: 0.8em 0;
-    }
+      .divider {
+        width: 3em;
+        height: 2px;
+        background: var(--green);
+        margin: 0.8em 0;
+      }
 
-    /* ── Bullet list style ─────────────────────────── */
-    .reveal ul {
-      list-style: none;
-      padding: 0;
-      margin: 0.3em 0;
-    }
-    .reveal ul li {
-      padding: 0.2em 0 0.2em 1.2em;
-      position: relative;
-      font-size: 0.78em;
-      line-height: 1.5;
-      color: var(--text);
-    }
-    .reveal ul li::before {
-      content: '▸';
-      position: absolute;
-      left: 0;
-      color: var(--green);
-    }
+      /* ── Bullet list style ─────────────────────────── */
+      .reveal ul {
+        list-style: none;
+        padding: 0;
+        margin: 0.3em 0;
+      }
+      .reveal ul li {
+        padding: 0.2em 0 0.2em 1.2em;
+        position: relative;
+        font-size: 0.78em;
+        line-height: 1.5;
+        color: var(--text);
+      }
+      .reveal ul li::before {
+        content: "▸";
+        position: absolute;
+        left: 0;
+        color: var(--green);
+      }
 
-    /* ── Flow diagram ──────────────────────────────── */
-    .flow-box {
-      display: inline-block;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.4em 0.9em;
-      font-family: var(--font-mono);
-      font-size: 0.65em;
-      color: var(--text);
-      white-space: nowrap;
-    }
-    .flow-box.green { border-color: var(--green-dim); }
-    .flow-box.blue  { border-color: #1f6feb; }
-    .flow-box.amber { border-color: #9e6a03; }
+      /* ── Flow diagram ──────────────────────────────── */
+      .flow-box {
+        display: inline-block;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.4em 0.9em;
+        font-family: var(--font-mono);
+        font-size: 0.65em;
+        color: var(--text);
+        white-space: nowrap;
+      }
+      .flow-box.green {
+        border-color: var(--green-dim);
+      }
+      .flow-box.blue {
+        border-color: #1f6feb;
+      }
+      .flow-box.amber {
+        border-color: #9e6a03;
+      }
 
-    .flow-arrow {
-      font-size: 0.7em;
-      color: var(--text-dim);
-      margin: 0 0.3em;
-    }
+      .flow-arrow {
+        font-size: 0.7em;
+        color: var(--text-dim);
+        margin: 0 0.3em;
+      }
 
-    /* ── Audience table ────────────────────────────── */
-    .audience-grid {
-      display: grid;
-      grid-template-columns: auto 1fr 1fr;
-      gap: 0.7em;
-      font-size: 0.65em;
-      align-items: start;
-    }
-    .audience-grid .header {
-      font-family: var(--font-mono);
-      font-size: 0.85em;
-      color: var(--text-dim);
-      padding-bottom: 0.4em;
-      border-bottom: 1px solid var(--border);
-    }
+      /* ── Audience table ────────────────────────────── */
+      .audience-grid {
+        display: grid;
+        grid-template-columns: auto 1fr 1fr;
+        gap: 0.7em;
+        font-size: 0.65em;
+        align-items: start;
+      }
+      .audience-grid .header {
+        font-family: var(--font-mono);
+        font-size: 0.85em;
+        color: var(--text-dim);
+        padding-bottom: 0.4em;
+        border-bottom: 1px solid var(--border);
+      }
 
-    /* ── Tech badge grid ───────────────────────────── */
-    .tech-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5em;
-      align-items: center;
-    }
-    .tech-badge {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.35em 0.8em;
-      font-family: var(--font-mono);
-      font-size: 0.58em;
-      color: var(--text);
-    }
-    .reveal .tech-badge span { color: var(--text-dim); font-size: 0.85em; margin-left: 0.3em; }
+      /* ── Tech badge grid ───────────────────────────── */
+      .tech-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5em;
+        align-items: center;
+      }
+      .tech-badge {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.35em 0.8em;
+        font-family: var(--font-mono);
+        font-size: 0.58em;
+        color: var(--text);
+      }
+      .reveal .tech-badge span {
+        color: var(--text-dim);
+        font-size: 0.85em;
+        margin-left: 0.3em;
+      }
 
-    /* ── Timeline / roadmap ────────────────────────── */
-    .timeline {
-      display: flex;
-      flex-direction: column;
-      gap: 0.6em;
-      font-size: 0.65em;
-    }
-    .timeline-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 1em;
-    }
-    .timeline-dot {
-      width: 1.1em;
-      height: 1.1em;
-      border-radius: 50%;
-      flex-shrink: 0;
-      margin-top: 0.15em;
-    }
-    .dot-green  { background: var(--green); }
-    .dot-amber  { background: var(--amber); }
-    .dot-dim    { background: var(--border); }
+      /* ── Timeline / roadmap ────────────────────────── */
+      .timeline {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6em;
+        font-size: 0.65em;
+      }
+      .timeline-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 1em;
+      }
+      .timeline-dot {
+        width: 1.1em;
+        height: 1.1em;
+        border-radius: 50%;
+        flex-shrink: 0;
+        margin-top: 0.15em;
+      }
+      .dot-green {
+        background: var(--green);
+      }
+      .dot-amber {
+        background: var(--amber);
+      }
+      .dot-dim {
+        background: var(--border);
+      }
 
-    /* ── Vertical nav hint ─────────────────────────── */
-    .deep-dive-hint {
-      position: absolute;
-      bottom: 0.6em;
-      left: 1em;
-      font-size: 0.4em;
-      font-family: var(--font-mono);
-      color: var(--text-dim);
-      display: flex;
-      align-items: center;
-      gap: 0.4em;
-    }
-    .deep-dive-hint::before {
-      content: '↓';
-      color: var(--green);
-      font-size: 1.4em;
-    }
+      /* ── Vertical nav hint ─────────────────────────── */
+      .deep-dive-hint {
+        position: absolute;
+        bottom: 0.6em;
+        left: 1em;
+        font-size: 0.4em;
+        font-family: var(--font-mono);
+        color: var(--text-dim);
+        display: flex;
+        align-items: center;
+        gap: 0.4em;
+      }
+      .deep-dive-hint::before {
+        content: "↓";
+        color: var(--green);
+        font-size: 1.4em;
+      }
 
-    /* ── Slide-specific overrides ──────────────────── */
-    /* biome-ignore lint/complexity/noImportantStyles: needed to override Reveal.js built-in background */
-    .title-slide { background: var(--bg) !important; }
-  </style>
-</head>
-<body>
-<div class="reveal">
-<div class="slides">
-
-<!-- ════════════════════════════════════════════════
+      /* ── Slide-specific overrides ──────────────────── */
+      .title-slide {
+        /* biome-ignore lint/complexity/noImportantStyles: needed to override Reveal.js built-in background */
+        background: var(--bg) !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <!-- ════════════════════════════════════════════════
      1. TITLE
 ════════════════════════════════════════════════ -->
-<section class="title-slide">
-  <div class="slide-intro">
-    <div class="eyebrow">Internal — Dev Tools / Engineering</div>
-    <h1>AI Agents<br><span class="green">Observability</span></h1>
-    <div class="divider"></div>
-    <p class="subtitle">Self-hosted telemetry &amp; dashboards for AI coding agents</p>
-    <div style="margin-top:2em;font-size:0.45em;color:var(--text-dim);font-family:var(--font-mono)">
-      Press <kbd style="background:var(--bg-card);border:1px solid var(--border);padding:0.1em 0.4em;border-radius:3px">→</kbd> to advance &nbsp;
-      <kbd style="background:var(--bg-card);border:1px solid var(--border);padding:0.1em 0.4em;border-radius:3px">↓</kbd> for technical deep-dives
-    </div>
-  </div>
-</section>
+        <section class="title-slide">
+          <div class="slide-intro">
+            <div class="eyebrow">Internal — Dev Tools / Engineering</div>
+            <h1>AI Agents<br /><span class="green">Observability</span></h1>
+            <div class="divider"></div>
+            <p class="subtitle">
+              Self-hosted telemetry &amp; dashboards for AI coding agents
+            </p>
+            <div
+              style="
+                margin-top: 2em;
+                font-size: 0.45em;
+                color: var(--text-dim);
+                font-family: var(--font-mono);
+              "
+            >
+              Press
+              <kbd
+                style="
+                  background: var(--bg-card);
+                  border: 1px solid var(--border);
+                  padding: 0.1em 0.4em;
+                  border-radius: 3px;
+                "
+                >→</kbd
+              >
+              to advance &nbsp;
+              <kbd
+                style="
+                  background: var(--bg-card);
+                  border: 1px solid var(--border);
+                  padding: 0.1em 0.4em;
+                  border-radius: 3px;
+                "
+                >↓</kbd
+              >
+              for technical deep-dives
+            </div>
+          </div>
+        </section>
 
-<!-- ════════════════════════════════════════════════
+        <!-- ════════════════════════════════════════════════
      2. PROBLEM
 ════════════════════════════════════════════════ -->
-<section>
-  <section>
-    <div class="eyebrow">The Problem</div>
-    <h2>We're spending on AI coding — but flying blind</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:1em">
-      <div>
-        <div class="card card-red" style="border-left-color:var(--red)">
-          <div class="label">Finance asks</div>
-          <p style="font-size:0.7em">"What did Claude Code cost us this quarter, and which teams are responsible?"</p>
-        </div>
-        <div class="card card-blue" style="margin-top:0.8em">
-          <div class="label">Dev Tools asks</div>
-          <p style="font-size:0.7em">"Are developers getting value? Where does the agent get stuck or denied?"</p>
-        </div>
-        <div class="card card-green" style="margin-top:0.8em">
-          <div class="label">Devs ask</div>
-          <p style="font-size:0.7em">"How much am I spending? What am I actually sharing with Anthropic?"</p>
-        </div>
-      </div>
-      <div>
-        <div class="card" style="padding:1.2em">
-          <div class="label">Without observability</div>
-          <ul>
-            <li>Cost attribution is impossible — billing is org-wide, not per-engineer or per-PR</li>
-            <li>No signal on agent effectiveness: error rates, permission denials, tool mix</li>
-            <li>Developers can't see or control what data leaves their machine</li>
-            <li>Teams can't correlate AI work to PR outcomes</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <div class="deep-dive-hint">deep dive available</div>
-  </section>
+        <section>
+          <section>
+            <div class="eyebrow">The Problem</div>
+            <h2>We're spending on AI coding — but flying blind</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 1em">
+              <div>
+                <div
+                  class="card card-red"
+                  style="border-left-color: var(--red)"
+                >
+                  <div class="label">Finance asks</div>
+                  <p style="font-size: 0.7em">
+                    "What did Claude Code cost us this quarter, and which teams
+                    are responsible?"
+                  </p>
+                </div>
+                <div class="card card-blue" style="margin-top: 0.8em">
+                  <div class="label">Dev Tools asks</div>
+                  <p style="font-size: 0.7em">
+                    "Are developers getting value? Where does the agent get
+                    stuck or denied?"
+                  </p>
+                </div>
+                <div class="card card-green" style="margin-top: 0.8em">
+                  <div class="label">Devs ask</div>
+                  <p style="font-size: 0.7em">
+                    "How much am I spending? What am I actually sharing with
+                    Anthropic?"
+                  </p>
+                </div>
+              </div>
+              <div>
+                <div class="card" style="padding: 1.2em">
+                  <div class="label">Without observability</div>
+                  <ul>
+                    <li>
+                      Cost attribution is impossible — billing is org-wide, not
+                      per-engineer or per-PR
+                    </li>
+                    <li>
+                      No signal on agent effectiveness: error rates, permission
+                      denials, tool mix
+                    </li>
+                    <li>
+                      Developers can't see or control what data leaves their
+                      machine
+                    </li>
+                    <li>Teams can't correlate AI work to PR outcomes</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="deep-dive-hint">deep dive available</div>
+          </section>
 
-  <!-- vertical: why not existing tools? -->
-  <section>
-    <div class="eyebrow">Problem → Existing Landscape</div>
-    <h2>Why not existing observability tools?</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.8em;font-size:0.75em">
-      <div>
-        <div class="card card-amber">
-          <strong class="amber">Model observability</strong>
-          <p style="color:var(--text-dim);margin-top:0.4em">LangSmith, Langfuse, etc. Track inference latency, prompt evals, RAG quality. Oriented around model providers and pipelines — not developer workflow sessions.</p>
-        </div>
-        <div class="card" style="margin-top:0.8em">
-          <strong class="amber">Generic AI observability</strong>
-          <p style="color:var(--text-dim);margin-top:0.4em">Sprawls across embeddings, fine-tuning, drift. Doesn't understand sessions, tools, PR correlation, or cost-per-engineer.</p>
-        </div>
-      </div>
-      <div>
-        <div class="card card-green">
-          <strong class="green">Our target</strong>
-          <p style="color:var(--text-dim);margin-top:0.4em">
-            <strong class="text">How humans use AI coding agents to do real engineering work.</strong><br><br>
-            Sessions · Tool calls · Skills used · MCP servers · PR outcomes · Spend attribution · Privacy controls
-          </p>
-        </div>
-        <div class="card" style="margin-top:0.8em">
-          <strong>Self-hosted by design</strong>
-          <p style="color:var(--text-dim);margin-top:0.4em">Full transcript data never leaves org infrastructure. MinIO locally or on-prem, swap S3 for cloud.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-</section>
+          <!-- vertical: why not existing tools? -->
+          <section>
+            <div class="eyebrow">Problem → Existing Landscape</div>
+            <h2>Why not existing observability tools?</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.8em; font-size: 0.75em">
+              <div>
+                <div class="card card-amber">
+                  <strong class="amber">Model observability</strong>
+                  <p style="color: var(--text-dim); margin-top: 0.4em">
+                    LangSmith, Langfuse, etc. Track inference latency, prompt
+                    evals, RAG quality. Oriented around model providers and
+                    pipelines — not developer workflow sessions.
+                  </p>
+                </div>
+                <div class="card" style="margin-top: 0.8em">
+                  <strong class="amber">Generic AI observability</strong>
+                  <p style="color: var(--text-dim); margin-top: 0.4em">
+                    Sprawls across embeddings, fine-tuning, drift. Doesn't
+                    understand sessions, tools, PR correlation, or
+                    cost-per-engineer.
+                  </p>
+                </div>
+              </div>
+              <div>
+                <div class="card card-green">
+                  <strong class="green">Our target</strong>
+                  <p style="color: var(--text-dim); margin-top: 0.4em">
+                    <strong class="text"
+                      >How humans use AI coding agents to do real engineering
+                      work.</strong
+                    ><br /><br />
+                    Sessions · Tool calls · Skills used · MCP servers · PR
+                    outcomes · Spend attribution · Privacy controls
+                  </p>
+                </div>
+                <div class="card" style="margin-top: 0.8em">
+                  <strong>Self-hosted by design</strong>
+                  <p style="color: var(--text-dim); margin-top: 0.4em">
+                    Full transcript data never leaves org infrastructure. MinIO
+                    locally or on-prem, swap S3 for cloud.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
 
-<!-- ════════════════════════════════════════════════
+        <!-- ════════════════════════════════════════════════
      3. THREE AUDIENCES
 ════════════════════════════════════════════════ -->
-<section>
-  <section>
-    <div class="eyebrow">Design Philosophy</div>
-    <h2>One platform, three audiences — trust-first</h2>
-    <div class="divider"></div>
-    <div class="cols3" style="margin-top:0.5em;font-size:0.88em">
-      <div class="card card-amber">
-        <div class="label">A — Leadership / Finance</div>
-        <p style="font-size:0.65em;margin-bottom:0.6em;color:var(--text-dim)"><em>"What is Claude Code costing us, and where?"</em></p>
-        <ul>
-          <li>Aggregated spend by team / repo</li>
-          <li>Adoption funnel metrics</li>
-          <li>Model governance (unapproved model detection)</li>
-        </ul>
-        <div style="margin-top:0.7em">
-          <div class="label">Access</div>
-          <span class="tag tag-amber">aggregates only</span>
-          <span class="tag">no session access</span>
-        </div>
-      </div>
-      <div class="card card-blue">
-        <div class="label">B — Dev Tools / Research</div>
-        <p style="font-size:0.65em;margin-bottom:0.6em;color:var(--text-dim)"><em>"Is it working? Where are the friction points?"</em></p>
-        <ul>
-          <li>Org-wide usage patterns</li>
-          <li>Error rate &amp; denial analysis</li>
-          <li>Tool &amp; skill adoption trends</li>
-          <li>Session investigation (audited)</li>
-        </ul>
-        <div style="margin-top:0.7em">
-          <div class="label">Access</div>
-          <span class="tag tag-blue">org aggregates</span>
-          <span class="tag tag-amber">audit logged</span>
-        </div>
-      </div>
-      <div class="card card-green">
-        <div class="label">C — Individual Developer</div>
-        <p style="font-size:0.65em;margin-bottom:0.6em;color:var(--text-dim)"><em>"How am I using Claude? What am I sharing?"</em></p>
-        <ul>
-          <li>"My Agents" self-service view</li>
-          <li>Personal cost &amp; token history</li>
-          <li>Transcript viewer</li>
-          <li>Privacy controls</li>
-        </ul>
-        <div style="margin-top:0.7em">
-          <div class="label">Access</div>
-          <span class="tag tag-green">full own data</span>
-          <span class="tag tag-green">privacy controls</span>
-        </div>
-      </div>
-    </div>
-    <p style="font-size:0.5em;color:var(--text-dim);margin-top:0.4em">
-      Design priority: <strong class="green">C primary</strong> → <strong class="blue">B primary</strong> → <strong class="amber">A secondary</strong>.
-      Developer trust is the adoption flywheel — "My Agents" ships before any manager dashboard.
-    </p>
-    <div class="deep-dive-hint">privacy model deep dive ↓</div>
-  </section>
+        <section>
+          <section>
+            <div class="eyebrow">Design Philosophy</div>
+            <h2>One platform, three audiences — trust-first</h2>
+            <div class="divider"></div>
+            <div class="cols3" style="margin-top: 0.5em; font-size: 0.88em">
+              <div class="card card-amber">
+                <div class="label">A — Leadership / Finance</div>
+                <p
+                  style="
+                    font-size: 0.65em;
+                    margin-bottom: 0.6em;
+                    color: var(--text-dim);
+                  "
+                >
+                  <em>"What is Claude Code costing us, and where?"</em>
+                </p>
+                <ul>
+                  <li>Aggregated spend by team / repo</li>
+                  <li>Adoption funnel metrics</li>
+                  <li>Model governance (unapproved model detection)</li>
+                </ul>
+                <div style="margin-top: 0.7em">
+                  <div class="label">Access</div>
+                  <span class="tag tag-amber">aggregates only</span>
+                  <span class="tag">no session access</span>
+                </div>
+              </div>
+              <div class="card card-blue">
+                <div class="label">B — Dev Tools / Research</div>
+                <p
+                  style="
+                    font-size: 0.65em;
+                    margin-bottom: 0.6em;
+                    color: var(--text-dim);
+                  "
+                >
+                  <em>"Is it working? Where are the friction points?"</em>
+                </p>
+                <ul>
+                  <li>Org-wide usage patterns</li>
+                  <li>Error rate &amp; denial analysis</li>
+                  <li>Tool &amp; skill adoption trends</li>
+                  <li>Session investigation (audited)</li>
+                </ul>
+                <div style="margin-top: 0.7em">
+                  <div class="label">Access</div>
+                  <span class="tag tag-blue">org aggregates</span>
+                  <span class="tag tag-amber">audit logged</span>
+                </div>
+              </div>
+              <div class="card card-green">
+                <div class="label">C — Individual Developer</div>
+                <p
+                  style="
+                    font-size: 0.65em;
+                    margin-bottom: 0.6em;
+                    color: var(--text-dim);
+                  "
+                >
+                  <em>"How am I using Claude? What am I sharing?"</em>
+                </p>
+                <ul>
+                  <li>"My Agents" self-service view</li>
+                  <li>Personal cost &amp; token history</li>
+                  <li>Transcript viewer</li>
+                  <li>Privacy controls</li>
+                </ul>
+                <div style="margin-top: 0.7em">
+                  <div class="label">Access</div>
+                  <span class="tag tag-green">full own data</span>
+                  <span class="tag tag-green">privacy controls</span>
+                </div>
+              </div>
+            </div>
+            <p
+              style="
+                font-size: 0.5em;
+                color: var(--text-dim);
+                margin-top: 0.4em;
+              "
+            >
+              Design priority: <strong class="green">C primary</strong> →
+              <strong class="blue">B primary</strong> →
+              <strong class="amber">A secondary</strong>. Developer trust is the
+              adoption flywheel — "My Agents" ships before any manager
+              dashboard.
+            </p>
+            <div class="deep-dive-hint">privacy model deep dive ↓</div>
+          </section>
 
-  <!-- vertical: privacy model -->
-  <section>
-    <div class="eyebrow">Design Philosophy → Privacy</div>
-    <h2>Privacy-first by default</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.2em">
-      <div>
-        <pre><code class="language-sql">-- Per-user visibility policy
+          <!-- vertical: privacy model -->
+          <section>
+            <div class="eyebrow">Design Philosophy → Privacy</div>
+            <h2>Privacy-first by default</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.2em">
+              <div>
+                <pre><code class="language-sql">-- Per-user visibility policy
 -- Conservative defaults
 CREATE TABLE visibility_policies (
   user_id                         UUID PRIMARY KEY,
@@ -467,199 +670,787 @@ CREATE TABLE visibility_policies (
   share_transcripts_with_team     BOOL DEFAULT false,
   share_transcripts_with_org      BOOL DEFAULT false
 );</code></pre>
-        <p style="font-size:0.6em;margin-top:0.6em;color:var(--text-dim)">Transcripts are <strong class="text">opt-in share</strong> — off by default for team and org. Metadata (cost, tool mix) is shared by default because it's aggregate-safe.</p>
-      </div>
-      <div>
-        <div class="card" style="font-size:0.65em">
-          <div class="label">Audit log — every privileged view</div>
-          <pre style="font-size:0.85em;margin:0.4em 0"><code>actor, action, target_user, ts
+                <p
+                  style="
+                    font-size: 0.6em;
+                    margin-top: 0.6em;
+                    color: var(--text-dim);
+                  "
+                >
+                  Transcripts are <strong class="text">opt-in share</strong> —
+                  off by default for team and org. Metadata (cost, tool mix) is
+                  shared by default because it's aggregate-safe.
+                </p>
+              </div>
+              <div>
+                <div class="card" style="font-size: 0.65em">
+                  <div class="label">Audit log — every privileged view</div>
+                  <pre
+                    style="font-size: 0.85em; margin: 0.4em 0"
+                  ><code>actor, action, target_user, ts
 alice  view_transcript  bob   09:12
 alice  export_team      —     09:14</code></pre>
-          <p style="color:var(--text-dim);margin-top:0.4em">Any time a team lead or researcher views another user's session, it's recorded — actor, target, justification, IP.</p>
-        </div>
-        <div class="card" style="margin-top:0.45em;font-size:0.65em">
-          <div class="label">Selective session sharing</div>
-          <p style="color:var(--text-dim)">Beyond the blanket policy flags, owners can share individual sessions with any colleague — time-boxed (1/7/30d) grants, auto-approved. The grantee gets a direct link; the owner can revoke at any time. All views remain audit-logged.</p>
-        </div>
-        <div class="card" style="margin-top:0.3em;font-size:0.65em">
-          <div class="label">Redaction before S3</div>
-          <p style="color:var(--text-dim)">Every transcript passes through <code>packages/redaction</code> — tokens, secrets, PII patterns stripped before the JSONL hits object storage. Raw content never written.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-</section>
+                  <p style="color: var(--text-dim); margin-top: 0.4em">
+                    Any time a team lead or researcher views another user's
+                    session, it's recorded — actor, target, justification, IP.
+                  </p>
+                </div>
+                <div class="card" style="margin-top: 0.45em; font-size: 0.65em">
+                  <div class="label">Selective session sharing</div>
+                  <p style="color: var(--text-dim)">
+                    Beyond the blanket policy flags, owners can share individual
+                    sessions with any colleague — time-boxed (1/7/30d) grants,
+                    auto-approved. The grantee gets a direct link; the owner can
+                    revoke at any time. All views remain audit-logged.
+                  </p>
+                </div>
+                <div class="card" style="margin-top: 0.3em; font-size: 0.65em">
+                  <div class="label">Redaction before S3</div>
+                  <p style="color: var(--text-dim)">
+                    Every transcript passes through
+                    <code>packages/redaction</code> — tokens, secrets, PII
+                    patterns stripped before the JSONL hits object storage. Raw
+                    content never written.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
 
-<!-- ════════════════════════════════════════════════
+        <!-- ════════════════════════════════════════════════
      4. ARCHITECTURE
 ════════════════════════════════════════════════ -->
-<section>
-  <section>
-    <div class="eyebrow">Architecture</div>
-    <h2>Three-plane architecture</h2>
-    <div class="divider"></div>
+        <section>
+          <section>
+            <div class="eyebrow">Architecture</div>
+            <h2>Three-plane architecture</h2>
+            <div class="divider"></div>
 
-    <!-- SVG architecture diagram -->
-    <svg viewBox="0 0 900 340" style="width:100%;max-height:55vh;margin-top:0.3em" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono, monospace" aria-labelledby="arch-title">
-      <title id="arch-title">System architecture diagram</title>
-      <defs>
-        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L8,3 z" fill="#8b949e"/>
-        </marker>
-        <marker id="arr-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L8,3 z" fill="#3fb950"/>
-        </marker>
-      </defs>
+            <!-- SVG architecture diagram -->
+            <svg
+              viewBox="0 0 900 340"
+              style="width: 100%; max-height: 55vh; margin-top: 0.3em"
+              xmlns="http://www.w3.org/2000/svg"
+              font-family="JetBrains Mono, monospace"
+              aria-labelledby="arch-title"
+            >
+              <title id="arch-title">System architecture diagram</title>
+              <defs>
+                <marker
+                  id="arr"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="6"
+                  refY="3"
+                  orient="auto"
+                >
+                  <path d="M0,0 L0,6 L8,3 z" fill="#8b949e" />
+                </marker>
+                <marker
+                  id="arr-green"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="6"
+                  refY="3"
+                  orient="auto"
+                >
+                  <path d="M0,0 L0,6 L8,3 z" fill="#3fb950" />
+                </marker>
+              </defs>
 
-      <!-- Dev Machine -->
-      <rect x="20" y="20" width="200" height="90" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-      <text x="120" y="44" text-anchor="middle" fill="#8b949e" font-size="11">DEV MACHINE</text>
-      <rect x="34" y="52" width="172" height="30" rx="5" fill="#1c2128" stroke="#238636" stroke-width="1"/>
-      <text x="120" y="72" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="bold">Claude Code</text>
-      <rect x="34" y="88" width="172" height="16" rx="3" fill="#1c2128" stroke="#30363d"/>
-      <text x="120" y="100" text-anchor="middle" fill="#8b949e" font-size="10">hook binary (compiled)</text>
+              <!-- Dev Machine -->
+              <rect
+                x="20"
+                y="20"
+                width="200"
+                height="90"
+                rx="8"
+                fill="#161b22"
+                stroke="#30363d"
+                stroke-width="1.5"
+              />
+              <text
+                x="120"
+                y="44"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="11"
+              >
+                DEV MACHINE
+              </text>
+              <rect
+                x="34"
+                y="52"
+                width="172"
+                height="30"
+                rx="5"
+                fill="#1c2128"
+                stroke="#238636"
+                stroke-width="1"
+              />
+              <text
+                x="120"
+                y="72"
+                text-anchor="middle"
+                fill="#3fb950"
+                font-size="12"
+                font-weight="bold"
+              >
+                Claude Code
+              </text>
+              <rect
+                x="34"
+                y="88"
+                width="172"
+                height="16"
+                rx="3"
+                fill="#1c2128"
+                stroke="#30363d"
+              />
+              <text
+                x="120"
+                y="100"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="10"
+              >
+                hook binary (compiled)
+              </text>
 
-      <!-- Arrow: Dev → Ingest -->
-      <line x1="220" y1="80" x2="295" y2="120" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arr)" stroke-dasharray="5,3"/>
-      <text x="245" y="95" fill="#8b949e" font-size="9">events / transcripts</text>
+              <!-- Arrow: Dev → Ingest -->
+              <line
+                x1="220"
+                y1="80"
+                x2="295"
+                y2="120"
+                stroke="#8b949e"
+                stroke-width="1.5"
+                marker-end="url(#arr)"
+                stroke-dasharray="5,3"
+              />
+              <text x="245" y="95" fill="#8b949e" font-size="9">
+                events / transcripts
+              </text>
 
-      <!-- Arrow: GitHub → Ingest zone -->
-      <line x1="220" y1="265" x2="295" y2="210" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arr)" stroke-dasharray="5,3"/>
+              <!-- Arrow: GitHub → Ingest zone -->
+              <line
+                x1="220"
+                y1="265"
+                x2="295"
+                y2="210"
+                stroke="#8b949e"
+                stroke-width="1.5"
+                marker-end="url(#arr)"
+                stroke-dasharray="5,3"
+              />
 
-      <!-- GitHub -->
-      <rect x="20" y="230" width="200" height="55" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-      <text x="120" y="252" text-anchor="middle" fill="#8b949e" font-size="11">GITHUB</text>
-      <text x="120" y="272" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="bold">Webhooks · OAuth · Teams</text>
+              <!-- GitHub -->
+              <rect
+                x="20"
+                y="230"
+                width="200"
+                height="55"
+                rx="8"
+                fill="#161b22"
+                stroke="#30363d"
+                stroke-width="1.5"
+              />
+              <text
+                x="120"
+                y="252"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="11"
+              >
+                GITHUB
+              </text>
+              <text
+                x="120"
+                y="272"
+                text-anchor="middle"
+                fill="#58a6ff"
+                font-size="12"
+                font-weight="bold"
+              >
+                Webhooks · OAuth · Teams
+              </text>
 
-      <!-- ─── INGEST PLANE ─── -->
-      <rect x="300" y="20" width="195" height="310" rx="10" fill="#0d1117" stroke="#1f6feb" stroke-width="1.5"/>
-      <text x="397" y="40" text-anchor="middle" fill="#58a6ff" font-size="11" letter-spacing="1">INGEST PLANE</text>
+              <!-- ─── INGEST PLANE ─── -->
+              <rect
+                x="300"
+                y="20"
+                width="195"
+                height="310"
+                rx="10"
+                fill="#0d1117"
+                stroke="#1f6feb"
+                stroke-width="1.5"
+              />
+              <text
+                x="397"
+                y="40"
+                text-anchor="middle"
+                fill="#58a6ff"
+                font-size="11"
+                letter-spacing="1"
+              >
+                INGEST PLANE
+              </text>
 
-      <rect x="315" y="48" width="165" height="36" rx="6" fill="#161b22" stroke="#1f6feb" stroke-width="1"/>
-      <text x="397" y="62" text-anchor="middle" fill="#58a6ff" font-size="11">apps/ingest</text>
-      <text x="397" y="76" text-anchor="middle" fill="#8b949e" font-size="9">Hono · POST /v1/events</text>
+              <rect
+                x="315"
+                y="48"
+                width="165"
+                height="36"
+                rx="6"
+                fill="#161b22"
+                stroke="#1f6feb"
+                stroke-width="1"
+              />
+              <text
+                x="397"
+                y="62"
+                text-anchor="middle"
+                fill="#58a6ff"
+                font-size="11"
+              >
+                apps/ingest
+              </text>
+              <text
+                x="397"
+                y="76"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                Hono · POST /v1/events
+              </text>
 
-      <rect x="315" y="95" width="165" height="36" rx="6" fill="#161b22" stroke="#1f6feb" stroke-width="1"/>
-      <text x="397" y="109" text-anchor="middle" fill="#58a6ff" font-size="11">apps/github-app</text>
-      <text x="397" y="123" text-anchor="middle" fill="#8b949e" font-size="9">Hono · webhook receiver</text>
+              <rect
+                x="315"
+                y="95"
+                width="165"
+                height="36"
+                rx="6"
+                fill="#161b22"
+                stroke="#1f6feb"
+                stroke-width="1"
+              />
+              <text
+                x="397"
+                y="109"
+                text-anchor="middle"
+                fill="#58a6ff"
+                font-size="11"
+              >
+                apps/github-app
+              </text>
+              <text
+                x="397"
+                y="123"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                Hono · webhook receiver
+              </text>
 
-      <rect x="315" y="142" width="165" height="36" rx="6" fill="#161b22" stroke="#238636" stroke-width="1"/>
-      <text x="397" y="156" text-anchor="middle" fill="#3fb950" font-size="11">packages/redaction</text>
-      <text x="397" y="170" text-anchor="middle" fill="#8b949e" font-size="9">token / PII scrub</text>
+              <rect
+                x="315"
+                y="142"
+                width="165"
+                height="36"
+                rx="6"
+                fill="#161b22"
+                stroke="#238636"
+                stroke-width="1"
+              />
+              <text
+                x="397"
+                y="156"
+                text-anchor="middle"
+                fill="#3fb950"
+                font-size="11"
+              >
+                packages/redaction
+              </text>
+              <text
+                x="397"
+                y="170"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                token / PII scrub
+              </text>
 
-      <rect x="315" y="189" width="165" height="36" rx="6" fill="#161b22" stroke="#6e40c9" stroke-width="1"/>
-      <text x="397" y="203" text-anchor="middle" fill="#bc8cff" font-size="11">migrations-runner</text>
-      <text x="397" y="217" text-anchor="middle" fill="#8b949e" font-size="9">one-shot · Prisma + SQL</text>
+              <rect
+                x="315"
+                y="189"
+                width="165"
+                height="36"
+                rx="6"
+                fill="#161b22"
+                stroke="#6e40c9"
+                stroke-width="1"
+              />
+              <text
+                x="397"
+                y="203"
+                text-anchor="middle"
+                fill="#bc8cff"
+                font-size="11"
+              >
+                migrations-runner
+              </text>
+              <text
+                x="397"
+                y="217"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                one-shot · Prisma + SQL
+              </text>
 
-      <text x="397" y="258" text-anchor="middle" fill="#8b949e" font-size="9">packages/auth · schemas · db</text>
-      <text x="397" y="273" text-anchor="middle" fill="#8b949e" font-size="9">packages/github · redaction</text>
+              <text
+                x="397"
+                y="258"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                packages/auth · schemas · db
+              </text>
+              <text
+                x="397"
+                y="273"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                packages/github · redaction
+              </text>
 
-      <!-- ─── STORAGE PLANE ─── -->
-      <rect x="510" y="20" width="175" height="310" rx="10" fill="#0d1117" stroke="#9e6a03" stroke-width="1.5"/>
-      <text x="597" y="40" text-anchor="middle" fill="#e3b341" font-size="11" letter-spacing="1">STORAGE PLANE</text>
+              <!-- ─── STORAGE PLANE ─── -->
+              <rect
+                x="510"
+                y="20"
+                width="175"
+                height="310"
+                rx="10"
+                fill="#0d1117"
+                stroke="#9e6a03"
+                stroke-width="1.5"
+              />
+              <text
+                x="597"
+                y="40"
+                text-anchor="middle"
+                fill="#e3b341"
+                font-size="11"
+                letter-spacing="1"
+              >
+                STORAGE PLANE
+              </text>
 
-      <rect x="525" y="50" width="145" height="55" rx="6" fill="#161b22" stroke="#9e6a03" stroke-width="1"/>
-      <text x="597" y="70" text-anchor="middle" fill="#e3b341" font-size="11">TimescaleDB</text>
-      <text x="597" y="84" text-anchor="middle" fill="#8b949e" font-size="9">events hypertable</text>
-      <text x="597" y="96" text-anchor="middle" fill="#8b949e" font-size="9">partitioned by day</text>
+              <rect
+                x="525"
+                y="50"
+                width="145"
+                height="55"
+                rx="6"
+                fill="#161b22"
+                stroke="#9e6a03"
+                stroke-width="1"
+              />
+              <text
+                x="597"
+                y="70"
+                text-anchor="middle"
+                fill="#e3b341"
+                font-size="11"
+              >
+                TimescaleDB
+              </text>
+              <text
+                x="597"
+                y="84"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                events hypertable
+              </text>
+              <text
+                x="597"
+                y="96"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                partitioned by day
+              </text>
 
-      <rect x="525" y="117" width="145" height="55" rx="6" fill="#161b22" stroke="#9e6a03" stroke-width="1"/>
-      <text x="597" y="137" text-anchor="middle" fill="#e3b341" font-size="11">PostgreSQL</text>
-      <text x="597" y="151" text-anchor="middle" fill="#8b949e" font-size="9">sessions · users · teams</text>
-      <text x="597" y="163" text-anchor="middle" fill="#8b949e" font-size="9">PR rollups · audit_log</text>
+              <rect
+                x="525"
+                y="117"
+                width="145"
+                height="55"
+                rx="6"
+                fill="#161b22"
+                stroke="#9e6a03"
+                stroke-width="1"
+              />
+              <text
+                x="597"
+                y="137"
+                text-anchor="middle"
+                fill="#e3b341"
+                font-size="11"
+              >
+                PostgreSQL
+              </text>
+              <text
+                x="597"
+                y="151"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                sessions · users · teams
+              </text>
+              <text
+                x="597"
+                y="163"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                PR rollups · audit_log
+              </text>
 
-      <rect x="525" y="184" width="145" height="55" rx="6" fill="#161b22" stroke="#9e6a03" stroke-width="1"/>
-      <text x="597" y="204" text-anchor="middle" fill="#e3b341" font-size="11">MinIO / S3</text>
-      <text x="597" y="218" text-anchor="middle" fill="#8b949e" font-size="9">transcripts (redacted)</text>
-      <text x="597" y="230" text-anchor="middle" fill="#8b949e" font-size="9">.jsonl.zst · 1yr TTL</text>
+              <rect
+                x="525"
+                y="184"
+                width="145"
+                height="55"
+                rx="6"
+                fill="#161b22"
+                stroke="#9e6a03"
+                stroke-width="1"
+              />
+              <text
+                x="597"
+                y="204"
+                text-anchor="middle"
+                fill="#e3b341"
+                font-size="11"
+              >
+                MinIO / S3
+              </text>
+              <text
+                x="597"
+                y="218"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                transcripts (redacted)
+              </text>
+              <text
+                x="597"
+                y="230"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                .jsonl.zst · 1yr TTL
+              </text>
 
-      <!-- arrows ingest → storage -->
-      <line x1="495" y1="68" x2="523" y2="75" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr)"/>
-      <line x1="495" y1="113" x2="523" y2="148" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr)"/>
-      <line x1="495" y1="155" x2="523" y2="205" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr)"/>
+              <!-- arrows ingest → storage -->
+              <line
+                x1="495"
+                y1="68"
+                x2="523"
+                y2="75"
+                stroke="#8b949e"
+                stroke-width="1.2"
+                marker-end="url(#arr)"
+              />
+              <line
+                x1="495"
+                y1="113"
+                x2="523"
+                y2="148"
+                stroke="#8b949e"
+                stroke-width="1.2"
+                marker-end="url(#arr)"
+              />
+              <line
+                x1="495"
+                y1="155"
+                x2="523"
+                y2="205"
+                stroke="#8b949e"
+                stroke-width="1.2"
+                marker-end="url(#arr)"
+              />
 
-      <!-- ─── QUERY / UI PLANE ─── -->
-      <rect x="700" y="20" width="180" height="310" rx="10" fill="#0d1117" stroke="#238636" stroke-width="1.5"/>
-      <text x="790" y="40" text-anchor="middle" fill="#3fb950" font-size="11" letter-spacing="1">QUERY / UI PLANE</text>
+              <!-- ─── QUERY / UI PLANE ─── -->
+              <rect
+                x="700"
+                y="20"
+                width="180"
+                height="310"
+                rx="10"
+                fill="#0d1117"
+                stroke="#238636"
+                stroke-width="1.5"
+              />
+              <text
+                x="790"
+                y="40"
+                text-anchor="middle"
+                fill="#3fb950"
+                font-size="11"
+                letter-spacing="1"
+              >
+                QUERY / UI PLANE
+              </text>
 
-      <rect x="715" y="50" width="150" height="55" rx="6" fill="#161b22" stroke="#238636" stroke-width="1"/>
-      <text x="790" y="70" text-anchor="middle" fill="#3fb950" font-size="11">apps/web</text>
-      <text x="790" y="84" text-anchor="middle" fill="#8b949e" font-size="9">Next.js 16 · React 19</text>
-      <text x="790" y="96" text-anchor="middle" fill="#8b949e" font-size="9">dashboards · My Agents</text>
+              <rect
+                x="715"
+                y="50"
+                width="150"
+                height="55"
+                rx="6"
+                fill="#161b22"
+                stroke="#238636"
+                stroke-width="1"
+              />
+              <text
+                x="790"
+                y="70"
+                text-anchor="middle"
+                fill="#3fb950"
+                font-size="11"
+              >
+                apps/web
+              </text>
+              <text
+                x="790"
+                y="84"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                Next.js 16 · React 19
+              </text>
+              <text
+                x="790"
+                y="96"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                dashboards · My Agents
+              </text>
 
-      <rect x="715" y="117" width="150" height="36" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
-      <text x="790" y="137" text-anchor="middle" fill="#8b949e" font-size="11">Search API</text>
-      <text x="790" y="149" text-anchor="middle" fill="#8b949e" font-size="9">faceted · full-text</text>
+              <rect
+                x="715"
+                y="117"
+                width="150"
+                height="36"
+                rx="6"
+                fill="#161b22"
+                stroke="#30363d"
+                stroke-width="1"
+              />
+              <text
+                x="790"
+                y="137"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="11"
+              >
+                Search API
+              </text>
+              <text
+                x="790"
+                y="149"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                faceted · full-text
+              </text>
 
-      <rect x="715" y="164" width="150" height="36" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
-      <text x="790" y="184" text-anchor="middle" fill="#8b949e" font-size="11">Export API</text>
-      <text x="790" y="196" text-anchor="middle" fill="#8b949e" font-size="9">CSV · JSON · scoped</text>
+              <rect
+                x="715"
+                y="164"
+                width="150"
+                height="36"
+                rx="6"
+                fill="#161b22"
+                stroke="#30363d"
+                stroke-width="1"
+              />
+              <text
+                x="790"
+                y="184"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="11"
+              >
+                Export API
+              </text>
+              <text
+                x="790"
+                y="196"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                CSV · JSON · scoped
+              </text>
 
-      <rect x="715" y="211" width="150" height="36" rx="6" fill="#161b22" stroke="#1f6feb" stroke-width="1"/>
-      <text x="790" y="231" text-anchor="middle" fill="#58a6ff" font-size="11">PR Bot</text>
-      <text x="790" y="243" text-anchor="middle" fill="#8b949e" font-size="9">merge summary → GitHub</text>
+              <rect
+                x="715"
+                y="211"
+                width="150"
+                height="36"
+                rx="6"
+                fill="#161b22"
+                stroke="#1f6feb"
+                stroke-width="1"
+              />
+              <text
+                x="790"
+                y="231"
+                text-anchor="middle"
+                fill="#58a6ff"
+                font-size="11"
+              >
+                PR Bot
+              </text>
+              <text
+                x="790"
+                y="243"
+                text-anchor="middle"
+                fill="#8b949e"
+                font-size="9"
+              >
+                merge summary → GitHub
+              </text>
 
-      <!-- arrows storage → query -->
-      <line x1="686" y1="90" x2="713" y2="80" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr)"/>
-      <line x1="686" y1="145" x2="713" y2="137" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr)"/>
-    </svg>
+              <!-- arrows storage → query -->
+              <line
+                x1="686"
+                y1="90"
+                x2="713"
+                y2="80"
+                stroke="#8b949e"
+                stroke-width="1.2"
+                marker-end="url(#arr)"
+              />
+              <line
+                x1="686"
+                y1="145"
+                x2="713"
+                y2="137"
+                stroke="#8b949e"
+                stroke-width="1.2"
+                marker-end="url(#arr)"
+              />
+            </svg>
 
-    <div class="deep-dive-hint">tech decisions ↓</div>
-  </section>
+            <div class="deep-dive-hint">tech decisions ↓</div>
+          </section>
 
-  <!-- vertical: tech decisions -->
-  <section>
-    <div class="eyebrow">Architecture → Key Tech Decisions</div>
-    <h2>Why this stack?</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.5em;font-size:0.7em">
-      <div>
-        <div class="card card-amber">
-          <strong class="amber">TimescaleDB over ClickHouse</strong>
-          <ul style="margin-top:0.4em">
-            <li>Same Postgres wire protocol — existing tooling, Prisma relations</li>
-            <li>Hypertables partition events by day automatically</li>
-            <li>Continuous aggregates for rollup queries at millisecond read latency</li>
-            <li>v1 event volume doesn't justify ClickHouse ops overhead</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.7em">
-          <strong>Hono over Express / Fastify</strong>
-          <ul style="margin-top:0.4em">
-            <li>Native Bun runtime — no Node compatibility shim</li>
-            <li>Web-standard <code>Request/Response</code> — portable to Workers</li>
-            <li>Zod validator middleware built-in</li>
-          </ul>
-        </div>
-      </div>
-      <div>
-        <div class="card card-blue">
-          <strong class="blue">Bun as monorepo runtime</strong>
-          <ul style="margin-top:0.4em">
-            <li>Package manager + script runner + ingest server + hook compiler — one tool</li>
-            <li><code>bun build --compile</code> produces a single-binary hook with no runtime dependency</li>
-            <li>Workspace catalogs enforce exact version pins across all apps</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.7em">
-          <strong>One-shot migrations runner</strong>
-          <ul style="margin-top:0.4em">
-            <li>4 services share one schema — "migrate-on-boot in each service" would race</li>
-            <li>Dedicated container depends on Postgres health, runs once, exits 0</li>
-            <li>All other services depend on <code>service_completed_successfully</code></li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
+          <!-- vertical: tech decisions -->
+          <section>
+            <div class="eyebrow">Architecture → Key Tech Decisions</div>
+            <h2>Why this stack?</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.5em; font-size: 0.7em">
+              <div>
+                <div class="card card-amber">
+                  <strong class="amber">TimescaleDB over ClickHouse</strong>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      Same Postgres wire protocol — existing tooling, Prisma
+                      relations
+                    </li>
+                    <li>Hypertables partition events by day automatically</li>
+                    <li>
+                      Continuous aggregates for rollup queries at millisecond
+                      read latency
+                    </li>
+                    <li>
+                      v1 event volume doesn't justify ClickHouse ops overhead
+                    </li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.7em">
+                  <strong>Hono over Express / Fastify</strong>
+                  <ul style="margin-top: 0.4em">
+                    <li>Native Bun runtime — no Node compatibility shim</li>
+                    <li>
+                      Web-standard <code>Request/Response</code> — portable to
+                      Workers
+                    </li>
+                    <li>Zod validator middleware built-in</li>
+                  </ul>
+                </div>
+              </div>
+              <div>
+                <div class="card card-blue">
+                  <strong class="blue">Bun as monorepo runtime</strong>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      Package manager + script runner + ingest server + hook
+                      compiler — one tool
+                    </li>
+                    <li>
+                      <code>bun build --compile</code> produces a single-binary
+                      hook with no runtime dependency
+                    </li>
+                    <li>
+                      Workspace catalogs enforce exact version pins across all
+                      apps
+                    </li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.7em">
+                  <strong>One-shot migrations runner</strong>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      4 services share one schema — "migrate-on-boot in each
+                      service" would race
+                    </li>
+                    <li>
+                      Dedicated container depends on Postgres health, runs once,
+                      exits 0
+                    </li>
+                    <li>
+                      All other services depend on
+                      <code>service_completed_successfully</code>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
 
-  <!-- vertical: monorepo structure -->
-  <section>
-    <div class="eyebrow">Architecture → Monorepo</div>
-    <h2>Workspace layout</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.5em">
-      <pre style="font-size:0.62em"><code>apps/
+          <!-- vertical: monorepo structure -->
+          <section>
+            <div class="eyebrow">Architecture → Monorepo</div>
+            <h2>Workspace layout</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.5em">
+              <pre style="font-size: 0.62em"><code>apps/
   web/          # Next.js 16 · dashboards
   ingest/       # Hono · telemetry ingestion
   github-app/   # Hono · webhook handler
@@ -672,97 +1463,136 @@ packages/
   schemas/      # Zod event shapes (truth)
 infra/
   migrations-runner/  # one-shot schema deploy</code></pre>
-      <div>
-        <div class="card card-green" style="font-size:0.65em">
-          <div class="label">Build pipeline</div>
-          <p>Turborepo fans out <code>build / typecheck / test / lint</code> in dependency order. Cache hits skip unchanged packages — typical incremental build is &lt; 3s.</p>
-        </div>
-        <div class="card" style="margin-top:0.7em;font-size:0.65em">
-          <div class="label">Quality gates (pre-commit, mandatory)</div>
-          <div style="display:flex;gap:0.4em;flex-wrap:wrap;margin-top:0.3em">
-            <span class="tag tag-green">biome check</span>
-            <span class="tag tag-blue">tsc --noEmit</span>
-            <span class="tag tag-amber">turbo build</span>
-            <span class="tag tag-purple">vitest</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-</section>
+              <div>
+                <div class="card card-green" style="font-size: 0.65em">
+                  <div class="label">Build pipeline</div>
+                  <p>
+                    Turborepo fans out
+                    <code>build / typecheck / test / lint</code> in dependency
+                    order. Cache hits skip unchanged packages — typical
+                    incremental build is &lt; 3s.
+                  </p>
+                </div>
+                <div class="card" style="margin-top: 0.7em; font-size: 0.65em">
+                  <div class="label">Quality gates (pre-commit, mandatory)</div>
+                  <div
+                    style="
+                      display: flex;
+                      gap: 0.4em;
+                      flex-wrap: wrap;
+                      margin-top: 0.3em;
+                    "
+                  >
+                    <span class="tag tag-green">biome check</span>
+                    <span class="tag tag-blue">tsc --noEmit</span>
+                    <span class="tag tag-amber">turbo build</span>
+                    <span class="tag tag-purple">vitest</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
 
-<!-- ════════════════════════════════════════════════
+        <!-- ════════════════════════════════════════════════
      5. WHAT WE CAPTURE
 ════════════════════════════════════════════════ -->
-<section>
-  <section>
-    <div class="eyebrow">Data Model</div>
-    <h2>What gets captured — per session, per event</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.5em">
-      <div>
-        <div class="label">Session-level (one row per Claude Code session)</div>
-        <div style="display:flex;flex-wrap:wrap;gap:0.35em;margin:0.5em 0">
-          <span class="tag tag-green">tokens in/out/cached</span>
-          <span class="tag tag-green">cost USD</span>
-          <span class="tag tag-blue">tool call count</span>
-          <span class="tag tag-blue">tool error count</span>
-          <span class="tag tag-amber">permission denials</span>
-          <span class="tag tag-amber">interrupts</span>
-          <span class="tag">git branch / commit</span>
-          <span class="tag">PR number</span>
-          <span class="tag">agent version</span>
-          <span class="tag">primary model</span>
-          <span class="tag">OS / host hash</span>
-          <span class="tag">session status</span>
-          <span class="tag">resume / compaction count</span>
-          <span class="tag tag-purple">shape_label</span>
-          <span class="tag tag-purple">friction_score</span>
-          <span class="tag">pr_ci_status</span>
-        </div>
+        <section>
+          <section>
+            <div class="eyebrow">Data Model</div>
+            <h2>What gets captured — per session, per event</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.5em">
+              <div>
+                <div class="label">
+                  Session-level (one row per Claude Code session)
+                </div>
+                <div
+                  style="
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.35em;
+                    margin: 0.5em 0;
+                  "
+                >
+                  <span class="tag tag-green">tokens in/out/cached</span>
+                  <span class="tag tag-green">cost USD</span>
+                  <span class="tag tag-blue">tool call count</span>
+                  <span class="tag tag-blue">tool error count</span>
+                  <span class="tag tag-amber">permission denials</span>
+                  <span class="tag tag-amber">interrupts</span>
+                  <span class="tag">git branch / commit</span>
+                  <span class="tag">PR number</span>
+                  <span class="tag">agent version</span>
+                  <span class="tag">primary model</span>
+                  <span class="tag">OS / host hash</span>
+                  <span class="tag">session status</span>
+                  <span class="tag">resume / compaction count</span>
+                  <span class="tag tag-purple">shape_label</span>
+                  <span class="tag tag-purple">friction_score</span>
+                  <span class="tag">pr_ci_status</span>
+                </div>
 
-        <div class="label" style="margin-top:0.8em">Event-level (hypertable, every hook fire)</div>
-        <div style="display:flex;flex-wrap:wrap;gap:0.35em;margin:0.5em 0">
-          <span class="tag tag-blue">SessionStart</span>
-          <span class="tag tag-blue">UserPromptSubmit</span>
-          <span class="tag tag-blue">PreToolUse</span>
-          <span class="tag tag-blue">PostToolUse</span>
-          <span class="tag tag-blue">Stop</span>
-          <span class="tag tag-blue">SubagentStop</span>
-          <span class="tag">tool name + category</span>
-          <span class="tag">duration ms</span>
-          <span class="tag">denied / interrupted</span>
-          <span class="tag">MCP server + tool</span>
-          <span class="tag">subagent type</span>
-        </div>
-      </div>
-      <div>
-        <div class="card card-blue">
-          <div class="label">PR rollup — per pull request</div>
-          <ul>
-            <li>Cost per PR (summed across all sessions that touched that branch)</li>
-            <li>Sessions count, session duration total</li>
-            <li>Tool mix breakdown</li>
-            <li>Error rate, permission denial rate</li>
-            <li>Time-to-merge with AI session hours</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.5em">
-          <div class="label">Transcript archive</div>
-          <p style="font-size:0.65em;color:var(--text-dim)">Full JSONL conversation, redacted → zstd compressed → S3 key stored in <code>sessions.transcript_s3_key</code>. Viewable in "My Agents". 1-year retention policy.</p>
-        </div>
-      </div>
-    </div>
-    <div class="deep-dive-hint">event schema ↓</div>
-  </section>
+                <div class="label" style="margin-top: 0.8em">
+                  Event-level (hypertable, every hook fire)
+                </div>
+                <div
+                  style="
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.35em;
+                    margin: 0.5em 0;
+                  "
+                >
+                  <span class="tag tag-blue">SessionStart</span>
+                  <span class="tag tag-blue">UserPromptSubmit</span>
+                  <span class="tag tag-blue">PreToolUse</span>
+                  <span class="tag tag-blue">PostToolUse</span>
+                  <span class="tag tag-blue">Stop</span>
+                  <span class="tag tag-blue">SubagentStop</span>
+                  <span class="tag">tool name + category</span>
+                  <span class="tag">duration ms</span>
+                  <span class="tag">denied / interrupted</span>
+                  <span class="tag">MCP server + tool</span>
+                  <span class="tag">subagent type</span>
+                </div>
+              </div>
+              <div>
+                <div class="card card-blue">
+                  <div class="label">PR rollup — per pull request</div>
+                  <ul>
+                    <li>
+                      Cost per PR (summed across all sessions that touched that
+                      branch)
+                    </li>
+                    <li>Sessions count, session duration total</li>
+                    <li>Tool mix breakdown</li>
+                    <li>Error rate, permission denial rate</li>
+                    <li>Time-to-merge with AI session hours</li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.5em">
+                  <div class="label">Transcript archive</div>
+                  <p style="font-size: 0.65em; color: var(--text-dim)">
+                    Full JSONL conversation, redacted → zstd compressed → S3 key
+                    stored in <code>sessions.transcript_s3_key</code>. Viewable
+                    in "My Agents". 1-year retention policy.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="deep-dive-hint">event schema ↓</div>
+          </section>
 
-  <!-- vertical: event schema -->
-  <section>
-    <div class="eyebrow">Data Model → Events Hypertable</div>
-    <h2>Events firehose — partitioned by day</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.5em">
-      <pre style="font-size:0.55em"><code class="language-sql">CREATE TABLE events (
+          <!-- vertical: event schema -->
+          <section>
+            <div class="eyebrow">Data Model → Events Hypertable</div>
+            <h2>Events firehose — partitioned by day</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.5em">
+              <pre
+                style="font-size: 0.55em"
+              ><code class="language-sql">CREATE TABLE events (
   event_id        UUID NOT NULL,     -- UUIDv7
   session_id      UUID NOT NULL,
   user_id         UUID NOT NULL,
@@ -790,419 +1620,630 @@ infra/
   output_tokens       INT,
   cost_usd            NUMERIC(10,6)
 );</code></pre>
-      <div>
-        <div class="card card-amber" style="font-size:0.62em">
-          <div class="label">TimescaleDB hypertable</div>
-          <ul>
-            <li>Auto-partitions <code>events</code> by <code>ts</code> daily</li>
-            <li>Continuous aggregates pre-compute per-session and per-user rollups</li>
-            <li>Retention policy drops raw partitions after 1 year</li>
-            <li>Same Postgres driver — no separate query API needed</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.7em;font-size:0.62em">
-          <div class="label">Privacy note</div>
-          <p style="color:var(--text-dim)"><code>tool_input_hash</code> stores a SHA-256 of tool inputs — never the content itself. Transcript content lives in S3, never in the relational DB.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-</section>
+              <div>
+                <div class="card card-amber" style="font-size: 0.62em">
+                  <div class="label">TimescaleDB hypertable</div>
+                  <ul>
+                    <li>
+                      Auto-partitions <code>events</code> by
+                      <code>ts</code> daily
+                    </li>
+                    <li>
+                      Continuous aggregates pre-compute per-session and per-user
+                      rollups
+                    </li>
+                    <li>Retention policy drops raw partitions after 1 year</li>
+                    <li>Same Postgres driver — no separate query API needed</li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.7em; font-size: 0.62em">
+                  <div class="label">Privacy note</div>
+                  <p style="color: var(--text-dim)">
+                    <code>tool_input_hash</code> stores a SHA-256 of tool inputs
+                    — never the content itself. Transcript content lives in S3,
+                    never in the relational DB.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
 
-<!-- ════════════════════════════════════════════════
+        <!-- ════════════════════════════════════════════════
      6. THE HOOK
 ════════════════════════════════════════════════ -->
-<section>
-  <section>
-    <div class="eyebrow">Telemetry Collection</div>
-    <h2>The hook — zero-friction capture on dev machines</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.7em">
-      <div>
-        <div class="card card-green">
-          <div class="label">Single compiled binary</div>
-          <p style="font-size:0.65em;color:var(--text-dim)">Built with <code>bun build --compile</code>. No Node or Bun runtime needed on the developer's machine. Four targets shipped:</p>
-          <div style="margin-top:0.5em;display:flex;flex-wrap:wrap;gap:0.3em">
-            <span class="tag tag-green">darwin-arm64</span>
-            <span class="tag tag-green">darwin-x64</span>
-            <span class="tag">linux-arm64</span>
-            <span class="tag">linux-x64</span>
-          </div>
-        </div>
-        <div class="card" style="margin-top:0.7em;font-size:0.65em">
-          <div class="label">Commands</div>
-          <div style="display:flex;flex-wrap:wrap;gap:0.3em;margin-top:0.3em">
-            <span class="tag tag-green">install</span>
-            <span class="tag tag-green">uninstall</span>
-            <span class="tag tag-blue">login</span>
-            <span class="tag tag-blue">status</span>
-            <span class="tag">pause / resume</span>
-            <span class="tag">purge</span>
-            <span class="tag tag-amber">import</span>
-          </div>
-          <p style="color:var(--text-dim);margin-top:0.5em"><code>import</code> backfills historical transcripts from <code>~/.claude/projects/</code> — no re-capture needed</p>
-        </div>
-      </div>
-      <div>
-        <!-- flow diagram -->
-        <div style="font-size:0.65em;line-height:2.2">
-          <div class="flow-box green">Claude Code fires hook (stdin)</div>
-          <div style="padding-left:1.5em;color:var(--text-dim)">↓ event JSON</div>
-          <div class="flow-box green">hook-entry · parse &amp; validate</div>
-          <div style="padding-left:1.5em;color:var(--text-dim)">↓ enqueue</div>
-          <div class="flow-box blue">local queue (JSONL / SQLite)</div>
-          <div style="padding-left:1.5em;color:var(--text-dim)">↓ batch flush every 5s / 50 events</div>
-          <div class="flow-box blue">shipper · auth token + HTTPS</div>
-          <div style="padding-left:1.5em;color:var(--text-dim)">↓ POST /v1/events</div>
-          <div class="flow-box amber">ingest API · TimescaleDB</div>
-          <div style="padding-left:1.5em;color:var(--text-dim)">↓ at session Stop</div>
-          <div class="flow-box amber">transcript → redact → S3</div>
-        </div>
-      </div>
-    </div>
-    <div class="deep-dive-hint">auth &amp; batching ↓</div>
-  </section>
+        <section>
+          <section>
+            <div class="eyebrow">Telemetry Collection</div>
+            <h2>The hook — zero-friction capture on dev machines</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.7em">
+              <div>
+                <div class="card card-green">
+                  <div class="label">Single compiled binary</div>
+                  <p style="font-size: 0.65em; color: var(--text-dim)">
+                    Built with <code>bun build --compile</code>. No Node or Bun
+                    runtime needed on the developer's machine. Four targets
+                    shipped:
+                  </p>
+                  <div
+                    style="
+                      margin-top: 0.5em;
+                      display: flex;
+                      flex-wrap: wrap;
+                      gap: 0.3em;
+                    "
+                  >
+                    <span class="tag tag-green">darwin-arm64</span>
+                    <span class="tag tag-green">darwin-x64</span>
+                    <span class="tag">linux-arm64</span>
+                    <span class="tag">linux-x64</span>
+                  </div>
+                </div>
+                <div class="card" style="margin-top: 0.7em; font-size: 0.65em">
+                  <div class="label">Commands</div>
+                  <div
+                    style="
+                      display: flex;
+                      flex-wrap: wrap;
+                      gap: 0.3em;
+                      margin-top: 0.3em;
+                    "
+                  >
+                    <span class="tag tag-green">install</span>
+                    <span class="tag tag-green">uninstall</span>
+                    <span class="tag tag-blue">login</span>
+                    <span class="tag tag-blue">status</span>
+                    <span class="tag">pause / resume</span>
+                    <span class="tag">purge</span>
+                    <span class="tag tag-amber">import</span>
+                  </div>
+                  <p style="color: var(--text-dim); margin-top: 0.5em">
+                    <code>import</code> backfills historical transcripts from
+                    <code>~/.claude/projects/</code> — no re-capture needed
+                  </p>
+                </div>
+              </div>
+              <div>
+                <!-- flow diagram -->
+                <div style="font-size: 0.65em; line-height: 2.2">
+                  <div class="flow-box green">
+                    Claude Code fires hook (stdin)
+                  </div>
+                  <div style="padding-left: 1.5em; color: var(--text-dim)">
+                    ↓ event JSON
+                  </div>
+                  <div class="flow-box green">
+                    hook-entry · parse &amp; validate
+                  </div>
+                  <div style="padding-left: 1.5em; color: var(--text-dim)">
+                    ↓ enqueue
+                  </div>
+                  <div class="flow-box blue">local queue (JSONL / SQLite)</div>
+                  <div style="padding-left: 1.5em; color: var(--text-dim)">
+                    ↓ batch flush every 5s / 50 events
+                  </div>
+                  <div class="flow-box blue">shipper · auth token + HTTPS</div>
+                  <div style="padding-left: 1.5em; color: var(--text-dim)">
+                    ↓ POST /v1/events
+                  </div>
+                  <div class="flow-box amber">ingest API · TimescaleDB</div>
+                  <div style="padding-left: 1.5em; color: var(--text-dim)">
+                    ↓ at session Stop
+                  </div>
+                  <div class="flow-box amber">transcript → redact → S3</div>
+                </div>
+              </div>
+            </div>
+            <div class="deep-dive-hint">auth &amp; batching ↓</div>
+          </section>
 
-  <!-- vertical: auth + batching -->
-  <section>
-    <div class="eyebrow">Hook → Auth &amp; Reliability</div>
-    <h2>Short-lived tokens · local queue · resumable uploads</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.5em;font-size:0.72em">
-      <div>
-        <div class="card card-blue">
-          <strong class="blue">Auth — OIDC device flow</strong>
-          <ul style="margin-top:0.4em">
-            <li>Developer runs <code>claude-telemetry login</code> once</li>
-            <li>Exchanges GitHub OAuth code for a short-lived JWT</li>
-            <li>JWT refreshed silently by the flusher — no re-login needed</li>
-            <li>No long-lived API keys stored on disk</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.7em">
-          <strong>Local queue = resilience</strong>
-          <ul style="margin-top:0.4em">
-            <li>Events buffered locally if ingest is unreachable</li>
-            <li>Flush with backoff on network errors</li>
-            <li>Events are never dropped silently — surfaced in health status</li>
-          </ul>
-        </div>
-      </div>
-      <div>
-        <div class="card card-green">
-          <strong class="green">Resumable transcript uploads</strong>
-          <ul style="margin-top:0.4em">
-            <li><code>POST /v1/transcripts/{sid}</code> accepts <code>Content-Range</code></li>
-            <li>Large sessions (long-running compacted context) upload in chunks</li>
-            <li>Hook resumes interrupted uploads automatically on next Stop event</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.7em">
-          <strong>Redaction pipeline</strong>
-          <ul style="margin-top:0.4em">
-            <li>Runs client-side before any bytes leave the machine</li>
-            <li>Strips tokens, secrets, PII patterns from transcript JSONL</li>
-            <li>Then zstd-compressed for upload</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-</section>
+          <!-- vertical: auth + batching -->
+          <section>
+            <div class="eyebrow">Hook → Auth &amp; Reliability</div>
+            <h2>Short-lived tokens · local queue · resumable uploads</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.5em; font-size: 0.72em">
+              <div>
+                <div class="card card-blue">
+                  <strong class="blue">Auth — OIDC device flow</strong>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      Developer runs <code>claude-telemetry login</code> once
+                    </li>
+                    <li>Exchanges GitHub OAuth code for a short-lived JWT</li>
+                    <li>
+                      JWT refreshed silently by the flusher — no re-login needed
+                    </li>
+                    <li>No long-lived API keys stored on disk</li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.7em">
+                  <strong>Local queue = resilience</strong>
+                  <ul style="margin-top: 0.4em">
+                    <li>Events buffered locally if ingest is unreachable</li>
+                    <li>Flush with backoff on network errors</li>
+                    <li>
+                      Events are never dropped silently — surfaced in health
+                      status
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div>
+                <div class="card card-green">
+                  <strong class="green">Resumable transcript uploads</strong>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      <code>POST /v1/transcripts/{sid}</code> accepts
+                      <code>Content-Range</code>
+                    </li>
+                    <li>
+                      Large sessions (long-running compacted context) upload in
+                      chunks
+                    </li>
+                    <li>
+                      Hook resumes interrupted uploads automatically on next
+                      Stop event
+                    </li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.7em">
+                  <strong>Redaction pipeline</strong>
+                  <ul style="margin-top: 0.4em">
+                    <li>Runs client-side before any bytes leave the machine</li>
+                    <li>
+                      Strips tokens, secrets, PII patterns from transcript JSONL
+                    </li>
+                    <li>Then zstd-compressed for upload</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
 
-<!-- ════════════════════════════════════════════════
+        <!-- ════════════════════════════════════════════════
      7. DASHBOARDS
 ════════════════════════════════════════════════ -->
-<section>
-  <section>
-    <div class="eyebrow">Product</div>
-    <h2>Dashboard experience — four surfaces</h2>
-    <div class="divider"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.4em;margin-top:0.3em;font-size:0.68em">
-      <div class="card card-green">
-        <div class="label" style="color:var(--green)">C — My Agents <code style="font-size:0.8em">/me</code></div>
-        <ul style="margin-top:0.4em">
-          <li>Session list + cost timeline</li>
-          <li>Token breakdown (input / output / cache)</li>
-          <li>Transcript viewer + search</li>
-          <li>Effectiveness insights — friction trend, session shape mix</li>
-          <li>PR cost summary</li>
-          <li>Privacy controls + audit feed</li>
-          <li>Access grants view</li>
-          <li>Share sessions with colleagues (time-boxed, 1 / 7 / 30d)</li>
-        </ul>
-      </div>
-      <div class="card card-blue">
-        <div class="label" style="color:var(--blue)">B — Team <code style="font-size:0.8em">/team</code></div>
-        <ul style="margin-top:0.4em">
-          <li>Aggregate cost + usage trends</li>
-          <li>Adoption funnel (active / inactive)</li>
-          <li>Sessions tab — team-wide listing with per-session drill-down</li>
-          <li>PR tab — cost &amp; session count per PR + delivery stats</li>
-          <li>Tools tab — per-tool breakdown</li>
-          <li>Skills analytics — invocations, cost impact, top users</li>
-          <li>MCP tab — per-server health, latency, cost</li>
-          <li>Agents tab — sub-agent spawns and cost</li>
-        </ul>
-      </div>
-      <div class="card card-amber">
-        <div class="label" style="color:var(--amber)">A — Org <code style="font-size:0.8em">/org</code></div>
-        <ul style="margin-top:0.4em">
-          <li>Org-wide cost by team</li>
-          <li>Models — cache efficiency, routing, governance</li>
-          <li>MCP integrations — utilization, error rates, cost</li>
-          <li>Agents — sub-agent spawns, types, cost</li>
-          <li>Adoption funnel across org</li>
-          <li>Delivery stats — time-to-merge, top repos</li>
-          <li>Tool usage breakdown + FTS search</li>
-          <li>Skills analytics — trends, adoption funnel, drill-down detail</li>
-          <li>Teams directory</li>
-        </ul>
-      </div>
-      <div class="card card-purple">
-        <div class="label" style="color:var(--purple)">Admin <code style="font-size:0.8em">/admin</code></div>
-        <ul style="margin-top:0.4em">
-          <li>Alert rules + notification channels</li>
-          <li>Access grants — request / approve / expire</li>
-          <li>Agent adapter status (live agents)</li>
-          <li>Background job control</li>
-          <li>Per-agent price tables</li>
-          <li>Per-team retention overrides</li>
-          <li>Org &amp; team role management</li>
-        </ul>
-      </div>
-    </div>
-    <div class="deep-dive-hint">PR rollup detail ↓</div>
-  </section>
+        <section>
+          <section>
+            <div class="eyebrow">Product</div>
+            <h2>Dashboard experience — four surfaces</h2>
+            <div class="divider"></div>
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr 1fr;
+                gap: 0.4em;
+                margin-top: 0.3em;
+                font-size: 0.68em;
+              "
+            >
+              <div class="card card-green">
+                <div class="label" style="color: var(--green)">
+                  C — My Agents <code style="font-size: 0.8em">/me</code>
+                </div>
+                <ul style="margin-top: 0.4em">
+                  <li>Session list + cost timeline</li>
+                  <li>Token breakdown (input / output / cache)</li>
+                  <li>Transcript viewer + search</li>
+                  <li>
+                    Effectiveness insights — friction trend, session shape mix
+                  </li>
+                  <li>PR cost summary</li>
+                  <li>Privacy controls + audit feed</li>
+                  <li>Access grants view</li>
+                  <li>
+                    Share sessions with colleagues (time-boxed, 1 / 7 / 30d)
+                  </li>
+                </ul>
+              </div>
+              <div class="card card-blue">
+                <div class="label" style="color: var(--blue)">
+                  B — Team <code style="font-size: 0.8em">/team</code>
+                </div>
+                <ul style="margin-top: 0.4em">
+                  <li>Aggregate cost + usage trends</li>
+                  <li>Adoption funnel (active / inactive)</li>
+                  <li>
+                    Sessions tab — team-wide listing with per-session drill-down
+                  </li>
+                  <li>
+                    PR tab — cost &amp; session count per PR + delivery stats
+                  </li>
+                  <li>Tools tab — per-tool breakdown</li>
+                  <li>
+                    Skills analytics — invocations, cost impact, top users
+                  </li>
+                  <li>MCP tab — per-server health, latency, cost</li>
+                  <li>Agents tab — sub-agent spawns and cost</li>
+                </ul>
+              </div>
+              <div class="card card-amber">
+                <div class="label" style="color: var(--amber)">
+                  A — Org <code style="font-size: 0.8em">/org</code>
+                </div>
+                <ul style="margin-top: 0.4em">
+                  <li>Org-wide cost by team</li>
+                  <li>Models — cache efficiency, routing, governance</li>
+                  <li>MCP integrations — utilization, error rates, cost</li>
+                  <li>Agents — sub-agent spawns, types, cost</li>
+                  <li>Adoption funnel across org</li>
+                  <li>Delivery stats — time-to-merge, top repos</li>
+                  <li>Tool usage breakdown + FTS search</li>
+                  <li>
+                    Skills analytics — trends, adoption funnel, drill-down
+                    detail
+                  </li>
+                  <li>Teams directory</li>
+                </ul>
+              </div>
+              <div class="card card-purple">
+                <div class="label" style="color: var(--purple)">
+                  Admin <code style="font-size: 0.8em">/admin</code>
+                </div>
+                <ul style="margin-top: 0.4em">
+                  <li>Alert rules + notification channels</li>
+                  <li>Access grants — request / approve / expire</li>
+                  <li>Agent adapter status (live agents)</li>
+                  <li>Background job control</li>
+                  <li>Per-agent price tables</li>
+                  <li>Per-team retention overrides</li>
+                  <li>Org &amp; team role management</li>
+                </ul>
+              </div>
+            </div>
+            <div class="deep-dive-hint">PR rollup detail ↓</div>
+          </section>
 
-  <!-- vertical: PR rollup -->
-  <section>
-    <div class="eyebrow">Dashboards → PR Intelligence</div>
-    <h2>Correlating AI work to pull requests</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.5em">
-      <div>
-        <div class="card card-blue" style="font-size:0.65em">
-          <div class="label">How sessions link to PRs</div>
-          <ol style="list-style:decimal;padding-left:1.2em;margin:0.4em 0">
-            <li style="padding:0.2em 0;font-size:1em">Hook captures <code>git branch</code> + <code>git remote</code> at SessionStart</li>
-            <li style="padding:0.2em 0;font-size:1em">GitHub webhook fires on <code>pull_request.opened/synchronize/closed</code></li>
-            <li style="padding:0.2em 0;font-size:1em">Webhook handler matches PR branch → sessions → writes <code>session_pr_links</code></li>
-            <li style="padding:0.2em 0;font-size:1em">PR rollup computed: cost, sessions, tool mix, error rate</li>
-            <li style="padding:0.2em 0;font-size:1em">On merge: PR bot posts summary comment to GitHub</li>
-          </ol>
-        </div>
-      </div>
-      <div>
-        <div class="card" style="font-size:0.65em">
-          <div class="label">PR rollup fields</div>
-          <div style="display:flex;flex-wrap:wrap;gap:0.3em;margin-top:0.4em">
-            <span class="tag tag-green">total_cost_usd</span>
-            <span class="tag tag-green">session_count</span>
-            <span class="tag tag-green">total_duration_min</span>
-            <span class="tag tag-blue">tool_call_count</span>
-            <span class="tag tag-blue">tool_error_rate</span>
-            <span class="tag tag-blue">permission_denial_rate</span>
-            <span class="tag tag-amber">model_mix</span>
-            <span class="tag">time_to_merge_hrs</span>
-            <span class="tag">ai_session_hrs</span>
-            <span class="tag">check_failures_count</span>
-            <span class="tag">reverted_at</span>
-          </div>
-        </div>
-        <div class="card card-green" style="margin-top:0.7em;font-size:0.65em">
-          <div class="label">PR bot comment (on merge)</div>
-          <pre style="font-size:0.9em;margin:0.3em 0"><code>## 🤖 AI Session Summary
+          <!-- vertical: PR rollup -->
+          <section>
+            <div class="eyebrow">Dashboards → PR Intelligence</div>
+            <h2>Correlating AI work to pull requests</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.5em">
+              <div>
+                <div class="card card-blue" style="font-size: 0.65em">
+                  <div class="label">How sessions link to PRs</div>
+                  <ol
+                    style="
+                      list-style: decimal;
+                      padding-left: 1.2em;
+                      margin: 0.4em 0;
+                    "
+                  >
+                    <li style="padding: 0.2em 0; font-size: 1em">
+                      Hook captures <code>git branch</code> +
+                      <code>git remote</code> at SessionStart
+                    </li>
+                    <li style="padding: 0.2em 0; font-size: 1em">
+                      GitHub webhook fires on
+                      <code>pull_request.opened/synchronize/closed</code>
+                    </li>
+                    <li style="padding: 0.2em 0; font-size: 1em">
+                      Webhook handler matches PR branch → sessions → writes
+                      <code>session_pr_links</code>
+                    </li>
+                    <li style="padding: 0.2em 0; font-size: 1em">
+                      PR rollup computed: cost, sessions, tool mix, error rate
+                    </li>
+                    <li style="padding: 0.2em 0; font-size: 1em">
+                      On merge: PR bot posts summary comment to GitHub
+                    </li>
+                  </ol>
+                </div>
+              </div>
+              <div>
+                <div class="card" style="font-size: 0.65em">
+                  <div class="label">PR rollup fields</div>
+                  <div
+                    style="
+                      display: flex;
+                      flex-wrap: wrap;
+                      gap: 0.3em;
+                      margin-top: 0.4em;
+                    "
+                  >
+                    <span class="tag tag-green">total_cost_usd</span>
+                    <span class="tag tag-green">session_count</span>
+                    <span class="tag tag-green">total_duration_min</span>
+                    <span class="tag tag-blue">tool_call_count</span>
+                    <span class="tag tag-blue">tool_error_rate</span>
+                    <span class="tag tag-blue">permission_denial_rate</span>
+                    <span class="tag tag-amber">model_mix</span>
+                    <span class="tag">time_to_merge_hrs</span>
+                    <span class="tag">ai_session_hrs</span>
+                    <span class="tag">check_failures_count</span>
+                    <span class="tag">reverted_at</span>
+                  </div>
+                </div>
+                <div
+                  class="card card-green"
+                  style="margin-top: 0.7em; font-size: 0.65em"
+                >
+                  <div class="label">PR bot comment (on merge)</div>
+                  <pre
+                    style="font-size: 0.9em; margin: 0.3em 0"
+                  ><code>## 🤖 AI Session Summary
 Sessions: 4 | Cost: $0.82
 Tools: Edit (41%) Read (35%) Bash (18%)
 Cache efficiency: 68%</code></pre>
-        </div>
-      </div>
-    </div>
-  </section>
-</section>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
 
-<!-- ════════════════════════════════════════════════
+        <!-- ════════════════════════════════════════════════
      8. TECH STACK
 ════════════════════════════════════════════════ -->
-<section>
-  <section>
-    <div class="eyebrow">Stack</div>
-    <h2>Technology snapshot</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.6em">
-      <div>
-        <div class="label">Runtime &amp; tooling</div>
-        <div class="tech-grid" style="margin:0.4em 0 0.8em">
-          <span class="tech-badge">Bun<span>1.3.14</span></span>
-          <span class="tech-badge">Turborepo<span>2.9</span></span>
-          <span class="tech-badge">TypeScript<span>6.0</span></span>
-          <span class="tech-badge">Biome<span>2.4</span></span>
-          <span class="tech-badge">Vitest<span>4.1</span></span>
-        </div>
+        <section>
+          <section>
+            <div class="eyebrow">Stack</div>
+            <h2>Technology snapshot</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.6em">
+              <div>
+                <div class="label">Runtime &amp; tooling</div>
+                <div class="tech-grid" style="margin: 0.4em 0 0.8em">
+                  <span class="tech-badge">Bun<span>1.3.14</span></span>
+                  <span class="tech-badge">Turborepo<span>2.9</span></span>
+                  <span class="tech-badge">TypeScript<span>6.0</span></span>
+                  <span class="tech-badge">Biome<span>2.4</span></span>
+                  <span class="tech-badge">Vitest<span>4.1</span></span>
+                </div>
 
-        <div class="label">Frontend</div>
-        <div class="tech-grid" style="margin:0.4em 0 0.8em">
-          <span class="tech-badge">Next.js<span>16</span></span>
-          <span class="tech-badge">React<span>19.2</span></span>
-          <span class="tech-badge">Tailwind<span>4.1</span></span>
-          <span class="tech-badge">Recharts</span>
-          <span class="tech-badge">shadcn/ui</span>
-        </div>
+                <div class="label">Frontend</div>
+                <div class="tech-grid" style="margin: 0.4em 0 0.8em">
+                  <span class="tech-badge">Next.js<span>16</span></span>
+                  <span class="tech-badge">React<span>19.2</span></span>
+                  <span class="tech-badge">Tailwind<span>4.1</span></span>
+                  <span class="tech-badge">Recharts</span>
+                  <span class="tech-badge">shadcn/ui</span>
+                </div>
 
-        <div class="label">Backend / API</div>
-        <div class="tech-grid" style="margin:0.4em 0 0.8em">
-          <span class="tech-badge">Hono<span>4.12</span></span>
-          <span class="tech-badge">Zod<span>4.1</span></span>
-          <span class="tech-badge">jose<span>6.2</span></span>
-          <span class="tech-badge">pino<span>10.3</span></span>
-        </div>
+                <div class="label">Backend / API</div>
+                <div class="tech-grid" style="margin: 0.4em 0 0.8em">
+                  <span class="tech-badge">Hono<span>4.12</span></span>
+                  <span class="tech-badge">Zod<span>4.1</span></span>
+                  <span class="tech-badge">jose<span>6.2</span></span>
+                  <span class="tech-badge">pino<span>10.3</span></span>
+                </div>
 
-        <div class="label">Data</div>
-        <div class="tech-grid" style="margin:0.4em 0">
-          <span class="tech-badge">Prisma<span>7.8</span></span>
-          <span class="tech-badge">TimescaleDB<span>2.27/PG17</span></span>
-          <span class="tech-badge">MinIO</span>
-          <span class="tech-badge">AWS SDK S3<span>3.x</span></span>
-        </div>
-      </div>
-      <div>
-        <div class="label">Infrastructure</div>
-        <div class="tech-grid" style="margin:0.4em 0 0.8em">
-          <span class="tech-badge">Docker Compose</span>
-          <span class="tech-badge">GitHub OAuth</span>
-          <span class="tech-badge">Octokit<span>5.0</span></span>
-          <span class="tech-badge">Croner</span>
-        </div>
+                <div class="label">Data</div>
+                <div class="tech-grid" style="margin: 0.4em 0">
+                  <span class="tech-badge">Prisma<span>7.8</span></span>
+                  <span class="tech-badge"
+                    >TimescaleDB<span>2.27/PG17</span></span
+                  >
+                  <span class="tech-badge">MinIO</span>
+                  <span class="tech-badge">AWS SDK S3<span>3.x</span></span>
+                </div>
+              </div>
+              <div>
+                <div class="label">Infrastructure</div>
+                <div class="tech-grid" style="margin: 0.4em 0 0.8em">
+                  <span class="tech-badge">Docker Compose</span>
+                  <span class="tech-badge">GitHub OAuth</span>
+                  <span class="tech-badge">Octokit<span>5.0</span></span>
+                  <span class="tech-badge">Croner</span>
+                </div>
 
-        <div class="card card-green" style="margin-top:0.7em;font-size:0.65em">
-          <div class="label">Deployment modes</div>
-          <ul>
-            <li><strong>Local dev:</strong> <code>bun run docker:infra:up</code> → Postgres-Timescale + MinIO + migration runner. Each app in its own terminal.</li>
-            <li><strong>Full stack:</strong> <code>bun run docker:app:up</code> → all 4 apps + infra, single <code>docker compose up</code>.</li>
-            <li><strong>Prod:</strong> any Linux host with Docker. Swap MinIO for S3-compatible store via env.</li>
-          </ul>
-        </div>
+                <div
+                  class="card card-green"
+                  style="margin-top: 0.7em; font-size: 0.65em"
+                >
+                  <div class="label">Deployment modes</div>
+                  <ul>
+                    <li>
+                      <strong>Local dev:</strong>
+                      <code>bun run docker:infra:up</code> → Postgres-Timescale
+                      + MinIO + migration runner. Each app in its own terminal.
+                    </li>
+                    <li>
+                      <strong>Full stack:</strong>
+                      <code>bun run docker:app:up</code> → all 4 apps + infra,
+                      single <code>docker compose up</code>.
+                    </li>
+                    <li>
+                      <strong>Prod:</strong> any Linux host with Docker. Swap
+                      MinIO for S3-compatible store via env.
+                    </li>
+                  </ul>
+                </div>
 
-        <div class="card" style="margin-top:0.7em;font-size:0.65em">
-          <div class="label">Pinning policy</div>
-          <p style="color:var(--text-dim)">No <code>^</code> or <code>~</code> ranges. All versions exact-pinned in <code>workspaces.catalog</code> in root <code>package.json</code>. Bumps in lockstep across the entire monorepo.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-</section>
+                <div class="card" style="margin-top: 0.7em; font-size: 0.65em">
+                  <div class="label">Pinning policy</div>
+                  <p style="color: var(--text-dim)">
+                    No <code>^</code> or <code>~</code> ranges. All versions
+                    exact-pinned in <code>workspaces.catalog</code> in root
+                    <code>package.json</code>. Bumps in lockstep across the
+                    entire monorepo.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
 
-<!-- ════════════════════════════════════════════════
+        <!-- ════════════════════════════════════════════════
      9. STATUS & ROADMAP
 ════════════════════════════════════════════════ -->
-<section>
-  <section>
-    <div class="eyebrow">Status</div>
-    <h2>Where we are — what's next</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.5em">
-      <div>
-        <div class="label">Done — Phases 1–6</div>
-        <div class="timeline" style="margin-top:0.4em">
-          <div class="timeline-item">
-            <div class="timeline-dot dot-green"></div>
-            <div><strong>P1–2</strong> — Hook binary, ingest service, GitHub App, PR loop + bot</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-green"></div>
-            <div><strong>P3–4</strong> — Team + org dashboards, search, adoption funnel, model governance</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-green"></div>
-            <div><strong>P5</strong> — Friction score, session shape clustering, revert detection, CI correlation</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-green"></div>
-            <div><strong>P6</strong> — Hardening: discriminated event schema, Prometheus, audit access model</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-green"></div>
-            <div><strong>Skills analytics</strong> — org &amp; team pages with drill-down detail, cost impact, CI correlation, adoption funnel</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-green"></div>
-            <div><strong>Nav &amp; team tabs</strong> — TeamsDropdown, Sessions / Adoption / Tools tabs, DateRangePicker (7/30/90d), PR delivery stats</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-green"></div>
-            <div><strong>Session sharing</strong> — owner-initiated, time-boxed (1/7/30d), member-to-member, grant-based access in resolveOrgSessionAccess</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-green"></div>
-            <div><strong>MCP &amp; Agents dashboards</strong> — /org/mcp + /team/*/mcp (utilization, error rates, cost); /org/models (cache efficiency, routing); /org/agents + /team/*/agents (sub-agent breakdown)</div>
-          </div>
-        </div>
+        <section>
+          <section>
+            <div class="eyebrow">Status</div>
+            <h2>Where we are — what's next</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.5em">
+              <div>
+                <div class="label">Done — Phases 1–6</div>
+                <div class="timeline" style="margin-top: 0.4em">
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-green"></div>
+                    <div>
+                      <strong>P1–2</strong> — Hook binary, ingest service,
+                      GitHub App, PR loop + bot
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-green"></div>
+                    <div>
+                      <strong>P3–4</strong> — Team + org dashboards, search,
+                      adoption funnel, model governance
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-green"></div>
+                    <div>
+                      <strong>P5</strong> — Friction score, session shape
+                      clustering, revert detection, CI correlation
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-green"></div>
+                    <div>
+                      <strong>P6</strong> — Hardening: discriminated event
+                      schema, Prometheus, audit access model
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-green"></div>
+                    <div>
+                      <strong>Skills analytics</strong> — org &amp; team pages
+                      with drill-down detail, cost impact, CI correlation,
+                      adoption funnel
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-green"></div>
+                    <div>
+                      <strong>Nav &amp; team tabs</strong> — TeamsDropdown,
+                      Sessions / Adoption / Tools tabs, DateRangePicker
+                      (7/30/90d), PR delivery stats
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-green"></div>
+                    <div>
+                      <strong>Session sharing</strong> — owner-initiated,
+                      time-boxed (1/7/30d), member-to-member, grant-based access
+                      in resolveOrgSessionAccess
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-green"></div>
+                    <div>
+                      <strong>MCP &amp; Agents dashboards</strong> — /org/mcp +
+                      /team/*/mcp (utilization, error rates, cost); /org/models
+                      (cache efficiency, routing); /org/agents + /team/*/agents
+                      (sub-agent breakdown)
+                    </div>
+                  </div>
+                </div>
 
-        <div class="label" style="margin-top:0.9em">In review — Phases 7–9</div>
-        <div class="timeline" style="margin-top:0.4em">
-          <div class="timeline-item">
-            <div class="timeline-dot dot-amber"></div>
-            <div><strong>P7</strong> — Effectiveness widgets on /me, per-user transcript search, friction distribution for teams</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-amber"></div>
-            <div><strong>P8</strong> — Multi-agent: adapter seam, per-agent price tables, opencode + codex adapters</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-amber"></div>
-            <div><strong>P9</strong> — Alert engine, notification delivery, time-boxed access grants, per-team retention</div>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="label">Up next</div>
-        <div class="timeline" style="margin-top:0.4em">
-          <div class="timeline-item">
-            <div class="timeline-dot dot-dim"></div>
-            <div class="dim"><strong>P7-007</strong> — pgvector semantic transcript search spike (gated; not yet started)</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-dim"></div>
-            <div class="dim"><strong>CI agent capture</strong> — non-interactive sessions from CI pipelines</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-dim"></div>
-            <div class="dim"><strong>SSO seam</strong> — Okta / Azure AD via <code>IdentityProvider</code> interface in auth package</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-dim"></div>
-            <div class="dim"><strong>Cost reconciliation</strong> — vendor billing API vs client-computed (scaffolded, flag-gated)</div>
-          </div>
-          <div class="timeline-item">
-            <div class="timeline-dot dot-dim"></div>
-            <div class="dim"><strong>More adapters</strong> — CURSOR, AIDER schema slots exist; adapters pending</div>
-          </div>
-        </div>
+                <div class="label" style="margin-top: 0.9em">
+                  In review — Phases 7–9
+                </div>
+                <div class="timeline" style="margin-top: 0.4em">
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-amber"></div>
+                    <div>
+                      <strong>P7</strong> — Effectiveness widgets on /me,
+                      per-user transcript search, friction distribution for
+                      teams
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-amber"></div>
+                    <div>
+                      <strong>P8</strong> — Multi-agent: adapter seam, per-agent
+                      price tables, opencode + codex adapters
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-amber"></div>
+                    <div>
+                      <strong>P9</strong> — Alert engine, notification delivery,
+                      time-boxed access grants, per-team retention
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="label">Up next</div>
+                <div class="timeline" style="margin-top: 0.4em">
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-dim"></div>
+                    <div class="dim">
+                      <strong>P7-007</strong> — pgvector semantic transcript
+                      search spike (gated; not yet started)
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-dim"></div>
+                    <div class="dim">
+                      <strong>CI agent capture</strong> — non-interactive
+                      sessions from CI pipelines
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-dim"></div>
+                    <div class="dim">
+                      <strong>SSO seam</strong> — Okta / Azure AD via
+                      <code>IdentityProvider</code> interface in auth package
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-dim"></div>
+                    <div class="dim">
+                      <strong>Cost reconciliation</strong> — vendor billing API
+                      vs client-computed (scaffolded, flag-gated)
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-dot dot-dim"></div>
+                    <div class="dim">
+                      <strong>More adapters</strong> — CURSOR, AIDER schema
+                      slots exist; adapters pending
+                    </div>
+                  </div>
+                </div>
 
-        <div class="card" style="margin-top:0.8em;font-size:0.6em">
-          <div class="label">Sign-off checklist (P7–9)</div>
-          <div style="display:flex;flex-wrap:wrap;gap:0.3em;margin-top:0.3em">
-            <span class="tag tag-amber">P7-001–006 review</span>
-            <span class="tag tag-amber">P8-001–007 review</span>
-            <span class="tag tag-amber">P9-001–006 review</span>
-            <span class="tag">P1-029 sign-off pending</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+                <div class="card" style="margin-top: 0.8em; font-size: 0.6em">
+                  <div class="label">Sign-off checklist (P7–9)</div>
+                  <div
+                    style="
+                      display: flex;
+                      flex-wrap: wrap;
+                      gap: 0.3em;
+                      margin-top: 0.3em;
+                    "
+                  >
+                    <span class="tag tag-amber">P7-001–006 review</span>
+                    <span class="tag tag-amber">P8-001–007 review</span>
+                    <span class="tag tag-amber">P9-001–006 review</span>
+                    <span class="tag">P1-029 sign-off pending</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
 
-  <!-- vertical: multi-agent extensibility -->
-  <section>
-    <div class="eyebrow">Roadmap → Multi-Agent</div>
-    <h2>Designed for the plural case from day one</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.3em;font-size:0.65em">
-      <div>
-        <div class="card card-blue">
-          <div class="label">agent_type on every row — live adapters</div>
-          <pre style="font-size:0.85em;margin:0.4em 0"><code>-- shipped adapters have ✓
+          <!-- vertical: multi-agent extensibility -->
+          <section>
+            <div class="eyebrow">Roadmap → Multi-Agent</div>
+            <h2>Designed for the plural case from day one</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.3em; font-size: 0.65em">
+              <div>
+                <div class="card card-blue">
+                  <div class="label">
+                    agent_type on every row — live adapters
+                  </div>
+                  <pre
+                    style="font-size: 0.85em; margin: 0.4em 0"
+                  ><code>-- shipped adapters have ✓
 agent_type IN (
   'CLAUDE_CODE',  -- ✓ Phase 1
   'OPENCODE',     -- ✓ Phase 8
@@ -1212,300 +2253,734 @@ agent_type IN (
   'WINDSURF',     -- schema slot, adapter pending
   'COPILOT'       -- schema slot, adapter pending
 )</code></pre>
-          <p style="color:var(--text-dim);margin-top:0.3em;font-size:0.9em">New agent = new enum value + one adapter file. No schema migration, no backend change.</p>
-        </div>
-      </div>
-      <div>
-        <div class="card card-green">
-          <div class="label">Adapter seam (Phase 8)</div>
-          <ul style="margin-top:0.3em">
-            <li>Shared transport: batching, queue, auth, flushing</li>
-            <li>Each adapter handles only event translation</li>
-            <li>Codex adds optional <code>mapBatch</code> for multi-event hook fires</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.3em">
-          <div class="label">Per-agent price tables</div>
-          <ul style="margin-top:0.3em">
-            <li>Cost keyed on <code>(agent_type, model)</code> — historically reproducible</li>
-            <li>Codex ships empty table (<code>$0</code> until OpenAI rates filled in)</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.3em">
-          <div class="label">Tool name namespacing</div>
-          <ul style="margin-top:0.3em">
-            <li><code>CLAUDE_CODE:Edit</code> vs <code>CURSOR:Edit</code> — no collision</li>
-            <li>Correct per-agent aggregation on tool usage charts</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-</section>
+                  <p
+                    style="
+                      color: var(--text-dim);
+                      margin-top: 0.3em;
+                      font-size: 0.9em;
+                    "
+                  >
+                    New agent = new enum value + one adapter file. No schema
+                    migration, no backend change.
+                  </p>
+                </div>
+              </div>
+              <div>
+                <div class="card card-green">
+                  <div class="label">Adapter seam (Phase 8)</div>
+                  <ul style="margin-top: 0.3em">
+                    <li>Shared transport: batching, queue, auth, flushing</li>
+                    <li>Each adapter handles only event translation</li>
+                    <li>
+                      Codex adds optional <code>mapBatch</code> for multi-event
+                      hook fires
+                    </li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.3em">
+                  <div class="label">Per-agent price tables</div>
+                  <ul style="margin-top: 0.3em">
+                    <li>
+                      Cost keyed on <code>(agent_type, model)</code> —
+                      historically reproducible
+                    </li>
+                    <li>
+                      Codex ships empty table (<code>$0</code> until OpenAI
+                      rates filled in)
+                    </li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.3em">
+                  <div class="label">Tool name namespacing</div>
+                  <ul style="margin-top: 0.3em">
+                    <li>
+                      <code>CLAUDE_CODE:Edit</code> vs
+                      <code>CURSOR:Edit</code> — no collision
+                    </li>
+                    <li>Correct per-agent aggregation on tool usage charts</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
 
-<!-- ════════════════════════════════════════════════
+        <!-- ════════════════════════════════════════════════
      10. OPPORTUNITIES — WHAT THIS DATA UNLOCKS
 ════════════════════════════════════════════════ -->
-<section>
-  <section>
-    <div class="eyebrow">Opportunities</div>
-    <h2>Beyond dashboards — what this data unlocks</h2>
-    <div class="divider"></div>
-    <div class="cols3" style="font-size:0.68em;gap:0.7em">
-      <div>
-        <div class="card card-green">
-          <div class="label" style="color:var(--green)">ROI &amp; Finance</div>
-          <ul style="margin-top:0.4em">
-            <li><strong>Cost-per-PR trend</strong> — already in schema; leadership dashboard</li>
-            <li><strong>Cost-per-feature</strong> — Jira key extraction is built; join pending</li>
-            <li><strong>Revert cost</strong> — AI spend on PRs that were reverted, measurable today</li>
-            <li><strong>Spend forecasting</strong> — session rate × cost/session → next-month projection</li>
-            <li><strong>Vendor negotiation leverage</strong> — detailed usage data for volume discount talks</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.25em">
-          <div class="label">Model Cost Optimization</div>
-          <ul style="margin-top:0.4em">
-            <li>Per-turn model captured — are devs using Opus for file reads?</li>
-            <li>Cache efficiency already shown as stat card — teachable 30–50% savings</li>
-            <li>Model routing recommendations from session-shape + model data</li>
-          </ul>
-        </div>
-      </div>
-      <div>
-        <div class="card card-blue">
-          <div class="label" style="color:var(--blue)">Quality &amp; Risk</div>
-          <ul style="margin-top:0.4em">
-            <li><strong>Revert correlation</strong> — do high-friction sessions predict reverts?</li>
-            <li><strong>CI failure correlation</strong> — check_failures_count vs. session tool mix</li>
-            <li><strong>Review burden analysis</strong> — AI PRs larger → slower review? Measurable.</li>
-            <li><strong>Documentation gaps</strong> — aggregate "explain this module" patterns in FTS</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.25em">
-          <div class="label">Developer Skill Progression</div>
-          <ul style="margin-top:0.4em">
-            <li>Friction score trend over 60 days → AI proficiency growth curve</li>
-            <li>Session shape shift: exploratory → implementation on new codebases</li>
-            <li>Onboarding acceleration: time-to-first-merged-PR with AI vs. baseline</li>
-          </ul>
-        </div>
-      </div>
-      <div>
-        <div class="card card-purple">
-          <div class="label" style="color:var(--purple)">Security &amp; Compliance</div>
-          <ul style="margin-top:0.4em">
-            <li><strong>AI data exposure map</strong> — MCP calls to external services, by team</li>
-            <li><strong>Secret exposure rate</strong> — redaction hit counts per developer as a training signal</li>
-            <li><strong>Unauthorized model detection</strong> — model governance already built; drive alerting</li>
-            <li><strong>SOC 2 audit trail</strong> — every privileged data access is already logged</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.25em">
-          <div class="label">MCP Portfolio Management</div>
-          <ul style="margin-top:0.4em">
-            <li>Which integrations have zero invocations? Deprecation candidates.</li>
-            <li>Error rates per MCP server → treat each as a service with an SLO</li>
-            <li>Cross-team MCP adoption = organic knowledge transfer signal</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <div class="deep-dive-hint">prioritized opportunities ↓</div>
-  </section>
+        <section>
+          <section>
+            <div class="eyebrow">Opportunities</div>
+            <h2>Beyond dashboards — what this data unlocks</h2>
+            <div class="divider"></div>
+            <div class="cols3" style="font-size: 0.68em; gap: 0.7em">
+              <div>
+                <div class="card card-green">
+                  <div class="label" style="color: var(--green)">
+                    ROI &amp; Finance
+                  </div>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      <strong>Cost-per-PR trend</strong> — already in schema;
+                      leadership dashboard
+                    </li>
+                    <li>
+                      <strong>Cost-per-feature</strong> — Jira key extraction is
+                      built; join pending
+                    </li>
+                    <li>
+                      <strong>Revert cost</strong> — AI spend on PRs that were
+                      reverted, measurable today
+                    </li>
+                    <li>
+                      <strong>Spend forecasting</strong> — session rate ×
+                      cost/session → next-month projection
+                    </li>
+                    <li>
+                      <strong>Vendor negotiation leverage</strong> — detailed
+                      usage data for volume discount talks
+                    </li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.25em">
+                  <div class="label">Model Cost Optimization</div>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      Per-turn model captured — are devs using Opus for file
+                      reads?
+                    </li>
+                    <li>
+                      Cache efficiency already shown as stat card — teachable
+                      30–50% savings
+                    </li>
+                    <li>
+                      Model routing recommendations from session-shape + model
+                      data
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div>
+                <div class="card card-blue">
+                  <div class="label" style="color: var(--blue)">
+                    Quality &amp; Risk
+                  </div>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      <strong>Revert correlation</strong> — do high-friction
+                      sessions predict reverts?
+                    </li>
+                    <li>
+                      <strong>CI failure correlation</strong> —
+                      check_failures_count vs. session tool mix
+                    </li>
+                    <li>
+                      <strong>Review burden analysis</strong> — AI PRs larger →
+                      slower review? Measurable.
+                    </li>
+                    <li>
+                      <strong>Documentation gaps</strong> — aggregate "explain
+                      this module" patterns in FTS
+                    </li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.25em">
+                  <div class="label">Developer Skill Progression</div>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      Friction score trend over 60 days → AI proficiency growth
+                      curve
+                    </li>
+                    <li>
+                      Session shape shift: exploratory → implementation on new
+                      codebases
+                    </li>
+                    <li>
+                      Onboarding acceleration: time-to-first-merged-PR with AI
+                      vs. baseline
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div>
+                <div class="card card-purple">
+                  <div class="label" style="color: var(--purple)">
+                    Security &amp; Compliance
+                  </div>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      <strong>AI data exposure map</strong> — MCP calls to
+                      external services, by team
+                    </li>
+                    <li>
+                      <strong>Secret exposure rate</strong> — redaction hit
+                      counts per developer as a training signal
+                    </li>
+                    <li>
+                      <strong>Unauthorized model detection</strong> — model
+                      governance already built; drive alerting
+                    </li>
+                    <li>
+                      <strong>SOC 2 audit trail</strong> — every privileged data
+                      access is already logged
+                    </li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.25em">
+                  <div class="label">MCP Portfolio Management</div>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      Which integrations have zero invocations? Deprecation
+                      candidates.
+                    </li>
+                    <li>
+                      Error rates per MCP server → treat each as a service with
+                      an SLO
+                    </li>
+                    <li>
+                      Cross-team MCP adoption = organic knowledge transfer
+                      signal
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="deep-dive-hint">prioritized opportunities ↓</div>
+          </section>
 
-  <!-- vertical: prioritized opportunities -->
-  <section>
-    <div class="eyebrow">Opportunities → Prioritized</div>
-    <h2>Impact × Effort — what to build next</h2>
-    <div class="divider"></div>
-    <div style="font-size:0.58em;margin-top:0.4em">
-      <table style="width:100%;border-collapse:collapse;font-family:var(--font-mono)">
-        <thead>
-          <tr style="border-bottom:1px solid var(--border);color:var(--text-dim)">
-            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">#</th>
-            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">Opportunity</th>
-            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">Impact</th>
-            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">Effort</th>
-            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">Data ready?</th>
-            <th style="text-align:left;padding:0.4em 0.6em;font-weight:500">What's missing</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:0.4em 0.6em;color:var(--green);font-weight:700">1</td>
-            <td style="padding:0.4em 0.6em"><strong>Model cost optimization</strong> — routing + cache guidance</td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-green">High</span></td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-green">Low</span></td>
-            <td style="padding:0.4em 0.6em;color:var(--green)">✓ per-turn model + cache tokens</td>
-            <td style="padding:0.4em 0.6em;color:var(--green)">✓ shipped as /org/models — cache efficiency, routing analysis</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:0.4em 0.6em;color:var(--green);font-weight:700">2</td>
-            <td style="padding:0.4em 0.6em"><strong>MCP portfolio dashboard</strong> — utilization, error rate, SLO</td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium-High</span></td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-green">Low</span></td>
-            <td style="padding:0.4em 0.6em;color:var(--green)">✓ mcp_server + exit_status captured</td>
-            <td style="padding:0.4em 0.6em;color:var(--green)">✓ shipped as /org/mcp + /team/*/mcp — utilization, error rates, cost</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:0.4em 0.6em;color:var(--amber);font-weight:700">3</td>
-            <td style="padding:0.4em 0.6em"><strong>Outcome-based ROI</strong> — cost-per-PR trend, revert &amp; CI correlation</td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-green">High</span></td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium</span></td>
-            <td style="padding:0.4em 0.6em;color:var(--green)">✓ PR rollups, reverts, CI failures</td>
-            <td style="padding:0.4em 0.6em;color:var(--text-dim)">Joins are internal; needs exec dashboard</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:0.4em 0.6em;color:var(--amber);font-weight:700">4</td>
-            <td style="padding:0.4em 0.6em"><strong>Developer skill progression</strong> — friction trend, shape over time</td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium-High</span></td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium</span></td>
-            <td style="padding:0.4em 0.6em;color:var(--green)">✓ friction + shape computed nightly</td>
-            <td style="padding:0.4em 0.6em;color:var(--text-dim)">Time-series UX (P7 starts this for /me)</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:0.4em 0.6em;color:var(--amber);font-weight:700">5</td>
-            <td style="padding:0.4em 0.6em"><strong>Security data exposure reporting</strong> — sensitive repos, MCP egress</td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-green">High</span></td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium</span></td>
-            <td style="padding:0.4em 0.6em;color:var(--green)">✓ tool categories, redaction metadata</td>
-            <td style="padding:0.4em 0.6em;color:var(--text-dim)">Security-focused dashboard page</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:0.4em 0.6em;color:var(--red);font-weight:700">6</td>
-            <td style="padding:0.4em 0.6em"><strong>Knowledge gap detection</strong> — aggregate transcript topic clustering</td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-blue">Medium</span></td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-amber">Medium-High</span></td>
-            <td style="padding:0.4em 0.6em;color:var(--green)">✓ FTS index built</td>
-            <td style="padding:0.4em 0.6em;color:var(--text-dim)">Topic taxonomy or embeddings; UX design</td>
-          </tr>
-          <tr>
-            <td style="padding:0.4em 0.6em;color:var(--red);font-weight:700">7</td>
-            <td style="padding:0.4em 0.6em"><strong>Multi-tool comparison</strong> — Claude vs Cursor vs Copilot cost &amp; productivity</td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-green">High</span></td>
-            <td style="padding:0.4em 0.6em"><span class="tag tag-amber">High</span></td>
-            <td style="padding:0.4em 0.6em;color:var(--green)">✓ agent_type schema; opencode + codex adapters</td>
-            <td style="padding:0.4em 0.6em;color:var(--text-dim)">Cursor/Copilot adapters; controlled rollout</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div style="margin-top:0.8em;font-size:0.55em;color:var(--text-dim);font-family:var(--font-mono)">
-      <span class="green">✓ #1 and #2 shipped — /org/models and /org/mcp + /team/*/mcp now live.</span>
-      &nbsp;|&nbsp; Full analysis in <code>OPPORTUNITIES.md</code>
-    </div>
-  </section>
+          <!-- vertical: prioritized opportunities -->
+          <section>
+            <div class="eyebrow">Opportunities → Prioritized</div>
+            <h2>Impact × Effort — what to build next</h2>
+            <div class="divider"></div>
+            <div style="font-size: 0.58em; margin-top: 0.4em">
+              <table
+                style="
+                  width: 100%;
+                  border-collapse: collapse;
+                  font-family: var(--font-mono);
+                "
+              >
+                <thead>
+                  <tr
+                    style="
+                      border-bottom: 1px solid var(--border);
+                      color: var(--text-dim);
+                    "
+                  >
+                    <th
+                      style="
+                        text-align: left;
+                        padding: 0.4em 0.6em;
+                        font-weight: 500;
+                      "
+                    >
+                      #
+                    </th>
+                    <th
+                      style="
+                        text-align: left;
+                        padding: 0.4em 0.6em;
+                        font-weight: 500;
+                      "
+                    >
+                      Opportunity
+                    </th>
+                    <th
+                      style="
+                        text-align: left;
+                        padding: 0.4em 0.6em;
+                        font-weight: 500;
+                      "
+                    >
+                      Impact
+                    </th>
+                    <th
+                      style="
+                        text-align: left;
+                        padding: 0.4em 0.6em;
+                        font-weight: 500;
+                      "
+                    >
+                      Effort
+                    </th>
+                    <th
+                      style="
+                        text-align: left;
+                        padding: 0.4em 0.6em;
+                        font-weight: 500;
+                      "
+                    >
+                      Data ready?
+                    </th>
+                    <th
+                      style="
+                        text-align: left;
+                        padding: 0.4em 0.6em;
+                        font-weight: 500;
+                      "
+                    >
+                      What's missing
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid var(--border)">
+                    <td
+                      style="
+                        padding: 0.4em 0.6em;
+                        color: var(--green);
+                        font-weight: 700;
+                      "
+                    >
+                      1
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <strong>Model cost optimization</strong> — routing + cache
+                      guidance
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-green">High</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-green">Low</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--green)">
+                      ✓ per-turn model + cache tokens
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--green)">
+                      ✓ shipped as /org/models — cache efficiency, routing
+                      analysis
+                    </td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border)">
+                    <td
+                      style="
+                        padding: 0.4em 0.6em;
+                        color: var(--green);
+                        font-weight: 700;
+                      "
+                    >
+                      2
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <strong>MCP portfolio dashboard</strong> — utilization,
+                      error rate, SLO
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-blue">Medium-High</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-green">Low</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--green)">
+                      ✓ mcp_server + exit_status captured
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--green)">
+                      ✓ shipped as /org/mcp + /team/*/mcp — utilization, error
+                      rates, cost
+                    </td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border)">
+                    <td
+                      style="
+                        padding: 0.4em 0.6em;
+                        color: var(--amber);
+                        font-weight: 700;
+                      "
+                    >
+                      3
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <strong>Outcome-based ROI</strong> — cost-per-PR trend,
+                      revert &amp; CI correlation
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-green">High</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-blue">Medium</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--green)">
+                      ✓ PR rollups, reverts, CI failures
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--text-dim)">
+                      Joins are internal; needs exec dashboard
+                    </td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border)">
+                    <td
+                      style="
+                        padding: 0.4em 0.6em;
+                        color: var(--amber);
+                        font-weight: 700;
+                      "
+                    >
+                      4
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <strong>Developer skill progression</strong> — friction
+                      trend, shape over time
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-blue">Medium-High</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-blue">Medium</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--green)">
+                      ✓ friction + shape computed nightly
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--text-dim)">
+                      Time-series UX (P7 starts this for /me)
+                    </td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border)">
+                    <td
+                      style="
+                        padding: 0.4em 0.6em;
+                        color: var(--amber);
+                        font-weight: 700;
+                      "
+                    >
+                      5
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <strong>Security data exposure reporting</strong> —
+                      sensitive repos, MCP egress
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-green">High</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-blue">Medium</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--green)">
+                      ✓ tool categories, redaction metadata
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--text-dim)">
+                      Security-focused dashboard page
+                    </td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border)">
+                    <td
+                      style="
+                        padding: 0.4em 0.6em;
+                        color: var(--red);
+                        font-weight: 700;
+                      "
+                    >
+                      6
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <strong>Knowledge gap detection</strong> — aggregate
+                      transcript topic clustering
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-blue">Medium</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-amber">Medium-High</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--green)">
+                      ✓ FTS index built
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--text-dim)">
+                      Topic taxonomy or embeddings; UX design
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      style="
+                        padding: 0.4em 0.6em;
+                        color: var(--red);
+                        font-weight: 700;
+                      "
+                    >
+                      7
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <strong>Multi-tool comparison</strong> — Claude vs Cursor
+                      vs Copilot cost &amp; productivity
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-green">High</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em">
+                      <span class="tag tag-amber">High</span>
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--green)">
+                      ✓ agent_type schema; opencode + codex adapters
+                    </td>
+                    <td style="padding: 0.4em 0.6em; color: var(--text-dim)">
+                      Cursor/Copilot adapters; controlled rollout
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div
+              style="
+                margin-top: 0.8em;
+                font-size: 0.55em;
+                color: var(--text-dim);
+                font-family: var(--font-mono);
+              "
+            >
+              <span class="green"
+                >✓ #1 and #2 shipped — /org/models and /org/mcp + /team/*/mcp
+                now live.</span
+              >
+              &nbsp;|&nbsp; Full analysis in <code>OPPORTUNITIES.md</code>
+            </div>
+          </section>
 
-  <!-- vertical: trust constraint -->
-  <section>
-    <div class="eyebrow">Opportunities → Constraint</div>
-    <h2>Trust is the gating factor — not data</h2>
-    <div class="divider"></div>
-    <div class="cols2" style="margin-top:0.7em;font-size:0.75em">
-      <div>
-        <div class="card card-green">
-          <div class="label">The flywheel</div>
-          <div style="display:flex;flex-direction:column;gap:0.5em;margin-top:0.5em;font-size:0.85em">
-            <div style="display:flex;align-items:center;gap:0.6em">
-              <div style="width:2.2em;height:2.2em;border-radius:50%;background:var(--green-dim);display:flex;align-items:center;justify-content:center;color:var(--green);font-weight:700;flex-shrink:0">1</div>
-              <span>Developer finds "My Agents" genuinely useful for themselves</span>
+          <!-- vertical: trust constraint -->
+          <section>
+            <div class="eyebrow">Opportunities → Constraint</div>
+            <h2>Trust is the gating factor — not data</h2>
+            <div class="divider"></div>
+            <div class="cols2" style="margin-top: 0.7em; font-size: 0.75em">
+              <div>
+                <div class="card card-green">
+                  <div class="label">The flywheel</div>
+                  <div
+                    style="
+                      display: flex;
+                      flex-direction: column;
+                      gap: 0.5em;
+                      margin-top: 0.5em;
+                      font-size: 0.85em;
+                    "
+                  >
+                    <div style="display: flex; align-items: center; gap: 0.6em">
+                      <div
+                        style="
+                          width: 2.2em;
+                          height: 2.2em;
+                          border-radius: 50%;
+                          background: var(--green-dim);
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          color: var(--green);
+                          font-weight: 700;
+                          flex-shrink: 0;
+                        "
+                      >
+                        1
+                      </div>
+                      <span
+                        >Developer finds "My Agents" genuinely useful for
+                        themselves</span
+                      >
+                    </div>
+                    <div style="text-align: center; color: var(--text-dim)">
+                      ↓
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.6em">
+                      <div
+                        style="
+                          width: 2.2em;
+                          height: 2.2em;
+                          border-radius: 50%;
+                          background: var(--green-dim);
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          color: var(--green);
+                          font-weight: 700;
+                          flex-shrink: 0;
+                        "
+                      >
+                        2
+                      </div>
+                      <span
+                        >Developer opts into sharing metadata with their
+                        team</span
+                      >
+                    </div>
+                    <div style="text-align: center; color: var(--text-dim)">
+                      ↓
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.6em">
+                      <div
+                        style="
+                          width: 2.2em;
+                          height: 2.2em;
+                          border-radius: 50%;
+                          background: var(--green-dim);
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          color: var(--green);
+                          font-weight: 700;
+                          flex-shrink: 0;
+                        "
+                      >
+                        3
+                      </div>
+                      <span
+                        >Team-level and org-level data becomes rich enough to be
+                        useful</span
+                      >
+                    </div>
+                    <div style="text-align: center; color: var(--text-dim)">
+                      ↓
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.6em">
+                      <div
+                        style="
+                          width: 2.2em;
+                          height: 2.2em;
+                          border-radius: 50%;
+                          background: var(--green-dim);
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          color: var(--green);
+                          font-weight: 700;
+                          flex-shrink: 0;
+                        "
+                      >
+                        4
+                      </div>
+                      <span
+                        >Org gets the ROI analysis, governance, and research
+                        value</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="card card-amber">
+                  <div class="label">The anti-pattern to avoid</div>
+                  <ul style="margin-top: 0.4em">
+                    <li>
+                      Building the manager dashboard <strong>before</strong> the
+                      developer dashboard
+                    </li>
+                    <li>
+                      Expanding analysis scope to individual behavior without
+                      developer benefit
+                    </li>
+                    <li>
+                      Defaulting transcript sharing to <em>on</em> — this is a
+                      political fault line
+                    </li>
+                    <li>
+                      Adding "performance" framing to any individual metric
+                    </li>
+                  </ul>
+                </div>
+                <div class="card" style="margin-top: 0.7em">
+                  <div class="label">
+                    Design rule for every new analysis surface
+                  </div>
+                  <p
+                    style="
+                      font-size: 0.85em;
+                      color: var(--text-dim);
+                      margin-top: 0.3em;
+                    "
+                  >
+                    Before building it, answer:
+                    <strong class="text"
+                      >"What does the individual developer get from
+                      this?"</strong
+                    ><br /><br />
+                    If the answer is nothing — reconsider whether to build it,
+                    or how to present it so it is also useful to the person
+                    whose data it is.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div style="text-align:center;color:var(--text-dim)">↓</div>
-            <div style="display:flex;align-items:center;gap:0.6em">
-              <div style="width:2.2em;height:2.2em;border-radius:50%;background:var(--green-dim);display:flex;align-items:center;justify-content:center;color:var(--green);font-weight:700;flex-shrink:0">2</div>
-              <span>Developer opts into sharing metadata with their team</span>
-            </div>
-            <div style="text-align:center;color:var(--text-dim)">↓</div>
-            <div style="display:flex;align-items:center;gap:0.6em">
-              <div style="width:2.2em;height:2.2em;border-radius:50%;background:var(--green-dim);display:flex;align-items:center;justify-content:center;color:var(--green);font-weight:700;flex-shrink:0">3</div>
-              <span>Team-level and org-level data becomes rich enough to be useful</span>
-            </div>
-            <div style="text-align:center;color:var(--text-dim)">↓</div>
-            <div style="display:flex;align-items:center;gap:0.6em">
-              <div style="width:2.2em;height:2.2em;border-radius:50%;background:var(--green-dim);display:flex;align-items:center;justify-content:center;color:var(--green);font-weight:700;flex-shrink:0">4</div>
-              <span>Org gets the ROI analysis, governance, and research value</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="card card-amber">
-          <div class="label">The anti-pattern to avoid</div>
-          <ul style="margin-top:0.4em">
-            <li>Building the manager dashboard <strong>before</strong> the developer dashboard</li>
-            <li>Expanding analysis scope to individual behavior without developer benefit</li>
-            <li>Defaulting transcript sharing to <em>on</em> — this is a political fault line</li>
-            <li>Adding "performance" framing to any individual metric</li>
-          </ul>
-        </div>
-        <div class="card" style="margin-top:0.7em">
-          <div class="label">Design rule for every new analysis surface</div>
-          <p style="font-size:0.85em;color:var(--text-dim);margin-top:0.3em">Before building it, answer: <strong class="text">"What does the individual developer get from this?"</strong><br><br>
-          If the answer is nothing — reconsider whether to build it, or how to present it so it is also useful to the person whose data it is.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-</section>
+          </section>
+        </section>
 
-<!-- ════════════════════════════════════════════════
+        <!-- ════════════════════════════════════════════════
      11. CLOSING
 ════════════════════════════════════════════════ -->
-<section>
-  <div class="slide-intro">
-    <div class="eyebrow">Summary</div>
-    <h1>From black box<br>to <span class="green">observable</span></h1>
-    <div class="divider"></div>
-    <div class="cols3" style="margin-top:1em;font-size:0.65em">
-      <div class="card card-amber">
-        <strong class="amber">Leadership</strong>
-        <p style="color:var(--text-dim);margin-top:0.3em">Cost per team, per repo, per PR. Adoption funnel. Model governance. Self-hosted — data stays in your infrastructure.</p>
-      </div>
-      <div class="card card-blue">
-        <strong class="blue">Dev Tools</strong>
-        <p style="color:var(--text-dim);margin-top:0.3em">Where does the agent fail? What tools are over/under-used? Which patterns predict good PR outcomes? Answer these with real data.</p>
-      </div>
-      <div class="card card-green">
-        <strong class="green">Developers</strong>
-        <p style="color:var(--text-dim);margin-top:0.3em">Full visibility into your own sessions and spend. You control what the team sees. The platform earns trust before it earns adoption.</p>
+        <section>
+          <div class="slide-intro">
+            <div class="eyebrow">Summary</div>
+            <h1>
+              From black box<br />to <span class="green">observable</span>
+            </h1>
+            <div class="divider"></div>
+            <div class="cols3" style="margin-top: 1em; font-size: 0.65em">
+              <div class="card card-amber">
+                <strong class="amber">Leadership</strong>
+                <p style="color: var(--text-dim); margin-top: 0.3em">
+                  Cost per team, per repo, per PR. Adoption funnel. Model
+                  governance. Self-hosted — data stays in your infrastructure.
+                </p>
+              </div>
+              <div class="card card-blue">
+                <strong class="blue">Dev Tools</strong>
+                <p style="color: var(--text-dim); margin-top: 0.3em">
+                  Where does the agent fail? What tools are over/under-used?
+                  Which patterns predict good PR outcomes? Answer these with
+                  real data.
+                </p>
+              </div>
+              <div class="card card-green">
+                <strong class="green">Developers</strong>
+                <p style="color: var(--text-dim); margin-top: 0.3em">
+                  Full visibility into your own sessions and spend. You control
+                  what the team sees. The platform earns trust before it earns
+                  adoption.
+                </p>
+              </div>
+            </div>
+            <div
+              style="
+                margin-top: 1.5em;
+                font-size: 0.45em;
+                color: var(--text-dim);
+                font-family: var(--font-mono);
+              "
+            >
+              github.com/yorch/ai-agents-observability &nbsp;·&nbsp; Jorge
+              Barnaby &nbsp;·&nbsp; June 2026
+            </div>
+          </div>
+        </section>
       </div>
     </div>
-    <div style="margin-top:1.5em;font-size:0.45em;color:var(--text-dim);font-family:var(--font-mono)">
-      github.com/[org]/ai-agents-observability &nbsp;·&nbsp; Jorge Barnaby &nbsp;·&nbsp; June 2026
-    </div>
-  </div>
-</section>
 
-</div>
-</div>
-
-<!-- Reveal.js runtime -->
-<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"
-        integrity="sha384-M/JtqCVlLcK9lwVnBnMXP0V577CBULkjodKsR/PITOe4MSKNbbwqCemEyluOw0+5"
-        crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"
-        integrity="sha384-NUSGSUaJDMJ4EYNyUIGbV/meNnf3WqIvGfjqD3BDJdvWEI3K/zrL38QWB52JLIMW"
-        crossorigin="anonymous"></script>
-<script>
-  Reveal.initialize({
-    center: false,
-    controls: true,
-    controlsLayout: 'edges',
-    controlsTutorial: false,
-    hash: true,
-    height: 800,
-    highlight: {
-      theme: 'github-dark',
-    },
-    margin: 0.06,
-    plugins: [ RevealHighlight ],
-    progress: true,
-    slideNumber: 'c/t',
-    transition: 'fade',
-    transitionSpeed: 'fast',
-    width: 1400,
-  });
-</script>
-</body>
+    <!-- Reveal.js runtime -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"
+      integrity="sha384-M/JtqCVlLcK9lwVnBnMXP0V577CBULkjodKsR/PITOe4MSKNbbwqCemEyluOw0+5"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"
+      integrity="sha384-NUSGSUaJDMJ4EYNyUIGbV/meNnf3WqIvGfjqD3BDJdvWEI3K/zrL38QWB52JLIMW"
+      crossorigin="anonymous"
+    ></script>
+    <script>
+      Reveal.initialize({
+        center: false,
+        controls: true,
+        controlsLayout: "edges",
+        controlsTutorial: false,
+        hash: true,
+        height: 800,
+        highlight: {
+          theme: "github-dark",
+        },
+        margin: 0.06,
+        plugins: [RevealHighlight],
+        progress: true,
+        slideNumber: "c/t",
+        transition: "fade",
+        transitionSpeed: "fast",
+        width: 1400,
+      });
+    </script>
+  </body>
 </html>
