@@ -10,6 +10,10 @@ import { uuidv7 } from './uuid';
 type ClaudeCodeHookPayload = {
   cwd?: unknown;
   hook_event_name?: unknown;
+  // Present on UserPromptSubmit — the raw user message (may include a leading
+  // slash command like "/deep-research some query"). Flows to metadata as-is;
+  // we additionally extract the command name into metadata.slash_command.
+  prompt?: unknown;
   session_id?: unknown;
   tool_input?: unknown;
   tool_name?: unknown;
@@ -99,6 +103,15 @@ function buildToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
       ? raw.tool_input.subagent_type
       : null;
 
+  // Detect Skill tool invocations — mirrors the Task/subagent_type pattern.
+  // The Skill tool's input carries a `skill` field with the skill identifier
+  // (e.g. "deep-research"), which is also the slash command name (without the
+  // leading "/"). Both columns are populated from the same value.
+  const skill =
+    name === 'Skill' && isRecord(raw.tool_input) && typeof raw.tool_input.skill === 'string'
+      ? raw.tool_input.skill
+      : null;
+
   return {
     // Categorize by the mcp__ prefix, not the parse result: a name like
     // `mcp__server` (no tool segment) is still an MCP tool.
@@ -111,8 +124,8 @@ function buildToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
     mcp_tool: mcpTool,
     name,
     output_bytes: fieldBytes(raw.tool_response),
-    skill: null,
-    slash_command: null,
+    skill,
+    slash_command: skill,
     subagent_type: subagentType,
     // Best-effort from the raw payload (absent → false). Unknown payload fields
     // are also preserved verbatim in `metadata`, so nothing is lost.
@@ -138,12 +151,24 @@ export function toEvent(kind: HookKind, raw: ClaudeCodeHookPayload): Event {
   // tests — a tool event reaching ingest without a tool block is rejected.
   const isToolEvent = eventType === 'PreToolUse' || eventType === 'PostToolUse';
 
+  const metadata = pickMetadata(raw);
+  // Best-effort slash-command extraction from the user's prompt. Claude Code
+  // includes `prompt` in UserPromptSubmit payloads; if the message starts with
+  // a "/" we pull out the command name and add it as metadata.slash_command so
+  // analytics can group by it without parsing the full prompt text.
+  if (eventType === 'UserPromptSubmit' && typeof raw.prompt === 'string') {
+    const match = /^\/([a-zA-Z][\w-]*)/.exec(raw.prompt.trimStart());
+    if (match) {
+      metadata.slash_command = match[1];
+    }
+  }
+
   return {
     agent_type: 'CLAUDE_CODE',
     client: clientInfo(),
     event_id: uuidv7(),
     event_type: eventType,
-    metadata: pickMetadata(raw),
+    metadata,
     redaction_flags: [],
     schema_version: 1,
     session_context: {
