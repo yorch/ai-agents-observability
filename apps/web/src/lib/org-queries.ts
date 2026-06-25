@@ -804,3 +804,397 @@ export async function searchTranscripts(
     ts: m.ts,
   }));
 }
+
+// ── Adoption analytics (category 5) ──────────────────────────────────────────
+
+export type ActiveUsersTrendRow = {
+  activeUsers: number;
+  day: Date;
+};
+
+export async function getActiveUsersTrend(
+  since: Date,
+  granularity: 'day' | 'week' = 'week',
+): Promise<ActiveUsersTrendRow[]> {
+  const truncExpr =
+    granularity === 'week'
+      ? Prisma.sql`date_trunc('week', s.started_at)`
+      : Prisma.sql`date_trunc('day', s.started_at)`;
+
+  const rows = await getPrisma().$queryRaw<{ active_users: bigint; bucket: Date }[]>(Prisma.sql`
+    SELECT
+      ${truncExpr}              AS bucket,
+      COUNT(DISTINCT s.user_id) AS active_users
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    WHERE s.started_at >= ${since}
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+    GROUP BY ${truncExpr}
+    ORDER BY bucket ASC
+  `);
+
+  return rows.map((r) => ({ activeUsers: Number(r.active_users), day: r.bucket }));
+}
+
+export type AdoptionByTeamRow = {
+  activeUsers: number;
+  adoptionRate: number;
+  teamName: string;
+  teamSlug: string;
+  totalMembers: number;
+};
+
+export async function getAdoptionByTeam(since: Date): Promise<AdoptionByTeamRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    { active_users: bigint; team_name: string; team_slug: string; total_members: bigint }[]
+  >(Prisma.sql`
+    SELECT
+      t.name                    AS team_name,
+      t.github_slug             AS team_slug,
+      COUNT(DISTINCT tm.user_id) AS total_members,
+      COUNT(DISTINCT s.user_id)  AS active_users
+    FROM teams t
+    JOIN team_members tm ON tm.team_id = t.id AND tm.left_at IS NULL
+    JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    LEFT JOIN sessions s
+      ON s.user_id = u.id
+      AND s.started_at >= ${since}
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+    GROUP BY t.id, t.name, t.github_slug
+    ORDER BY active_users DESC
+  `);
+
+  return rows.map((r) => {
+    const total = Number(r.total_members);
+    const active = Number(r.active_users);
+    return {
+      activeUsers: active,
+      adoptionRate: total > 0 ? active / total : 0,
+      teamName: r.team_name,
+      teamSlug: r.team_slug,
+      totalMembers: total,
+    };
+  });
+}
+
+export type SessionFrequencyBucket = {
+  bucket: string;
+  userCount: number;
+};
+
+const FREQUENCY_BUCKET_ORDER = [
+  'Inactive',
+  'Light (1–4)',
+  'Moderate (5–19)',
+  'Active (20–49)',
+  'Power (50+)',
+] as const;
+
+export async function getSessionFrequencyDistribution(
+  since: Date,
+): Promise<SessionFrequencyBucket[]> {
+  const rows = await getPrisma().$queryRaw<{ bucket: string; user_count: bigint }[]>(Prisma.sql`
+    WITH per_user AS (
+      SELECT
+        u.id,
+        COUNT(s.session_id) AS session_count
+      FROM users u
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      LEFT JOIN sessions s
+        ON s.user_id = u.id
+        AND s.started_at >= ${since}
+      WHERE u.deactivated_at IS NULL
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+      GROUP BY u.id
+    )
+    SELECT
+      CASE
+        WHEN session_count = 0  THEN 'Inactive'
+        WHEN session_count < 5  THEN 'Light (1–4)'
+        WHEN session_count < 20 THEN 'Moderate (5–19)'
+        WHEN session_count < 50 THEN 'Active (20–49)'
+        ELSE                         'Power (50+)'
+      END AS bucket,
+      COUNT(*) AS user_count
+    FROM per_user
+    GROUP BY bucket
+  `);
+
+  const map = new Map(rows.map((r) => [r.bucket, Number(r.user_count)]));
+  return FREQUENCY_BUCKET_ORDER.map((b) => ({ bucket: b, userCount: map.get(b) ?? 0 }));
+}
+
+export type CostPerDeveloperRow = {
+  githubLogin: string;
+  sessionCount: number;
+  totalCostUsd: number;
+};
+
+/** Admin-only: per-developer cost breakdown, ordered by cost desc. */
+export async function getCostPerDeveloper(
+  since: Date,
+  limit = 20,
+): Promise<CostPerDeveloperRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    { github_login: string; session_count: bigint; total_cost_usd: number }[]
+  >(Prisma.sql`
+    SELECT
+      u.github_login,
+      COUNT(s.session_id)            AS session_count,
+      COALESCE(SUM(s.total_cost_usd), 0) AS total_cost_usd
+    FROM users u
+    JOIN sessions s ON s.user_id = u.id AND s.started_at >= ${since}
+    WHERE u.deactivated_at IS NULL
+    GROUP BY u.id, u.github_login
+    ORDER BY total_cost_usd DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((r) => ({
+    githubLogin: r.github_login,
+    sessionCount: Number(r.session_count),
+    totalCostUsd: Number(r.total_cost_usd),
+  }));
+}
+
+// ── PR delivery analytics (category 4) ───────────────────────────────────────
+
+export type OrgPRDeliveryStats = {
+  avgCostPerPR: number;
+  medianCostPerPR: number | null;
+  medianTimeToMergeHours: number | null;
+  mergeRate: number;
+  mergedPRs: number;
+  revertRate: number;
+  revertedPRs: number;
+  totalPRs: number;
+};
+
+export async function getOrgPRDeliveryStats(since: Date): Promise<OrgPRDeliveryStats> {
+  const rows = await getPrisma().$queryRaw<
+    {
+      avg_cost_per_pr: number | null;
+      median_cost_per_pr: number | null;
+      median_ttm_hours: number | null;
+      merged_prs: bigint;
+      reverted_prs: bigint;
+      total_prs: bigint;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      COUNT(pr.github_id)                                                         AS total_prs,
+      COUNT(pr.github_id) FILTER (WHERE pr.state = 'MERGED')                     AS merged_prs,
+      COUNT(pr.github_id) FILTER (WHERE pr.reverted_at IS NOT NULL)               AS reverted_prs,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (
+        ORDER BY EXTRACT(EPOCH FROM (pr.merged_at - pr.opened_at)) / 3600
+      ) FILTER (WHERE pr.state = 'MERGED' AND pr.opened_at IS NOT NULL AND pr.merged_at IS NOT NULL)
+                                                                                  AS median_ttm_hours,
+      AVG(prr.total_cost_usd)                                                     AS avg_cost_per_pr,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY prr.total_cost_usd)            AS median_cost_per_pr
+    FROM pull_requests pr
+    LEFT JOIN pr_rollups prr
+      ON prr.repo_id = pr.repo_id AND prr.pr_number = pr.pr_number
+    WHERE pr.opened_at >= ${since}
+  `);
+
+  const r = rows[0];
+  const total = Number(r?.total_prs ?? 0);
+  const merged = Number(r?.merged_prs ?? 0);
+  const reverted = Number(r?.reverted_prs ?? 0);
+
+  return {
+    avgCostPerPR: Number(r?.avg_cost_per_pr ?? 0),
+    medianCostPerPR: r?.median_cost_per_pr != null ? Number(r.median_cost_per_pr) : null,
+    medianTimeToMergeHours: r?.median_ttm_hours != null ? Number(r.median_ttm_hours) : null,
+    mergeRate: total > 0 ? merged / total : 0,
+    mergedPRs: merged,
+    revertRate: merged > 0 ? reverted / merged : 0,
+    revertedPRs: reverted,
+    totalPRs: total,
+  };
+}
+
+export type PRWeeklyTrendRow = {
+  avgCostUsd: number;
+  mergedPRs: number;
+  totalCostUsd: number;
+  week: Date;
+};
+
+export async function getPRWeeklyTrend(weeks = 12): Promise<PRWeeklyTrendRow[]> {
+  const since = new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000);
+  const rows = await getPrisma().$queryRaw<
+    { avg_cost_usd: number; merged_prs: bigint; total_cost_usd: number; week: Date }[]
+  >(Prisma.sql`
+    SELECT
+      date_trunc('week', pr.merged_at)        AS week,
+      COUNT(pr.github_id)                     AS merged_prs,
+      COALESCE(SUM(prr.total_cost_usd), 0)    AS total_cost_usd,
+      COALESCE(AVG(prr.total_cost_usd), 0)    AS avg_cost_usd
+    FROM pull_requests pr
+    LEFT JOIN pr_rollups prr
+      ON prr.repo_id = pr.repo_id AND prr.pr_number = pr.pr_number
+    WHERE pr.state = 'MERGED'
+      AND pr.merged_at >= ${since}
+    GROUP BY date_trunc('week', pr.merged_at)
+    ORDER BY week ASC
+  `);
+
+  return rows.map((r) => ({
+    avgCostUsd: Number(r.avg_cost_usd),
+    mergedPRs: Number(r.merged_prs),
+    totalCostUsd: Number(r.total_cost_usd),
+    week: r.week,
+  }));
+}
+
+export type TopRepoPRRow = {
+  avgCostUsd: number;
+  medianTimeToMergeHours: number | null;
+  mergedPRs: number;
+  repoName: string;
+  repoOwner: string;
+};
+
+export async function getTopReposByPR(since: Date, limit = 10): Promise<TopRepoPRRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    {
+      avg_cost_usd: number;
+      median_ttm_hours: number | null;
+      merged_prs: bigint;
+      repo_name: string;
+      repo_owner: string;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      r.github_owner                                                       AS repo_owner,
+      r.github_name                                                        AS repo_name,
+      COUNT(pr.github_id)                                                  AS merged_prs,
+      COALESCE(AVG(prr.total_cost_usd), 0)                                 AS avg_cost_usd,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (
+        ORDER BY EXTRACT(EPOCH FROM (pr.merged_at - pr.opened_at)) / 3600
+      ) FILTER (WHERE pr.opened_at IS NOT NULL AND pr.merged_at IS NOT NULL)
+                                                                           AS median_ttm_hours
+    FROM repos r
+    JOIN pull_requests pr
+      ON pr.repo_id = r.id
+      AND pr.state = 'MERGED'
+      AND pr.merged_at >= ${since}
+    LEFT JOIN pr_rollups prr
+      ON prr.repo_id = pr.repo_id AND prr.pr_number = pr.pr_number
+    GROUP BY r.id, r.github_owner, r.github_name
+    ORDER BY merged_prs DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((r) => ({
+    avgCostUsd: Number(r.avg_cost_usd),
+    medianTimeToMergeHours: r.median_ttm_hours != null ? Number(r.median_ttm_hours) : null,
+    mergedPRs: Number(r.merged_prs),
+    repoName: r.repo_name,
+    repoOwner: r.repo_owner,
+  }));
+}
+
+// ── Cross-team benchmarking (category 7) ─────────────────────────────────────
+
+export type TeamBenchmarkRow = {
+  avgCostPerSession: number;
+  frictionP50: number | null;
+  sessionCount: number;
+  sessionsPerUserPerWeek: number;
+  teamName: string;
+  teamSlug: string;
+  toolSuccessRate: number;
+  userCount: number;
+};
+
+export type OrgBenchmarkMedians = {
+  avgCostPerSession: number;
+  frictionP50: number | null;
+  sessionsPerUserPerWeek: number;
+  toolSuccessRate: number;
+};
+
+export type TeamBenchmarksResult = {
+  medians: OrgBenchmarkMedians;
+  teams: TeamBenchmarkRow[];
+};
+
+function arrayMedian(sorted: number[]): number | null {
+  if (sorted.length === 0) return null;
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+export async function getTeamBenchmarks(since: Date, weeks = 4): Promise<TeamBenchmarksResult> {
+  const rows = await getPrisma().$queryRaw<
+    {
+      avg_cost_per_session: number;
+      friction_p50: number | null;
+      session_count: bigint;
+      team_name: string;
+      team_slug: string;
+      total_tool_calls: bigint;
+      total_tool_errors: bigint;
+      user_count: bigint;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      t.name                                                               AS team_name,
+      t.github_slug                                                        AS team_slug,
+      COUNT(DISTINCT s.user_id)                                            AS user_count,
+      COUNT(s.session_id)                                                  AS session_count,
+      COALESCE(AVG(s.total_cost_usd), 0)                                   AS avg_cost_per_session,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.friction_score)
+        FILTER (WHERE s.friction_score IS NOT NULL)                        AS friction_p50,
+      COALESCE(SUM(s.tool_call_count), 0)                                  AS total_tool_calls,
+      COALESCE(SUM(s.tool_error_count), 0)                                 AS total_tool_errors
+    FROM teams t
+    JOIN team_members tm ON tm.team_id = t.id AND tm.left_at IS NULL
+    JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    JOIN sessions s ON s.user_id = u.id AND s.started_at >= ${since}
+    WHERE COALESCE(vp.share_metadata_with_org, true) = true
+    GROUP BY t.id, t.name, t.github_slug
+    HAVING COUNT(s.session_id) >= 5
+    ORDER BY session_count DESC
+  `);
+
+  const teams: TeamBenchmarkRow[] = rows.map((r) => {
+    const sessions = Number(r.session_count);
+    const users = Number(r.user_count);
+    const calls = Number(r.total_tool_calls);
+    const errors = Number(r.total_tool_errors);
+    return {
+      avgCostPerSession: Number(r.avg_cost_per_session),
+      frictionP50: r.friction_p50 != null ? Number(r.friction_p50) : null,
+      sessionCount: sessions,
+      sessionsPerUserPerWeek: users > 0 && weeks > 0 ? sessions / users / weeks : 0,
+      teamName: r.team_name,
+      teamSlug: r.team_slug,
+      toolSuccessRate: calls > 0 ? 1 - errors / calls : 1,
+      userCount: users,
+    };
+  });
+
+  const sorted = {
+    cost: [...teams.map((t) => t.avgCostPerSession)].sort((a, b) => a - b),
+    friction: [...teams.map((t) => t.frictionP50).filter((v) => v != null)].sort(
+      (a, b) => (a as number) - (b as number),
+    ) as number[],
+    spw: [...teams.map((t) => t.sessionsPerUserPerWeek)].sort((a, b) => a - b),
+    success: [...teams.map((t) => t.toolSuccessRate)].sort((a, b) => a - b),
+  };
+
+  return {
+    medians: {
+      avgCostPerSession: arrayMedian(sorted.cost) ?? 0,
+      frictionP50: arrayMedian(sorted.friction),
+      sessionsPerUserPerWeek: arrayMedian(sorted.spw) ?? 0,
+      toolSuccessRate: arrayMedian(sorted.success) ?? 1,
+    },
+    teams,
+  };
+}

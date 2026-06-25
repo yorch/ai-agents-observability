@@ -6,6 +6,7 @@ import {
   getCostByModel,
   getCostByRepo,
   getCostByTeam,
+  getCostPerDeveloper,
   getOrgEffectiveness,
   getOrgSummary,
   getOrgTopTools,
@@ -23,7 +24,7 @@ export default async function OrgDashboardPage() {
   const since = daysAgo(30);
   const isAdmin = isOrgAdmin(orgRole);
 
-  const [summary, teamCost, repoCost, modelCost, tools, trend, anomalies, effectiveness] =
+  const [summary, teamCost, repoCost, modelCost, tools, trend, anomalies, effectiveness, devCost] =
     await Promise.all([
       getOrgSummary(since),
       getCostByTeam(since),
@@ -33,6 +34,7 @@ export default async function OrgDashboardPage() {
       getWeeklyCostTrend(12),
       getAnomalies(),
       getOrgEffectiveness(since),
+      isAdmin ? getCostPerDeveloper(since) : Promise.resolve([]),
     ]);
 
   const modelTotalCost = modelCost.reduce((s, r) => s + r.costUsd, 0);
@@ -190,6 +192,36 @@ export default async function OrgDashboardPage() {
         />
         <ShapeDistributionChart histogram={effectiveness.shapeMix} />
       </div>
+
+      {/* Cost per developer — org_admin only */}
+      {isAdmin && devCost.length > 0 && (
+        <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-white/70">Cost by developer (top 20, 30d)</h2>
+          <p className="text-xs text-white/30">Visible to org admins only.</p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-white/40 text-left">
+                <th className="pb-2 font-medium">Developer</th>
+                <th className="pb-2 font-medium text-right">Sessions</th>
+                <th className="pb-2 font-medium text-right">Total cost</th>
+                <th className="pb-2 font-medium text-right">Cost / session</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {devCost.map((d) => (
+                <tr key={d.githubLogin}>
+                  <td className="py-2 font-mono text-xs text-white/80">@{d.githubLogin}</td>
+                  <td className="py-2 text-right text-white/60">{d.sessionCount}</td>
+                  <td className="py-2 text-right font-mono">${d.totalCostUsd.toFixed(2)}</td>
+                  <td className="py-2 text-right font-mono text-white/60">
+                    ${d.sessionCount > 0 ? (d.totalCostUsd / d.sessionCount).toFixed(3) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {!isAdmin && (
         <p className="text-xs text-white/30 text-center pt-4">
