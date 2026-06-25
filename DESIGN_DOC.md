@@ -1,7 +1,7 @@
 # ai-agents-observability — Design Document
 
 **Project:** `ai-agents-observability`
-**Status:** v1 — Phases 1–4 implemented; team/org dashboard improvements landed (P3/P4 additions)
+**Status:** Phases 1–6 done; Phases 7–9 implemented and in review (pending sign-off)
 **Owner:** Jorge (SentinelOne)
 **Last updated:** 2026-06-25
 **Audience:** Internal — dev tools team, leadership stakeholders
@@ -34,7 +34,7 @@ The primary purpose is **developer experience and effectiveness research** (audi
 ### 2.2 Non-Goals (v1)
 
 - Multi-tenancy. This is single-org, single-tenant.
-- Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting — spend spikes, error-rate, unknown-model surges — is scoped into Phase 9 §12.9 (`budget_threshold` reserved, not yet evaluated). SIEM-style behavioral analytics on transcript content remains out of scope.)*
+- Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting — spend spikes, error-rate, unknown-model surges — is implemented in Phase 9 §12.9 and in review. `budget_threshold` rule type is reserved in the enum but not yet evaluated. SIEM-style behavioral analytics on transcript content remains out of scope.)*
 - Replacing any existing observability stack (Datadog, Splunk, etc.) — this is purpose-built for AI coding agent telemetry.
 - **Model-level observability** — inference latency, prompt evaluation, model drift, RAG quality. Out of scope by design; that's a different product.
 - Capturing telemetry from non-Claude-Code agents (Cursor, Aider, Copilot, etc.) **in v1 implementation** — but the data model is designed to accept them in a later phase without schema migration.
@@ -55,9 +55,9 @@ The name `ai-agents-observability` is deliberately plural. Claude Code is the fi
 
 Concretely, this means:
 
-- An `agent_type` dimension exists on every event and session (defaulting to `CLAUDE_CODE` in v1)
+- An `agent_type` dimension exists on every event and session (defaulting to `CLAUDE_CODE` in v1). The enum as shipped: `CLAUDE_CODE`, `CURSOR`, `AIDER`, `COPILOT`, `CODEX`, `WINDSURF`, `OPENCODE`. Adapters for `OPENCODE` (Phase 8) and `CODEX` (P8-007) are implemented; the others have schema entries but no adapter yet.
 - Tool naming uses a `<agent>:<tool>` convention internally to prevent collisions when other agents have similarly-named tools (e.g. `CLAUDE_CODE:Edit` vs `CURSOR:Edit`)
-- The hook contract (§6.3) is agent-agnostic — any agent that can emit equivalent lifecycle events can produce conformant payloads via its own adapter
+- The hook contract (§6.3) is agent-agnostic — any agent that can emit equivalent lifecycle events can produce conformant payloads via its own adapter (see §6.2 for the adapter seam)
 - "My Agents" (the self-service dashboard, §8) is named for the plural case from day one
 - Cost computation accepts per-agent price tables, not a global one
 
@@ -299,7 +299,18 @@ CREATE TABLE sessions (
   transcript_s3_key       TEXT,
   transcript_bytes        BIGINT,
   transcript_uploaded_at  TIMESTAMPTZ,
-  transcript_redacted     BOOLEAN NOT NULL DEFAULT false
+  transcript_redacted     BOOLEAN NOT NULL DEFAULT false,
+
+  -- Effectiveness signals (computed by ingest scheduler; see §10.2)
+  shape_label             TEXT,         -- 'exploratory'|'implementation'|'debugging'|'planning'
+  friction_score          NUMERIC(5,2), -- composite: retries + denials + interrupts + abandonment
+
+  -- GitHub enrichment (populated from webhook context)
+  pr_ci_status            TEXT,         -- last check-run conclusion for the PR (P5-005)
+  pr_review_decision      TEXT,         -- 'APPROVED'|'CHANGES_REQUESTED'|'REVIEW_REQUIRED' (P5-005)
+  github_login            TEXT,         -- denormalized from users for fast filtering
+  github_team             TEXT,         -- primary team slug at session start
+  project_name            TEXT          -- display name derived from repo/cwd
 );
 CREATE INDEX ON sessions (user_id, started_at DESC);
 CREATE INDEX ON sessions (repo_id, started_at DESC);
@@ -377,6 +388,13 @@ CREATE INDEX ON events (skill_name, ts DESC) WHERE skill_name IS NOT NULL;
 CREATE INDEX ON events (agent_type, ts DESC);
 ```
 
+**Compression:** A 7-day compress policy runs on the hypertable, segmented by `(user_id, session_id)`.
+
+**Continuous aggregates (materialized, 1-hour refresh):**
+- `daily_cost_by_user` — `(day, user_id, agent_type)` → token totals and cost
+- `daily_cost_by_model` — `(day, model, agent_type)` → token totals and cost
+- `daily_tool_usage` — `(day, tool_name, tool_category, agent_type)` → call counts
+
 ### 5.4 Pull Requests & Rollups (Postgres)
 
 ```sql
@@ -400,6 +418,10 @@ CREATE TABLE pull_requests (
   reviewer_logins     TEXT[],
   labels              TEXT[],
   enriched_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  is_draft            BOOLEAN NOT NULL DEFAULT false,
+  reverted_at         TIMESTAMPTZ,        -- set if this PR was reverted (P5-003)
+  revert_of_pr_number INT,               -- if this PR is itself a revert (P5-003)
+  jira_key            TEXT,              -- extracted from branch/title if org uses Jira (P5-004)
   PRIMARY KEY (repo_id, pr_number)
 );
 
@@ -430,14 +452,15 @@ CREATE TABLE pr_rollups (
   total_tool_errors        INT,
   total_permission_denies  INT,
   cost_per_loc             NUMERIC(12,6),
+  check_failures_count     INT,           -- CI check failures at merge time (P5-005)
   computed_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (repo_id, pr_number)
 );
 ```
 
-### 5.5 Transcript Index (Optional, Postgres FTS)
+### 5.5 Transcript Index (Postgres FTS)
 
-If/when transcript search is needed without round-tripping to object storage:
+Populated by the `index-transcripts` scheduled job in `apps/ingest`. Used by both per-user search (`/me/search`) and org-scoped search (`/org/search`).
 
 ```sql
 CREATE TABLE transcript_index (
@@ -452,7 +475,7 @@ CREATE TABLE transcript_index (
 CREATE INDEX ON transcript_index USING GIN (content_tsv);
 ```
 
-For larger scale, swap Postgres FTS for Meilisearch or Typesense.
+For larger scale, swap Postgres FTS for Meilisearch or Typesense. The `index-transcripts` job only indexes sessions whose transcripts are within the user's visibility scope.
 
 ---
 
@@ -482,7 +505,8 @@ Responsibilities:
 - Retry on network failure with exponential backoff
 - Periodic transcript heartbeat (every 10 min) for long-running sessions
 - Final transcript ship on `Stop` / `SessionEnd`
-- Local CLI for `claude-telemetry login` (OIDC flow), `status`, `pause`, `resume`, `purge-local`
+- Local CLI: `install` (register hooks), `uninstall` (remove hooks), `login` (OIDC device-code flow), `status` (queue depth + connectivity), `pause` / `resume` (toggle flushing), `purge` (clear local queue + optional local transcripts), `import` (backfill historical transcripts from `~/.claude/projects/`)
+- **Hook adapter seam** (Phase 8): each agent has its own adapter (`claude-code.ts`, `opencode.ts`, `codex.ts`). The transport (batching, queue, flushing, auth) is shared; adapters handle event translation. An optional `mapBatch` lets one hook fire expand into multiple events (used by the Codex adapter to read rollout JSONL).
 
 Local queue: SQLite database at `~/.claude-telemetry/queue.db`. Survives crashes, machine reboots, and offline periods.
 
@@ -565,11 +589,30 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 5. Server writes to MinIO/S3 at `transcripts/{yyyy}/{mm}/{dd}/{user_id}/{session_id}.jsonl.zst`
 6. On final chunk, update `sessions.transcript_*` columns
 
-### 6.5 Identity Trust Model
+### 6.5 Ingest Scheduler Jobs
+
+`apps/ingest` runs a set of scheduled background jobs via Croner. Each job is enable/disable-toggleable from `/admin/jobs`:
+
+| Job | Schedule | Purpose |
+|---|---|---|
+| `sweep-abandoned` | every 10 min | Marks stale ACTIVE sessions as ABANDONED (no event for >30min) |
+| `sweep-retention` | nightly | Deletes transcripts (S3 + `transcript_s3_key`) past the retention window |
+| `sweep-scratch` | daily | Cleans up orphaned temp S3 objects |
+| `sync-teams` | nightly | GitHub team membership sync for all orgs |
+| `run-deletions` | every 15 min | Processes queued GDPR `DeletionRequest` rows |
+| `index-transcripts` | every 30 min | Populates `transcript_index` for Postgres FTS |
+| `compute-effectiveness` | nightly | Computes `friction_score` + `shape_label` on sessions |
+| `evaluate-alerts` | every 5 min | Evaluates alert rules; fires/resolves `AlertEvent` rows |
+| `alert-transition` | every 1 min | Handles alert state transitions and triggers notifications |
+| `retention-policy` | nightly | Applies per-team retention overrides from `Team.retentionDays` |
+| `reconcile-cost` | weekly | Gated (flag-controlled) cost reconciliation vs vendor billing API (P8-006) |
+| `embed-transcripts` | nightly | Gated pgvector embedding job for semantic search spike (P7-007, not yet active) |
+
+### 6.6 Identity Trust Model
 
 `user_id_claim` from the hook is informational. **The authoritative user identity comes from the auth token on the ingest request**, not from the payload. If a hook claims to be `alice` but the token belongs to `bob`, the events are stored as `bob` and a `suspicious_identity_claim` flag is logged.
 
-### 6.6 Cost Source of Truth
+### 6.7 Cost Source of Truth
 
 Client computes cost from token counts × a **versioned price table** served by the service. Clients fetch and cache the price table daily. Anthropic price changes propagate without redeploying hooks.
 
@@ -638,8 +681,9 @@ Don't merge these. Separation of concerns matters for permission audits.
 | `team_lead`        | Own + team's sessions (metadata always; transcripts only if user opted in) |
 | `org_admin`        | Everything, with audit-logged transcript views                             |
 | `viewer_aggregate` | Org-wide aggregates only; no individual sessions or transcripts            |
+| `investigator`     | No standing individual access. Can request time-boxed grants (§8.4) for sampled session investigation; each grant is org-admin approved, scoped, and expires. |
 
-`viewer_aggregate` is the audience-A role: finance/leadership can see spend without the panopticon.
+`viewer_aggregate` is the audience-A role: finance/leadership can see spend without the panopticon. `investigator` is the audience-B research role (Phase 9).
 
 ### 8.2 Per-User Visibility Settings
 
@@ -911,34 +955,44 @@ Resist the urge to build all of it. The MVP that proves value:
 - Org adoption funnel widget — active users → session starters → PR authors, showing week-over-week conversion at each stage
 - Per-team model governance table (org admin only) — shows which models each team has used in the selected window, flagging any models outside the approved set; gated behind `OrgRole.ORG_ADMIN`
 
+*Additional pages shipped beyond the original P4 scope:*
+
+- `/install` — hook binary download page; lists four platform targets with download links and install instructions
+- `/org/benchmarks` — per-team benchmark comparison across the org
+- `/org/delivery` — PR delivery stats: time-to-merge, weekly trend, top repos
+- `/org/tools` — org-level tool usage breakdown
+- `/admin/adapters` — per-agent adapter status (last-seen session, 7d session count)
+- `/admin/jobs` — background job config (enable/disable individual scheduler jobs, trigger on demand)
+- `/admin/price-tables` — manage per-agent/per-model price tables
+
 **Success criteria:** Quarterly leadership readout uses this instead of ad-hoc spreadsheets.
 
-### 12.5 Phase 5 — Effectiveness Signals
+### 12.5 Phase 5 — Effectiveness Signals ✓ done
 
-22. Friction score composite metric
-23. Session shape clustering
-24. Revert detection
-25. Optional: bug correlation via Jira integration
-26. Optional: CI correlation via GitHub Checks
+22. Friction score composite metric (`friction_score` stored on sessions; computed by `compute-effectiveness` ingest job)
+23. Session shape clustering (`shape_label` on sessions: exploratory / implementation / debugging / planning)
+24. Revert detection (`pull_requests.reverted_at` / `revert_of_pr_number`)
+25. Jira key extraction (`pull_requests.jira_key` from branch/title pattern)
+26. CI correlation via GitHub Checks (`sessions.pr_ci_status`, `sessions.pr_review_decision`, `pr_rollups.check_failures_count`)
 
-### 12.6 Phase 6 — Hardening & Scale-Readiness
+### 12.6 Phase 6 — Hardening & Scale-Readiness ✓ done
 
 Post-spine review of data-integrity, observability, and access-model gaps. Discriminated-union event schema + structured tool emission, Prometheus coverage for web + github-app, non-blocking transcript pipeline, explicit org-admin team-lead grants. Per-agent price tables and the hook adapter seam were deferred here and are decomposed in Phase 8. See `tasks/P6-roadmap.md`.
 
-### 12.7 Phase 7 — Insight Surfaces & Search
+### 12.7 Phase 7 — Insight Surfaces & Search (in review)
 
 Close the gap between *captured* and *surfaced*. The friction score and session-shape label (Phase 5) are computed nightly but rendered in no UI; transcript full-text search exists only at the org level.
 
-27. Effectiveness widgets on "My Agents" — friction trend, session-shape mix, per-session friction band (honoring the §10.6 caveat: no misleading numbers for low-data sessions, version-pinned)
+27. Effectiveness widgets on "My Agents" — friction trend, session-shape mix, per-session friction band (`/me/insights`; honoring the §10.6 caveat: no misleading numbers for low-data sessions, version-pinned)
 28. Team + org effectiveness distributions, gated by `visibility_policies`
-29. Per-user transcript full-text search (scoped to own sessions)
+29. Per-user transcript full-text search (`/me/search`, scoped to own sessions)
 30. Faceted-search enrichment — shape, friction band, agent-type facets
 31. Backfill of effectiveness signals over historical sessions
-32. Gated spike: semantic (pgvector) transcript search — decision + prototype, not a production commitment
+32. Gated spike: semantic (pgvector) transcript search (`embed-transcripts` ingest job, flag-controlled — not production-committed; P7-007 not yet started)
 
 **Success criteria:** a dev sees their own friction trend and can search their own transcripts; a team lead sees a friction distribution without any individual's score leaking.
 
-### 12.8 Phase 8 — Multi-Agent & Cost Model
+### 12.8 Phase 8 — Multi-Agent & Cost Model (in review)
 
 Prove the multi-agent spine §2.4 with a real second agent, and build the cost machinery a non-Anthropic agent needs.
 
@@ -953,7 +1007,7 @@ A **third** adapter (`codex`, P8-007) was added after the phase's original scope
 
 **Success criteria:** a second agent's sessions ingest, price correctly, render with correct labels, and never collide on tool names; the transport is shared between adapters without a fork.
 
-### 12.9 Phase 9 — Alerting & Governance
+### 12.9 Phase 9 — Alerting & Governance (in review)
 
 Move from passive dashboards to proactive, trust-preserving operation.
 
@@ -1021,7 +1075,7 @@ Beyond Phase 5, the natural extensions:
 
 | Term                      | Meaning                                                                                                                                            |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agent / agent_type**    | The AI coding agent producing the telemetry. `claude_code` in v1; the schema supports additional agents (e.g. `cursor`, `aider`) without migration |
+| **Agent / agent_type**    | The AI coding agent producing the telemetry. `CLAUDE_CODE` is v1; the schema also carries `CURSOR`, `AIDER`, `COPILOT`, `CODEX`, `WINDSURF`, `OPENCODE`. Live adapters: `CLAUDE_CODE`, `OPENCODE` (P8), `CODEX` (P8-007). |
 | **Session**               | One contiguous agent conversation, identified by the agent's native `session_id`                                                                   |
 | **Event**                 | A single hook fire — `PreToolUse`, `PostToolUse`, `Stop`, etc.                                                                                     |
 | **Turn**                  | One user-prompt-and-response cycle within a session                                                                                                |
@@ -1042,3 +1096,4 @@ Beyond Phase 5, the natural extensions:
 | 2026-05-16 | Jorge (with Claude) | Initial draft |
 | 2026-06-24 | Jorge (with Claude) | Added Phases 6–9 to §12 (Hardening, Insight Surfaces & Search, Multi-Agent & Cost Model, Alerting & Governance); scoped threshold-based alerting out of the §2.2 non-goal |
 | 2026-06-25 | Jorge (with Claude) | Updated §12.3 and §12.4 with P3/P4 dashboard additions (date range selector, period-over-period deltas, team PR tab, org adoption funnel, model governance table, cache efficiency metric); updated §10.2 with cache efficiency and period-delta computation notes; updated status header |
+| 2026-06-25 | Jorge (with Claude) | Full doc audit against codebase: updated status header to reflect Phases 1–6 done / 7–9 in review; added §6.5 scheduler jobs table; updated §2.2 alerting note; updated §2.4 agent_type enum; added Phase 5 fields to Session + PullRequest + PRRollup DDL; added continuous aggregate definitions to §5.3; removed "Optional" from §5.5; expanded §6.2 hook commands and adapter seam; added INVESTIGATOR role to §8.1; added §8.4 grant model; marked Phases 5–9 status in §12; added additional dashboard routes to §12.4; updated §16 glossary agent_type entry |

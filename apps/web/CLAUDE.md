@@ -10,9 +10,14 @@ Read [`/PLAN.md`](../../PLAN.md) and [`/tasks/`](../../tasks/) before picking up
 - **Auth is owned by `@ai-agents-observability/auth`** — do not introduce NextAuth. Use `currentUser()` from `src/lib/auth.ts` in server components / route handlers.
 - **Prisma**: server-only. Import `prisma` from `src/lib/prisma.ts`; never reference it inside `'use client'` modules.
 - **Routing layout**:
-  - `/login` — public.
-  - `/me/*` — authenticated. Gated by `src/proxy.ts` (Next 16's renamed middleware — cookie presence only) and verified per-request by `currentUser()`.
-  - `/api/auth/*` — OAuth + session endpoints (P1-016, P1-017).
+  - `/login`, `/install`, `/health`, `/metrics` — public.
+  - `/me/*` — authenticated, own-data scope. Session list, PR list, insights, search, transcript viewer, privacy settings, audit feed.
+  - `/team/[slug]/*` — authenticated, team-scoped. Roster, member sessions, PR tab. Gated by `team_lead` role via `requireTeamAccess()`.
+  - `/org/*` — authenticated, org-scoped. Dashboard, adoption funnel, benchmarks, delivery stats, tools breakdown, search, cross-user session/transcript. Gated by `org_admin` or `viewer_aggregate` roles.
+  - `/admin/*` — authenticated, `org_admin` only. Alerts, access grants, adapters, jobs, org roles, team roles, price tables, retention.
+  - `/api/auth/*` — OAuth + session endpoints; device-code flow for the hook binary.
+  - `/api/me/*` — transcript proxy, data export, self-deletion.
+  - `/api/org/*` and `/api/team/[slug]/*` — cross-user transcript endpoints (audit-logged).
 
 ## Pinning
 
