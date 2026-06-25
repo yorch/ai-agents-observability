@@ -1,17 +1,22 @@
 import { redirect } from 'next/navigation';
 import { currentUser } from '@/lib/auth';
+import { getUserEffectiveness } from '@/lib/effectiveness-queries';
 import {
   getMcpUsage,
+  getSessionSummary,
   getSkillUsage,
   getSlashCommands,
   getSubagentUsage,
   getToolPerf,
   type McpUsageRow,
+  type SessionSummaryRow,
   type SkillUsageRow,
   type SlashCommandRow,
   type SubagentUsageRow,
   type ToolPerfRow,
 } from '@/lib/insights-queries';
+import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
+import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +45,28 @@ function pct(num: number, den: number): string {
   return `${((num / den) * 100).toFixed(1)}%`;
 }
 
+function fmtCost(usd: number): string {
+  if (usd === 0) {
+    return '$0.00';
+  }
+  if (usd < 0.01) {
+    return `$${usd.toFixed(4)}`;
+  }
+  return `$${usd.toFixed(2)}`;
+}
+
+function fmtTokens(n: bigint): string {
+  const m = Number(n) / 1_000_000;
+  if (m >= 1) {
+    return `${m.toFixed(1)}M`;
+  }
+  const k = Number(n) / 1_000;
+  if (k >= 1) {
+    return `${k.toFixed(0)}k`;
+  }
+  return String(n);
+}
+
 export default async function InsightsPage({
   searchParams,
 }: {
@@ -54,12 +81,14 @@ export default async function InsightsPage({
   const days = parseDays(params.days);
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const [mcp, skills, slashCmds, subagents, toolPerf] = await Promise.all([
+  const [mcp, skills, slashCmds, subagents, toolPerf, effectiveness, summary] = await Promise.all([
     getMcpUsage(user.id, since),
     getSkillUsage(user.id, since),
     getSlashCommands(user.id, since),
     getSubagentUsage(user.id, since),
     getToolPerf(user.id, since),
+    getUserEffectiveness(user.id, { since }),
+    getSessionSummary(user.id, since),
   ]);
 
   const hasAnyData =
@@ -67,7 +96,8 @@ export default async function InsightsPage({
     skills.length > 0 ||
     slashCmds.length > 0 ||
     subagents.length > 0 ||
-    toolPerf.length > 0;
+    toolPerf.length > 0 ||
+    summary.sessionCount > 0;
 
   return (
     <div className="space-y-8">
@@ -75,7 +105,7 @@ export default async function InsightsPage({
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Insights</h1>
           <p className="mt-1 text-sm text-text-2">
-            MCP servers · skills · commands · subagents · tool performance
+            Sessions · friction · shapes · MCP servers · tools
           </p>
         </div>
         <DaysSelector current={days} />
@@ -89,6 +119,16 @@ export default async function InsightsPage({
         </div>
       ) : (
         <>
+          <SessionSummaryCards summary={summary} />
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <FrictionTrendChart
+              points={effectiveness.trend}
+              scoredSessionCount={effectiveness.scoredSessionCount}
+            />
+            <ShapeDistributionChart histogram={effectiveness.shapeHistogram} />
+          </div>
+
           <div className="grid gap-6 md:grid-cols-2">
             <McpSection rows={mcp} />
             <SkillsSection rows={skills} />
@@ -117,6 +157,29 @@ function DaysSelector({ current }: { current: Days }) {
         >
           {d}d
         </a>
+      ))}
+    </div>
+  );
+}
+
+function SessionSummaryCards({ summary: s }: { summary: SessionSummaryRow }) {
+  const cards = [
+    { label: 'Sessions', value: s.sessionCount.toLocaleString() },
+    { label: 'Total cost', value: fmtCost(s.totalCostUsd) },
+    { label: 'Avg cost / session', value: s.sessionCount > 0 ? fmtCost(s.avgCostUsd) : '—' },
+    { label: 'Input tokens', value: fmtTokens(s.totalInputTokens) },
+    { label: 'Output tokens', value: fmtTokens(s.totalOutputTokens) },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      {cards.map(({ label, value }) => (
+        <div
+          key={label}
+          className="rounded-lg border border-border bg-surface px-4 py-3 space-y-1"
+        >
+          <p className="text-xs text-text-3">{label}</p>
+          <p className="text-lg font-semibold tabular-nums text-text">{value}</p>
+        </div>
       ))}
     </div>
   );

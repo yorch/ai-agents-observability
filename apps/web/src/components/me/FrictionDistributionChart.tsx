@@ -16,10 +16,8 @@ export function FrictionDistributionChart({
 }) {
   const header = (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-sm font-medium text-white/70">{title}</h2>
-      <span className="text-[10px] uppercase tracking-wide text-white/30">
-        Friction v{FRICTION_VERSION}
-      </span>
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">{title}</h2>
+      <span className="text-[10px] uppercase tracking-wide text-text-3">v{FRICTION_VERSION}</span>
     </div>
   );
 
@@ -27,9 +25,9 @@ export function FrictionDistributionChart({
 
   if (!friction || scoredSessions < MIN_AGG_SCORED) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+      <div className="rounded-lg border border-border bg-surface p-4">
         {header}
-        <p className="text-sm text-white/40">
+        <p className="text-sm text-text-3">
           Not enough data — needs at least {MIN_AGG_SCORED} scored sessions in this period.
         </p>
       </div>
@@ -41,27 +39,27 @@ export function FrictionDistributionChart({
   const mid = clamp(friction.p50) * 100;
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+    <div className="rounded-lg border border-border bg-surface p-4">
       {header}
-      <div className="relative h-3 w-full rounded-full bg-white/10">
+      <div className="relative h-3 w-full rounded-full bg-surface-2">
         {/* p25–p75 interquartile span */}
         <div
-          className="absolute h-full rounded-full bg-brand-500/40"
+          className="absolute h-full rounded-full bg-accent/40"
           style={{ left: `${left}%`, width: `${Math.max(right - left, 0)}%` }}
         />
         {/* p50 marker */}
         <div
-          className="absolute top-[-2px] h-[16px] w-0.5 bg-brand-400"
+          className="absolute top-[-2px] h-[16px] w-0.5 bg-accent"
           style={{ left: `${mid}%` }}
           title={`median ${friction.p50.toFixed(2)}`}
         />
       </div>
-      <div className="mt-3 flex justify-between text-xs text-white/60">
+      <div className="mt-3 flex justify-between text-xs text-text-2">
         <span>p25 {friction.p25.toFixed(2)}</span>
-        <span className="text-white/80">median {friction.p50.toFixed(2)}</span>
+        <span className="text-text">median {friction.p50.toFixed(2)}</span>
         <span>p75 {friction.p75.toFixed(2)}</span>
       </div>
-      <p className="mt-2 text-[10px] text-white/30">
+      <p className="mt-2 text-[10px] text-text-3">
         {scoredSessions} scored sessions · 0 (low) – 1 (high)
       </p>
     </div>
