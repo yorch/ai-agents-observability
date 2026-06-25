@@ -478,6 +478,10 @@ alice  export_team      —     09:14</code></pre>
           <p style="color:var(--text-dim);margin-top:0.4em">Any time a team lead or researcher views another user's session, it's recorded — actor, target, justification, IP.</p>
         </div>
         <div class="card" style="margin-top:0.7em;font-size:0.65em">
+          <div class="label">Selective session sharing</div>
+          <p style="color:var(--text-dim)">Beyond the blanket policy flags, owners can share individual sessions with any colleague — time-boxed (1/7/30d) grants, auto-approved. The grantee gets a direct link; the owner can revoke at any time. All views remain audit-logged.</p>
+        </div>
+        <div class="card" style="margin-top:0.7em;font-size:0.65em">
           <div class="label">Redaction before S3</div>
           <p style="color:var(--text-dim)">Every transcript passes through <code>packages/redaction</code> — tokens, secrets, PII patterns stripped before the JSONL hits object storage. Raw content never written.</p>
         </div>
@@ -925,6 +929,7 @@ infra/
           <li>PR cost summary</li>
           <li>Privacy controls + audit feed</li>
           <li>Access grants view</li>
+          <li>Share sessions with colleagues (time-boxed, 1 / 7 / 30d)</li>
         </ul>
       </div>
       <div class="card card-blue">
@@ -932,10 +937,11 @@ infra/
         <ul style="margin-top:0.4em">
           <li>Aggregate cost + usage trends</li>
           <li>Adoption funnel (active / inactive)</li>
-          <li>PR tab — cost &amp; session count per PR</li>
-          <li>Model governance alert</li>
-          <li>Cache efficiency panel</li>
-          <li>Date-range picker with deltas</li>
+          <li>Sessions tab — team-wide session listing</li>
+          <li>PR tab — cost &amp; session count per PR + delivery stats</li>
+          <li>Tools tab — per-tool breakdown</li>
+          <li>Skills analytics — invocations, cost impact, top users</li>
+          <li>Date-range picker (7 / 30 / 90d) with deltas</li>
           <li>Roster — per-member aggregates</li>
         </ul>
       </div>
@@ -948,7 +954,9 @@ infra/
           <li>Adoption funnel across org</li>
           <li>Benchmarks — per-team comparison</li>
           <li>Delivery stats — time-to-merge, top repos</li>
-          <li>Tool breakdown + FTS search</li>
+          <li>Tool usage breakdown + FTS search</li>
+          <li>Skills analytics — trends, adoption funnel, drill-down detail</li>
+          <li>Teams directory</li>
         </ul>
       </div>
       <div class="card card-purple">
@@ -1112,6 +1120,18 @@ Cache efficiency: 68%</code></pre>
           <div class="timeline-item">
             <div class="timeline-dot dot-green"></div>
             <div><strong>P6</strong> — Hardening: discriminated event schema, Prometheus, audit access model</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot dot-green"></div>
+            <div><strong>Skills analytics</strong> — org &amp; team pages with drill-down detail, cost impact, CI correlation, adoption funnel</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot dot-green"></div>
+            <div><strong>Nav &amp; team tabs</strong> — TeamsDropdown, Sessions / Adoption / Tools tabs, DateRangePicker (7/30/90d), PR delivery stats</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot dot-green"></div>
+            <div><strong>Session sharing</strong> — owner-initiated, time-boxed (1/7/30d), member-to-member, grant-based access in resolveOrgSessionAccess</div>
           </div>
         </div>
 
