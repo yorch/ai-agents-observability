@@ -40,7 +40,11 @@ function describeEvent(ev: SessionEvent): {
     return { color: 'bg-text-3', label: 'Session ended' };
   }
   if (ev.eventType === 'SubagentStop') {
-    return { color: 'bg-text-3', label: 'Subagent finished' };
+    return {
+      color: 'bg-text-3',
+      label: 'Subagent finished',
+      sublabel: ev.subagentType ?? undefined,
+    };
   }
   if (ev.eventType === 'PreCompact') {
     return { color: 'bg-amber-400/60', label: 'Context compacted' };

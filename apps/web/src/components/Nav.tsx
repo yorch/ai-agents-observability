@@ -2,12 +2,21 @@ import type { User } from '@ai-agents-observability/db';
 import { OrgRole } from '@ai-agents-observability/db';
 import Link from 'next/link';
 
+import { TeamsDropdown } from './TeamsDropdown';
 import { ThemeToggle } from './ThemeToggle';
 import { UserMenu } from './UserMenu';
 
-type LedTeam = { githubSlug: string; name: string };
+type TeamEntry = { githubSlug: string; name: string };
 
-export function Nav({ user, ledTeam }: { ledTeam: LedTeam | null; user: User | null }) {
+export function Nav({
+  allTeams,
+  ledTeam,
+  user,
+}: {
+  allTeams: TeamEntry[];
+  ledTeam: TeamEntry | null;
+  user: User | null;
+}) {
   const isAdmin = user?.orgRole === OrgRole.ORG_ADMIN;
   const canViewOrg = user && user.orgRole !== OrgRole.MEMBER;
 
@@ -21,12 +30,12 @@ export function Nav({ user, ledTeam }: { ledTeam: LedTeam | null; user: User | n
       </Link>
 
       <div className="flex items-center gap-5 text-sm">
-        {isAdmin && (
-          <Link href="/admin/jobs" className="text-text-2 hover:text-text transition-colors">
-            Admin
+        {user && (
+          <Link href="/me" className="text-text-2 hover:text-text transition-colors">
+            My Agents
           </Link>
         )}
-        {ledTeam && (
+        {ledTeam && !canViewOrg && (
           <Link
             href={`/team/${ledTeam.githubSlug}`}
             className="text-text-2 hover:text-text transition-colors"
@@ -34,9 +43,15 @@ export function Nav({ user, ledTeam }: { ledTeam: LedTeam | null; user: User | n
             {ledTeam.name}
           </Link>
         )}
+        {allTeams.length > 0 && <TeamsDropdown teams={allTeams} />}
         {canViewOrg && (
           <Link href="/org/dashboard" className="text-text-2 hover:text-text transition-colors">
             Org
+          </Link>
+        )}
+        {isAdmin && (
+          <Link href="/admin" className="text-text-2 hover:text-text transition-colors">
+            Admin
           </Link>
         )}
 

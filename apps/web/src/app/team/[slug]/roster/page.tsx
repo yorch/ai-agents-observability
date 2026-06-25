@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { TeamSubNav } from '@/app/team/[slug]/layout';
+import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamRoster } from '@/lib/team-queries';
@@ -13,11 +14,20 @@ const ROLE_LABEL: Record<string, string> = {
   member: 'Member',
 };
 
-export default async function TeamRosterPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function TeamRosterPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ range?: string }>;
+}) {
   const { slug } = await params;
+  const { range: rangeParam } = await searchParams;
+  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
+
   const { teamId, teamName, user } = await requireTeamLead(slug);
 
-  const since = daysAgo(30);
+  const since = daysAgo(range);
 
   // Audit write is fire-and-forget per P3-005: never throws, errors logged to stderr.
   void writeAuditLog({
@@ -29,12 +39,15 @@ export default async function TeamRosterPage({ params }: { params: Promise<{ slu
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Team</p>
-        <h1 className="text-2xl font-semibold">{teamName}</h1>
-        <p className="mt-1 text-sm text-white/50">
-          {members.length} {members.length === 1 ? 'member' : 'members'} · trailing 30 days
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Team</p>
+          <h1 className="text-2xl font-semibold">{teamName}</h1>
+          <p className="mt-1 text-sm text-white/50">
+            {members.length} {members.length === 1 ? 'member' : 'members'} · trailing {range} days
+          </p>
+        </div>
+        <DateRangePicker range={range} />
       </div>
 
       <TeamSubNav slug={slug} active="roster" />
@@ -50,8 +63,8 @@ export default async function TeamRosterPage({ params }: { params: Promise<{ slu
               <tr className="border-b border-white/10 text-xs text-white/40">
                 <th className="px-4 py-3 text-left font-medium">Member</th>
                 <th className="px-4 py-3 text-left font-medium">Role</th>
-                <th className="px-4 py-3 text-right font-medium">Sessions (30d)</th>
-                <th className="px-4 py-3 text-right font-medium">Cost (30d)</th>
+                <th className="px-4 py-3 text-right font-medium">Sessions ({range}d)</th>
+                <th className="px-4 py-3 text-right font-medium">Cost ({range}d)</th>
               </tr>
             </thead>
             <tbody>

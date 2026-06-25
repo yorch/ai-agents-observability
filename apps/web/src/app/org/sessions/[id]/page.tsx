@@ -5,12 +5,19 @@ import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
 import { resolveOrgSessionAccess } from '@/lib/roles';
-import type { ModelBreakdownRow } from '@/lib/sessions-queries';
+import type {
+  ModelBreakdownRow,
+  SessionSkillRow,
+  SessionSubagentRow,
+  SessionToolRow,
+} from '@/lib/sessions-queries';
 import {
   getSession,
   getSessionEvents,
   getSessionModelBreakdown,
   getSessionOrgContext,
+  getSessionSkills,
+  getSessionToolBreakdown,
 } from '@/lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
@@ -56,12 +63,17 @@ export default async function OrgSessionDetailPage({
 
   const { tab = 'timeline' } = await searchParams;
 
-  const [session, modelBreakdown, sessionEvents] = await Promise.all([
+  const noTools = { subagents: [] as SessionSubagentRow[], tools: [] as SessionToolRow[] };
+  const [session, modelBreakdown, sessionEvents, skillRows, toolBreakdown] = await Promise.all([
     getSession(ctx.ownerUserId, id),
     tab === 'models'
       ? getSessionModelBreakdown(ctx.ownerUserId, id)
       : Promise.resolve([] as ModelBreakdownRow[]),
     tab === 'timeline' ? getSessionEvents(ctx.ownerUserId, id) : Promise.resolve([]),
+    tab === 'skills'
+      ? getSessionSkills(ctx.ownerUserId, id)
+      : Promise.resolve([] as SessionSkillRow[]),
+    tab === 'tools' ? getSessionToolBreakdown(ctx.ownerUserId, id) : Promise.resolve(noTools),
   ]);
   if (!session) {
     notFound();
@@ -90,7 +102,10 @@ export default async function OrgSessionDetailPage({
         events={sessionEvents}
         modelBreakdown={modelBreakdown}
         session={session}
+        skillRows={skillRows}
+        subagentRows={toolBreakdown.subagents}
         tab={tab}
+        toolRows={toolBreakdown.tools}
       />
     </div>
   );

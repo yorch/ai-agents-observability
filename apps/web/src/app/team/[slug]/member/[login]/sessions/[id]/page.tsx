@@ -4,8 +4,19 @@ import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
-import type { ModelBreakdownRow } from '@/lib/sessions-queries';
-import { getSession, getSessionEvents, getSessionModelBreakdown } from '@/lib/sessions-queries';
+import type {
+  ModelBreakdownRow,
+  SessionSkillRow,
+  SessionSubagentRow,
+  SessionToolRow,
+} from '@/lib/sessions-queries';
+import {
+  getSession,
+  getSessionEvents,
+  getSessionModelBreakdown,
+  getSessionSkills,
+  getSessionToolBreakdown,
+} from '@/lib/sessions-queries';
 import { getMemberForTeam } from '@/lib/team-queries';
 
 export const dynamic = 'force-dynamic';
@@ -38,12 +49,17 @@ export default async function TeamMemberSessionDetailPage({
 
   const { tab = 'timeline' } = await searchParams;
 
-  const [session, modelBreakdown, sessionEvents] = await Promise.all([
+  const noTools = { subagents: [] as SessionSubagentRow[], tools: [] as SessionToolRow[] };
+  const [session, modelBreakdown, sessionEvents, skillRows, toolBreakdown] = await Promise.all([
     getSession(member.userId, id),
     tab === 'models'
       ? getSessionModelBreakdown(member.userId, id)
       : Promise.resolve([] as ModelBreakdownRow[]),
     tab === 'timeline' ? getSessionEvents(member.userId, id) : Promise.resolve([]),
+    tab === 'skills'
+      ? getSessionSkills(member.userId, id)
+      : Promise.resolve([] as SessionSkillRow[]),
+    tab === 'tools' ? getSessionToolBreakdown(member.userId, id) : Promise.resolve(noTools),
   ]);
   if (!session) {
     notFound();
@@ -73,7 +89,10 @@ export default async function TeamMemberSessionDetailPage({
         events={sessionEvents}
         modelBreakdown={modelBreakdown}
         session={session}
+        skillRows={skillRows}
+        subagentRows={toolBreakdown.subagents}
         tab={tab}
+        toolRows={toolBreakdown.tools}
       />
     </div>
   );

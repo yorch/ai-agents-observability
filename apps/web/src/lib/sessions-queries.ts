@@ -242,6 +242,7 @@ export type SessionEvent = {
   mcpTool: string | null;
   model: string | null;
   slashCommand: string | null;
+  subagentType: string | null;
   toolName: string | null;
   toolWasDenied: boolean | null;
   ts: Date;
@@ -256,6 +257,7 @@ export async function getSessionEvents(userId: string, sessionId: string): Promi
       mcp_tool: string | null;
       model: string | null;
       slash_command: string | null;
+      subagent_type: string | null;
       tool_name: string | null;
       tool_was_denied: boolean | null;
       ts: Date;
@@ -268,6 +270,7 @@ export async function getSessionEvents(userId: string, sessionId: string): Promi
            mcp_server,
            mcp_tool,
            slash_command,
+           subagent_type,
            model
     FROM events
     WHERE session_id = ${sessionId}::uuid
@@ -282,9 +285,118 @@ export async function getSessionEvents(userId: string, sessionId: string): Promi
     mcpTool: r.mcp_tool,
     model: r.model,
     slashCommand: r.slash_command,
+    subagentType: r.subagent_type,
     toolName: r.tool_name,
     toolWasDenied: r.tool_was_denied,
     ts: r.ts,
+  }));
+}
+
+export type SessionToolRow = {
+  avgDurationMs: number | null;
+  callCount: number;
+  deniedCount: number;
+  errorCount: number;
+  toolCategory: string | null;
+  toolName: string;
+};
+
+export type SessionSubagentRow = {
+  subagentType: string;
+  useCount: number;
+};
+
+export async function getSessionToolBreakdown(
+  userId: string,
+  sessionId: string,
+): Promise<{ subagents: SessionSubagentRow[]; tools: SessionToolRow[] }> {
+  const prisma = getPrisma();
+  const [toolRows, subagentRows] = await Promise.all([
+    prisma.$queryRaw<
+      {
+        avg_duration_ms: string | null;
+        call_count: bigint;
+        denied_count: bigint;
+        error_count: bigint;
+        tool_category: string | null;
+        tool_name: string;
+      }[]
+    >(Prisma.sql`
+      SELECT
+        tool_name,
+        tool_category,
+        COUNT(*)                                              AS call_count,
+        COUNT(*) FILTER (WHERE tool_exit_status IS NOT NULL
+                           AND tool_exit_status != 0)        AS error_count,
+        COUNT(*) FILTER (WHERE tool_was_denied = true)       AS denied_count,
+        AVG(tool_duration_ms)::text                          AS avg_duration_ms
+      FROM events
+      WHERE session_id = ${sessionId}::uuid
+        AND user_id   = ${userId}::uuid
+        AND tool_name IS NOT NULL
+      GROUP BY tool_name, tool_category
+      ORDER BY call_count DESC
+    `),
+    prisma.$queryRaw<{ subagent_type: string; use_count: bigint }[]>(Prisma.sql`
+      SELECT subagent_type, COUNT(*) AS use_count
+      FROM events
+      WHERE session_id  = ${sessionId}::uuid
+        AND user_id    = ${userId}::uuid
+        AND subagent_type IS NOT NULL
+      GROUP BY subagent_type
+      ORDER BY use_count DESC
+    `),
+  ]);
+
+  return {
+    subagents: subagentRows.map((r) => ({
+      subagentType: r.subagent_type,
+      useCount: Number(r.use_count),
+    })),
+    tools: toolRows.map((r) => ({
+      avgDurationMs: r.avg_duration_ms != null ? Math.round(Number(r.avg_duration_ms)) : null,
+      callCount: Number(r.call_count),
+      deniedCount: Number(r.denied_count),
+      errorCount: Number(r.error_count),
+      toolCategory: r.tool_category,
+      toolName: r.tool_name,
+    })),
+  };
+}
+
+export type SessionSkillRow = {
+  skillName: string;
+  skillPath: string | null;
+  slashCommand: string | null;
+  useCount: number;
+};
+
+export async function getSessionSkills(
+  userId: string,
+  sessionId: string,
+): Promise<SessionSkillRow[]> {
+  const prisma = getPrisma();
+  const rows = await prisma.$queryRaw<
+    {
+      skill_name: string;
+      skill_path: string | null;
+      slash_command: string | null;
+      use_count: bigint;
+    }[]
+  >(Prisma.sql`
+    SELECT skill_name, skill_path, slash_command, COUNT(*) AS use_count
+    FROM events
+    WHERE session_id = ${sessionId}::uuid
+      AND user_id   = ${userId}::uuid
+      AND skill_name IS NOT NULL
+    GROUP BY skill_name, skill_path, slash_command
+    ORDER BY use_count DESC
+  `);
+  return rows.map((r) => ({
+    skillName: r.skill_name,
+    skillPath: r.skill_path,
+    slashCommand: r.slash_command,
+    useCount: Number(r.use_count),
   }));
 }
 

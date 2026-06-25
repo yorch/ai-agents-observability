@@ -1,10 +1,18 @@
-import { ModelsTab, ToolsTab } from '@/components/me/SessionTabs';
+import { ModelsTab, SkillsTab, ToolsTab } from '@/components/me/SessionTabs';
 import { Timeline } from '@/components/me/Timeline';
-import type { ModelBreakdownRow, SessionDetail, SessionEvent } from '@/lib/sessions-queries';
+import type {
+  ModelBreakdownRow,
+  SessionDetail,
+  SessionEvent,
+  SessionSkillRow,
+  SessionSubagentRow,
+  SessionToolRow,
+} from '@/lib/sessions-queries';
 
 const TABS = [
   { href: '?tab=timeline', id: 'timeline', label: 'Timeline' },
   { href: '?tab=tools', id: 'tools', label: 'Tools' },
+  { href: '?tab=skills', id: 'skills', label: 'Skills' },
   { href: '?tab=models', id: 'models', label: 'Models' },
 ] as const;
 
@@ -12,12 +20,18 @@ export function SessionDetailTabs({
   events,
   modelBreakdown,
   session,
+  skillRows,
+  subagentRows,
   tab,
+  toolRows,
 }: {
   events: SessionEvent[];
   modelBreakdown: ModelBreakdownRow[];
   session: SessionDetail;
+  skillRows: SessionSkillRow[];
+  subagentRows: SessionSubagentRow[];
   tab: string;
+  toolRows: SessionToolRow[];
 }) {
   return (
     <>
@@ -40,7 +54,8 @@ export function SessionDetailTabs({
       </div>
 
       {tab === 'timeline' && <Timeline events={events} session={session} />}
-      {tab === 'tools' && <ToolsTab session={session} />}
+      {tab === 'tools' && <ToolsTab subagents={subagentRows} tools={toolRows} />}
+      {tab === 'skills' && <SkillsTab rows={skillRows} />}
       {tab === 'models' && <ModelsTab costUsd={session.costUsd} rows={modelBreakdown} />}
     </>
   );

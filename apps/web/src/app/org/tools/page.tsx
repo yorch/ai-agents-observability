@@ -69,7 +69,7 @@ export default async function OrgToolsPage() {
         <p className="mt-1 text-sm text-white/50">Trailing 30 days · tool usage across the org</p>
       </div>
 
-      <OrgSubNav active="tools" />
+      <OrgSubNav active="tool usage" />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
