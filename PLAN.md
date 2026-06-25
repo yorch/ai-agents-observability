@@ -133,6 +133,8 @@ Tasks P2-001–P2-010 are fully decomposed and implemented. See [`tasks/INDEX.md
 
 Tasks P3-001–P3-007 are fully decomposed and implemented (all `done`). See [`tasks/INDEX.md`](./tasks/INDEX.md).
 
+*Post-P3 dashboard improvements (2026-06-25):* date range selector (7d/30d/90d), period-over-period delta indicators on stat cards, team PR rollup tab (`/team/[slug]/prs`), cache efficiency metric. These additions extend the existing team views without new task files; see `DESIGN_DOC.md §12.3`.
+
 **Exit**: team leads use weekly; zero privacy incidents.
 
 ### Phase 4 — Org views, search, ops handoff (target: 4–6 weeks)
@@ -140,6 +142,8 @@ Tasks P3-001–P3-007 are fully decomposed and implemented (all `done`). See [`t
 Org dashboards, faceted search (visibility-scoped at query layer), transcript FTS via Postgres, anomaly surfaces via Timescale continuous aggregates, **Platform/SRE handoff deliverables** (runbooks, SLOs, dashboards, on-call doc).
 
 Tasks P4-001–P4-011 are fully decomposed and implemented (all `done`). See [`tasks/INDEX.md`](./tasks/INDEX.md).
+
+*Post-P4 dashboard improvements (2026-06-25):* date range selector and period deltas mirrored from the team dashboard; org adoption funnel widget; per-team model governance table (org admin only). See `DESIGN_DOC.md §12.4`.
 
 **Exit**: quarterly leadership readout runs off this; Platform/SRE owns the pager.
 
