@@ -52,5 +52,7 @@ infra/.minio-data/
 # Claude Code internal (worktrees, session state)
 .claude/
 
-# Data (root-level infra state — postgres, minio volumes; NOT source code under src/data/)
+# Data — root-level stack bind mounts only (Postgres/MinIO/Prometheus/Grafana).
+# Anchored with a leading slash so it does NOT match app-level data dirs such as
+# apps/ingest/src/data/ (which holds committed price-table JSON).
 /data/

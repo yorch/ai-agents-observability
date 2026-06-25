@@ -1,18 +1,24 @@
 {
-  "_comment": "OpenCode model pricing. OpenCode supports multiple providers; extend this table as models are used. Prices in USD per million tokens.",
-  "generated_at": "2025-05-17T00:00:00Z",
+  "_comment": "opencode price table. opencode routes to Anthropic models via API key (P8-004), so these mirror Anthropic's published rates (https://www.anthropic.com/pricing). Prices in USD per million tokens. Keep old v<N> files when the structure changes so historical events stay reproducible.",
+  "generated_at": "2025-09-29T00:00:00Z",
   "prices": {
-    "anthropic/claude-sonnet-4-5": {
+    "claude-haiku-4-5-20251001": {
+      "cache_read_per_mtok": 0.08,
+      "cache_write_per_mtok": 1.0,
+      "input_per_mtok": 0.8,
+      "output_per_mtok": 4.0
+    },
+    "claude-opus-4-1-20250805": {
+      "cache_read_per_mtok": 1.5,
+      "cache_write_per_mtok": 18.75,
+      "input_per_mtok": 15.0,
+      "output_per_mtok": 75.0
+    },
+    "claude-sonnet-4-5-20250929": {
       "cache_read_per_mtok": 0.3,
       "cache_write_per_mtok": 3.75,
       "input_per_mtok": 3.0,
       "output_per_mtok": 15.0
-    },
-    "openai/gpt-4o": {
-      "cache_read_per_mtok": 1.25,
-      "cache_write_per_mtok": 0.0,
-      "input_per_mtok": 2.5,
-      "output_per_mtok": 10.0
     }
   },
   "version": "opencode.v1"
