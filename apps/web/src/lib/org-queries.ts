@@ -323,6 +323,214 @@ export async function getOrgTopTools(since: Date, limit = 10): Promise<OrgToolUs
   return labelToolRows(rows);
 }
 
+// ── Tool / skill / MCP analytics ──────────────────────────────────────────────
+
+export type ToolStatRow = {
+  avgDurationMs: number | null;
+  callCount: number;
+  category: string;
+  denyCount: number;
+  denyRate: number;
+  distinctUsers: number;
+  toolName: string;
+};
+
+export type CategoryStatRow = {
+  callCount: number;
+  category: string;
+  denyCount: number;
+};
+
+export type McpServerRow = {
+  callCount: number;
+  distinctUsers: number;
+  mcpServer: string;
+  mcpTool: string | null;
+};
+
+export type SkillRow = {
+  callCount: number;
+  distinctUsers: number;
+  kind: 'skill' | 'slash';
+  name: string;
+};
+
+export type DailyToolVolumeRow = {
+  callCount: number;
+  day: Date;
+  denyCount: number;
+  distinctUsers: number;
+};
+
+export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) return [];
+
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    {
+      agent_type: string;
+      avg_duration_ms: number | null;
+      call_count: bigint;
+      deny_count: bigint;
+      distinct_users: bigint;
+      tool_category: string | null;
+      tool_name: string;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      agent_type,
+      tool_name,
+      tool_category,
+      COUNT(*)                                          AS call_count,
+      COUNT(*) FILTER (WHERE tool_was_denied = true)    AS deny_count,
+      AVG(tool_duration_ms)                             AS avg_duration_ms,
+      COUNT(DISTINCT user_id)                           AS distinct_users
+    FROM events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND tool_name IS NOT NULL
+    GROUP BY agent_type, tool_name, tool_category
+    ORDER BY call_count DESC
+    LIMIT ${limit}
+  `);
+
+  const multiAgent = new Set(rows.map((r) => r.agent_type)).size > 1;
+  return rows.map((r) => ({
+    avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
+    callCount: Number(r.call_count),
+    category: r.tool_category ?? 'other',
+    denyCount: Number(r.deny_count),
+    denyRate: Number(r.call_count) > 0 ? Number(r.deny_count) / Number(r.call_count) : 0,
+    distinctUsers: Number(r.distinct_users),
+    toolName: multiAgent ? `${r.agent_type}:${r.tool_name}` : r.tool_name,
+  }));
+}
+
+export async function getToolCategoryBreakdown(since: Date): Promise<CategoryStatRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) return [];
+
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    { call_count: bigint; category: string; deny_count: bigint }[]
+  >(Prisma.sql`
+    SELECT
+      COALESCE(tool_category, 'other')                  AS category,
+      COUNT(*)                                          AS call_count,
+      COUNT(*) FILTER (WHERE tool_was_denied = true)    AS deny_count
+    FROM events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+    GROUP BY COALESCE(tool_category, 'other')
+    ORDER BY call_count DESC
+  `);
+
+  return rows.map((r) => ({
+    callCount: Number(r.call_count),
+    category: r.category,
+    denyCount: Number(r.deny_count),
+  }));
+}
+
+export async function getMcpServerUsage(since: Date): Promise<McpServerRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) return [];
+
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    {
+      call_count: bigint;
+      distinct_users: bigint;
+      mcp_server: string;
+      mcp_tool: string | null;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      mcp_server,
+      mcp_tool,
+      COUNT(*)                AS call_count,
+      COUNT(DISTINCT user_id) AS distinct_users
+    FROM events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND mcp_server IS NOT NULL
+    GROUP BY mcp_server, mcp_tool
+    ORDER BY call_count DESC
+    LIMIT 30
+  `);
+
+  return rows.map((r) => ({
+    callCount: Number(r.call_count),
+    distinctUsers: Number(r.distinct_users),
+    mcpServer: r.mcp_server,
+    mcpTool: r.mcp_tool,
+  }));
+}
+
+export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) return [];
+
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    { call_count: bigint; distinct_users: bigint; kind: string; name: string }[]
+  >(Prisma.sql`
+    SELECT
+      COALESCE(skill_name, slash_command)                         AS name,
+      CASE WHEN skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END AS kind,
+      COUNT(*)                                                    AS call_count,
+      COUNT(DISTINCT user_id)                                     AS distinct_users
+    FROM events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
+    GROUP BY skill_name, slash_command
+    ORDER BY call_count DESC
+    LIMIT 20
+  `);
+
+  return rows.map((r) => ({
+    callCount: Number(r.call_count),
+    distinctUsers: Number(r.distinct_users),
+    kind: r.kind as 'skill' | 'slash',
+    name: r.name,
+  }));
+}
+
+export async function getDailyToolVolume(since: Date): Promise<DailyToolVolumeRow[]> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) return [];
+
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<
+    { call_count: bigint; day: Date; deny_count: bigint; distinct_users: bigint }[]
+  >(Prisma.sql`
+    SELECT
+      date_trunc('day', ts)                             AS day,
+      COUNT(*)                                          AS call_count,
+      COUNT(*) FILTER (WHERE tool_was_denied = true)    AS deny_count,
+      COUNT(DISTINCT user_id)                           AS distinct_users
+    FROM events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND tool_name IS NOT NULL
+    GROUP BY date_trunc('day', ts)
+    ORDER BY day ASC
+  `);
+
+  return rows.map((r) => ({
+    callCount: Number(r.call_count),
+    day: r.day,
+    denyCount: Number(r.deny_count),
+    distinctUsers: Number(r.distinct_users),
+  }));
+}
+
 /** Anomaly detection: cost spikes (>2σ over trailing 14-day baseline) and error spikes. */
 export async function getAnomalies(): Promise<AnomalyRow[]> {
   const prisma = getPrisma();

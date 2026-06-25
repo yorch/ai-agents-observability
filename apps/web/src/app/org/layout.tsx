@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 const NAV = [
   { href: '/org/dashboard', label: 'Dashboard' },
   { href: '/org/search', label: 'Search' },
+  { href: '/org/tools', label: 'Tools' },
 ];
 
 export function OrgSubNav({ active }: { active: string }) {
