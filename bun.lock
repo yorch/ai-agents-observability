@@ -74,6 +74,9 @@
         "@ai-agents-observability/db": "workspace:*",
         "@ai-agents-observability/github": "workspace:*",
         "@aws-sdk/client-s3": "catalog:",
+        "@fontsource-variable/dm-sans": "catalog:",
+        "@fontsource-variable/syne": "catalog:",
+        "@fontsource/ibm-plex-mono": "catalog:",
         "next": "catalog:",
         "pino": "catalog:",
         "prom-client": "catalog:",
@@ -159,6 +162,9 @@
     "@aws-sdk/client-s3": "3.1047.0",
     "@biomejs/biome": "2.4.0",
     "@faker-js/faker": "9.8.0",
+    "@fontsource-variable/dm-sans": "5.2.8",
+    "@fontsource-variable/syne": "5.2.7",
+    "@fontsource/ibm-plex-mono": "5.2.7",
     "@hono/zod-validator": "0.4.3",
     "@octokit/plugin-enterprise-compatibility": "4.0.1",
     "@octokit/webhooks": "14.1.0",
@@ -319,6 +325,12 @@
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w=="],
 
     "@faker-js/faker": ["@faker-js/faker@9.8.0", "", {}, "sha512-U9wpuSrJC93jZBxx/Qq2wPjCuYISBueyVUGK7qqdmj7r/nxaxwW8AQDCLeRO7wZnjj94sh3p246cAYjUKuqgfg=="],
+
+    "@fontsource-variable/dm-sans": ["@fontsource-variable/dm-sans@5.2.8", "", {}, "sha512-AxkvMTvNWgfrmlyjiV05vlHYJa+nRQCf1EfvIrQAPBpFJW0O9VTz7oAFr9S3lvbWdmnFoBk7yFqQL86u64nl2g=="],
+
+    "@fontsource-variable/syne": ["@fontsource-variable/syne@5.2.7", "", {}, "sha512-B2z7P0mGdNSAgz6SmtK7HXReZL22WJ8Z8sk5Z1ZuKiCSRM7DwWLjWXLwhbQ+CvmtNS/+p95jGvVEfQT9bm+UKw=="],
+
+    "@fontsource/ibm-plex-mono": ["@fontsource/ibm-plex-mono@5.2.7", "", {}, "sha512-MKAb8qV+CaiMQn2B0dIi1OV3565NYzp3WN5b4oT6LTkk+F0jR6j0ZN+5BKJiIhffDC3rtBULsYZE65+0018z9w=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.11", "", { "peerDependencies": { "hono": "^4" } }, "sha512-dr8/3zEaB+p0D2n/IUrlPF1HZm586qgJNXK1a9fhg/PzdtkK7Ksd5l312tJX2yBuALqDYBlG20QEbayqPyxn+g=="],
 
