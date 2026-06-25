@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { PrismaClient } from '@ai-agents-observability/db';
+import { S3ServiceException } from '@aws-sdk/client-s3';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { Logger } from 'pino';
@@ -216,7 +217,15 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
           }
           throw err;
         }
-        await putObject(deps.s3, key, result.recompressed, CONTENT_TYPE_ZSTD);
+        try {
+          await putObject(deps.s3, key, result.recompressed, CONTENT_TYPE_ZSTD);
+        } catch (err) {
+          if (err instanceof S3ServiceException) {
+            logger.error({ err, reqId, sessionId }, 'ingest.transcript.s3_error');
+            return c.json({ error: 'Storage unavailable' }, 503);
+          }
+          throw err;
+        }
 
         await deps.db.session.update({
           data: {
