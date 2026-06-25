@@ -984,6 +984,7 @@ export async function getTeamSkillTopUsers(
       AND e.ts >= ${since}
       AND COALESCE(e.skill_name, e.slash_command) = ${name}
       AND CASE WHEN e.skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END = ${kind}
+      AND u.github_login IS NOT NULL
     GROUP BY u.id, u.github_login, u.display_name
     ORDER BY invocation_count DESC
     LIMIT 20

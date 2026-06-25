@@ -49,7 +49,7 @@ export default async function OrgSkillDetailPage({
   const maxTrend = Math.max(...trend.map((r) => r.invocationCount), 1);
   const withSkill = costRows.find((r) => r.hasSkill);
   const withoutSkill = costRows.find((r) => !r.hasSkill);
-  const ciRows = roiRows.filter((r) => r.skillName === name);
+  const ciRows = roiRows.filter((r) => r.skillName === name && r.ciStatus != null);
   const ciTotal = ciRows.reduce((s, r) => s + r.sessionCount, 0);
 
   return (
@@ -154,7 +154,7 @@ export default async function OrgSkillDetailPage({
             </h3>
             <div className="space-y-2">
               {ciRows.map((r) => (
-                <div key={r.ciStatus} className="flex justify-between items-center">
+                <div key={r.ciStatus ?? 'unknown'} className="flex justify-between items-center">
                   <span className="text-sm capitalize text-white/70">{r.ciStatus}</span>
                   <span className="font-mono text-sm text-white/60">
                     {r.sessionCount}{' '}
@@ -185,8 +185,8 @@ export default async function OrgSkillDetailPage({
               </tr>
             </thead>
             <tbody>
-              {topUsers.map((u) => (
-                <tr key={u.githubLogin} className="border-b border-white/5">
+              {topUsers.map((u, i) => (
+                <tr key={u.githubLogin ?? i} className="border-b border-white/5">
                   <td className="py-2">
                     <p className="text-white/80">{u.displayName ?? u.githubLogin}</p>
                     {u.displayName && <p className="text-xs text-white/40">@{u.githubLogin}</p>}

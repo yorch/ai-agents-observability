@@ -159,8 +159,8 @@ export default async function TeamSkillDetailPage({
               </tr>
             </thead>
             <tbody>
-              {topUsers.map((u) => (
-                <tr key={u.githubLogin} className="border-b border-white/5">
+              {topUsers.map((u, i) => (
+                <tr key={u.githubLogin ?? i} className="border-b border-white/5">
                   <td className="py-2">
                     <Link
                       href={`/team/${slug}/member/${u.githubLogin}`}
