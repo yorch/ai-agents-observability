@@ -2,13 +2,11 @@ export function StatCardWithDelta({
   label,
   value,
   delta,
-  deltaFormat = 'percent',
   invertColor = false,
 }: {
   label: string;
   value: string;
   delta?: number | null;
-  deltaFormat?: 'percent';
   invertColor?: boolean;
 }) {
   const renderDelta = () => {
@@ -31,7 +29,9 @@ export function StatCardWithDelta({
     }
 
     return (
-      <div className={`ml-2 inline-flex rounded-full bg-white/10 px-2 py-0.5 text-xs font-mono ${colorClass}`}>
+      <div
+        className={`ml-2 inline-flex rounded-full bg-white/10 px-2 py-0.5 text-xs font-mono ${colorClass}`}
+      >
         {percentText}
       </div>
     );

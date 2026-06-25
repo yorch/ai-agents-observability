@@ -1,5 +1,4 @@
 import { type $Enums, Prisma } from '@ai-agents-observability/db';
-import { daysAgo } from './time';
 import {
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
@@ -14,6 +13,7 @@ import type { EffectivenessDistribution } from './effectiveness-queries';
 import { getPrisma } from './prisma';
 import { searchTranscriptMatches } from './search-queries';
 import { type FrictionBand, frictionBandWhere } from './sessions-queries';
+import { daysAgo } from './time';
 import { labelToolRows } from './tool-usage';
 
 export type OrgSummary = {
@@ -1342,9 +1342,9 @@ export async function getOrgAdoptionFunnel(range: number): Promise<OrgAdoptionFu
   const active30dDelta = priorActive30d > 0 ? (active30d - priorActive30d) / priorActive30d : null;
 
   return {
+    active7d: Number(active7dRow[0]?.cnt ?? 0),
     active30d,
     active30dDelta,
-    active7d: Number(active7dRow[0]?.cnt ?? 0),
     everUsers: Number(everRow[0]?.cnt ?? 0),
     newThisMonth: Number(newThisMonthRow[0]?.cnt ?? 0),
   };

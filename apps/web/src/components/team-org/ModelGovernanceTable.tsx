@@ -1,10 +1,6 @@
 import type { TeamModelGovernanceRow } from '@/lib/org-queries';
 
-export function ModelGovernanceTable({
-  rows,
-}: {
-  rows: TeamModelGovernanceRow[];
-}) {
+export function ModelGovernanceTable({ rows }: { rows: TeamModelGovernanceRow[] }) {
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
@@ -32,9 +28,7 @@ export function ModelGovernanceTable({
             {rows.map((row) => (
               <tr key={row.teamSlug} className="hover:bg-white/2">
                 <td className="py-3 pr-4 text-white">{row.teamName}</td>
-                <td className="py-3 pr-4 font-mono text-xs text-white/60">
-                  {row.topModel}
-                </td>
+                <td className="py-3 pr-4 font-mono text-xs text-white/60">{row.topModel}</td>
                 <td className="py-3 pr-4 text-white/60 text-xs text-right">
                   {row.modelCostPct.toFixed(0)}%
                 </td>

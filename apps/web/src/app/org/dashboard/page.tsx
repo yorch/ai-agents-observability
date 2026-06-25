@@ -29,28 +29,35 @@ export default async function OrgDashboardPage({
   searchParams: Promise<{ range?: string }>;
 }) {
   const { range: rangeParam } = await searchParams;
-  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as
-    | 7
-    | 30
-    | 90;
+  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
 
   const { orgRole } = await requireOrgViewer();
   const isAdmin = isOrgAdmin(orgRole);
 
-  const [summaryWithDelta, teamCost, repoCost, modelCost, tools, trend, anomalies, effectiveness, funnel, modelGov] =
-    await Promise.all([
-      getOrgSummaryWithDelta(range),
-      getCostByTeam(since),
-      getCostByRepo(since),
-      getCostByModel(since),
-      getOrgTopTools(since),
-      getWeeklyCostTrend(12),
-      getAnomalies(),
-      getOrgEffectiveness(since),
-      getOrgAdoptionFunnel(range),
-      isAdmin ? getTeamModelGovernance(since) : Promise.resolve([]),
-    ]);
+  const [
+    summaryWithDelta,
+    teamCost,
+    repoCost,
+    modelCost,
+    tools,
+    trend,
+    anomalies,
+    effectiveness,
+    funnel,
+    modelGov,
+  ] = await Promise.all([
+    getOrgSummaryWithDelta(range),
+    getCostByTeam(since),
+    getCostByRepo(since),
+    getCostByModel(since),
+    getOrgTopTools(since),
+    getWeeklyCostTrend(12),
+    getAnomalies(),
+    getOrgEffectiveness(since),
+    getOrgAdoptionFunnel(range),
+    isAdmin ? getTeamModelGovernance(since) : Promise.resolve([]),
+  ]);
 
   const { current: summary, deltas } = summaryWithDelta;
 

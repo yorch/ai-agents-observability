@@ -24,6 +24,7 @@ export function DateRangePicker({ range }: { range: 7 | 30 | 90 }) {
       {ranges.map(({ label, value }) => (
         <button
           key={value}
+          type="button"
           onClick={() => handleRangeChange(value)}
           className={`rounded-full px-3 py-1 text-xs transition-colors ${
             range === value

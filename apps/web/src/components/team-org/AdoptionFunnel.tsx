@@ -28,18 +28,14 @@ export function AdoptionFunnel({
       colorClass = 'text-red-400';
     }
 
-    return (
-      <span className={`ml-2 inline text-xs font-mono ${colorClass}`}>
-        {percentText}
-      </span>
-    );
+    return <span className={`ml-2 inline text-xs font-mono ${colorClass}`}>{percentText}</span>;
   };
 
   const rows = [
-    { label: 'Total users (ever)', value: everUsers, delta: null },
-    { label: 'Active last 30d', value: active30d, delta: active30dDelta },
-    { label: 'Active last 7d', value: active7d, delta: null },
-    { label: 'New this month', value: newThisMonth, delta: null },
+    { delta: null, label: 'Total users (ever)', value: everUsers },
+    { delta: active30dDelta, label: 'Active last 30d', value: active30d },
+    { delta: null, label: 'Active last 7d', value: active7d },
+    { delta: null, label: 'New this month', value: newThisMonth },
   ];
 
   return (

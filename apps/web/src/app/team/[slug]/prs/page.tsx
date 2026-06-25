@@ -37,7 +37,7 @@ export default async function TeamPrsPage({
 
       <TeamSubNav slug={slug} active="prs" />
 
-      <TeamPrRollupTable slug={slug} rows={prs} />
+      <TeamPrRollupTable rows={prs} />
     </div>
   );
 }

@@ -1,12 +1,6 @@
 import type { TeamPrRollupRow } from '@/lib/team-queries';
 
-export function TeamPrRollupTable({
-  slug,
-  rows,
-}: {
-  slug: string;
-  rows: TeamPrRollupRow[];
-}) {
+export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
@@ -34,7 +28,10 @@ export function TeamPrRollupTable({
           </thead>
           <tbody className="divide-y divide-white/5">
             {rows.map((row) => (
-              <tr key={`${row.repoOwner}/${row.repoName}/${row.prNumber}`} className="hover:bg-white/2">
+              <tr
+                key={`${row.repoOwner}/${row.repoName}/${row.prNumber}`}
+                className="hover:bg-white/2"
+              >
                 <td className="py-3 pr-4">
                   <a
                     href={`https://github.com/${row.repoOwner}/${row.repoName}/pull/${row.prNumber}`}
@@ -59,9 +56,7 @@ export function TeamPrRollupTable({
                     ${row.totalCostUsd.toFixed(2)}
                   </div>
                 </td>
-                <td className="py-3 pr-4 text-white/60 text-xs text-right">
-                  {row.sessionCount}
-                </td>
+                <td className="py-3 pr-4 text-white/60 text-xs text-right">{row.sessionCount}</td>
                 <td className="py-3 text-white/60 text-xs text-right">
                   {row.timeToMergeHours !== null ? `${row.timeToMergeHours.toFixed(1)}h` : '—'}
                 </td>
