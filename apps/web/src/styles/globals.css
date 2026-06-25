@@ -1,61 +1,28 @@
 @import "tailwindcss";
 
-/* ── Design tokens ────────────────────────────────────────────────────────── */
-
+/* Tailwind 4 CSS-first config. No tailwind.config.ts — see PLAN.md §4. */
 @theme {
+  --color-brand-50: oklch(0.97 0.02 250);
+  --color-brand-100: oklch(0.93 0.04 250);
+  --color-brand-500: oklch(0.65 0.18 250);
+  --color-brand-600: oklch(0.55 0.2 250);
+  --color-brand-700: oklch(0.45 0.18 250);
+
   --font-display: ui-sans-serif, system-ui, sans-serif;
-  --font-body: ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "JetBrains Mono", SFMono-Regular, monospace;
-
-  /* Semantic color aliases — values resolved from CSS custom properties      */
-  /* so dark/light mode only needs to update the props, not Tailwind classes. */
-  --color-bg: var(--c-bg);
-  --color-surface: var(--c-surface);
-  --color-surface-2: var(--c-surface-2);
-  --color-border: var(--c-border);
-  --color-border-subtle: var(--c-border-subtle);
-  --color-text: var(--c-text);
-  --color-text-2: var(--c-text-2);
-  --color-text-3: var(--c-text-3);
-  --color-accent: var(--c-accent);
-  --color-accent-dim: var(--c-accent-dim);
-
-  /* brand-500 alias keeps any untouched references working */
-  --color-brand-500: var(--c-accent);
-  --color-brand-600: var(--c-accent);
 }
 
-/* ── Dark (default) ───────────────────────────────────────────────────────── */
+/* Dark by default; .light class on <html> opts into light mode. */
 :root {
-  color-scheme: dark;
-  --c-bg: #0c0c0f;
-  --c-surface: #131318;
-  --c-surface-2: #1b1b22;
-  --c-border: #252530;
-  --c-border-subtle: #1d1d26;
-  --c-text: #e2e2ec;
-  --c-text-2: #787890;
-  --c-text-3: #3c3c52;
-  --c-accent: #c8ff57;
-  --c-accent-dim: rgba(200, 255, 87, 0.1);
-}
-
-/* ── Light ────────────────────────────────────────────────────────────────── */
-html.light {
-  color-scheme: light;
-  --c-bg: #f4f4f0;
-  --c-surface: #ececea;
-  --c-surface-2: #e4e4e2;
-  --c-border: #d0d0ca;
-  --c-border-subtle: #dadad6;
-  --c-text: #111116;
-  --c-text-2: #54546a;
-  --c-text-3: #9898ac;
-  --c-accent: #4a8500;
-  --c-accent-dim: rgba(74, 133, 0, 0.08);
+  color-scheme: dark light;
 }
 
 html {
-  background-color: var(--c-bg);
-  color: var(--c-text);
+  background-color: oklch(0.18 0.01 250);
+  color: oklch(0.95 0.01 250);
+}
+
+html.light {
+  background-color: oklch(0.98 0.005 250);
+  color: oklch(0.2 0.01 250);
 }
