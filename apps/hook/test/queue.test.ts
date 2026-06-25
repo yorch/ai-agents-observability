@@ -81,6 +81,65 @@ describe('payload → Event', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
   });
+
+  it('populates skill and slash_command when Skill tool is invoked', () => {
+    const ev = toEvent('pre-tool-use', {
+      cwd: '/home/dev/project',
+      hook_event_name: 'PreToolUse',
+      session_id: '550e8400-e29b-41d4-a716-446655440000',
+      tool_input: { args: 'quantum computing trends', skill: 'deep-research' },
+      tool_name: 'Skill',
+    });
+    expect(ev.tool?.name).toBe('Skill');
+    expect(ev.tool?.skill).toBe('deep-research');
+    expect(ev.tool?.slash_command).toBe('deep-research');
+  });
+
+  it('leaves skill and slash_command null for non-Skill tools', () => {
+    const ev = toEvent('pre-tool-use', {
+      cwd: '/home/dev/project',
+      hook_event_name: 'PreToolUse',
+      session_id: '550e8400-e29b-41d4-a716-446655440000',
+      tool_input: { command: 'git status' },
+      tool_name: 'Bash',
+    });
+    expect(ev.tool?.skill).toBeNull();
+    expect(ev.tool?.slash_command).toBeNull();
+  });
+
+  it('extracts slash_command from UserPromptSubmit prompt into metadata', () => {
+    const ev = toEvent('user-prompt-submit', {
+      cwd: '/home/dev/project',
+      hook_event_name: 'UserPromptSubmit',
+      prompt: '/deep-research quantum computing trends',
+      session_id: '550e8400-e29b-41d4-a716-446655440000',
+    });
+    expect(ev.event_type).toBe('UserPromptSubmit');
+    expect(ev.metadata.slash_command).toBe('deep-research');
+    // prompt is in KNOWN_KEYS — raw user messages must not land in metadata JSONB
+    expect(ev.metadata.prompt).toBeUndefined();
+  });
+
+  it('leaves slash_command absent in metadata for plain UserPromptSubmit prompts', () => {
+    const ev = toEvent('user-prompt-submit', {
+      cwd: '/home/dev/project',
+      hook_event_name: 'UserPromptSubmit',
+      prompt: 'what is the capital of France?',
+      session_id: '550e8400-e29b-41d4-a716-446655440000',
+    });
+    expect(ev.metadata.slash_command).toBeUndefined();
+    expect(ev.metadata.prompt).toBeUndefined();
+  });
+
+  it('handles missing prompt on UserPromptSubmit gracefully', () => {
+    const ev = toEvent('user-prompt-submit', {
+      cwd: '/home/dev/project',
+      hook_event_name: 'UserPromptSubmit',
+      session_id: '550e8400-e29b-41d4-a716-446655440000',
+    });
+    expect(ev.event_type).toBe('UserPromptSubmit');
+    expect(ev.metadata.slash_command).toBeUndefined();
+  });
 });
 
 function stubStdin(payload: string): () => void {

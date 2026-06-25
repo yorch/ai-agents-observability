@@ -10,6 +10,7 @@ import { uuidv7 } from './uuid';
 type ClaudeCodeHookPayload = {
   cwd?: unknown;
   hook_event_name?: unknown;
+  prompt?: unknown;
   session_id?: unknown;
   tool_input?: unknown;
   tool_name?: unknown;
@@ -20,6 +21,7 @@ type ClaudeCodeHookPayload = {
 const KNOWN_KEYS = new Set([
   'cwd',
   'hook_event_name',
+  'prompt',
   'session_id',
   'tool_input',
   'tool_name',
@@ -99,6 +101,12 @@ function buildToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
       ? raw.tool_input.subagent_type
       : null;
 
+  // Skill names equal their slash command (e.g. "deep-research" ↔ /deep-research).
+  const skill =
+    name === 'Skill' && isRecord(raw.tool_input) && typeof raw.tool_input.skill === 'string'
+      ? raw.tool_input.skill
+      : null;
+
   return {
     // Categorize by the mcp__ prefix, not the parse result: a name like
     // `mcp__server` (no tool segment) is still an MCP tool.
@@ -111,8 +119,8 @@ function buildToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
     mcp_tool: mcpTool,
     name,
     output_bytes: fieldBytes(raw.tool_response),
-    skill: null,
-    slash_command: null,
+    skill,
+    slash_command: skill,
     subagent_type: subagentType,
     // Best-effort from the raw payload (absent → false). Unknown payload fields
     // are also preserved verbatim in `metadata`, so nothing is lost.
@@ -138,12 +146,20 @@ export function toEvent(kind: HookKind, raw: ClaudeCodeHookPayload): Event {
   // tests — a tool event reaching ingest without a tool block is rejected.
   const isToolEvent = eventType === 'PreToolUse' || eventType === 'PostToolUse';
 
+  const metadata = pickMetadata(raw);
+  if (eventType === 'UserPromptSubmit' && typeof raw.prompt === 'string') {
+    const match = /^\/([a-zA-Z][\w-]*)/.exec(raw.prompt.trimStart());
+    if (match) {
+      metadata.slash_command = match[1];
+    }
+  }
+
   return {
     agent_type: 'CLAUDE_CODE',
     client: clientInfo(),
     event_id: uuidv7(),
     event_type: eventType,
-    metadata: pickMetadata(raw),
+    metadata,
     redaction_flags: [],
     schema_version: 1,
     session_context: {

@@ -65,7 +65,7 @@ export async function insertEventsBatch(
       ${e.tool?.subagent_type ?? null},
       ${e.tool?.skill ?? null},
       ${null},
-      ${e.tool?.slash_command ?? null},
+      ${e.tool?.slash_command ?? (typeof e.metadata.slash_command === 'string' ? e.metadata.slash_command : null)},
       ${e.llm?.model ?? null},
       ${e.llm?.input_tokens ?? null},
       ${e.llm?.output_tokens ?? null},
