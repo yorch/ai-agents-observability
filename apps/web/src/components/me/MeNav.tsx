@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const ME_NAV = [
+const BASE_NAV = [
   { exact: true, href: '/me', label: 'Overview' },
   { exact: false, href: '/me/sessions', label: 'Sessions' },
   { exact: false, href: '/me/insights', label: 'Insights' },
@@ -13,11 +13,14 @@ const ME_NAV = [
   { exact: false, href: '/me/audit', label: 'Audit log' },
 ];
 
-export function MeNav() {
+const GRANTS_ENTRY = { exact: false, href: '/me/grants', label: 'Grants' };
+
+export function MeNav({ showGrants = false }: { showGrants?: boolean }) {
   const pathname = usePathname();
+  const nav = showGrants ? [...BASE_NAV, GRANTS_ENTRY] : BASE_NAV;
   return (
-    <nav className="mb-6 flex gap-6 border-b border-white/10">
-      {ME_NAV.map(({ exact, href, label }) => {
+    <nav className="mb-6 flex flex-wrap gap-6 border-b border-white/10">
+      {nav.map(({ exact, href, label }) => {
         const active = exact ? pathname === href : pathname.startsWith(href);
         return (
           <Link

@@ -52,5 +52,5 @@ infra/.minio-data/
 # Claude Code internal (worktrees, session state)
 .claude/
 
-# Data
-data/
+# Data (root-level infra state — postgres, minio volumes; NOT source code under src/data/)
+/data/
