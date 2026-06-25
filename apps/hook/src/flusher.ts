@@ -5,7 +5,7 @@ import type { GitContext } from '@ai-agents-observability/schemas';
 
 import { backoffSleep } from './lib/backoff';
 import { getGitContext } from './lib/git';
-import { fetchOpenPrNumber, resolveGitHubToken } from './lib/github-pr';
+import { fetchOpenPrNumber } from './lib/github-pr';
 import { loadHookToken } from './lib/identity';
 import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
@@ -120,24 +120,18 @@ type PrResolver = (
   owner: string,
   repo: string,
   branch: string,
-  token: string,
   remoteUrl: string | null,
 ) => Promise<number | null>;
 
 /**
  * Populate `session_context.git.pr_number` for events that have git context
  * (owner, repo, branch) but no PR number yet. Results are cached per
- * owner/repo/branch within the batch so the GitHub API is called at most once
- * per unique branch. Silent no-op when `token` is null.
+ * owner/repo/branch within the batch so at most one lookup runs per branch.
  */
 export async function enrichPrNumbers(
   events: unknown[],
-  token: string | null,
   resolve: PrResolver = fetchOpenPrNumber,
 ): Promise<void> {
-  if (!token) {
-    return;
-  }
   const cache = new Map<string, number | null>();
   for (const ev of events as GitEnrichedEvent[]) {
     const git = ev?.session_context?.git;
@@ -151,7 +145,7 @@ export async function enrichPrNumbers(
     const key = `${owner}/${repo}#${branch}`;
     let pr = cache.get(key);
     if (pr === undefined) {
-      pr = await resolve(owner, repo, branch, token, remote_url ?? null);
+      pr = await resolve(owner, repo, branch, remote_url ?? null);
       cache.set(key, pr ?? null);
     }
     if (pr != null) {
@@ -208,7 +202,7 @@ export async function runFlusher(): Promise<void> {
       const eventIds = rows.map((r) => r.event_id);
       const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
       enrichGitContext(events);
-      await enrichPrNumbers(events, resolveGitHubToken());
+      await enrichPrNumbers(events);
       const body = JSON.stringify(buildBatchEnvelope(events));
 
       let success = false;

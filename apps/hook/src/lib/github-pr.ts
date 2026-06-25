@@ -2,38 +2,13 @@
 // Used by the flusher to populate session_context.git.pr_number before
 // events are shipped to ingest — keeping the hook hot path network-free.
 
-/**
- * Find a GitHub token from the environment or the gh CLI.
- * Returns null when none is available; callers treat that as "skip PR lookup".
- */
-export function resolveGitHubToken(): string | null {
-  const env = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? '';
-  if (env.length > 0) {
-    return env;
-  }
-  try {
-    const proc = Bun.spawnSync(['gh', 'auth', 'token'], { stderr: 'ignore', stdout: 'pipe' });
-    if (proc.exitCode === 0) {
-      const tok = new TextDecoder().decode(proc.stdout).trim();
-      if (tok.length > 0) {
-        return tok;
-      }
-    }
-  } catch {
-    // gh not installed or not authenticated — not an error
-  }
-  return null;
-}
-
 function githubApiBase(): string {
-  // Supports GitHub Enterprise via GITHUB_API_URL (the same env var gh CLI uses)
   return (process.env.GITHUB_API_URL ?? 'https://api.github.com').replace(/\/$/, '');
 }
 
 /**
- * Return true if `remoteUrl` points at a GitHub host (github.com or the host
- * in GITHUB_API_URL for GitHub Enterprise). Non-GitHub remotes (GitLab,
- * Bitbucket, etc.) are skipped — we don't want spurious API calls.
+ * True if `remoteUrl` points at a GitHub host. Used to gate the API fallback
+ * path — the gh CLI path doesn't need this check since gh itself knows its host.
  */
 export function isGitHubRemote(remoteUrl: string | null): boolean {
   if (!remoteUrl) {
@@ -41,30 +16,56 @@ export function isGitHubRemote(remoteUrl: string | null): boolean {
   }
   const apiBase = githubApiBase();
   if (apiBase !== 'https://api.github.com') {
-    // GHES: derive the enterprise host from GITHUB_API_URL and match it
     try {
       const gheHost = new URL(apiBase).hostname;
       return remoteUrl.includes(gheHost);
     } catch {
-      // fall through to github.com check
+      // fall through
     }
   }
   return /github\.com/i.test(remoteUrl);
 }
 
-/**
- * Fetch the number of the first open PR whose head branch matches `branch` in
- * `owner/repo`. Returns null on any error (network, auth, no PR found, non-GitHub
- * remote) so callers can treat null as "leave pr_number unset".
- */
-export async function fetchOpenPrNumber(
+// Primary path: gh CLI handles host, auth, token refresh, and GHES automatically.
+function fetchPrNumberViaGh(owner: string, repo: string, branch: string): number | null {
+  try {
+    const proc = Bun.spawnSync(
+      [
+        'gh',
+        'pr',
+        'list',
+        '--head',
+        branch,
+        '--repo',
+        `${owner}/${repo}`,
+        '--json',
+        'number',
+        '--state',
+        'open',
+        '--limit',
+        '1',
+      ],
+      { stderr: 'ignore', stdout: 'pipe' },
+    );
+    if (proc.exitCode !== 0) {
+      return null;
+    }
+    const prs = JSON.parse(new TextDecoder().decode(proc.stdout)) as Array<{ number: number }>;
+    return prs[0]?.number ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Fallback: raw REST API for CI/CD environments where gh is not installed.
+async function fetchPrNumberViaApi(
   owner: string,
   repo: string,
   branch: string,
-  token: string,
-  remoteUrl: string | null = null,
+  remoteUrl: string | null,
 ): Promise<number | null> {
-  if (!isGitHubRemote(remoteUrl)) {
+  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? '';
+  if (!token || !isGitHubRemote(remoteUrl)) {
     return null;
   }
   try {
@@ -84,4 +85,22 @@ export async function fetchOpenPrNumber(
   } catch {
     return null;
   }
+}
+
+/**
+ * Return the open PR number for `branch` in `owner/repo`, or null when none
+ * is found or an error occurs. Tries the gh CLI first (preferred — handles
+ * host, auth, and GHES automatically); falls back to a direct REST API call
+ * using GITHUB_TOKEN / GH_TOKEN for environments where gh is not installed.
+ */
+export async function fetchOpenPrNumber(
+  owner: string,
+  repo: string,
+  branch: string,
+  remoteUrl: string | null = null,
+): Promise<number | null> {
+  return (
+    fetchPrNumberViaGh(owner, repo, branch) ??
+    (await fetchPrNumberViaApi(owner, repo, branch, remoteUrl))
+  );
 }

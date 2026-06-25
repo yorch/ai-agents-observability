@@ -33,7 +33,7 @@ const RESOLVER = async () => 42;
 describe('enrichPrNumbers', () => {
   it('fills pr_number from the resolver', async () => {
     const events = [makeEvent('acme', 'widget', 'feature/foo')];
-    await enrichPrNumbers(events, 'tok', RESOLVER);
+    await enrichPrNumbers(events, RESOLVER);
     expect((events[0] as FakeGitEvent).session_context.git?.pr_number).toBe(42);
   });
 
@@ -44,7 +44,7 @@ describe('enrichPrNumbers', () => {
       makeEvent('acme', 'widget', 'feature/foo'),
       makeEvent('acme', 'widget', 'feature/bar'),
     ];
-    await enrichPrNumbers(events, 'tok', async (owner, repo, branch) => {
+    await enrichPrNumbers(events, async (owner, repo, branch) => {
       calls.push(`${owner}/${repo}#${branch}`);
       return 1;
     });
@@ -53,34 +53,23 @@ describe('enrichPrNumbers', () => {
 
   it('does not overwrite an existing pr_number', async () => {
     const events = [makeEvent('acme', 'widget', 'main', 99)];
-    await enrichPrNumbers(events, 'tok', RESOLVER);
+    await enrichPrNumbers(events, RESOLVER);
     expect((events[0] as FakeGitEvent).session_context.git?.pr_number).toBe(99);
   });
 
   it('skips events with no git context', async () => {
     const calls: string[] = [];
     const events = [makeEvent(null, null, null)];
-    await enrichPrNumbers(events, 'tok', async (owner) => {
+    await enrichPrNumbers(events, async (owner) => {
       calls.push(owner);
       return 1;
     });
     expect(calls).toHaveLength(0);
-  });
-
-  it('is a no-op when token is null', async () => {
-    const calls: string[] = [];
-    const events = [makeEvent('acme', 'widget', 'main')];
-    await enrichPrNumbers(events, null, async (owner) => {
-      calls.push(owner);
-      return 1;
-    });
-    expect(calls).toHaveLength(0);
-    expect((events[0] as FakeGitEvent).session_context.git?.pr_number).toBeNull();
   });
 
   it('leaves pr_number null when resolver returns null (no open PR)', async () => {
     const events = [makeEvent('acme', 'widget', 'feature/no-pr')];
-    await enrichPrNumbers(events, 'tok', async () => null);
+    await enrichPrNumbers(events, async () => null);
     expect((events[0] as FakeGitEvent).session_context.git?.pr_number).toBeNull();
   });
 });

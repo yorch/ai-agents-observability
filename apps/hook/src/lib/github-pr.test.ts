@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { fetchOpenPrNumber, isGitHubRemote, resolveGitHubToken } from './github-pr';
+import { fetchOpenPrNumber, isGitHubRemote } from './github-pr';
 
 // ── isGitHubRemote ──────────────────────────────────────────────────────────
 
@@ -26,82 +26,44 @@ describe('isGitHubRemote', () => {
   });
 });
 
-// ── resolveGitHubToken ──────────────────────────────────────────────────────
-
-describe('resolveGitHubToken', () => {
-  let savedGithubToken: string | undefined;
-  let savedGhToken: string | undefined;
-
-  beforeEach(() => {
-    savedGithubToken = process.env.GITHUB_TOKEN;
-    savedGhToken = process.env.GH_TOKEN;
-    delete process.env.GITHUB_TOKEN;
-    delete process.env.GH_TOKEN;
-  });
-
-  afterEach(() => {
-    if (savedGithubToken !== undefined) {
-      process.env.GITHUB_TOKEN = savedGithubToken;
-    } else {
-      delete process.env.GITHUB_TOKEN;
-    }
-    if (savedGhToken !== undefined) {
-      process.env.GH_TOKEN = savedGhToken;
-    } else {
-      delete process.env.GH_TOKEN;
-    }
-  });
-
-  it('returns GITHUB_TOKEN when set', () => {
-    process.env.GITHUB_TOKEN = 'ghp_test123';
-    expect(resolveGitHubToken()).toBe('ghp_test123');
-  });
-
-  it('returns GH_TOKEN when GITHUB_TOKEN is absent', () => {
-    process.env.GH_TOKEN = 'ghp_fallback';
-    expect(resolveGitHubToken()).toBe('ghp_fallback');
-  });
-
-  it('returns null when no env var or gh CLI token is available', () => {
-    // gh CLI is not authenticated in test env — should return null (no throw)
-    const result = resolveGitHubToken();
-    expect(result === null || typeof result === 'string').toBe(true);
-  });
-});
-
 // ── fetchOpenPrNumber ───────────────────────────────────────────────────────
 
 describe('fetchOpenPrNumber', () => {
-  it('returns null for a non-GitHub remote', async () => {
+  let origApiUrl: string | undefined;
+
+  beforeEach(() => {
+    origApiUrl = process.env.GITHUB_API_URL;
+  });
+
+  afterEach(() => {
+    if (origApiUrl !== undefined) {
+      process.env.GITHUB_API_URL = origApiUrl;
+    } else {
+      delete process.env.GITHUB_API_URL;
+    }
+  });
+
+  it('returns null for a non-GitHub remote when gh is unavailable', async () => {
+    // gh CLI is not authenticated in the test environment; API fallback skips
+    // non-GitHub remotes, so this should always return null.
     const result = await fetchOpenPrNumber(
       'acme',
       'widget',
       'main',
-      'tok',
       'git@gitlab.com:acme/widget.git',
     );
     expect(result).toBeNull();
   });
 
-  it('returns null when fetch fails (network error)', async () => {
-    // Point at an unreachable host to trigger a network error
-    const origApiUrl = process.env.GITHUB_API_URL;
+  it('returns null on API network error', async () => {
     process.env.GITHUB_API_URL = 'http://127.0.0.1:1/'; // nothing listening
-    try {
-      const result = await fetchOpenPrNumber(
-        'acme',
-        'widget',
-        'main',
-        'tok',
-        'git@github.com:acme/widget.git',
-      );
-      expect(result).toBeNull();
-    } finally {
-      if (origApiUrl !== undefined) {
-        process.env.GITHUB_API_URL = origApiUrl;
-      } else {
-        delete process.env.GITHUB_API_URL;
-      }
-    }
+    // gh will fail (not authenticated); API call will fail (unreachable host)
+    const result = await fetchOpenPrNumber(
+      'acme',
+      'widget',
+      'main',
+      'git@github.com:acme/widget.git',
+    );
+    expect(result).toBeNull();
   });
 });
