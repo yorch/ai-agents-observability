@@ -1,6 +1,3 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateEnum
 CREATE TYPE "SessionStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'CRASHED', 'TIMED_OUT', 'ABANDONED');
 
@@ -250,20 +247,6 @@ CREATE TABLE "job_runs" (
 );
 
 -- CreateTable
-CREATE TABLE "job_config" (
-    "job_name" TEXT NOT NULL,
-    "enabled" BOOLEAN NOT NULL DEFAULT true,
-    "run_hour_utc" SMALLINT NOT NULL,
-    "run_minute_utc" SMALLINT NOT NULL,
-    "run_requested_at" TIMESTAMPTZ(6),
-    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "job_config_pkey" PRIMARY KEY ("job_name"),
-    CONSTRAINT "job_config_run_hour_utc_check" CHECK ("run_hour_utc" BETWEEN 0 AND 23),
-    CONSTRAINT "job_config_run_minute_utc_check" CHECK ("run_minute_utc" BETWEEN 0 AND 59)
-);
-
--- CreateTable
 CREATE TABLE "deletion_requests" (
     "id" BIGSERIAL NOT NULL,
     "user_id" UUID NOT NULL,
@@ -287,6 +270,18 @@ CREATE TABLE "webhook_deliveries" (
     "error_text" TEXT,
 
     CONSTRAINT "webhook_deliveries_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "job_config" (
+    "job_name" TEXT NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "run_hour_utc" SMALLINT NOT NULL,
+    "run_minute_utc" SMALLINT NOT NULL,
+    "run_requested_at" TIMESTAMPTZ(6),
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "job_config_pkey" PRIMARY KEY ("job_name")
 );
 
 -- CreateTable
@@ -360,13 +355,13 @@ CREATE UNIQUE INDEX "teams_github_slug_key" ON "teams"("github_slug");
 CREATE UNIQUE INDEX "teams_github_id_key" ON "teams"("github_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
-
--- CreateIndex
 CREATE UNIQUE INDEX "users_github_login_key" ON "users"("github_login");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_github_id_key" ON "users"("github_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE INDEX "users_last_seen_at_idx" ON "users"("last_seen_at");
@@ -406,9 +401,6 @@ CREATE INDEX "sessions_agent_type_started_at_idx" ON "sessions"("agent_type", "s
 
 -- CreateIndex
 CREATE UNIQUE INDEX "pull_requests_github_id_key" ON "pull_requests"("github_id");
-
--- CreateIndex
-CREATE INDEX "pull_requests_jira_key_idx" ON "pull_requests"("jira_key") WHERE "jira_key" IS NOT NULL;
 
 -- CreateIndex
 CREATE INDEX "session_pr_links_repo_id_pr_number_idx" ON "session_pr_links"("repo_id", "pr_number");
