@@ -36,7 +36,7 @@ export const DEFAULT_DRIFT_THRESHOLD = 0.05;
 
 type ReconcileOpts = {
   driftThreshold?: number;
-  logger?: Logger;
+  logger?: Logger | undefined;
   // Injectable clock for tests; defaults to wall-clock.
   now?: Date;
 };

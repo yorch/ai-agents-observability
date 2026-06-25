@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@ai-agents-observability/db';
+import type { Prisma, PrismaClient } from '@ai-agents-observability/db';
 import type { AlertSeverity } from '@ai-agents-observability/schemas';
 
 // A rule either fires (with a severity + AGGREGATE-ONLY details) or it doesn't.
@@ -24,7 +24,11 @@ export async function applyAlertTransition(
 
   if (evaluation && !open) {
     await db.alertEvent.create({
-      data: { details: evaluation.details, ruleId, severity: evaluation.severity },
+      data: {
+        details: evaluation.details as Prisma.InputJsonValue,
+        ruleId,
+        severity: evaluation.severity,
+      },
     });
     return 'fired';
   }

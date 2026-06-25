@@ -33,9 +33,9 @@ export type AuditParams = {
   action: AuditAction;
   actorUserId: string;
   justification?: string | null;
-  targetSessionId?: string;
-  targetTeamId?: string;
-  targetUserId?: string;
+  targetSessionId?: string | undefined;
+  targetTeamId?: string | undefined;
+  targetUserId?: string | undefined;
 };
 
 async function requestMeta(): Promise<{ ip: string | null; userAgent: string | null }> {
