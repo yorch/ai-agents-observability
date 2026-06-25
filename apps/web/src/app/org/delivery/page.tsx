@@ -50,7 +50,7 @@ export default async function OrgDeliveryPage() {
         <StatCard
           label="Merge rate"
           value={`${(stats.mergeRate * 100).toFixed(0)}%`}
-          sub={stats.totalPRs > 0 ? `${stats.totalPRs - stats.mergedPRs} unmerged` : undefined}
+          {...(stats.totalPRs > 0 ? { sub: `${stats.totalPRs - stats.mergedPRs} unmerged` } : {})}
         />
         <StatCard
           label="Median time-to-merge"
@@ -60,11 +60,9 @@ export default async function OrgDeliveryPage() {
         <StatCard
           label="Avg cost / PR"
           value={stats.avgCostPerPR > 0 ? `$${stats.avgCostPerPR.toFixed(2)}` : '—'}
-          sub={
-            stats.medianCostPerPR != null
-              ? `median $${stats.medianCostPerPR.toFixed(2)}`
-              : undefined
-          }
+          {...(stats.medianCostPerPR != null
+            ? { sub: `median $${stats.medianCostPerPR.toFixed(2)}` }
+            : {})}
         />
       </div>
 

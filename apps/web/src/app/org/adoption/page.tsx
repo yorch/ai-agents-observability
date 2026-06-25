@@ -25,11 +25,6 @@ export default async function OrgAdoptionPage() {
     getSessionFrequencyDistribution(since30),
   ]);
 
-  const _adoptionRate =
-    summary30.activeUsers > 0 && summary90.activeUsers > 0
-      ? summary30.activeUsers / Math.max(summary30.activeUsers, summary90.activeUsers)
-      : 0;
-
   const maxFreq = Math.max(...frequencyDist.map((b) => b.userCount), 1);
   const totalUsersInDist = frequencyDist.reduce((s, b) => s + b.userCount, 0);
 

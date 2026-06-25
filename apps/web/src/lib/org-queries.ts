@@ -1152,7 +1152,7 @@ function arrayMedian(sorted: number[]): number | null {
   if (sorted.length === 0) {
     return null;
   }
-  return sorted[Math.floor(sorted.length / 2)];
+  return sorted[Math.floor(sorted.length / 2)] ?? null;
 }
 
 export async function getTeamBenchmarks(since: Date, weeks = 4): Promise<TeamBenchmarksResult> {
