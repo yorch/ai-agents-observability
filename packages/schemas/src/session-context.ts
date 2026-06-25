@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const GitContextSchema = z.object({
   branch: z.string().nullable(),
   commit: z.string().nullable(),
+  github_login: z.string().nullable().optional(),
   is_dirty: z.boolean(),
   owner: z.string().nullable(),
   // Snapshot of CI and review state at the time the flusher processed the batch.
@@ -15,6 +16,7 @@ export const GitContextSchema = z.object({
     .optional(),
   remote_url: z.string().nullable(),
   repo: z.string().nullable(),
+  team: z.string().nullable().optional(),
 });
 
 export type GitContext = z.infer<typeof GitContextSchema>;
@@ -24,6 +26,7 @@ export const SessionContextSchema = z.object({
   git: GitContextSchema.nullable(),
   is_resume: z.boolean(),
   mode: z.enum(['normal', 'plan', 'accept_edits']),
+  project_name: z.string().nullable().optional(),
 });
 
 export type SessionContext = z.infer<typeof SessionContextSchema>;

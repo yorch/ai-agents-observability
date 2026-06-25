@@ -244,6 +244,9 @@ model Session {
   prNumber             Int?          @map("pr_number")
   prCiStatus           String?       @map("pr_ci_status")
   prReviewDecision     String?       @map("pr_review_decision")
+  githubLogin          String?       @map("github_login")
+  githubTeam           String?       @map("github_team")
+  projectName          String?       @map("project_name")
 
   totalInputTokens      BigInt  @default(0) @map("total_input_tokens")
   totalOutputTokens     BigInt  @default(0) @map("total_output_tokens")

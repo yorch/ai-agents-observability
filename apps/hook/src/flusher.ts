@@ -7,10 +7,12 @@ import { backoffSleep } from './lib/backoff';
 import { getGitContext } from './lib/git';
 import type { PrSnapshot } from './lib/github-pr';
 import { fetchOpenPrNumber, fetchPrSnapshot } from './lib/github-pr';
+import { fetchGitHubLogin, fetchUserTeam } from './lib/github-user';
 import { loadHookToken } from './lib/identity';
 import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
 import { flusherStatePath, telemetryHome } from './lib/paths';
+import { getProjectName } from './lib/project';
 import { openQueueReader } from './lib/queue-reader';
 
 const BATCH_SIZE = 100;
@@ -107,15 +109,19 @@ export function enrichGitContext(
 
 type GitEnrichedEvent = {
   session_context?: {
+    cwd?: string;
     git?: {
       branch?: string | null;
+      github_login?: string | null;
       owner?: string | null;
       pr_ci_status?: string;
       pr_number?: number | null;
       pr_review_decision?: string;
       remote_url?: string | null;
       repo?: string | null;
+      team?: string | null;
     } | null;
+    project_name?: string | null;
   } | null;
 };
 
@@ -197,6 +203,92 @@ export function enrichPrSnapshot(
   }
 }
 
+// ── GitHub login enrichment ───────────────────────────────────────────────────
+
+/**
+ * Populate `session_context.git.github_login` for all events that have git
+ * context but no login yet. The resolver is called at most once per batch —
+ * the GitHub login is the same user for every event on the same machine.
+ */
+export function enrichGitHubLogin(
+  events: unknown[],
+  resolve: () => string | null = fetchGitHubLogin,
+): void {
+  let resolved = false;
+  let login: string | null = null;
+  for (const ev of events as GitEnrichedEvent[]) {
+    const git = ev?.session_context?.git;
+    if (!git || git.github_login !== undefined) {
+      continue;
+    }
+    if (!resolved) {
+      login = resolve();
+      resolved = true;
+    }
+    if (login !== null) {
+      git.github_login = login;
+    }
+  }
+}
+
+// ── User team enrichment ──────────────────────────────────────────────────────
+
+/**
+ * Populate `session_context.git.team` for events that have an `owner` (org)
+ * but no team yet. Results are cached per owner within the batch so at most
+ * one lookup runs per org.
+ */
+export function enrichUserTeam(
+  events: unknown[],
+  resolve: (owner: string) => string | null = fetchUserTeam,
+): void {
+  const cache = new Map<string, string | null>();
+  for (const ev of events as GitEnrichedEvent[]) {
+    const git = ev?.session_context?.git;
+    if (!git || git.team !== undefined || !git.owner) {
+      continue;
+    }
+    const { owner } = git;
+    let team = cache.get(owner);
+    if (team === undefined) {
+      team = resolve(owner);
+      cache.set(owner, team ?? null);
+    }
+    if (team !== null) {
+      git.team = team;
+    }
+  }
+}
+
+// ── Project name enrichment ───────────────────────────────────────────────────
+
+/**
+ * Populate `session_context.project_name` by walking up from `cwd` to find
+ * the nearest `package.json` with a `name` field. Results are cached per cwd
+ * within the batch.
+ */
+export function enrichProjectName(
+  events: unknown[],
+  resolve: (cwd: string) => string | null = getProjectName,
+): void {
+  const cache = new Map<string, string | null>();
+  for (const ev of events as GitEnrichedEvent[]) {
+    const ctx = ev?.session_context;
+    if (!ctx || ctx.project_name !== undefined || typeof ctx.cwd !== 'string' || !ctx.cwd) {
+      continue;
+    }
+    const { cwd } = ctx;
+    let name = cache.get(cwd);
+    if (name === undefined) {
+      name = resolve(cwd);
+      cache.set(cwd, name ?? null);
+    }
+    if (name !== null) {
+      ctx.project_name = name;
+    }
+  }
+}
+
 // ── Flusher loop ──────────────────────────────────────────────────────────────
 
 export async function runFlusher(): Promise<void> {
@@ -247,6 +339,9 @@ export async function runFlusher(): Promise<void> {
       enrichGitContext(events);
       await enrichPrNumbers(events);
       enrichPrSnapshot(events);
+      enrichGitHubLogin(events);
+      enrichUserTeam(events);
+      enrichProjectName(events);
       const body = JSON.stringify(buildBatchEnvelope(events));
 
       let success = false;
