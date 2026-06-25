@@ -1,8 +1,14 @@
+import { hashPassword } from '@ai-agents-observability/auth';
 import { faker } from '@faker-js/faker';
 import { createClient } from './index';
 
 const SEED_EMAIL = 'demo@example.com';
 const DEMO_USER_LOGIN = 'demo-dev';
+
+// Password-only user — no GitHub link. Lets you log in immediately after seeding
+// without running scripts/create-password-user.ts separately.
+const SEED_PW_EMAIL = 'local@example.com';
+const SEED_PW_PASSWORD = 'demo1234';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -15,6 +21,11 @@ async function main() {
   const existing = await db.user.findUnique({ where: { githubLogin: DEMO_USER_LOGIN } });
   if (existing) {
     await db.session.deleteMany({ where: { userId: existing.id } });
+  }
+  // Password-only user has no githubLogin — look up by email.
+  const existingPwUser = await db.user.findUnique({ where: { email: SEED_PW_EMAIL } });
+  if (existingPwUser) {
+    await db.user.delete({ where: { id: existingPwUser.id } });
   }
   await db.repo.deleteMany({ where: { githubOwner: 'demo-org' } });
   if (existing) {
@@ -51,6 +62,29 @@ async function main() {
   // TeamMember
   await db.teamMember.create({
     data: { roleInTeam: 'MEMBER', teamId: team.id, userId: user.id },
+  });
+
+  // Password-only user — email/password login, no GitHub OAuth required.
+  const passwordHash = await hashPassword(SEED_PW_PASSWORD);
+  const pwUser = await db.user.create({
+    data: {
+      displayName: 'Local Dev',
+      email: SEED_PW_EMAIL,
+      lastSeenAt: new Date(),
+      passwordHash,
+      primaryTeamId: team.id,
+      visibilityPolicy: {
+        create: {
+          shareMetadataWithOrg: true,
+          shareMetadataWithTeam: true,
+          shareTranscriptsWithOrg: false,
+          shareTranscriptsWithTeam: false,
+        },
+      },
+    },
+  });
+  await db.teamMember.create({
+    data: { roleInTeam: 'MEMBER', teamId: team.id, userId: pwUser.id },
   });
 
   // VisibilityPolicy — transcripts off by default per §10
@@ -245,8 +279,10 @@ async function main() {
   }
 
   console.log(
-    `Seed complete. Created: 1 team, 1 user, 1 repo, ${sessions.length} sessions, 5 PRs.`,
+    `Seed complete. Created: 1 team, 2 users, 1 repo, ${sessions.length} sessions, 5 PRs.`,
   );
+  console.log(`  GitHub user : ${SEED_EMAIL} (login via GitHub OAuth)`);
+  console.log(`  Password user: ${SEED_PW_EMAIL} / ${SEED_PW_PASSWORD}`);
   await db.$disconnect();
 }
 
