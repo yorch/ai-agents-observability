@@ -429,7 +429,11 @@ async function insertTranscript(sessionId: string, startedAt: Date, durationMs: 
     const ts = new Date(
       startedAt.getTime() + Math.floor((i / template.messages.length) * durationMs),
     );
-    const { role, text } = template.messages[i];
+    const msg = template.messages[i];
+    if (!msg) {
+      continue;
+    }
+    const { role, text } = msg;
     await db.$executeRaw`
       INSERT INTO transcript_index (session_id, message_idx, role, ts, content_text)
       VALUES (${sessionId}::uuid, ${i}, ${role}, ${ts}, ${text})
