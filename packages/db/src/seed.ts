@@ -3,7 +3,9 @@ import { faker } from '@faker-js/faker';
 import { createClient } from './index';
 
 const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) throw new Error('DATABASE_URL is required');
+if (!DATABASE_URL) {
+  throw new Error('DATABASE_URL is required');
+}
 const db = createClient(DATABASE_URL);
 
 const isExtensive = process.argv.includes('--extensive');
@@ -67,141 +69,270 @@ const SEED_ADMIN_PASSWORD = 'admin1234';
 type Msg = { role: 'user' | 'assistant'; text: string };
 const TRANSCRIPT_TEMPLATES: { topic: string; messages: Msg[] }[] = [
   {
-    topic: 'implement-api-pagination',
     messages: [
-      { role: 'user', text: 'Add pagination to the /api/users endpoint. Support `page` and `limit` query params with Zod validation (limit 1–100).' },
-      { role: 'assistant', text: "I'll check the current handler first, then add pagination and validation." },
+      {
+        role: 'user',
+        text: 'Add pagination to the /api/users endpoint. Support `page` and `limit` query params with Zod validation (limit 1–100).',
+      },
+      {
+        role: 'assistant',
+        text: "I'll check the current handler first, then add pagination and validation.",
+      },
       { role: 'user', text: 'Also return a `totalCount` in the response body.' },
-      { role: 'assistant', text: "Done — response is now `{ data, totalCount, page, limit }`. Used `COUNT(*) OVER()` to avoid a second query. Zod enforces `.int().min(1).max(100)` on limit." },
+      {
+        role: 'assistant',
+        text: 'Done — response is now `{ data, totalCount, page, limit }`. Used `COUNT(*) OVER()` to avoid a second query. Zod enforces `.int().min(1).max(100)` on limit.',
+      },
       { role: 'user', text: 'Add tests for the invalid cases.' },
-      { role: 'assistant', text: "Added three tests in `tests/api/users.test.ts`: limit=0 → 400, limit=101 → 400, page=-1 → 400. All green." },
+      {
+        role: 'assistant',
+        text: 'Added three tests in `tests/api/users.test.ts`: limit=0 → 400, limit=101 → 400, page=-1 → 400. All green.',
+      },
     ],
+    topic: 'implement-api-pagination',
   },
   {
-    topic: 'fix-auth-token-expiry',
     messages: [
-      { role: 'user', text: 'Login returns 401 with correct credentials since the token expiry change yesterday.' },
-      { role: 'assistant', text: "Checking the auth middleware and the recent diff." },
+      {
+        role: 'user',
+        text: 'Login returns 401 with correct credentials since the token expiry change yesterday.',
+      },
+      { role: 'assistant', text: 'Checking the auth middleware and the recent diff.' },
       { role: 'user', text: 'The `expiresIn` was changed from seconds to milliseconds.' },
-      { role: 'assistant', text: "`expiresIn` in jsonwebtoken is seconds-only. Reverting `3600000` → `3600` for access tokens. Bumped refresh to `2592000` (30d) while I was in there." },
+      {
+        role: 'assistant',
+        text: '`expiresIn` in jsonwebtoken is seconds-only. Reverting `3600000` → `3600` for access tokens. Bumped refresh to `2592000` (30d) while I was in there.',
+      },
     ],
+    topic: 'fix-auth-token-expiry',
   },
   {
-    topic: 'redaction-tests',
     messages: [
-      { role: 'user', text: 'Write unit tests for `redactSecrets` in packages/redaction. Cover AWS keys, GitHub tokens, and bearer patterns.' },
-      { role: 'assistant', text: "Reading the implementation first to understand all handled patterns." },
+      {
+        role: 'user',
+        text: 'Write unit tests for `redactSecrets` in packages/redaction. Cover AWS keys, GitHub tokens, and bearer patterns.',
+      },
+      {
+        role: 'assistant',
+        text: 'Reading the implementation first to understand all handled patterns.',
+      },
       { role: 'user', text: 'Also add a snapshot test for the [REDACTED] replacement format.' },
-      { role: 'assistant', text: "Written 12 tests: AWS access/secret, GitHub ghp_/ghs_, Bearer headers, npm tokens, sk- patterns, plus edge cases (empty string, no secrets, multiple per line). Snapshot added — run `bun test -u` to update if the format changes intentionally." },
+      {
+        role: 'assistant',
+        text: 'Written 12 tests: AWS access/secret, GitHub ghp_/ghs_, Bearer headers, npm tokens, sk- patterns, plus edge cases (empty string, no secrets, multiple per line). Snapshot added — run `bun test -u` to update if the format changes intentionally.',
+      },
     ],
+    topic: 'redaction-tests',
   },
   {
-    topic: 'refactor-session-service',
     messages: [
-      { role: 'user', text: 'Split `SessionService` — it is too large. Separate lifecycle from querying.' },
-      { role: 'assistant', text: "Auditing the class for natural seams — lifecycle (create/update/close) and query (find/list/aggregate) are the clear boundaries." },
+      {
+        role: 'user',
+        text: 'Split `SessionService` — it is too large. Separate lifecycle from querying.',
+      },
+      {
+        role: 'assistant',
+        text: 'Auditing the class for natural seams — lifecycle (create/update/close) and query (find/list/aggregate) are the clear boundaries.',
+      },
       { role: 'user', text: 'Also extract cost calculation helpers to costs.ts.' },
-      { role: 'assistant', text: "Done: `SessionLifecycleService`, `SessionQueryService`, `src/utils/costs.ts`. Original class re-exports both — zero callers broken." },
+      {
+        role: 'assistant',
+        text: 'Done: `SessionLifecycleService`, `SessionQueryService`, `src/utils/costs.ts`. Original class re-exports both — zero callers broken.',
+      },
     ],
+    topic: 'refactor-session-service',
   },
   {
-    topic: 'debug-dashboard-perf',
     messages: [
       { role: 'user', text: '/api/dashboard/summary takes 3–4 seconds with 50k sessions.' },
-      { role: 'assistant', text: "Checking the query plan for the sessions fetch." },
+      { role: 'assistant', text: 'Checking the query plan for the sessions fetch.' },
       { role: 'user', text: 'Probably a full table scan — no index on userId + startedAt.' },
-      { role: 'assistant', text: "Confirmed. Added composite index on `(user_id, started_at DESC)`. Response drops to ~120ms. Also manually refreshed the `daily_cost_by_user` continuous aggregate." },
+      {
+        role: 'assistant',
+        text: 'Confirmed. Added composite index on `(user_id, started_at DESC)`. Response drops to ~120ms. Also manually refreshed the `daily_cost_by_user` continuous aggregate.',
+      },
     ],
+    topic: 'debug-dashboard-perf',
   },
   {
-    topic: 'bun-upgrade',
     messages: [
       { role: 'user', text: 'Bun 1.2.0 released. Upgrade and check for breakage.' },
-      { role: 'assistant', text: "Updating Dockerfile and .tool-versions, running bun install to refresh lockfile." },
+      {
+        role: 'assistant',
+        text: 'Updating Dockerfile and .tool-versions, running bun install to refresh lockfile.',
+      },
       { role: 'user', text: 'Any workspace package bumps needed?' },
-      { role: 'assistant', text: "`@faker-js/faker` and `vitest` had minor updates — bumped in root catalog. All 147 tests pass. Test time: 12.4s → 8.1s." },
+      {
+        role: 'assistant',
+        text: '`@faker-js/faker` and `vitest` had minor updates — bumped in root catalog. All 147 tests pass. Test time: 12.4s → 8.1s.',
+      },
     ],
+    topic: 'bun-upgrade',
   },
   {
-    topic: 'session-tags-migration',
     messages: [
-      { role: 'user', text: 'Add a `tags TEXT[]` column to sessions for user-defined labels. Prisma-managed so we get the typed client.' },
-      { role: 'assistant', text: "Adding `tags String[] @default([])` to the Session model, generating a migration." },
+      {
+        role: 'user',
+        text: 'Add a `tags TEXT[]` column to sessions for user-defined labels. Prisma-managed so we get the typed client.',
+      },
+      {
+        role: 'assistant',
+        text: 'Adding `tags String[] @default([])` to the Session model, generating a migration.',
+      },
       { role: 'user', text: 'Should we index it?' },
-      { role: 'assistant', text: "Added a GIN index: `CREATE INDEX idx_sessions_tags ON sessions USING GIN (tags)`. Enables efficient `?` (contains element) and `@>` (contains all) queries." },
+      {
+        role: 'assistant',
+        text: 'Added a GIN index: `CREATE INDEX idx_sessions_tags ON sessions USING GIN (tags)`. Enables efficient `?` (contains element) and `@>` (contains all) queries.',
+      },
     ],
+    topic: 'session-tags-migration',
   },
   {
-    topic: 'webhook-security-review',
     messages: [
-      { role: 'user', text: 'Review the GitHub webhook handler for security issues, especially HMAC signature validation.' },
-      { role: 'assistant', text: "Reading the diff, focusing on validation ordering and comparison safety." },
+      {
+        role: 'user',
+        text: 'Review the GitHub webhook handler for security issues, especially HMAC signature validation.',
+      },
+      {
+        role: 'assistant',
+        text: 'Reading the diff, focusing on validation ordering and comparison safety.',
+      },
       { role: 'user', text: 'Found anything?' },
-      { role: 'assistant', text: "Two issues: (1) `===` instead of `crypto.timingSafeEqual` — timing attack risk. (2) JSON parsed before signature check — a parse error skips validation entirely. Fixed both. Also returning 204 on intentionally ignored event types." },
+      {
+        role: 'assistant',
+        text: 'Two issues: (1) `===` instead of `crypto.timingSafeEqual` — timing attack risk. (2) JSON parsed before signature check — a parse error skips validation entirely. Fixed both. Also returning 204 on intentionally ignored event types.',
+      },
     ],
+    topic: 'webhook-security-review',
   },
   {
-    topic: 'ci-setup',
     messages: [
-      { role: 'user', text: 'GitHub Actions: lint → typecheck → build → test on every PR, Bun with lockfile cache.' },
-      { role: 'assistant', text: "Creating `.github/workflows/ci.yml` with `oven-sh/setup-bun@v2`, cache keyed on lockfile hash, four sequential steps for clear failure attribution." },
+      {
+        role: 'user',
+        text: 'GitHub Actions: lint → typecheck → build → test on every PR, Bun with lockfile cache.',
+      },
+      {
+        role: 'assistant',
+        text: 'Creating `.github/workflows/ci.yml` with `oven-sh/setup-bun@v2`, cache keyed on lockfile hash, four sequential steps for clear failure attribution.',
+      },
       { role: 'user', text: 'Add a coverage comment posted to the PR.' },
-      { role: 'assistant', text: "Added `vitest run --coverage` step + `marocchino/sticky-pull-request-comment`. Needs `permissions: pull-requests: write` in the job." },
+      {
+        role: 'assistant',
+        text: 'Added `vitest run --coverage` step + `marocchino/sticky-pull-request-comment`. Needs `permissions: pull-requests: write` in the job.',
+      },
     ],
+    topic: 'ci-setup',
   },
   {
-    topic: 'team-cost-chart',
     messages: [
-      { role: 'user', text: 'Build team cost breakdown chart — daily cost per dev, last 30 days, from the daily_cost_by_user continuous aggregate.' },
-      { role: 'assistant', text: "Using Recharts AreaChart with stacked areas — shows per-dev and total simultaneously." },
+      {
+        role: 'user',
+        text: 'Build team cost breakdown chart — daily cost per dev, last 30 days, from the daily_cost_by_user continuous aggregate.',
+      },
+      {
+        role: 'assistant',
+        text: 'Using Recharts AreaChart with stacked areas — shows per-dev and total simultaneously.',
+      },
       { role: 'user', text: 'Add a DateRangePicker to change the window.' },
-      { role: 'assistant', text: "Added `DateRangePicker` on react-day-picker. Range updates the query param → CA re-fetch. Default 30 days, max 365." },
+      {
+        role: 'assistant',
+        text: 'Added `DateRangePicker` on react-day-picker. Range updates the query param → CA re-fetch. Default 30 days, max 365.',
+      },
     ],
+    topic: 'team-cost-chart',
   },
   {
-    topic: 'rate-limiting',
     messages: [
-      { role: 'user', text: 'Add rate limiting to ingest: 100 req/min per hook token, 429 with Retry-After header on breach.' },
-      { role: 'assistant', text: "Implemented in-memory sliding window keyed by token hash. For multi-instance deployments, swap the Map for a Redis counter." },
+      {
+        role: 'user',
+        text: 'Add rate limiting to ingest: 100 req/min per hook token, 429 with Retry-After header on breach.',
+      },
+      {
+        role: 'assistant',
+        text: 'Implemented in-memory sliding window keyed by token hash. For multi-instance deployments, swap the Map for a Redis counter.',
+      },
       { role: 'user', text: 'Test that the 101st request in a minute is rejected.' },
-      { role: 'assistant', text: "Test added with fake timers: requests 1–100 → 200, request 101 → 429 with `Retry-After: 60`. Green." },
+      {
+        role: 'assistant',
+        text: 'Test added with fake timers: requests 1–100 → 200, request 101 → 429 with `Retry-After: 60`. Green.',
+      },
     ],
+    topic: 'rate-limiting',
   },
   {
+    messages: [
+      {
+        role: 'user',
+        text: 'Redaction is missing the new OpenAI `sk-proj-` key format (48 chars after prefix).',
+      },
+      {
+        role: 'assistant',
+        text: 'Adding `/sk-proj-[A-Za-z0-9_-]{48}/g` and `sk-svcacct-` patterns to the redactor.',
+      },
+      {
+        role: 'user',
+        text: 'We should retroactively re-process transcripts from the last 7 days.',
+      },
+      {
+        role: 'assistant',
+        text: 'Created `scripts/redact-backfill.ts` — fetches transcript S3 keys for last 7 days, re-runs redaction, overwrites if changed. Run with DATABASE_URL + S3 env vars.',
+      },
+    ],
     topic: 'openai-key-redaction',
-    messages: [
-      { role: 'user', text: 'Redaction is missing the new OpenAI `sk-proj-` key format (48 chars after prefix).' },
-      { role: 'assistant', text: "Adding `/sk-proj-[A-Za-z0-9_-]{48}/g` and `sk-svcacct-` patterns to the redactor." },
-      { role: 'user', text: 'We should retroactively re-process transcripts from the last 7 days.' },
-      { role: 'assistant', text: "Created `scripts/redact-backfill.ts` — fetches transcript S3 keys for last 7 days, re-runs redaction, overwrites if changed. Run with DATABASE_URL + S3 env vars." },
-    ],
   },
   {
-    topic: 'mcp-server-integration',
     messages: [
-      { role: 'user', text: 'Wire up the GitHub MCP server so Claude Code can create issues and PRs directly.' },
-      { role: 'assistant', text: "Adding the MCP server config to `.claude/settings.json` and documenting the required scopes." },
+      {
+        role: 'user',
+        text: 'Wire up the GitHub MCP server so Claude Code can create issues and PRs directly.',
+      },
+      {
+        role: 'assistant',
+        text: 'Adding the MCP server config to `.claude/settings.json` and documenting the required scopes.',
+      },
       { role: 'user', text: 'The token needs `repo` and `issues:write` scopes.' },
-      { role: 'assistant', text: "Config added. The server exposes `create_issue`, `list_issues`, `create_pull_request`, and `search_code`. Tested with a dummy issue — working. Store the PAT in `GITHUB_TOKEN` env var." },
+      {
+        role: 'assistant',
+        text: 'Config added. The server exposes `create_issue`, `list_issues`, `create_pull_request`, and `search_code`. Tested with a dummy issue — working. Store the PAT in `GITHUB_TOKEN` env var.',
+      },
     ],
+    topic: 'mcp-server-integration',
   },
   {
-    topic: 'timescale-retention',
     messages: [
-      { role: 'user', text: 'Set up a data retention policy — drop events older than 90 days automatically.' },
-      { role: 'assistant', text: "Adding a TimescaleDB retention policy on the `events` hypertable." },
+      {
+        role: 'user',
+        text: 'Set up a data retention policy — drop events older than 90 days automatically.',
+      },
+      {
+        role: 'assistant',
+        text: 'Adding a TimescaleDB retention policy on the `events` hypertable.',
+      },
       { role: 'user', text: 'Also compress chunks older than 7 days to save space.' },
-      { role: 'assistant', text: "Done: `SELECT add_retention_policy('events', INTERVAL '90 days')` and compression policy at 7 days. Added to `packages/db/sql/migrations/0003_retention.sql`." },
+      {
+        role: 'assistant',
+        text: "Done: `SELECT add_retention_policy('events', INTERVAL '90 days')` and compression policy at 7 days. Added to `packages/db/sql/migrations/0003_retention.sql`.",
+      },
     ],
+    topic: 'timescale-retention',
   },
   {
-    topic: 'prisma-client-error',
     messages: [
-      { role: 'user', text: 'Getting `PrismaClientKnownRequestError P2002` on session create — unique constraint violation.' },
-      { role: 'assistant', text: "P2002 on session create means `session_id` collision. Let me check how the session ID is generated." },
+      {
+        role: 'user',
+        text: 'Getting `PrismaClientKnownRequestError P2002` on session create — unique constraint violation.',
+      },
+      {
+        role: 'assistant',
+        text: 'P2002 on session create means `session_id` collision. Let me check how the session ID is generated.',
+      },
       { role: 'user', text: 'The hook is reusing the same UUID across restarts.' },
-      { role: 'assistant', text: "The hook should generate a fresh UUID on each `SessionStart` event, not load it from a config file. Fixed the hook to call `crypto.randomUUID()` at boot. Added an upsert path in ingest as a safety net for resume flows." },
+      {
+        role: 'assistant',
+        text: 'The hook should generate a fresh UUID on each `SessionStart` event, not load it from a config file. Fixed the hook to call `crypto.randomUUID()` at boot. Added an upsert path in ingest as a safety net for resume flows.',
+      },
     ],
+    topic: 'prisma-client-error',
   },
 ];
 
@@ -218,7 +349,9 @@ async function insertEvents(
   const eventCount = faker.number.int({ max: Math.min(14, toolCallCount + 3), min: 3 });
 
   for (let e = 0; e < eventCount; e++) {
-    const ts = new Date(startedAt.getTime() + Math.floor((e / Math.max(1, eventCount - 1)) * durationMs));
+    const ts = new Date(
+      startedAt.getTime() + Math.floor((e / Math.max(1, eventCount - 1)) * durationMs),
+    );
     const eventId = crypto.randomUUID();
 
     if (e === 0) {
@@ -258,7 +391,12 @@ async function insertEvents(
 
       if (useMcp) {
         const mcpServer = faker.helpers.arrayElement(['github', 'filesystem', 'web-search']);
-        const mcpTool = faker.helpers.arrayElement(['list_files', 'read_file', 'search_code', 'create_issue']);
+        const mcpTool = faker.helpers.arrayElement([
+          'list_files',
+          'read_file',
+          'search_code',
+          'create_issue',
+        ]);
         await db.$executeRaw`
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_duration_ms, tool_was_denied,
@@ -288,8 +426,14 @@ async function insertEvents(
 async function insertTranscript(sessionId: string, startedAt: Date, durationMs: number) {
   const template = faker.helpers.arrayElement(TRANSCRIPT_TEMPLATES);
   for (let i = 0; i < template.messages.length; i++) {
-    const ts = new Date(startedAt.getTime() + Math.floor((i / template.messages.length) * durationMs));
-    const { role, text } = template.messages[i];
+    const ts = new Date(
+      startedAt.getTime() + Math.floor((i / template.messages.length) * durationMs),
+    );
+    const msg = template.messages[i];
+    if (!msg) {
+      continue;
+    }
+    const { role, text } = msg;
     await db.$executeRaw`
       INSERT INTO transcript_index (session_id, message_idx, role, ts, content_text)
       VALUES (${sessionId}::uuid, ${i}, ${role}, ${ts}, ${text})
@@ -305,18 +449,33 @@ const BASIC_LOGIN = 'demo-dev';
 
 async function basicSeed() {
   const existing = await db.user.findUnique({ where: { githubLogin: BASIC_LOGIN } });
-  if (existing) await db.session.deleteMany({ where: { userId: existing.id } });
+  if (existing) {
+    await db.session.deleteMany({ where: { userId: existing.id } });
+  }
   const existingPw = await db.user.findUnique({ where: { email: SEED_PW_EMAIL } });
-  if (existingPw) await db.user.delete({ where: { id: existingPw.id } });
+  if (existingPw) {
+    await db.user.delete({ where: { id: existingPw.id } });
+  }
   const existingAdmin = await db.user.findUnique({ where: { email: SEED_ADMIN_EMAIL } });
-  if (existingAdmin) await db.user.delete({ where: { id: existingAdmin.id } });
+  if (existingAdmin) {
+    await db.user.delete({ where: { id: existingAdmin.id } });
+  }
   await db.repo.deleteMany({ where: { githubOwner: 'demo-org' } });
-  if (existing) await db.user.delete({ where: { id: existing.id } });
+  if (existing) {
+    await db.user.delete({ where: { id: existing.id } });
+  }
   const existingTeam = await db.team.findUnique({ where: { githubSlug: 'demo-org' } });
-  if (existingTeam) await db.team.delete({ where: { id: existingTeam.id } });
+  if (existingTeam) {
+    await db.team.delete({ where: { id: existingTeam.id } });
+  }
 
   const team = await db.team.create({
-    data: { githubId: BigInt(1234567), githubSlug: 'demo-org', name: 'Demo Org', syncedAt: new Date() },
+    data: {
+      githubId: BigInt(1234567),
+      githubSlug: 'demo-org',
+      name: 'Demo Org',
+      syncedAt: new Date(),
+    },
   });
 
   const user = await db.user.create({
@@ -415,7 +574,12 @@ async function basicSeed() {
           claudeCodeVersion: '1.0.0',
           cwd: `/home/${BASIC_LOGIN}/projects/demo-app`,
           endedAt,
-          gitBranch: faker.helpers.arrayElement(['main', 'feat/new-feature', 'fix/bug-123', 'chore/deps']),
+          gitBranch: faker.helpers.arrayElement([
+            'main',
+            'feat/new-feature',
+            'fix/bug-123',
+            'chore/deps',
+          ]),
           gitCommit: faker.git.commitSha({ length: 40 }),
           lastEventAt: endedAt,
           os: faker.helpers.arrayElement(['darwin', 'linux']),
@@ -538,7 +702,9 @@ async function basicSeed() {
     }
   }
 
-  console.log(`Seed complete. Created: 1 team, 3 users, 1 repo, ${sessions.length} sessions, 5 PRs.`);
+  console.log(
+    `Seed complete. Created: 1 team, 3 users, 1 repo, ${sessions.length} sessions, 5 PRs.`,
+  );
   console.log(`  GitHub user  : ${BASIC_EMAIL} (login via GitHub OAuth)`);
   console.log(`  Password user: ${SEED_PW_EMAIL} / ${SEED_PW_PASSWORD}`);
   console.log(`  Admin user   : ${SEED_ADMIN_EMAIL} / ${SEED_ADMIN_PASSWORD} (ORG_ADMIN)`);
@@ -550,71 +716,91 @@ const EXT_ORG = 'demo-org';
 
 const EXT_DEVS = [
   {
-    login: 'alice-coder',
-    email: 'alice@example.com',
-    name: 'Alice Chen',
-    githubId: 10_000_001,
-    role: 'LEAD' as const,
     avgPerDay: 3.0,
     daysAgo: 180,
+    email: 'alice@example.com',
+    githubId: 10_000_001,
+    login: 'alice-coder',
+    name: 'Alice Chen',
+    role: 'LEAD' as const,
   },
   {
-    login: 'bob-engineer',
-    email: 'bob@example.com',
-    name: 'Bob Torres',
-    githubId: 10_000_002,
-    role: 'MEMBER' as const,
     avgPerDay: 2.0,
     daysAgo: 180,
+    email: 'bob@example.com',
+    githubId: 10_000_002,
+    login: 'bob-engineer',
+    name: 'Bob Torres',
+    role: 'MEMBER' as const,
   },
   {
-    login: 'carol-dev',
-    email: 'carol@example.com',
-    name: 'Carol Mbeki',
-    githubId: 10_000_003,
-    role: 'MEMBER' as const,
     avgPerDay: 1.2,
     daysAgo: 180,
+    email: 'carol@example.com',
+    githubId: 10_000_003,
+    login: 'carol-dev',
+    name: 'Carol Mbeki',
+    role: 'MEMBER' as const,
   },
   {
-    login: 'dave-lead',
-    email: 'dave@example.com',
-    name: 'Dave Park',
-    githubId: 10_000_004,
-    role: 'LEAD' as const,
     avgPerDay: 0.6,
     daysAgo: 180,
+    email: 'dave@example.com',
+    githubId: 10_000_004,
+    login: 'dave-lead',
+    name: 'Dave Park',
     orgRole: 'ORG_ADMIN' as const,
+    role: 'LEAD' as const,
   },
   {
-    login: 'eva-new',
-    email: 'eva@example.com',
-    name: 'Eva Okonkwo',
-    githubId: 10_000_005,
-    role: 'MEMBER' as const,
     avgPerDay: 2.0,
     daysAgo: 45,
+    email: 'eva@example.com',
+    githubId: 10_000_005,
+    login: 'eva-new',
+    name: 'Eva Okonkwo',
+    role: 'MEMBER' as const,
   },
 ];
 
 const EXT_REPOS = [
   {
-    name: 'demo-app',
-    githubId: 20_000_001n,
+    branches: [
+      'main',
+      'feat/dark-mode',
+      'fix/login-redirect',
+      'feat/dashboard-v2',
+      'chore/upgrade-react',
+      'feat/notifications',
+    ],
     cwdSuffix: 'projects/demo-app',
-    branches: ['main', 'feat/dark-mode', 'fix/login-redirect', 'feat/dashboard-v2', 'chore/upgrade-react', 'feat/notifications'],
+    githubId: 20_000_001n,
+    name: 'demo-app',
   },
   {
-    name: 'api-service',
-    githubId: 20_000_002n,
+    branches: [
+      'main',
+      'feat/rate-limiting',
+      'fix/memory-leak',
+      'feat/graphql',
+      'fix/auth-token',
+      'chore/update-prisma',
+    ],
     cwdSuffix: 'projects/api-service',
-    branches: ['main', 'feat/rate-limiting', 'fix/memory-leak', 'feat/graphql', 'fix/auth-token', 'chore/update-prisma'],
+    githubId: 20_000_002n,
+    name: 'api-service',
   },
   {
-    name: 'infra-scripts',
-    githubId: 20_000_003n,
+    branches: [
+      'main',
+      'feat/k8s-config',
+      'fix/terraform-state',
+      'chore/update-helm',
+      'feat/monitoring',
+    ],
     cwdSuffix: 'code/infra-scripts',
-    branches: ['main', 'feat/k8s-config', 'fix/terraform-state', 'chore/update-helm', 'feat/monitoring'],
+    githubId: 20_000_003n,
+    name: 'infra-scripts',
   },
 ];
 
@@ -629,33 +815,201 @@ type PRDef = {
 };
 
 const EXT_PRS: PRDef[] = [
-  { repoName: 'demo-app',      number: 201, title: 'feat: dark mode toggle',                      state: 'MERGED', labels: ['feature', 'frontend'],   headBranch: 'feat/dark-mode',         authorLogin: 'alice-coder'  },
-  { repoName: 'demo-app',      number: 202, title: 'fix: login redirect after OAuth',              state: 'MERGED', labels: ['bug', 'auth'],            headBranch: 'fix/login-redirect',     authorLogin: 'bob-engineer' },
-  { repoName: 'demo-app',      number: 203, title: 'feat: dashboard v2 redesign',                  state: 'OPEN',   labels: ['feature', 'design'],      headBranch: 'feat/dashboard-v2',      authorLogin: 'alice-coder'  },
-  { repoName: 'demo-app',      number: 204, title: 'chore: upgrade React to 19.2',                 state: 'MERGED', labels: ['chore', 'deps'],          headBranch: 'chore/upgrade-react',    authorLogin: 'carol-dev'    },
-  { repoName: 'demo-app',      number: 205, title: 'feat: real-time notifications via SSE',        state: 'OPEN',   labels: ['feature'],                headBranch: 'feat/notifications',     authorLogin: 'eva-new'      },
-  { repoName: 'demo-app',      number: 206, title: 'fix: cost chart stale on date range change',   state: 'MERGED', labels: ['bug'],                    headBranch: 'fix/cost-chart',         authorLogin: 'bob-engineer' },
-  { repoName: 'demo-app',      number: 207, title: 'feat: team cost breakdown chart',              state: 'MERGED', labels: ['feature', 'dashboard'],   headBranch: 'feat/team-cost-chart',   authorLogin: 'alice-coder'  },
-  { repoName: 'demo-app',      number: 208, title: 'refactor: extract DateRangePicker component',  state: 'CLOSED', labels: ['refactor'],               headBranch: 'refactor/date-picker',   authorLogin: 'eva-new'      },
-  { repoName: 'api-service',   number: 301, title: 'feat: rate limiting on ingest endpoint',       state: 'MERGED', labels: ['feature', 'security'],    headBranch: 'feat/rate-limiting',     authorLogin: 'alice-coder'  },
-  { repoName: 'api-service',   number: 302, title: 'fix: memory leak in event flusher',            state: 'MERGED', labels: ['bug', 'performance'],     headBranch: 'fix/memory-leak',        authorLogin: 'dave-lead'    },
-  { repoName: 'api-service',   number: 303, title: 'feat: GraphQL endpoint for session queries',   state: 'OPEN',   labels: ['feature', 'graphql'],     headBranch: 'feat/graphql',           authorLogin: 'bob-engineer' },
-  { repoName: 'api-service',   number: 304, title: 'fix: HMAC timing attack in webhook handler',   state: 'MERGED', labels: ['bug', 'security'],        headBranch: 'fix/webhook-hmac',       authorLogin: 'alice-coder'  },
-  { repoName: 'api-service',   number: 305, title: 'feat: pagination for /api/users',              state: 'MERGED', labels: ['feature', 'api'],         headBranch: 'feat/paginate-users',    authorLogin: 'carol-dev'    },
-  { repoName: 'api-service',   number: 306, title: 'chore: bump @prisma/client to 7.1',            state: 'MERGED', labels: ['chore', 'deps'],          headBranch: 'chore/update-prisma',    authorLogin: 'carol-dev'    },
-  { repoName: 'api-service',   number: 307, title: 'fix: webhook signature skipped on parse error',state: 'MERGED', labels: ['bug', 'security'],        headBranch: 'fix/webhook-sig',        authorLogin: 'bob-engineer' },
-  { repoName: 'api-service',   number: 308, title: 'feat: session tags support',                   state: 'OPEN',   labels: ['feature'],                headBranch: 'feat/session-tags',      authorLogin: 'eva-new'      },
-  { repoName: 'infra-scripts', number: 401, title: 'feat: Kubernetes deployment manifests',        state: 'MERGED', labels: ['infra', 'k8s'],           headBranch: 'feat/k8s-config',        authorLogin: 'dave-lead'    },
-  { repoName: 'infra-scripts', number: 402, title: 'fix: Terraform state lock not released',       state: 'MERGED', labels: ['bug', 'terraform'],       headBranch: 'fix/terraform-state',    authorLogin: 'dave-lead'    },
-  { repoName: 'infra-scripts', number: 403, title: 'chore: upgrade Helm charts to v4',             state: 'MERGED', labels: ['chore', 'helm'],          headBranch: 'chore/update-helm',      authorLogin: 'carol-dev'    },
-  { repoName: 'infra-scripts', number: 404, title: 'feat: Grafana monitoring dashboards',          state: 'OPEN',   labels: ['feature', 'monitoring'],  headBranch: 'feat/monitoring',        authorLogin: 'alice-coder'  },
-  { repoName: 'infra-scripts', number: 405, title: 'fix: CI cache broken after Bun upgrade',       state: 'MERGED', labels: ['bug', 'ci'],              headBranch: 'fix/ci-cache',           authorLogin: 'bob-engineer' },
+  {
+    authorLogin: 'alice-coder',
+    headBranch: 'feat/dark-mode',
+    labels: ['feature', 'frontend'],
+    number: 201,
+    repoName: 'demo-app',
+    state: 'MERGED',
+    title: 'feat: dark mode toggle',
+  },
+  {
+    authorLogin: 'bob-engineer',
+    headBranch: 'fix/login-redirect',
+    labels: ['bug', 'auth'],
+    number: 202,
+    repoName: 'demo-app',
+    state: 'MERGED',
+    title: 'fix: login redirect after OAuth',
+  },
+  {
+    authorLogin: 'alice-coder',
+    headBranch: 'feat/dashboard-v2',
+    labels: ['feature', 'design'],
+    number: 203,
+    repoName: 'demo-app',
+    state: 'OPEN',
+    title: 'feat: dashboard v2 redesign',
+  },
+  {
+    authorLogin: 'carol-dev',
+    headBranch: 'chore/upgrade-react',
+    labels: ['chore', 'deps'],
+    number: 204,
+    repoName: 'demo-app',
+    state: 'MERGED',
+    title: 'chore: upgrade React to 19.2',
+  },
+  {
+    authorLogin: 'eva-new',
+    headBranch: 'feat/notifications',
+    labels: ['feature'],
+    number: 205,
+    repoName: 'demo-app',
+    state: 'OPEN',
+    title: 'feat: real-time notifications via SSE',
+  },
+  {
+    authorLogin: 'bob-engineer',
+    headBranch: 'fix/cost-chart',
+    labels: ['bug'],
+    number: 206,
+    repoName: 'demo-app',
+    state: 'MERGED',
+    title: 'fix: cost chart stale on date range change',
+  },
+  {
+    authorLogin: 'alice-coder',
+    headBranch: 'feat/team-cost-chart',
+    labels: ['feature', 'dashboard'],
+    number: 207,
+    repoName: 'demo-app',
+    state: 'MERGED',
+    title: 'feat: team cost breakdown chart',
+  },
+  {
+    authorLogin: 'eva-new',
+    headBranch: 'refactor/date-picker',
+    labels: ['refactor'],
+    number: 208,
+    repoName: 'demo-app',
+    state: 'CLOSED',
+    title: 'refactor: extract DateRangePicker component',
+  },
+  {
+    authorLogin: 'alice-coder',
+    headBranch: 'feat/rate-limiting',
+    labels: ['feature', 'security'],
+    number: 301,
+    repoName: 'api-service',
+    state: 'MERGED',
+    title: 'feat: rate limiting on ingest endpoint',
+  },
+  {
+    authorLogin: 'dave-lead',
+    headBranch: 'fix/memory-leak',
+    labels: ['bug', 'performance'],
+    number: 302,
+    repoName: 'api-service',
+    state: 'MERGED',
+    title: 'fix: memory leak in event flusher',
+  },
+  {
+    authorLogin: 'bob-engineer',
+    headBranch: 'feat/graphql',
+    labels: ['feature', 'graphql'],
+    number: 303,
+    repoName: 'api-service',
+    state: 'OPEN',
+    title: 'feat: GraphQL endpoint for session queries',
+  },
+  {
+    authorLogin: 'alice-coder',
+    headBranch: 'fix/webhook-hmac',
+    labels: ['bug', 'security'],
+    number: 304,
+    repoName: 'api-service',
+    state: 'MERGED',
+    title: 'fix: HMAC timing attack in webhook handler',
+  },
+  {
+    authorLogin: 'carol-dev',
+    headBranch: 'feat/paginate-users',
+    labels: ['feature', 'api'],
+    number: 305,
+    repoName: 'api-service',
+    state: 'MERGED',
+    title: 'feat: pagination for /api/users',
+  },
+  {
+    authorLogin: 'carol-dev',
+    headBranch: 'chore/update-prisma',
+    labels: ['chore', 'deps'],
+    number: 306,
+    repoName: 'api-service',
+    state: 'MERGED',
+    title: 'chore: bump @prisma/client to 7.1',
+  },
+  {
+    authorLogin: 'bob-engineer',
+    headBranch: 'fix/webhook-sig',
+    labels: ['bug', 'security'],
+    number: 307,
+    repoName: 'api-service',
+    state: 'MERGED',
+    title: 'fix: webhook signature skipped on parse error',
+  },
+  {
+    authorLogin: 'eva-new',
+    headBranch: 'feat/session-tags',
+    labels: ['feature'],
+    number: 308,
+    repoName: 'api-service',
+    state: 'OPEN',
+    title: 'feat: session tags support',
+  },
+  {
+    authorLogin: 'dave-lead',
+    headBranch: 'feat/k8s-config',
+    labels: ['infra', 'k8s'],
+    number: 401,
+    repoName: 'infra-scripts',
+    state: 'MERGED',
+    title: 'feat: Kubernetes deployment manifests',
+  },
+  {
+    authorLogin: 'dave-lead',
+    headBranch: 'fix/terraform-state',
+    labels: ['bug', 'terraform'],
+    number: 402,
+    repoName: 'infra-scripts',
+    state: 'MERGED',
+    title: 'fix: Terraform state lock not released',
+  },
+  {
+    authorLogin: 'carol-dev',
+    headBranch: 'chore/update-helm',
+    labels: ['chore', 'helm'],
+    number: 403,
+    repoName: 'infra-scripts',
+    state: 'MERGED',
+    title: 'chore: upgrade Helm charts to v4',
+  },
+  {
+    authorLogin: 'alice-coder',
+    headBranch: 'feat/monitoring',
+    labels: ['feature', 'monitoring'],
+    number: 404,
+    repoName: 'infra-scripts',
+    state: 'OPEN',
+    title: 'feat: Grafana monitoring dashboards',
+  },
+  {
+    authorLogin: 'bob-engineer',
+    headBranch: 'fix/ci-cache',
+    labels: ['bug', 'ci'],
+    number: 405,
+    repoName: 'infra-scripts',
+    state: 'MERGED',
+    title: 'fix: CI cache broken after Bun upgrade',
+  },
 ];
 
 async function extensiveSeed() {
   // ── Cleanup ───────────────────────────────────────────────────────────────────
-  const allEmails = [...EXT_DEVS.map(d => d.email), SEED_PW_EMAIL, SEED_ADMIN_EMAIL];
-  const allLogins = EXT_DEVS.map(d => d.login);
+  const allEmails = [...EXT_DEVS.map((d) => d.email), SEED_PW_EMAIL, SEED_ADMIN_EMAIL];
+  const allLogins = EXT_DEVS.map((d) => d.login);
 
   const existingUsers = await db.user.findMany({
     where: { OR: [{ email: { in: allEmails } }, { githubLogin: { in: allLogins } }] },
@@ -676,7 +1030,12 @@ async function extensiveSeed() {
 
   // ── Team ──────────────────────────────────────────────────────────────────────
   const team = await db.team.create({
-    data: { githubId: BigInt(2_000_000), githubSlug: EXT_ORG, name: 'Demo Org', syncedAt: new Date() },
+    data: {
+      githubId: BigInt(2_000_000),
+      githubSlug: EXT_ORG,
+      name: 'Demo Org',
+      syncedAt: new Date(),
+    },
   });
 
   // ── Users ─────────────────────────────────────────────────────────────────────
@@ -770,14 +1129,19 @@ async function extensiveSeed() {
   const sessionsByDev = new Map<string, string[]>(); // login → sessionIds
 
   for (const dev of EXT_DEVS) {
-    const devId = devUserMap.get(dev.login)!;
+    const devId = devUserMap.get(dev.login);
+    if (!devId) {
+      continue;
+    }
     const devSessions: string[] = [];
     const baseCount = Math.max(1, Math.round(dev.avgPerDay));
 
     for (let daysAgo = dev.daysAgo; daysAgo >= 0; daysAgo--) {
       const date = new Date(now - daysAgo * 86_400_000);
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      if (isWeekend && faker.datatype.boolean({ probability: 0.6 })) continue;
+      if (isWeekend && faker.datatype.boolean({ probability: 0.6 })) {
+        continue;
+      }
 
       const dayCount = faker.helpers.weightedArrayElement([
         { value: 0, weight: Math.max(5, 22 - baseCount * 4) },
@@ -789,7 +1153,10 @@ async function extensiveSeed() {
 
       for (let i = 0; i < dayCount; i++) {
         const repo = faker.helpers.arrayElement(EXT_REPOS);
-        const repoId = repoMap.get(repo.name)!;
+        const repoId = repoMap.get(repo.name);
+        if (!repoId) {
+          continue;
+        }
         const model = faker.helpers.weightedArrayElement(MODELS);
         const status = faker.helpers.weightedArrayElement(SESSION_STATUSES);
         const ccVersion = faker.helpers.arrayElement(CC_VERSIONS);
@@ -798,9 +1165,15 @@ async function extensiveSeed() {
         const startedAt = new Date(date.getTime() + workdayOffset + i * 3_600_000);
 
         let durationMs = weightedDurationMs();
-        if (status === 'CRASHED') durationMs = Math.round(durationMs * faker.number.float({ max: 0.5, min: 0.1 }));
-        if (status === 'TIMED_OUT') durationMs = Math.round(durationMs * faker.number.float({ max: 2.5, min: 1.2 }));
-        if (status === 'ABANDONED') durationMs = Math.round(durationMs * faker.number.float({ max: 0.8, min: 0.2 }));
+        if (status === 'CRASHED') {
+          durationMs = Math.round(durationMs * faker.number.float({ max: 0.5, min: 0.1 }));
+        }
+        if (status === 'TIMED_OUT') {
+          durationMs = Math.round(durationMs * faker.number.float({ max: 2.5, min: 1.2 }));
+        }
+        if (status === 'ABANDONED') {
+          durationMs = Math.round(durationMs * faker.number.float({ max: 0.8, min: 0.2 }));
+        }
 
         const endedAt = new Date(startedAt.getTime() + durationMs);
         const inputTokens = faker.number.int({ max: 80000, min: 500 });
@@ -865,7 +1238,10 @@ async function extensiveSeed() {
 
   // ── Pull Requests ─────────────────────────────────────────────────────────────
   for (const pr of EXT_PRS) {
-    const repoId = repoMap.get(pr.repoName)!;
+    const repoId = repoMap.get(pr.repoName);
+    if (!repoId) {
+      continue;
+    }
     const authorUserId = devUserMap.get(pr.authorLogin) ?? null;
     const openedAt = new Date(now - faker.number.int({ max: 60, min: 3 }) * 86_400_000);
     const isMerged = pr.state === 'MERGED';
@@ -877,8 +1253,8 @@ async function extensiveSeed() {
       ? new Date(openedAt.getTime() + faker.number.int({ max: 7, min: 1 }) * 86_400_000)
       : mergedAt;
 
-    const otherLogins = EXT_DEVS.map(d => d.login).filter(l => l !== pr.authorLogin);
-    const reviewerLogins = faker.helpers.arrayElements(otherLogins, { min: 1, max: 2 });
+    const otherLogins = EXT_DEVS.map((d) => d.login).filter((l) => l !== pr.authorLogin);
+    const reviewerLogins = faker.helpers.arrayElements(otherLogins, { max: 2, min: 1 });
 
     await db.pullRequest.create({
       data: {
@@ -940,10 +1316,10 @@ async function extensiveSeed() {
     }
   }
 
-  const mergedCount = EXT_PRS.filter(p => p.state === 'MERGED').length;
+  const mergedCount = EXT_PRS.filter((p) => p.state === 'MERGED').length;
   console.log(`\nExtensive seed complete.`);
   console.log(`  Team    : ${EXT_ORG}`);
-  console.log(`  Repos   : ${EXT_REPOS.map(r => r.name).join(', ')}`);
+  console.log(`  Repos   : ${EXT_REPOS.map((r) => r.name).join(', ')}`);
   console.log(`  Sessions: ${totalSessions} across ${EXT_DEVS.length} devs`);
   console.log(`  PRs     : ${EXT_PRS.length} (${mergedCount} merged)`);
   console.log(`  Password user: ${SEED_PW_EMAIL} / ${SEED_PW_PASSWORD}`);

@@ -53,9 +53,10 @@ function startMockServer(responses: number[]): {
       if (req.method === 'POST' && new URL(req.url).pathname === '/v1/events') {
         return req
           .json()
-          .then((body: { events: unknown[] }) => {
+          .then((raw: unknown) => {
+            const body = raw as { events: unknown[] };
             received.push({ count: body.events?.length ?? 0, events: body.events ?? [] });
-            return new Response(JSON.stringify({ ok: true }), { status });
+            return new Response(JSON.stringify({ ok: true }), { status: status ?? 200 });
           })
           .catch(() => new Response('bad request', { status: 400 }));
       }
@@ -201,8 +202,8 @@ describe('flusher POST batches', () => {
       reader.close();
 
       expect(received.length).toBe(2);
-      expect(received[0].count).toBe(100);
-      expect(received[1].count).toBe(50);
+      expect(received[0]?.count).toBe(100);
+      expect(received[1]?.count).toBe(50);
       expect(finalDepth).toBe(0);
     } finally {
       server.stop(true);
@@ -241,7 +242,7 @@ describe('flusher POST batches', () => {
       });
       expect(res1.status).toBe(500);
       reader.markAttempt(ids);
-      expect(reader.drain(100)[0].attempts).toBe(1);
+      expect(reader.drain(100)[0]?.attempts).toBe(1);
 
       // Attempt 2: 500 again
       const res2 = await fetch(`${INGEST_BASE_URL}/v1/events`, {
@@ -251,7 +252,7 @@ describe('flusher POST batches', () => {
       });
       expect(res2.status).toBe(500);
       reader.markAttempt(ids);
-      expect(reader.drain(100)[0].attempts).toBe(2);
+      expect(reader.drain(100)[0]?.attempts).toBe(2);
 
       // Attempt 3: 200
       const res3 = await fetch(`${INGEST_BASE_URL}/v1/events`, {

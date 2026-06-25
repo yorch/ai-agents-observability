@@ -34,7 +34,7 @@ function startMockIngestServer(statusCode = 200): {
       const url = new URL(req.url);
       const match = url.pathname.match(/^\/v1\/transcripts\/(.+)$/);
       if (req.method === 'POST' && match) {
-        const sessionId = match[1];
+        const sessionId = match[1] ?? '';
         const body = new Uint8Array(await req.arrayBuffer());
         received.push({
           bodyBytes: body,
@@ -164,13 +164,13 @@ describe('shipper upload', () => {
       expect(received.length).toBe(1);
 
       const upload = received[0];
-      expect(upload.sessionId).toBe(sessionId);
-      expect(upload.contentEncoding).toBeNull();
-      expect(upload.contentType).toBe('application/x-zstd');
-      expect(upload.contentHash).toBe(hash);
+      expect(upload?.sessionId).toBe(sessionId);
+      expect(upload?.contentEncoding).toBeNull();
+      expect(upload?.contentType).toBe('application/x-zstd');
+      expect(upload?.contentHash).toBe(hash);
 
       // Decompress and verify AWS key was redacted
-      const decompressed = await zstdDecompress(upload.bodyBytes);
+      const decompressed = await zstdDecompress(upload?.bodyBytes ?? new Uint8Array());
       expect(decompressed).not.toContain('AKIAIOSFODNN7EXAMPLE');
       // Should contain redacted placeholder instead
       expect(decompressed).toContain('[REDACTED');

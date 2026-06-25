@@ -145,10 +145,10 @@ describe('payload → Event', () => {
 function stubStdin(payload: string): () => void {
   const original = Bun.stdin.stream.bind(Bun.stdin);
   Bun.stdin.stream = () =>
-    new ReadableStream<Uint8Array>({
+    new ReadableStream<Uint8Array<ArrayBuffer>>({
       start(controller) {
         if (payload.length > 0) {
-          controller.enqueue(new TextEncoder().encode(payload));
+          controller.enqueue(new TextEncoder().encode(payload) as Uint8Array<ArrayBuffer>);
         }
         controller.close();
       },

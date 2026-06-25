@@ -1,9 +1,9 @@
 # ai-agents-observability — Design Document
 
 **Project:** `ai-agents-observability`
-**Status:** v1 — Phase 1 + 2 implemented, Phase 3 (team views) in progress
+**Status:** v1 — Phases 1–4 implemented; team/org dashboard improvements landed (P3/P4 additions)
 **Owner:** Jorge (SentinelOne)
-**Last updated:** 2026-06-06
+**Last updated:** 2026-06-25
 **Audience:** Internal — dev tools team, leadership stakeholders
 
 ---
@@ -742,7 +742,8 @@ Matches are replaced with `[REDACTED:type]` placeholders (square brackets, not a
 - Session shape clusters (exploratory / implementation / debugging / planning based on tool histograms)
 - Cost-per-accepted-edit, cost-per-LOC
 - Friction scores (composite: retries + denials + interrupts + abandonment)
-- Cache hit ratios
+- Cache hit ratios (surfaced as **cache efficiency** = `cache_read_tokens / (input_tokens + cache_read_tokens)` on team and org stat cards)
+- **Period-over-period deltas**: for any date range window *W*, the prior period of equal length is queried and the percentage change is shown alongside each stat card — requires no additional stored columns, computed at read time from the same aggregation query run twice
 - Time-of-day / day-of-week patterns
 - Wasted spend proxies (sessions ending in `/clear` < N min, no edits, abandoned)
 - Files-read-but-never-edited (exploration vs action ratio)
@@ -886,6 +887,13 @@ Resist the urge to build all of it. The MVP that proves value:
 15. Drill into individual sessions (only when user opted in)
 16. Audit-log feed in "My Agents" — "who looked at me"
 
+*P3 additions (landed 2026-06-25):*
+
+- Date range selector (7d/30d/90d) on the team dashboard — all stat cards and charts scope to the chosen window
+- Period-over-period delta indicators on stat cards — compare current window to the prior period of equal length
+- Team PR rollup tab (`/team/[slug]/prs`) — merged PRs with per-PR cost, session count, and time-to-merge
+- Cache efficiency metric — `cache_read_tokens / (input_tokens + cache_read_tokens)` surfaced as a stat card; teams optimizing prompt structure see immediate feedback
+
 **Success criteria:** Team leads use weekly; no privacy-related fires.
 
 ### 12.4 Phase 4 — Org Views & Search
@@ -895,6 +903,13 @@ Resist the urge to build all of it. The MVP that proves value:
 19. Free-text transcript search (Postgres FTS, swappable for Meilisearch)
 20. Aggregate-only viewer role for leadership
 21. Anomaly surface (spend spikes, high error rates)
+
+*P4 additions (landed 2026-06-25):*
+
+- Date range selector (7d/30d/90d) on the org dashboard — same UX as the team dashboard, scopes all org-level stat cards and charts
+- Period-over-period delta indicators on org stat cards — compare current window to prior period
+- Org adoption funnel widget — active users → session starters → PR authors, showing week-over-week conversion at each stage
+- Per-team model governance table (org admin only) — shows which models each team has used in the selected window, flagging any models outside the approved set; gated behind `OrgRole.ORG_ADMIN`
 
 **Success criteria:** Quarterly leadership readout uses this instead of ad-hoc spreadsheets.
 
@@ -1026,3 +1041,4 @@ Beyond Phase 5, the natural extensions:
 | ---------- | ------------------- | ------------- |
 | 2026-05-16 | Jorge (with Claude) | Initial draft |
 | 2026-06-24 | Jorge (with Claude) | Added Phases 6–9 to §12 (Hardening, Insight Surfaces & Search, Multi-Agent & Cost Model, Alerting & Governance); scoped threshold-based alerting out of the §2.2 non-goal |
+| 2026-06-25 | Jorge (with Claude) | Updated §12.3 and §12.4 with P3/P4 dashboard additions (date range selector, period-over-period deltas, team PR tab, org adoption funnel, model governance table, cache efficiency metric); updated §10.2 with cache efficiency and period-delta computation notes; updated status header |

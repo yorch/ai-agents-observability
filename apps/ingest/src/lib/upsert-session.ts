@@ -29,8 +29,6 @@ type SessionAgg = {
   os: string | null;
   permissionDenyCount: number;
   permissionPromptCount: number;
-  githubLogin: string | null;
-  githubTeam: string | null;
   prCiStatus: string | null;
   primaryModel: string | null;
   prNumber: number | null;

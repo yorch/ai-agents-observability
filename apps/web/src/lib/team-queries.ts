@@ -1,12 +1,14 @@
 import { Prisma } from '@ai-agents-observability/db';
 
 import { getPrisma } from './prisma';
+import { daysAgo } from './time';
 import { labelToolRows } from './tool-usage';
 
 const toUuidList = (ids: string[]) => Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`));
 
 export type TeamSummary = {
   activeMembers: number;
+  cacheHitRate: number;
   sessionCount: number;
   totalCostUsd: number;
   totalHours: number;
@@ -82,39 +84,86 @@ export async function resolveTeamVisibility(
   return { totalCount: allIds.length, visibleIds };
 }
 
-export async function getTeamSummary(
+async function getTeamSummaryWindow(
   since: Date,
+  until: Date | undefined,
   visibleIds: string[],
   totalMemberCount: number,
 ): Promise<TeamSummary> {
   if (visibleIds.length === 0) {
-    return { activeMembers: totalMemberCount, sessionCount: 0, totalCostUsd: 0, totalHours: 0 };
+    return {
+      activeMembers: totalMemberCount,
+      cacheHitRate: 0,
+      sessionCount: 0,
+      totalCostUsd: 0,
+      totalHours: 0,
+    };
   }
 
   const prisma = getPrisma();
   const uuids = toUuidList(visibleIds);
 
-  const [agg, [hoursRow]] = await Promise.all([
+  const untilClause = until ? Prisma.sql`AND started_at < ${until}` : Prisma.sql``;
+  const untilClauseEnded = until ? Prisma.sql`AND started_at < ${until}` : Prisma.sql``;
+
+  const [agg, [statsRow]] = await Promise.all([
     prisma.session.aggregate({
       _count: { sessionId: true },
       _sum: { totalCostUsd: true },
-      where: { startedAt: { gte: since }, userId: { in: visibleIds } },
+      where: {
+        startedAt: { gte: since, ...(until ? { lt: until } : {}) },
+        userId: { in: visibleIds },
+      },
     }),
-    prisma.$queryRaw<[{ total_seconds: number }]>(Prisma.sql`
-      SELECT COALESCE(EXTRACT(EPOCH FROM SUM(ended_at - started_at)), 0) AS total_seconds
+    prisma.$queryRaw<
+      [{ cache_read: bigint; input_tokens: bigint; total_seconds: number }]
+    >(Prisma.sql`
+      SELECT
+        COALESCE(EXTRACT(EPOCH FROM SUM(ended_at - started_at)), 0) AS total_seconds,
+        COALESCE(SUM(total_cache_read), 0)                          AS cache_read,
+        COALESCE(SUM(total_input_tokens), 0)                        AS input_tokens
       FROM sessions
       WHERE user_id IN (${uuids})
         AND started_at >= ${since}
+        ${untilClause}
         AND ended_at IS NOT NULL
     `),
   ]);
 
+  // For cache hit rate the denominator includes all sessions (not just ended ones),
+  // so run a second aggregate that doesn't filter on ended_at.
+  const [cacheRow] = await prisma.$queryRaw<
+    [{ cache_read: bigint; input_tokens: bigint }]
+  >(Prisma.sql`
+    SELECT
+      COALESCE(SUM(total_cache_read), 0)    AS cache_read,
+      COALESCE(SUM(total_input_tokens), 0)  AS input_tokens
+    FROM sessions
+    WHERE user_id IN (${uuids})
+      AND started_at >= ${since}
+      ${untilClauseEnded}
+  `);
+
+  const cacheRead = Number(cacheRow?.cache_read ?? 0);
+  const inputTokens = Number(cacheRow?.input_tokens ?? 0);
+  const denom = inputTokens + cacheRead;
+  const cacheHitRate = denom > 0 ? (cacheRead / denom) * 100 : 0;
+
   return {
     activeMembers: totalMemberCount,
+    cacheHitRate,
     sessionCount: agg._count.sessionId,
     totalCostUsd: Number(agg._sum.totalCostUsd ?? 0),
-    totalHours: Number(hoursRow?.total_seconds ?? 0) / 3600,
+    totalHours: Number(statsRow?.total_seconds ?? 0) / 3600,
   };
+}
+
+export async function getTeamSummary(
+  since: Date,
+  visibleIds: string[],
+  totalMemberCount: number,
+): Promise<TeamSummary> {
+  return getTeamSummaryWindow(since, undefined, visibleIds, totalMemberCount);
 }
 
 export async function getTeamTopTools(
@@ -278,4 +327,158 @@ export async function getTeamRoster(teamId: string, since: Date): Promise<Roster
   }
 
   return members;
+}
+
+// ── Feature B + E: delta-aware summary ────────────────────────────────────────
+
+export async function getTeamSummaryWithDelta(
+  range: number,
+  visibleIds: string[],
+  totalMemberCount: number,
+): Promise<{
+  current: TeamSummary;
+  deltas: {
+    activeMembers: number | null;
+    cacheHitRate: number | null;
+    sessionCount: number | null;
+    totalCostUsd: number | null;
+    totalHours: number | null;
+  };
+}> {
+  const currentStart = daysAgo(range);
+  const priorStart = daysAgo(2 * range);
+  const priorEnd = currentStart;
+
+  const [current, prior] = await Promise.all([
+    getTeamSummaryWindow(currentStart, undefined, visibleIds, totalMemberCount),
+    getTeamSummaryWindow(priorStart, priorEnd, visibleIds, totalMemberCount),
+  ]);
+
+  const delta = (cur: number, prev: number): number | null =>
+    prev > 0 ? (cur - prev) / prev : null;
+
+  // For activeMembers, compute distinct active users per window rather than
+  // returning the static roster count for both periods.
+  let activeMembersDelta: number | null = null;
+  if (visibleIds.length > 0) {
+    const uuids = toUuidList(visibleIds);
+    const [curActiveRow, priorActiveRow] = await Promise.all([
+      getPrisma().$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
+        SELECT COUNT(DISTINCT user_id) AS cnt
+        FROM sessions
+        WHERE user_id IN (${uuids})
+          AND started_at >= ${currentStart}
+      `),
+      getPrisma().$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
+        SELECT COUNT(DISTINCT user_id) AS cnt
+        FROM sessions
+        WHERE user_id IN (${uuids})
+          AND started_at >= ${priorStart}
+          AND started_at < ${priorEnd}
+      `),
+    ]);
+    const curActive = Number(curActiveRow[0]?.cnt ?? 0);
+    const priorActive = Number(priorActiveRow[0]?.cnt ?? 0);
+    activeMembersDelta = delta(curActive, priorActive);
+  }
+
+  return {
+    current,
+    deltas: {
+      activeMembers: activeMembersDelta,
+      cacheHitRate: delta(current.cacheHitRate, prior.cacheHitRate),
+      sessionCount: delta(current.sessionCount, prior.sessionCount),
+      totalCostUsd: delta(current.totalCostUsd, prior.totalCostUsd),
+      totalHours: delta(current.totalHours, prior.totalHours),
+    },
+  };
+}
+
+// ── Feature C: merged PR rollups ───────────────────────────────────────────────
+
+export type TeamPrRollupRow = {
+  authorGithubLogin: string;
+  mergedAt: Date;
+  prNumber: number;
+  repoName: string;
+  repoOwner: string;
+  sessionCount: number;
+  timeToMergeHours: number | null;
+  title: string | null;
+  totalCostUsd: number;
+};
+
+export async function getTeamPrRollups(
+  since: Date,
+  visibleIds: string[],
+  limit = 50,
+): Promise<TeamPrRollupRow[]> {
+  if (visibleIds.length === 0) {
+    return [];
+  }
+
+  const uuids = toUuidList(visibleIds);
+
+  const rows = await getPrisma().$queryRaw<
+    {
+      author_github_login: string;
+      merged_at: Date;
+      pr_number: number;
+      repo_name: string;
+      repo_owner: string;
+      session_count: bigint;
+      time_to_merge_hours: number | null;
+      title: string | null;
+      total_cost_usd: string | null;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      r.github_owner                                          AS repo_owner,
+      r.github_name                                          AS repo_name,
+      p.pr_number,
+      p.title,
+      p.author_github_login,
+      p.merged_at,
+      COALESCE(pr.total_cost_usd, 0)                         AS total_cost_usd,
+      COUNT(DISTINCT spl.session_id)                         AS session_count,
+      CASE
+        WHEN p.opened_at IS NOT NULL
+          THEN EXTRACT(EPOCH FROM (p.merged_at - p.opened_at)) / 3600
+        ELSE NULL
+      END                                                    AS time_to_merge_hours
+    FROM pull_requests p
+    JOIN repos r ON r.id = p.repo_id
+    LEFT JOIN pr_rollups pr ON pr.repo_id = p.repo_id AND pr.pr_number = p.pr_number
+    JOIN session_pr_links spl ON spl.repo_id = p.repo_id AND spl.pr_number = p.pr_number
+    JOIN sessions s ON s.session_id = spl.session_id
+    JOIN users u ON u.id = s.user_id
+    WHERE p.state = 'MERGED'
+      AND p.merged_at >= ${since}
+      AND p.merged_at IS NOT NULL
+      AND u.id IN (${uuids})
+    GROUP BY
+      p.repo_id,
+      p.pr_number,
+      r.github_owner,
+      r.github_name,
+      p.title,
+      p.author_github_login,
+      p.merged_at,
+      p.opened_at,
+      pr.total_cost_usd
+    ORDER BY p.merged_at DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((r) => ({
+    authorGithubLogin: r.author_github_login,
+    mergedAt: r.merged_at,
+    prNumber: r.pr_number,
+    repoName: r.repo_name,
+    repoOwner: r.repo_owner,
+    sessionCount: Number(r.session_count),
+    timeToMergeHours: r.time_to_merge_hours !== null ? Number(r.time_to_merge_hours) : null,
+    title: r.title,
+    totalCostUsd: Number(r.total_cost_usd ?? 0),
+  }));
 }
