@@ -23,6 +23,7 @@
     "db:seed:extensive": "bun --env-file=../../.env run src/seed.ts --extensive"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
     "@prisma/adapter-pg": "catalog:",
     "@prisma/client": "catalog:"
   },

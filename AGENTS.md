@@ -100,6 +100,15 @@ Two migration layers, applied in order by the runner:
 1. **Relational schema** — a single squashed Prisma migration at `packages/db/prisma/migrations/00000000000000_init/` (the project is pre-deployment, so phase migrations were merged into one Prisma-generated migration). Regenerate/verify with `prisma migrate dev` (needs the Prisma engine, which is egress-blocked in CI sandboxes — see note below).
 2. **Custom SQL** — everything Prisma's DSL can't model lives in `packages/db/sql/migrations/` and is applied by `applySqlMigrations()` after `prisma migrate deploy`: TimescaleDB DDL (hypertables, continuous aggregates, retention policies) in `0001_init.sql`, and data seeds like the built-in alert rules in `0002_seed_builtin_alert_rules.sql`.
 
+**Schema change workflow (dev):** Because Prisma uses a single squashed init migration, its idempotency check is name-based — editing `migration.sql` after it has been applied to a database will silently drift. Whenever the Prisma schema changes, reset the local database before redeploying:
+```bash
+bun run docker:infra:down:v   # wipes volumes
+bun run docker:infra:up
+bun run db:deploy
+bun run db:seed               # optional
+```
+Do **not** work around drift by adding `ALTER TABLE` patches to `packages/db/sql/migrations/` — that layer is reserved for TimescaleDB DDL and data seeds that Prisma cannot model.
+
 **Enum convention:** all Prisma/DB enum values are **UPPER_SNAKE_CASE** (`OrgRole.ORG_ADMIN`, `AgentType.CLAUDE_CODE`). The telemetry wire schema (`packages/schemas`) uses the same casing, so `agent_type` flows hook → ingest → DB without translation.
 
 ### Storage (`apps/ingest` + MinIO/S3)

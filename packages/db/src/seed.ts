@@ -1,4 +1,7 @@
+import { promisify } from 'node:util';
+import { zstdCompress } from 'node:zlib';
 import { hashPassword } from '@ai-agents-observability/auth';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { faker } from '@faker-js/faker';
 import { createClient } from './index';
 
@@ -9,6 +12,34 @@ if (!DATABASE_URL) {
 const db = createClient(DATABASE_URL);
 
 const isExtensive = process.argv.includes('--extensive');
+
+// ── S3 / transcript upload (optional — seed works without it) ─────────────────
+
+const zstdCompressAsync = promisify(zstdCompress);
+
+const S3_BUCKET = process.env.S3_BUCKET;
+const s3 =
+  process.env.S3_ENDPOINT &&
+  S3_BUCKET &&
+  process.env.S3_ACCESS_KEY_ID &&
+  process.env.S3_SECRET_ACCESS_KEY
+    ? new S3Client({
+        credentials: {
+          accessKeyId: process.env.S3_ACCESS_KEY_ID,
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+        },
+        endpoint: process.env.S3_ENDPOINT,
+        forcePathStyle: true,
+        region: process.env.S3_REGION ?? 'us-east-1',
+      })
+    : null;
+
+function s3KeyForSession(userId: string, sessionId: string, startedAt: Date): string {
+  const yyyy = startedAt.getFullYear();
+  const mm = String(startedAt.getMonth() + 1).padStart(2, '0');
+  const dd = String(startedAt.getDate()).padStart(2, '0');
+  return `transcripts/${yyyy}/${mm}/${dd}/${userId}/${sessionId}.jsonl.zst`;
+}
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -442,6 +473,64 @@ async function insertTranscript(sessionId: string, startedAt: Date, durationMs: 
   }
 }
 
+async function uploadTranscriptToS3(
+  sessionId: string,
+  userId: string,
+  startedAt: Date,
+  durationMs: number,
+  model: string,
+): Promise<void> {
+  if (!s3 || !S3_BUCKET) {
+    return;
+  }
+  const template = faker.helpers.arrayElement(TRANSCRIPT_TEMPLATES);
+  const lines: string[] = [];
+  for (const [i, { role, text }] of template.messages.entries()) {
+    const ts = new Date(
+      startedAt.getTime() + Math.floor((i / template.messages.length) * durationMs),
+    ).toISOString();
+    if (role === 'user') {
+      lines.push(JSON.stringify({ message: { content: text }, timestamp: ts, type: 'user' }));
+    } else {
+      lines.push(
+        JSON.stringify({
+          message: {
+            content: [{ text, type: 'text' }],
+            model,
+            usage: {
+              cache_creation_input_tokens: faker.number.int({ max: 2000, min: 0 }),
+              cache_read_input_tokens: faker.number.int({ max: 5000, min: 0 }),
+              input_tokens: faker.number.int({ max: 3000, min: 100 }),
+              output_tokens: faker.number.int({ max: 800, min: 20 }),
+            },
+          },
+          timestamp: ts,
+          type: 'assistant',
+        }),
+      );
+    }
+  }
+  const ndjson = `${lines.join('\n')}\n`;
+  const compressed = await zstdCompressAsync(Buffer.from(ndjson));
+  const key = s3KeyForSession(userId, sessionId, startedAt);
+  await s3.send(
+    new PutObjectCommand({
+      Body: compressed,
+      Bucket: S3_BUCKET,
+      ContentType: 'application/zstd',
+      Key: key,
+    }),
+  );
+  await db.session.update({
+    data: {
+      transcriptBytes: BigInt(compressed.byteLength),
+      transcriptS3Key: key,
+      transcriptUploadedAt: new Date(),
+    },
+    where: { sessionId },
+  });
+}
+
 // ── Basic seed ────────────────────────────────────────────────────────────────
 
 const BASIC_EMAIL = 'demo@example.com';
@@ -629,6 +718,15 @@ async function basicSeed() {
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       }
+
+      await insertTranscript(session.sessionId, startedAt, durationMs);
+      await uploadTranscriptToS3(
+        session.sessionId,
+        user.id,
+        startedAt,
+        durationMs,
+        'claude-sonnet-4-6',
+      );
     }
   }
 
@@ -722,6 +820,7 @@ const EXT_DEVS = [
     githubId: 10_000_001,
     login: 'alice-coder',
     name: 'Alice Chen',
+    password: 'alice1234',
     role: 'LEAD' as const,
   },
   {
@@ -731,6 +830,7 @@ const EXT_DEVS = [
     githubId: 10_000_002,
     login: 'bob-engineer',
     name: 'Bob Torres',
+    password: 'bob1234',
     role: 'MEMBER' as const,
   },
   {
@@ -740,6 +840,7 @@ const EXT_DEVS = [
     githubId: 10_000_003,
     login: 'carol-dev',
     name: 'Carol Mbeki',
+    password: 'carol1234',
     role: 'MEMBER' as const,
   },
   {
@@ -750,6 +851,7 @@ const EXT_DEVS = [
     login: 'dave-lead',
     name: 'Dave Park',
     orgRole: 'ORG_ADMIN' as const,
+    password: 'dave1234',
     role: 'LEAD' as const,
   },
   {
@@ -759,6 +861,7 @@ const EXT_DEVS = [
     githubId: 10_000_005,
     login: 'eva-new',
     name: 'Eva Okonkwo',
+    password: 'eva1234',
     role: 'MEMBER' as const,
   },
 ];
@@ -1043,6 +1146,7 @@ async function extensiveSeed() {
 
   for (const dev of EXT_DEVS) {
     const createdAt = new Date(Date.now() - dev.daysAgo * 86_400_000);
+    const passwordHash = await hashPassword(dev.password);
     const u = await db.user.create({
       data: {
         createdAt,
@@ -1052,6 +1156,7 @@ async function extensiveSeed() {
         githubLogin: dev.login,
         lastSeenAt: new Date(),
         orgRole: ('orgRole' in dev ? dev.orgRole : undefined) ?? 'MEMBER',
+        passwordHash,
         primaryTeamId: team.id,
         visibilityPolicy: {
           create: {
@@ -1225,6 +1330,7 @@ async function extensiveSeed() {
 
         if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.35 })) {
           await insertTranscript(session.sessionId, startedAt, durationMs);
+          await uploadTranscriptToS3(session.sessionId, devId, startedAt, durationMs, model);
         }
 
         if (totalSessions % 50 === 0) {
@@ -1326,7 +1432,7 @@ async function extensiveSeed() {
   console.log(`  Admin user   : ${SEED_ADMIN_EMAIL} / ${SEED_ADMIN_PASSWORD} (ORG_ADMIN)`);
   for (const dev of EXT_DEVS) {
     const count = sessionsByDev.get(dev.login)?.length ?? 0;
-    console.log(`  ${dev.name.padEnd(15)}: ${dev.email}  (${count} sessions)`);
+    console.log(`  ${dev.name.padEnd(15)}: ${dev.email} / ${dev.password}  (${count} sessions)`);
   }
 }
 
