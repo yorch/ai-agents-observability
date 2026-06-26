@@ -6,9 +6,11 @@
  * Return the GitHub login for the currently authenticated gh CLI user,
  * or null when gh is unavailable or not authenticated.
  */
-export function fetchGitHubLogin(): string | null {
+type GhSpawn = typeof Bun.spawnSync;
+
+export function fetchGitHubLogin(spawn: GhSpawn = Bun.spawnSync): string | null {
   try {
-    const proc = Bun.spawnSync(['gh', 'api', 'user', '--jq', '.login'], {
+    const proc = spawn(['gh', 'api', 'user', '--jq', '.login'], {
       stderr: 'ignore',
       stdout: 'pipe',
     });
@@ -27,9 +29,9 @@ export function fetchGitHubLogin(): string | null {
  * within the given `owner` org, or null if not in any team or an error occurs.
  * Fetches up to 100 team memberships via the gh CLI in a single call.
  */
-export function fetchUserTeam(owner: string): string | null {
+export function fetchUserTeam(owner: string, spawn: GhSpawn = Bun.spawnSync): string | null {
   try {
-    const proc = Bun.spawnSync(['gh', 'api', 'user/teams?per_page=100'], {
+    const proc = spawn(['gh', 'api', 'user/teams?per_page=100'], {
       stderr: 'ignore',
       stdout: 'pipe',
     });
