@@ -2,6 +2,8 @@
 
 **Trigger to decompose**: Post-P6 gap assessment. The multi-agent spine is in place (P5-006 done: `agent_type` enum widened to all seven agents, ingest/read paths agent-neutral) but unproven at the seam level — no second agent has ever shipped data through it. Meanwhile, two P6 items were explicitly deferred awaiting a concrete second-agent requirement: **P6-005 (per-agent price tables)** and **P6-006 (hook adapter seam)**. This phase builds the remaining foundation pieces and lands a real second adapter to validate that the spine actually holds.
 
+**Status**: P8-001 through P8-007 are `done`. See [`INDEX.md`](./INDEX.md) for task-level status.
+
 ## Goal recap
 
 Accept a second coding agent end-to-end without schema migration:
@@ -18,7 +20,7 @@ References: DESIGN_DOC.md §2.4 (Multi-Agent Extensibility), §6.3 (hook payload
 - **P8-001 Tool-name disambiguation** (WS B, M) — implement the `<agent>:<tool>` collision-avoidance convention from §2.4, either prefix-on-write or disambiguate at query time; consistent across ingest and all read queries.
 - **P8-002 Per-agent price tables** (WS B, M) — generalize `price-table.v1.json` → `price-table.<agent>.v1.json`, key cost lookup on `(agent_type, model)`, update `/v1/price-table` endpoint. *This is the deferred P6-005.*
 - **P8-003 Hook adapter seam** (WS D, L) — extract an `Adapter` interface in `apps/hook`; Claude Code becomes the first implementation; the transport is untouched. *This is the deferred P6-006.*
-- **P8-004 Second-agent adapter** (WS D, L) — implement a real second-agent adapter (opencode) that exercises the seam end-to-end and finalizes the `Adapter` interface from real usage.
+- **P8-004 Second-agent adapter** (WS D, L) — implemented a real second-agent adapter (opencode) that exercises the seam end-to-end and finalizes the `Adapter` interface from real usage. opencode transcript upload remains a documented follow-up because opencode stores conversation history as a directory rather than a single transcript file.
 - **P8-005 De-Claude-ify copy** (WS E, S) — drive all user-facing agent labels from `agent_type` instead of hard-coding "Claude" in the PR-bot comment and /me dashboard.
 - **P8-006 Cost reconciliation** (WS B, M) — design + scaffold reconciliation of client-computed cost against a vendor billing API; gated per DESIGN_DOC.md §13 Q4 / PLAN §5.
 - **P8-007 Codex CLI adapter** (WS D, M) — a *third* adapter (added after the phase's original scope) for OpenAI Codex CLI. Codex's only stable hook is its turn-level `notify` program, with tool calls + usage in a separate rollout JSONL — so it exercises the seam's new multi-event path (`mapBatch`) and confirms the contract extends to a third, differently-shaped agent. Ships an empty codex price table (real OpenAI rates deferred).

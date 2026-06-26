@@ -168,13 +168,13 @@ See [`P7-roadmap.md`](./P7-roadmap.md). Surfaces effectiveness signals (already 
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P7-001](./P7-001-effectiveness-backfill.md) | Effectiveness backfill (historical sessions) | review | claude | M | P5-001, P5-002 |
-| [P7-002](./P7-002-effectiveness-query-layer.md) | Effectiveness query layer (web) | review | claude | S | P7-001 |
-| [P7-003](./P7-003-me-effectiveness-widgets.md) | /me effectiveness widgets (friction trend + shape mix) | review | claude | M | P7-002 |
-| [P7-004](./P7-004-team-org-effectiveness.md) | Team + org effectiveness dashboards | review | claude | M | P7-002 |
-| [P7-005](./P7-005-me-transcript-search.md) | /me transcript search (per-user FTS) | review | claude | M | P4-003 |
+| [P7-001](./P7-001-effectiveness-backfill.md) | Effectiveness backfill (historical sessions) | done | claude | M | P5-001, P5-002 |
+| [P7-002](./P7-002-effectiveness-query-layer.md) | Effectiveness query layer (web) | done | claude | S | P7-001 |
+| [P7-003](./P7-003-me-effectiveness-widgets.md) | /me effectiveness widgets (friction trend + shape mix) | done | claude | M | P7-002 |
+| [P7-004](./P7-004-team-org-effectiveness.md) | Team + org effectiveness dashboards | done | claude | M | P7-002 |
+| [P7-005](./P7-005-me-transcript-search.md) | /me transcript search (per-user FTS) | done | claude | M | P4-003 |
 | [P7-006](./P7-006-search-facet-enrichment.md) | Search facet enrichment (shape, friction band, agent type) | done | claude | S | P4-002, P7-001 |
-| [P7-007](./P7-007-semantic-transcript-search.md) | Semantic transcript search (gated spike) | ready | — | L | P4-003 |
+| [P7-007](./P7-007-semantic-transcript-search.md) | Semantic transcript search (gated spike) | done | claude | L | P4-003 |
 
 ---
 
@@ -184,13 +184,13 @@ See [`P8-roadmap.md`](./P8-roadmap.md). Builds the remaining multi-agent foundat
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P8-001](./P8-001-tool-naming-disambiguation.md) | Tool-name disambiguation (`<agent>:<tool>` convention) | review | claude | M | P5-006 |
-| [P8-002](./P8-002-per-agent-price-tables.md) | Per-agent versioned price tables | review | claude | M | P1-013 |
-| [P8-003](./P8-003-hook-adapter-seam.md) | Hook adapter seam | review | claude | L | P5-006 |
-| [P8-004](./P8-004-second-agent-adapter.md) | Second-agent adapter (opencode) | review | claude | L | P8-003, P8-001, P8-002 |
-| [P8-005](./P8-005-de-claude-ify-copy.md) | De-Claude-ify user-facing copy | review | claude | S | P5-006 |
-| [P8-006](./P8-006-cost-reconciliation.md) | Cost reconciliation (design + scaffold) | review | claude | M | P8-002 |
-| [P8-007](./P8-007-codex-adapter.md) | Codex CLI adapter (notify + rollout parsing) | review | claude | M | P8-003, P8-004, P8-001, P8-002 |
+| [P8-001](./P8-001-tool-naming-disambiguation.md) | Tool-name disambiguation (`<agent>:<tool>` convention) | done | claude | M | P5-006 |
+| [P8-002](./P8-002-per-agent-price-tables.md) | Per-agent versioned price tables | done | claude | M | P1-013 |
+| [P8-003](./P8-003-hook-adapter-seam.md) | Hook adapter seam | done | claude | L | P5-006 |
+| [P8-004](./P8-004-second-agent-adapter.md) | Second-agent adapter (opencode) | done | claude | L | P8-003, P8-001, P8-002 |
+| [P8-005](./P8-005-de-claude-ify-copy.md) | De-Claude-ify user-facing copy | done | claude | S | P5-006 |
+| [P8-006](./P8-006-cost-reconciliation.md) | Cost reconciliation (design + scaffold) | done | claude | M | P8-002 |
+| [P8-007](./P8-007-codex-adapter.md) | Codex CLI adapter (notify + rollout parsing) | done | claude | M | P8-003, P8-004, P8-001, P8-002 |
 
 ---
 
@@ -200,9 +200,9 @@ See [`P9-roadmap.md`](./P9-roadmap.md). Turns passive dashboards into proactive 
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P9-001](./P9-001-alert-rules-engine.md) | Alert rules engine (scheduled evaluation) | review | claude | L | P4-004, P4-005 |
-| [P9-002](./P9-002-alert-notifications.md) | Alert notification delivery + admin UI | review | claude | M | P9-001 |
-| [P9-003](./P9-003-timeboxed-access-grants.md) | Time-boxed access grants (request/approve workflow) | review | claude | L | P3-005 |
-| [P9-004](./P9-004-per-team-retention.md) | Per-team retention override | review | claude | M | P4-007 |
-| [P9-005](./P9-005-research-role.md) | Research / investigator capability (Audience B) | review | claude | M | P9-003, P3-001 |
-| [P9-006](./P9-006-governance-alert-tests.md) | Governance + alerting invariant test suite | review | claude | M | P9-002, P9-005 |
+| [P9-001](./P9-001-alert-rules-engine.md) | Alert rules engine (scheduled evaluation) | done | claude | L | P4-004, P4-005 |
+| [P9-002](./P9-002-alert-notifications.md) | Alert notification delivery + admin UI | done | claude | M | P9-001 |
+| [P9-003](./P9-003-timeboxed-access-grants.md) | Time-boxed access grants (request/approve workflow) | done | claude | L | P3-005 |
+| [P9-004](./P9-004-per-team-retention.md) | Per-team retention override | done | claude | M | P4-007 |
+| [P9-005](./P9-005-research-role.md) | Research / investigator capability (Audience B) | done | claude | M | P9-003, P3-001 |
+| [P9-006](./P9-006-governance-alert-tests.md) | Governance + alerting invariant test suite | done | claude | M | P9-002, P9-005 |

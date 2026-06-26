@@ -3,7 +3,7 @@ id: P8-002
 title: Per-agent versioned price tables
 phase: 8
 workstream: B
-status: review
+status: done
 owner: claude
 depends_on: [P1-013]
 blocks: [P8-004, P8-006]
@@ -24,12 +24,12 @@ The `/v1/price-table` endpoint (P1-013) exposes the current table read-only. It 
 
 ## Acceptance criteria
 
-- [ ] Price tables live at `apps/ingest/src/data/price-table.<agent>.v1.json` (e.g. `price-table.claude_code.v1.json`, `price-table.opencode.v1.json`); the old `price-table.v1.json` is retained as the `claude_code` default or removed with a clear migration note.
-- [ ] `cost.ts` looks up cost on `(agent_type, model)`; falls back to `$0` and increments `unknown_model_events_total` for any `(agent_type, model)` pair not in the table.
-- [ ] `claude_code` session costs are numerically unchanged.
-- [ ] `GET /v1/price-table?agent=opencode` returns the opencode table; `GET /v1/price-table` (no param) defaults to `claude_code`.
-- [ ] `version` and `generated_at` are present in every table so historical cost is reproducible.
-- [ ] `bun run typecheck` passes; `bun run check` passes.
+- [x] Price tables live at `apps/ingest/src/data/price-table.<agent>.v1.json` (e.g. `price-table.claude_code.v1.json`, `price-table.opencode.v1.json`); the old `price-table.v1.json` is retained as the `claude_code` default or removed with a clear migration note.
+- [x] `cost.ts` looks up cost on `(agent_type, model)`; falls back to `$0` and increments `unknown_model_events_total` for any `(agent_type, model)` pair not in the table.
+- [x] `claude_code` session costs are numerically unchanged.
+- [x] `GET /v1/price-table?agent=opencode` returns the opencode table; `GET /v1/price-table` (no param) defaults to `claude_code`.
+- [x] `version` and `generated_at` are present in every table so historical cost is reproducible.
+- [x] `bun run typecheck` passes; `bun run check` passes.
 
 ## Implementation notes
 
@@ -64,7 +64,7 @@ curl 'http://localhost:3001/v1/price-table?agent=opencode' | jq '.version'
 curl 'http://localhost:3001/v1/price-table?agent=unknown_agent' # should 404 or return claude_code default — document the choice
 ```
 
-> **Verification status (review):** `apps/ingest/test/price-tables.test.ts` (4 cases) **passes
+> **Verification status (done):** `apps/ingest/test/price-tables.test.ts` (4 cases) **passes
 > locally** + `biome check --error-on-warnings` clean on all 9 touched files. DB-backed ingest
 > tests (`session-aggregation`, `price-table`, `events.integration`) run in CI (Prisma client
 > egress-blocked locally); `session-aggregation.test.ts` was updated to pass a registry stub.

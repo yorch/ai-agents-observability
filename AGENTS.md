@@ -7,7 +7,7 @@ This file provides guidance to AI Agents working **across the monorepo**. Per-ap
 
 > `CLAUDE.md` is a symlink to `AGENTS.md` — the canonical source of truth for agent guidelines. Update either file to keep them in sync.
 
-> **Start here:** read [`DESIGN_DOC.md`](DESIGN_DOC.md) for the project's purpose (self-hosted observability for AI coding agents — Claude Code first), then [`PLAN.md`](PLAN.md) and `tasks/P1-*` for current scope.
+> **Start here:** read [`DESIGN_DOC.md`](DESIGN_DOC.md) for the project's purpose (self-hosted observability for AI coding agents — Claude Code first, with OpenCode and Codex adapters implemented), then [`PLAN.md`](PLAN.md) and [`tasks/INDEX.md`](tasks/INDEX.md) for current scope.
 
 ## Commands
 
@@ -97,7 +97,7 @@ Why this pattern: with **4 services** all needing the same migration state, "mig
 Prisma 7 + **TimescaleDB** (custom Postgres image with hypertable extensions). Schema lives at `packages/db/prisma/schema.prisma`; generated client at `packages/db/src/generated/client` (gitignored).
 
 Two migration layers, applied in order by the runner:
-1. **Relational schema** — a single squashed Prisma migration at `packages/db/prisma/migrations/00000000000000_init/` (the project is pre-deployment, so phase migrations were merged into one Prisma-generated migration). Regenerate/verify with `prisma migrate dev` (needs the Prisma engine, which is egress-blocked in CI sandboxes — see note below).
+1. **Relational schema** — a single squashed Prisma migration at `packages/db/prisma/migrations/20260625075457_init/` (the project is pre-deployment, so phase migrations were merged into one Prisma-generated migration). Regenerate/verify with `prisma migrate dev` (needs the Prisma engine, which is egress-blocked in CI sandboxes — see note below).
 2. **Custom SQL** — everything Prisma's DSL can't model lives in `packages/db/sql/migrations/` and is applied by `applySqlMigrations()` after `prisma migrate deploy`: TimescaleDB DDL (hypertables, continuous aggregates, retention policies) in `0001_init.sql`, and data seeds like the built-in alert rules in `0002_seed_builtin_alert_rules.sql`.
 
 **Schema change workflow (dev):** Because Prisma uses a single squashed init migration, its idempotency check is name-based — editing `migration.sql` after it has been applied to a database will silently drift. Whenever the Prisma schema changes, reset the local database before redeploying:
@@ -137,4 +137,4 @@ The CLI installs Claude Code hooks (`commands/install`), captures events via std
 - **Redaction runs before S3 writes.** Transcripts pass through `packages/redaction` first — never write raw transcripts to MinIO/S3. New telemetry shapes that carry user-pasted content must add their own redaction rules to that package.
 - **`packages/schemas` is the truth** for telemetry event shapes. The hook CLI, ingest, and web all import from there. Don't redeclare event types app-locally.
 - **Service-side env validation** — each app's `loadConfig()` (Zod-validated) is the only place that touches `process.env`. Missing config is a startup failure, not a runtime crash.
-- **Heavy WIP.** Many features are still under `tasks/P1-*`. Check the task before assuming a feature is fully wired.
+- **Heavy WIP.** Later-phase features and follow-ups are tracked in `tasks/INDEX.md`; Phases 7–9 task work is `done`, with caveats documented in the task files. Check the task status before assuming a feature is fully signed off.

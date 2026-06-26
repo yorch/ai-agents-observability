@@ -41,6 +41,8 @@ or ops wiki. Authentication in prod should be configured with a real identity pr
 
 Scrapes:
 - `ingest` service at `host.docker.internal:4000/metrics` every 15 s
+- `github-app` service at `host.docker.internal:4001/metrics` every 15 s
+- `web` service at `host.docker.internal:3000/metrics` every 15 s
 - `prometheus` itself at `localhost:9090`
 
 Retention: 15 days (configurable in `infra/prometheus/prometheus.yml`).

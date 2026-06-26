@@ -3,7 +3,7 @@ id: P8-003
 title: Hook adapter seam
 phase: 8
 workstream: D
-status: review
+status: done
 owner: claude
 depends_on: [P5-006]
 blocks: [P8-004]
@@ -47,12 +47,12 @@ Per P6-006's deferral note: "extract the seam *from two real examples* to avoid 
 
 ## Acceptance criteria
 
-- [ ] `apps/hook/src/adapters/` directory exists with a documented `Adapter` TypeScript interface (or abstract class) covering: (a) event mapping (`mapHookPayload(raw: unknown): ConformantEvent`), (b) transcript path resolution (`transcriptPath(sessionId: string): string`), (c) install metadata (`installSnippet(): InstallConfig`).
-- [ ] `apps/hook/src/adapters/claude-code.ts` implements the interface with identical behavior to the current `payload.ts` + `paths.ts` + `commands/install.ts` logic (no behavior change).
-- [ ] All existing hook tests pass without modification.
-- [ ] `apps/hook/src/hook-entry.ts`, `apps/hook/src/flusher.ts`, and `apps/hook/src/shipper.ts` reference the adapter through the interface, not through direct imports of `payload.ts` or `paths.ts`.
-- [ ] Adding a second adapter requires implementing only the `Adapter` interface — no edits to transport files (`flusher.ts`, `shipper.ts`, `lib/queue.ts`).
-- [ ] `bun run typecheck` passes; `bun run check` passes.
+- [x] `apps/hook/src/adapters/` directory exists with a documented `Adapter` TypeScript interface (or abstract class) covering: (a) event mapping (`mapHookPayload(raw: unknown): ConformantEvent`), (b) transcript path resolution (`transcriptPath(sessionId: string): string`), (c) install metadata (`installSnippet(): InstallConfig`).
+- [x] `apps/hook/src/adapters/claude-code.ts` implements the interface with identical behavior to the current `payload.ts` + `paths.ts` + `commands/install.ts` logic (no behavior change).
+- [x] All existing hook tests pass without modification.
+- [x] `apps/hook/src/hook-entry.ts`, `apps/hook/src/flusher.ts`, and `apps/hook/src/shipper.ts` reference the adapter through the interface, not through direct imports of `payload.ts` or `paths.ts`.
+- [x] Adding a second adapter requires implementing only the `Adapter` interface — no edits to transport files (`flusher.ts`, `shipper.ts`, `lib/queue.ts`).
+- [x] `bun run typecheck` passes; `bun run check` passes.
 
 ## Implementation notes
 
@@ -104,7 +104,7 @@ bun --filter '@app/hook' test
 bun run --cwd apps/hook dev -- install --dry-run
 ```
 
-> **Verification status (review): fully verified locally** (the hook has no Prisma
+> **Verification status (done): fully verified locally** (the hook has no Prisma
 > dependency, so the egress block doesn't apply here). `cd apps/hook && bun test` →
 > **43 pass / 0 fail, no test files modified** (acceptance #3); `tsc --noEmit` → clean;
 > `biome check --error-on-warnings` → clean. Claude Code adapter delegates to the

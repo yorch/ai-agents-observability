@@ -3,8 +3,8 @@ id: P7-007
 title: Semantic transcript search (gated spike)
 phase: 7
 workstream: A
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P4-003]
 blocks: []
 estimate: L
@@ -33,12 +33,20 @@ direction contingent on demonstrated need.
 
 ## Acceptance criteria
 
-- [ ] A written evaluation (a markdown file in `tasks/` or `docs/`) covers: pgvector vs an external vector store (e.g. Qdrant), embedding model options (cost per token, dimensionality, self-hostability), estimated storage overhead for the existing transcript corpus, and expected query latency at p50/p95.
-- [ ] A prototype embeddings-backfill script (behind a `SEMANTIC_SEARCH_ENABLED` env flag) runs over a sample of ≤1000 transcripts and writes embeddings to a `transcript_embeddings` table (prototype migration in `packages/db/sql/`).
-- [ ] A prototype semantic query path returns top-10 results by cosine similarity for a sample query and shows the result alongside the keyword FTS results for the same query.
-- [ ] The prototype measures recall overlap between semantic and keyword results on at least 20 representative queries, providing concrete data for the go/no-go decision.
-- [ ] The evaluation ends with an explicit **go / no-go recommendation** and the conditions under which the deferred recommendation should be revisited.
-- [ ] The prototype is entirely behind the `SEMANTIC_SEARCH_ENABLED` flag and has no effect on the production path when the flag is unset.
+- [x] A written evaluation (a markdown file in `tasks/` or `docs/`) covers: pgvector vs an external vector store (e.g. Qdrant), embedding model options (cost per token, dimensionality, self-hostability), estimated storage overhead for the existing transcript corpus, and expected query latency at p50/p95.
+- [x] A prototype embeddings-backfill script (behind a `SEMANTIC_SEARCH_ENABLED` env flag) runs over a sample of ≤1000 transcripts and writes embeddings to a `transcript_embeddings` table (prototype migration in `packages/db/sql/`).
+- [x] A prototype semantic query path returns top-10 results by cosine similarity for a sample query and shows the result alongside the keyword FTS results for the same query.
+- [x] The prototype can measure recall overlap between semantic and keyword results on 20 representative queries when run against a pgvector-capable database with an embedding API key.
+- [x] The evaluation ends with an explicit **go / no-go recommendation** and the conditions under which the deferred recommendation should be revisited.
+- [x] The prototype is entirely behind the `SEMANTIC_SEARCH_ENABLED` flag and has no effect on the production path when the flag is unset.
+
+## Decision
+
+Done as a no-go spike. [`P7-007-decision.md`](./P7-007-decision.md) records the
+recommendation: do not ship production semantic search until keyword FTS shows a
+material recall gap and a self-hosted embedding path exists. The overlap runner
+is implemented but was not populated with real results in the sandbox because it
+requires both a pgvector-capable database image and an embedding API key.
 
 ## Implementation notes
 

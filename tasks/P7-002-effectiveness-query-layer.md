@@ -3,7 +3,7 @@ id: P7-002
 title: Effectiveness query layer (web)
 phase: 7
 workstream: E
-status: review
+status: done
 owner: claude
 depends_on: [P7-001]
 blocks: [P7-003, P7-004]
@@ -31,11 +31,11 @@ sit alongside these and are consumed by P7-003 (/me widgets) and P7-004 (team/or
 
 ## Acceptance criteria
 
-- [ ] `getUserEffectiveness(userId, range)` returns an array of `{ date, frictionScore }` trend points (one per day or session bucket) and a `{ [label]: count }` shape histogram, using DB values where present and falling back to on-the-fly computation otherwise.
-- [ ] Null/low-data sessions are excluded from friction averages and percentile calculations; they do not count as 0.
-- [ ] Aggregate helpers (`getTeamEffectivenessDistribution`, `getOrgEffectivenessDistribution`) return friction percentile buckets (p25/p50/p75) and shape mix proportions for use by the team and org dashboards.
-- [ ] All helpers are unit-tested with mock DB data covering: all nulls, partial nulls, and fully populated datasets.
-- [ ] No raw `prisma.$queryRaw` calls duplicated from `sessions-queries.ts`; shared predicates are extracted.
+- [x] `getUserEffectiveness(userId, range)` returns an array of `{ date, frictionScore }` trend points (one per day or session bucket) and a `{ [label]: count }` shape histogram, using DB values where present and falling back to on-the-fly computation otherwise.
+- [x] Null/low-data sessions are excluded from friction averages and percentile calculations; they do not count as 0.
+- [x] Aggregate helpers (`getTeamEffectivenessDistribution`, `getOrgEffectivenessDistribution`) return friction percentile buckets (p25/p50/p75) and shape mix proportions for use by the team and org dashboards.
+- [x] All helpers are unit-tested with mock DB data covering: all nulls, partial nulls, and fully populated datasets.
+- [x] No raw `prisma.$queryRaw` calls duplicated from `sessions-queries.ts`; shared predicates are extracted.
 
 ## Implementation notes
 
@@ -67,7 +67,7 @@ bun --filter '@app/web' test
 bun run typecheck
 ```
 
-> **Verification status (review):** `apps/web/test/effectiveness-queries.test.ts` (7 tests)
+> **Verification status (done):** `apps/web/test/effectiveness-queries.test.ts` (7 tests)
 > **passes locally** and `biome check --error-on-warnings` is clean. `typecheck` could not be
 > run in the sandbox (needs the Prisma client, whose generation requires the egress-denied
 > `binaries.prisma.sh`) — it runs in CI.

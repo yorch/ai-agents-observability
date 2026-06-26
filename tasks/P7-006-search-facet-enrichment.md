@@ -35,13 +35,13 @@ with `friction_score IS NULL` never match any band filter.
 
 ## Acceptance criteria
 
-- [ ] `/org/search` gains a `shape_label` multi-select filter; selecting one or more labels restricts results to sessions with matching `shape_label`.
-- [ ] `/org/search` gains a friction-band filter (Low / Medium / High); selecting a band restricts to the corresponding `friction_score` range; null-score sessions are excluded from all band results.
-- [ ] `/org/search` gains an `agent_type` filter; selecting a type restricts results to sessions with that `agent_type`.
-- [ ] `/me` session list gains the same three filters (shape, friction band, agent type) consistent with the org search UX.
-- [ ] Facet counts reflect actual available values in the current result set (i.e. a shape with zero matches in the current filter context is not shown or shows count 0).
-- [ ] New filters compose correctly with all existing filters (repo, model, tool, date, team); the query does not AND-in a filter that was not explicitly selected.
-- [ ] URL query params encode the new filter state so results are bookmarkable/shareable.
+- [x] `/org/search` gains a `shape_label` multi-select filter; selecting one or more labels restricts results to sessions with matching `shape_label`.
+- [x] `/org/search` gains a friction-band filter (Low / Medium / High); selecting a band restricts to the corresponding `friction_score` range; null-score sessions are excluded from all band results.
+- [x] `/org/search` gains an `agent_type` filter; selecting a type restricts results to sessions with that `agent_type`.
+- [x] `/me` session list gains the same three filters (shape, friction band, agent type) consistent with the org search UX.
+- [x] Facet counts reflect actual available values in the current result set (i.e. a shape with zero matches in the current filter context is not shown or shows count 0).
+- [x] New filters compose correctly with all existing filters (repo, model, tool, date, team); the query does not AND-in a filter that was not explicitly selected.
+- [x] URL query params encode the new filter state so results are bookmarkable/shareable.
 
 ## Implementation notes
 
@@ -74,7 +74,7 @@ bun run typecheck
 bun run check
 ```
 
-> **Verification status (review):** query-layer filters added to both `listSessions`
+> **Verification status (done):** query-layer filters added to both `listSessions`
 > (/me) and `searchSessions` (/org) with predicates built conditionally; `sessions.test.ts`
 > gains 2 cases (filters land in `where`; absent when unset) — all 19 web query-layer tests
 > pass locally, `biome check --error-on-warnings` clean. `/org/search` shows shape + agent

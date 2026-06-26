@@ -15,7 +15,7 @@
 Grafana: http://localhost:3001 (see on-call.md)
 ```
 
-There are no dedicated webhook metrics yet (P2-009 tracks adding them). For now rely on GitHub delivery logs and service logs.
+Prometheus scrapes `apps/github-app` at `/metrics`. Check `webhook_events_total` by event/status and `webhook_processing_duration_ms`; correlate with GitHub delivery logs and service logs.
 
 **GitHub delivery log:** GitHub App settings → Advanced → Recent Deliveries.
 
@@ -35,7 +35,7 @@ curl http://localhost:4001/health
 
 1. **Webhook secret mismatch?** — `GITHUB_APP_WEBHOOK_SECRET` in env must match what's set in GitHub App settings. Signature validation will reject every delivery.
 
-2. **Service not reachable from GitHub?** — In local dev, check that smee.io relay is running (`npx smee-client …`). In prod, check that the webhook URL is publicly routable.
+2. **Service not reachable from GitHub?** — In local dev, check that smee.io relay is running (`bunx smee-client …`). In prod, check that the webhook URL is publicly routable.
 
 3. **App not installed on the repository?** — GitHub only sends events for installed repos. Check GitHub App → Installations.
 
@@ -50,7 +50,7 @@ curl http://localhost:4001/health
 - Fix the webhook secret and restart `apps/github-app`.
 - For local dev: restart the smee relay and the github-app service.
 - Trigger a manual redelivery from GitHub App → Recent Deliveries → Redeliver.
-- If session→PR linking is stale, the backfill job (P2-004) will re-link on next scheduled run.
+- If session→PR linking is stale, run or wait for the PR-link backfill path in `apps/github-app/src/lib/backfill-pr-links.ts`.
 
 ## Escalate
 

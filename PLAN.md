@@ -10,7 +10,7 @@ These were agreed during planning and are the basis for every task below. If one
 
 | Area | Choice | Rationale (short) |
 |---|---|---|
-| Scope | All 5 phases sequenced; Phase 1 fully decomposed, Phase 2–5 roadmap-only until they start | Avoid premature decomposition |
+| Scope | Phases 1–9 sequenced; Phases 7–9 task work is done; remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
 | Dev environment | docker-compose locally | Single `up` from a clean clone |
 | Hook binary | Bun, compiled with `bun build --compile` | Single static binary, fast cold start |
 | Object store | MinIO (local dev + homelab prod) | S3-compatible, self-hostable |
@@ -27,7 +27,7 @@ These were agreed during planning and are the basis for every task below. If one
 
 ### Pinned tool versions (May 2026)
 
-These are the **exact** versions every package targets. No `^` or `~` ranges in `package.json` files — see §4 "Pinning policy". Bumps happen in lockstep across the monorepo via Bun's catalog (`workspaces.catalog` in root `package.json`; see `P1-001`).
+These are the versions every package targets. No `^` or `~` ranges in `package.json` files — see §4 "Pinning policy". Bumps happen in lockstep across the monorepo via Bun's catalog (`workspaces.catalog` in root `package.json`; see `P1-001`). Docker images should be pinned before production use; the current local TimescaleDB image is the one known exception and is tracked as a hardening risk below.
 
 | Tool | Exact version | Why this pin |
 |---|---|---|
@@ -43,7 +43,7 @@ These are the **exact** versions every package targets. No `^` or `~` ranges in 
 | `@tailwindcss/postcss` | 4.1.0 | Lockstep with Tailwind core. |
 | Prisma | 7.8.0 | Latest stable. Classic Prisma Client (not Prisma Postgres). |
 | `@prisma/client` | 7.8.0 | Lockstep with `prisma`. |
-| TimescaleDB image | `timescale/timescaledb-ha:pg17.9-ts2.27.0` | TSDB 2.27 on PG 17.9. Pin exact tag; TimescaleDB ABI is tied to exact PG patch. |
+| TimescaleDB image | `timescale/timescaledb:latest-pg18` | Current local-dev compose image. This intentionally uses the standard TimescaleDB image with bind-mounted state under `./data/postgres`; revisit exact tag pinning before production hardening. |
 | MinIO image | `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | Docker Hub MinIO images deprecated Oct 2025. Pull from quay.io. Pin exact RELEASE, never `:latest`. |
 | MinIO client image | `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` | Bucket init + lifecycle. |
 | Hono | 4.12.19 | |
@@ -56,7 +56,7 @@ These are the **exact** versions every package targets. No `^` or `~` ranges in 
 | pino | 10.3.1 | Worker-thread transports. |
 | `pino-pretty` | 13.1.3 | Dev-only pretty printing. |
 | `pino-roll` | 4.0.0 | File rotation. |
-| Croner | 10.0.1 | TS-native scheduler; replaces `node-cron` (stale, weaker DST handling). |
+| Croner | 10.0.1 | Catalog dependency reserved for scheduler work; current ingest scheduling is implemented with in-process intervals plus `job_config`. |
 | Vitest | 4.1.6 | Requires Vite 8. v5 in beta — don't pin yet. |
 | `fast-check` | 4.4.0 | Property-based tests in redaction package. |
 | `@octokit/webhooks` | 14.1.0 | Phase 2; pin now to avoid drift. |
@@ -84,7 +84,6 @@ ai-agents-observability/
 │   ├── github/              # Octokit wrappers, host-agnostic (github.com / GHES)
 │   └── auth/                # IdentityProvider interface + GitHub impl + JWT issuance
 ├── infra/
-│   ├── docker-compose.yml   # Postgres+Timescale, MinIO, migrations-runner
 │   └── migrations-runner/   # Init container: Prisma migrate + Timescale DDL
 ├── tasks/                   # Per-task work units; see tasks/README.md
 ├── DESIGN_DOC.md
@@ -161,13 +160,13 @@ Data-integrity, observability, and access-model fixes for the platform as it exi
 
 ---
 
-The next three phases were raised from a post-Phase-6 gap assessment (the platform spine is complete; these close the gap between *captured* and *surfaced*, prove the multi-agent spine, and add proactive/governed operation). They are decomposed into task files and implemented (`review`); see [`tasks/INDEX.md`](./tasks/INDEX.md) for current status. The §8.4 governance work was reconciled with the org transcript-access routes added in parallel on `main`.
+The next three phases were raised from a post-Phase-6 gap assessment (the platform spine is complete; these close the gap between *captured* and *surfaced*, prove the multi-agent spine, and add proactive/governed operation). They are decomposed into task files and now marked `done`; see [`tasks/INDEX.md`](./tasks/INDEX.md) for exact task status. The §8.4 governance work was reconciled with the org transcript-access routes added in parallel on `main`.
 
 ### Phase 7 — Insight Surfaces & Search
 
 Surface the effectiveness signals that are already computed but rendered nowhere (`friction_score`, `shape_label`) across `/me`, team, and org views; give every dev full-text search over their **own** transcripts (today FTS is org-only); enrich faceted search with shape / friction / agent facets. A gated pgvector semantic-search spike is included but explicitly not a production commitment. Honors `DESIGN_DOC.md` §10.3 / §10.6 (surface-later + the effectiveness caveat — never show a misleading number for low-data sessions).
 
-Tasks P7-001–P7-006 decomposed in [`tasks/P7-roadmap.md`](./tasks/P7-roadmap.md) and implemented (`review`); P7-007 (pgvector semantic-search) is a gated spike, intentionally not built.
+Tasks P7-001–P7-007 are `done`. P7-007 completed as a no-go semantic-search spike: keyword FTS remains the production path until overlap data proves a material recall gap and a self-hosted embedding path exists.
 
 **Exit**: a dev sees their friction trend + shape mix on `/me`; a team lead sees a team friction distribution that honors visibility policies; a dev can search their own transcripts.
 
@@ -175,7 +174,7 @@ Tasks P7-001–P7-006 decomposed in [`tasks/P7-roadmap.md`](./tasks/P7-roadmap.m
 
 Build the remaining multi-agent foundation and validate it with a real second adapter. Implements the `<agent>:<tool>` collision-avoidance convention (`DESIGN_DOC.md` §2.4) that was documented but never built; per-agent + versioned price tables (the deferred P6-005); a hook adapter seam extracted from **two** real examples (the deferred P6-006), with `opencode` as the validating second agent; and agent-driven user-facing copy. Cost reconciliation against a vendor billing API is scaffolded behind a flag (gated per `DESIGN_DOC.md` §13 Q4).
 
-Tasks P8-001–P8-006 decomposed in [`tasks/P8-roadmap.md`](./tasks/P8-roadmap.md) and implemented (`review`).
+Tasks P8-001–P8-007 are `done`. opencode transcript upload remains a follow-up because opencode history is directory-shaped; Claude Code and Codex transcript shipping use single-file targets.
 
 **Exit**: a second agent's sessions ingest, price correctly, render with the right labels, and never collide on tool names; the hook transport is shared between two adapters without forking.
 
@@ -183,7 +182,7 @@ Tasks P8-001–P8-006 decomposed in [`tasks/P8-roadmap.md`](./tasks/P8-roadmap.m
 
 Turn render-time anomaly detection into a scheduled alert-evaluation job with persisted history and channel delivery (email / Slack / webhook); make privileged transcript access **time-boxed, requested, approved, and audited** (builds the §8.4 investigation path the audit actions already imply); add per-team retention overrides; and add a narrow, grant-scoped research/investigator capability for the Audience-B persona with **no standing access**. Real-time alerting was a v1 non-goal (`DESIGN_DOC.md` §2.2) now deliberately scoped for a later phase. Trust guardrails are first-class: alerts carry no individual-identifying data; every grant and view is auditable and expiring.
 
-Tasks P9-001–P9-006 decomposed in [`tasks/P9-roadmap.md`](./tasks/P9-roadmap.md) and implemented (`review`). The alert engine evaluates spend-spike, error-rate, and unknown-model rules (`budget_threshold` is a reserved type, defined but not yet evaluated).
+Tasks P9-001–P9-006 are `done`. The alert engine evaluates spend-spike, error-rate, and unknown-model rules (`budget_threshold` is a reserved type, defined but not yet evaluated). Slack and generic webhook delivery are live; SMTP email delivery is a documented follow-up seam.
 
 **Exit**: a spend spike fires a notification within one evaluation cycle; every privileged transcript view is the owner or a time-boxed approved grant, logged and visible to the viewed user; zero standing individual access beyond org_admin.
 
@@ -201,7 +200,7 @@ These apply to every task. Don't restate in each task file.
   1. **Every dependency is pinned to an exact version.** No `^`, no `~`, no `>=`, no `*`. The catalog entries in root `package.json` use bare semver (`"zod": "4.1.0"`). Sub-packages use `"catalog:"`.
   2. `bunfig.toml` sets `[install] exact = true` so `bun add` writes exact versions by default.
   3. `bun.lock` is the source of truth for what gets installed and is required to match `package.json`. CI runs `bun install --frozen-lockfile`; out-of-band edits fail the build.
-  4. Docker image tags are exact (`pg17.9-ts2.27.0`, `RELEASE.2025-09-07T16-13-09Z`). Never `:latest`. SHA256-digest pinning (`@sha256:...`) acceptable for prod overlays.
+  4. Docker image tags should be exact before production use. MinIO is already pinned (`RELEASE.2025-09-07T16-13-09Z`); the local TimescaleDB image currently uses `timescale/timescaledb:latest-pg18` and is called out as a hardening risk in §6. SHA256-digest pinning (`@sha256:...`) is acceptable for prod overlays.
   5. Engine pins: `engines.node = ">=24"` in `package.json`; CI uses `setup-node@v6.4.0` with `node-version: '24'` (major pin). `engines.bun = "1.3.14"` exact; CI uses `setup-bun@v2.2.0` with `bun-version: '1.3.14'` (exact).
   6. Bumps are deliberate: open a PR per dependency (or per coordinated group — e.g., React + react-dom + Next.js), update the catalog entry, regenerate `bun.lock`, run the full CI suite. No mass-bump PRs.
   7. Renovate/Dependabot may *propose* bumps but never auto-merges. Schedule weekly so PRs don't pile up.
@@ -224,7 +223,7 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 1. **§13 Q4** — Cost source of truth. Default: client-computed. Reconciliation cron against Anthropic admin API deferred until ≥$10k/month spend on a team.
 2. **§13 Q6** — S1's branch/PR → Jira convention. If it exists, Phase 2 rollups can ladder to feature-level for free.
 3. **§13 Q8** — CI-side Claude Code runs. Doc says out-of-scope; confirming.
-4. **Multi-agent extension** — `agent_type` is in the schema; Cursor adapter spike deferred to Phase 5 unless demand surfaces sooner.
+4. **Multi-agent extension** — `agent_type` is in the schema; OpenCode and Codex adapters are implemented. Cursor, Aider, Copilot, and Windsurf remain schema entries without adapters.
 
 ---
 
@@ -237,7 +236,7 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 | MinIO in homelab = SPOF | Phase 4 ops handoff evaluates HA MinIO vs B2 fallback | Platform/SRE |
 | GHES webhook payload drift | `packages/github` version-detects; integration test against a real GHES instance | Backend |
 | Privacy regression on team views | Audit log is the safety net; covered by `P3-*` tasks | Cross-cutting |
-| Wrong Postgres patch version breaks TimescaleDB ABI | Pin `timescale/timescaledb-ha:pg17.9-ts2.27.0` exact tag in compose; never use `:latest` | Backend |
+| Wrong Postgres patch version breaks TimescaleDB ABI | Local dev currently uses `timescale/timescaledb:latest-pg18`; pin an exact `timescale/timescaledb` tag before production hardening. | Backend |
 | MinIO Docker Hub image deprecation (Oct 2025) | Pull from `quay.io/minio/minio` with pinned RELEASE tag, never `:latest` | Backend |
 | Bun 1.3 isolated installs + catalogs has dedup/cache bugs ([#23615](https://github.com/oven-sh/bun/issues/23615)) | Use HOISTED installs (`linker = "hoisted"` in `bunfig.toml`) until fixed | Cross-cutting |
 | Bun Rust-rewrite branch regressions on native modules | Pin Bun 1.3.14 (stable JS impl), not bleeding-edge | Systems |

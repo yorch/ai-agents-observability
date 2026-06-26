@@ -6,6 +6,10 @@ are *deliberately* deferred by the v1 scope (single-org, single-tenant,
 single-instance, ~200 devs — `DESIGN_DOC.md` §2.2). This file records what was
 done, what is deferred, and the trigger that should reopen each deferral.
 
+**Status**: P6-001 through P6-004 are `done`; P6-005 and P6-006 are `deferred` and
+superseded by Phase 8 (`P8-002`, `P8-003`, and `P8-004`). See [`INDEX.md`](./INDEX.md)
+for task-level status.
+
 ## Goal recap
 
 Close the gaps that affect the platform **as it exists today** — data integrity,
@@ -34,16 +38,14 @@ multi-instance / multi-agent machinery the stated scope doesn't yet need.
 
 ## Deferred — demand-gated (do NOT build speculatively)
 
-- **Per-agent price tables.** `cost.ts` keys cost on the model string, which is
-  vendor-unique today; the `_agentType` seam exists and the
+- **Per-agent price tables.** At the time of the P6 review, `cost.ts` keyed cost on
+  the model string, which was vendor-unique; the `_agentType` seam existed and the
   `unknown_model_events_total` metric now surfaces any unpriced ($0) model.
-  **Trigger:** a second agent ships whose model names collide with, or price
-  differently from, Anthropic's. Until then this is pure carrying cost.
-- **Hook adapter seam.** The transport (queue/flusher/shipper) is already
+  **Superseded by:** P8-002, now `done`.
+- **Hook adapter seam.** The transport (queue/flusher/shipper) was already
   agent-neutral; only `payload.ts`, the `~/.claude` paths, and the install
-  commands are Claude-specific. **Trigger:** a concrete second-agent
-  (Cursor/Aider/…) requirement — extract the seam *from two real examples* to
-  avoid the wrong abstraction. Tracks `DESIGN_DOC.md` §2.4 / P5-006.
+  commands were Claude-specific. **Superseded by:** P8-003/P8-004, now implemented
+  and now `done`, with P8-007 adding the Codex adapter.
 
 ## Deferred — config / ops (no code change needed)
 

@@ -1,5 +1,7 @@
 # Phase 4 — Org views, search, ops handoff (roadmap)
 
+**Status**: Fully decomposed into P4-001 … P4-011; all Phase 4 tasks are `done`. See [`INDEX.md`](./INDEX.md) for task-level status.
+
 **Trigger to decompose**: Phase 3 exit criteria met.
 
 ## Goal recap

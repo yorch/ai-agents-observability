@@ -6,6 +6,11 @@ zero UI widgets. Transcript full-text search is org-admin-only — individual de
 cannot search their own sessions. Faceted session search has no effectiveness-aware
 filters. The platform captures the data; Phase 7 makes users see it.
 
+**Status**: P7-001 through P7-007 are `done`. P7-007 completed as a no-go
+semantic-search spike; revisit conditions are documented in
+[`P7-007-decision.md`](./P7-007-decision.md). See [`INDEX.md`](./INDEX.md) for
+task-level status.
+
 ## Goal recap
 
 Move from "we capture it" to "the user sees it":
@@ -44,13 +49,13 @@ and §12.5 for the scope and known limitations this phase closes.
   sessions. Reuses the `transcript_index` GIN index and `plainto_tsquery` approach
   from org search; adds a `user_id` scope predicate.
 
-- **P7-006 Search facet enrichment**
+- **P7-006 Search facet enrichment** (`done`)
   Add `shape_label`, friction band, and `agent_type` filters to the existing
   faceted search on `/org/search` and `/me` session list.
 
-- **P7-007 Semantic transcript search (gated spike)**
-  pgvector-based semantic search spike — evaluate embedding model, storage, and
-  query cost; deliver a decision doc + thin prototype behind a flag. Not a
+- **P7-007 Semantic transcript search (gated spike)** (`done`, no-go)
+  pgvector-based semantic search spike — evaluated embedding model, storage, and
+  query cost; delivered a decision doc + thin prototype behind a flag. Not a
   production rollout; go/no-go recommendation only.
 
 ## Exit criteria

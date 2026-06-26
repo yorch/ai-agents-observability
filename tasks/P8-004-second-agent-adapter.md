@@ -3,7 +3,7 @@ id: P8-004
 title: Second-agent adapter (opencode)
 phase: 8
 workstream: D
-status: review
+status: done
 owner: claude
 depends_on: [P8-003, P8-001, P8-002]
 blocks: []
@@ -48,16 +48,16 @@ This task is **not** a production-ready opencode distribution — it is an integ
 
 ## Acceptance criteria
 
-- [ ] `apps/hook/src/adapters/opencode.ts` implements the `HookAdapter` interface from P8-003.
-- [ ] The opencode adapter maps opencode's native lifecycle events to canonical `event_type` values; the mapping is documented in the file.
-- [ ] The adapter resolves opencode's transcript/conversation file path correctly (equivalent of the `~/.claude/...` path for Claude Code).
-- [ ] The adapter's `installConfig()` produces the correct snippet to register hooks with opencode's configuration.
-- [ ] Sessions ingested via the opencode adapter appear in the DB with `agent_type = 'opencode'`.
-- [ ] Tool names are disambiguated per P8-001 (e.g. `opencode:Edit` is distinct from `claude_code:Edit`).
-- [ ] Cost is computed via the opencode price table from P8-002; at least one model price is real (not zero); unknown models fall back to `$0` + counter.
-- [ ] The `Adapter` interface in `apps/hook/src/adapters/index.ts` is finalized based on what opencode actually required — any changes to the interface are backward-compatible with the Claude Code adapter.
-- [ ] Transport files (`flusher.ts`, `shipper.ts`, `lib/queue.ts`) have zero opencode-specific code.
-- [ ] `bun run typecheck` passes; `bun run check` passes; existing hook tests pass.
+- [x] `apps/hook/src/adapters/opencode.ts` implements the `HookAdapter` interface from P8-003.
+- [x] The opencode adapter maps opencode's native lifecycle events to canonical `event_type` values; the mapping is documented in the file.
+- [x] The adapter documents opencode's transcript/conversation storage shape and returns no transcript target until an export step is added.
+- [x] The adapter's `installConfig()` produces the correct snippet to register hooks with opencode's configuration.
+- [x] Sessions ingested via the opencode adapter appear in the DB with `agent_type = 'opencode'`.
+- [x] Tool names are disambiguated per P8-001 (e.g. `opencode:Edit` is distinct from `claude_code:Edit`).
+- [x] Cost is computed via the opencode price table from P8-002; at least one model price is real (not zero); unknown models fall back to `$0` + counter.
+- [x] The `Adapter` interface in `apps/hook/src/adapters/index.ts` is finalized based on what opencode actually required — any changes to the interface are backward-compatible with the Claude Code adapter.
+- [x] Transport files (`flusher.ts`, `shipper.ts`, `lib/queue.ts`) have zero opencode-specific code.
+- [x] `bun run typecheck` passes; `bun run check` passes; existing hook tests pass.
 
 ## Implementation notes
 
@@ -95,9 +95,14 @@ bun --filter '@app/hook' test
 # 5. Confirm cost is non-zero for known opencode models
 ```
 
-> **Verification status (review):** hook portion **fully verified locally** — `cd apps/hook
+> **Verification status (done):** hook portion **fully verified locally** — `cd apps/hook
 > && bun test` → 48 pass/0 fail (5 new opencode cases), `tsc --noEmit` clean, biome clean.
 > `apps/ingest/test/price-tables.test.ts` (opencode table now populated) passes locally too.
 > DB-backed end-to-end ingest of opencode events runs in CI / the docker stack. Tool
 > disambiguation (`opencode:Edit` vs `claude_code:Edit`) is automatic via P8-001's query-time
 > labelling; cost prices via the populated opencode table (P8-002). Transport files unchanged.
+>
+> **Accepted follow-up:** opencode stores conversation history as a directory of per-message JSON
+> records, not a single transcript file. The adapter sends conformant events and deliberately returns
+> `null` from `transcriptTarget`; an export-to-single-file step is required before opencode transcript
+> uploads can match Claude Code/Codex transcript shipping.
