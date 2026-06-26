@@ -17,10 +17,32 @@ const HOOK_KINDS = [
   'notification',
 ] as const;
 
+// Maps CLI arg kind (kebab-case) to the PascalCase event name Claude Code
+// expects as a key in ~/.claude/settings.json.
+const HOOK_KIND_TO_SETTINGS_KEY: Record<(typeof HOOK_KINDS)[number], string> = {
+  notification: 'Notification',
+  'post-tool-use': 'PostToolUse',
+  'pre-compact': 'PreCompact',
+  'pre-tool-use': 'PreToolUse',
+  'session-start': 'SessionStart',
+  stop: 'Stop',
+  'subagent-stop': 'SubagentStop',
+  'user-prompt-submit': 'UserPromptSubmit',
+};
+
+// Exec form (command + args array) so Claude Code spawns the binary directly
+// rather than routing through `sh -c`. This avoids shell word-splitting on
+// binary paths that contain spaces, and eliminates any metacharacter injection
+// surface regardless of the install location.
+type HookEntry = { args: string[]; command: string; type: string };
+type HookGroup = { hooks: HookEntry[] };
+
 function renderSnippet(bin: string): string {
-  const hooks: Record<string, string> = {};
+  const hooks: Record<string, HookGroup[]> = {};
   for (const kind of HOOK_KINDS) {
-    hooks[kind] = `${bin} hook ${kind}`;
+    hooks[HOOK_KIND_TO_SETTINGS_KEY[kind]] = [
+      { hooks: [{ args: ['hook', kind], command: bin, type: 'command' }] },
+    ];
   }
   return JSON.stringify({ hooks }, null, 2);
 }
