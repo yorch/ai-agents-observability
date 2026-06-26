@@ -6,6 +6,8 @@ function githubApiBase(): string {
   return (process.env.GITHUB_API_URL ?? 'https://api.github.com').replace(/\/$/, '');
 }
 
+type GhSpawn = typeof Bun.spawnSync;
+
 /**
  * True if `remoteUrl` points at a GitHub host. Used to gate the API fallback
  * path — the gh CLI path doesn't need this check since gh itself knows its host.
@@ -27,9 +29,14 @@ export function isGitHubRemote(remoteUrl: string | null): boolean {
 }
 
 // Primary path: gh CLI handles host, auth, token refresh, and GHES automatically.
-function fetchPrNumberViaGh(owner: string, repo: string, branch: string): number | null {
+function fetchPrNumberViaGh(
+  owner: string,
+  repo: string,
+  branch: string,
+  spawn: GhSpawn,
+): number | null {
   try {
-    const proc = Bun.spawnSync(
+    const proc = spawn(
       [
         'gh',
         'pr',
@@ -98,9 +105,10 @@ export async function fetchOpenPrNumber(
   repo: string,
   branch: string,
   remoteUrl: string | null = null,
+  spawn: GhSpawn = Bun.spawnSync,
 ): Promise<number | null> {
   return (
-    fetchPrNumberViaGh(owner, repo, branch) ??
+    fetchPrNumberViaGh(owner, repo, branch, spawn) ??
     (await fetchPrNumberViaApi(owner, repo, branch, remoteUrl))
   );
 }
@@ -139,9 +147,14 @@ function deriveCiStatus(checks: GhCheck[]): CiStatus | null {
  * Fetch a point-in-time snapshot of a PR's CI status and review decision via
  * the gh CLI. Returns null when gh is unavailable or the call fails.
  */
-export function fetchPrSnapshot(owner: string, repo: string, prNumber: number): PrSnapshot | null {
+export function fetchPrSnapshot(
+  owner: string,
+  repo: string,
+  prNumber: number,
+  spawn: GhSpawn = Bun.spawnSync,
+): PrSnapshot | null {
   try {
-    const proc = Bun.spawnSync(
+    const proc = spawn(
       [
         'gh',
         'pr',
