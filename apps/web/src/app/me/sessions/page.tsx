@@ -33,14 +33,6 @@ function parseDate(s: string | undefined): Date | undefined {
 }
 
 const SESSION_STATUSES = ['ACTIVE', 'COMPLETED', 'CRASHED', 'TIMED_OUT', 'ABANDONED'] as const;
-const SHAPE_LABELS = [
-  'exploratory',
-  'focused-edit',
-  'debugging',
-  'planning',
-  'multi-tool',
-  'minimal',
-] as const;
 
 function parseBand(s: string | undefined): FrictionBand | undefined {
   return s === 'low' || s === 'medium' || s === 'high' ? s : undefined;
@@ -91,12 +83,18 @@ export default async function SessionsPage({
     ...(frictionBand ? { frictionBand } : {}),
   };
 
-  const [{ sessions, total }, repos, agentFacets] = await Promise.all([
+  const [{ sessions, total }, repos, agentFacets, shapeFacets] = await Promise.all([
     listSessions(user.id, sessionOpts),
     listDistinctRepos(user.id),
     getPrisma().session.groupBy({ by: ['agentType'], where: { userId: user.id } }),
+    getPrisma().session.groupBy({
+      by: ['shapeLabel'],
+      orderBy: { _count: { shapeLabel: 'desc' } },
+      where: { shapeLabel: { not: null }, userId: user.id },
+    }),
   ]);
   const agentTypes = agentFacets.map((f) => f.agentType);
+  const shapeLabels = shapeFacets.map((f) => f.shapeLabel as string);
 
   return (
     <div className="space-y-6">
@@ -168,7 +166,7 @@ export default async function SessionsPage({
           </label>
           <select id="shape-filter" name="shape" defaultValue={shape ?? ''} className={selectClass}>
             <option value="">All shapes</option>
-            {SHAPE_LABELS.map((s) => (
+            {shapeLabels.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>

@@ -3,7 +3,7 @@ id: P7-006
 title: Search facet enrichment (shape, friction band, agent type)
 phase: 7
 workstream: E
-status: review
+status: done
 owner: claude
 depends_on: [P4-002, P7-001]
 blocks: []
