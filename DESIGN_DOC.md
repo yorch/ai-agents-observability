@@ -1,7 +1,7 @@
 # ai-agents-observability — Design Document
 
 **Project:** `ai-agents-observability`
-**Status:** Phases 1–6 done; Phases 7–9 implemented and in review (pending sign-off)
+**Status:** Phases 7–9 task work is done; remaining open task statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8
 **Owner:** Jorge (SentinelOne)
 **Last updated:** 2026-06-25
 **Audience:** Internal — dev tools team, leadership stakeholders
@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-`ai-agents-observability` is a self-hosted observability platform for AI coding agents — Claude Code first, with the data model designed to accommodate Cursor, Aider, and other agentic developer tools later. It ingests per-event telemetry from developer machines, archives full session transcripts, correlates work to pull requests and GitHub teams, and exposes dashboards and reporting for three audiences: individual developers, team leads, and org-level stakeholders.
+`ai-agents-observability` is a self-hosted observability platform for AI coding agents — Claude Code first, with OpenCode and Codex CLI adapters now implemented. The data model remains designed to accommodate Cursor, Aider, and other agentic developer tools later. It ingests per-event telemetry from developer machines, archives full session transcripts, correlates work to pull requests and GitHub teams, and exposes dashboards and reporting for three audiences: individual developers, team leads, and org-level stakeholders.
 
 The scope deliberately sits between two larger industry buckets. It is **not** model observability (inference latency, prompt eval, drift) and it is **not** generic AI observability (which sprawls across RAG quality, embeddings, fine-tuning, etc.). The narrower target is **how humans use AI coding agents to do real engineering work** — sessions, tools, skills, MCP servers, PR outcomes.
 
@@ -22,7 +22,7 @@ The primary purpose is **developer experience and effectiveness research** (audi
 
 ### 2.1 Goals
 
-- Capture per-event telemetry from Claude Code sessions: tool usage, skills, MCP servers, subagents, model selection, tokens, cost, errors, permission events, mode switches, slash commands.
+- Capture per-event telemetry from supported coding-agent sessions: tool usage, skills, MCP servers, subagents, model selection, tokens, cost, errors, permission events, mode switches, slash commands.
 - Capture full session transcripts for retrospective analysis and search.
 - Correlate sessions to git context (repo, branch, commit, dirty state) and to GitHub pull requests.
 - Provide rollups at the PR level — cost-per-PR, sessions-per-PR, tool mix, time-to-merge.
@@ -34,10 +34,10 @@ The primary purpose is **developer experience and effectiveness research** (audi
 ### 2.2 Non-Goals (v1)
 
 - Multi-tenancy. This is single-org, single-tenant.
-- Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting — spend spikes, error-rate, unknown-model surges — is implemented in Phase 9 §12.9 and in review. `budget_threshold` rule type is reserved in the enum but not yet evaluated. SIEM-style behavioral analytics on transcript content remains out of scope.)*
+- Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting — spend spikes, error-rate, unknown-model surges — is implemented in Phase 9 §12.9. `budget_threshold` rule type is reserved in the enum but not yet evaluated. SIEM-style behavioral analytics on transcript content remains out of scope.)*
 - Replacing any existing observability stack (Datadog, Splunk, etc.) — this is purpose-built for AI coding agent telemetry.
 - **Model-level observability** — inference latency, prompt evaluation, model drift, RAG quality. Out of scope by design; that's a different product.
-- Capturing telemetry from non-Claude-Code agents (Cursor, Aider, Copilot, etc.) **in v1 implementation** — but the data model is designed to accept them in a later phase without schema migration.
+- Capturing telemetry from every possible coding agent. OpenCode and Codex adapters are implemented; Cursor, Aider, Copilot, and Windsurf remain future adapters.
 - Computing line-of-code-generated style "AI productivity" headline numbers (explicitly avoided — see §10).
 
 ### 2.3 Explicitly Deferred
@@ -47,11 +47,11 @@ The primary purpose is **developer experience and effectiveness research** (audi
 - CI / lint / test failure correlation via GitHub Checks API.
 - Revert detection through git history scanning.
 - Capture from CI-side agent runs (v1 focuses on interactive developer sessions).
-- Cursor / Aider / Copilot adapters (deferred to a later phase; data model is forward-compatible).
+- Cursor / Aider / Copilot / Windsurf adapters (deferred; data model is forward-compatible).
 
 ### 2.4 Multi-Agent Extensibility
 
-The name `ai-agents-observability` is deliberately plural. Claude Code is the first agent integrated, but every schema decision in this document is made with the assumption that **a second agent will be added later**.
+The name `ai-agents-observability` is deliberately plural. Claude Code was the first agent integrated, and Phase 8 added OpenCode plus Codex adapters. Every schema decision in this document is made with the assumption that more agents will be added later.
 
 Concretely, this means:
 
@@ -585,28 +585,26 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 1. Read `~/.claude/projects/<encoded>/<session_id>.jsonl`
 2. Run redaction pass (see §9)
 3. Compress with **zstd**, streaming the redacted lines through `node:zlib`'s `createZstdCompress` so the full uncompressed transcript never sits in memory. The ingest service still accepts **gzip** for backward compatibility, but it always decompresses, re-redacts as defense-in-depth, and re-compresses to zstd for storage — so the stored object is always `.jsonl.zst` regardless of the upload encoding
-4. `PUT /v1/transcripts/{session_id}` with `Content-Range` for chunked / resumable upload
+4. `POST /v1/transcripts/{session_id}` with `Content-Range` for chunked / resumable upload
 5. Server writes to MinIO/S3 at `transcripts/{yyyy}/{mm}/{dd}/{user_id}/{session_id}.jsonl.zst`
 6. On final chunk, update `sessions.transcript_*` columns
 
 ### 6.5 Ingest Scheduler Jobs
 
-`apps/ingest` runs a set of scheduled background jobs via Croner. Each job is enable/disable-toggleable from `/admin/jobs`:
+`apps/ingest` runs scheduled background jobs from `apps/ingest/src/jobs/scheduler.ts`. Nightly jobs are configured in the `job_config` table and can be enabled, disabled, rescheduled, or manually triggered from `/admin/jobs`; fixed-cadence jobs run from in-process intervals.
 
 | Job | Schedule | Purpose |
 |---|---|---|
 | `sweep-abandoned` | every 10 min | Marks stale ACTIVE sessions as ABANDONED (no event for >30min) |
-| `sweep-retention` | nightly | Deletes transcripts (S3 + `transcript_s3_key`) past the retention window |
-| `sweep-scratch` | daily | Cleans up orphaned temp S3 objects |
-| `sync-teams` | nightly | GitHub team membership sync for all orgs |
-| `run-deletions` | every 15 min | Processes queued GDPR `DeletionRequest` rows |
-| `index-transcripts` | every 30 min | Populates `transcript_index` for Postgres FTS |
-| `compute-effectiveness` | nightly | Computes `friction_score` + `shape_label` on sessions |
-| `evaluate-alerts` | every 5 min | Evaluates alert rules; fires/resolves `AlertEvent` rows |
-| `alert-transition` | every 1 min | Handles alert state transitions and triggers notifications |
-| `retention-policy` | nightly | Applies per-team retention overrides from `Team.retentionDays` |
-| `reconcile-cost` | weekly | Gated (flag-controlled) cost reconciliation vs vendor billing API (P8-006) |
-| `embed-transcripts` | nightly | Gated pgvector embedding job for semantic search spike (P7-007, not yet active) |
+| `sweep-scratch` | hourly | Cleans up orphaned transcript chunk scratch files |
+| `sync-teams` | hourly | GitHub team membership sync for all orgs |
+| `run-deletions` | every 6h | Processes queued GDPR `DeletionRequest` rows |
+| `sweep-retention` | configurable, default 02:00 UTC | Deletes transcripts (S3 + `transcript_s3_key`) past the global or per-team retention window |
+| `index-transcripts` | configurable, default 03:30 UTC | Populates `transcript_index` for Postgres FTS |
+| `compute-effectiveness` | configurable, default 05:00 UTC | Computes `friction_score` + `shape_label` on sessions |
+| `evaluate-alerts` | configurable, default 01:00 UTC | Evaluates alert rules; fires/resolves `AlertEvent` rows and sends configured notifications |
+| `reconcile-cost` | daily when `BILLING_RECONCILIATION_ENABLED=true` | Gated cost reconciliation vs vendor billing API (P8-006; currently ships with a null billing source) |
+| `compute-effectiveness-backfill` | operator-triggered only | One-shot historical effectiveness backfill, intentionally not exposed through `/admin/jobs` |
 
 ### 6.6 Identity Trust Model
 
@@ -979,24 +977,24 @@ Resist the urge to build all of it. The MVP that proves value:
 
 Post-spine review of data-integrity, observability, and access-model gaps. Discriminated-union event schema + structured tool emission, Prometheus coverage for web + github-app, non-blocking transcript pipeline, explicit org-admin team-lead grants. Per-agent price tables and the hook adapter seam were deferred here and are decomposed in Phase 8. See `tasks/P6-roadmap.md`.
 
-### 12.7 Phase 7 — Insight Surfaces & Search (in review)
+### 12.7 Phase 7 — Insight Surfaces & Search ✓ done
 
-Close the gap between *captured* and *surfaced*. The friction score and session-shape label (Phase 5) are computed nightly but rendered in no UI; transcript full-text search exists only at the org level.
+Close the gap between *captured* and *surfaced*. Before Phase 7, the friction score and session-shape label (Phase 5) were computed nightly but rendered in no UI, and transcript full-text search existed only at the org level.
 
 27. Effectiveness widgets on "My Agents" — friction trend, session-shape mix, per-session friction band (`/me/insights`; honoring the §10.6 caveat: no misleading numbers for low-data sessions, version-pinned)
 28. Team + org effectiveness distributions, gated by `visibility_policies`
 29. Per-user transcript full-text search (`/me/search`, scoped to own sessions)
 30. Faceted-search enrichment — shape, friction band, agent-type facets
 31. Backfill of effectiveness signals over historical sessions
-32. Gated spike: semantic (pgvector) transcript search (`embed-transcripts` ingest job, flag-controlled — not production-committed; P7-007 not yet started)
+32. Gated spike: semantic (pgvector) transcript search (`embed-transcripts` ingest job, flag-controlled — completed as a no-go decision, not production-committed)
 
 **Success criteria:** a dev sees their own friction trend and can search their own transcripts; a team lead sees a friction distribution without any individual's score leaking.
 
-### 12.8 Phase 8 — Multi-Agent & Cost Model (in review)
+### 12.8 Phase 8 — Multi-Agent & Cost Model ✓ done
 
 Prove the multi-agent spine §2.4 with a real second agent, and build the cost machinery a non-Anthropic agent needs.
 
-33. `<agent>:<tool>` tool-name disambiguation (documented in §2.4, not yet built)
+33. `<agent>:<tool>` tool-name disambiguation (documented in §2.4; implemented at query time)
 34. Per-agent + versioned price tables (the deferred P6-005) — cost keyed on `(agent_type, model)`, historically reproducible
 35. Hook adapter seam (the deferred P6-006) — agent-neutral transport reused behind an adapter interface
 36. A real second-agent adapter (`opencode`) that validates the seam end-to-end
@@ -1007,12 +1005,12 @@ A **third** adapter (`codex`, P8-007) was added after the phase's original scope
 
 **Success criteria:** a second agent's sessions ingest, price correctly, render with correct labels, and never collide on tool names; the transport is shared between adapters without a fork.
 
-### 12.9 Phase 9 — Alerting & Governance (in review)
+### 12.9 Phase 9 — Alerting & Governance ✓ done
 
 Move from passive dashboards to proactive, trust-preserving operation.
 
 39. Alert rules engine — scheduled evaluation of spend spike / error rate / unknown-model thresholds (`budget_threshold` is reserved in the rule-type enum but not yet evaluated), with persisted firing/resolving history (promotes the render-time anomaly detection of §12.4)
-40. Notification delivery (email / Slack / webhook) + `/admin/alerts` config — aggregate data only, never individual content
+40. Notification delivery (Slack / webhook, with an email seam pending SMTP wiring) + `/admin/alerts` config — aggregate data only, never individual content
 41. Time-boxed transcript access grants — the §8.4 request/approve/expire workflow, replacing implicit standing org-admin reach
 42. Per-team retention overrides on top of the global default
 43. A narrow, grant-scoped research/investigator capability for Audience B (§3) — sampled session access only within an active, expiring, audited grant; no standing access
@@ -1023,12 +1021,12 @@ Move from passive dashboards to proactive, trust-preserving operation.
 
 ## 13. Open Questions
 
-These were the decisions needed before Phase 1. Phase 1 is now implemented; Phase 2 is in review. Items still unresolved are noted — resolve before Phase 3 starts.
+These were the decisions needed before Phase 1. Phases 7–9 task work is now done. Items still unresolved are noted as product or owner-input issues, not phase blockers.
 
 | #   | Question                                                          | Notes                                                                                                                                                                                                                          |
 | --- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1   | **GitHub Enterprise Server, or github.com with an org?**          | **Resolved (2026-06-06):** Support both. `GITHUB_HOST` env var controls github.com vs GHES. Auth, webhooks, and the GitHub App all route through the host-abstracted `packages/github` Octokit wrapper. Default: `https://github.com`. |
-| 2   | **Existing SSO (Okta / Azure AD)?**                               | **Resolved (2026-06-06):** GitHub OAuth now; document the `IdentityProvider` interface seam for Okta/Azure later. No implementation in Phase 4. See `packages/auth/src/providers/` for the extension point. |
+| 2   | **Existing SSO (Okta / Azure AD)?**                               | **Resolved (2026-06-06):** GitHub OAuth now; document the `IdentityProvider` interface seam for Okta/Azure later. No implementation in Phase 4. See `packages/auth/src/` for the extension point. |
 | 3   | **Transcript retention period?**                                  | **Resolved (2026-06-06):** Configurable via `TRANSCRIPT_RETENTION_DAYS` env var in `apps/ingest`. Default: 365 days. Set to 0 to disable automatic deletion. The `sweep-retention` job enforces this nightly. |
 | 4   | **Cost data source — client-computed vs Anthropic admin API?**    | Defaulting to client-computed for v1; revisit if accuracy disputes arise                                                                                                                                                       |
 | 5   | **Mandate hook installation, or opt-in?**                         | At 200 devs, opt-in produces sampling bias. Mandated install via existing dev config feels right but needs leadership cover                                                                                                    |
@@ -1096,4 +1094,4 @@ Beyond Phase 5, the natural extensions:
 | 2026-05-16 | Jorge (with Claude) | Initial draft |
 | 2026-06-24 | Jorge (with Claude) | Added Phases 6–9 to §12 (Hardening, Insight Surfaces & Search, Multi-Agent & Cost Model, Alerting & Governance); scoped threshold-based alerting out of the §2.2 non-goal |
 | 2026-06-25 | Jorge (with Claude) | Updated §12.3 and §12.4 with P3/P4 dashboard additions (date range selector, period-over-period deltas, team PR tab, org adoption funnel, model governance table, cache efficiency metric); updated §10.2 with cache efficiency and period-delta computation notes; updated status header |
-| 2026-06-25 | Jorge (with Claude) | Full doc audit against codebase: updated status header to reflect Phases 1–6 done / 7–9 in review; added §6.5 scheduler jobs table; updated §2.2 alerting note; updated §2.4 agent_type enum; added Phase 5 fields to Session + PullRequest + PRRollup DDL; added continuous aggregate definitions to §5.3; removed "Optional" from §5.5; expanded §6.2 hook commands and adapter seam; added INVESTIGATOR role to §8.1; added §8.4 grant model; marked Phases 5–9 status in §12; added additional dashboard routes to §12.4; updated §16 glossary agent_type entry |
+| 2026-06-25 | Jorge (with Claude) | Full doc audit against codebase: updated status header to reflect current task status; added §6.5 scheduler jobs table; updated §2.2 alerting note; updated §2.4 agent_type enum; added Phase 5 fields to Session + PullRequest + PRRollup DDL; added continuous aggregate definitions to §5.3; removed "Optional" from §5.5; expanded §6.2 hook commands and adapter seam; added INVESTIGATOR role to §8.1; added §8.4 grant model; marked Phases 5–9 status in §12; added additional dashboard routes to §12.4; updated §16 glossary agent_type entry |

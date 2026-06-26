@@ -3,7 +3,7 @@ id: P8-007
 title: Codex CLI adapter (notify + rollout parsing)
 phase: 8
 workstream: D
-status: review
+status: done
 owner: claude
 depends_on: [P8-003, P8-004, P8-001, P8-002]
 blocks: []
@@ -96,7 +96,7 @@ bunx tsc -p apps/hook/tsconfig.json --noEmit
 bun run check
 ```
 
-> **Verification status (review):** 66 hook tests pass (rollout parser + adapter,
+> **Verification status (done):** 66 hook tests pass (rollout parser + adapter,
 > incl. a temp-`CODEX_HOME` integration test exercising mapBatch + cursor advance);
 > 5 price-table tests pass; hook + schemas typecheck clean; Biome clean. CI is the
 > gate for the Prisma-dependent ingest typecheck/tests.

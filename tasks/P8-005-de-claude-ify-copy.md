@@ -3,7 +3,7 @@ id: P8-005
 title: De-Claude-ify user-facing copy
 phase: 8
 workstream: E
-status: review
+status: done
 owner: claude
 depends_on: [P5-006]
 blocks: []
@@ -27,12 +27,12 @@ Sessions can involve multiple agent types (e.g. a PR correlation that spans a cl
 
 ## Acceptance criteria
 
-- [ ] A `agentDisplayName(agentType: AgentType): string` helper exists (in `apps/web/src/lib/` or `packages/schemas/`) and maps every `AgentType` enum member to a human-readable label.
-- [ ] The PR-bot comment header in `apps/github-app/src/lib/pr-comment.ts` derives the agent label(s) from the session's `agent_type`; a session with `agent_type = 'opencode'` produces "opencode" in the header, not "Claude Code".
-- [ ] For a PR involving multiple agents, the comment header lists all distinct agents (e.g. "Claude Code, opencode").
-- [ ] The /me dashboard (`apps/web/src/app/me/page.tsx`) and its sub-components use `agentDisplayName` rather than hard-coded "Claude" strings for agent references.
-- [ ] A single-agent `claude_code` deployment produces output identical to today (no visible change).
-- [ ] `bun run typecheck` passes; `bun run check` passes.
+- [x] A `agentDisplayName(agentType: AgentType): string` helper exists (in `apps/web/src/lib/` or `packages/schemas/`) and maps every `AgentType` enum member to a human-readable label.
+- [x] The PR-bot comment header in `apps/github-app/src/lib/pr-comment.ts` derives the agent label(s) from the session's `agent_type`; a session with `agent_type = 'opencode'` produces "opencode" in the header, not "Claude Code".
+- [x] For a PR involving multiple agents, the comment header lists all distinct agents (e.g. "Claude Code, opencode").
+- [x] The /me dashboard (`apps/web/src/app/me/page.tsx`) and its sub-components use `agentDisplayName` rather than hard-coded "Claude" strings for agent references.
+- [x] A single-agent `claude_code` deployment produces output identical to today (no visible change).
+- [x] `bun run typecheck` passes; `bun run check` passes.
 
 ## Implementation notes
 
@@ -67,7 +67,7 @@ bun --filter '@app/github-app' test
 # 3. Visit /me — confirm no hard-coded "Claude" agent labels appear for opencode sessions
 ```
 
-> **Verification status (review):** `agent-display.test.ts` (5) + `pr-comment.test.ts` (7) **pass
+> **Verification status (done):** `agent-display.test.ts` (5) + `pr-comment.test.ts` (7) **pass
 > locally**; biome clean. `agentDisplayName` + `multiAgentLabels` added to `packages/schemas`.
 > The PR-bot header was already agent-neutral ("AI agent summary"); it now appends the distinct
 > contributing agents — suppressed for the single-claude_code case (header unchanged), shown for

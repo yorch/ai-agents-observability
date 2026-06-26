@@ -34,7 +34,7 @@ Understanding the opportunity space requires a clear map of what is already capt
 
 - Per-turn model (enables model routing analysis, not just per-session primary model)
 - MCP server × tool call volume and error rates
-- Session shape and friction score (computed nightly, displayed in Phase 7 only)
+- Session shape and friction score (computed nightly; Phase 7 display work is done)
 - `compaction_count` and `clear_count` (context window pressure signals)
 - `tool_input_bytes` / `tool_output_bytes` (data volume flowing through AI)
 - `subagent_type` (multi-agent orchestration patterns)
@@ -106,7 +106,7 @@ Understanding the opportunity space requires a clear map of what is already capt
 - **Subagent and MCP adoption as an advanced-user signal**: `subagent_type` invocations mark developers who are orchestrating AI, not just prompting it. This is a leading indicator of AI-native engineering practices.
 - **Permission denial trends**: developers who get fewer denials over time are learning what the AI can and can't do. High sustained denial rates may indicate a UX or trust issue worth investigating.
 
-**Feasibility:** Medium. Requires time-series views over user-level signals, which need careful UX design to avoid feeling like surveillance. The Phase 7 friction trend in `/me/insights` is a start; team-level progression requires aggregation that preserves privacy.
+**Feasibility:** Medium. Requires time-series views over user-level signals, which need careful UX design to avoid feeling like surveillance. The Phase 7 friction trend in `/me/insights` is implemented; team-level progression requires aggregation that preserves privacy.
 
 ---
 

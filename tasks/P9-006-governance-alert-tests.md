@@ -3,7 +3,7 @@ id: P9-006
 title: Governance + alerting invariant test suite
 phase: 9
 workstream: F
-status: review
+status: done
 owner: claude
 depends_on: [P9-002, P9-005]
 blocks: []
@@ -31,29 +31,29 @@ introduced in Phase 9. CI catches regressions before they become trust failures.
 
 ## Acceptance criteria
 
-- [ ] **Grant expiry invariant**: for any `access_grants` row with `expires_at <
+- [x] **Grant expiry invariant**: for any `access_grants` row with `expires_at <
       now()` or `revoked_at IS NOT NULL`, `hasActiveGrant()` returns false and
       the transcript/session route returns 403 or `notFound()`. Tested with
       property-style inputs (various expiry deltas, null vs set revoked_at).
-- [ ] **No-grant denial**: an `investigator` user with zero active grants cannot
+- [x] **No-grant denial**: an `investigator` user with zero active grants cannot
       access any individual session or transcript — asserted across at least 5
       distinct session/user combinations.
-- [ ] **Alert payload sanitization**: the notify channel `send()` function, given
+- [x] **Alert payload sanitization**: the notify channel `send()` function, given
       an `AlertPayload` constructed from a real `alert_events` row, produces
       output that contains no user ID, github login, session UUID, or transcript
       content — verified by asserting on the serialized payload string.
-- [ ] **Idempotent firing**: calling `evaluate-alerts` job logic twice in a row
+- [x] **Idempotent firing**: calling `evaluate-alerts` job logic twice in a row
       against the same firing condition inserts exactly one `alert_events` row
       (not two). Tested by running the evaluation function twice on a fixed
       dataset and asserting `COUNT(*) = 1`.
-- [ ] **Idempotent resolution**: calling evaluate-alerts twice against a cleared
+- [x] **Idempotent resolution**: calling evaluate-alerts twice against a cleared
       condition sets `resolved_at` once; a third call does not update it again.
-- [ ] **Retention override bounds**: `sweep-retention` logic with a team override
+- [x] **Retention override bounds**: `sweep-retention` logic with a team override
       of `retention_days > ORG_MAX_RETENTION_DAYS` uses `ORG_MAX_RETENTION_DAYS`
       as the effective limit; a team with `retention_days = null` deletes at the
       global default.
-- [ ] All tests pass in CI (`bun run test` turbo task).
-- [ ] TypeScript and Biome clean.
+- [x] All tests pass in CI (`bun run test` turbo task).
+- [x] TypeScript and Biome clean.
 
 ## Implementation notes
 
@@ -91,7 +91,7 @@ bun --filter '@ai-agents-observability/ingest' test
 bun --filter '@ai-agents-observability/web' test
 ```
 
-> **Verification status (review):** consolidated invariant suites **pass locally** —
+> **Verification status (done):** consolidated invariant suites **pass locally** —
 > `apps/ingest/test/p9-invariants.test.ts` (4: retention bounds property-loop, idempotent
 > firing/resolution, payload sanitization with hostile injected ids) and
 > `apps/web/test/p9-invariants.test.ts` (4: grant-expiry property-loop incl. expired==no-grant,

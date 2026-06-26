@@ -3,7 +3,7 @@ id: P8-001
 title: Tool-name disambiguation (<agent>:<tool> convention)
 phase: 8
 workstream: B
-status: review
+status: done
 owner: claude
 depends_on: [P5-006]
 blocks: [P8-004]
@@ -45,12 +45,12 @@ Approach (1) is simpler operationally (one change site, no backfill required for
 
 ## Acceptance criteria
 
-- [ ] The chosen approach (prefix-on-write or query-time) is documented in this file under a `## Decision` heading added when the task is claimed.
-- [ ] Two agents emitting a tool named `"Edit"` produce distinct rows (or distinct aggregates) in: per-session tool breakdown, team tool usage, org tool usage, and `daily_tool_usage` continuous aggregate.
-- [ ] Existing `claude_code` data reads correctly after the change (no behavior change for single-agent deployments).
-- [ ] If prefix-on-write: a migration/backfill plan for existing rows is stated (even if the backfill is a one-off script, not a migration — state it explicitly).
-- [ ] If query-time: every tool aggregate query in `apps/web/src/lib/*-queries.ts` groups by `(agent_type, tool_name)` and unit tests cover the multi-agent case.
-- [ ] `bun run typecheck` passes; `bun run check` passes.
+- [x] The chosen approach (prefix-on-write or query-time) is documented in this file under a `## Decision` heading added when the task is claimed.
+- [x] Two agents emitting a tool named `"Edit"` produce distinct rows (or distinct aggregates) in: per-session tool breakdown, team tool usage, org tool usage, and `daily_tool_usage` continuous aggregate.
+- [x] Existing `claude_code` data reads correctly after the change (no behavior change for single-agent deployments).
+- [x] If prefix-on-write: a migration/backfill plan for existing rows is stated (even if the backfill is a one-off script, not a migration — state it explicitly).
+- [x] If query-time: every tool aggregate query in `apps/web/src/lib/*-queries.ts` groups by `(agent_type, tool_name)` and unit tests cover the multi-agent case.
+- [x] `bun run typecheck` passes; `bun run check` passes.
 
 ## Implementation notes
 

@@ -3,7 +3,7 @@ id: P9-001
 title: Alert rules engine (scheduled evaluation)
 phase: 9
 workstream: B
-status: review
+status: done
 owner: claude
 depends_on: [P4-004, P4-005]
 blocks: [P9-002]
@@ -32,26 +32,26 @@ once per transition — no duplicate spam.
 
 ## Acceptance criteria
 
-- [ ] Migration adds two tables: `alert_rules` (id, name, rule_type, params JSONB,
+- [x] Migration adds two tables: `alert_rules` (id, name, rule_type, params JSONB,
       enabled, cadence_minutes, created_at) and `alert_events` (id, rule_id FK,
       fired_at, resolved_at nullable, severity, details JSONB).
-- [ ] `rule_type` supports at least: `spend_spike`, `high_error_rate`,
+- [x] `rule_type` supports at least: `spend_spike`, `high_error_rate`,
       `unknown_model_surge`. Optional: `budget_threshold` (per-team or per-user
       spending cap in params).
-- [ ] A new job `evaluate-alerts` is registered in `job_config` and wired into
+- [x] A new job `evaluate-alerts` is registered in `job_config` and wired into
       `scheduler.ts`; it acquires a pg advisory lock before running.
-- [ ] The job evaluates each enabled rule against the continuous aggregates;
+- [x] The job evaluates each enabled rule against the continuous aggregates;
       firing condition detected → inserts an `alert_events` row with
       `resolved_at = null` only if no unresolved row already exists for that rule
       (idempotent — re-evaluating a still-firing condition does not insert a
       second row).
-- [ ] When a previously-fired rule's condition clears → sets `resolved_at` on the
+- [x] When a previously-fired rule's condition clears → sets `resolved_at` on the
       open `alert_events` row (transition recorded once).
-- [ ] The statistical thresholds (2σ baseline window, 10% error-rate floor, 100
+- [x] The statistical thresholds (2σ baseline window, 10% error-rate floor, 100
       call minimum) are shared constants imported from `org-queries.ts`, not
       redeclared in the job.
-- [ ] Job writes a `job_runs` row on completion (consistent with existing jobs).
-- [ ] TypeScript and Biome clean.
+- [x] Job writes a `job_runs` row on completion (consistent with existing jobs).
+- [x] TypeScript and Biome clean.
 
 ## Implementation notes
 
@@ -97,7 +97,7 @@ bun --filter '@ai-agents-observability/ingest' test
 # \d alert_rules   \d alert_events
 ```
 
-> **Verification status (review):** `alert-transition.test.ts` (4 cases — fire-once,
+> **Verification status (done):** `alert-transition.test.ts` (4 cases — fire-once,
 > no-double-fire, resolve-once, no-op) **passes locally** + biome clean across all touched
 > files. The idempotency core (`applyAlertTransition`) was split into a Prisma-free module so
 > it's testable without the generated client; the SQL evaluators + schema + migration run in CI.

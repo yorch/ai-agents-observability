@@ -107,7 +107,7 @@ webhooks. [smee.io](https://smee.io) provides a free relay channel.
 
 3. In a separate terminal, start the smee client:
    ```bash
-   npx smee-client --url https://smee.io/<channel> --path /webhooks/github --port 4001
+   bunx smee-client --url https://smee.io/<channel> --path /webhooks/github --port 4001
    ```
 
 4. Start the GitHub App service locally (`GITHUB_APP_PORT=4001` by default). Webhook events will

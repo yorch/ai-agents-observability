@@ -26,7 +26,7 @@ Check the **Ingest Service** dashboard:
 
 ```bash
 docker system df
-docker volume inspect ai-agents-observability_minio_data
+du -sh ./data/minio
 ```
 
 ## Diagnose
@@ -41,7 +41,7 @@ docker volume inspect ai-agents-observability_minio_data
 
 - Transcript uploads fail independently of event ingestion — the service degrades gracefully.
 - Restart MinIO: `docker compose -f docker-compose.infra.yml restart minio`
-- If disk is full: remove orphan objects (`mc rm --recursive --force local/transcripts/orphan/`) after identifying them, or expand the volume.
+- If disk is full: remove confirmed orphan objects after identifying them, or expand the filesystem that backs `./data/minio`.
 - Lifecycle rules: the bucket is configured for 365-day expiry. Verify with `mc ilm rule ls local/transcripts`.
 
 ## Escalate

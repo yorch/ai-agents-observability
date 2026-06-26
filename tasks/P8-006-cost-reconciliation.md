@@ -3,7 +3,7 @@ id: P8-006
 title: Cost reconciliation (design + scaffold)
 phase: 8
 workstream: B
-status: review
+status: done
 owner: claude
 depends_on: [P8-002]
 blocks: []
@@ -46,13 +46,13 @@ Price tables from P8-002 are versioned (`version`, `generated_at`), enabling his
 
 ## Acceptance criteria
 
-- [ ] A reconciliation design note (written in this file under `## Reconciliation design` when the task is claimed) covering: which vendor API(s) to call, polling cadence, how to align billing periods with DB aggregates, and how discrepancies are surfaced (metric label / anomaly / alert).
-- [ ] A job seam at `apps/ingest/src/jobs/reconcile-cost.ts` that: (a) queries aggregated client-computed cost for a time window from the DB; (b) calls a pluggable `BillingSource` interface to retrieve vendor-reported cost for the same window; (c) computes the delta; (d) emits a `cost_reconciliation_delta_usd` Prometheus gauge and a `cost_reconciliation_drift_ratio` gauge (delta / vendor total).
-- [ ] The `BillingSource` interface is documented; a `NullBillingSource` stub ships that returns zero (no real vendor call) so the job can run in CI and the seam is tested.
-- [ ] The reconciliation job is wired into `apps/ingest/src/jobs/scheduler.ts` but **disabled by default** (only runs if `BILLING_RECONCILIATION_ENABLED=true` env var is set).
-- [ ] A `BILLING_RECONCILIATION_ENABLED` entry is added to `apps/ingest`'s `loadConfig()` schema (defaulting to `false`).
-- [ ] Drift above a configurable threshold (default 5%) increments a `cost_reconciliation_threshold_exceeded_total` counter (so Grafana/Alertmanager can alert on it).
-- [ ] `bun run typecheck` passes; `bun run check` passes; `bun --filter '@app/ingest' test` passes.
+- [x] A reconciliation design note (written in this file under `## Reconciliation design` when the task is claimed) covering: which vendor API(s) to call, polling cadence, how to align billing periods with DB aggregates, and how discrepancies are surfaced (metric label / anomaly / alert).
+- [x] A job seam at `apps/ingest/src/jobs/reconcile-cost.ts` that: (a) queries aggregated client-computed cost for a time window from the DB; (b) calls a pluggable `BillingSource` interface to retrieve vendor-reported cost for the same window; (c) computes the delta; (d) emits a `cost_reconciliation_delta_usd` Prometheus gauge and a `cost_reconciliation_drift_ratio` gauge (delta / vendor total).
+- [x] The `BillingSource` interface is documented; a `NullBillingSource` stub ships that returns zero (no real vendor call) so the job can run in CI and the seam is tested.
+- [x] The reconciliation job is wired into `apps/ingest/src/jobs/scheduler.ts` but **disabled by default** (only runs if `BILLING_RECONCILIATION_ENABLED=true` env var is set).
+- [x] A `BILLING_RECONCILIATION_ENABLED` entry is added to `apps/ingest`'s `loadConfig()` schema (defaulting to `false`).
+- [x] Drift above a configurable threshold (default 5%) increments a `cost_reconciliation_threshold_exceeded_total` counter (so Grafana/Alertmanager can alert on it).
+- [x] `bun run typecheck` passes; `bun run check` passes; `bun --filter '@app/ingest' test` passes.
 
 ## Implementation notes
 
@@ -97,7 +97,7 @@ bun --filter '@app/ingest' test
 # With BILLING_RECONCILIATION_ENABLED=true + NullBillingSource: job runs, emits 0-value gauges, no crash
 ```
 
-> **Verification status (review):** `reconcile-cost.test.ts` (3 cases — prev-month window +
+> **Verification status (done):** `reconcile-cost.test.ts` (3 cases — prev-month window +
 > per-agent billing call, NullBillingSource no-crash, lock-skip) **passes locally** (db mocked)
 > + `biome check --error-on-warnings` clean. `BillingSource` interface + `NullBillingSource`
 > ship; `runReconcileCost` reconciles the previous calendar month per agent, emits

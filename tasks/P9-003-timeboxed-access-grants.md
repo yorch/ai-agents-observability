@@ -3,7 +3,7 @@ id: P9-003
 title: Time-boxed access grants (request/approve workflow)
 phase: 9
 workstream: C
-status: review
+status: done
 owner: claude
 depends_on: [P3-005]
 blocks: [P9-005]
@@ -32,34 +32,34 @@ with an explicit, scoped, expiring grant that the viewed user can see.
 
 ## Acceptance criteria
 
-- [ ] Migration adds `access_grants` table: id, grantee_user_id FK, target_user_id
+- [x] Migration adds `access_grants` table: id, grantee_user_id FK, target_user_id
       FK nullable, target_session_id UUID nullable, scope (enum: `user_sessions`,
       `single_session`), justification TEXT NOT NULL, granted_by_user_id FK,
       requested_at, granted_at nullable, expires_at nullable, revoked_at nullable.
-- [ ] A requester (org_admin or a user with the research capability from P9-005)
+- [x] A requester (org_admin or a user with the research capability from P9-005)
       can submit a grant request with justification and scope via a UI form at
       `/admin/access-grants/new`; the pending request is visible to org_admins
       at `/admin/access-grants`.
-- [ ] An org_admin can approve a pending request, setting `granted_at` and
+- [x] An org_admin can approve a pending request, setting `granted_at` and
       `expires_at` (required — no indefinite grants).
-- [ ] Transcript and session access checks in `apps/web/src/lib/roles.ts`
+- [x] Transcript and session access checks in `apps/web/src/lib/roles.ts`
       consult `access_grants`: access is permitted only if there exists a row
       where `grantee_user_id = currentUser`, `granted_at IS NOT NULL`,
       `expires_at > now()`, `revoked_at IS NULL`, and the scope covers the
       requested target.
-- [ ] `AuditAction` enum is extended with `grant_requested`, `grant_approved`,
+- [x] `AuditAction` enum is extended with `grant_requested`, `grant_approved`,
       `grant_revoked`; existing actions unchanged.
-- [ ] `writeAuditLog` is called on: grant request (actor=requester,
+- [x] `writeAuditLog` is called on: grant request (actor=requester,
       target_user_id=target), grant approval (actor=approver), every transcript
       view made under a grant (actor=grantee, target=session).
-- [ ] The viewed user sees all of the above audit rows in `/me/audit` — the
+- [x] The viewed user sees all of the above audit rows in `/me/audit` — the
       `target_user_id` index already enables this.
-- [ ] An expired grant (`expires_at < now()`) is treated identically to a missing
+- [x] An expired grant (`expires_at < now()`) is treated identically to a missing
       grant — no access, no special error message that confirms whether a grant
       existed.
-- [ ] An org_admin can revoke an active grant at `/admin/access-grants`; sets
+- [x] An org_admin can revoke an active grant at `/admin/access-grants`; sets
       `revoked_at`; audited.
-- [ ] TypeScript and Biome clean.
+- [x] TypeScript and Biome clean.
 
 ## Implementation notes
 
@@ -118,7 +118,7 @@ bun --filter '@ai-agents-observability/web' test
 # Expiry: backdate expires_at, verify access is denied.
 ```
 
-> **Verification status (review):** `grant-policy.test.ts` (6 cases — active window incl.
+> **Verification status (done):** `grant-policy.test.ts` (6 cases — active window incl.
 > expired-as-no-grant, and single_session vs user_sessions scope coverage) **passes locally**
 > + biome clean. Pure predicates live in `grant-policy.ts` (Prisma-free, testable); `hasActiveGrant`
 > in roles.ts pushes the active-window filter into the query and uses `grantCovers` for scope.

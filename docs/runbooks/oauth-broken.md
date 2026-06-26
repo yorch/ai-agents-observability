@@ -14,7 +14,7 @@
 Grafana: http://localhost:3001 (see on-call.md)
 ```
 
-There are no dedicated OAuth metrics yet (P4-009 tracks adding them). For now rely on logs.
+There are no dedicated OAuth metrics yet. For now rely on web and ingest logs.
 
 **Web logs:**
 
@@ -30,20 +30,20 @@ bun run docker:app:logs | grep 'auth\|token\|identity'
 
 ## Diagnose
 
-1. **GitHub App credentials revoked or rotated?** — Check `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `GITHUB_APP_PRIVATE_KEY` are still valid. Regenerate via GitHub App settings if needed.
+1. **GitHub OAuth credentials revoked or rotated?** — Check `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET` are still valid. Regenerate via the OAuth App settings if needed.
 
-2. **JWT secret missing or rotated?** — `JWT_SECRET` (or `SESSION_SECRET`) must match between web and ingest. A mismatch causes every auth token to fail verification.
+2. **JWT keypair missing or rotated?** — `JWT_ED25519_PRIVATE_KEY` and `JWT_ED25519_PUBLIC_KEY` must be present for login and token verification. Generate a local pair with `bun run gen:keys`; if the keypair changes, existing sessions and hook tokens are invalidated.
 
-3. **Callback URL mismatch?** — GitHub OAuth requires the callback URL in the App settings to match `NEXT_PUBLIC_URL + /api/auth/callback`. Update it when the deployment URL changes.
+3. **Callback URL mismatch?** — GitHub OAuth requires the callback URL in the OAuth App settings to match the deployed web origin plus `/api/auth/callback`. Update it when the deployment URL changes.
 
 4. **Clock skew?** — JWT `exp` validation fails if the server clock is >5 min off. Check `date` on the host.
 
-5. **Device-code flow (hook CLI)?** — The hook uses `INGEST_URL` and `GITHUB_APP_CLIENT_ID`. Verify both are correct in the hook's config (`~/.config/claude-telemetry/config.json`).
+5. **Device-code flow (hook CLI)?** — The hook login command talks to the web app, defaulting to `http://localhost:3000`. Set `CLAUDE_TELEMETRY_API` to the correct web URL and check `~/.claude-telemetry/identity.json` after login.
 
 ## Mitigate
 
-- Rotate the GitHub App credentials and update env vars, then restart `apps/web` and `apps/ingest`.
-- If JWT secret was rotated: existing sessions are invalidated — users must re-login (expected behavior).
+- Rotate the GitHub OAuth credentials and update env vars, then restart `apps/web` and `apps/ingest`.
+- If the JWT keypair was rotated: existing sessions and hook tokens are invalidated — users must re-login (expected behavior).
 - Temporary workaround: if the web UI is inaccessible, direct-API access via curl with a valid token still works.
 
 ## Escalate

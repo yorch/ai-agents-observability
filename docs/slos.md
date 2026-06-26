@@ -56,10 +56,13 @@ These SLOs define the measurable reliability targets for the ai-agents-observabi
 |---|---|---|---|
 | `sync-teams` | Hourly | < 60s | > 5 min or 2 consecutive failures |
 | `sweep-abandoned` | Every 10 min | < 30s | > 2 min or 3 consecutive failures |
+| `sweep-scratch` | Hourly | < 30s | > 5 min or 2 consecutive failures |
 | `run-deletions` | Every 6h | < 2 min | Any failure (GDPR obligation) |
-| `sweep-retention` | Nightly 02:00 UTC | < 10 min | > 30 min or any failure |
-| `index-transcripts` | Nightly 03:00 UTC | < 30 min | > 1h |
-| `compute-effectiveness` | Nightly 04:00 UTC | < 15 min | > 45 min |
+| `sweep-retention` | Configurable in `job_config` (default 02:00 UTC) | < 10 min | > 30 min or any failure |
+| `index-transcripts` | Configurable in `job_config` (default 03:30 UTC) | < 30 min | > 1h |
+| `compute-effectiveness` | Configurable in `job_config` (default 05:00 UTC) | < 15 min | > 45 min |
+| `evaluate-alerts` | Configurable in `job_config` (default 01:00 UTC) | < 5 min | Any failure or missed run |
+| `reconcile-cost` | Daily when `BILLING_RECONCILIATION_ENABLED=true` | < 15 min | Any failure when enabled |
 
 ---
 
@@ -80,7 +83,7 @@ These SLOs define the measurable reliability targets for the ai-agents-observabi
 
 ---
 
-## Future SLIs (Phase 4 additions)
+## Additional SLIs
 
 - Org dashboard page p95 < 2s
 - Transcript FTS query < 500ms

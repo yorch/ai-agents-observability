@@ -1,5 +1,7 @@
 # Phase 3 — Team views (roadmap)
 
+**Status**: Fully decomposed into P3-001 … P3-007; all Phase 3 tasks are `done`. See [`INDEX.md`](./INDEX.md) for task-level status.
+
 **Trigger to decompose**: Phase 2 exit criteria met.
 
 ## Goal recap

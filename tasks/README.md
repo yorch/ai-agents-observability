@@ -9,11 +9,13 @@ tasks/
 ├── README.md          # This file — the rules
 ├── INDEX.md           # Status table. Single source of truth for state.
 ├── _template.md       # Copy this when adding a new task.
-├── P1-XXX-*.md        # Phase 1 tasks (fully decomposed)
-├── P2-roadmap.md      # Phase 2 sketch — decompose when Phase 1 exits
-├── P3-roadmap.md
-├── P4-roadmap.md
-└── P5-roadmap.md
+├── P1-XXX-*.md        # Phase 1 tasks
+├── P2-XXX-*.md        # Phase 2 tasks
+├── ...
+├── P9-XXX-*.md        # Phase 9 tasks
+├── P3-roadmap.md      # Phase summaries where useful
+├── ...
+└── P9-roadmap.md
 ```
 
 ## Task file format

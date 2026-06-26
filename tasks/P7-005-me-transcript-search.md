@@ -3,7 +3,7 @@ id: P7-005
 title: /me transcript search (per-user FTS)
 phase: 7
 workstream: E
-status: review
+status: done
 owner: claude
 depends_on: [P4-003]
 blocks: []
@@ -32,13 +32,13 @@ from both routes rather than duplicating the SQL.
 
 ## Acceptance criteria
 
-- [ ] `GET /me/search?q=<query>` renders a search results page with `ts_headline` excerpts and links to the matching session transcript.
-- [ ] Results are scoped to the authenticated user's sessions only; no other user's sessions can appear regardless of query content.
-- [ ] An empty or whitespace-only query renders a prompt ("Enter a term to search your transcripts") with no DB call.
-- [ ] A query shorter than 2 characters after trimming is rejected with a user-facing notice, not a Postgres error.
-- [ ] Results show the session date, repo, and a highlighted excerpt (≤3 excerpts per session).
-- [ ] Page handles zero results gracefully with a "No matching sessions" message.
-- [ ] The `user_id` scope predicate is part of the SQL query, not a post-fetch JS filter.
+- [x] `GET /me/search?q=<query>` renders a search results page with `ts_headline` excerpts and links to the matching session transcript.
+- [x] Results are scoped to the authenticated user's sessions only; no other user's sessions can appear regardless of query content.
+- [x] An empty or whitespace-only query renders a prompt ("Enter a term to search your transcripts") with no DB call.
+- [x] A query shorter than 2 characters after trimming is rejected with a user-facing notice, not a Postgres error.
+- [x] Results show the session date, repo, and a highlighted excerpt (≤3 excerpts per session).
+- [x] Page handles zero results gracefully with a "No matching sessions" message.
+- [x] The `user_id` scope predicate is part of the SQL query, not a post-fetch JS filter.
 
 ## Implementation notes
 
@@ -72,7 +72,7 @@ bun run typecheck
 bun run check
 ```
 
-> **Verification status (review):** `apps/web/test/search-queries.test.ts` (4 tests) **passes
+> **Verification status (done):** `apps/web/test/search-queries.test.ts` (4 tests) **passes
 > locally** (grouping/≤3-excerpt cap/pagination/short-query guard) and `biome
 > check --error-on-warnings` is clean. Shared FTS core (`searchTranscriptMatches`) extracted to
 > `search-queries.ts`; `org-queries.searchTranscripts` now delegates to it (org behavior

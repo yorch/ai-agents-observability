@@ -1,30 +1,34 @@
 # Phase 9 — Alerting & Governance (roadmap)
 
 **Trigger to decompose**: post-P6 gap assessment. Three structural gaps surfaced
-once the P1–P6 spine was complete:
+once the P1–P6 spine was complete. The descriptions below are the historical
+decomposition rationale; P9-001 through P9-006 now implement the fixes and are
+`done`.
 
-1. **Anomaly detection is render-time only.** `getAnomalies()` in
+**Status**: P9-001 through P9-006 are `done`. See [`INDEX.md`](./INDEX.md) for task-level status.
+
+1. **Anomaly detection was render-time only.** `getAnomalies()` in
    `apps/web/src/lib/org-queries.ts` runs statistical checks (spend spike >2σ,
    error rate >10%) when the `/org/dashboard` page renders. Nothing fires when
    no one is looking. No alert history exists, no notification is ever delivered.
    The org dashboard is a passive surface when the project needs proactive signals.
 
-2. **Governance is four static booleans.** `visibility_policies` gives each user
+2. **Governance was four static booleans.** `visibility_policies` gives each user
    four opt-in/opt-out controls, and `canViewIndividuals` is an org-admin standing
    privilege. There is no time-boxed access, no request/approve workflow, and no
    narrowly-scoped capability — org admins either have it all or have nothing.
    `DESIGN_DOC.md §8.4` describes the investigation path (org admin requests
    transcript access with justification, logged visibly to the user), but the
-   **workflow UI and `access_grants` table do not exist**. The `delete_request`
+   **workflow UI and `access_grants` table did not exist**. The `delete_request`
    and `view_transcript` `AuditAction` entries are wired; the gated request/approve
    step that should precede them is not.
 
-3. **The Audience-B research persona has no matching access model.**
+3. **The Audience-B research persona had no matching access model.**
    `DESIGN_DOC.md §3` describes the dev-tools/research persona as needing
    org-wide aggregates plus *sampled session investigation with audit logging* —
    narrower than org_admin (which grants standing config and transcript access),
    broader than viewer_aggregate (which is aggregate-only). No role or scoped
-   grant maps to this persona today.
+   grant mapped to this persona before P9.
 
 ## Goal recap
 
@@ -55,9 +59,10 @@ implicit.
   once (no spam). Reuses `getAnomalies()` thresholds.
 
 - **P9-002 Alert notifications (WS E, M)**
-  Deliver fired alerts to email / Slack / generic webhook. `/admin/alerts` config
-  + history UI (org_admin only). Notifications carry aggregate data only — no
-  individual session content or developer-identifying transcript data.
+  Deliver fired alerts to Slack / generic webhook, with a documented email seam
+  pending SMTP wiring. `/admin/alerts` config + history UI (org_admin only).
+  Notifications carry aggregate data only — no individual session content or
+  developer-identifying transcript data.
 
 - **P9-003 Time-boxed access grants (WS C, L)**
   `access_grants` table + request/approve workflow for the §8.4 investigation

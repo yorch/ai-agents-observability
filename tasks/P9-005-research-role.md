@@ -3,7 +3,7 @@ id: P9-005
 title: Research / investigator capability (Audience B)
 phase: 9
 workstream: C
-status: review
+status: done
 owner: claude
 depends_on: [P9-003, P3-001]
 blocks: [P9-006]
@@ -47,32 +47,32 @@ them permanently) preserves all four properties. This is the intended design.
 
 ## Acceptance criteria
 
-- [ ] A new `OrgRole` value `investigator` is added (or a `can_request_grants`
+- [x] A new `OrgRole` value `investigator` is added (or a `can_request_grants`
       boolean on `users`, if extending the enum would require wider schema churn —
       choose whichever requires fewer migrations and is consistent with the existing
       role pattern in `roles.ts`).
-- [ ] An `investigator` user can: view org-wide aggregates (same as
+- [x] An `investigator` user can: view org-wide aggregates (same as
       `viewer_aggregate`); submit access grant requests (P9-003 workflow) for
       specific sessions or a specific user's sessions, citing justification.
-- [ ] An `investigator` user cannot: edit org config; grant or revoke roles;
+- [x] An `investigator` user cannot: edit org config; grant or revoke roles;
       view transcripts without an active grant; view another user's sessions
       without an active grant.
-- [ ] When an approved grant exists (`hasActiveGrant` returns true), an
+- [x] When an approved grant exists (`hasActiveGrant` returns true), an
       `investigator` user can view the in-scope session detail and transcript —
       subject to the target user's `visibility_policies` (transcripts still
       require `share_transcripts_with_org=true` OR an explicit grant; the grant
       is the override path for the `=false` case).
-- [ ] Every session or transcript view by an `investigator` user writes an audit
+- [x] Every session or transcript view by an `investigator` user writes an audit
       row via `writeAuditLog` (reuses existing `view_session` / `view_transcript`
       actions); the target user sees these in `/me/audit`.
-- [ ] `investigator` role is assignable by org_admin at `/admin/team-roles` (or
+- [x] `investigator` role is assignable by org_admin at `/admin/team-roles` (or
       a new `/admin/org-roles` page if the existing UI only handles team roles).
-- [ ] Role assignment is audited (`role_grant` action, existing).
-- [ ] When the grant expires, the investigator's access reverts to aggregate-only
+- [x] Role assignment is audited (`role_grant` action, existing).
+- [x] When the grant expires, the investigator's access reverts to aggregate-only
       without any code change — `hasActiveGrant` returning false is sufficient.
-- [ ] A comment in `roles.ts` documents the trust rationale (grant-scoped, not
+- [x] A comment in `roles.ts` documents the trust rationale (grant-scoped, not
       standing) so the next agent doesn't "simplify" it into standing access.
-- [ ] TypeScript and Biome clean.
+- [x] TypeScript and Biome clean.
 
 ## Implementation notes
 
@@ -117,7 +117,7 @@ bun --filter '@ai-agents-observability/web' test
 # Test: investigator cannot access /admin/alerts, /admin/org-roles edit actions.
 ```
 
-> **Verification status (review):** `roles.test.ts` gains investigator cases (canViewIndividuals
+> **Verification status (done):** `roles.test.ts` gains investigator cases (canViewIndividuals
 > = false for investigator; canRequestGrants = true for org_admin + investigator only) — **23 web
 > role/grant tests pass locally** + biome clean. `investigator` added to OrgRole enum (+migration);
 > `requireOrgViewer` already admits it (aggregate access), `canViewIndividuals` deliberately excludes
