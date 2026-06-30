@@ -112,6 +112,15 @@ export function getUserOversight(userId: string, since: Date): Promise<Oversight
 }
 
 /**
+ * Team-scoped oversight summary over the already visibility-resolved team member
+ * ids (callers pass `visibleIds` from resolveTeamVisibility). An empty list yields
+ * an all-zero summary (Prisma `in: []` matches nothing).
+ */
+export function getTeamOversight(userIds: string[], since: Date): Promise<OversightSummary> {
+  return oversightForWhere({ startedAt: { gte: since }, userId: { in: userIds } });
+}
+
+/**
  * Org-wide oversight summary, visibility-scoped: only users who share metadata
  * with the org contribute (conservative default true when no policy row exists),
  * matching the alert engine and org dashboards.

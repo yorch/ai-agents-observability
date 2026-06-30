@@ -1,20 +1,14 @@
 import { AuditAction } from '@ai-agents-observability/db';
 import { OversightPanel } from '@/components/me/OversightPanel';
+import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { StatCard } from '@/components/team-org/StatCard';
 import { getOrgOversight } from '@/lib/oversight-queries';
 import { getAgentPrProvenance } from '@/lib/pr-provenance-queries';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
+import { daysAgo } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
-
-const DAYS_OPTS = [7, 30, 90] as const;
-type Days = (typeof DAYS_OPTS)[number];
-
-function parseDays(raw: string | undefined): Days {
-  const n = Number(raw);
-  return (DAYS_OPTS as readonly number[]).includes(n) ? (n as Days) : 30;
-}
 
 /**
  * Governance & oversight-posture report (R12). Aggregate, visibility-scoped
@@ -25,13 +19,14 @@ function parseDays(raw: string | undefined): Days {
 export default async function GovernancePage({
   searchParams,
 }: {
-  searchParams: Promise<Record<string, string>>;
+  searchParams: Promise<{ range?: string }>;
 }) {
   await requireOrgViewer();
-  const params = await searchParams;
-  const days = parseDays(params.days);
+  const { range: rangeParam } = await searchParams;
+  // Shared ?range convention + DateRangePicker, consistent with team/org dashboards.
+  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const now = new Date();
-  const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const since = daysAgo(range);
 
   const db = getPrisma();
   const [oversight, transcriptViews, grantsApproved, activeGrants, pendingGrants, provenance] =
@@ -57,19 +52,7 @@ export default async function GovernancePage({
             SOC 2) — aggregate only, no individual sessions or identities.
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
-          {DAYS_OPTS.map((d) => (
-            <a
-              key={d}
-              href={`/org/governance?days=${d}`}
-              className={`rounded-md px-3 py-1 text-xs font-mono ${
-                d === days ? 'bg-brand-500 text-bg' : 'text-white/50 hover:text-white'
-              }`}
-            >
-              {d}d
-            </a>
-          ))}
-        </div>
+        <DateRangePicker range={range} />
       </div>
 
       <section className="space-y-3">
@@ -98,12 +81,12 @@ export default async function GovernancePage({
           <StatCard
             label="Grants approved"
             value={grantsApproved.toLocaleString()}
-            sub={`in last ${days}d`}
+            sub={`in last ${range}d`}
           />
           <StatCard
             label="Transcript views"
             value={transcriptViews.toLocaleString()}
-            sub={`audited · last ${days}d`}
+            sub={`audited · last ${range}d`}
           />
         </div>
         <p className="text-xs text-white/30">
@@ -129,7 +112,11 @@ export default async function GovernancePage({
             sub="reviewer = author / none"
             accent={provenance.mergedWithoutIndependentReview > 0 ? 'red' : 'green'}
           />
-          <StatCard label="Window" value={`${days}d`} sub={`${provenance.rows.length} PRs shown`} />
+          <StatCard
+            label="Window"
+            value={`${range}d`}
+            sub={`${provenance.rows.length} PRs shown`}
+          />
         </div>
         {provenance.rows.length === 0 ? (
           <p className="text-sm text-white/40">No agent-assisted PRs in this window.</p>

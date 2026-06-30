@@ -21,6 +21,14 @@ function grantStatus(g: {
   return 'active';
 }
 
+// Active grants within this window of expiry are surfaced as "expiring soon" so
+// the holder can re-request before access lapses.
+const EXPIRING_SOON_MS = 6 * 3_600_000;
+
+function expiringSoon(expiresAt: Date | null): boolean {
+  return expiresAt != null && expiresAt.getTime() - Date.now() < EXPIRING_SOON_MS;
+}
+
 const STATUS_STYLES = {
   active: 'bg-green-500/15 text-green-400',
   expired: 'bg-surface-2 text-text-3',
@@ -185,6 +193,11 @@ function GrantCard({
         <div className="text-xs text-text-3">
           Approved {new Date(g.grantedAt).toLocaleString()}
           {g.expiresAt && ` · expires ${new Date(g.expiresAt).toLocaleString()}`}
+          {status === 'active' && expiringSoon(g.expiresAt) && (
+            <span className="ml-2 rounded bg-yellow-500/15 px-1.5 py-0.5 text-yellow-400">
+              expiring soon
+            </span>
+          )}
         </div>
       )}
       {g.revokedAt && (
