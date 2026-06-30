@@ -3,6 +3,9 @@ export const EVENTS_API_VERSION = '1' as const;
 export { agentDisplayName, DEFAULT_AGENT_TYPE, multiAgentLabels } from './agent-display';
 export type { AlertRuleType, AlertSeverity } from './alerts';
 export {
+  BUDGET_THRESHOLD_CRITICAL_RATIO,
+  BUDGET_THRESHOLD_WARN_RATIO,
+  BUDGET_THRESHOLD_WINDOW_DAYS,
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,

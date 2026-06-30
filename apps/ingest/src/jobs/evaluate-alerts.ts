@@ -1,6 +1,9 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import { Prisma } from '@ai-agents-observability/db';
 import {
+  BUDGET_THRESHOLD_CRITICAL_RATIO,
+  BUDGET_THRESHOLD_WARN_RATIO,
+  BUDGET_THRESHOLD_WINDOW_DAYS,
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,
@@ -15,6 +18,7 @@ import {
 import type { Logger } from 'pino';
 
 import { dispatchAlert } from '../lib/notify/channel';
+import type { EmailConfig } from '../lib/notify/email';
 import { buildAlertPayload } from '../lib/notify/payload';
 import { type AlertEvaluation, applyAlertTransition } from './alert-transition';
 
@@ -137,6 +141,38 @@ async function evalUnknownModelSurge(db: AlertsDb, params: unknown): Promise<Eva
   };
 }
 
+async function evalBudgetThreshold(db: AlertsDb, params: unknown): Promise<Evaluation> {
+  const p = paramsObject(params);
+  const budgetUsd = Number(p.budgetUsd ?? 0);
+  // Inert until an admin configures a positive budget. A misconfigured rule (no or
+  // non-positive budget) never fires rather than throwing — consistent with the
+  // other evaluators, so one unconfigured rule can't fail the sweep.
+  if (!(budgetUsd > 0)) {
+    return null;
+  }
+  const windowDays = Number(p.windowDays ?? BUDGET_THRESHOLD_WINDOW_DAYS);
+  const windowStart = new Date(Date.now() - windowDays * 86_400_000);
+  // Visibility-scoped like the other evaluators: users who opted out of org
+  // metadata sharing don't contribute to this org-aggregate spend signal.
+  const rows = await db.$queryRaw<{ spend: number }[]>(Prisma.sql`
+    SELECT COALESCE(SUM(s.total_cost_usd), 0) AS spend
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    WHERE s.started_at >= ${windowStart}
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+  `);
+  const spend = Number(rows[0]?.spend ?? 0);
+  const ratio = spend / budgetUsd;
+  if (ratio < BUDGET_THRESHOLD_WARN_RATIO) {
+    return null;
+  }
+  return {
+    details: { budgetUsd, ratio, spend, windowDays },
+    severity: ratio >= BUDGET_THRESHOLD_CRITICAL_RATIO ? 'critical' : 'warn',
+  };
+}
+
 async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
   switch (rule.ruleType) {
     case 'spend_spike':
@@ -145,9 +181,11 @@ async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
       return evalHighErrorRate(db);
     case 'unknown_model_surge':
       return evalUnknownModelSurge(db, rule.params);
+    case 'budget_threshold':
+      return evalBudgetThreshold(db, rule.params);
     default:
-      // budget_threshold and any future types: unimplemented evaluators never fire
-      // rather than throwing, so one bad rule can't fail the whole sweep.
+      // Any future types: unimplemented evaluators never fire rather than throwing,
+      // so one bad rule can't fail the whole sweep.
       return null;
   }
 }
@@ -162,6 +200,7 @@ export async function runEvaluateAlerts(
   db: AlertsDb,
   logger?: Logger,
   appBaseUrl = '',
+  emailConfig?: EmailConfig,
 ): Promise<void> {
   const jobName = 'evaluate-alerts';
   const startedAt = new Date();
@@ -197,7 +236,7 @@ export async function runEvaluateAlerts(
               { details: evaluation.details, firedAt: new Date(), severity: evaluation.severity },
               appBaseUrl,
             );
-            await dispatchAlert(db, channels, payload, logger);
+            await dispatchAlert(db, channels, payload, logger, emailConfig);
           }
         } else if (outcome === 'resolved') {
           resolved++;

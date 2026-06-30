@@ -48,10 +48,25 @@ const server = Bun.serve({
 
 logger.info({ port: config.port, version: config.git_sha }, 'ingest service started');
 
+// Only wire the email channel when an SMTP host + sender are configured; otherwise
+// leave it undefined so email-alert delivery fails loud (logged) rather than silent.
+const emailConfig =
+  config.smtp_host && config.smtp_from
+    ? {
+        from: config.smtp_from,
+        host: config.smtp_host,
+        ...(config.smtp_password ? { password: config.smtp_password } : {}),
+        port: config.smtp_port,
+        secure: config.smtp_secure,
+        ...(config.smtp_user ? { user: config.smtp_user } : {}),
+      }
+    : undefined;
+
 startScheduler({
   billingReconciliationEnabled: config.billing_reconciliation_enabled,
   bucket: config.s3_bucket,
   db,
+  ...(emailConfig ? { emailConfig } : {}),
   ...(config.github_sync_token ? { githubSyncToken: config.github_sync_token } : {}),
   appBaseUrl: config.app_base_url,
   logger,

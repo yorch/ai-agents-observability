@@ -20,6 +20,21 @@ describe('buildAlertPayload (trust guardrail — aggregate only)', () => {
     expect(p.url).toBe('https://obs.example/org/dashboard');
   });
 
+  it('renders an aggregate-only budget_threshold description', () => {
+    const p = buildAlertPayload(
+      { name: 'Org budget threshold', ruleType: 'budget_threshold' },
+      {
+        details: { budgetUsd: 1000, ratio: 0.92, spend: 920, windowDays: 30 },
+        firedAt: new Date('2026-06-24T12:00:00Z'),
+        severity: 'warn',
+      },
+    );
+    expect(p.description).toContain('92%');
+    expect(p.description).toContain('$1000.00');
+    expect(p.description).toContain('$920.00');
+    expect(p.description).toContain('30 days');
+  });
+
   it('carries NO individual-identifying data (no session/user/login/transcript)', () => {
     const serialized = JSON.stringify(
       buildAlertPayload(rule, {
@@ -61,6 +76,7 @@ describe('dispatchAlert', () => {
       [{ channelType: 'webhook', config: { url: 'http://x' }, enabled: false }],
       payload,
       undefined,
+      undefined,
       async () => {},
     );
     expect(db._logs).toHaveLength(0);
@@ -72,6 +88,7 @@ describe('dispatchAlert', () => {
       db,
       [{ channelType: 'bogus', config: {}, enabled: true }],
       payload,
+      undefined,
       undefined,
       async () => {},
     );

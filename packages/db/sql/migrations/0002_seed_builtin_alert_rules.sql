@@ -15,3 +15,13 @@ FROM (VALUES
 WHERE NOT EXISTS (
   SELECT 1 FROM "alert_rules" existing WHERE existing."rule_type" = v.rule_type
 );
+
+-- budget_threshold ships DISABLED with empty params: unlike the rules above it has
+-- no org-agnostic default (the evaluator is inert until `params.budgetUsd` is set),
+-- so seeding it enabled would surface a rule that can never fire. An admin sets the
+-- monthly budget and enables it from the alert-rules UI. Same idempotent guard.
+INSERT INTO "alert_rules" ("id", "name", "rule_type", "params", "enabled", "cadence_minutes")
+SELECT gen_random_uuid(), 'Org budget threshold', 'budget_threshold', '{}', false, 60
+WHERE NOT EXISTS (
+  SELECT 1 FROM "alert_rules" existing WHERE existing."rule_type" = 'budget_threshold'
+);

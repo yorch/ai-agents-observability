@@ -1,5 +1,6 @@
 import type { Logger } from 'pino';
 
+import type { EmailConfig } from './email';
 import { sendEmail } from './email';
 import type { AlertPayload } from './payload';
 import { sendSlack } from './slack';
@@ -26,7 +27,12 @@ function asObject(config: unknown): Record<string, unknown> {
   return config && typeof config === 'object' ? (config as Record<string, unknown>) : {};
 }
 
-async function deliverOnce(channelType: string, config: unknown, payload: AlertPayload) {
+async function deliverOnce(
+  channelType: string,
+  config: unknown,
+  payload: AlertPayload,
+  emailConfig?: EmailConfig,
+) {
   const c = asObject(config);
   switch (channelType) {
     case 'webhook':
@@ -34,7 +40,7 @@ async function deliverOnce(channelType: string, config: unknown, payload: AlertP
     case 'slack_webhook':
       return sendSlack(String(c.webhookUrl ?? c.url ?? ''), payload);
     case 'email':
-      return sendEmail(String(c.to ?? ''), payload);
+      return sendEmail(String(c.to ?? ''), payload, emailConfig);
     default:
       throw new Error(`Unknown channel type: ${channelType}`);
   }
@@ -51,6 +57,7 @@ export async function dispatchAlert(
   channels: ChannelConfigRow[],
   payload: AlertPayload,
   logger?: Logger,
+  emailConfig?: EmailConfig,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
 ): Promise<void> {
   for (const ch of channels) {
@@ -61,7 +68,7 @@ export async function dispatchAlert(
     let success = false;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        await deliverOnce(ch.channelType, ch.config, payload);
+        await deliverOnce(ch.channelType, ch.config, payload, emailConfig);
         success = true;
         lastError = null;
         break;

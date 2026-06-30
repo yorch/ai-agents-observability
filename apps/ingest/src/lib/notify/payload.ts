@@ -32,6 +32,8 @@ function describe(ruleType: string, details: Record<string, unknown>): string {
       return `Tool error rate is ${(num(details, 'errorRate') * 100).toFixed(1)}% (${num(details, 'errors')} errors / ${num(details, 'calls')} calls).`;
     case 'unknown_model_surge':
       return `${num(details, 'count')} events priced at $0 (unknown model) in the last ${num(details, 'windowHours')}h — above the ${num(details, 'threshold')} threshold.`;
+    case 'budget_threshold':
+      return `Org spend reached ${(num(details, 'ratio') * 100).toFixed(0)}% of the $${num(details, 'budgetUsd').toFixed(2)} budget ($${num(details, 'spend').toFixed(2)} over the last ${num(details, 'windowDays')} days).`;
     default:
       return 'An alert rule fired.';
   }

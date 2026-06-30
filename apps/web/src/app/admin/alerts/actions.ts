@@ -18,6 +18,28 @@ export async function toggleRule(formData: FormData): Promise<void> {
   revalidatePath('/admin/alerts');
 }
 
+/**
+ * Set the spend budget (params.budgetUsd, optional params.windowDays) for a
+ * budget_threshold rule. The evaluator is inert until a positive budget is set, so
+ * this is what turns the seeded rule on. Invalid input is ignored (no-op) rather
+ * than persisted, matching the other actions' defensive style.
+ */
+export async function updateBudgetThreshold(formData: FormData): Promise<void> {
+  await requireOrgAdmin();
+  const id = String(formData.get('id') ?? '');
+  const budgetUsd = Number(formData.get('budgetUsd'));
+  if (!id || !Number.isFinite(budgetUsd) || budgetUsd <= 0) {
+    return;
+  }
+  const params: Record<string, number> = { budgetUsd };
+  const windowDays = Number(formData.get('windowDays'));
+  if (Number.isFinite(windowDays) && windowDays > 0) {
+    params.windowDays = Math.floor(windowDays);
+  }
+  await getPrisma().alertRule.updateMany({ data: { params }, where: { id } });
+  revalidatePath('/admin/alerts');
+}
+
 /** Add a notification channel. Config is a small typed object per channel type. */
 export async function addChannel(formData: FormData): Promise<void> {
   await requireOrgAdmin();

@@ -32,3 +32,11 @@ export const ERROR_RATE_MIN_CALLS = 100;
 // (overridable per-rule via params.threshold).
 export const UNKNOWN_MODEL_SURGE_DEFAULT = 50;
 export const UNKNOWN_MODEL_WINDOW_HOURS = 24;
+
+// Budget threshold: org spend over a rolling window measured against an admin-set
+// budget (params.budgetUsd, optional params.windowDays). The rule is INERT until a
+// positive budget is configured — there is no sensible org-agnostic default. Warn
+// as spend approaches the budget, escalate to critical once it is met or exceeded.
+export const BUDGET_THRESHOLD_WINDOW_DAYS = 30;
+export const BUDGET_THRESHOLD_WARN_RATIO = 0.8;
+export const BUDGET_THRESHOLD_CRITICAL_RATIO = 1.0;

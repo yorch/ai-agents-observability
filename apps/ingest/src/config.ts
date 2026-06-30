@@ -39,6 +39,21 @@ const ConfigSchema = z.object({
     .optional()
     .transform((v) => v === '1' || v === 'true')
     .default(false),
+  // SMTP email-alert channel (P9-002 follow-up). All optional: when SMTP_HOST and
+  // SMTP_FROM are unset the email channel stays unconfigured and any email alert
+  // delivery fails loud (logged in alert_delivery_log) rather than silently.
+  smtp_from: z.string().optional(),
+  smtp_host: z.string().optional(),
+  smtp_password: z.string().optional(),
+  smtp_port: z.coerce.number().int().min(1).max(65535).default(587),
+  // Implicit TLS (SMTPS, usually port 465). Defaults off — port 587 with STARTTLS
+  // is the common path. Accepts "1"/"true".
+  smtp_secure: z
+    .string()
+    .optional()
+    .transform((v) => v === '1' || v === 'true')
+    .default(false),
+  smtp_user: z.string().optional(),
   // Configurable transcript retention (days). Default: 365. Set to 0 to disable.
   transcript_retention_days: z.coerce.number().int().min(0).default(365),
 });
@@ -65,6 +80,12 @@ export function loadConfig(): Config {
     s3_region: process.env.S3_REGION,
     s3_secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
     semantic_search_enabled: process.env.SEMANTIC_SEARCH_ENABLED,
+    smtp_from: process.env.SMTP_FROM,
+    smtp_host: process.env.SMTP_HOST,
+    smtp_password: process.env.SMTP_PASSWORD,
+    smtp_port: process.env.SMTP_PORT,
+    smtp_secure: process.env.SMTP_SECURE,
+    smtp_user: process.env.SMTP_USER,
     transcript_retention_days: process.env.TRANSCRIPT_RETENTION_DAYS,
   });
 }

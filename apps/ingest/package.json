@@ -22,11 +22,13 @@
     "@hono/zod-validator": "catalog:",
     "croner": "catalog:",
     "hono": "catalog:",
+    "nodemailer": "catalog:",
     "pino": "catalog:",
     "prom-client": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/nodemailer": "catalog:",
     "bun-types": "catalog:",
     "pino-pretty": "catalog:",
     "typescript": "catalog:",
