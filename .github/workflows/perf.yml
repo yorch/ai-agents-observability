@@ -22,13 +22,6 @@ jobs:
   hook-perf:
     name: Hook cold-start benchmark (<15ms p99)
     runs-on: ubuntu-latest
-    # Report-only: the <15ms p99 budget targets developer hardware. On shared
-    # ubuntu-latest runners the Bun single-file-binary cold start measures ~60–80ms
-    # regardless of code, so the gate is informational here (results are uploaded
-    # as an artifact for trend tracking). Per this workflow's own note. The strict
-    # gates live in ci.yml (typecheck/lint/test). Re-tighten if moved to dedicated
-    # perf hardware.
-    continue-on-error: true
 
     steps:
       - name: Checkout
@@ -53,13 +46,15 @@ jobs:
             --outfile apps/hook/dist/claude-telemetry
 
       - name: Run cold-start benchmark
+        # Report-only (continue-on-error): the <15ms p99 budget targets developer
+        # hardware. On shared ubuntu-latest runners the Bun single-file-binary cold
+        # start measures ~60–80ms regardless of code, so the gate is informational
+        # here — results are still uploaded as an artifact for trend tracking, and
+        # the strict gates live in ci.yml (typecheck/lint/test). Re-tighten if moved
+        # to dedicated perf hardware.
+        continue-on-error: true
         # PERF_COLD_ONLY=1   — skip warm-start (needs stdin patch, less meaningful in CI)
         # PERF_COLD_ITERATIONS=100 — 100 spawns per hook kind (400 total) keeps the job fast
-        # Gate: exits 1 if any cold-start p99 > 15ms (10ms target + 50% CI headroom)
-        #
-        # If this job is consistently noisy on ubuntu-latest, add:
-        #   continue-on-error: true
-        # and document the baseline in apps/hook/bench/README.md.
         # No PERF_BINARY override: the bench runs with --cwd apps/hook and its
         # default binary path (apps/hook/dist/claude-telemetry) already matches the
         # build step above. A repo-root-relative override resolves against the
