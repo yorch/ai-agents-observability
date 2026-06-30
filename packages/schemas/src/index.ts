@@ -3,6 +3,10 @@ export const EVENTS_API_VERSION = '1' as const;
 export { agentDisplayName, DEFAULT_AGENT_TYPE, multiAgentLabels } from './agent-display';
 export type { AlertRuleType, AlertSeverity, BudgetThresholdParams } from './alerts';
 export {
+  AUTONOMY_SURGE_CRITICAL,
+  AUTONOMY_SURGE_MIN_SESSIONS,
+  AUTONOMY_SURGE_WARN,
+  AUTONOMY_SURGE_WINDOW_DAYS,
   BUDGET_THRESHOLD_CRITICAL_RATIO,
   BUDGET_THRESHOLD_WARN_RATIO,
   BUDGET_THRESHOLD_WINDOW_DAYS,
@@ -67,6 +71,8 @@ export {
   AUTONOMY_RANK,
   canonicalPermissionMode,
   GitContextSchema,
+  isLowOversightMode,
+  LOW_OVERSIGHT_MODES,
   PERMISSION_MODES,
   SessionContextSchema,
 } from './session-context';

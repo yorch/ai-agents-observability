@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AUTONOMY_RANK,
   canonicalPermissionMode,
+  isLowOversightMode,
   type PermissionMode,
   SessionContextSchema,
 } from './session-context';
@@ -100,5 +101,14 @@ describe('canonicalPermissionMode', () => {
         AUTONOMY_RANK[order[i - 1] as PermissionMode],
       );
     }
+  });
+
+  it('flags only ungated modes as low-oversight', () => {
+    expect(isLowOversightMode('bypass')).toBe(true);
+    expect(isLowOversightMode('dont_ask')).toBe(true);
+    expect(isLowOversightMode('auto')).toBe(false);
+    expect(isLowOversightMode('normal')).toBe(false);
+    expect(isLowOversightMode('plan')).toBe(false);
+    expect(isLowOversightMode(null)).toBe(false);
   });
 });

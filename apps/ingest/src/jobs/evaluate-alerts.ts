@@ -1,12 +1,17 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import { Prisma } from '@ai-agents-observability/db';
 import {
+  AUTONOMY_SURGE_CRITICAL,
+  AUTONOMY_SURGE_MIN_SESSIONS,
+  AUTONOMY_SURGE_WARN,
+  AUTONOMY_SURGE_WINDOW_DAYS,
   BUDGET_THRESHOLD_CRITICAL_RATIO,
   BUDGET_THRESHOLD_WARN_RATIO,
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,
   ERROR_RATE_WINDOW_DAYS,
+  LOW_OVERSIGHT_MODES,
   parseBudgetThresholdParams,
   SPEND_SPIKE_BASELINE_DAYS,
   SPEND_SPIKE_CRITICAL_SIGMA,
@@ -172,6 +177,42 @@ async function evalBudgetThreshold(db: AlertsDb, params: unknown): Promise<Evalu
   };
 }
 
+// Autonomy surge (R9): the share of recent sessions running with no per-action
+// human gate (bypass / dont_ask). A rising share is oversight erosion. Aggregate
+// and visibility-scoped like the other evaluators — no individual is named.
+async function evalAutonomySurge(db: AlertsDb, params: unknown): Promise<Evaluation> {
+  const warn = Number(paramsObject(params).threshold ?? AUTONOMY_SURGE_WARN);
+  const critical = Number(paramsObject(params).criticalThreshold ?? AUTONOMY_SURGE_CRITICAL);
+  const windowStart = new Date(Date.now() - AUTONOMY_SURGE_WINDOW_DAYS * 86_400_000);
+  const rows = await db.$queryRaw<{ low_oversight: number; total: number }[]>(Prisma.sql`
+    SELECT COUNT(*) AS total,
+           COUNT(*) FILTER (WHERE s.mode = ANY(${[...LOW_OVERSIGHT_MODES]}::text[])) AS low_oversight
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    WHERE s.started_at >= ${windowStart}
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+  `);
+  const total = Number(rows[0]?.total ?? 0);
+  const lowOversight = Number(rows[0]?.low_oversight ?? 0);
+  if (total < AUTONOMY_SURGE_MIN_SESSIONS) {
+    return null;
+  }
+  const share = lowOversight / total;
+  if (share <= warn) {
+    return null;
+  }
+  return {
+    details: {
+      lowOversightSessions: lowOversight,
+      share,
+      totalSessions: total,
+      windowDays: AUTONOMY_SURGE_WINDOW_DAYS,
+    },
+    severity: share > critical ? 'critical' : 'warn',
+  };
+}
+
 async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
   switch (rule.ruleType) {
     case 'spend_spike':
@@ -182,6 +223,8 @@ async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
       return evalUnknownModelSurge(db, rule.params);
     case 'budget_threshold':
       return evalBudgetThreshold(db, rule.params);
+    case 'autonomy_surge':
+      return evalAutonomySurge(db, rule.params);
     default:
       // Any future types: unimplemented evaluators never fire rather than throwing,
       // so one bad rule can't fail the whole sweep.

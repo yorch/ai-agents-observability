@@ -53,6 +53,15 @@ export const AUTONOMY_RANK: Record<PermissionMode, number> = {
   plan: 0,
 };
 
+// Modes with effectively no per-action human gate: the agent acts without
+// stopping for approval. Used to detect oversight-erosion (R9 autonomy_surge).
+// `auto` is excluded — it still routes risky actions through a classifier.
+export const LOW_OVERSIGHT_MODES: readonly PermissionMode[] = ['bypass', 'dont_ask'];
+
+export function isLowOversightMode(mode: string | null | undefined): boolean {
+  return mode != null && (LOW_OVERSIGHT_MODES as readonly string[]).includes(mode);
+}
+
 // Maps an agent's raw permission-mode string (e.g. Claude Code's
 // `default`/`acceptEdits`/`bypassPermissions`) to the canonical enum. Unknown or
 // absent values fall back to `normal` so capture never rejects a payload.
