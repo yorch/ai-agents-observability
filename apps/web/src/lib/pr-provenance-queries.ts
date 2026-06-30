@@ -1,3 +1,4 @@
+import type { Prisma } from '@ai-agents-observability/db';
 import { getPrisma } from './prisma';
 
 // R10 (HITL): provenance + human-oversight evidence for AI-authored code. Joins
@@ -30,34 +31,54 @@ export type PrProvenanceSummary = {
   total: number;
 };
 
+// An independent review = at least one reviewer who is not the PR author
+// (SOC 2 CC8.1 separation of duties).
+function hasIndependentReview(authorLogin: string, reviewerLogins: string[]): boolean {
+  const author = authorLogin.toLowerCase();
+  return reviewerLogins.some((r) => r.toLowerCase() !== author);
+}
+
+// Cap on the lightweight scan used for the summary counts. Far above any realistic
+// per-window agent-PR volume for a single org; the table itself shows the top
+// `limit` rows. Summary counts cover up to this many PRs.
+const SUMMARY_SCAN_CAP = 5000;
+
 export async function getAgentPrProvenance(since: Date, limit = 100): Promise<PrProvenanceSummary> {
-  const prs = await getPrisma().pullRequest.findMany({
-    include: { _count: { select: { prLinks: true } }, repo: true, rollup: true },
-    orderBy: [{ mergedAt: 'desc' }, { openedAt: 'desc' }],
-    take: limit,
-    where: {
-      OR: [{ mergedAt: { gte: since } }, { openedAt: { gte: since } }],
-      // Only PRs touched by an agent session from a metadata-sharing user.
-      prLinks: {
-        some: {
-          session: {
-            user: {
-              deactivatedAt: null,
-              OR: [
-                { visibilityPolicy: { shareMetadataWithOrg: true } },
-                { visibilityPolicy: null },
-              ],
-            },
+  const db = getPrisma();
+  const where: Prisma.PullRequestWhereInput = {
+    OR: [{ mergedAt: { gte: since } }, { openedAt: { gte: since } }],
+    // Only PRs touched by an agent session from a metadata-sharing user.
+    prLinks: {
+      some: {
+        session: {
+          user: {
+            deactivatedAt: null,
+            OR: [{ visibilityPolicy: { shareMetadataWithOrg: true } }, { visibilityPolicy: null }],
           },
         },
       },
     },
-  });
+  };
+
+  // Summary counts scan a light projection of ALL matching PRs (not the table's
+  // capped page) so the audit figures don't silently undercount. The table fetch
+  // pulls the heavier includes for only the top `limit` rows.
+  const [summaryRows, prs] = await Promise.all([
+    db.pullRequest.findMany({
+      select: { authorGithubLogin: true, reviewerLogins: true, state: true },
+      take: SUMMARY_SCAN_CAP,
+      where,
+    }),
+    db.pullRequest.findMany({
+      include: { _count: { select: { prLinks: true } }, repo: true, rollup: true },
+      orderBy: [{ mergedAt: 'desc' }, { openedAt: 'desc' }],
+      take: limit,
+      where,
+    }),
+  ]);
 
   const rows: PrProvenanceRow[] = prs.map((pr) => {
-    const author = pr.authorGithubLogin.toLowerCase();
-    const reviewers = pr.reviewerLogins ?? [];
-    const reviewedByOther = reviewers.some((r) => r.toLowerCase() !== author);
+    const reviewers = pr.reviewerLogins;
     return {
       authorLogin: pr.authorGithubLogin,
       awaitingReview: pr.state === 'OPEN' && reviewers.length === 0,
@@ -68,7 +89,7 @@ export async function getAgentPrProvenance(since: Date, limit = 100): Promise<Pr
       repoName: pr.repo.githubName,
       repoOwner: pr.repo.githubOwner,
       reverted: pr.revertedAt != null,
-      reviewedByOther,
+      reviewedByOther: hasIndependentReview(pr.authorGithubLogin, reviewers),
       reviewerCount: reviewers.length,
       sessionCount: pr._count.prLinks,
       state: pr.state,
@@ -77,11 +98,13 @@ export async function getAgentPrProvenance(since: Date, limit = 100): Promise<Pr
   });
 
   return {
-    awaitingReview: rows.filter((r) => r.awaitingReview).length,
-    // The oversight gap: merged agent-assisted code with no independent reviewer.
-    mergedWithoutIndependentReview: rows.filter((r) => r.state === 'MERGED' && !r.reviewedByOther)
+    awaitingReview: summaryRows.filter((r) => r.state === 'OPEN' && r.reviewerLogins.length === 0)
       .length,
+    // The oversight gap: merged agent-assisted code with no independent reviewer.
+    mergedWithoutIndependentReview: summaryRows.filter(
+      (r) => r.state === 'MERGED' && !hasIndependentReview(r.authorGithubLogin, r.reviewerLogins),
+    ).length,
     rows,
-    total: rows.length,
+    total: summaryRows.length,
   };
 }

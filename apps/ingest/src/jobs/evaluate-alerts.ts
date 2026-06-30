@@ -270,12 +270,15 @@ export async function runEvaluateAlerts(
     const now = Date.now();
     for (const rule of rules) {
       try {
-        // R7 (HITL): a silenced rule is skipped entirely until its silence window
-        // passes — no firing, no notification. Avoids alert fatigue on known issues.
-        if (rule.silencedUntil && rule.silencedUntil.getTime() > now) {
+        const silenced = rule.silencedUntil != null && rule.silencedUntil.getTime() > now;
+        const evaluation = await evaluateRule(db, rule);
+        // R7 (HITL): while silenced, suppress NEW firings and notifications (avoids
+        // alert fatigue on known issues) — but still let a cleared condition resolve
+        // an already-open event, so a self-corrected alert doesn't linger "active"
+        // for the whole silence window.
+        if (silenced && evaluation) {
           continue;
         }
-        const evaluation = await evaluateRule(db, rule);
         const outcome = await applyAlertTransition(db, rule.id, evaluation);
         if (outcome === 'fired') {
           fired++;

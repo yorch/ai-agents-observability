@@ -1,5 +1,9 @@
 import type { Prisma } from '@ai-agents-observability/db';
-import { isLowOversightMode, PERMISSION_MODES } from '@ai-agents-observability/schemas';
+import {
+  AUTONOMY_RANK,
+  isLowOversightMode,
+  type PermissionMode,
+} from '@ai-agents-observability/schemas';
 import { getPrisma } from './prisma';
 
 // Human-in-the-loop "Oversight & Autonomy" summary (R4/R5). Built from the
@@ -33,8 +37,12 @@ const RUBBER_STAMP_MIN_SESSIONS = 10;
 const RUBBER_STAMP_FAST_RESPONSE_MS = 2000;
 
 function orderByAutonomy(mix: ModeMixEntry[]): ModeMixEntry[] {
-  const rank = new Map<string, number>(PERMISSION_MODES.map((m, i) => [m, i]));
-  return [...mix].sort((a, b) => (rank.get(a.mode) ?? 99) - (rank.get(b.mode) ?? 99));
+  // Use the canonical AUTONOMY_RANK (single source of truth) — not array order.
+  return [...mix].sort(
+    (a, b) =>
+      (AUTONOMY_RANK[a.mode as PermissionMode] ?? 99) -
+      (AUTONOMY_RANK[b.mode as PermissionMode] ?? 99),
+  );
 }
 
 async function oversightForWhere(where: Prisma.SessionWhereInput): Promise<OversightSummary> {

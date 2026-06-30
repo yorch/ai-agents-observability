@@ -1,3 +1,4 @@
+import { PERMISSION_MODES } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
 import { SessionsTable } from '@/components/me/SessionsTable';
 import { currentUser } from '@/lib/auth';
@@ -39,9 +40,6 @@ function parseBand(s: string | undefined): FrictionBand | undefined {
   return s === 'low' || s === 'medium' || s === 'high' ? s : undefined;
 }
 
-// Permission/autonomy modes, ordered supervised → autonomous (R1/R6 facet).
-const SESSION_MODES = ['plan', 'normal', 'accept_edits', 'auto', 'dont_ask', 'bypass'] as const;
-
 type SearchParams = {
   agent?: string;
   band?: string;
@@ -73,7 +71,7 @@ export default async function SessionsPage({
   const status = params.status || undefined;
   const shape = params.shape || undefined;
   const agent = params.agent || undefined;
-  const mode = SESSION_MODES.includes(params.mode as (typeof SESSION_MODES)[number])
+  const mode = (PERMISSION_MODES as readonly string[]).includes(params.mode ?? '')
     ? params.mode
     : undefined;
   const frictionBand = parseBand(params.band);
@@ -206,7 +204,7 @@ export default async function SessionsPage({
           </label>
           <select id="mode-filter" name="mode" defaultValue={mode ?? ''} className={selectClass}>
             <option value="">All modes</option>
-            {SESSION_MODES.map((m) => (
+            {PERMISSION_MODES.map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>

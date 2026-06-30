@@ -101,7 +101,7 @@ export function OversightPanel({ data }: { data: OversightSummary }) {
           sub={`${data.permissionDenyCount}/${data.toolCallCount} tool calls`}
         />
         <Tile
-          label="Median response"
+          label="Avg response"
           value={humanMs(data.avgResponseMs)}
           sub={`${data.responseSampleCount} prompts`}
         />
