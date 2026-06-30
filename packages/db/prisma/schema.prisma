@@ -316,6 +316,9 @@ model PullRequest {
   rollup     PRRollup?
 
   @@id([repoId, prNumber])
+  // ROI/delivery dashboards range-scan PRs by open/merge date over a window.
+  @@index([openedAt])
+  @@index([mergedAt])
   @@map("pull_requests")
 }
 

@@ -2,6 +2,7 @@ import { FrictionDistributionChart } from '@/components/me/FrictionDistributionC
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
 import { AdoptionFunnel } from '@/components/team-org/AdoptionFunnel';
+import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable';
 import { StatCardWithDelta } from '@/components/team-org/StatCardWithDelta';
@@ -12,6 +13,7 @@ import {
   getCostByTeam,
   getOrgAdoptionFunnel,
   getOrgEffectiveness,
+  getOrgFrictionTrend,
   getOrgSummaryWithDelta,
   getOrgTopTools,
   getTeamModelGovernance,
@@ -42,6 +44,7 @@ export default async function OrgDashboardPage({
     trend,
     anomalies,
     effectiveness,
+    frictionTrend,
     funnel,
     modelGov,
   ] = await Promise.all([
@@ -53,6 +56,7 @@ export default async function OrgDashboardPage({
     getWeeklyCostTrend(12),
     getAnomalies(),
     getOrgEffectiveness(since),
+    getOrgFrictionTrend(since),
     getOrgAdoptionFunnel(range),
     isAdmin ? getTeamModelGovernance(since) : Promise.resolve([]),
   ]);
@@ -238,6 +242,8 @@ export default async function OrgDashboardPage({
         />
         <ShapeDistributionChart histogram={effectiveness.shapeMix} />
       </div>
+
+      <CohortFrictionTrendChart points={frictionTrend} title="Org friction trend (weekly)" />
 
       {!isAdmin && (
         <p className="text-xs text-white/30 text-center pt-4">

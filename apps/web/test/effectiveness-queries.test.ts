@@ -180,3 +180,29 @@ describe('getTeamEffectivenessDistribution', () => {
     expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
   });
 });
+
+describe('getTeamFrictionTrend', () => {
+  it('short-circuits to an empty trend for an empty cohort (no SQL)', async () => {
+    const { getTeamFrictionTrend } = await import('../src/lib/effectiveness-queries.js');
+    const result = await getTeamFrictionTrend([], { since: new Date('2026-01-01') });
+
+    expect(result).toEqual([]);
+    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('maps weekly buckets and drops null medians', async () => {
+    mockPrisma.$queryRaw.mockResolvedValueOnce([
+      { median: 0.3, scored: 8n, week: new Date('2026-01-05T00:00:00Z') },
+      { median: null, scored: 6n, week: new Date('2026-01-12T00:00:00Z') },
+      { median: 0.18, scored: 11n, week: new Date('2026-01-19T00:00:00Z') },
+    ]);
+
+    const { getTeamFrictionTrend } = await import('../src/lib/effectiveness-queries.js');
+    const result = await getTeamFrictionTrend(['u1'], { since: new Date('2026-01-01') });
+
+    expect(result).toEqual([
+      { median: 0.3, scoredSessions: 8, weekStart: '2026-01-05' },
+      { median: 0.18, scoredSessions: 11, weekStart: '2026-01-19' },
+    ]);
+  });
+});

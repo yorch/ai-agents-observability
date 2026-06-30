@@ -36,6 +36,54 @@ export type UserEffectiveness = {
 
 export type FrictionPercentiles = { p25: number; p50: number; p75: number };
 
+// One weekly point of a cohort's friction trend: the median friction of that
+// week's scored sessions. Buckets below MIN_BUCKET_SCORED are suppressed (small-n
+// re-identification safety, matching the <5 suppression on the snapshot aggregate).
+export type FrictionTrendBucket = { median: number; scoredSessions: number; weekStart: string };
+export const MIN_BUCKET_SCORED = 5;
+
+export function mapTrendRows(
+  rows: { median: number | null; scored: bigint; week: Date }[],
+): FrictionTrendBucket[] {
+  return rows
+    .filter((r) => r.median !== null)
+    .map((r) => ({
+      median: Number(r.median),
+      scoredSessions: Number(r.scored),
+      weekStart: r.week.toISOString().slice(0, 10),
+    }));
+}
+
+/**
+ * Weekly median-friction trend for a team cohort. Visibility scoping is the
+ * caller's job (pass the already-resolved visible user ids), mirroring
+ * getTeamEffectivenessDistribution. Empty cohort short-circuits before SQL.
+ */
+export async function getTeamFrictionTrend(
+  userIds: string[],
+  range: DateRange,
+): Promise<FrictionTrendBucket[]> {
+  if (userIds.length === 0) {
+    return [];
+  }
+  const rows = await getPrisma().$queryRaw<{ median: number | null; scored: bigint; week: Date }[]>(
+    Prisma.sql`
+      SELECT date_trunc('week', started_at) AS week,
+             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY friction_score) AS median,
+             COUNT(friction_score) AS scored
+      FROM sessions
+      WHERE friction_score IS NOT NULL
+        AND started_at >= ${range.since}
+        ${untilFragment(range)}
+        AND user_id = ANY(${userIds}::uuid[])
+      GROUP BY date_trunc('week', started_at)
+      HAVING COUNT(friction_score) >= ${MIN_BUCKET_SCORED}
+      ORDER BY week ASC
+    `,
+  );
+  return mapTrendRows(rows);
+}
+
 export type EffectivenessDistribution = {
   // Null when no session in scope has a friction score (never a misleading 0).
   friction: FrictionPercentiles | null;
