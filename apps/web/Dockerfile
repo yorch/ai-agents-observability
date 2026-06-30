@@ -29,7 +29,7 @@ COPY apps/web/ apps/web/
 ARG DATABASE_URL=postgresql://x:x@placeholder:5432/x
 ARG BETTER_AUTH_SECRET=build-time-placeholder
 ENV DATABASE_URL=$DATABASE_URL BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET
-RUN cd packages/db && bunx prisma generate
+RUN cd packages/db && PRISMA_SCHEMA_ENGINE_BINARY=$(pwd)/scripts/prisma-schema-engine-stub.sh bunx prisma generate
 RUN cd apps/web && bunx next build
 
 # ── Production ────────────────────────────────────────────────────────────────

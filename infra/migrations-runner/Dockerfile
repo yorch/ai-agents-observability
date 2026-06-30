@@ -23,12 +23,13 @@ RUN bun install --frozen-lockfile
 # Source layer
 COPY packages/db/prisma/ ./packages/db/prisma/
 COPY packages/db/prisma.config.ts ./packages/db/prisma.config.ts
+COPY packages/db/scripts/ ./packages/db/scripts/
 COPY packages/db/sql/ ./packages/db/sql/
 COPY packages/db/src/ ./packages/db/src/
 COPY infra/migrations-runner/run.ts ./run.ts
 
 # Generate Prisma client — cd to packages/db so prisma.config.ts is picked up
-RUN cd packages/db && bunx prisma generate && chown -R runner:runner /app
+RUN cd packages/db && PRISMA_SCHEMA_ENGINE_BINARY=$(pwd)/scripts/prisma-schema-engine-stub.sh bunx prisma generate && chown -R runner:runner /app
 
 USER runner
 

@@ -104,7 +104,7 @@ Source of truth for task status. Update this in the same commit as the task file
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P2-009](./P2-009-webhook-health-metrics.md) | Webhook delivery health metrics | done | claude | S | P2-002 |
-| [P2-010](./P2-010-ghes-integration-test.md) | GHES integration test for webhook + bot flows | review | claude | M | P2-003, P2-006 |
+| [P2-010](./P2-010-ghes-integration-test.md) | GHES integration test for webhook + bot flows | done | claude | M | P2-003, P2-006 |
 
 ## Phase 3 — Team views
 
