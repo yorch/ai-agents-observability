@@ -3,6 +3,11 @@
 # ── Base ──────────────────────────────────────────────────────────────────────
 FROM oven/bun:1.3.14-alpine AS base
 WORKDIR /app
+# keytar (transitive native dep via packages/auth) compiles via node-gyp during
+# `bun install`; provide its build toolchain. This lives in the build-only stages
+# (deps/build) and never reaches the production stage. keytar itself is loaded
+# lazily with a try/catch fallback, so the runtime image needs no libsecret.
+RUN apk add --no-cache build-base python3 libsecret-dev
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 FROM base AS deps

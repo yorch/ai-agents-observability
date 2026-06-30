@@ -18,7 +18,13 @@ COPY packages/github/package.json packages/github/
 COPY packages/redaction/package.json packages/redaction/
 COPY packages/schemas/package.json packages/schemas/
 
-RUN bun install --frozen-lockfile
+# keytar (transitive native dep via packages/auth) compiles via node-gyp during
+# install. Install its build toolchain as a virtual package and drop it afterward
+# so this one-shot image stays lean. keytar is never loaded at runtime here (the
+# runner only applies migrations), so no libsecret is needed at runtime.
+RUN apk add --no-cache --virtual .build-deps build-base python3 libsecret-dev \
+  && bun install --frozen-lockfile \
+  && apk del .build-deps
 
 # Source layer
 COPY packages/db/prisma/ ./packages/db/prisma/
