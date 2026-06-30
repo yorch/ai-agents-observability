@@ -1,5 +1,6 @@
 import { Prisma } from '@ai-agents-observability/db';
-import { computeFrictionScore } from './effectiveness';
+import type { FrictionComponents } from '@ai-agents-observability/schemas';
+import { computeFrictionScore, frictionComponents } from './effectiveness';
 import { getPrisma } from './prisma';
 
 export type DateRange = { since: Date; until?: Date };
@@ -7,11 +8,18 @@ export type DateRange = { since: Date; until?: Date };
 export type FrictionTrendPoint = { date: string; frictionScore: number };
 export type ShapeHistogram = Record<string, number>;
 
+// Mean weighted contribution of each friction driver across the user's scored
+// sessions. Summing the four ≈ the mean friction score, so this answers "what is
+// driving my friction" — the input to the top-sources widget and recommendations.
+export type FrictionSources = FrictionComponents;
+
 export type UserEffectiveness = {
   // Number of sessions in range with a non-null (sufficient-data) friction score.
   scoredSessionCount: number;
   // { [shapeLabel]: sessionCount } over the range.
   shapeHistogram: ShapeHistogram;
+  // Mean weighted friction contribution per driver over the scored sessions.
+  sources: FrictionSources;
   // One point per day that has at least one scored session, friction averaged.
   trend: FrictionTrendPoint[];
 };
@@ -66,6 +74,24 @@ function effectiveFriction(r: EffRow): number | null {
   });
 }
 
+// Weighted friction components for one session from its raw aggregate columns.
+// Always recomputed (not read from the stored composite score) so the breakdown
+// is faithful even when friction_score was materialized by the nightly job.
+function rowComponents(r: EffRow): FrictionComponents | null {
+  const durationSeconds = r.ended_at
+    ? Math.round((r.ended_at.getTime() - r.started_at.getTime()) / 1000)
+    : null;
+  return frictionComponents({
+    durationSeconds,
+    interruptCount: r.interrupt_count,
+    permissionDenyCount: r.permission_deny_count,
+    status: r.status,
+    toolCallCount: r.tool_call_count,
+    toolErrorCount: r.tool_error_count,
+    userMessageCount: r.user_message_count,
+  });
+}
+
 function untilFragment(range: DateRange) {
   return range.until ? Prisma.sql`AND started_at < ${range.until}` : Prisma.empty;
 }
@@ -97,6 +123,7 @@ export async function getUserEffectiveness(
 
   const dayBuckets = new Map<string, { count: number; sum: number }>();
   const shapeHistogram: ShapeHistogram = {};
+  const sourceSums = { abandonment: 0, denial: 0, error: 0, interrupt: 0 };
   let scoredSessionCount = 0;
 
   for (const r of rows) {
@@ -108,6 +135,14 @@ export async function getUserEffectiveness(
       bucket.count++;
       bucket.sum += friction;
       dayBuckets.set(day, bucket);
+
+      const comp = rowComponents(r);
+      if (comp) {
+        sourceSums.abandonment += comp.abandonment;
+        sourceSums.denial += comp.denial;
+        sourceSums.error += comp.error;
+        sourceSums.interrupt += comp.interrupt;
+      }
     }
     if (r.shape_label !== null) {
       shapeHistogram[r.shape_label] = (shapeHistogram[r.shape_label] ?? 0) + 1;
@@ -118,7 +153,18 @@ export async function getUserEffectiveness(
     .map(([date, b]) => ({ date, frictionScore: b.sum / b.count }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 
-  return { scoredSessionCount, shapeHistogram, trend };
+  const n = scoredSessionCount;
+  const sources: FrictionSources =
+    n > 0
+      ? {
+          abandonment: sourceSums.abandonment / n,
+          denial: sourceSums.denial / n,
+          error: sourceSums.error / n,
+          interrupt: sourceSums.interrupt / n,
+        }
+      : { abandonment: 0, denial: 0, error: 0, interrupt: 0 };
+
+  return { scoredSessionCount, shapeHistogram, sources, trend };
 }
 
 /**

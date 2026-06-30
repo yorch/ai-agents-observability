@@ -17,12 +17,19 @@ export {
   UNKNOWN_MODEL_SURGE_DEFAULT,
   UNKNOWN_MODEL_WINDOW_HOURS,
 } from './alerts';
-export type { FrictionInputs, ShapeLabel, ToolHistogram } from './effectiveness';
+export type {
+  FrictionComponents,
+  FrictionInputs,
+  ShapeLabel,
+  ToolHistogram,
+} from './effectiveness';
 export {
   classifySessionShape,
   computeFrictionScore,
   EXEC_TOOLS,
   FRICTION_VERSION,
+  FRICTION_WEIGHTS,
+  frictionComponents,
   READ_TOOLS,
   WRITE_TOOLS,
 } from './effectiveness';

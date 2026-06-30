@@ -1,10 +1,16 @@
 import type { ShapeLabel } from '@ai-agents-observability/schemas';
 
-export type { FrictionInputs, ShapeLabel, ToolHistogram } from '@ai-agents-observability/schemas';
+export type {
+  FrictionComponents,
+  FrictionInputs,
+  ShapeLabel,
+  ToolHistogram,
+} from '@ai-agents-observability/schemas';
 export {
   classifySessionShape,
   computeFrictionScore,
   FRICTION_VERSION,
+  frictionComponents,
 } from '@ai-agents-observability/schemas';
 
 /** Badge color for friction score. */
