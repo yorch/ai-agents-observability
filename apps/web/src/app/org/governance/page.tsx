@@ -2,6 +2,7 @@ import { AuditAction } from '@ai-agents-observability/db';
 import { OversightPanel } from '@/components/me/OversightPanel';
 import { StatCard } from '@/components/team-org/StatCard';
 import { getOrgOversight } from '@/lib/oversight-queries';
+import { getAgentPrProvenance } from '@/lib/pr-provenance-queries';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
 
@@ -33,7 +34,7 @@ export default async function GovernancePage({
   const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
   const db = getPrisma();
-  const [oversight, transcriptViews, grantsApproved, activeGrants, pendingGrants] =
+  const [oversight, transcriptViews, grantsApproved, activeGrants, pendingGrants, provenance] =
     await Promise.all([
       getOrgOversight(since),
       db.auditLog.count({ where: { action: AuditAction.VIEW_TRANSCRIPT, ts: { gte: since } } }),
@@ -42,6 +43,7 @@ export default async function GovernancePage({
         where: { expiresAt: { gt: now }, grantedAt: { not: null }, revokedAt: null },
       }),
       db.accessGrant.count({ where: { grantedAt: null, revokedAt: null } }),
+      getAgentPrProvenance(since),
     ]);
 
   return (
@@ -107,6 +109,71 @@ export default async function GovernancePage({
         <p className="text-xs text-white/30">
           Every privileged transcript view is the owner or a time-boxed, approved grant — logged and
           visible to the viewed user.
+        </p>
+      </section>
+
+      {/* R10: provenance + human review of AI-authored code. */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-white/80">AI-authored code review</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard label="Agent-assisted PRs" value={provenance.total.toLocaleString()} />
+          <StatCard
+            label="Awaiting review"
+            value={provenance.awaitingReview.toLocaleString()}
+            sub="open, no reviewer"
+            warn={provenance.awaitingReview > 0}
+          />
+          <StatCard
+            label="Merged w/o independent review"
+            value={provenance.mergedWithoutIndependentReview.toLocaleString()}
+            sub="reviewer = author / none"
+            accent={provenance.mergedWithoutIndependentReview > 0 ? 'red' : 'green'}
+          />
+          <StatCard label="Window" value={`${days}d`} sub={`${provenance.rows.length} PRs shown`} />
+        </div>
+        {provenance.rows.length === 0 ? (
+          <p className="text-sm text-white/40">No agent-assisted PRs in this window.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-left text-white/40">
+                <th className="pb-2 font-medium">PR</th>
+                <th className="pb-2 font-medium">Author</th>
+                <th className="pb-2 font-medium">State</th>
+                <th className="pb-2 font-medium">Independent review</th>
+                <th className="pb-2 font-medium">Sessions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {provenance.rows.slice(0, 30).map((r) => (
+                <tr key={`${r.repoOwner}/${r.repoName}#${r.prNumber}`}>
+                  <td className="py-2">
+                    <span className="text-white/40">
+                      {r.repoOwner}/{r.repoName}
+                    </span>{' '}
+                    #{r.prNumber}
+                    {r.reverted && <span className="ml-1 text-red-300">(reverted)</span>}
+                  </td>
+                  <td className="py-2 text-white/60">{r.authorLogin}</td>
+                  <td className="py-2 text-white/60">{r.state}</td>
+                  <td className="py-2">
+                    {r.reviewedByOther ? (
+                      <span className="text-emerald-400">✓ yes</span>
+                    ) : r.awaitingReview ? (
+                      <span className="text-yellow-300">awaiting</span>
+                    ) : (
+                      <span className="text-red-400">no</span>
+                    )}
+                  </td>
+                  <td className="py-2 text-white/60">{r.sessionCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p className="text-xs text-white/30">
+          "Independent review" = at least one reviewer other than the PR author (SOC 2 CC8.1
+          separation of duties). Agent assistance is inferred from linked telemetry sessions.
         </p>
       </section>
     </div>
