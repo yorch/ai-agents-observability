@@ -2,6 +2,7 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 import { AuditAction } from '@ai-agents-observability/db';
 import { headers } from 'next/headers';
 
+import { logger } from './logger';
 import { getPrisma } from './prisma';
 import { clientIp } from './request-meta';
 
@@ -49,7 +50,8 @@ async function requestMeta(): Promise<{ ip: string | null; userAgent: string | n
 
 /**
  * Writes a single audit log row for a privileged cross-user data access.
- * Never throws — errors are logged to stderr. Callers use `void` for fire-and-forget.
+ * Never throws — errors are logged via the structured logger. Callers use `void`
+ * for fire-and-forget.
  */
 export async function writeAuditLog(
   params: AuditParams,
@@ -69,6 +71,9 @@ export async function writeAuditLog(
       },
     });
   } catch (err) {
-    console.error('[audit] failed to write audit log', err);
+    logger.error(
+      { action: params.action, actorUserId: params.actorUserId, err },
+      'audit.write_failed',
+    );
   }
 }
