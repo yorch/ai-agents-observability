@@ -276,6 +276,12 @@ model Session {
   shapeLabel           String?   @map("shape_label")
   frictionScore        Float?    @map("friction_score")
 
+  // Human-in-the-loop response latency: total time (ms) the agent waited at
+  // blocking notifications and the number of such samples, derived nightly by
+  // compute-effectiveness. Mean response time = total_response_ms / sample_count.
+  totalResponseMs      BigInt    @default(0) @map("total_response_ms")
+  responseSampleCount  Int       @default(0) @map("response_sample_count")
+
   user    User            @relation(fields: [userId], references: [id])
   repo    Repo?           @relation(fields: [repoId], references: [id])
   prLinks SessionPRLink[]

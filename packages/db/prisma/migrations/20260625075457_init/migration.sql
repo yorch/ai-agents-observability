@@ -170,6 +170,8 @@ CREATE TABLE "sessions" (
     "transcript_redacted" BOOLEAN NOT NULL DEFAULT false,
     "shape_label" TEXT,
     "friction_score" DOUBLE PRECISION,
+    "total_response_ms" BIGINT NOT NULL DEFAULT 0,
+    "response_sample_count" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "sessions_pkey" PRIMARY KEY ("session_id")
 );
