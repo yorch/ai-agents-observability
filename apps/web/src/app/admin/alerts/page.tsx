@@ -5,10 +5,13 @@ import {
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import {
+  acknowledgeAlert,
   addChannel,
   deleteChannel,
+  silenceRule,
   toggleChannel,
   toggleRule,
+  unsilenceRule,
   updateBudgetThreshold,
 } from './actions';
 
@@ -53,25 +56,65 @@ export default async function AlertsAdminPage() {
             const budgetParams = isBudget ? parseBudgetThresholdParams(r.params) : null;
             const budgetUsd = budgetParams?.budgetUsd;
             const windowDays = budgetParams?.windowDays ?? BUDGET_THRESHOLD_WINDOW_DAYS;
+            const silenced = r.silencedUntil != null && new Date(r.silencedUntil) > new Date();
             return (
               <div
                 key={r.id}
                 className="space-y-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span>
                     {r.name} <span className="text-white/30">({r.ruleType})</span>
+                    {silenced && r.silencedUntil && (
+                      <span className="ml-2 text-yellow-300/80">
+                        · silenced until {new Date(r.silencedUntil).toLocaleString()}
+                      </span>
+                    )}
                   </span>
-                  <form action={toggleRule}>
-                    <input type="hidden" name="id" value={r.id} />
-                    <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
-                    <button
-                      type="submit"
-                      className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-brand-500/80 hover:bg-brand-600 text-bg' : 'border border-white/10 hover:bg-white/10'}`}
-                    >
-                      {r.enabled ? 'Enabled' : 'Disabled'}
-                    </button>
-                  </form>
+                  <div className="flex items-center gap-2">
+                    {silenced ? (
+                      <form action={unsilenceRule}>
+                        <input type="hidden" name="id" value={r.id} />
+                        <button
+                          type="submit"
+                          className="rounded-md border border-white/10 px-3 py-1 text-xs hover:bg-white/10"
+                        >
+                          Unsilence
+                        </button>
+                      </form>
+                    ) : (
+                      <form action={silenceRule} className="flex items-center gap-1">
+                        <input type="hidden" name="id" value={r.id} />
+                        <select
+                          name="hours"
+                          defaultValue="4"
+                          aria-label={`Silence ${r.name} for`}
+                          className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs"
+                        >
+                          <option value="1">1h</option>
+                          <option value="4">4h</option>
+                          <option value="24">24h</option>
+                          <option value="72">72h</option>
+                        </select>
+                        <button
+                          type="submit"
+                          className="rounded-md border border-white/10 px-3 py-1 text-xs hover:bg-white/10"
+                        >
+                          Silence
+                        </button>
+                      </form>
+                    )}
+                    <form action={toggleRule}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
+                      <button
+                        type="submit"
+                        className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-brand-500/80 hover:bg-brand-600 text-bg' : 'border border-white/10 hover:bg-white/10'}`}
+                      >
+                        {r.enabled ? 'Enabled' : 'Disabled'}
+                      </button>
+                    </form>
+                  </div>
                 </div>
                 {isBudget && (
                   <form action={updateBudgetThreshold} className="flex flex-wrap items-end gap-2">
@@ -203,6 +246,7 @@ export default async function AlertsAdminPage() {
                 <th className="pb-2 font-medium">Severity</th>
                 <th className="pb-2 font-medium">Fired</th>
                 <th className="pb-2 font-medium">Resolved</th>
+                <th className="pb-2 font-medium">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -213,6 +257,23 @@ export default async function AlertsAdminPage() {
                   <td className="py-2 text-white/60">{new Date(e.firedAt).toLocaleString()}</td>
                   <td className="py-2 text-white/60">
                     {e.resolvedAt ? new Date(e.resolvedAt).toLocaleString() : '—'}
+                  </td>
+                  <td className="py-2">
+                    {e.acknowledgedAt ? (
+                      <span className="text-white/40">acknowledged</span>
+                    ) : e.resolvedAt ? (
+                      <span className="text-white/30">—</span>
+                    ) : (
+                      <form action={acknowledgeAlert}>
+                        <input type="hidden" name="id" value={e.id.toString()} />
+                        <button
+                          type="submit"
+                          className="rounded-md border border-white/10 px-3 py-1 text-xs hover:bg-white/10"
+                        >
+                          Acknowledge
+                        </button>
+                      </form>
+                    )}
                   </td>
                 </tr>
               ))}

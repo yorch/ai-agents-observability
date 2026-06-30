@@ -40,6 +40,8 @@ enum AuditAction {
   GRANT_REQUESTED
   GRANT_APPROVED
   GRANT_REVOKED
+  ALERT_ACKNOWLEDGED
+  ALERT_SILENCED
 }
 
 enum GrantScope {
@@ -445,6 +447,9 @@ model AlertRule {
   enabled        Boolean  @default(true)
   cadenceMinutes Int      @default(60) @map("cadence_minutes")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  // R7 (HITL): when set and in the future, the rule is evaluated but suppressed —
+  // it neither fires nor notifies until this time. Guards against alert fatigue.
+  silencedUntil  DateTime? @map("silenced_until") @db.Timestamptz(6)
 
   events AlertEvent[]
 
@@ -486,6 +491,10 @@ model AlertEvent {
   resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
   severity   String
   details    Json      @default("{}")
+  // R7 (HITL): an admin acknowledged this firing ("seen it"). Distinct from
+  // resolved (the condition cleared) — acknowledgement is a human action.
+  acknowledgedAt       DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  acknowledgedByUserId String?   @map("acknowledged_by_user_id") @db.Uuid
 
   rule AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 

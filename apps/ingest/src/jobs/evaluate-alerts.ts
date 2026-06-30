@@ -39,6 +39,7 @@ type RuleRow = {
   name: string;
   params: unknown;
   ruleType: string;
+  silencedUntil?: Date | null;
 };
 
 type Evaluation = AlertEvaluation;
@@ -266,8 +267,14 @@ export async function runEvaluateAlerts(
     const channels = await db.alertChannelConfig.findMany({ where: { enabled: true } });
     let fired = 0;
     let resolved = 0;
+    const now = Date.now();
     for (const rule of rules) {
       try {
+        // R7 (HITL): a silenced rule is skipped entirely until its silence window
+        // passes — no firing, no notification. Avoids alert fatigue on known issues.
+        if (rule.silencedUntil && rule.silencedUntil.getTime() > now) {
+          continue;
+        }
         const evaluation = await evaluateRule(db, rule);
         const outcome = await applyAlertTransition(db, rule.id, evaluation);
         if (outcome === 'fired') {
