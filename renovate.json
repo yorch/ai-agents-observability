@@ -40,7 +40,7 @@
     {
       "description": "Pino logging",
       "groupName": "Pino",
-      "matchPackageNames": ["pino", "pino-pretty", "pino-roll"]
+      "matchPackageNames": ["pino", "pino-pretty"]
     },
     {
       "description": "Octokit",

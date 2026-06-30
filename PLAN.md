@@ -55,7 +55,6 @@ These are the versions every package targets. No `^` or `~` ranges in `package.j
 | `@aws-sdk/client-s3` | 3.1047.0 | MinIO via `forcePathStyle: true` + custom `endpoint`. |
 | pino | 10.3.1 | Worker-thread transports. |
 | `pino-pretty` | 13.1.3 | Dev-only pretty printing. |
-| `pino-roll` | 4.0.0 | File rotation. |
 | Croner | 10.0.1 | Catalog dependency reserved for scheduler work; current ingest scheduling is implemented with in-process intervals plus `job_config`. |
 | Vitest | 4.1.6 | Requires Vite 8. v5 in beta — don't pin yet. |
 | `fast-check` | 4.4.0 | Property-based tests in redaction package. |
