@@ -93,7 +93,9 @@ function makeMockDb(opts?: { lockAlwaysFails?: boolean }) {
     $executeRaw: vi.fn(async (arg0: unknown, ...rest: unknown[]) => {
       const { text, values } = introspect(arg0, rest);
       if (text.includes('UPDATE sessions')) {
-        const [friction, shape, id] = values as [number | null, string, string];
+        // Param order: friction_score, shape_label, total_response_ms,
+        // response_sample_count, session_id.
+        const [friction, shape, , , id] = values as [number | null, string, number, number, string];
         const s = sessions.find((x) => x.session_id === id);
         if (s) {
           s.friction_score = friction;
