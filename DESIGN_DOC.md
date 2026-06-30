@@ -808,7 +808,7 @@ Following the HITL assessment (`docs/research/2026-06-30-human-in-the-loop-asses
 - **Permission/autonomy mode** — the agent's `permission_mode` (`normal`/`plan`/`accept_edits`/`auto`/`dont_ask`/`bypass`) is read from the hook payload (was hardcoded `normal`), stored per-event (`events.mode`) and as a representative least-supervised mode per session (`sessions.mode`).
 - **Notification classification** — `Notification` events are classified into `events.notification_kind` (`permission`/`idle`/`elicitation`/`auth`/`other`); `sessions.notification_count` counts them and `sessions.permission_prompt_count` is finally populated from permission notifications.
 - **Human response latency** — `sessions.total_response_ms` / `response_sample_count`, derived nightly from the gap between a blocking notification and the next event.
-- **Surfaces** — an "Oversight & Autonomy" panel + rubber-stamp/over-trust detector on `/me`; a mode search facet; a `/org/governance` oversight-posture + AI-authored-code-provenance report; per-session human feedback (`session_feedback`).
+- **Surfaces** — an "Oversight & Autonomy" panel + rubber-stamp/over-trust detector on `/me`, `/team/[slug]`, and `/org/governance`; a mode search facet; a `/org/governance` oversight-posture + AI-authored-code-provenance report; per-session human feedback (`session_feedback`).
 - **Governance** — alert acknowledge + rule silence/snooze; an `autonomy_surge` alert rule (oversight erosion). Consistent with the observe-only architecture: nothing intercepts a live tool call.
 
 ### 10.4 Explicitly Deferred to v2+
