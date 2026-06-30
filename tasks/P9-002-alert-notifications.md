@@ -112,3 +112,13 @@ bun --filter '@ai-agents-observability/web' test
 > POSTs. (2) Channel configs live in `alert_channel_config` (runtime-editable, not env). (3) Rule
 > param/threshold editing beyond enable/disable is a follow-up — thresholds are the shared
 > constants from P9-001. `typecheck` + DB tests run in CI (Prisma egress-blocked locally).
+
+> **Follow-up resolved (2026-06-30):** the email seam is now wired. `notify/email.ts`
+> sends via `nodemailer` (added to the pinned catalog) using a Zod-validated
+> `EmailConfig` threaded from `loadConfig()` through the scheduler → evaluate-alerts →
+> `dispatchAlert` (never reads `process.env`); a pooled transport is cached per config.
+> Email delivers only when `SMTP_HOST` + `SMTP_FROM` are set, otherwise it still fails
+> loudly into `alert_delivery_log`. Subject/body stay aggregate-only. Rule-param editing
+> beyond enable/disable also landed: `/admin/alerts` now has a budget form that writes
+> `budget_threshold` params through the shared `BudgetThresholdParamsSchema`. New
+> `SMTP_*` env vars are documented in `.env.example`.

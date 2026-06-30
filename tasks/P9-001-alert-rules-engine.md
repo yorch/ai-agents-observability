@@ -109,3 +109,12 @@ bun --filter '@ai-agents-observability/ingest' test
 > consistent with the other nightly jobs; finer-grained per-rule `cadence_minutes` is plumbed in
 > the schema for a future scheduler upgrade. (3) Built-in rules are seeded in the migration so
 > alerting works before any admin UI. `typecheck` + DB tests run in CI (Prisma egress-blocked).
+
+> **Follow-up resolved (2026-06-30):** the optional `budget_threshold` rule is now
+> implemented. `evalBudgetThreshold` compares org spend over a rolling window to an
+> admin-set budget (warn at 80%, critical at 100%) and stays inert until a positive
+> budget is configured. Its params are modeled by the shared `BudgetThresholdParamsSchema`
+> in `packages/schemas` (one contract for the evaluator, the admin write action, and the
+> UI prefill), and the rule is seeded DISABLED with empty params (no org-agnostic
+> default). The admin UI (`/admin/alerts`, P9-002) gained a budget form, so the
+> "budget threshold UI" out-of-scope item is closed.
