@@ -78,6 +78,37 @@ describe('getUserEffectiveness', () => {
     expect(result.trend[0]?.frictionScore).toBeCloseTo(0.15);
   });
 
+  it('decomposes friction into mean weighted source contributions', async () => {
+    // 4 calls, 2 errors → errorRate 0.5 * 0.30 = 0.15; 2 denies → denyRate 0.5 * 0.30 = 0.15.
+    mockPrisma.$queryRaw.mockResolvedValueOnce([
+      row({
+        friction_score: null,
+        permission_deny_count: 2,
+        shape_label: 'debugging',
+        tool_call_count: 4,
+        tool_error_count: 2,
+        user_message_count: 2,
+      }),
+    ]);
+
+    const { getUserEffectiveness } = await import('../src/lib/effectiveness-queries.js');
+    const result = await getUserEffectiveness('u1', { since: new Date('2026-01-01') });
+
+    expect(result.sources.error).toBeCloseTo(0.15);
+    expect(result.sources.denial).toBeCloseTo(0.15);
+    expect(result.sources.interrupt).toBeCloseTo(0);
+    expect(result.sources.abandonment).toBeCloseTo(0);
+  });
+
+  it('returns zeroed sources when there are no scored sessions', async () => {
+    mockPrisma.$queryRaw.mockResolvedValueOnce([]);
+
+    const { getUserEffectiveness } = await import('../src/lib/effectiveness-queries.js');
+    const result = await getUserEffectiveness('u1', { since: new Date('2026-01-01') });
+
+    expect(result.sources).toEqual({ abandonment: 0, denial: 0, error: 0, interrupt: 0 });
+  });
+
   it('excludes insufficient-data sessions from the trend (null, not zero)', async () => {
     mockPrisma.$queryRaw.mockResolvedValueOnce([
       // toolCallCount < 2 AND userMessageCount < 2 → computeFrictionScore null.
@@ -147,5 +178,31 @@ describe('getTeamEffectivenessDistribution', () => {
 
     expect(result).toEqual({ friction: null, scoredSessions: 0, shapeMix: {} });
     expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+  });
+});
+
+describe('getTeamFrictionTrend', () => {
+  it('short-circuits to an empty trend for an empty cohort (no SQL)', async () => {
+    const { getTeamFrictionTrend } = await import('../src/lib/effectiveness-queries.js');
+    const result = await getTeamFrictionTrend([], { since: new Date('2026-01-01') });
+
+    expect(result).toEqual([]);
+    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('maps weekly buckets and drops null medians', async () => {
+    mockPrisma.$queryRaw.mockResolvedValueOnce([
+      { median: 0.3, scored: 8n, week: new Date('2026-01-05T00:00:00Z') },
+      { median: null, scored: 6n, week: new Date('2026-01-12T00:00:00Z') },
+      { median: 0.18, scored: 11n, week: new Date('2026-01-19T00:00:00Z') },
+    ]);
+
+    const { getTeamFrictionTrend } = await import('../src/lib/effectiveness-queries.js');
+    const result = await getTeamFrictionTrend(['u1'], { since: new Date('2026-01-01') });
+
+    expect(result).toEqual([
+      { median: 0.3, scoredSessions: 8, weekStart: '2026-01-05' },
+      { median: 0.18, scoredSessions: 11, weekStart: '2026-01-19' },
+    ]);
   });
 });

@@ -1,5 +1,6 @@
 'use server';
 
+import { BudgetThresholdParamsSchema } from '@ai-agents-observability/schemas';
 import { revalidatePath } from 'next/cache';
 
 import { getPrisma } from '@/lib/prisma';
@@ -15,6 +16,31 @@ export async function toggleRule(formData: FormData): Promise<void> {
     return;
   }
   await getPrisma().alertRule.updateMany({ data: { enabled }, where: { id } });
+  revalidatePath('/admin/alerts');
+}
+
+/**
+ * Set the spend budget (params.budgetUsd, optional params.windowDays) for a
+ * budget_threshold rule. The evaluator is inert until a positive budget is set, so
+ * this is what turns the seeded rule on. Invalid input is ignored (no-op) rather
+ * than persisted, matching the other actions' defensive style.
+ */
+export async function updateBudgetThreshold(formData: FormData): Promise<void> {
+  await requireOrgAdmin();
+  const id = String(formData.get('id') ?? '');
+  if (!id) {
+    return;
+  }
+  // Validate + coerce through the shared schema so the write matches exactly what
+  // the evaluator reads. A missing/non-positive budget fails the parse → no-op.
+  const parsed = BudgetThresholdParamsSchema.safeParse({
+    budgetUsd: formData.get('budgetUsd'),
+    windowDays: formData.get('windowDays'),
+  });
+  if (!parsed.success) {
+    return;
+  }
+  await getPrisma().alertRule.updateMany({ data: { params: parsed.data }, where: { id } });
   revalidatePath('/admin/alerts');
 }
 

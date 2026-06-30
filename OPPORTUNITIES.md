@@ -60,6 +60,12 @@ Understanding the opportunity space requires a clear map of what is already capt
 
 **Feasibility:** High. The session → PR → Jira chain is partially built. Adding an executive "ROI" stat card to the org dashboard is a UI task once the join is defined.
 
+> **Partially shipped (2026-06-30):** `/org/roi` now surfaces the internal-join ROI
+> metrics — agent spend, cost-per-merged-PR, reverted (rework) spend, a clean-CI vs
+> CI-failed cost comparison, spend-by-Jira-key cost allocation, and per-repo ROI
+> (cost/PR + revert + CI-clean rate). Only the external business-value join (story
+> points / revenue) remains deferred.
+
 ---
 
 ### 3.2 Model Cost Optimization
@@ -107,6 +113,15 @@ Understanding the opportunity space requires a clear map of what is already capt
 - **Permission denial trends**: developers who get fewer denials over time are learning what the AI can and can't do. High sustained denial rates may indicate a UX or trust issue worth investigating.
 
 **Feasibility:** Medium. Requires time-series views over user-level signals, which need careful UX design to avoid feeling like surveillance. The Phase 7 friction trend in `/me/insights` is implemented; team-level progression requires aggregation that preserves privacy.
+
+> **Partially shipped (2026-06-30):** `/me/insights` now decomposes a developer's
+> friction into its drivers (denials, tool errors, interrupts, early abandonment)
+> and surfaces an actionable recommendation list (pre-approve denied tools,
+> investigate error-prone tools / flaky MCP servers, tighten prompts when interrupts
+> dominate). This is the individual coaching layer. A weekly median-friction trend
+> for teams (`/team/[slug]`) and the org (`/org/dashboard`) now ships too, with
+> per-bucket small-n suppression for privacy. Cross-cohort divergence analysis and
+> shape-shift-over-time remain open.
 
 ---
 
@@ -171,6 +186,12 @@ Understanding the opportunity space requires a clear map of what is already capt
 
 **Feasibility:** High for forecasting and allocation (data is there, UI is the work). The multi-vendor comparison requires adapter work (Phase 8 proved the pattern with `opencode` and `codex`).
 
+> **Partially shipped (2026-06-30):** `/org/agents` now has an agent-comparison table
+> (sessions, total + avg cost, median friction, tool error rate, tokens by
+> `agent_type`), so any agents already reporting telemetry are compared head-to-head.
+> Adding Cursor/Copilot to the comparison still needs their adapters — no telemetry
+> contract exists for those tools yet.
+
 ---
 
 ### 3.9 Developer Experience Research (Audience B)
@@ -197,13 +218,13 @@ Ranked by **impact-to-effort**, given the current data model and what is already
 |---|---|---|---|---|---|
 | 1 | **Model cost optimization** (routing + cache efficiency guidance) | High — potential 30–50% spend reduction | Low | ✅ Per-turn model + cache tokens captured | Recommendation UI; model routing policy surface |
 | 2 | **MCP portfolio dashboard** (utilization, error rate, SLO) | Medium-High — deprecate waste, surface risk | Low | ✅ `mcp_server` + `tool_exit_status` fully captured | `/org/mcp` page; error-rate column |
-| 3 | **Outcome-based ROI** (cost-per-PR trend, revert correlation, CI correlation) | High — executive-level justification | Medium | ✅ PR rollups, revert flags, CI failures all captured | Joins are internal; needs executive dashboard |
-| 4 | **Developer skill progression** (friction trend, shape shift over time) | Medium-High — retention, training, onboarding | Medium | ✅ Friction + shape computed nightly | Time-series UX (Phase 7 starts this for `/me`) |
+| 3 | **Outcome-based ROI** (cost-per-PR trend, revert correlation, CI correlation) | High — executive-level justification | Medium | ✅ PR rollups, revert flags, CI failures all captured | 🟡 Shipped at `/org/roi` (internal joins); external business-value join still deferred |
+| 4 | **Developer skill progression** (friction trend, shape shift over time) | Medium-High — retention, training, onboarding | Medium | ✅ Friction + shape computed nightly | 🟡 `/me/insights` friction-source breakdown + recommendations, plus weekly friction trends for team/org; cross-cohort divergence still open |
 | 5 | **Budget forecasting & cost allocation** (by team, project, Jira epic) | High — replaces spreadsheet finance | Medium | ✅ Session cost + PR rollup captured | Jira join (one integration); forecast UI |
 | 6 | **Security data exposure reporting** (sensitive repos, secret hits, MCP egress) | High — compliance buyer | Medium | ✅ Tool categories, redaction metadata, audit log | Security-focused dashboard page |
 | 7 | **Knowledge gap detection** (aggregate transcript topic clustering) | Medium — DX and documentation | Medium-High | ✅ FTS index built | Topic taxonomy or lightweight embedding; careful UX |
 | 8 | **Code quality correlation** (revert + defect rate by session characteristics) | High — if bug rate correlation holds | High | ⚠️ Internal PR data ready; bug join needs Jira/Linear | External integration + statistical analysis |
-| 9 | **Multi-tool comparison** (Claude vs Cursor vs Copilot) | High — procurement decisions | High | ✅ `agent_type` schema ready; adapters exist for `opencode`, `codex` | Cursor/Copilot adapters; controlled rollout |
+| 9 | **Multi-tool comparison** (Claude vs Cursor vs Copilot) | High — procurement decisions | High | ✅ `agent_type` schema ready; adapters exist for `opencode`, `codex` | 🟡 Comparison table shipped at `/org/agents` (cost/friction/error-rate by `agent_type`); Cursor/Copilot adapters still needed |
 
 ---
 

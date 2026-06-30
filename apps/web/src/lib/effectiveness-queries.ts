@@ -1,22 +1,88 @@
 import { Prisma } from '@ai-agents-observability/db';
-import { computeFrictionScore } from './effectiveness';
+import type { FrictionComponents } from '@ai-agents-observability/schemas';
+import { frictionComponents, frictionScoreFromComponents } from './effectiveness';
 import { getPrisma } from './prisma';
+
+// Friction-source driver keys, derived from the shared FrictionComponents type so
+// adding a component forces this list (and the typed accumulator) to be updated
+// rather than silently aggregating the new driver to zero.
+const COMPONENT_KEYS = [
+  'abandonment',
+  'denial',
+  'error',
+  'interrupt',
+] as const satisfies readonly (keyof FrictionComponents)[];
 
 export type DateRange = { since: Date; until?: Date };
 
 export type FrictionTrendPoint = { date: string; frictionScore: number };
 export type ShapeHistogram = Record<string, number>;
 
+// Mean weighted contribution of each friction driver across the user's scored
+// sessions. Summing the four ≈ the mean friction score, so this answers "what is
+// driving my friction" — the input to the top-sources widget and recommendations.
+export type FrictionSources = FrictionComponents;
+
 export type UserEffectiveness = {
   // Number of sessions in range with a non-null (sufficient-data) friction score.
   scoredSessionCount: number;
   // { [shapeLabel]: sessionCount } over the range.
   shapeHistogram: ShapeHistogram;
+  // Mean weighted friction contribution per driver over the scored sessions.
+  sources: FrictionSources;
   // One point per day that has at least one scored session, friction averaged.
   trend: FrictionTrendPoint[];
 };
 
 export type FrictionPercentiles = { p25: number; p50: number; p75: number };
+
+// One weekly point of a cohort's friction trend: the median friction of that
+// week's scored sessions. Buckets below MIN_BUCKET_SCORED are suppressed (small-n
+// re-identification safety, matching the <5 suppression on the snapshot aggregate).
+export type FrictionTrendBucket = { median: number; scoredSessions: number; weekStart: string };
+export const MIN_BUCKET_SCORED = 5;
+
+export function mapTrendRows(
+  rows: { median: number | null; scored: bigint; week: Date }[],
+): FrictionTrendBucket[] {
+  return rows
+    .filter((r) => r.median !== null)
+    .map((r) => ({
+      median: Number(r.median),
+      scoredSessions: Number(r.scored),
+      weekStart: r.week.toISOString().slice(0, 10),
+    }));
+}
+
+/**
+ * Weekly median-friction trend for a team cohort. Visibility scoping is the
+ * caller's job (pass the already-resolved visible user ids), mirroring
+ * getTeamEffectivenessDistribution. Empty cohort short-circuits before SQL.
+ */
+export async function getTeamFrictionTrend(
+  userIds: string[],
+  range: DateRange,
+): Promise<FrictionTrendBucket[]> {
+  if (userIds.length === 0) {
+    return [];
+  }
+  const rows = await getPrisma().$queryRaw<{ median: number | null; scored: bigint; week: Date }[]>(
+    Prisma.sql`
+      SELECT date_trunc('week', started_at) AS week,
+             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY friction_score) AS median,
+             COUNT(friction_score) AS scored
+      FROM sessions
+      WHERE friction_score IS NOT NULL
+        AND started_at >= ${range.since}
+        ${untilFragment(range)}
+        AND user_id = ANY(${userIds}::uuid[])
+      GROUP BY date_trunc('week', started_at)
+      HAVING COUNT(friction_score) >= ${MIN_BUCKET_SCORED}
+      ORDER BY week ASC
+    `,
+  );
+  return mapTrendRows(rows);
+}
 
 export type EffectivenessDistribution = {
   // Null when no session in scope has a friction score (never a misleading 0).
@@ -41,21 +107,15 @@ type EffRow = {
   user_message_count: number;
 };
 
-/**
- * Effective friction = the stored value, or an on-the-fly recompute from the
- * session's aggregate columns for the very latest sessions that haven't cleared
- * the nightly compute-effectiveness job yet (no event-table join — cheap).
- * `computeFrictionScore` returns null for low-data sessions, so a null result is
- * genuine "insufficient data" (DESIGN_DOC §10.6), never a zero.
- */
-function effectiveFriction(r: EffRow): number | null {
-  if (r.friction_score !== null) {
-    return r.friction_score;
-  }
+// Weighted friction components for one session from its raw aggregate columns.
+// Computed once per row and reused for both the score and the source breakdown.
+// `frictionComponents` returns null for low-data sessions, so a null result is
+// genuine "insufficient data" (DESIGN_DOC §10.6), never a zero.
+function rowComponents(r: EffRow): FrictionComponents | null {
   const durationSeconds = r.ended_at
     ? Math.round((r.ended_at.getTime() - r.started_at.getTime()) / 1000)
     : null;
-  return computeFrictionScore({
+  return frictionComponents({
     durationSeconds,
     interruptCount: r.interrupt_count,
     permissionDenyCount: r.permission_deny_count,
@@ -97,10 +157,19 @@ export async function getUserEffectiveness(
 
   const dayBuckets = new Map<string, { count: number; sum: number }>();
   const shapeHistogram: ShapeHistogram = {};
+  const sourceSums: FrictionSources = { abandonment: 0, denial: 0, error: 0, interrupt: 0 };
   let scoredSessionCount = 0;
 
   for (const r of rows) {
-    const friction = effectiveFriction(r);
+    const comp = rowComponents(r);
+    // Stored score wins (matches the nightly job); fall back to the just-computed
+    // components for the recent tail not yet scored. Null comp = insufficient data.
+    const friction =
+      r.friction_score !== null
+        ? r.friction_score
+        : comp
+          ? frictionScoreFromComponents(comp)
+          : null;
     if (friction !== null) {
       scoredSessionCount++;
       const day = r.started_at.toISOString().slice(0, 10);
@@ -108,6 +177,12 @@ export async function getUserEffectiveness(
       bucket.count++;
       bucket.sum += friction;
       dayBuckets.set(day, bucket);
+
+      if (comp) {
+        for (const k of COMPONENT_KEYS) {
+          sourceSums[k] += comp[k];
+        }
+      }
     }
     if (r.shape_label !== null) {
       shapeHistogram[r.shape_label] = (shapeHistogram[r.shape_label] ?? 0) + 1;
@@ -118,7 +193,14 @@ export async function getUserEffectiveness(
     .map(([date, b]) => ({ date, frictionScore: b.sum / b.count }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 
-  return { scoredSessionCount, shapeHistogram, trend };
+  const sources: FrictionSources = { abandonment: 0, denial: 0, error: 0, interrupt: 0 };
+  if (scoredSessionCount > 0) {
+    for (const k of COMPONENT_KEYS) {
+      sources[k] = sourceSums[k] / scoredSessionCount;
+    }
+  }
+
+  return { scoredSessionCount, shapeHistogram, sources, trend };
 }
 
 /**

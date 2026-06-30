@@ -2,9 +2,13 @@ import { FrictionDistributionChart } from '@/components/me/FrictionDistributionC
 import { ModelMixChart } from '@/components/me/ModelMix';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
+import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { StatCardWithDelta } from '@/components/team-org/StatCardWithDelta';
-import { getTeamEffectivenessDistribution } from '@/lib/effectiveness-queries';
+import {
+  getTeamEffectivenessDistribution,
+  getTeamFrictionTrend,
+} from '@/lib/effectiveness-queries';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamModelMix,
@@ -33,12 +37,14 @@ export default async function TeamOverviewPage({
 
   const { totalCount, visibleIds } = await resolveTeamVisibility(teamId);
 
-  const [{ current: summary, deltas }, tools, models, effectiveness] = await Promise.all([
-    getTeamSummaryWithDelta(range, visibleIds, totalCount),
-    getTeamTopTools(since, visibleIds),
-    getTeamModelMix(since, visibleIds),
-    getTeamEffectivenessDistribution(visibleIds, { since }),
-  ]);
+  const [{ current: summary, deltas }, tools, models, effectiveness, frictionTrend] =
+    await Promise.all([
+      getTeamSummaryWithDelta(range, visibleIds, totalCount),
+      getTeamTopTools(since, visibleIds),
+      getTeamModelMix(since, visibleIds),
+      getTeamEffectivenessDistribution(visibleIds, { since }),
+      getTeamFrictionTrend(visibleIds, { since }),
+    ]);
 
   const hasData = summary.sessionCount > 0;
 
@@ -97,6 +103,7 @@ export default async function TeamOverviewPage({
             <FrictionDistributionChart distribution={effectiveness} />
             <ShapeDistributionChart histogram={effectiveness.shapeMix} />
           </div>
+          <CohortFrictionTrendChart points={frictionTrend} title="Team friction trend (weekly)" />
         </>
       )}
     </div>

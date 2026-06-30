@@ -2,6 +2,7 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 import type { S3Client } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
+import type { EmailConfig } from '../lib/notify/email';
 import { runComputeEffectiveness, runComputeEffectivenessBackfill } from './compute-effectiveness';
 import { runEvaluateAlerts } from './evaluate-alerts';
 import { runIndexTranscripts } from './index-transcripts';
@@ -17,6 +18,9 @@ export type SchedulerDeps = {
   billingReconciliationEnabled?: boolean;
   bucket: string;
   db: PrismaClient;
+  // SMTP config for the email alert channel (P9-002). Undefined when SMTP is not
+  // configured — email alerts then fail loud rather than delivering silently.
+  emailConfig?: EmailConfig;
   githubSyncToken?: string;
   logger?: Logger;
   orgMaxRetentionDays: number;
@@ -57,6 +61,7 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
     appBaseUrl,
     bucket,
     db,
+    emailConfig,
     githubSyncToken,
     logger,
     orgMaxRetentionDays,
@@ -92,7 +97,12 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       break;
     // Scheduled alert evaluation (P9-001). Records firing/resolving transitions.
     case 'evaluate-alerts':
-      await runEvaluateAlerts(db as Parameters<typeof runEvaluateAlerts>[0], logger, appBaseUrl);
+      await runEvaluateAlerts(
+        db as Parameters<typeof runEvaluateAlerts>[0],
+        logger,
+        appBaseUrl,
+        emailConfig,
+      );
       break;
     // One-shot historical backfill (P7-001). Dispatchable here for operator-run
     // scripts; deliberately absent from CONFIGURABLE_JOBS (no cadence) and

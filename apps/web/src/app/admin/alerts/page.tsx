@@ -1,6 +1,16 @@
+import {
+  BUDGET_THRESHOLD_WINDOW_DAYS,
+  parseBudgetThresholdParams,
+} from '@ai-agents-observability/schemas';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
-import { addChannel, deleteChannel, toggleChannel, toggleRule } from './actions';
+import {
+  addChannel,
+  deleteChannel,
+  toggleChannel,
+  toggleRule,
+  updateBudgetThreshold,
+} from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,26 +48,73 @@ export default async function AlertsAdminPage() {
       <section className="space-y-2">
         <h2 className="text-sm font-medium text-white/80">Rules</h2>
         <div className="space-y-2">
-          {rules.map((r) => (
-            <div
-              key={r.id}
-              className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
-            >
-              <span>
-                {r.name} <span className="text-white/30">({r.ruleType})</span>
-              </span>
-              <form action={toggleRule}>
-                <input type="hidden" name="id" value={r.id} />
-                <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
-                <button
-                  type="submit"
-                  className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-brand-500/80 hover:bg-brand-600 text-bg' : 'border border-white/10 hover:bg-white/10'}`}
-                >
-                  {r.enabled ? 'Enabled' : 'Disabled'}
-                </button>
-              </form>
-            </div>
-          ))}
+          {rules.map((r) => {
+            const isBudget = r.ruleType === 'budget_threshold';
+            const budgetParams = isBudget ? parseBudgetThresholdParams(r.params) : null;
+            const budgetUsd = budgetParams?.budgetUsd;
+            const windowDays = budgetParams?.windowDays ?? BUDGET_THRESHOLD_WINDOW_DAYS;
+            return (
+              <div
+                key={r.id}
+                className="space-y-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span>
+                    {r.name} <span className="text-white/30">({r.ruleType})</span>
+                  </span>
+                  <form action={toggleRule}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
+                    <button
+                      type="submit"
+                      className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-brand-500/80 hover:bg-brand-600 text-bg' : 'border border-white/10 hover:bg-white/10'}`}
+                    >
+                      {r.enabled ? 'Enabled' : 'Disabled'}
+                    </button>
+                  </form>
+                </div>
+                {isBudget && (
+                  <form action={updateBudgetThreshold} className="flex flex-wrap items-end gap-2">
+                    <input type="hidden" name="id" value={r.id} />
+                    <label className="flex flex-col gap-1 text-xs text-white/50">
+                      Budget (USD)
+                      <input
+                        name="budgetUsd"
+                        type="number"
+                        min="1"
+                        step="0.01"
+                        defaultValue={budgetUsd ?? ''}
+                        placeholder="e.g. 5000"
+                        className="w-32 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs text-white/50">
+                      Window (days)
+                      <input
+                        name="windowDays"
+                        type="number"
+                        min="1"
+                        step="1"
+                        defaultValue={windowDays}
+                        className="w-24 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      className="rounded-md border border-white/10 px-3 py-1 text-xs hover:bg-white/10"
+                    >
+                      Save budget
+                    </button>
+                    {budgetUsd === undefined && (
+                      <span className="text-xs text-yellow-300/70">
+                        Set a budget to activate this rule.
+                      </span>
+                    )}
+                  </form>
+                )}
+              </div>
+            );
+          })}
         </div>
       </section>
 

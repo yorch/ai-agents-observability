@@ -1,12 +1,17 @@
 export const EVENTS_API_VERSION = '1' as const;
 
 export { agentDisplayName, DEFAULT_AGENT_TYPE, multiAgentLabels } from './agent-display';
-export type { AlertRuleType, AlertSeverity } from './alerts';
+export type { AlertRuleType, AlertSeverity, BudgetThresholdParams } from './alerts';
 export {
+  BUDGET_THRESHOLD_CRITICAL_RATIO,
+  BUDGET_THRESHOLD_WARN_RATIO,
+  BUDGET_THRESHOLD_WINDOW_DAYS,
+  BudgetThresholdParamsSchema,
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,
   ERROR_RATE_WINDOW_DAYS,
+  parseBudgetThresholdParams,
   SPEND_SPIKE_BASELINE_DAYS,
   SPEND_SPIKE_CRITICAL_SIGMA,
   SPEND_SPIKE_WARN_SIGMA,
@@ -14,12 +19,20 @@ export {
   UNKNOWN_MODEL_SURGE_DEFAULT,
   UNKNOWN_MODEL_WINDOW_HOURS,
 } from './alerts';
-export type { FrictionInputs, ShapeLabel, ToolHistogram } from './effectiveness';
+export type {
+  FrictionComponents,
+  FrictionInputs,
+  ShapeLabel,
+  ToolHistogram,
+} from './effectiveness';
 export {
   classifySessionShape,
   computeFrictionScore,
   EXEC_TOOLS,
   FRICTION_VERSION,
+  FRICTION_WEIGHTS,
+  frictionComponents,
+  frictionScoreFromComponents,
   READ_TOOLS,
   WRITE_TOOLS,
 } from './effectiveness';

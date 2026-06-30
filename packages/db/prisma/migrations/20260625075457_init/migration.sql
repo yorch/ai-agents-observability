@@ -403,6 +403,12 @@ CREATE INDEX "sessions_agent_type_started_at_idx" ON "sessions"("agent_type", "s
 CREATE UNIQUE INDEX "pull_requests_github_id_key" ON "pull_requests"("github_id");
 
 -- CreateIndex
+CREATE INDEX "pull_requests_opened_at_idx" ON "pull_requests"("opened_at");
+
+-- CreateIndex
+CREATE INDEX "pull_requests_merged_at_idx" ON "pull_requests"("merged_at");
+
+-- CreateIndex
 CREATE INDEX "session_pr_links_repo_id_pr_number_idx" ON "session_pr_links"("repo_id", "pr_number");
 
 -- CreateIndex

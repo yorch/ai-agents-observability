@@ -1,5 +1,6 @@
 import type { Logger } from 'pino';
 
+import type { EmailConfig } from './email';
 import { sendEmail } from './email';
 import type { AlertPayload } from './payload';
 import { sendSlack } from './slack';
@@ -9,6 +10,15 @@ export type ChannelConfigRow = {
   channelType: string;
   config: unknown;
   enabled: boolean;
+};
+
+// Optional delivery dependencies. Bundled into one object so new channel-level
+// config (e.g. emailConfig) can be added without re-shuffling positional params.
+export type DispatchOptions = {
+  emailConfig?: EmailConfig;
+  logger?: Logger;
+  // Injectable for tests to make the retry backoff instant.
+  sleep?: (ms: number) => Promise<void>;
 };
 
 // Minimal DB surface for delivery logging — keeps this layer testable with a mock.
@@ -26,7 +36,12 @@ function asObject(config: unknown): Record<string, unknown> {
   return config && typeof config === 'object' ? (config as Record<string, unknown>) : {};
 }
 
-async function deliverOnce(channelType: string, config: unknown, payload: AlertPayload) {
+async function deliverOnce(
+  channelType: string,
+  config: unknown,
+  payload: AlertPayload,
+  emailConfig?: EmailConfig,
+) {
   const c = asObject(config);
   switch (channelType) {
     case 'webhook':
@@ -34,7 +49,7 @@ async function deliverOnce(channelType: string, config: unknown, payload: AlertP
     case 'slack_webhook':
       return sendSlack(String(c.webhookUrl ?? c.url ?? ''), payload);
     case 'email':
-      return sendEmail(String(c.to ?? ''), payload);
+      return sendEmail(String(c.to ?? ''), payload, emailConfig);
     default:
       throw new Error(`Unknown channel type: ${channelType}`);
   }
@@ -50,9 +65,9 @@ export async function dispatchAlert(
   db: DeliveryLogDb,
   channels: ChannelConfigRow[],
   payload: AlertPayload,
-  logger?: Logger,
-  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+  opts: DispatchOptions = {},
 ): Promise<void> {
+  const { emailConfig, logger, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
   for (const ch of channels) {
     if (!ch.enabled) {
       continue;
@@ -61,7 +76,7 @@ export async function dispatchAlert(
     let success = false;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        await deliverOnce(ch.channelType, ch.config, payload);
+        await deliverOnce(ch.channelType, ch.config, payload, emailConfig);
         success = true;
         lastError = null;
         break;

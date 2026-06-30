@@ -9,7 +9,12 @@ import {
   SPEND_SPIKE_WARN_SIGMA,
   SPEND_SPIKE_WINDOW_DAYS,
 } from '@ai-agents-observability/schemas';
-import type { EffectivenessDistribution } from './effectiveness-queries';
+import {
+  type EffectivenessDistribution,
+  type FrictionTrendBucket,
+  MIN_BUCKET_SCORED,
+  mapTrendRows,
+} from './effectiveness-queries';
 import { getPrisma } from './prisma';
 import { searchTranscriptMatches } from './search-queries';
 import { type FrictionBand, frictionBandWhere } from './sessions-queries';
@@ -413,6 +418,93 @@ export async function getOrgEffectiveness(since: Date): Promise<EffectivenessDis
   }
 
   return { friction, scoredSessions, shapeMix };
+}
+
+export type AgentComparisonRow = {
+  agentType: string;
+  avgCostUsd: number;
+  medianFriction: number | null;
+  sessions: number;
+  toolErrorRate: number | null;
+  totalCostUsd: number;
+  totalTokens: number;
+};
+
+/**
+ * Side-by-side comparison of the agent products in use (`agent_type`: Claude Code,
+ * opencode, Codex, …) on cost efficiency and outcome quality. Same
+ * `share_metadata_with_org` visibility filter as the other org aggregates. Median
+ * friction / tool-error-rate are null when there's no scored / no tool-call data.
+ */
+export async function getAgentTypeComparison(since: Date): Promise<AgentComparisonRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    {
+      agent_type: string;
+      input_tokens: bigint;
+      median_friction: number | null;
+      output_tokens: bigint;
+      sessions: bigint;
+      tool_calls: bigint;
+      tool_errors: bigint;
+      total_cost: number | null;
+    }[]
+  >(Prisma.sql`
+    SELECT s.agent_type,
+           COUNT(*)                                                       AS sessions,
+           COALESCE(SUM(s.total_cost_usd), 0)                             AS total_cost,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.friction_score)  AS median_friction,
+           COALESCE(SUM(s.tool_call_count), 0)                            AS tool_calls,
+           COALESCE(SUM(s.tool_error_count), 0)                           AS tool_errors,
+           COALESCE(SUM(s.total_input_tokens), 0)                         AS input_tokens,
+           COALESCE(SUM(s.total_output_tokens), 0)                        AS output_tokens
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    WHERE s.started_at >= ${since}
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+    GROUP BY s.agent_type
+    ORDER BY total_cost DESC
+  `);
+
+  return rows.map((r) => {
+    const sessions = Number(r.sessions);
+    const calls = Number(r.tool_calls);
+    const totalCost = Number(r.total_cost ?? 0);
+    return {
+      agentType: r.agent_type,
+      avgCostUsd: sessions > 0 ? totalCost / sessions : 0,
+      medianFriction: r.median_friction != null ? Number(r.median_friction) : null,
+      sessions,
+      toolErrorRate: calls > 0 ? Number(r.tool_errors) / calls : null,
+      totalCostUsd: totalCost,
+      totalTokens: Number(r.input_tokens) + Number(r.output_tokens),
+    };
+  });
+}
+
+/**
+ * Org-wide weekly median-friction trend. Same `share_metadata_with_org` visibility
+ * filter and small-n bucket suppression as getOrgEffectiveness, but bucketed by
+ * week so the org can see whether friction is trending down over time.
+ */
+export async function getOrgFrictionTrend(since: Date): Promise<FrictionTrendBucket[]> {
+  const rows = await getPrisma().$queryRaw<
+    { median: number | null; scored: bigint; week: Date }[]
+  >(Prisma.sql`
+    SELECT date_trunc('week', s.started_at) AS week,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.friction_score) AS median,
+           COUNT(s.friction_score) AS scored
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    WHERE s.started_at >= ${since}
+      AND s.friction_score IS NOT NULL
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+    GROUP BY date_trunc('week', s.started_at)
+    HAVING COUNT(s.friction_score) >= ${MIN_BUCKET_SCORED}
+    ORDER BY week ASC
+  `);
+  return mapTrendRows(rows);
 }
 
 export async function getWeeklyCostTrend(weeks = 12): Promise<DailyCostRow[]> {

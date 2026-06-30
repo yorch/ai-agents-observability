@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { currentUser } from '@/lib/auth';
@@ -25,6 +26,7 @@ import {
   type SubagentUsageRow,
   type ToolPerfRow,
 } from '@/lib/insights-queries';
+import { buildRecommendations, type Recommendation } from '@/lib/recommendations';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,6 +111,13 @@ export default async function InsightsPage({
     getSessionSummary(user.id, since),
   ]);
 
+  const recommendations = buildRecommendations({
+    mcp,
+    scoredSessionCount: effectiveness.scoredSessionCount,
+    sources: effectiveness.sources,
+    toolPerf,
+  });
+
   const hasSessionData = summary.sessionCount > 0;
   const hasEventData =
     mcp.length > 0 ||
@@ -140,13 +149,22 @@ export default async function InsightsPage({
           {hasSessionData && <SessionSummaryCards summary={summary} />}
 
           {hasSessionData && (
-            <div className="grid gap-6 md:grid-cols-2">
-              <FrictionTrendChart
-                points={effectiveness.trend}
-                scoredSessionCount={effectiveness.scoredSessionCount}
-              />
-              <ShapeDistributionChart histogram={effectiveness.shapeHistogram} />
-            </div>
+            <>
+              <div className="grid gap-6 md:grid-cols-2">
+                <FrictionTrendChart
+                  points={effectiveness.trend}
+                  scoredSessionCount={effectiveness.scoredSessionCount}
+                />
+                <ShapeDistributionChart histogram={effectiveness.shapeHistogram} />
+              </div>
+              <div className="grid gap-6 md:grid-cols-2">
+                <FrictionSourcesChart
+                  scoredSessionCount={effectiveness.scoredSessionCount}
+                  sources={effectiveness.sources}
+                />
+                {recommendations.length > 0 && <RecommendationsSection recs={recommendations} />}
+              </div>
+            </>
           )}
 
           {hasEventData && (
@@ -193,6 +211,31 @@ function DaysSelector({ current }: { current: Days }) {
         </a>
       ))}
     </div>
+  );
+}
+
+function RecommendationsSection({ recs }: { recs: Recommendation[] }) {
+  return (
+    <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+        Recommendations
+      </h2>
+      <ul className="space-y-2.5">
+        {recs.map((r) => (
+          <li key={r.id} className="flex gap-2.5">
+            <span
+              className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${
+                r.severity === 'warn' ? 'bg-yellow-400' : 'bg-sky-400'
+              }`}
+            />
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium text-text">{r.title}</p>
+              <p className="text-xs text-text-2">{r.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

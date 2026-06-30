@@ -19,7 +19,26 @@ export type FrictionInputs = {
   userMessageCount: number;
 };
 
-export function computeFrictionScore(inputs: FrictionInputs): number | null {
+// Weights of each friction component, summed (then capped at 1) for the score.
+// Single source of truth for both computeFrictionScore and frictionComponents.
+export const FRICTION_WEIGHTS = {
+  abandonment: 0.15,
+  denial: 0.3,
+  error: 0.3,
+  interrupt: 0.25,
+} as const;
+
+// The weighted contribution of each friction driver. Summing the four equals the
+// pre-cap friction score, so this is a faithful decomposition of "what drove the
+// friction" — used to surface top friction sources and recommendations (Feature 5).
+export type FrictionComponents = {
+  abandonment: number;
+  denial: number;
+  error: number;
+  interrupt: number;
+};
+
+export function frictionComponents(inputs: FrictionInputs): FrictionComponents | null {
   const {
     durationSeconds,
     interruptCount,
@@ -40,10 +59,24 @@ export function computeFrictionScore(inputs: FrictionInputs): number | null {
   const shortAbandoned =
     status === 'ABANDONED' && (durationSeconds == null || durationSeconds < 60) ? 1 : 0;
 
-  return Math.min(
-    1,
-    denyRate * 0.3 + errorRate * 0.3 + interruptRate * 0.25 + shortAbandoned * 0.15,
-  );
+  return {
+    abandonment: shortAbandoned * FRICTION_WEIGHTS.abandonment,
+    denial: denyRate * FRICTION_WEIGHTS.denial,
+    error: errorRate * FRICTION_WEIGHTS.error,
+    interrupt: interruptRate * FRICTION_WEIGHTS.interrupt,
+  };
+}
+
+// The friction score is the sum of the weighted components, capped at 1. Exposed
+// so callers that already hold the components (e.g. the per-developer source
+// breakdown) can derive the score without recomputing the components.
+export function frictionScoreFromComponents(c: FrictionComponents): number {
+  return Math.min(1, c.abandonment + c.denial + c.error + c.interrupt);
+}
+
+export function computeFrictionScore(inputs: FrictionInputs): number | null {
+  const c = frictionComponents(inputs);
+  return c === null ? null : frictionScoreFromComponents(c);
 }
 
 export type ShapeLabel =
