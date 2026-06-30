@@ -49,6 +49,7 @@ export const GET = withRouteLogging('me.export', async (req: NextRequest) => {
   const bandRaw = sp.get('band');
   const frictionBand =
     bandRaw === 'low' || bandRaw === 'medium' || bandRaw === 'high' ? bandRaw : undefined;
+  const mode = sp.get('mode') ?? undefined;
 
   // listSessions returns up to PAGE_SIZE (50) per page — iterate all pages for export
   const allSessions = [];
@@ -62,6 +63,7 @@ export const GET = withRouteLogging('me.export', async (req: NextRequest) => {
       ...(shape ? { shapeLabels: [shape] } : {}),
       ...(agent ? { agentTypes: [agent] } : {}),
       ...(frictionBand ? { frictionBand } : {}),
+      ...(mode ? { mode } : {}),
       page,
     });
     allSessions.push(...sessions);
