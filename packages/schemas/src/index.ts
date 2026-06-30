@@ -51,11 +51,24 @@ export {
   EventsBatchSchema,
   EventTypeSchema,
 } from './event';
+export type { NotificationKind } from './notification';
+export {
+  BLOCKING_NOTIFICATION_KINDS,
+  classifyNotification,
+  isBlockingNotification,
+  NOTIFICATION_KINDS,
+} from './notification';
 export type { ModelPrice, PriceTable } from './price-table';
 export { PriceTableSchema } from './price-table';
 export type { RepoConfig } from './repo-config';
 export { parseRepoConfig, RepoConfigSchema } from './repo-config';
-export type { GitContext, SessionContext } from './session-context';
-export { GitContextSchema, SessionContextSchema } from './session-context';
+export type { GitContext, PermissionMode, SessionContext } from './session-context';
+export {
+  AUTONOMY_RANK,
+  canonicalPermissionMode,
+  GitContextSchema,
+  PERMISSION_MODES,
+  SessionContextSchema,
+} from './session-context';
 export type { TranscriptChunkMeta } from './transcript';
 export { TranscriptChunkMetaSchema } from './transcript';

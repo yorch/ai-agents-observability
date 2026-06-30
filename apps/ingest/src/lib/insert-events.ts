@@ -73,6 +73,7 @@ export async function insertEventsBatch(
       ${e.llm?.cache_creation_tokens ?? null},
       ${costUsd},
       ${e.session_context.mode},
+      ${typeof e.metadata.notification_kind === 'string' ? e.metadata.notification_kind : null},
       ${JSON.stringify(e.metadata)}::jsonb
     )`;
   });
@@ -92,7 +93,7 @@ export async function insertEventsBatch(
         skill_name, skill_path, slash_command,
         model, input_tokens, output_tokens,
         cache_read_tokens, cache_creation_tokens, cost_usd,
-        mode, metadata
+        mode, notification_kind, metadata
       ) VALUES ${Prisma.join(rows)}
       ON CONFLICT (event_id, ts) DO NOTHING
       RETURNING event_id

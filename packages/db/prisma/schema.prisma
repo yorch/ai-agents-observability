@@ -248,6 +248,10 @@ model Session {
   githubTeam           String?       @map("github_team")
   projectName          String?       @map("project_name")
 
+  // Human-in-the-loop: representative permission/autonomy mode for the session —
+  // the least-supervised (most autonomous) mode observed across its events.
+  mode                 String?       @map("mode")
+
   totalInputTokens      BigInt  @default(0) @map("total_input_tokens")
   totalOutputTokens     BigInt  @default(0) @map("total_output_tokens")
   totalCacheRead        BigInt  @default(0) @map("total_cache_read")
@@ -259,6 +263,9 @@ model Session {
   permissionDenyCount   Int     @default(0) @map("permission_deny_count")
   interruptCount        Int     @default(0) @map("interrupt_count")
   userMessageCount      Int     @default(0) @map("user_message_count")
+  // Human-in-the-loop: count of Notification events where the agent stopped to
+  // get the human's attention (permission / idle / elicitation prompts).
+  notificationCount     Int     @default(0) @map("notification_count")
   primaryModel          String? @map("primary_model")
 
   transcriptS3Key      String?   @map("transcript_s3_key")

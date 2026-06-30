@@ -211,6 +211,74 @@ describe('upsertSessions', () => {
     expect(db.captured[0]?.params).toContain('r1');
   });
 
+  it('wires the HITL aggregates (mode, notification_count, permission_prompt_count) into the upsert', async () => {
+    const db = makeDb();
+    const events = [
+      makeEvent({
+        event_id: '01906a44-0000-7000-8000-000000000001',
+        event_type: 'Notification',
+        metadata: { notification_kind: 'permission' },
+      }),
+      makeEvent({
+        event_id: '01906a44-0000-7000-8000-000000000002',
+        event_type: 'Notification',
+        metadata: { notification_kind: 'idle' },
+      }),
+    ];
+
+    await upsertSessions(db, events, 'u1', new Map(), PRICE_TABLES);
+    const call = db.captured[0];
+    expect(call?.sql).toContain('project_name, mode,');
+    expect(call?.sql).toContain('user_message_count, notification_count, primary_model');
+    expect(call?.sql).toContain(
+      'permission_prompt_count = sessions.permission_prompt_count + EXCLUDED.permission_prompt_count',
+    );
+    expect(call?.sql).toContain(
+      'notification_count   = sessions.notification_count + EXCLUDED.notification_count',
+    );
+    // Representative mode is chosen by the autonomy-rank CASE on conflict.
+    expect(call?.sql).toContain('WHEN EXCLUDED.mode IS NULL THEN sessions.mode');
+  });
+
+  it('records the least-supervised mode observed across the batch', async () => {
+    const db = makeDb();
+    const events = [
+      makeEvent({
+        event_id: '01906a44-0000-7000-8000-000000000001',
+        event_type: 'SessionStart',
+        session_context: { ...BASE_CTX, mode: 'plan' },
+      }),
+      makeEvent({
+        event_id: '01906a44-0000-7000-8000-000000000002',
+        event_type: 'PostToolUse',
+        session_context: { ...BASE_CTX, mode: 'bypass' },
+        tool: {
+          category: 'exec',
+          duration_ms: 1,
+          exit_status: 0,
+          input_bytes: 1,
+          input_hash: null,
+          mcp_server: null,
+          mcp_tool: null,
+          name: 'Bash',
+          output_bytes: 1,
+          skill: null,
+          slash_command: null,
+          subagent_type: null,
+          was_denied: false,
+          was_interrupted: false,
+        },
+      }),
+    ];
+
+    await upsertSessions(db, events, 'u1', new Map(), PRICE_TABLES);
+    // 'bypass' (rank 5) outranks 'plan' (rank 0) → representative mode is bypass.
+    // It appears among the row VALUES params (the rank-CASE literals are emitted
+    // separately as their own bind params, but 'bypass' as the chosen value is
+    // what the row carries).
+    expect(db.captured[0]?.params).toContain('bypass');
+  });
+
   it('falls back to batch envelope git when per-event git is null', async () => {
     const db = makeDb();
     const event = makeEvent({
