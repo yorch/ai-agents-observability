@@ -53,10 +53,13 @@ jobs:
         # If this job is consistently noisy on ubuntu-latest, add:
         #   continue-on-error: true
         # and document the baseline in apps/hook/bench/README.md.
+        # No PERF_BINARY override: the bench runs with --cwd apps/hook and its
+        # default binary path (apps/hook/dist/claude-telemetry) already matches the
+        # build step above. A repo-root-relative override resolves against the
+        # apps/hook cwd and misses the binary.
         run: |
           PERF_COLD_ONLY=1 \
           PERF_COLD_ITERATIONS=100 \
-          PERF_BINARY=apps/hook/dist/claude-telemetry \
           bun run --cwd apps/hook bench
 
       - name: Upload benchmark results
