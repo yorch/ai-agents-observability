@@ -320,6 +320,25 @@ CREATE TABLE "access_grants" (
 );
 
 -- CreateTable
+CREATE TABLE "session_feedback" (
+    "id" UUID NOT NULL,
+    "session_id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "sentiment" TEXT NOT NULL,
+    "note" TEXT,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "session_feedback_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "session_feedback_session_id_user_id_key" ON "session_feedback"("session_id", "user_id");
+
+-- CreateIndex
+CREATE INDEX "session_feedback_session_id_idx" ON "session_feedback"("session_id");
+
+-- CreateTable
 CREATE TABLE "alert_events" (
     "id" BIGSERIAL NOT NULL,
     "rule_id" UUID NOT NULL,

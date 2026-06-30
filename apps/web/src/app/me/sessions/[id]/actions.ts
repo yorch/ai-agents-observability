@@ -92,6 +92,49 @@ export async function shareSession(formData: FormData): Promise<ShareResult> {
   return { email: targetEmail, ok: true, sessionId };
 }
 
+/**
+ * R11: the session owner records a lightweight quality signal on their own
+ * session (thumbs up/down + optional note). Upserted per (session, user); an
+ * empty sentiment clears it. Own-session only — verified via getSession.
+ */
+export async function submitSessionFeedback(formData: FormData): Promise<void> {
+  const user = await currentUser();
+  if (!user) {
+    redirect('/login');
+  }
+
+  const sessionId = String(formData.get('sessionId') ?? '').trim();
+  const sentiment = String(formData.get('sentiment') ?? '').trim();
+  const note = String(formData.get('note') ?? '').trim();
+  if (!sessionId) {
+    return;
+  }
+
+  // Own-session only.
+  const session = await getSession(user.id, sessionId);
+  if (!session) {
+    return;
+  }
+
+  const db = getPrisma();
+
+  if (sentiment !== 'up' && sentiment !== 'down') {
+    // Clearing feedback.
+    await db.sessionFeedback.deleteMany({ where: { sessionId, userId: user.id } });
+    revalidatePath(`/me/sessions/${sessionId}`);
+    return;
+  }
+
+  const trimmedNote = note.slice(0, 1000) || null;
+  await db.sessionFeedback.upsert({
+    create: { note: trimmedNote, sentiment, sessionId, userId: user.id },
+    update: { note: trimmedNote, sentiment, updatedAt: new Date() },
+    where: { sessionId_userId: { sessionId, userId: user.id } },
+  });
+
+  revalidatePath(`/me/sessions/${sessionId}`);
+}
+
 /** Lets the session owner revoke any active share on their own session. */
 export async function revokeShare(formData: FormData): Promise<void> {
   const user = await currentUser();

@@ -484,6 +484,24 @@ model AccessGrant {
   @@map("access_grants")
 }
 
+// R11 (HITL feedback): a lightweight human signal on a session — was the agent's
+// work actually good? The ground truth that calibrates friction/autonomy signals.
+// session_id / user_id are plain UUIDs (not relations), matching the AccessGrant
+// pattern, to avoid extra back-relations. One row per (session, user).
+model SessionFeedback {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @map("session_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  sentiment String
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@map("session_feedback")
+}
+
 model AlertEvent {
   id         BigInt    @id @default(autoincrement())
   ruleId     String    @map("rule_id") @db.Uuid

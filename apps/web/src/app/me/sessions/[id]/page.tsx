@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
+import { SessionFeedbackForm } from '@/components/me/SessionFeedbackForm';
 import { ShareSessionButton } from '@/components/me/ShareSessionButton';
 import { currentUser } from '@/lib/auth';
 import { getPrisma } from '@/lib/prisma';
@@ -63,6 +64,12 @@ export default async function SessionDetailPage({
     notFound();
   }
 
+  // R11: owner's existing feedback on this session, if any.
+  const feedback = await getPrisma().sessionFeedback.findUnique({
+    select: { note: true, sentiment: true },
+    where: { sessionId_userId: { sessionId: id, userId: user.id } },
+  });
+
   const activeShares = rawShares
     .filter((s): s is typeof s & { expiresAt: Date } => s.expiresAt !== null)
     .map((s) => ({ expiresAt: s.expiresAt, granteeEmail: s.grantee.email, id: s.id }));
@@ -77,6 +84,14 @@ export default async function SessionDetailPage({
         extra={<ShareSessionButton activeShares={activeShares} sessionId={id} />}
         session={session}
         transcriptHref={session.transcriptS3Key ? `/me/sessions/${id}/transcript` : null}
+      />
+
+      <SessionFeedbackForm
+        sessionId={id}
+        initialSentiment={
+          feedback?.sentiment === 'up' || feedback?.sentiment === 'down' ? feedback.sentiment : null
+        }
+        initialNote={feedback?.note ?? null}
       />
 
       <SessionDetailTabs
