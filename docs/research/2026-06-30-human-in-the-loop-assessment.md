@@ -2,7 +2,9 @@
 
 **Date:** 2026-06-30
 **Scope:** Research on what HITL is and its best practices, plus an assessment of where `ai-agents-observability` stands today and what would bring the most value.
-**Status:** Research / assessment document (no code changes). Recommendations are proposals, not committed scope.
+**Status:** Research / assessment. **The recommendations below (R1–R12) were subsequently implemented** in the same PR — see "Implementation status" under §0 and the per-recommendation tags. The research and rationale are retained as written.
+
+> **Implementation status (added post-research).** All twelve recommendations landed: R1 capture autonomy mode · R2 classify notifications (+ `permission_prompt_count`) · R3 response latency · R4/R5 Oversight & Autonomy panel + rubber-stamp detector (`/me`) · R6 mode search facet · R7 alert acknowledge + rule silence/snooze · R8 needs-attention grant queue + bulk approve · R9 autonomy-surge alert rule · R10 AI-authored-code provenance (`/org/governance`) · R11 per-session human feedback · R12 governance & oversight-posture report. The "observe-only" framing (§2.1) held: nothing here intercepts a live tool call. Real-time tool approval / remote session-stop remain deliberately unbuilt (§2.4).
 
 ---
 
