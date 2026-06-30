@@ -1,3 +1,4 @@
+import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { approveAllPending, approveGrant, revokeGrant } from './actions';
@@ -15,9 +16,6 @@ type Grant = {
   targetUserId: string | null;
 };
 
-// Active grants within this window of expiry are surfaced as "expiring soon" (R8).
-const EXPIRING_SOON_MS = 6 * 3_600_000;
-
 function status(g: Grant): string {
   if (g.revokedAt) {
     return 'revoked';
@@ -32,11 +30,7 @@ function status(g: Grant): string {
 }
 
 function expiringSoon(g: Grant): boolean {
-  return (
-    status(g) === 'active' &&
-    g.expiresAt != null &&
-    g.expiresAt.getTime() - Date.now() < EXPIRING_SOON_MS
-  );
+  return status(g) === 'active' && isGrantExpiringSoon(g.expiresAt);
 }
 
 function GrantCard({ g }: { g: Grant }) {

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireGrantRequester } from '@/lib/roles';
 
@@ -19,14 +20,6 @@ function grantStatus(g: {
     return 'expired';
   }
   return 'active';
-}
-
-// Active grants within this window of expiry are surfaced as "expiring soon" so
-// the holder can re-request before access lapses.
-const EXPIRING_SOON_MS = 6 * 3_600_000;
-
-function expiringSoon(expiresAt: Date | null): boolean {
-  return expiresAt != null && expiresAt.getTime() - Date.now() < EXPIRING_SOON_MS;
 }
 
 const STATUS_STYLES = {
@@ -193,7 +186,7 @@ function GrantCard({
         <div className="text-xs text-text-3">
           Approved {new Date(g.grantedAt).toLocaleString()}
           {g.expiresAt && ` · expires ${new Date(g.expiresAt).toLocaleString()}`}
-          {status === 'active' && expiringSoon(g.expiresAt) && (
+          {status === 'active' && isGrantExpiringSoon(g.expiresAt) && (
             <span className="ml-2 rounded bg-yellow-500/15 px-1.5 py-0.5 text-yellow-400">
               expiring soon
             </span>
