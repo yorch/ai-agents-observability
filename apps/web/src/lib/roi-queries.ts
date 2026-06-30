@@ -79,6 +79,11 @@ export type CiCostCorrelation = {
 // Compares the average agent cost of merged PRs that passed CI cleanly vs those
 // that needed one or more failing check runs along the way. A large gap is a
 // concrete "rework costs money" signal.
+//
+// Scoped on opened_at (matching getOrgRoiSummary, so both describe the same trailing
+// window of PRs) and counted with COUNT(total_cost_usd) — not COUNT(*) — so the "N
+// PRs" label and the AVG cover the same costed population (PRs whose rollup has a
+// non-null cost). PRs without a cost rollup contribute to neither.
 export async function getCiCostCorrelation(since: Date): Promise<CiCostCorrelation> {
   const rows = await getPrisma().$queryRaw<
     {
@@ -89,16 +94,18 @@ export async function getCiCostCorrelation(since: Date): Promise<CiCostCorrelati
     }[]
   >(Prisma.sql`
     SELECT
-      COUNT(*) FILTER (WHERE COALESCE(prr.check_failures_count, 0) = 0)   AS clean_count,
+      COUNT(prr.total_cost_usd) FILTER (WHERE COALESCE(prr.check_failures_count, 0) = 0)
+                                                                          AS clean_count,
       AVG(prr.total_cost_usd) FILTER (WHERE COALESCE(prr.check_failures_count, 0) = 0)
                                                                           AS clean_avg_cost,
-      COUNT(*) FILTER (WHERE COALESCE(prr.check_failures_count, 0) > 0)   AS failed_count,
+      COUNT(prr.total_cost_usd) FILTER (WHERE COALESCE(prr.check_failures_count, 0) > 0)
+                                                                          AS failed_count,
       AVG(prr.total_cost_usd) FILTER (WHERE COALESCE(prr.check_failures_count, 0) > 0)
                                                                           AS failed_avg_cost
     FROM pull_requests pr
-    JOIN pr_rollups prr
+    LEFT JOIN pr_rollups prr
       ON prr.repo_id = pr.repo_id AND prr.pr_number = pr.pr_number
-    WHERE pr.state = 'MERGED' AND pr.merged_at >= ${since}
+    WHERE pr.state = 'MERGED' AND pr.opened_at >= ${since}
   `);
 
   const r = rows[0];

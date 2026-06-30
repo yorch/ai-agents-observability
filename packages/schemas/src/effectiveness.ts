@@ -67,12 +67,16 @@ export function frictionComponents(inputs: FrictionInputs): FrictionComponents |
   };
 }
 
+// The friction score is the sum of the weighted components, capped at 1. Exposed
+// so callers that already hold the components (e.g. the per-developer source
+// breakdown) can derive the score without recomputing the components.
+export function frictionScoreFromComponents(c: FrictionComponents): number {
+  return Math.min(1, c.abandonment + c.denial + c.error + c.interrupt);
+}
+
 export function computeFrictionScore(inputs: FrictionInputs): number | null {
   const c = frictionComponents(inputs);
-  if (c === null) {
-    return null;
-  }
-  return Math.min(1, c.abandonment + c.denial + c.error + c.interrupt);
+  return c === null ? null : frictionScoreFromComponents(c);
 }
 
 export type ShapeLabel =

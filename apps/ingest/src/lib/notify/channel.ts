@@ -12,6 +12,15 @@ export type ChannelConfigRow = {
   enabled: boolean;
 };
 
+// Optional delivery dependencies. Bundled into one object so new channel-level
+// config (e.g. emailConfig) can be added without re-shuffling positional params.
+export type DispatchOptions = {
+  emailConfig?: EmailConfig;
+  logger?: Logger;
+  // Injectable for tests to make the retry backoff instant.
+  sleep?: (ms: number) => Promise<void>;
+};
+
 // Minimal DB surface for delivery logging — keeps this layer testable with a mock.
 type DeliveryLogDb = {
   alertDeliveryLog: {
@@ -56,10 +65,9 @@ export async function dispatchAlert(
   db: DeliveryLogDb,
   channels: ChannelConfigRow[],
   payload: AlertPayload,
-  logger?: Logger,
-  emailConfig?: EmailConfig,
-  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+  opts: DispatchOptions = {},
 ): Promise<void> {
+  const { emailConfig, logger, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
   for (const ch of channels) {
     if (!ch.enabled) {
       continue;

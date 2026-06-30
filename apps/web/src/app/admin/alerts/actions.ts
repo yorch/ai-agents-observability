@@ -1,5 +1,6 @@
 'use server';
 
+import { BudgetThresholdParamsSchema } from '@ai-agents-observability/schemas';
 import { revalidatePath } from 'next/cache';
 
 import { getPrisma } from '@/lib/prisma';
@@ -27,16 +28,19 @@ export async function toggleRule(formData: FormData): Promise<void> {
 export async function updateBudgetThreshold(formData: FormData): Promise<void> {
   await requireOrgAdmin();
   const id = String(formData.get('id') ?? '');
-  const budgetUsd = Number(formData.get('budgetUsd'));
-  if (!id || !Number.isFinite(budgetUsd) || budgetUsd <= 0) {
+  if (!id) {
     return;
   }
-  const params: Record<string, number> = { budgetUsd };
-  const windowDays = Number(formData.get('windowDays'));
-  if (Number.isFinite(windowDays) && windowDays > 0) {
-    params.windowDays = Math.floor(windowDays);
+  // Validate + coerce through the shared schema so the write matches exactly what
+  // the evaluator reads. A missing/non-positive budget fails the parse → no-op.
+  const parsed = BudgetThresholdParamsSchema.safeParse({
+    budgetUsd: formData.get('budgetUsd'),
+    windowDays: formData.get('windowDays'),
+  });
+  if (!parsed.success) {
+    return;
   }
-  await getPrisma().alertRule.updateMany({ data: { params }, where: { id } });
+  await getPrisma().alertRule.updateMany({ data: { params: parsed.data }, where: { id } });
   revalidatePath('/admin/alerts');
 }
 

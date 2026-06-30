@@ -4,6 +4,8 @@
 // drift apart. apps/ingest cannot import from apps/web, so these live in the
 // shared schemas package.
 
+import { z } from 'zod';
+
 export type AlertRuleType =
   | 'spend_spike'
   | 'high_error_rate'
@@ -40,3 +42,24 @@ export const UNKNOWN_MODEL_WINDOW_HOURS = 24;
 export const BUDGET_THRESHOLD_WINDOW_DAYS = 30;
 export const BUDGET_THRESHOLD_WARN_RATIO = 0.8;
 export const BUDGET_THRESHOLD_CRITICAL_RATIO = 1.0;
+
+// The single contract for a budget_threshold rule's JSON `params`, shared by the
+// admin UI (validates on write), the evaluator (reads on each sweep), and the UI
+// prefill — so the three never drift. Coercion + windowDays `.catch` make a
+// malformed value fall back to the default window rather than producing NaN (an
+// Invalid Date window that would silently disable the rule). A missing or
+// non-positive budgetUsd fails the parse → the rule stays inert by design.
+export const BudgetThresholdParamsSchema = z.object({
+  budgetUsd: z.coerce.number().positive(),
+  windowDays: z.coerce.number().int().positive().catch(BUDGET_THRESHOLD_WINDOW_DAYS),
+});
+export type BudgetThresholdParams = z.infer<typeof BudgetThresholdParamsSchema>;
+
+/**
+ * Parse a budget_threshold rule's params. Returns null when unconfigured or
+ * invalid (no/non-positive budget) — callers treat null as "rule inert".
+ */
+export function parseBudgetThresholdParams(raw: unknown): BudgetThresholdParams | null {
+  const result = BudgetThresholdParamsSchema.safeParse(raw ?? {});
+  return result.success ? result.data : null;
+}

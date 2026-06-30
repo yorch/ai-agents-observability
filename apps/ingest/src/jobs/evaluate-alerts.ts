@@ -3,11 +3,11 @@ import { Prisma } from '@ai-agents-observability/db';
 import {
   BUDGET_THRESHOLD_CRITICAL_RATIO,
   BUDGET_THRESHOLD_WARN_RATIO,
-  BUDGET_THRESHOLD_WINDOW_DAYS,
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,
   ERROR_RATE_WINDOW_DAYS,
+  parseBudgetThresholdParams,
   SPEND_SPIKE_BASELINE_DAYS,
   SPEND_SPIKE_CRITICAL_SIGMA,
   SPEND_SPIKE_WARN_SIGMA,
@@ -142,16 +142,15 @@ async function evalUnknownModelSurge(db: AlertsDb, params: unknown): Promise<Eva
 }
 
 async function evalBudgetThreshold(db: AlertsDb, params: unknown): Promise<Evaluation> {
-  const p = paramsObject(params);
-  const budgetUsd = Number(p.budgetUsd ?? 0);
-  // Inert until an admin configures a positive budget. A misconfigured rule (no or
-  // non-positive budget) never fires rather than throwing — consistent with the
-  // other evaluators, so one unconfigured rule can't fail the sweep.
-  if (!(budgetUsd > 0)) {
+  // Inert until an admin configures a positive budget. parseBudgetThresholdParams
+  // returns null for a missing/invalid budget and coerces a malformed windowDays
+  // back to the default (never NaN), so a misconfigured rule stays silent rather
+  // than firing or silently never-matching on an Invalid Date window.
+  const p = parseBudgetThresholdParams(params);
+  if (!p) {
     return null;
   }
-  const windowDays = Number(p.windowDays ?? BUDGET_THRESHOLD_WINDOW_DAYS);
-  const windowStart = new Date(Date.now() - windowDays * 86_400_000);
+  const windowStart = new Date(Date.now() - p.windowDays * 86_400_000);
   // Visibility-scoped like the other evaluators: users who opted out of org
   // metadata sharing don't contribute to this org-aggregate spend signal.
   const rows = await db.$queryRaw<{ spend: number }[]>(Prisma.sql`
@@ -163,12 +162,12 @@ async function evalBudgetThreshold(db: AlertsDb, params: unknown): Promise<Evalu
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   const spend = Number(rows[0]?.spend ?? 0);
-  const ratio = spend / budgetUsd;
+  const ratio = spend / p.budgetUsd;
   if (ratio < BUDGET_THRESHOLD_WARN_RATIO) {
     return null;
   }
   return {
-    details: { budgetUsd, ratio, spend, windowDays },
+    details: { budgetUsd: p.budgetUsd, ratio, spend, windowDays: p.windowDays },
     severity: ratio >= BUDGET_THRESHOLD_CRITICAL_RATIO ? 'critical' : 'warn',
   };
 }
@@ -236,7 +235,7 @@ export async function runEvaluateAlerts(
               { details: evaluation.details, firedAt: new Date(), severity: evaluation.severity },
               appBaseUrl,
             );
-            await dispatchAlert(db, channels, payload, logger, emailConfig);
+            await dispatchAlert(db, channels, payload, { emailConfig, logger });
           }
         } else if (outcome === 'resolved') {
           resolved++;

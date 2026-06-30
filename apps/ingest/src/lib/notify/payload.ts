@@ -23,6 +23,12 @@ function num(details: Record<string, unknown>, key: string): number {
   return typeof v === 'number' ? v : 0;
 }
 
+// Uppercase severity tag for text channels (email subject + body), so the label
+// casing stays consistent across a single notification.
+export function severityLabel(severity: AlertSeverity): string {
+  return severity === 'critical' ? 'CRITICAL' : 'WARN';
+}
+
 // Human-readable, aggregate-only description per rule type.
 function describe(ruleType: string, details: Record<string, unknown>): string {
   switch (ruleType) {

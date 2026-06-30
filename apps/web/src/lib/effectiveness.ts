@@ -11,6 +11,7 @@ export {
   computeFrictionScore,
   FRICTION_VERSION,
   frictionComponents,
+  frictionScoreFromComponents,
 } from '@ai-agents-observability/schemas';
 
 /** Badge color for friction score. */

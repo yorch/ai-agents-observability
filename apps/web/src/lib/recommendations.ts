@@ -20,10 +20,15 @@ export type RecommendationInputs = {
   toolPerf: ToolPerfRow[];
 };
 
-// A tool/server needs at least this many calls before its error rate is trusted
-// (avoids coaching off a 1-of-1 fluke), and an error rate at/above this warns.
-const MIN_CALLS = 5;
-const ERROR_RATE_WARN = 0.2;
+// Per-developer, per-tool coaching thresholds. Intentionally distinct from the
+// org-wide alerting constants in @ai-agents-observability/schemas (ERROR_RATE_WARN
+// 0.1 / ERROR_RATE_MIN_CALLS 100): those gate a noisy org-aggregate alert, whereas
+// here a single developer's single tool needs a much lower call floor to be worth a
+// hint, and a higher rate before it's notable for one person. A tool/server needs
+// at least this many calls before its error rate is trusted (avoids coaching off a
+// 1-of-1 fluke), and an error rate at/above this warns.
+const MIN_TOOL_CALLS = 5;
+const TOOL_ERROR_RATE_WARN = 0.2;
 // A friction driver contributing at least this much (weighted) is worth surfacing.
 const SOURCE_FLOOR = 0.05;
 
@@ -59,7 +64,9 @@ export function buildRecommendations(input: RecommendationInputs): Recommendatio
 
   // 2. Error-prone tools — high failure rate means retries and wasted spend.
   const errorProne = toolPerf
-    .filter((t) => t.callCount >= MIN_CALLS && t.errorCount / t.callCount >= ERROR_RATE_WARN)
+    .filter(
+      (t) => t.callCount >= MIN_TOOL_CALLS && t.errorCount / t.callCount >= TOOL_ERROR_RATE_WARN,
+    )
     .sort((a, b) => b.errorCount / b.callCount - a.errorCount / a.callCount);
   for (const t of errorProne.slice(0, 3)) {
     const rate = Math.round((t.errorCount / t.callCount) * 100);
@@ -80,7 +87,7 @@ export function buildRecommendations(input: RecommendationInputs): Recommendatio
     byServer.set(row.mcpServer, agg);
   }
   const flakyServers = [...byServer.entries()]
-    .filter(([, a]) => a.calls >= MIN_CALLS && a.errors / a.calls >= ERROR_RATE_WARN)
+    .filter(([, a]) => a.calls >= MIN_TOOL_CALLS && a.errors / a.calls >= TOOL_ERROR_RATE_WARN)
     .sort((a, b) => b[1].errors / b[1].calls - a[1].errors / a[1].calls);
   for (const [server, a] of flakyServers.slice(0, 3)) {
     const rate = Math.round((a.errors / a.calls) * 100);

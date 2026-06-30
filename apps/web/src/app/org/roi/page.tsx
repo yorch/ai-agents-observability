@@ -1,6 +1,7 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { StatCard } from '@/components/team-org/StatCard';
 import { getConfig } from '@/lib/config';
+import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
   getCiCostCorrelation,
   getOrgRoiSummary,
@@ -12,13 +13,10 @@ import { daysAgo } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
-function pct(n: number): string {
-  return `${(n * 100).toFixed(0)}%`;
-}
-
-function usd(n: number): string {
-  return `$${n.toFixed(2)}`;
-}
+// Health thresholds, shared by the headline cards and the per-row table cells so a
+// single policy change can't leave the two views disagreeing.
+const HIGH_REVERT_RATE = 0.05;
+const LOW_CI_CLEAN_RATE = 0.8;
 
 export default async function OrgRoiPage({
   searchParams,
@@ -56,25 +54,25 @@ export default async function OrgRoiPage({
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard
           label={`Agent spend (${range}d)`}
-          value={usd(summary.totalSpendUsd)}
+          value={fmtUsd(summary.totalSpendUsd)}
           sub={`${summary.mergedPrs} PRs merged`}
         />
         <StatCard
           label="Cost / merged PR"
-          value={summary.costPerMergedPr > 0 ? usd(summary.costPerMergedPr) : '—'}
+          value={summary.costPerMergedPr > 0 ? fmtUsd(summary.costPerMergedPr) : '—'}
           sub="merged-PR spend ÷ merged PRs"
         />
         <StatCard
           label="Reverted spend"
-          value={usd(summary.revertedSpendUsd)}
-          sub={`${pct(summary.revertedSpendShare)} of spend · ${summary.revertedPrs} PRs`}
-          {...(summary.revertedSpendShare > 0.05 ? { accent: 'red' as const } : {})}
+          value={fmtUsd(summary.revertedSpendUsd)}
+          sub={`${fmtPct(summary.revertedSpendShare)} of spend · ${summary.revertedPrs} PRs`}
+          {...(summary.revertedSpendShare > HIGH_REVERT_RATE ? { accent: 'red' as const } : {})}
         />
         <StatCard
           label="CI-clean merge rate"
-          value={pct(summary.ciCleanMergeRate)}
+          value={fmtPct(summary.ciCleanMergeRate)}
           sub="merged with no failing checks"
-          {...(summary.ciCleanMergeRate < 0.8 && summary.mergedPrs > 0
+          {...(summary.ciCleanMergeRate < LOW_CI_CLEAN_RATE && summary.mergedPrs > 0
             ? { accent: 'amber' as const }
             : {})}
         />
@@ -90,13 +88,13 @@ export default async function OrgRoiPage({
             <div className="grid grid-cols-2 gap-4">
               <StatCard
                 label="Clean-CI merges"
-                value={ci.cleanAvgCost > 0 ? usd(ci.cleanAvgCost) : '—'}
+                value={ci.cleanAvgCost > 0 ? fmtUsd(ci.cleanAvgCost) : '—'}
                 sub={`avg cost · ${ci.cleanCount} PRs`}
                 accent="green"
               />
               <StatCard
                 label="CI-failed merges"
-                value={ci.failedAvgCost > 0 ? usd(ci.failedAvgCost) : '—'}
+                value={ci.failedAvgCost > 0 ? fmtUsd(ci.failedAvgCost) : '—'}
                 sub={`avg cost · ${ci.failedCount} PRs`}
                 {...(ciCostMultiplier && ciCostMultiplier > 1 ? { accent: 'amber' as const } : {})}
               />
@@ -150,7 +148,7 @@ export default async function OrgRoiPage({
                   </td>
                   <td className="py-2 text-right text-white/60">{j.prCount}</td>
                   <td className="py-2 text-right text-white/60">{j.mergedPrs}</td>
-                  <td className="py-2 text-right font-mono">{usd(j.totalCostUsd)}</td>
+                  <td className="py-2 text-right font-mono">{fmtUsd(j.totalCostUsd)}</td>
                 </tr>
               ))}
             </tbody>
@@ -182,17 +180,17 @@ export default async function OrgRoiPage({
                     {r.repoOwner}/{r.repoName}
                   </td>
                   <td className="py-2 text-right text-white/60">{r.mergedPrs}</td>
-                  <td className="py-2 text-right font-mono">{usd(r.mergedSpendUsd)}</td>
-                  <td className="py-2 text-right font-mono">{usd(r.costPerMergedPr)}</td>
+                  <td className="py-2 text-right font-mono">{fmtUsd(r.mergedSpendUsd)}</td>
+                  <td className="py-2 text-right font-mono">{fmtUsd(r.costPerMergedPr)}</td>
                   <td
-                    className={`py-2 text-right font-mono ${r.revertRate > 0.05 ? 'text-yellow-300' : 'text-white/60'}`}
+                    className={`py-2 text-right font-mono ${r.revertRate > HIGH_REVERT_RATE ? 'text-yellow-300' : 'text-white/60'}`}
                   >
-                    {pct(r.revertRate)}
+                    {fmtPct(r.revertRate)}
                   </td>
                   <td
-                    className={`py-2 text-right font-mono ${r.ciCleanRate < 0.8 ? 'text-yellow-300' : 'text-white/60'}`}
+                    className={`py-2 text-right font-mono ${r.ciCleanRate < LOW_CI_CLEAN_RATE ? 'text-yellow-300' : 'text-white/60'}`}
                   >
-                    {pct(r.ciCleanRate)}
+                    {fmtPct(r.ciCleanRate)}
                   </td>
                 </tr>
               ))}

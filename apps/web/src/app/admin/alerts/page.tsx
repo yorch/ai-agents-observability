@@ -1,3 +1,7 @@
+import {
+  BUDGET_THRESHOLD_WINDOW_DAYS,
+  parseBudgetThresholdParams,
+} from '@ai-agents-observability/schemas';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import {
@@ -9,17 +13,6 @@ import {
 } from './actions';
 
 export const dynamic = 'force-dynamic';
-
-// Reads a numeric field out of a rule's JSON `params` (typed as Prisma.JsonValue).
-function paramNumber(params: unknown, key: string): number | undefined {
-  if (params && typeof params === 'object' && !Array.isArray(params)) {
-    const v = (params as Record<string, unknown>)[key];
-    if (typeof v === 'number' && Number.isFinite(v)) {
-      return v;
-    }
-  }
-  return undefined;
-}
 
 export default async function AlertsAdminPage() {
   await requireOrgAdmin();
@@ -57,8 +50,9 @@ export default async function AlertsAdminPage() {
         <div className="space-y-2">
           {rules.map((r) => {
             const isBudget = r.ruleType === 'budget_threshold';
-            const budgetUsd = isBudget ? paramNumber(r.params, 'budgetUsd') : undefined;
-            const windowDays = isBudget ? paramNumber(r.params, 'windowDays') : undefined;
+            const budgetParams = isBudget ? parseBudgetThresholdParams(r.params) : null;
+            const budgetUsd = budgetParams?.budgetUsd;
+            const windowDays = budgetParams?.windowDays ?? BUDGET_THRESHOLD_WINDOW_DAYS;
             return (
               <div
                 key={r.id}
@@ -101,7 +95,7 @@ export default async function AlertsAdminPage() {
                         type="number"
                         min="1"
                         step="1"
-                        defaultValue={windowDays ?? 30}
+                        defaultValue={windowDays}
                         className="w-24 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
                       />
                     </label>

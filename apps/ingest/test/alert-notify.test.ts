@@ -75,23 +75,16 @@ describe('dispatchAlert', () => {
       db,
       [{ channelType: 'webhook', config: { url: 'http://x' }, enabled: false }],
       payload,
-      undefined,
-      undefined,
-      async () => {},
+      { sleep: async () => {} },
     );
     expect(db._logs).toHaveLength(0);
   });
 
   it('logs a failure (no throw) and retries an unknown channel 3x', async () => {
     const db = makeDb();
-    await dispatchAlert(
-      db,
-      [{ channelType: 'bogus', config: {}, enabled: true }],
-      payload,
-      undefined,
-      undefined,
-      async () => {},
-    );
+    await dispatchAlert(db, [{ channelType: 'bogus', config: {}, enabled: true }], payload, {
+      sleep: async () => {},
+    });
     expect(db._logs).toHaveLength(1);
     expect(db._logs[0]?.success).toBe(false);
     expect(db._logs[0]?.error).toContain('Unknown channel');

@@ -1,7 +1,17 @@
 import { Prisma } from '@ai-agents-observability/db';
 import type { FrictionComponents } from '@ai-agents-observability/schemas';
-import { computeFrictionScore, frictionComponents } from './effectiveness';
+import { frictionComponents, frictionScoreFromComponents } from './effectiveness';
 import { getPrisma } from './prisma';
+
+// Friction-source driver keys, derived from the shared FrictionComponents type so
+// adding a component forces this list (and the typed accumulator) to be updated
+// rather than silently aggregating the new driver to zero.
+const COMPONENT_KEYS = [
+  'abandonment',
+  'denial',
+  'error',
+  'interrupt',
+] as const satisfies readonly (keyof FrictionComponents)[];
 
 export type DateRange = { since: Date; until?: Date };
 
@@ -49,34 +59,10 @@ type EffRow = {
   user_message_count: number;
 };
 
-/**
- * Effective friction = the stored value, or an on-the-fly recompute from the
- * session's aggregate columns for the very latest sessions that haven't cleared
- * the nightly compute-effectiveness job yet (no event-table join — cheap).
- * `computeFrictionScore` returns null for low-data sessions, so a null result is
- * genuine "insufficient data" (DESIGN_DOC §10.6), never a zero.
- */
-function effectiveFriction(r: EffRow): number | null {
-  if (r.friction_score !== null) {
-    return r.friction_score;
-  }
-  const durationSeconds = r.ended_at
-    ? Math.round((r.ended_at.getTime() - r.started_at.getTime()) / 1000)
-    : null;
-  return computeFrictionScore({
-    durationSeconds,
-    interruptCount: r.interrupt_count,
-    permissionDenyCount: r.permission_deny_count,
-    status: r.status,
-    toolCallCount: r.tool_call_count,
-    toolErrorCount: r.tool_error_count,
-    userMessageCount: r.user_message_count,
-  });
-}
-
 // Weighted friction components for one session from its raw aggregate columns.
-// Always recomputed (not read from the stored composite score) so the breakdown
-// is faithful even when friction_score was materialized by the nightly job.
+// Computed once per row and reused for both the score and the source breakdown.
+// `frictionComponents` returns null for low-data sessions, so a null result is
+// genuine "insufficient data" (DESIGN_DOC §10.6), never a zero.
 function rowComponents(r: EffRow): FrictionComponents | null {
   const durationSeconds = r.ended_at
     ? Math.round((r.ended_at.getTime() - r.started_at.getTime()) / 1000)
@@ -123,11 +109,19 @@ export async function getUserEffectiveness(
 
   const dayBuckets = new Map<string, { count: number; sum: number }>();
   const shapeHistogram: ShapeHistogram = {};
-  const sourceSums = { abandonment: 0, denial: 0, error: 0, interrupt: 0 };
+  const sourceSums: FrictionSources = { abandonment: 0, denial: 0, error: 0, interrupt: 0 };
   let scoredSessionCount = 0;
 
   for (const r of rows) {
-    const friction = effectiveFriction(r);
+    const comp = rowComponents(r);
+    // Stored score wins (matches the nightly job); fall back to the just-computed
+    // components for the recent tail not yet scored. Null comp = insufficient data.
+    const friction =
+      r.friction_score !== null
+        ? r.friction_score
+        : comp
+          ? frictionScoreFromComponents(comp)
+          : null;
     if (friction !== null) {
       scoredSessionCount++;
       const day = r.started_at.toISOString().slice(0, 10);
@@ -136,12 +130,10 @@ export async function getUserEffectiveness(
       bucket.sum += friction;
       dayBuckets.set(day, bucket);
 
-      const comp = rowComponents(r);
       if (comp) {
-        sourceSums.abandonment += comp.abandonment;
-        sourceSums.denial += comp.denial;
-        sourceSums.error += comp.error;
-        sourceSums.interrupt += comp.interrupt;
+        for (const k of COMPONENT_KEYS) {
+          sourceSums[k] += comp[k];
+        }
       }
     }
     if (r.shape_label !== null) {
@@ -153,16 +145,12 @@ export async function getUserEffectiveness(
     .map(([date, b]) => ({ date, frictionScore: b.sum / b.count }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 
-  const n = scoredSessionCount;
-  const sources: FrictionSources =
-    n > 0
-      ? {
-          abandonment: sourceSums.abandonment / n,
-          denial: sourceSums.denial / n,
-          error: sourceSums.error / n,
-          interrupt: sourceSums.interrupt / n,
-        }
-      : { abandonment: 0, denial: 0, error: 0, interrupt: 0 };
+  const sources: FrictionSources = { abandonment: 0, denial: 0, error: 0, interrupt: 0 };
+  if (scoredSessionCount > 0) {
+    for (const k of COMPONENT_KEYS) {
+      sources[k] = sourceSums[k] / scoredSessionCount;
+    }
+  }
 
   return { scoredSessionCount, shapeHistogram, sources, trend };
 }

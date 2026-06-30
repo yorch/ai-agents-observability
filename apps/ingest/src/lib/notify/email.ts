@@ -1,6 +1,6 @@
-import { createTransport } from 'nodemailer';
+import { createTransport, type Transporter } from 'nodemailer';
 
-import type { AlertPayload } from './payload';
+import { type AlertPayload, severityLabel } from './payload';
 
 // SMTP email channel (P9-002 follow-up). The transport config is injected from the
 // Zod-validated loadConfig() (CLAUDE.md: only loadConfig touches process.env) and
@@ -19,10 +19,30 @@ export type EmailConfig = {
   user?: string;
 };
 
+// Cache one pooled transport per config. Alerts can fire several emails in a sweep,
+// each with up to 3 retry attempts; without this every attempt would open a fresh
+// TCP+TLS connection. Keyed by config so a (rare) config change rebuilds it.
+let cached: { key: string; transport: Transporter } | null = null;
+
+function transportFor(config: EmailConfig): Transporter {
+  const key = JSON.stringify(config);
+  if (cached?.key === key) {
+    return cached.transport;
+  }
+  const transport = createTransport({
+    ...(config.user ? { auth: { pass: config.password ?? '', user: config.user } } : {}),
+    host: config.host,
+    pool: true,
+    port: config.port,
+    secure: config.secure,
+  });
+  cached = { key, transport };
+  return transport;
+}
+
 function renderText(payload: AlertPayload): string {
-  const flag = payload.severity === 'critical' ? '[CRITICAL]' : '[WARN]';
   return [
-    `${flag} ${payload.ruleName}`,
+    `[${severityLabel(payload.severity)}] ${payload.ruleName}`,
     '',
     payload.description,
     '',
@@ -44,15 +64,9 @@ export async function sendEmail(
       'email channel: SMTP transport not configured (set SMTP_HOST, SMTP_PORT, SMTP_FROM)',
     );
   }
-  const transport = createTransport({
-    ...(config.user ? { auth: { pass: config.password ?? '', user: config.user } } : {}),
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-  });
-  await transport.sendMail({
+  await transportFor(config).sendMail({
     from: config.from,
-    subject: `[${payload.severity}] ${payload.ruleName}`,
+    subject: `[${severityLabel(payload.severity)}] ${payload.ruleName}`,
     text: renderText(payload),
     to,
   });
