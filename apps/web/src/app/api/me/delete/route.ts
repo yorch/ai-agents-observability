@@ -1,13 +1,14 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
+import { withRouteLogging } from '@/lib/api-logging';
 import { currentUser } from '@/lib/auth';
 import { getPrisma } from '@/lib/prisma';
 import { clientIp } from '@/lib/request-meta';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteLogging('me.delete', async (req: NextRequest) => {
   const user = await currentUser();
   if (!user) {
     return new NextResponse('Unauthorized', { status: 401 });
@@ -36,4 +37,4 @@ export async function POST(req: NextRequest) {
   ]);
 
   return NextResponse.json({ queued: true });
-}
+});

@@ -7,8 +7,11 @@ import {
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { jsonError, withRouteLogging } from '@/lib/api-logging';
 import { ensureVisibilityPolicy } from '@/lib/ensure-visibility-policy';
+import { logger } from '@/lib/logger';
 import { getPrisma } from '@/lib/prisma';
+import { getRequestId } from '@/lib/request-context';
 import { sanitizeNext, setAuthCookies } from '@/lib/session-cookie';
 
 const RequestBody = z.object({
@@ -26,10 +29,10 @@ function getDummyHash(): Promise<string> {
 
 const INVALID_CREDENTIALS = 'Invalid email or password';
 
-export async function POST(request: Request) {
+export const POST = withRouteLogging('auth.password', async (request: Request) => {
   const parsed = RequestBody.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: 'email and password are required' }, { status: 400 });
+    return jsonError('email and password are required', 400);
   }
 
   const { email, next, password } = parsed.data;
@@ -41,7 +44,10 @@ export async function POST(request: Request) {
   const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
 
   if (!user || user.deactivatedAt || !valid) {
-    return NextResponse.json({ error: INVALID_CREDENTIALS }, { status: 401 });
+    // Never log `password` — `email` is an identifier (not a credential) and is
+    // needed to spot brute-force / credential-stuffing attempts against a single account.
+    logger.warn({ email, reqId: getRequestId() }, 'auth.password.invalid_credentials');
+    return jsonError(INVALID_CREDENTIALS, 401);
   }
 
   const [, , access, refresh] = await Promise.all([
@@ -55,4 +61,4 @@ export async function POST(request: Request) {
 
   const redirectTo = sanitizeNext(next) ?? '/me';
   return NextResponse.json({ redirect: redirectTo });
-}
+});

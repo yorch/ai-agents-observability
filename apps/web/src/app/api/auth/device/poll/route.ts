@@ -4,9 +4,12 @@ import { createGitHubClient } from '@ai-agents-observability/github';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { jsonError, withRouteLogging } from '@/lib/api-logging';
 import { getConfig } from '@/lib/config';
 import { ensureVisibilityPolicy } from '@/lib/ensure-visibility-policy';
+import { logger } from '@/lib/logger';
 import { getPrisma } from '@/lib/prisma';
+import { getRequestId } from '@/lib/request-context';
 import { clientIp } from '@/lib/request-meta';
 
 const PollBody = z.object({ device_code: z.string().min(1) });
@@ -28,10 +31,10 @@ function evictStale(): void {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withRouteLogging('auth.device.poll', async (request: Request) => {
   const body = PollBody.safeParse(await request.json().catch(() => ({})));
   if (!body.success) {
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    return jsonError('Invalid request', 400);
   }
 
   const { device_code } = body.data;
@@ -45,14 +48,15 @@ export async function POST(request: Request) {
 
   const { githubOAuthClientId: clientId, githubOAuthClientSecret: clientSecret } = getConfig();
   if (!clientId || !clientSecret) {
-    return NextResponse.json({ error: 'OAuth not configured' }, { status: 503 });
+    return jsonError('OAuth not configured', 503);
   }
 
   let pollResult: DevicePollResult;
   try {
     pollResult = await pollDeviceFlow(clientId, clientSecret, device_code);
-  } catch {
-    return NextResponse.json({ error: 'Poll failed' }, { status: 502 });
+  } catch (err) {
+    logger.error({ err, reqId: getRequestId() }, 'auth.device.poll_failed');
+    return jsonError('Poll failed', 502);
   }
 
   if (pollResult.status === 'pending') {
@@ -68,8 +72,9 @@ export async function POST(request: Request) {
   let ghUser: Awaited<ReturnType<typeof ghClient.rest.users.getAuthenticated>>['data'];
   try {
     ({ data: ghUser } = await ghClient.rest.users.getAuthenticated());
-  } catch {
-    return NextResponse.json({ error: 'Failed to fetch GitHub user' }, { status: 502 });
+  } catch (err) {
+    logger.error({ err, reqId: getRequestId() }, 'auth.device.fetch_github_user_failed');
+    return jsonError('Failed to fetch GitHub user', 502);
   }
 
   // Single-org enforcement (opt-in). Without this gate, anyone with a GitHub
@@ -81,16 +86,15 @@ export async function POST(request: Request) {
       const { data: orgs } = await ghClient.rest.orgs.listForAuthenticatedUser({ per_page: 100 });
       const isMember = orgs.some((o) => o.login.toLowerCase() === allowedOrg.toLowerCase());
       if (!isMember) {
-        return NextResponse.json(
-          { error: 'Not a member of the authorized organization' },
-          { status: 403 },
+        logger.warn(
+          { githubLogin: ghUser.login, reqId: getRequestId() },
+          'auth.device.not_org_member',
         );
+        return jsonError('Not a member of the authorized organization', 403);
       }
-    } catch {
-      return NextResponse.json(
-        { error: 'Failed to verify organization membership' },
-        { status: 502 },
-      );
+    } catch (err) {
+      logger.error({ err, reqId: getRequestId() }, 'auth.device.org_membership_check_failed');
+      return jsonError('Failed to verify organization membership', 502);
     }
   }
 
@@ -122,8 +126,9 @@ export async function POST(request: Request) {
         userAgent: request.headers.get('user-agent'),
       },
     });
-  } catch {
-    return NextResponse.json({ error: 'Token issuance failed' }, { status: 500 });
+  } catch (err) {
+    logger.error({ err, reqId: getRequestId() }, 'auth.device.token_issuance_failed');
+    return jsonError('Token issuance failed', 500);
   }
 
   pollTimestamps.delete(device_code);
@@ -132,4 +137,4 @@ export async function POST(request: Request) {
     hook_token: hookToken,
     status: 'authorized',
   });
-}
+});

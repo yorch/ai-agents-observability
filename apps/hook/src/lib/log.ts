@@ -41,6 +41,11 @@ function rotateIfLarge(path: string): void {
   }
 }
 
+// Writes to `hook.log` on the developer's machine — unlike transcript upload
+// (`transcript-stream.ts`), these lines do NOT pass through
+// `packages/redaction`. Only pass structured, non-sensitive fields (ids,
+// paths, status codes, byte counts, short error messages) — never raw
+// payload content, tokens, or transcript text.
 export function log(
   level: 'info' | 'warn' | 'error',
   event: string,

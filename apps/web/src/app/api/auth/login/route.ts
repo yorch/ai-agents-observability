@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { withRouteLogging } from '@/lib/api-logging';
 import { getProvider } from '@/lib/auth-provider';
 import { hashState, sanitizeNext, setNextCookie, setStateCookie } from '@/lib/session-cookie';
 
@@ -7,7 +8,7 @@ function buildCallbackUrl(request: Request): string {
   return `${new URL(request.url).origin}/api/auth/callback`;
 }
 
-export async function GET(request: Request) {
+export const GET = withRouteLogging('auth.login', async (request: Request) => {
   const url = new URL(request.url);
   const next = sanitizeNext(url.searchParams.get('next'));
 
@@ -17,4 +18,4 @@ export async function GET(request: Request) {
     await setNextCookie(next);
   }
   return NextResponse.redirect(redirectUrl);
-}
+});

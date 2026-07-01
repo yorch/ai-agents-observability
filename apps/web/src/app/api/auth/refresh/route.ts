@@ -1,20 +1,24 @@
 import { rotateRefreshToken } from '@ai-agents-observability/auth';
 import { NextResponse } from 'next/server';
 
+import { jsonError, withRouteLogging } from '@/lib/api-logging';
+import { logger } from '@/lib/logger';
 import { getPrisma } from '@/lib/prisma';
+import { getRequestId } from '@/lib/request-context';
 import { getRefreshCookie, setAuthCookies } from '@/lib/session-cookie';
 
-export async function POST() {
+export const POST = withRouteLogging('auth.refresh', async () => {
   const refresh = await getRefreshCookie();
   if (!refresh) {
-    return NextResponse.json({ error: 'No refresh token' }, { status: 401 });
+    return jsonError('No refresh token', 401);
   }
 
   try {
     const { access, refresh: newRefresh } = await rotateRefreshToken(getPrisma(), refresh);
     await setAuthCookies(access, newRefresh);
     return new NextResponse(null, { status: 204 });
-  } catch {
-    return NextResponse.json({ error: 'Token rotation failed' }, { status: 401 });
+  } catch (err) {
+    logger.warn({ err, reqId: getRequestId() }, 'auth.refresh.rotation_failed');
+    return jsonError('Token rotation failed', 401);
   }
-}
+});

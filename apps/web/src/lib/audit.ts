@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 
 import { logger } from './logger';
 import { getPrisma } from './prisma';
+import { getRequestId } from './request-context';
 import { clientIp } from './request-meta';
 
 export { AuditAction };
@@ -72,7 +73,7 @@ export async function writeAuditLog(
     });
   } catch (err) {
     logger.error(
-      { action: params.action, actorUserId: params.actorUserId, err },
+      { action: params.action, actorUserId: params.actorUserId, err, reqId: getRequestId() },
       'audit.write_failed',
     );
   }
