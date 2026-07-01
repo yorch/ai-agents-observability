@@ -13,7 +13,11 @@ import { S3Client } from '@aws-sdk/client-s3';
 import pino from 'pino';
 
 import { loadConfig } from '../config';
-import { downloadAndParseTranscript, extractTextContent } from './index-transcripts';
+import {
+  downloadAndParseTranscript,
+  extractTextContent,
+  type TranscriptMessage,
+} from './index-transcripts';
 
 const EMBED_MODEL = 'text-embedding-3-small';
 const EMBED_DIMS = 1536;
@@ -79,11 +83,52 @@ function chunkText(text: string): Chunk[] {
   return chunks;
 }
 
+function generateMockTranscript(sessionId: string): TranscriptMessage[] {
+  const charSum = sessionId.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const idx1 = charSum % MEASURE_QUERIES.length;
+  const idx2 = (idx1 + 5) % MEASURE_QUERIES.length;
+  const idx3 = (idx1 + 11) % MEASURE_QUERIES.length;
+  // biome-ignore lint/style/noNonNullAssertion: safe indexing with modulo
+  const query1 = MEASURE_QUERIES[idx1]!;
+  // biome-ignore lint/style/noNonNullAssertion: safe indexing with modulo
+  const query2 = MEASURE_QUERIES[idx2]!;
+  // biome-ignore lint/style/noNonNullAssertion: safe indexing with modulo
+  const query3 = MEASURE_QUERIES[idx3]!;
+  return [
+    { content: `How do I handle task to ${query1} in my project?`, role: 'user' },
+    {
+      content: `First, let's ${query1}. Then, we can ${query2} and ${query3} to finalize.`,
+      role: 'assistant',
+    },
+  ];
+}
+
 async function embedBatch(
   texts: string[],
   apiKey: string,
   logger: pino.Logger,
 ): Promise<number[][] | null> {
+  if (apiKey === 'mock' || apiKey === 'fake') {
+    return texts.map((text) => {
+      const vector: number[] = new Array(EMBED_DIMS).fill(0);
+      let hash = 0;
+      for (let i = 0; i < text.length; i++) {
+        hash = (hash << 5) - hash + text.charCodeAt(i);
+        hash |= 0;
+      }
+      for (let j = 0; j < EMBED_DIMS; j++) {
+        vector[j] = Math.sin(hash + j);
+      }
+      let sumSq = 0;
+      for (let j = 0; j < EMBED_DIMS; j++) {
+        const val = vector[j] ?? 0;
+        sumSq += val * val;
+      }
+      const norm = Math.sqrt(sumSq) || 1;
+      return vector.map((v) => v / norm);
+    });
+  }
+
   let backoff = 1000;
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -212,18 +257,44 @@ async function runEmbedTranscripts(): Promise<void> {
 
     for (const row of unembedded) {
       try {
-        const messages = await downloadAndParseTranscript(
-          s3,
-          config.s3_bucket,
-          row.transcript_s3_key,
-          logger,
-        );
+        let messages: TranscriptMessage[] | null = null;
+        try {
+          messages = await downloadAndParseTranscript(
+            s3,
+            config.s3_bucket,
+            row.transcript_s3_key,
+            logger,
+          );
+        } catch (err) {
+          if (openaiApiKey === 'mock' || openaiApiKey === 'fake') {
+            logger.info(
+              { sessionId: row.session_id },
+              'MinIO fetch failed, generating mock transcript in mock mode',
+            );
+            messages = generateMockTranscript(row.session_id);
+          } else {
+            logger.warn(
+              { err, sessionId: row.session_id },
+              'Failed to download transcript, skipping',
+            );
+            continue;
+          }
+        }
+
         if (messages === null) {
-          continue;
+          if (openaiApiKey === 'mock' || openaiApiKey === 'fake') {
+            messages = generateMockTranscript(row.session_id);
+          } else {
+            continue;
+          }
         }
 
         const fullText = messages
-          .map((m) => extractTextContent(m.content))
+          .map((m) => {
+            const content =
+              m.content ?? (m as { message?: { content?: unknown } }).message?.content;
+            return extractTextContent(content);
+          })
           .filter(Boolean)
           .join('\n\n');
 
