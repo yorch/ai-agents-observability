@@ -2,7 +2,10 @@ import { hashPassword, issueHookToken, verifyPassword } from '@ai-agents-observa
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { jsonError, withRouteLogging } from '@/lib/api-logging';
+import { logger } from '@/lib/logger';
 import { getPrisma } from '@/lib/prisma';
+import { getRequestId } from '@/lib/request-context';
 import { clientIp } from '@/lib/request-meta';
 
 const RequestBody = z.object({
@@ -19,10 +22,15 @@ function getDummyHash(): Promise<string> {
 
 const INVALID_CREDENTIALS = 'Invalid email or password';
 
-export async function POST(request: Request) {
+function rejectInvalidCredentials(email: string): NextResponse {
+  logger.warn({ email, reqId: getRequestId() }, 'auth.token.invalid_credentials');
+  return jsonError(INVALID_CREDENTIALS, 401);
+}
+
+export const POST = withRouteLogging('auth.token', async (request: Request) => {
   const parsed = RequestBody.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: 'email and password are required' }, { status: 400 });
+    return jsonError('email and password are required', 400);
   }
 
   const { email, password } = parsed.data;
@@ -35,13 +43,13 @@ export async function POST(request: Request) {
   // sentinel value, which an attacker who knows it could exploit.
   if (!user || !user.passwordHash) {
     await getDummyHash();
-    return NextResponse.json({ error: INVALID_CREDENTIALS }, { status: 401 });
+    return rejectInvalidCredentials(email);
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
 
   if (user.deactivatedAt || !valid) {
-    return NextResponse.json({ error: INVALID_CREDENTIALS }, { status: 401 });
+    return rejectInvalidCredentials(email);
   }
 
   let hookToken: string;
@@ -60,12 +68,13 @@ export async function POST(request: Request) {
         },
       }),
     ]);
-  } catch {
-    return NextResponse.json({ error: 'Token issuance failed' }, { status: 500 });
+  } catch (err) {
+    logger.error({ err, reqId: getRequestId(), userId: user.id }, 'auth.token.issuance_failed');
+    return jsonError('Token issuance failed', 500);
   }
 
   return NextResponse.json({
     display_name: user.displayName ?? user.email ?? email,
     token: hookToken,
   });
-}
+});

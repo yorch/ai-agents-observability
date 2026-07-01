@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
+import { withRouteLogging } from '@/lib/api-logging';
 import { currentUser } from '@/lib/auth';
 import { listSessions } from '@/lib/sessions-queries';
 
@@ -23,7 +24,7 @@ function toCSV(rows: Record<string, unknown>[]): string {
   return lines.join('\n');
 }
 
-export async function GET(req: NextRequest) {
+export const GET = withRouteLogging('me.export', async (req: NextRequest) => {
   const user = await currentUser();
   if (!user) {
     return new NextResponse('Unauthorized', { status: 401 });
@@ -90,4 +91,4 @@ export async function GET(req: NextRequest) {
       'Content-Type': 'text/csv; charset=utf-8',
     },
   });
-}
+});
