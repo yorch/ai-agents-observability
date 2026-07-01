@@ -23,8 +23,8 @@ FROM deps AS build
 COPY packages/ packages/
 COPY apps/github-app/ apps/github-app/
 COPY tsconfig.base.json ./
-# Generate Prisma client before bundling (stub avoids downloading schema-engine binary)
-RUN cd packages/db && PRISMA_SCHEMA_ENGINE_BINARY=$(pwd)/scripts/prisma-schema-engine-stub.sh bunx prisma generate
+# Generate Prisma client before bundling
+RUN cd packages/db && bunx prisma generate
 RUN bun build apps/github-app/src/index.ts \
       --target bun \
       --outdir apps/github-app/dist \
