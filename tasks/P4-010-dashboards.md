@@ -26,7 +26,7 @@ starts Prometheus (`:9090`) and Grafana (`:3001`) with the ingest dashboard visi
 
 - [x] `apps/ingest/src/lib/metrics.ts` exports `registry`, `httpRequestsTotal`, `httpRequestDurationMs`, `eventsIngestedTotal`, `transcriptsStoredTotal`.
 - [x] `GET /metrics` on `apps/ingest` returns Prometheus text exposition format.
-- [x] Request-timing middleware increments `httpRequestsTotal` and `httpRequestDurationMs` on every request.
+- [x] The request-observability middleware (`middleware/logger.ts`) increments `httpRequestsTotal` and `httpRequestDurationMs` on every request, timed once alongside the `res` log.
 - [x] `eventsIngestedTotal` is incremented in the events handler for each accepted event.
 - [x] `transcriptsStoredTotal` is incremented in the transcripts handler after a successful S3 write.
 - [x] `docker-compose.infra.yml` includes `prometheus` (`:9090`) and `grafana` (`:3001`) services with named volumes.

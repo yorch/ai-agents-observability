@@ -1,18 +1,15 @@
 import { createClient } from '@ai-agents-observability/db';
 import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
-import pino from 'pino';
 
 import type { AppDeps } from './app';
 import { createApp } from './app';
 import { loadConfig } from './config';
 import { startScheduler } from './jobs/scheduler';
+import { createLogger } from './lib/logger';
 
 const config = loadConfig();
 
-const logger = pino({
-  level: config.log_level,
-  ...(config.node_env !== 'production' ? { transport: { target: 'pino-pretty' } } : {}),
-});
+const logger = createLogger(config);
 
 const db = createClient(config.database_url);
 

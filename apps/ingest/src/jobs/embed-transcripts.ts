@@ -10,9 +10,10 @@
 
 import { createClient } from '@ai-agents-observability/db';
 import { S3Client } from '@aws-sdk/client-s3';
-import pino from 'pino';
+import type { Logger } from 'pino';
 
 import { loadConfig } from '../config';
+import { createLogger } from '../lib/logger';
 import { downloadAndParseTranscript, extractTextContent } from './index-transcripts';
 
 const EMBED_MODEL = 'text-embedding-3-small';
@@ -82,7 +83,7 @@ function chunkText(text: string): Chunk[] {
 async function embedBatch(
   texts: string[],
   apiKey: string,
-  logger: pino.Logger,
+  logger: Logger,
 ): Promise<number[][] | null> {
   let backoff = 1000;
 
@@ -149,21 +150,21 @@ function parseArgs(argv: string[]): { measure: boolean; sample: number | null } 
 
 async function runEmbedTranscripts(): Promise<void> {
   const config = loadConfig();
+  const logger = createLogger(config);
 
   if (!config.semantic_search_enabled) {
-    console.error(
+    logger.error(
       'SEMANTIC_SEARCH_ENABLED is not set. Set it to "1" or "true" to run this prototype.',
     );
     process.exit(1);
   }
 
   if (!config.openai_api_key) {
-    console.error('OPENAI_API_KEY is required for embedding.');
+    logger.error('OPENAI_API_KEY is required for embedding.');
     process.exit(1);
   }
   const openaiApiKey: string = config.openai_api_key;
 
-  const logger = pino({ level: config.log_level });
   const { measure, sample } = parseArgs(process.argv.slice(2));
 
   const db = createClient(config.database_url);
@@ -313,7 +314,7 @@ async function runEmbedTranscripts(): Promise<void> {
 async function runMeasure(
   db: ReturnType<typeof createClient>,
   apiKey: string,
-  logger: pino.Logger,
+  logger: Logger,
 ): Promise<void> {
   logger.info('Running overlap measurement against keyword FTS');
 
