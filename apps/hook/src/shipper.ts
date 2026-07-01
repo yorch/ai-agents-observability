@@ -175,7 +175,19 @@ export async function buildZstdBody(filePath: string): Promise<{ body: Uint8Arra
       }
     }
     compressor.end();
-    await finished;
+    // zstd compressor may not reliably emit 'end' for very small inputs (Bun);
+    // add a timeout so this doesn't hang indefinitely.
+    const finishedWithTimeout = Promise.race([
+      finished,
+      new Promise<void>((_, reject) => {
+        setTimeout(() => {
+          compressor.destroy();
+          reject(new Error('zstd compression timed out'));
+        }, 30_000);
+      }),
+    ]);
+    finished.catch(() => {}); // suppress late rejection after timeout/error
+    await finishedWithTimeout;
   } catch (err) {
     // If reading/redaction throws mid-stream, tear the compressor down so its
     // buffered output is freed promptly; swallow any late rejection from it.
