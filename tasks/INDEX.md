@@ -206,3 +206,18 @@ See [`P9-roadmap.md`](./P9-roadmap.md). Turns passive dashboards into proactive 
 | [P9-004](./P9-004-per-team-retention.md) | Per-team retention override | done | claude | M | P4-007 |
 | [P9-005](./P9-005-research-role.md) | Research / investigator capability (Audience B) | done | claude | M | P9-003, P3-001 |
 | [P9-006](./P9-006-governance-alert-tests.md) | Governance + alerting invariant test suite | done | claude | M | P9-002, P9-005 |
+
+---
+
+## Phase 10 — Model Cost Optimization
+
+See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §4. **Proposed — not yet started.**
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | ready | — | M | P8-002, P4-004, P7-001 |
+| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | ready | — | M | P8-002 |
+| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | ready | — | M | P10-001, P10-002 |
+| [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | ready | — | M | P10-001 |
+| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | ready | — | M | P10-002, P9-001 |
+| [P10-006](./P10-006-recommendation-validation-loop.md) | Recommendation validation loop | ready | — | M | P10-001, P10-003 |
