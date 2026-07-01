@@ -28,8 +28,7 @@ RUN cd packages/db && bunx prisma generate
 RUN bun build apps/ingest/src/index.ts \
       --target bun \
       --outdir apps/ingest/dist \
-      --external '@prisma/client' \
-      --external keytar
+      --external '@prisma/client'
 
 # ── Production ────────────────────────────────────────────────────────────────
 FROM oven/bun:1.3.14-alpine AS production
