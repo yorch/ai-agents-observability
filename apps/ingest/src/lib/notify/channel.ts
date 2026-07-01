@@ -15,8 +15,8 @@ export type ChannelConfigRow = {
 // Optional delivery dependencies. Bundled into one object so new channel-level
 // config (e.g. emailConfig) can be added without re-shuffling positional params.
 export type DispatchOptions = {
-  emailConfig?: EmailConfig;
-  logger?: Logger;
+  emailConfig?: EmailConfig | undefined;
+  logger?: Logger | undefined;
   // Injectable for tests to make the retry backoff instant.
   sleep?: (ms: number) => Promise<void>;
 };
