@@ -801,6 +801,16 @@ Some signals are cheap to capture and expensive to backfill — captured day one
 - Slash command tracking (leading indicator of power-user adoption)
 - Hook execution self-timing (do our hooks slow people down?)
 
+### 10.3a Human-in-the-loop signals (added post-Phase 9)
+
+Following the HITL assessment (`docs/research/2026-06-30-human-in-the-loop-assessment.md`), the platform now captures and surfaces the human↔agent oversight signal it was previously discarding:
+
+- **Permission/autonomy mode** — the agent's `permission_mode` (`normal`/`plan`/`accept_edits`/`auto`/`dont_ask`/`bypass`) is read from the hook payload (was hardcoded `normal`), stored per-event (`events.mode`) and as a representative least-supervised mode per session (`sessions.mode`).
+- **Notification classification** — `Notification` events are classified into `events.notification_kind` (`permission`/`idle`/`elicitation`/`auth`/`other`); `sessions.notification_count` counts them and `sessions.permission_prompt_count` is finally populated from permission notifications.
+- **Human response latency** — `sessions.total_response_ms` / `response_sample_count`, derived nightly from the gap between a blocking notification and the next event.
+- **Surfaces** — an "Oversight & Autonomy" panel + rubber-stamp/over-trust detector on `/me`, `/team/[slug]`, and `/org/governance`; a mode search facet; a `/org/governance` oversight-posture + AI-authored-code-provenance report; per-session human feedback (`session_feedback`).
+- **Governance** — alert acknowledge + rule silence/snooze; an `autonomy_surge` alert rule (oversight erosion). Consistent with the observe-only architecture: nothing intercepts a live tool call.
+
 ### 10.4 Explicitly Deferred to v2+
 
 - Bug correlation (Jira/Linear → PR → session)
@@ -1114,3 +1124,4 @@ Beyond Phase 5, the natural extensions:
 | 2026-06-24 | Jorge (with Claude) | Added Phases 6–9 to §12 (Hardening, Insight Surfaces & Search, Multi-Agent & Cost Model, Alerting & Governance); scoped threshold-based alerting out of the §2.2 non-goal |
 | 2026-06-25 | Jorge (with Claude) | Updated §12.3 and §12.4 with P3/P4 dashboard additions (date range selector, period-over-period deltas, team PR tab, org adoption funnel, model governance table, cache efficiency metric); updated §10.2 with cache efficiency and period-delta computation notes; updated status header |
 | 2026-06-25 | Jorge (with Claude) | Full doc audit against codebase: updated status header to reflect current task status; added §6.5 scheduler jobs table; updated §2.2 alerting note; updated §2.4 agent_type enum; added Phase 5 fields to Session + PullRequest + PRRollup DDL; added continuous aggregate definitions to §5.3; removed "Optional" from §5.5; expanded §6.2 hook commands and adapter seam; added INVESTIGATOR role to §8.1; added §8.4 grant model; marked Phases 5–9 status in §12; added additional dashboard routes to §12.4; updated §16 glossary agent_type entry |
+| 2026-06-30 | Jorge (with Claude) | Added §10.3a Human-in-the-loop signals (permission/autonomy mode capture, notification classification, response latency, oversight dashboards, alert ack/silence, `autonomy_surge` rule, AI-authored-code provenance, per-session feedback) following the HITL assessment in `docs/research/2026-06-30-human-in-the-loop-assessment.md` |

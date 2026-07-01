@@ -10,6 +10,7 @@ export type AlertRuleType =
   | 'spend_spike'
   | 'high_error_rate'
   | 'unknown_model_surge'
+  | 'autonomy_surge'
   | 'budget_threshold';
 
 export type AlertSeverity = 'warn' | 'critical';
@@ -63,3 +64,13 @@ export function parseBudgetThresholdParams(raw: unknown): BudgetThresholdParams 
   const result = BudgetThresholdParamsSchema.safeParse(raw ?? {});
   return result.success ? result.data : null;
 }
+
+// Autonomy surge (R9, Human-in-the-loop governance): share of sessions running
+// in a low-oversight mode (bypass / dont_ask — no per-action human gate) over the
+// recent window. A rising share is oversight erosion. Only evaluated once a
+// minimum session volume is reached to avoid noise. Thresholds overridable per
+// rule via params.threshold (warn) / params.criticalThreshold.
+export const AUTONOMY_SURGE_WINDOW_DAYS = 7;
+export const AUTONOMY_SURGE_MIN_SESSIONS = 20;
+export const AUTONOMY_SURGE_WARN = 0.5;
+export const AUTONOMY_SURGE_CRITICAL = 0.75;

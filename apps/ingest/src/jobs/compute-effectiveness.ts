@@ -3,6 +3,8 @@ import { Prisma } from '@ai-agents-observability/db';
 import { classifySessionShape, computeFrictionScore } from '@ai-agents-observability/schemas';
 import type { Logger } from 'pino';
 
+import { aggregateResponseLatency } from '../lib/response-latency';
+
 type DbWithRaw = Pick<PrismaClient, 'jobRun'> & {
   $executeRaw: PrismaClient['$executeRaw'];
   $queryRaw: PrismaClient['$queryRaw'];
@@ -66,6 +68,33 @@ async function processEffectivenessBatch(
     histogramMap.set(row.session_id, existing);
   }
 
+  // HITL response latency: gap between each blocking Notification and the next
+  // event in the session (LEAD), aggregated per session. One batch query.
+  const gapRows = sessionIds.length
+    ? await db.$queryRaw<
+        { gap_ms: number; notification_kind: string | null; session_id: string }[]
+      >(
+        Prisma.sql`
+          SELECT session_id::text AS session_id, notification_kind,
+                 EXTRACT(EPOCH FROM (next_ts - ts)) * 1000 AS gap_ms
+          FROM (
+            SELECT session_id, ts, notification_kind,
+                   LEAD(ts) OVER (PARTITION BY session_id ORDER BY ts) AS next_ts
+            FROM events
+            WHERE session_id = ANY(${sessionIds}::uuid[])
+          ) q
+          WHERE notification_kind IS NOT NULL AND next_ts IS NOT NULL
+        `,
+      )
+    : [];
+  const latencyMap = aggregateResponseLatency(
+    gapRows.map((r) => ({
+      gap_ms: Number(r.gap_ms),
+      notification_kind: r.notification_kind,
+      session_id: r.session_id,
+    })),
+  );
+
   let updated = 0;
   for (const s of sessions) {
     try {
@@ -89,10 +118,14 @@ async function processEffectivenessBatch(
       }));
       const shapeLabel = classifySessionShape(histogram, s.user_message_count, s.tool_call_count);
 
+      const latency = latencyMap.get(s.session_id) ?? { sampleCount: 0, totalMs: 0 };
+
       await db.$executeRaw(Prisma.sql`
         UPDATE sessions
-        SET friction_score = ${frictionScore},
-            shape_label    = ${shapeLabel}
+        SET friction_score        = ${frictionScore},
+            shape_label           = ${shapeLabel},
+            total_response_ms     = ${latency.totalMs},
+            response_sample_count = ${latency.sampleCount}
         WHERE session_id = ${s.session_id}::uuid
       `);
 

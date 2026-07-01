@@ -1,5 +1,6 @@
 import { FrictionDistributionChart } from '@/components/me/FrictionDistributionChart';
 import { ModelMixChart } from '@/components/me/ModelMix';
+import { OversightPanel } from '@/components/me/OversightPanel';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
 import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
@@ -9,6 +10,7 @@ import {
   getTeamEffectivenessDistribution,
   getTeamFrictionTrend,
 } from '@/lib/effectiveness-queries';
+import { getTeamOversight } from '@/lib/oversight-queries';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamModelMix,
@@ -37,13 +39,14 @@ export default async function TeamOverviewPage({
 
   const { totalCount, visibleIds } = await resolveTeamVisibility(teamId);
 
-  const [{ current: summary, deltas }, tools, models, effectiveness, frictionTrend] =
+  const [{ current: summary, deltas }, tools, models, effectiveness, frictionTrend, oversight] =
     await Promise.all([
       getTeamSummaryWithDelta(range, visibleIds, totalCount),
       getTeamTopTools(since, visibleIds),
       getTeamModelMix(since, visibleIds),
       getTeamEffectivenessDistribution(visibleIds, { since }),
       getTeamFrictionTrend(visibleIds, { since }),
+      getTeamOversight(visibleIds, since),
     ]);
 
   const hasData = summary.sessionCount > 0;
@@ -95,6 +98,7 @@ export default async function TeamOverviewPage({
         <EmptyState />
       ) : (
         <>
+          <OversightPanel data={oversight} />
           <div className="grid gap-6 md:grid-cols-2">
             <TopTools title="Top Tools" tools={tools} />
             <ModelMixChart models={models} />

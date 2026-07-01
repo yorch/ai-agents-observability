@@ -1,4 +1,10 @@
-import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schemas';
+import {
+  canonicalPermissionMode,
+  classifyNotification,
+  type Event,
+  type EventType,
+  type ToolInfo,
+} from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from './bytes';
 import { clientInfo } from './client-info';
@@ -10,6 +16,9 @@ import { uuidv7 } from './uuid';
 type ClaudeCodeHookPayload = {
   cwd?: unknown;
   hook_event_name?: unknown;
+  message?: unknown;
+  notification_type?: unknown;
+  permission_mode?: unknown;
   prompt?: unknown;
   session_id?: unknown;
   tool_input?: unknown;
@@ -18,9 +27,14 @@ type ClaudeCodeHookPayload = {
   transcript_path?: unknown;
 } & Record<string, unknown>;
 
+// `permission_mode` is captured structurally into session_context.mode, so it is
+// a known key (not duplicated into metadata). `notification_type` / `message` are
+// intentionally left out of KNOWN_KEYS so they pass through to metadata as the raw
+// record alongside the derived `notification_kind`.
 const KNOWN_KEYS = new Set([
   'cwd',
   'hook_event_name',
+  'permission_mode',
   'prompt',
   'session_id',
   'tool_input',
@@ -153,6 +167,12 @@ export function toEvent(kind: HookKind, raw: ClaudeCodeHookPayload): Event {
       metadata.slash_command = match[1];
     }
   }
+  // Classify the moment the agent stops to get the human's attention. The raw
+  // notification_type / message stay in metadata (passed through above); we add a
+  // normalized kind ingest can aggregate without re-parsing.
+  if (eventType === 'Notification') {
+    metadata.notification_kind = classifyNotification(raw.notification_type, raw.message);
+  }
 
   return {
     agent_type: 'CLAUDE_CODE',
@@ -168,7 +188,9 @@ export function toEvent(kind: HookKind, raw: ClaudeCodeHookPayload): Event {
       // not on every event — keeps the hot path under budget.
       git: null,
       is_resume: false,
-      mode: 'normal',
+      // Permission/autonomy mode the human granted, straight from Claude Code's
+      // hook payload. Falls back to 'normal' when absent (older agents/events).
+      mode: canonicalPermissionMode(raw.permission_mode),
     },
     session_id: sessionId,
     ...(isToolEvent ? { tool: buildToolInfo(raw) } : {}),

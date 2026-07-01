@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireGrantRequester } from '@/lib/roles';
 
@@ -185,6 +186,11 @@ function GrantCard({
         <div className="text-xs text-text-3">
           Approved {new Date(g.grantedAt).toLocaleString()}
           {g.expiresAt && ` · expires ${new Date(g.expiresAt).toLocaleString()}`}
+          {status === 'active' && isGrantExpiringSoon(g.expiresAt) && (
+            <span className="ml-2 rounded bg-yellow-500/15 px-1.5 py-0.5 text-yellow-400">
+              expiring soon
+            </span>
+          )}
         </div>
       )}
       {g.revokedAt && (

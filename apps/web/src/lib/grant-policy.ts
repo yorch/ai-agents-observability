@@ -23,6 +23,19 @@ export function isGrantActive(
   );
 }
 
+// An active grant within this window of its expiry is surfaced as "expiring soon"
+// (R8) — to the holder (/me/grants) and the approving admin (/admin/access-grants).
+export const GRANT_EXPIRING_SOON_MS = 6 * 3_600_000;
+
+/**
+ * Whether an active grant is within GRANT_EXPIRING_SOON_MS of lapsing. Callers
+ * gate on the grant being active first; this only checks the time window (null
+ * expiry → not expiring).
+ */
+export function isGrantExpiringSoon(expiresAt: Date | null, now: Date = new Date()): boolean {
+  return expiresAt !== null && expiresAt.getTime() - now.getTime() < GRANT_EXPIRING_SOON_MS;
+}
+
 /**
  * Whether a grant's scope covers the requested target. A `single_session` grant
  * matches only its exact session; a `user_sessions` grant matches any session of

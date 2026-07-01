@@ -40,6 +40,8 @@ enum AuditAction {
   GRANT_REQUESTED
   GRANT_APPROVED
   GRANT_REVOKED
+  ALERT_ACKNOWLEDGED
+  ALERT_SILENCED
 }
 
 enum GrantScope {
@@ -248,6 +250,10 @@ model Session {
   githubTeam           String?       @map("github_team")
   projectName          String?       @map("project_name")
 
+  // Human-in-the-loop: representative permission/autonomy mode for the session —
+  // the least-supervised (most autonomous) mode observed across its events.
+  mode                 String?       @map("mode")
+
   totalInputTokens      BigInt  @default(0) @map("total_input_tokens")
   totalOutputTokens     BigInt  @default(0) @map("total_output_tokens")
   totalCacheRead        BigInt  @default(0) @map("total_cache_read")
@@ -259,6 +265,9 @@ model Session {
   permissionDenyCount   Int     @default(0) @map("permission_deny_count")
   interruptCount        Int     @default(0) @map("interrupt_count")
   userMessageCount      Int     @default(0) @map("user_message_count")
+  // Human-in-the-loop: count of Notification events where the agent stopped to
+  // get the human's attention (permission / idle / elicitation prompts).
+  notificationCount     Int     @default(0) @map("notification_count")
   primaryModel          String? @map("primary_model")
 
   transcriptS3Key      String?   @map("transcript_s3_key")
@@ -268,6 +277,12 @@ model Session {
 
   shapeLabel           String?   @map("shape_label")
   frictionScore        Float?    @map("friction_score")
+
+  // Human-in-the-loop response latency: total time (ms) the agent waited at
+  // blocking notifications and the number of such samples, derived nightly by
+  // compute-effectiveness. Mean response time = total_response_ms / sample_count.
+  totalResponseMs      BigInt    @default(0) @map("total_response_ms")
+  responseSampleCount  Int       @default(0) @map("response_sample_count")
 
   user    User            @relation(fields: [userId], references: [id])
   repo    Repo?           @relation(fields: [repoId], references: [id])
@@ -432,6 +447,9 @@ model AlertRule {
   enabled        Boolean  @default(true)
   cadenceMinutes Int      @default(60) @map("cadence_minutes")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  // R7 (HITL): when set and in the future, the rule is evaluated but suppressed —
+  // it neither fires nor notifies until this time. Guards against alert fatigue.
+  silencedUntil  DateTime? @map("silenced_until") @db.Timestamptz(6)
 
   events AlertEvent[]
 
@@ -466,6 +484,24 @@ model AccessGrant {
   @@map("access_grants")
 }
 
+// R11 (HITL feedback): a lightweight human signal on a session — was the agent's
+// work actually good? The ground truth that calibrates friction/autonomy signals.
+// session_id / user_id are plain UUIDs (not relations), matching the AccessGrant
+// pattern, to avoid extra back-relations. One row per (session, user).
+model SessionFeedback {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @map("session_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  sentiment String
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@map("session_feedback")
+}
+
 model AlertEvent {
   id         BigInt    @id @default(autoincrement())
   ruleId     String    @map("rule_id") @db.Uuid
@@ -473,6 +509,10 @@ model AlertEvent {
   resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
   severity   String
   details    Json      @default("{}")
+  // R7 (HITL): an admin acknowledged this firing ("seen it"). Distinct from
+  // resolved (the condition cleared) — acknowledgement is a human action.
+  acknowledgedAt       DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  acknowledgedByUserId String?   @map("acknowledged_by_user_id") @db.Uuid
 
   rule AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 

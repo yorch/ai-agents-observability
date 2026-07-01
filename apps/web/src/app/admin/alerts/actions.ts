@@ -3,10 +3,14 @@
 import { BudgetThresholdParamsSchema } from '@ai-agents-observability/schemas';
 import { revalidatePath } from 'next/cache';
 
+import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
 const CHANNEL_TYPES = new Set(['webhook', 'slack_webhook', 'email']);
+
+// Allowed silence windows (hours). Bounds the dropdown and rejects arbitrary input.
+const SILENCE_HOURS = new Set([1, 4, 24, 72]);
 
 export async function toggleRule(formData: FormData): Promise<void> {
   await requireOrgAdmin();
@@ -81,5 +85,49 @@ export async function deleteChannel(formData: FormData): Promise<void> {
     return;
   }
   await getPrisma().alertChannelConfig.deleteMany({ where: { id } });
+  revalidatePath('/admin/alerts');
+}
+
+/** R7: acknowledge an open alert firing ("seen it"). Audited; not the same as resolve. */
+export async function acknowledgeAlert(formData: FormData): Promise<void> {
+  const { user } = await requireOrgAdmin();
+  const id = String(formData.get('id') ?? '');
+  if (!id) {
+    return;
+  }
+  await getPrisma().alertEvent.updateMany({
+    data: { acknowledgedAt: new Date(), acknowledgedByUserId: user.id },
+    where: { acknowledgedAt: null, id: BigInt(id) },
+  });
+  void writeAuditLog({ action: AuditAction.ALERT_ACKNOWLEDGED, actorUserId: user.id });
+  revalidatePath('/admin/alerts');
+}
+
+/** R7: silence a rule for a bounded window — it is evaluated but neither fires nor notifies. */
+export async function silenceRule(formData: FormData): Promise<void> {
+  const { user } = await requireOrgAdmin();
+  const id = String(formData.get('id') ?? '');
+  const hours = Number(formData.get('hours') ?? 0);
+  if (!id || !SILENCE_HOURS.has(hours)) {
+    return;
+  }
+  const silencedUntil = new Date(Date.now() + hours * 3_600_000);
+  await getPrisma().alertRule.updateMany({ data: { silencedUntil }, where: { id } });
+  void writeAuditLog({
+    action: AuditAction.ALERT_SILENCED,
+    actorUserId: user.id,
+    justification: `silenced ${hours}h`,
+  });
+  revalidatePath('/admin/alerts');
+}
+
+/** R7: lift a silence early. */
+export async function unsilenceRule(formData: FormData): Promise<void> {
+  await requireOrgAdmin();
+  const id = String(formData.get('id') ?? '');
+  if (!id) {
+    return;
+  }
+  await getPrisma().alertRule.updateMany({ data: { silencedUntil: null }, where: { id } });
   revalidatePath('/admin/alerts');
 }

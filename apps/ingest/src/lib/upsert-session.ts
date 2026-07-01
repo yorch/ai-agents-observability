@@ -1,5 +1,10 @@
 import { Prisma } from '@ai-agents-observability/db';
-import type { Event, GitContext } from '@ai-agents-observability/schemas';
+import {
+  AUTONOMY_RANK,
+  type Event,
+  type GitContext,
+  type PermissionMode,
+} from '@ai-agents-observability/schemas';
 
 import { computeCostUsd } from './cost';
 import type { PriceTableRegistry } from './price-tables';
@@ -7,6 +12,16 @@ import type { PriceTableRegistry } from './price-tables';
 type RawDb = {
   $executeRaw: (query: Prisma.Sql) => Promise<number>;
 };
+
+// Builds a SQL CASE that ranks a `mode` column by autonomy, derived from
+// AUTONOMY_RANK so the SQL and TS rankings cannot drift. Unknown/legacy values
+// fall back to the 'normal' rank. `col` must be a trusted raw identifier.
+function MODE_RANK_SQL(col: Prisma.Sql): Prisma.Sql {
+  const whens = Object.entries(AUTONOMY_RANK).map(
+    ([mode, rank]) => Prisma.sql`WHEN ${mode} THEN ${rank}`,
+  );
+  return Prisma.sql`(CASE ${col} ${Prisma.join(whens, ' ')} ELSE ${AUTONOMY_RANK.normal} END)`;
+}
 
 type SessionAgg = {
   agentType: string;
@@ -26,6 +41,8 @@ type SessionAgg = {
   interruptCount: number;
   isResume: boolean;
   lastTs: Date;
+  mode: string | null;
+  notificationCount: number;
   os: string | null;
   permissionDenyCount: number;
   permissionPromptCount: number;
@@ -67,6 +84,10 @@ function emptyAgg(sessionId: string, userId: string, event: Event): SessionAgg {
     interruptCount: 0,
     isResume: event.session_context.is_resume,
     lastTs: ts,
+    // Representative autonomy mode = the least-supervised mode seen across the
+    // session's events; accumulated in applyEvent (incl. the first event).
+    mode: null,
+    notificationCount: 0,
     os: event.client.os,
     permissionDenyCount: 0,
     permissionPromptCount: 0,
@@ -122,6 +143,15 @@ function applyEvent(agg: SessionAgg, event: Event, priceTables: PriceTableRegist
     }
   }
 
+  // Track the least-supervised (most autonomous) mode the session ever ran in.
+  const evMode = event.session_context.mode;
+  if (
+    evMode &&
+    (agg.mode === null || AUTONOMY_RANK[evMode] > (AUTONOMY_RANK[agg.mode as PermissionMode] ?? 1))
+  ) {
+    agg.mode = evMode;
+  }
+
   if (event.event_type === 'PostToolUse' && event.tool) {
     agg.toolCallCount += 1;
     if (event.tool.exit_status !== null && event.tool.exit_status !== 0) {
@@ -137,6 +167,16 @@ function applyEvent(agg: SessionAgg, event: Event, priceTables: PriceTableRegist
 
   if (event.event_type === 'UserPromptSubmit') {
     agg.userMessageCount += 1;
+  }
+
+  // Notification events are the moments the agent stops for the human. A
+  // 'permission' notification is a permission prompt — the long-missing source
+  // for permission_prompt_count (PostToolUse only carried denials before).
+  if (event.event_type === 'Notification') {
+    agg.notificationCount += 1;
+    if (event.metadata.notification_kind === 'permission') {
+      agg.permissionPromptCount += 1;
+    }
   }
 
   if (event.event_type === 'PreCompact') {
@@ -225,6 +265,7 @@ export async function upsertSessions(
       ${a.githubLogin},
       ${a.githubTeam},
       ${a.projectName},
+      ${a.mode},
       ${a.totalInputTokens},
       ${a.totalOutputTokens},
       ${a.totalCacheRead},
@@ -236,6 +277,7 @@ export async function upsertSessions(
       ${a.permissionDenyCount},
       ${a.interruptCount},
       ${a.userMessageCount},
+      ${a.notificationCount},
       ${a.primaryModel}
     )`,
   );
@@ -248,11 +290,11 @@ export async function upsertSessions(
       host_hash, claude_code_version, os, cwd, repo_id,
       git_branch, git_commit, git_remote_url, git_is_dirty, pr_number,
       pr_ci_status, pr_review_decision,
-      github_login, github_team, project_name,
+      github_login, github_team, project_name, mode,
       total_input_tokens, total_output_tokens, total_cache_read, total_cache_creation,
       total_cost_usd, tool_call_count, tool_error_count,
       permission_prompt_count, permission_deny_count, interrupt_count,
-      user_message_count, primary_model
+      user_message_count, notification_count, primary_model
     ) VALUES ${Prisma.join(rows)}
     ON CONFLICT (session_id) DO UPDATE SET
       last_event_at        = GREATEST(sessions.last_event_at, EXCLUDED.last_event_at),
@@ -268,10 +310,21 @@ export async function upsertSessions(
       total_cost_usd       = sessions.total_cost_usd + EXCLUDED.total_cost_usd,
       tool_call_count      = sessions.tool_call_count + EXCLUDED.tool_call_count,
       tool_error_count     = sessions.tool_error_count + EXCLUDED.tool_error_count,
+      permission_prompt_count = sessions.permission_prompt_count + EXCLUDED.permission_prompt_count,
       permission_deny_count = sessions.permission_deny_count + EXCLUDED.permission_deny_count,
       interrupt_count      = sessions.interrupt_count + EXCLUDED.interrupt_count,
       user_message_count   = sessions.user_message_count + EXCLUDED.user_message_count,
+      notification_count   = sessions.notification_count + EXCLUDED.notification_count,
       compaction_count     = sessions.compaction_count + EXCLUDED.compaction_count,
+      -- Keep the least-supervised (highest autonomy rank) mode seen across batches.
+      mode                 = CASE
+                               WHEN EXCLUDED.mode IS NULL THEN sessions.mode
+                               WHEN sessions.mode IS NULL THEN EXCLUDED.mode
+                               WHEN ${MODE_RANK_SQL(Prisma.raw('EXCLUDED.mode'))}
+                                  > ${MODE_RANK_SQL(Prisma.raw('sessions.mode'))}
+                                 THEN EXCLUDED.mode
+                               ELSE sessions.mode
+                             END,
       primary_model        = COALESCE(sessions.primary_model, EXCLUDED.primary_model),
       repo_id              = COALESCE(sessions.repo_id, EXCLUDED.repo_id),
       pr_ci_status         = COALESCE(sessions.pr_ci_status, EXCLUDED.pr_ci_status),

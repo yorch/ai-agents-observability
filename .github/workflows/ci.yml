@@ -32,6 +32,13 @@ jobs:
         with:
           node-version-file: '.node-version'
 
+      # keytar (a packages/auth dep) ships a prebuilt binary via prebuild-install,
+      # but falls back to `node-gyp rebuild` when that download flakes — and the
+      # source build needs libsecret's pkg-config headers, absent on the runner.
+      # Install them so a prebuild-install timeout can't fail the whole job.
+      - name: Install native build deps (keytar → libsecret)
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 

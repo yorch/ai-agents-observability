@@ -5,7 +5,7 @@ CREATE TYPE "SessionStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'CRASHED', 'TIMED_OU
 CREATE TYPE "AgentType" AS ENUM ('CLAUDE_CODE', 'CURSOR', 'AIDER', 'COPILOT', 'CODEX', 'WINDSURF', 'OPENCODE');
 
 -- CreateEnum
-CREATE TYPE "AuditAction" AS ENUM ('VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM', 'EXPORT_ORG', 'ADMIN_IMPERSONATE', 'DELETE_REQUEST', 'HOOK_TOKEN_ISSUED', 'ROLE_GRANT', 'RETENTION_OVERRIDE_CHANGED', 'GRANT_REQUESTED', 'GRANT_APPROVED', 'GRANT_REVOKED');
+CREATE TYPE "AuditAction" AS ENUM ('VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM', 'EXPORT_ORG', 'ADMIN_IMPERSONATE', 'DELETE_REQUEST', 'HOOK_TOKEN_ISSUED', 'ROLE_GRANT', 'RETENTION_OVERRIDE_CHANGED', 'GRANT_REQUESTED', 'GRANT_APPROVED', 'GRANT_REVOKED', 'ALERT_ACKNOWLEDGED', 'ALERT_SILENCED');
 
 -- CreateEnum
 CREATE TYPE "GrantScope" AS ENUM ('USER_SESSIONS', 'SINGLE_SESSION');
@@ -150,6 +150,7 @@ CREATE TABLE "sessions" (
     "github_login" TEXT,
     "github_team" TEXT,
     "project_name" TEXT,
+    "mode" TEXT,
     "total_input_tokens" BIGINT NOT NULL DEFAULT 0,
     "total_output_tokens" BIGINT NOT NULL DEFAULT 0,
     "total_cache_read" BIGINT NOT NULL DEFAULT 0,
@@ -161,6 +162,7 @@ CREATE TABLE "sessions" (
     "permission_deny_count" INTEGER NOT NULL DEFAULT 0,
     "interrupt_count" INTEGER NOT NULL DEFAULT 0,
     "user_message_count" INTEGER NOT NULL DEFAULT 0,
+    "notification_count" INTEGER NOT NULL DEFAULT 0,
     "primary_model" TEXT,
     "transcript_s3_key" TEXT,
     "transcript_bytes" BIGINT,
@@ -168,6 +170,8 @@ CREATE TABLE "sessions" (
     "transcript_redacted" BOOLEAN NOT NULL DEFAULT false,
     "shape_label" TEXT,
     "friction_score" DOUBLE PRECISION,
+    "total_response_ms" BIGINT NOT NULL DEFAULT 0,
+    "response_sample_count" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "sessions_pkey" PRIMARY KEY ("session_id")
 );
@@ -293,6 +297,7 @@ CREATE TABLE "alert_rules" (
     "enabled" BOOLEAN NOT NULL DEFAULT true,
     "cadence_minutes" INTEGER NOT NULL DEFAULT 60,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "silenced_until" TIMESTAMPTZ(6),
 
     CONSTRAINT "alert_rules_pkey" PRIMARY KEY ("id")
 );
@@ -315,6 +320,25 @@ CREATE TABLE "access_grants" (
 );
 
 -- CreateTable
+CREATE TABLE "session_feedback" (
+    "id" UUID NOT NULL,
+    "session_id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "sentiment" TEXT NOT NULL,
+    "note" TEXT,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "session_feedback_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "session_feedback_session_id_user_id_key" ON "session_feedback"("session_id", "user_id");
+
+-- CreateIndex
+CREATE INDEX "session_feedback_session_id_idx" ON "session_feedback"("session_id");
+
+-- CreateTable
 CREATE TABLE "alert_events" (
     "id" BIGSERIAL NOT NULL,
     "rule_id" UUID NOT NULL,
@@ -322,6 +346,8 @@ CREATE TABLE "alert_events" (
     "resolved_at" TIMESTAMPTZ(6),
     "severity" TEXT NOT NULL,
     "details" JSONB NOT NULL DEFAULT '{}',
+    "acknowledged_at" TIMESTAMPTZ(6),
+    "acknowledged_by_user_id" UUID,
 
     CONSTRAINT "alert_events_pkey" PRIMARY KEY ("id")
 );

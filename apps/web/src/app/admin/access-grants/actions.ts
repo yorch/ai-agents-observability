@@ -95,6 +95,41 @@ export async function approveGrant(formData: FormData): Promise<void> {
   revalidatePath('/admin/access-grants');
 }
 
+/**
+ * R8: approve every currently-pending grant in one action (bulk approve from the
+ * "needs attention" queue), each with the same bounded window. Writes one audit
+ * row per grant so each viewed user still sees the access in their feed.
+ */
+export async function approveAllPending(formData: FormData): Promise<void> {
+  const { user } = await requireOrgAdmin();
+  const hoursRaw = String(formData.get('hours') ?? '').trim();
+  const hours = Number(hoursRaw) > 0 ? Number(hoursRaw) : DEFAULT_GRANT_HOURS;
+
+  const db = getPrisma();
+  const pending = await db.accessGrant.findMany({ where: { grantedAt: null, revokedAt: null } });
+  if (pending.length === 0) {
+    return;
+  }
+
+  const expiresAt = new Date(Date.now() + hours * 3_600_000);
+  await db.accessGrant.updateMany({
+    data: { expiresAt, grantedAt: new Date(), grantedByUserId: user.id },
+    where: { grantedAt: null, revokedAt: null },
+  });
+
+  for (const g of pending) {
+    await writeAuditLog({
+      action: AuditAction.GRANT_APPROVED,
+      actorUserId: user.id,
+      justification: `Bulk-approved, expires ${expiresAt.toISOString()}`,
+      targetSessionId: g.targetSessionId ?? undefined,
+      targetUserId: g.targetUserId ?? undefined,
+    });
+  }
+
+  revalidatePath('/admin/access-grants');
+}
+
 /** Revoke an active grant immediately (sets revoked_at). Audited. */
 export async function revokeGrant(formData: FormData): Promise<void> {
   const { user } = await requireOrgAdmin();

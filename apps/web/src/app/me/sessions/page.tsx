@@ -1,3 +1,4 @@
+import { PERMISSION_MODES } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
 import { SessionsTable } from '@/components/me/SessionsTable';
 import { currentUser } from '@/lib/auth';
@@ -10,6 +11,7 @@ function buildExportUrl(filters: {
   agent?: string | undefined;
   band?: string | undefined;
   from?: string | undefined;
+  mode?: string | undefined;
   repo?: string | undefined;
   shape?: string | undefined;
   status?: string | undefined;
@@ -42,6 +44,7 @@ type SearchParams = {
   agent?: string;
   band?: string;
   from?: string;
+  mode?: string;
   page?: string;
   repo?: string;
   shape?: string;
@@ -68,6 +71,9 @@ export default async function SessionsPage({
   const status = params.status || undefined;
   const shape = params.shape || undefined;
   const agent = params.agent || undefined;
+  const mode = (PERMISSION_MODES as readonly string[]).includes(params.mode ?? '')
+    ? params.mode
+    : undefined;
   const frictionBand = parseBand(params.band);
   const dateFrom = parseDate(params.from);
   const dateTo = parseDate(params.to);
@@ -81,6 +87,7 @@ export default async function SessionsPage({
     ...(shape ? { shapeLabels: [shape] } : {}),
     ...(agent ? { agentTypes: [agent] } : {}),
     ...(frictionBand ? { frictionBand } : {}),
+    ...(mode ? { mode } : {}),
   };
 
   const [{ sessions, total }, repos, agentFacets, shapeFacets] = await Promise.all([
@@ -191,6 +198,20 @@ export default async function SessionsPage({
           </select>
         </div>
 
+        <div className="flex flex-col gap-1">
+          <label htmlFor="mode-filter" className="text-xs text-text-3">
+            Mode
+          </label>
+          <select id="mode-filter" name="mode" defaultValue={mode ?? ''} className={selectClass}>
+            <option value="">All modes</option>
+            {PERMISSION_MODES.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {agentTypes.length > 1 && (
           <div className="flex flex-col gap-1">
             <label htmlFor="agent-filter" className="text-xs text-text-3">
@@ -219,7 +240,7 @@ export default async function SessionsPage({
           Filter
         </button>
 
-        {(repo || status || params.from || params.to || shape || agent || frictionBand) && (
+        {(repo || status || params.from || params.to || shape || agent || frictionBand || mode) && (
           <a
             href="/me/sessions"
             className="rounded-lg border border-border px-4 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
@@ -236,6 +257,7 @@ export default async function SessionsPage({
             agent,
             band: frictionBand,
             from: params.from,
+            mode,
             repo,
             shape,
             status,

@@ -84,6 +84,7 @@ export async function listSessions(
     dateFrom?: Date;
     dateTo?: Date;
     frictionBand?: FrictionBand;
+    mode?: string;
     page: number;
     repo?: string;
     shapeLabels?: string[];
@@ -124,6 +125,7 @@ export async function listSessions(
       ? { agentType: { in: opts.agentTypes as $Enums.AgentType[] } }
       : {}),
     ...(opts.frictionBand ? { frictionScore: frictionBandWhere(opts.frictionBand) } : {}),
+    ...(opts.mode ? { mode: opts.mode } : {}),
   };
 
   const [total, rows] = await Promise.all([
