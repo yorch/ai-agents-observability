@@ -894,6 +894,25 @@ This is a presentation discipline, not a data model decision. Worth re-asserting
 - Anthropic price changes don't require hook redeploy
 - Ground truth (Anthropic admin API) is heavier dependency; deferred
 
+### 11.7 Platform Self-Observability: stdout Logs + Prometheus (v1)
+
+**Choice:** The platform observes *itself* with structured pino logs to stdout plus Prometheus metrics (`prom-client`, scraped into the bundled Grafana). There is **no centralized error aggregation** (Sentry / OpenTelemetry) for the app's own operational errors in v1.
+
+Concretely:
+
+- All three apps log structured JSON via pino, with level set by `LOG_LEVEL`. The two Hono services (`apps/ingest`, `apps/github-app`) additionally correlate each log line with a per-request `x-request-id` and have a catch-all `onError` handler that logs unhandled throws with the request id before returning a 500. `apps/web` (Next.js) has no equivalent Hono-style request-id correlation or `onError` handler — it relies on Next's error boundary and route-handler-level handling.
+- The three HTTP services expose `/metrics`; operational dashboards live in the bundled Grafana/Prometheus stack.
+- Container logs (stdout) are the aggregation surface — collected by whatever the operator's Docker/host logging driver provides.
+
+**Rationale:**
+
+- This is a self-hosted, single-operator homelab deployment (§11.3). `docker compose logs` + Grafana is a proportionate operational surface; a hosted error-tracking SaaS or an OTLP collector + backend is more infrastructure than the v1 audience needs.
+- Staying pino-native keeps one logging model across services and avoids coupling the app to a specific tracing/error vendor before the deployment story demands it.
+
+**Deferred — recommended path when needed:** when centralized error aggregation becomes worthwhile (multi-node deployment, on-call rotation, or error-rate SLOs), add an env-gated log/trace exporter rather than scattering vendor SDK calls. The Grafana-native fit is an OTLP exporter (pino → OpenTelemetry logs, plus error spans) shipping to Loki/Tempo alongside the existing Prometheus metrics, wired once per service and off unless an OTLP endpoint is configured.
+
+**Re-evaluation trigger:** the deployment grows beyond a single host/operator, or diagnosing a production incident from stdout logs alone becomes the bottleneck.
+
 ---
 
 ## 12. MVP Scope & Phasing
