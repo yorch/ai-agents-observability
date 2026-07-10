@@ -1,3 +1,4 @@
+import { computePRRollup } from '@ai-agents-observability/db';
 import { resolveApiBase } from '@ai-agents-observability/github';
 import type { RepoConfig } from '@ai-agents-observability/schemas';
 import { parseRepoConfig } from '@ai-agents-observability/schemas';
@@ -7,7 +8,7 @@ import type { Config } from '../config';
 import { backfillPRLinks } from '../lib/backfill-pr-links';
 import { getInstallationToken } from '../lib/installation-token';
 import { buildCommentBody, postPRComment } from '../lib/pr-comment';
-import { computePRRollup } from '../lib/pr-rollup';
+import { fetchPRCommitShas } from '../lib/pr-commits';
 import { upsertPullRequest } from '../lib/pr-upsert';
 import type { AppDb } from '../types';
 
@@ -25,7 +26,26 @@ export async function handlePullRequest(
   logger.info({ action, pr: pr.number, repo: repo.full_name }, 'pr.webhook');
 
   if (action === 'opened' || action === 'synchronize') {
-    await upsertPullRequest(db, repo, pr as Parameters<typeof upsertPullRequest>[2], 'OPEN');
+    const { repoId, prNumber } = await upsertPullRequest(
+      db,
+      repo,
+      pr as Parameters<typeof upsertPullRequest>[2],
+      'OPEN',
+    );
+
+    // Link sessions while the PR is still open (branch-name match only — cheap,
+    // no API call) so open-PR dashboards see links before merge-time reconcile.
+    const linked = await backfillPRLinks(
+      db,
+      repoId,
+      prNumber,
+      pr.head.ref,
+      pr.created_at ? new Date(pr.created_at) : null,
+      { lookbackDays: config.pr_link_lookback_days },
+    );
+    if (linked > 0) {
+      logger.info({ linked, pr: prNumber, repo: repo.full_name }, 'pr.backfill.open');
+    }
     return;
   }
 
@@ -39,12 +59,42 @@ export async function handlePullRequest(
     );
 
     if (pr.merged) {
+      // At merge, also match sessions by commit SHA — catches rebased/renamed
+      // branches and squash merges that the branch-name match misses.
+      let commitShas: string[] = [];
+      if (installationId) {
+        try {
+          const privateKeyPem = Buffer.from(config.github_app_private_key_b64, 'base64').toString(
+            'utf-8',
+          );
+          const installToken = await getInstallationToken(
+            installationId,
+            config.github_app_id,
+            privateKeyPem,
+            config.github_host,
+          );
+          const parts = repo.full_name.split('/');
+          if (parts.length === 2 && parts[0] && parts[1]) {
+            commitShas = await fetchPRCommitShas(
+              parts[0],
+              parts[1],
+              prNumber,
+              installToken,
+              config.github_host,
+            );
+          }
+        } catch (err) {
+          logger.warn({ err, pr: prNumber }, 'pr.commits.fetch_failed');
+        }
+      }
+
       const linked = await backfillPRLinks(
         db,
         repoId,
         prNumber,
         pr.head.ref,
         pr.created_at ? new Date(pr.created_at) : null,
+        { commitShas, lookbackDays: config.pr_link_lookback_days },
       );
       logger.info({ linked, pr: prNumber, repo: repo.full_name }, 'pr.backfill');
 

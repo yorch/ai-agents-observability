@@ -100,6 +100,7 @@ model Team {
   primaryUsers User[]       @relation("UserPrimaryTeam")
   repos        Repo[]
   auditLogs    AuditLog[]
+  sessions     Session[]
 
   @@map("teams")
 }
@@ -248,7 +249,13 @@ model Session {
   prReviewDecision     String?       @map("pr_review_decision")
   githubLogin          String?       @map("github_login")
   githubTeam           String?       @map("github_team")
+  // Resolved Team FK for github_team (hook reports the team *name*; resolved at
+  // ingest only when exactly one synced team matches — ambiguous names stay null).
+  teamId               String?       @map("team_id") @db.Uuid
   projectName          String?       @map("project_name")
+  // Jira issue key extracted from git_branch at ingest (e.g. PROJ-123) — gives
+  // ticket attribution even for sessions that never produce a PR.
+  jiraKey              String?       @map("jira_key")
 
   // Human-in-the-loop: representative permission/autonomy mode for the session —
   // the least-supervised (most autonomous) mode observed across its events.
@@ -284,14 +291,17 @@ model Session {
   totalResponseMs      BigInt    @default(0) @map("total_response_ms")
   responseSampleCount  Int       @default(0) @map("response_sample_count")
 
-  user    User            @relation(fields: [userId], references: [id])
-  repo    Repo?           @relation(fields: [repoId], references: [id])
-  prLinks SessionPRLink[]
+  user        User                @relation(fields: [userId], references: [id])
+  repo        Repo?               @relation(fields: [repoId], references: [id])
+  team        Team?               @relation(fields: [teamId], references: [id])
+  prLinks     SessionPRLink[]
+  commitLinks SessionCommitLink[]
 
   @@index([userId, startedAt(sort: Desc)])
   @@index([repoId, startedAt(sort: Desc)])
   @@index([status, lastEventAt])
   @@index([agentType, startedAt(sort: Desc)])
+  @@index([jiraKey])
   @@map("sessions")
 }
 
@@ -329,12 +339,95 @@ model PullRequest {
   authorUser User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
   prLinks    SessionPRLink[]
   rollup     PRRollup?
+  checkRuns  PRCheckRun[]
+  reviews    PRReview[]
 
   @@id([repoId, prNumber])
   // ROI/delivery dashboards range-scan PRs by open/merge date over a window.
   @@index([openedAt])
   @@index([mergedAt])
+  // Jira joins (spend-by-key, jira_issues enrichment) look PRs up by key.
+  @@index([jiraKey])
   @@map("pull_requests")
+}
+
+// Per-check-run outcome history (extends P5-005's failure counter). One row per
+// (check run, PR) — a check_run webhook can reference several PRs in its repo.
+// Upserted on github_id + pr_number so queued→completed transitions update in place.
+model PRCheckRun {
+  id          BigInt    @id @default(autoincrement())
+  repoId      String    @map("repo_id") @db.Uuid
+  prNumber    Int       @map("pr_number")
+  githubId    BigInt    @map("github_id")
+  name        String
+  status      String
+  conclusion  String?
+  headSha     String?   @map("head_sha")
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  pullRequest PullRequest @relation(fields: [repoId, prNumber], references: [repoId, prNumber], onDelete: Cascade)
+
+  @@unique([repoId, prNumber, githubId])
+  @@index([repoId, prNumber, completedAt])
+  @@map("pr_check_runs")
+}
+
+// Submitted PR reviews (pull_request_review webhook) — review latency and
+// review-burden signals. review_count on pull_requests is maintained from these rows.
+model PRReview {
+  id            BigInt    @id @default(autoincrement())
+  repoId        String    @map("repo_id") @db.Uuid
+  prNumber      Int       @map("pr_number")
+  githubId      BigInt    @unique @map("github_id")
+  reviewerLogin String    @map("reviewer_login")
+  state         String
+  submittedAt   DateTime? @map("submitted_at") @db.Timestamptz(6)
+
+  pullRequest PullRequest @relation(fields: [repoId, prNumber], references: [repoId, prNumber], onDelete: Cascade)
+
+  @@index([repoId, prNumber])
+  @@map("pr_reviews")
+}
+
+// Commit→session correlation from default-branch push webhooks (DESIGN_DOC §7.2):
+// a pushed commit is attributed to a session when the repo matches, the commit
+// author's login matches the session's github_login, and the commit timestamp
+// falls inside the session's activity window (plus a post-session grace period).
+model SessionCommitLink {
+  sessionId   String    @map("session_id") @db.Uuid
+  repoId      String    @map("repo_id") @db.Uuid
+  commitSha   String    @map("commit_sha")
+  authorLogin String?   @map("author_login")
+  committedAt DateTime? @map("committed_at") @db.Timestamptz(6)
+  linkedAt    DateTime  @default(now()) @map("linked_at") @db.Timestamptz(6)
+
+  session Session @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  @@id([sessionId, repoId, commitSha])
+  @@index([repoId, commitSha])
+  @@map("session_commit_links")
+}
+
+// ── Jira (P5-004 follow-up: full integration) ────────────────────────────────
+
+// Issue metadata synced from the Jira REST API by the env-gated `sync-jira` job.
+// `key` is referenced by pull_requests.jira_key / sessions.jira_key as a plain
+// string (no FK) — keys are extracted before the issue is ever synced.
+model JiraIssue {
+  key         String    @id
+  summary     String?
+  issueType   String?   @map("issue_type")
+  status      String?
+  epicKey     String?   @map("epic_key")
+  storyPoints Float?    @map("story_points")
+  assignee    String?
+  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz(6)
+  syncedAt    DateTime  @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  @@index([epicKey])
+  @@index([issueType])
+  @@map("jira_issues")
 }
 
 model SessionPRLink {

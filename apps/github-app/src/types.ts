@@ -9,10 +9,13 @@ export type AppEnv = {
 export type AppDb = Pick<
   PrismaClient,
   | '$transaction'
+  | 'pRCheckRun'
+  | 'pRReview'
   | 'pullRequest'
   | 'pRRollup'
   | 'repo'
   | 'session'
+  | 'sessionCommitLink'
   | 'sessionPRLink'
   | 'user'
   | 'webhookDelivery'

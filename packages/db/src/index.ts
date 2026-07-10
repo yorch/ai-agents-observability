@@ -4,6 +4,7 @@ import { Prisma, PrismaClient } from './generated/client/client';
 export { isUniqueViolation } from './errors';
 export type * from './generated/client/client';
 export * from './generated/client/enums';
+export { computePRRollup, type RollupResult } from './pr-rollup';
 export { applySqlMigrations } from './sql-migrate';
 export { Prisma, PrismaClient };
 

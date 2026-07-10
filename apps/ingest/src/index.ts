@@ -59,12 +59,27 @@ const emailConfig =
       }
     : undefined;
 
+// Jira issue-metadata sync runs only when both the base URL and an API token
+// are configured (JIRA_BASE_URL + JIRA_API_TOKEN).
+const jiraConfig =
+  config.jira_base_url && config.jira_api_token
+    ? {
+        apiToken: config.jira_api_token,
+        baseUrl: config.jira_base_url,
+        ...(config.jira_email ? { email: config.jira_email } : {}),
+        ...(config.jira_story_points_field
+          ? { storyPointsField: config.jira_story_points_field }
+          : {}),
+      }
+    : undefined;
+
 startScheduler({
   billingReconciliationEnabled: config.billing_reconciliation_enabled,
   bucket: config.s3_bucket,
   db,
   ...(emailConfig ? { emailConfig } : {}),
   ...(config.github_sync_token ? { githubSyncToken: config.github_sync_token } : {}),
+  ...(jiraConfig ? { jiraConfig } : {}),
   appBaseUrl: config.app_base_url,
   logger,
   orgMaxRetentionDays: config.org_max_retention_days,

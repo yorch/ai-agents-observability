@@ -62,7 +62,7 @@ describe('upsertPullRequest', () => {
 
     expect(db.repo.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: { githubId: 123n, githubName: 'widget', githubOwner: 'acme' },
+        create: { defaultBranch: null, githubId: 123n, githubName: 'widget', githubOwner: 'acme' },
         where: { githubOwner_githubName: { githubName: 'widget', githubOwner: 'acme' } },
       }),
     );
@@ -95,6 +95,48 @@ describe('upsertPullRequest', () => {
           authorUserId: null,
           state: 'CLOSED',
         }),
+      }),
+    );
+  });
+
+  it('falls back to the PR title, then body, for the Jira key', async () => {
+    const db = makeDb();
+
+    await upsertPullRequest(
+      db,
+      repoPayload,
+      { ...prPayload, head: { ref: 'feature/no-ticket' }, title: 'OBS-77: add widget' },
+      'OPEN',
+    );
+    expect(db.pullRequest.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ jiraKey: 'OBS-77' }) }),
+    );
+
+    await upsertPullRequest(
+      db,
+      repoPayload,
+      {
+        ...prPayload,
+        body: 'Implements OBS-88 as discussed',
+        head: { ref: 'feature/no-ticket' },
+        title: 'add widget',
+      },
+      'OPEN',
+    );
+    expect(db.pullRequest.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ jiraKey: 'OBS-88' }) }),
+    );
+  });
+
+  it('records the repo default branch when the payload carries it', async () => {
+    const db = makeDb();
+
+    await upsertPullRequest(db, { ...repoPayload, default_branch: 'main' }, prPayload, 'OPEN');
+
+    expect(db.repo.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ defaultBranch: 'main' }),
+        update: expect.objectContaining({ defaultBranch: 'main' }),
       }),
     );
   });

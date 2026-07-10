@@ -2,6 +2,7 @@ import { Prisma } from '@ai-agents-observability/db';
 import {
   AUTONOMY_RANK,
   type Event,
+  extractJiraKeyFromSources,
   type GitContext,
   type PermissionMode,
 } from '@ai-agents-observability/schemas';
@@ -40,6 +41,7 @@ type SessionAgg = {
   hostHash: string | null;
   interruptCount: number;
   isResume: boolean;
+  jiraKey: string | null;
   lastTs: Date;
   mode: string | null;
   notificationCount: number;
@@ -53,6 +55,7 @@ type SessionAgg = {
   prReviewDecision: string | null;
   repoId: string | null;
   sessionId: string;
+  teamId: string | null;
   toolCallCount: number;
   toolErrorCount: number;
   totalCacheCreation: number;
@@ -83,6 +86,9 @@ function emptyAgg(sessionId: string, userId: string, event: Event): SessionAgg {
     hostHash: event.client.hostname_hash,
     interruptCount: 0,
     isResume: event.session_context.is_resume,
+    // Session-level ticket attribution: same extraction rules as PR-side P5-004,
+    // so a session links to its Jira key even if it never produces a PR.
+    jiraKey: extractJiraKeyFromSources(event.session_context.git?.branch),
     lastTs: ts,
     // Representative autonomy mode = the least-supervised mode seen across the
     // session's events; accumulated in applyEvent (incl. the first event).
@@ -98,6 +104,7 @@ function emptyAgg(sessionId: string, userId: string, event: Event): SessionAgg {
     prReviewDecision: event.session_context.git?.pr_review_decision ?? null,
     repoId: null,
     sessionId,
+    teamId: null,
     toolCallCount: 0,
     toolErrorCount: 0,
     totalCacheCreation: 0,
@@ -200,6 +207,9 @@ export async function upsertSessions(
   repoIdByKey: Map<string, string>,
   priceTables: PriceTableRegistry,
   envelopeGit: GitContext | null = null,
+  // Team-name → team_id, resolved by events.ts from synced Team rows (only for
+  // unambiguous names). Turns the denormalized github_team string into a real FK.
+  teamIdByName: Map<string, string> = new Map(),
 ): Promise<UpsertResult> {
   if (events.length === 0) {
     return { sessionsTouched: 0 };
@@ -232,6 +242,12 @@ export async function upsertSessions(
         if (!agg.prNumber && git.pr_number !== null) {
           agg.prNumber = git.pr_number;
         }
+        if (!agg.jiraKey && git.branch) {
+          agg.jiraKey = extractJiraKeyFromSources(git.branch);
+        }
+      }
+      if (agg.githubTeam) {
+        agg.teamId = teamIdByName.get(agg.githubTeam) ?? null;
       }
       bySession.set(ev.session_id, agg);
     }
@@ -264,7 +280,9 @@ export async function upsertSessions(
       ${a.prReviewDecision},
       ${a.githubLogin},
       ${a.githubTeam},
+      ${a.teamId}::uuid,
       ${a.projectName},
+      ${a.jiraKey},
       ${a.mode},
       ${a.totalInputTokens},
       ${a.totalOutputTokens},
@@ -290,7 +308,7 @@ export async function upsertSessions(
       host_hash, claude_code_version, os, cwd, repo_id,
       git_branch, git_commit, git_remote_url, git_is_dirty, pr_number,
       pr_ci_status, pr_review_decision,
-      github_login, github_team, project_name, mode,
+      github_login, github_team, team_id, project_name, jira_key, mode,
       total_input_tokens, total_output_tokens, total_cache_read, total_cache_creation,
       total_cost_usd, tool_call_count, tool_error_count,
       permission_prompt_count, permission_deny_count, interrupt_count,
@@ -331,7 +349,9 @@ export async function upsertSessions(
       pr_review_decision   = COALESCE(sessions.pr_review_decision, EXCLUDED.pr_review_decision),
       github_login         = COALESCE(sessions.github_login, EXCLUDED.github_login),
       github_team          = COALESCE(sessions.github_team, EXCLUDED.github_team),
-      project_name         = COALESCE(sessions.project_name, EXCLUDED.project_name)
+      team_id              = COALESCE(sessions.team_id, EXCLUDED.team_id),
+      project_name         = COALESCE(sessions.project_name, EXCLUDED.project_name),
+      jira_key             = COALESCE(sessions.jira_key, EXCLUDED.jira_key)
   `);
 
   return { sessionsTouched: affected };

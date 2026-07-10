@@ -11,6 +11,7 @@ import { runDeletions } from './run-deletions';
 import { runSweepAbandoned } from './sweep-abandoned';
 import { runSweepRetention } from './sweep-retention';
 import { runSweepScratch } from './sweep-scratch';
+import { type JiraSyncConfig, runSyncJira } from './sync-jira';
 import { runSyncTeams } from './sync-teams';
 
 export type SchedulerDeps = {
@@ -22,6 +23,9 @@ export type SchedulerDeps = {
   // configured — email alerts then fail loud rather than delivering silently.
   emailConfig?: EmailConfig;
   githubSyncToken?: string;
+  // Jira issue-metadata sync (env-gated like reconcile-cost) — undefined when
+  // JIRA_BASE_URL / JIRA_API_TOKEN are not configured.
+  jiraConfig?: JiraSyncConfig;
   logger?: Logger;
   orgMaxRetentionDays: number;
   s3: S3Client;
@@ -63,6 +67,7 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
     db,
     emailConfig,
     githubSyncToken,
+    jiraConfig,
     logger,
     orgMaxRetentionDays,
     s3,
@@ -71,6 +76,14 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
   switch (jobName) {
     case 'sync-teams':
       await runSyncTeams(db, githubSyncToken, logger);
+      break;
+    // Gated Jira issue-metadata sync — no-ops unless Jira credentials are configured.
+    case 'sync-jira':
+      if (jiraConfig) {
+        await runSyncJira(db, jiraConfig, logger);
+      } else {
+        logger?.warn('sync-jira: skipped, Jira is not configured');
+      }
       break;
     case 'sweep-abandoned':
       await runSweepAbandoned(db, logger);
@@ -302,6 +315,16 @@ export function startScheduler(deps: SchedulerDeps): void {
   );
   deletionsInterval.unref?.();
 
+  // Jira issue-metadata sync — gated on Jira credentials. Every 6h; the job
+  // itself skips issues with a fresh (<6h) snapshot, so the tick is idempotent.
+  if (deps.jiraConfig) {
+    const syncJiraInterval = setInterval(
+      guarded(() => triggerJob(deps, 'sync-jira'), 'sync-jira'),
+      6 * 60 * 60 * 1_000,
+    );
+    syncJiraInterval.unref?.();
+  }
+
   // Cost reconciliation (P8-006) — gated, disabled by default. Daily timer but
   // always reconciles the previous calendar month, so a daily tick is idempotent.
   if (deps.billingReconciliationEnabled) {
@@ -315,7 +338,8 @@ export function startScheduler(deps: SchedulerDeps): void {
   logger?.info(
     {
       reconcileCost: deps.billingReconciliationEnabled === true,
+      syncJira: deps.jiraConfig !== undefined,
     },
-    'Job scheduler started (DB-poll every 60s: sweep-retention/index-transcripts/compute-effectiveness; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; reconcile-cost daily when enabled)',
+    'Job scheduler started (DB-poll every 60s: sweep-retention/index-transcripts/compute-effectiveness; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',
   );
 }

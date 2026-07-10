@@ -27,7 +27,7 @@ describe('backfillPRLinks', () => {
     expect(db.session.findMany).toHaveBeenCalledWith({
       select: { sessionId: true },
       where: {
-        gitBranch: 'feature/widget',
+        OR: [{ gitBranch: 'feature/widget' }],
         prLinks: { none: { prNumber: 42, repoId: 'repo-id' } },
         repoId: 'repo-id',
         startedAt: { gte: new Date('2026-01-01T00:00:00Z') },
@@ -70,6 +70,39 @@ describe('backfillPRLinks', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           startedAt: { gte: new Date(0) },
+        }),
+      }),
+    );
+  });
+
+  it('also matches sessions by commit SHA when the PR commit list is provided', async () => {
+    const db = makeDb(['s1']);
+    const openedAt = new Date('2026-01-08T00:00:00Z');
+
+    const count = await backfillPRLinks(db, 'repo-id', 42, 'feature/widget', openedAt, {
+      commitShas: ['abc123', 'def456'],
+    });
+
+    expect(count).toBe(1);
+    expect(db.session.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [{ gitBranch: 'feature/widget' }, { gitCommit: { in: ['abc123', 'def456'] } }],
+        }),
+      }),
+    );
+  });
+
+  it('honours a configured lookback window', async () => {
+    const db = makeDb([]);
+    const openedAt = new Date('2026-01-08T00:00:00Z');
+
+    await backfillPRLinks(db, 'repo-id', 42, 'feature/widget', openedAt, { lookbackDays: 14 });
+
+    expect(db.session.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          startedAt: { gte: new Date('2025-12-25T00:00:00Z') },
         }),
       }),
     );

@@ -4,7 +4,10 @@ import { Webhooks } from '@octokit/webhooks';
 import { Hono } from 'hono';
 import type { Logger } from 'pino';
 import type { Config } from '../config';
+import { type CheckRunPayload, handleCheckRun } from '../handlers/check-run';
 import { handlePullRequest } from '../handlers/pull-request';
+import { handlePullRequestReview } from '../handlers/pull-request-review';
+import { handlePush, type PushPayload } from '../handlers/push';
 import { recordFailed, recordProcessed, recordReceived } from '../lib/metrics';
 import type { AppDb, AppEnv } from '../types';
 
@@ -92,41 +95,24 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
           );
         }
 
-        // P5-005: GitHub Checks correlation — increment check_failures_count on
-        // the rollup for each PR associated with a failed or action-required check run.
+        // P5-005: GitHub Checks correlation — per-run outcome rows + the
+        // failure counter on rollups.
         if (event === 'check_run') {
-          const checkRun = payload.check_run as
-            | {
-                conclusion: string | null;
-                pull_requests: Array<{ number: number }>;
-              }
-            | undefined;
+          await handleCheckRun(payload as CheckRunPayload, db, logger);
+        }
 
-          if (
-            checkRun &&
-            (checkRun.conclusion === 'failure' || checkRun.conclusion === 'action_required') &&
-            repoFullName
-          ) {
-            const parts = repoFullName.split('/');
-            if (parts.length !== 2 || !parts[0] || !parts[1]) {
-              logger.warn({ repoFullName }, 'check_run: unexpected repository full_name format');
-            } else {
-              const [owner, name] = parts as [string, string];
-              // Resolve repo once — all PRs in this check_run belong to the same repo.
-              const repo = await db.repo.findFirst({
-                select: { id: true },
-                where: { githubName: name, githubOwner: owner },
-              });
-              if (repo) {
-                for (const pr of checkRun.pull_requests ?? []) {
-                  await db.pRRollup.updateMany({
-                    data: { checkFailuresCount: { increment: 1 } },
-                    where: { prNumber: pr.number, repoId: repo.id },
-                  });
-                }
-              }
-            }
-          }
+        // Submitted/dismissed reviews → pr_reviews + maintained review_count.
+        if (event === 'pull_request_review') {
+          await handlePullRequestReview(
+            payload as EmitterWebhookEvent<'pull_request_review'>['payload'],
+            db,
+            logger,
+          );
+        }
+
+        // Default-branch pushes → commit→session correlation (DESIGN_DOC §7.2).
+        if (event === 'push') {
+          await handlePush(payload as PushPayload, db, logger);
         }
         recordProcessed(`${event}.${action}`, Date.now() - start);
         await db.webhookDelivery

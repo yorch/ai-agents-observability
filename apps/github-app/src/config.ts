@@ -26,6 +26,9 @@ const ConfigSchema = z.object({
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   node_env: z.enum(['development', 'production', 'test']).default('development'),
   port: z.coerce.number().int().min(1).max(65535).default(4001),
+  // Session↔PR backfill window: sessions starting up to this many days before
+  // the PR opened are link candidates (P2-004 hardening).
+  pr_link_lookback_days: z.coerce.number().int().min(1).default(7),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -42,5 +45,6 @@ export function loadConfig(): Config {
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,
     port: process.env.GITHUB_APP_PORT,
+    pr_link_lookback_days: process.env.PR_LINK_LOOKBACK_DAYS,
   });
 }

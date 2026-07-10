@@ -1,4 +1,5 @@
 import { isUniqueViolation, type PrismaClient } from '@ai-agents-observability/db';
+import { extractJiraKeyFromSources } from '@ai-agents-observability/schemas';
 
 type PRState = 'OPEN' | 'CLOSED' | 'MERGED';
 
@@ -24,21 +25,17 @@ type PullRequestPayload = {
 };
 
 type RepoPayload = {
+  default_branch?: string;
   full_name: string; // "owner/name"
   id: number;
 };
 
 export type PrUpsertDb = Pick<PrismaClient, 'repo' | 'pullRequest' | 'user'>;
 
-/**
- * Extracts the first Jira issue key from a branch name.
- * Jira keys are of the form PROJECT-123 (uppercase letters, optional digits, dash, digits).
- * Returns null if no key is found.
- */
-export function extractJiraKey(branch: string): string | null {
-  const match = /([A-Z][A-Z0-9]+-\d+)/.exec(branch);
-  return match?.[1] ?? null;
-}
+// P5-004 originally defined extractJiraKey here; it now lives in
+// @ai-agents-observability/schemas so ingest extracts session-level keys with
+// the same rules. Re-exported to keep existing imports working.
+export { extractJiraKey } from '@ai-agents-observability/schemas';
 
 export async function upsertPullRequest(
   db: PrUpsertDb,
@@ -68,10 +65,18 @@ async function doUpsert(
 ): Promise<{ repoId: string; prNumber: number }> {
   const [owner, name] = repoPl.full_name.split('/') as [string, string];
 
-  // Lazy-upsert the repo row
+  // Lazy-upsert the repo row (default_branch feeds push→session correlation)
   const repo = await db.repo.upsert({
-    create: { githubId: BigInt(repoPl.id), githubName: name, githubOwner: owner },
-    update: { githubId: BigInt(repoPl.id) },
+    create: {
+      defaultBranch: repoPl.default_branch ?? null,
+      githubId: BigInt(repoPl.id),
+      githubName: name,
+      githubOwner: owner,
+    },
+    update: {
+      githubId: BigInt(repoPl.id),
+      ...(repoPl.default_branch ? { defaultBranch: repoPl.default_branch } : {}),
+    },
     where: { githubOwner_githubName: { githubName: name, githubOwner: owner } },
   });
 
@@ -81,8 +86,9 @@ async function doUpsert(
     ? await db.user.findUnique({ where: { githubLogin: prPl.user.login } })
     : null;
 
-  // P5-004: extract Jira key from head branch name
-  const jiraKey = extractJiraKey(prPl.head.ref);
+  // P5-004: extract Jira key — head branch first (the strongest convention),
+  // then PR title, then PR body, for repos without disciplined branch naming.
+  const jiraKey = extractJiraKeyFromSources(prPl.head.ref, prPl.title, prPl.body);
 
   await db.pullRequest.upsert({
     create: {

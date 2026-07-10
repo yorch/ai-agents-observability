@@ -42,10 +42,10 @@ The primary purpose is **developer experience and effectiveness research** (audi
 
 ### 2.3 Explicitly Deferred
 
-- Bug correlation (link bugs in Jira/Linear back to AI-touched PRs).
+- Bug correlation (link bugs in Jira/Linear back to AI-touched PRs). *(Update: the data foundation now exists — `jira_issues` is synced by the env-gated `sync-jira` job, sessions carry their own `jira_key`, and issue type/status/epic are queryable. The correlation analysis surface itself remains deferred.)*
 - IDE telemetry joins (overlap with VSCode/Cursor sessions).
-- CI / lint / test failure correlation via GitHub Checks API.
-- Revert detection through git history scanning.
+- CI / lint / test failure correlation via GitHub Checks API. *(Update: implemented — P5-005 added the failure counter; per-run outcomes are now stored in `pr_check_runs`.)*
+- Revert detection through git history scanning. *(Update: default-branch `push` webhooks now correlate commits to sessions in `session_commit_links`; full history scanning remains deferred.)*
 - Capture from CI-side agent runs (v1 focuses on interactive developer sessions).
 - Cursor / Aider / Copilot / Windsurf adapters (deferred; data model is forward-compatible).
 
@@ -309,8 +309,10 @@ CREATE TABLE sessions (
   pr_ci_status            TEXT,         -- last check-run conclusion for the PR (P5-005)
   pr_review_decision      TEXT,         -- 'APPROVED'|'CHANGES_REQUESTED'|'REVIEW_REQUIRED' (P5-005)
   github_login            TEXT,         -- denormalized from users for fast filtering
-  github_team             TEXT,         -- primary team slug at session start
-  project_name            TEXT          -- display name derived from repo/cwd
+  github_team             TEXT,         -- primary team name at session start (hook-reported)
+  team_id                 UUID REFERENCES teams(id), -- resolved FK for github_team (ingest; unambiguous names only)
+  project_name            TEXT,         -- display name derived from repo/cwd
+  jira_key                TEXT          -- extracted from git_branch at ingest (session-level ticket attribution)
 );
 CREATE INDEX ON sessions (user_id, started_at DESC);
 CREATE INDEX ON sessions (repo_id, started_at DESC);
@@ -436,6 +438,68 @@ CREATE TABLE session_pr_links (
   FOREIGN KEY (repo_id, pr_number) REFERENCES pull_requests(repo_id, pr_number)
 );
 CREATE INDEX ON session_pr_links (repo_id, pr_number);
+
+Session↔PR linking (P2-004, hardened): the merge-time backfill matches sessions by exact
+head-branch name **or** by the session's start commit appearing in the PR's commit list
+(fetched via the installation token; survives rebases/renames/squash merges). The
+backfill also runs on `opened`/`synchronize` (branch match only, no API call) so open
+PRs link before merge, and the lookback window is configurable via
+`PR_LINK_LOOKBACK_DAYS` (default 7). The `MANUAL` link source is written by the
+"My Agents" session-detail page (own sessions only), which recomputes the PR rollup.
+
+```sql
+-- Per-check-run outcome history (extends the P5-005 failure counter)
+CREATE TABLE pr_check_runs (
+  id                  BIGSERIAL PRIMARY KEY,
+  repo_id             UUID NOT NULL,
+  pr_number           INT NOT NULL,
+  github_id           BIGINT NOT NULL,     -- check_run id; upserted across queued→completed
+  name                TEXT NOT NULL,
+  status              TEXT NOT NULL,
+  conclusion          TEXT,
+  head_sha            TEXT,
+  started_at          TIMESTAMPTZ,
+  completed_at        TIMESTAMPTZ,
+  UNIQUE (repo_id, pr_number, github_id),
+  FOREIGN KEY (repo_id, pr_number) REFERENCES pull_requests(repo_id, pr_number)
+);
+
+-- Submitted PR reviews (pull_request_review webhook); review_count is maintained from these
+CREATE TABLE pr_reviews (
+  id                  BIGSERIAL PRIMARY KEY,
+  repo_id             UUID NOT NULL,
+  pr_number           INT NOT NULL,
+  github_id           BIGINT UNIQUE NOT NULL,
+  reviewer_login      TEXT NOT NULL,
+  state               TEXT NOT NULL,       -- APPROVED | CHANGES_REQUESTED | COMMENTED | DISMISSED
+  submitted_at        TIMESTAMPTZ,
+  FOREIGN KEY (repo_id, pr_number) REFERENCES pull_requests(repo_id, pr_number)
+);
+
+-- Commit→session correlation from default-branch push webhooks (§7.2)
+CREATE TABLE session_commit_links (
+  session_id          UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  repo_id             UUID NOT NULL,
+  commit_sha          TEXT NOT NULL,
+  author_login        TEXT,
+  committed_at        TIMESTAMPTZ,
+  linked_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (session_id, repo_id, commit_sha)
+);
+
+-- Jira issue metadata, synced by the env-gated sync-jira job (§6.5).
+-- pull_requests.jira_key / sessions.jira_key reference `key` as a plain string.
+CREATE TABLE jira_issues (
+  key                 TEXT PRIMARY KEY,
+  summary             TEXT,
+  issue_type          TEXT,
+  status              TEXT,
+  epic_key            TEXT,
+  story_points        DOUBLE PRECISION,
+  assignee            TEXT,
+  resolved_at         TIMESTAMPTZ,
+  synced_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 CREATE TABLE pr_rollups (
   repo_id                  UUID NOT NULL,
@@ -598,6 +662,7 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 | `sweep-abandoned` | every 10 min | Marks stale ACTIVE sessions as ABANDONED (no event for >30min) |
 | `sweep-scratch` | hourly | Cleans up orphaned transcript chunk scratch files |
 | `sync-teams` | hourly | GitHub team membership sync for all orgs |
+| `sync-jira` | every 6h when `JIRA_BASE_URL` + `JIRA_API_TOKEN` are set | Resolves every `jira_key` on PRs/sessions into a `jira_issues` row (summary, type, status, epic, story points) via the Jira REST API |
 | `run-deletions` | every 6h | Processes queued GDPR `DeletionRequest` rows |
 | `sweep-retention` | configurable, default 02:00 UTC | Deletes transcripts (S3 + `transcript_s3_key`) past the global or per-team retention window |
 | `index-transcripts` | configurable, default 03:30 UTC | Populates `transcript_index` for Postgres FTS |
@@ -632,8 +697,11 @@ GitHub does several jobs in this design.
 ### 7.2 As Work-Unit Source (GitHub App, separate from OAuth App)
 
 - Webhook receiver for `pull_request` events: `opened`, `synchronize`, `closed` (with `merged=true`)
-- On merge: finalize PR rollup, compute final cost, link contributing sessions, snapshot lines changed
-- Webhook for `push` on default branch: optional commit→sessions correlation via author + timestamp window
+- On open/synchronize: upsert the PR and link sessions by branch name (open-PR dashboards see links before merge)
+- On merge: finalize PR rollup, compute final cost, link contributing sessions (by branch name and by commit SHA), snapshot lines changed
+- Webhook for `pull_request_review`: per-review rows in `pr_reviews`; `review_count` maintained from submitted reviews
+- Webhook for `check_run`: per-run outcomes in `pr_check_runs` + the P5-005 failure counter
+- Webhook for `push` on default branch: commit→sessions correlation via author + timestamp window into `session_commit_links`
 - API enrichment: PR title, labels, reviewers, time-to-merge, review comment count
 
 ### 7.3 As Context Source for Sessions
@@ -1059,7 +1127,7 @@ These were the decisions needed before Phase 1. Phases 7–9 task work is now do
 | 3   | **Transcript retention period?**                                  | **Resolved (2026-06-06):** Configurable via `TRANSCRIPT_RETENTION_DAYS` env var in `apps/ingest`. Default: 365 days. Set to 0 to disable automatic deletion. The `sweep-retention` job enforces this nightly. |
 | 4   | **Cost data source — client-computed vs Anthropic admin API?**    | Defaulting to client-computed for v1; revisit if accuracy disputes arise                                                                                                                                                       |
 | 5   | **Mandate hook installation, or opt-in?**                         | At 200 devs, opt-in produces sampling bias. Mandated install via existing dev config feels right but needs leadership cover                                                                                                    |
-| 6   | **Does S1 have a branch/PR naming convention that ties to Jira?** | If yes, feature-level rollups are nearly free. If no, PR-level is the practical ceiling for v1                                                                                                                                 |
+| 6   | **Does S1 have a branch/PR naming convention that ties to Jira?** | If yes, feature-level rollups are nearly free. If no, PR-level is the practical ceiling for v1. *(Update: key extraction now also covers PR title/body and the session's branch, and the full Jira REST sync (`sync-jira` job → `jira_issues`) is implemented and env-gated — it activates as soon as `JIRA_BASE_URL`/`JIRA_API_TOKEN` credentials are provided, which remains the open owner-input item.)* |
 | 7   | **Does the dev tools team operate the service, or another team?** | Affects on-call rotation, SLO targets, and infrastructure choices                                                                                                                                                              |
 | 8   | **Are CI-side Claude Code runs in scope?**                        | Currently out of scope for v1. May want to revisit — CI sessions look different (no human prompts) and could distort aggregates                                                                                                |
 | 9   | **PR bot opt-in repo-by-repo, or org-default-on with opt-out?**   | Default-on is more useful but more politically loaded                                                                                                                                                                          |
@@ -1125,3 +1193,4 @@ Beyond Phase 5, the natural extensions:
 | 2026-06-25 | Jorge (with Claude) | Updated §12.3 and §12.4 with P3/P4 dashboard additions (date range selector, period-over-period deltas, team PR tab, org adoption funnel, model governance table, cache efficiency metric); updated §10.2 with cache efficiency and period-delta computation notes; updated status header |
 | 2026-06-25 | Jorge (with Claude) | Full doc audit against codebase: updated status header to reflect current task status; added §6.5 scheduler jobs table; updated §2.2 alerting note; updated §2.4 agent_type enum; added Phase 5 fields to Session + PullRequest + PRRollup DDL; added continuous aggregate definitions to §5.3; removed "Optional" from §5.5; expanded §6.2 hook commands and adapter seam; added INVESTIGATOR role to §8.1; added §8.4 grant model; marked Phases 5–9 status in §12; added additional dashboard routes to §12.4; updated §16 glossary agent_type entry |
 | 2026-06-30 | Jorge (with Claude) | Added §10.3a Human-in-the-loop signals (permission/autonomy mode capture, notification classification, response latency, oversight dashboards, alert ack/silence, `autonomy_surge` rule, AI-authored-code provenance, per-session feedback) following the HITL assessment in `docs/research/2026-06-30-human-in-the-loop-assessment.md` |
+| 2026-07-10 | Jorge (with Claude) | Correlation deepening: session-level `jira_key` + `team_id` FK (§5.2); `pr_check_runs`, `pr_reviews`, `session_commit_links`, `jira_issues` tables + hardened session↔PR backfill (SHA matching, open-PR linking, configurable window, manual link UI) (§5.4); `sync-jira` job (§6.5); `pull_request_review`/`check_run`/`push` webhook handling (§7.2); updated §2.3 and §13 Q6 accordingly |
