@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
+import { JiraLink } from '../../../components/JiraLink';
 import { currentUser } from '../../../lib/auth';
-import { getConfig } from '../../../lib/config';
+import { getJiraBase } from '../../../lib/config';
 import type { PRListItem } from '../../../lib/pr-queries';
 import { getUserPRs } from '../../../lib/pr-queries';
 import { getPrisma } from '../../../lib/prisma';
@@ -136,14 +137,11 @@ function PRsTable({
                   </td>
                   <td className="px-4 py-3 text-right text-xs">
                     {pr.jiraKey ? (
-                      <a
-                        href={jiraBase ? `${jiraBase}/browse/${pr.jiraKey}` : undefined}
-                        target={jiraBase ? '_blank' : undefined}
-                        rel={jiraBase ? 'noopener noreferrer' : undefined}
-                        className={jiraBase ? 'text-blue-400 hover:text-blue-300' : 'text-white/50'}
-                      >
-                        {pr.jiraKey}
-                      </a>
+                      <JiraLink
+                        jiraBase={jiraBase}
+                        jiraKey={pr.jiraKey}
+                        plainClassName="text-white/50"
+                      />
                     ) : (
                       <span className="text-white/20">—</span>
                     )}
@@ -197,7 +195,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
   const stateFilter: 'open' | 'merged' | 'all' =
     stateParam === 'open' || stateParam === 'merged' ? stateParam : 'all';
 
-  const jiraBase = getConfig().jiraBaseUrl?.replace(/\/$/, '') ?? null;
+  const jiraBase = getJiraBase();
 
   const db = getPrisma();
   const { items, total } = await getUserPRs(db, user.id, page, stateFilter);

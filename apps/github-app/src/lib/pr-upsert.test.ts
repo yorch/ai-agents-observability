@@ -62,7 +62,7 @@ describe('upsertPullRequest', () => {
 
     expect(db.repo.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: { githubId: 123n, githubName: 'widget', githubOwner: 'acme' },
+        create: { defaultBranch: null, githubId: 123n, githubName: 'widget', githubOwner: 'acme' },
         where: { githubOwner_githubName: { githubName: 'widget', githubOwner: 'acme' } },
       }),
     );
@@ -97,6 +97,65 @@ describe('upsertPullRequest', () => {
         }),
       }),
     );
+  });
+
+  it('falls back to the PR title, then body, for the Jira key', async () => {
+    const db = makeDb();
+
+    await upsertPullRequest(
+      db,
+      repoPayload,
+      { ...prPayload, head: { ref: 'feature/no-ticket' }, title: 'OBS-77: add widget' },
+      'OPEN',
+    );
+    expect(db.pullRequest.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ jiraKey: 'OBS-77' }) }),
+    );
+
+    await upsertPullRequest(
+      db,
+      repoPayload,
+      {
+        ...prPayload,
+        body: 'Implements OBS-88 as discussed',
+        head: { ref: 'feature/no-ticket' },
+        title: 'add widget',
+      },
+      'OPEN',
+    );
+    expect(db.pullRequest.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ jiraKey: 'OBS-88' }) }),
+    );
+  });
+
+  it('records the repo default branch when the payload carries it', async () => {
+    const db = makeDb();
+
+    await upsertPullRequest(db, { ...repoPayload, default_branch: 'main' }, prPayload, 'OPEN');
+
+    expect(db.repo.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ defaultBranch: 'main' }),
+        update: expect.objectContaining({ defaultBranch: 'main' }),
+      }),
+    );
+  });
+
+  it('does not overwrite diff stats when the payload omits them (abbreviated PR objects)', async () => {
+    const db = makeDb();
+    const { additions, changed_files, deletions, ...slim } = prPayload;
+    void additions;
+    void changed_files;
+    void deletions;
+
+    await upsertPullRequest(db, repoPayload, slim as typeof prPayload, 'OPEN');
+
+    const call = (db.pullRequest.upsert as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      update: Record<string, unknown>;
+    };
+    expect(call.update).not.toHaveProperty('linesAdded');
+    expect(call.update).not.toHaveProperty('linesRemoved');
+    expect(call.update).not.toHaveProperty('filesChanged');
   });
 
   it('retries once on a unique-constraint race', async () => {

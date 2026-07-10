@@ -55,6 +55,7 @@ export {
   EventsBatchSchema,
   EventTypeSchema,
 } from './event';
+export { extractJiraKey, extractJiraKeyFromSources } from './jira';
 export type { NotificationKind } from './notification';
 export {
   BLOCKING_NOTIFICATION_KINDS,

@@ -106,6 +106,39 @@ export function eventsRouter(
         repoIdByKey.set(key, row.id);
       }
 
+      // Resolve hook-reported team names to synced Team rows so sessions carry a
+      // real team_id FK, not just the denormalized github_team string. The hook
+      // sends the team *name* (not the org-qualified slug); only unambiguous
+      // names resolve — a name shared by several teams stays unresolved.
+      const teamNames = new Set<string>();
+      for (const ev of batch.events) {
+        const team = ev.session_context.git?.team;
+        if (team) {
+          teamNames.add(team);
+        }
+      }
+      if (topGit?.team) {
+        teamNames.add(topGit.team);
+      }
+      const teamIdByName = new Map<string, string>();
+      if (teamNames.size > 0) {
+        const teams = await db.team.findMany({
+          select: { id: true, name: true },
+          where: { name: { in: [...teamNames] } },
+        });
+        const ambiguous = new Set<string>();
+        for (const t of teams) {
+          if (teamIdByName.has(t.name)) {
+            ambiguous.add(t.name);
+          } else {
+            teamIdByName.set(t.name, t.id);
+          }
+        }
+        for (const name of ambiguous) {
+          teamIdByName.delete(name);
+        }
+      }
+
       const reqId = c.get('requestId');
       const start = Date.now();
 
@@ -129,6 +162,7 @@ export function eventsRouter(
             repoIdByKey,
             priceTables,
             topGit,
+            teamIdByName,
           );
           return {
             acceptedEvents: acceptedEventsTx,

@@ -1,4 +1,6 @@
 import { isUniqueViolation, type PrismaClient } from '@ai-agents-observability/db';
+import { parseRepoFullName } from '@ai-agents-observability/github';
+import { extractJiraKeyFromSources } from '@ai-agents-observability/schemas';
 
 type PRState = 'OPEN' | 'CLOSED' | 'MERGED';
 
@@ -24,21 +26,17 @@ type PullRequestPayload = {
 };
 
 type RepoPayload = {
+  default_branch?: string;
   full_name: string; // "owner/name"
   id: number;
 };
 
 export type PrUpsertDb = Pick<PrismaClient, 'repo' | 'pullRequest' | 'user'>;
 
-/**
- * Extracts the first Jira issue key from a branch name.
- * Jira keys are of the form PROJECT-123 (uppercase letters, optional digits, dash, digits).
- * Returns null if no key is found.
- */
-export function extractJiraKey(branch: string): string | null {
-  const match = /([A-Z][A-Z0-9]+-\d+)/.exec(branch);
-  return match?.[1] ?? null;
-}
+// P5-004 originally defined extractJiraKey here; it now lives in
+// @ai-agents-observability/schemas so ingest extracts session-level keys with
+// the same rules. Re-exported to keep existing imports working.
+export { extractJiraKey } from '@ai-agents-observability/schemas';
 
 export async function upsertPullRequest(
   db: PrUpsertDb,
@@ -66,12 +64,24 @@ async function doUpsert(
   prPl: PullRequestPayload,
   state: PRState,
 ): Promise<{ repoId: string; prNumber: number }> {
-  const [owner, name] = repoPl.full_name.split('/') as [string, string];
+  const parsed = parseRepoFullName(repoPl.full_name);
+  if (!parsed) {
+    throw new Error(`upsertPullRequest: malformed repository full_name "${repoPl.full_name}"`);
+  }
+  const { name, owner } = parsed;
 
-  // Lazy-upsert the repo row
+  // Lazy-upsert the repo row (default_branch feeds push→session correlation)
   const repo = await db.repo.upsert({
-    create: { githubId: BigInt(repoPl.id), githubName: name, githubOwner: owner },
-    update: { githubId: BigInt(repoPl.id) },
+    create: {
+      defaultBranch: repoPl.default_branch ?? null,
+      githubId: BigInt(repoPl.id),
+      githubName: name,
+      githubOwner: owner,
+    },
+    update: {
+      githubId: BigInt(repoPl.id),
+      ...(repoPl.default_branch ? { defaultBranch: repoPl.default_branch } : {}),
+    },
     where: { githubOwner_githubName: { githubName: name, githubOwner: owner } },
   });
 
@@ -81,8 +91,9 @@ async function doUpsert(
     ? await db.user.findUnique({ where: { githubLogin: prPl.user.login } })
     : null;
 
-  // P5-004: extract Jira key from head branch name
-  const jiraKey = extractJiraKey(prPl.head.ref);
+  // P5-004: extract Jira key — head branch first (the strongest convention),
+  // then PR title, then PR body, for repos without disciplined branch naming.
+  const jiraKey = extractJiraKeyFromSources(prPl.head.ref, prPl.title, prPl.body);
 
   await db.pullRequest.upsert({
     create: {
@@ -109,16 +120,20 @@ async function doUpsert(
     update: {
       authorUserId: authorUser?.id ?? null,
       closedAt: prPl.closed_at ? new Date(prPl.closed_at) : null,
-      filesChanged: prPl.changed_files ?? null,
-      isDraft: prPl.draft ?? null,
       jiraKey,
       labels: prPl.labels.map((l) => l.name),
-      linesAdded: prPl.additions ?? null,
-      linesRemoved: prPl.deletions ?? null,
       mergedAt: prPl.merged_at ? new Date(prPl.merged_at) : null,
       reviewerLogins: prPl.requested_reviewers.map((r) => r.login),
       state,
       title: prPl.title,
+      // Diff-stat fields are absent from the abbreviated PR object that
+      // non-pull_request webhooks (e.g. pull_request_review) carry. Only
+      // overwrite them when the payload actually has them — otherwise a review
+      // event would null out metrics a prior pull_request delivery populated.
+      ...(prPl.additions !== undefined ? { linesAdded: prPl.additions } : {}),
+      ...(prPl.deletions !== undefined ? { linesRemoved: prPl.deletions } : {}),
+      ...(prPl.changed_files !== undefined ? { filesChanged: prPl.changed_files } : {}),
+      ...(prPl.draft !== undefined ? { isDraft: prPl.draft } : {}),
     },
     where: { repoId_prNumber: { prNumber: prPl.number, repoId: repo.id } },
   });

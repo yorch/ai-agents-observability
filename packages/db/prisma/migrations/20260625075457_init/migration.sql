@@ -149,7 +149,9 @@ CREATE TABLE "sessions" (
     "pr_review_decision" TEXT,
     "github_login" TEXT,
     "github_team" TEXT,
+    "team_id" UUID,
     "project_name" TEXT,
+    "jira_key" TEXT,
     "mode" TEXT,
     "total_input_tokens" BIGINT NOT NULL DEFAULT 0,
     "total_output_tokens" BIGINT NOT NULL DEFAULT 0,
@@ -214,6 +216,64 @@ CREATE TABLE "session_pr_links" (
     "link_source" "LinkSource" NOT NULL,
 
     CONSTRAINT "session_pr_links_pkey" PRIMARY KEY ("session_id","repo_id","pr_number")
+);
+
+-- CreateTable
+CREATE TABLE "pr_check_runs" (
+    "id" BIGSERIAL NOT NULL,
+    "repo_id" UUID NOT NULL,
+    "pr_number" INTEGER NOT NULL,
+    "github_id" BIGINT NOT NULL,
+    "name" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "conclusion" TEXT,
+    "head_sha" TEXT,
+    "started_at" TIMESTAMPTZ(6),
+    "completed_at" TIMESTAMPTZ(6),
+
+    CONSTRAINT "pr_check_runs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "pr_reviews" (
+    "id" BIGSERIAL NOT NULL,
+    "repo_id" UUID NOT NULL,
+    "pr_number" INTEGER NOT NULL,
+    "github_id" BIGINT NOT NULL,
+    "reviewer_login" TEXT NOT NULL,
+    "state" TEXT NOT NULL,
+    "submitted_at" TIMESTAMPTZ(6),
+
+    CONSTRAINT "pr_reviews_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "session_commit_links" (
+    "session_id" UUID NOT NULL,
+    "repo_id" UUID NOT NULL,
+    "commit_sha" TEXT NOT NULL,
+    "author_login" TEXT,
+    "committed_at" TIMESTAMPTZ(6),
+    "linked_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "session_commit_links_pkey" PRIMARY KEY ("session_id","repo_id","commit_sha")
+);
+
+-- CreateTable
+CREATE TABLE "jira_issues" (
+    "key" TEXT NOT NULL,
+    "summary" TEXT,
+    "issue_type" TEXT,
+    "status" TEXT,
+    "epic_key" TEXT,
+    "project_key" TEXT,
+    "project_name" TEXT,
+    "story_points" DOUBLE PRECISION,
+    "assignee" TEXT,
+    "resolved_at" TIMESTAMPTZ(6),
+    "synced_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "jira_issues_pkey" PRIMARY KEY ("key")
 );
 
 -- CreateTable
@@ -426,7 +486,40 @@ CREATE INDEX "sessions_status_last_event_at_idx" ON "sessions"("status", "last_e
 CREATE INDEX "sessions_agent_type_started_at_idx" ON "sessions"("agent_type", "started_at" DESC);
 
 -- CreateIndex
+CREATE INDEX "sessions_jira_key_idx" ON "sessions"("jira_key");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "pull_requests_github_id_key" ON "pull_requests"("github_id");
+
+-- CreateIndex
+CREATE INDEX "pull_requests_jira_key_idx" ON "pull_requests"("jira_key");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "pr_check_runs_repo_id_pr_number_github_id_key" ON "pr_check_runs"("repo_id", "pr_number", "github_id");
+
+-- CreateIndex
+CREATE INDEX "pr_check_runs_repo_id_pr_number_completed_at_idx" ON "pr_check_runs"("repo_id", "pr_number", "completed_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "pr_reviews_github_id_key" ON "pr_reviews"("github_id");
+
+-- CreateIndex
+CREATE INDEX "pr_reviews_repo_id_pr_number_idx" ON "pr_reviews"("repo_id", "pr_number");
+
+-- CreateIndex
+CREATE INDEX "session_commit_links_repo_id_commit_sha_idx" ON "session_commit_links"("repo_id", "commit_sha");
+
+-- CreateIndex
+CREATE INDEX "session_commit_links_committed_at_idx" ON "session_commit_links"("committed_at");
+
+-- CreateIndex
+CREATE INDEX "jira_issues_epic_key_idx" ON "jira_issues"("epic_key");
+
+-- CreateIndex
+CREATE INDEX "jira_issues_issue_type_idx" ON "jira_issues"("issue_type");
+
+-- CreateIndex
+CREATE INDEX "jira_issues_project_key_idx" ON "jira_issues"("project_key");
 
 -- CreateIndex
 CREATE INDEX "pull_requests_opened_at_idx" ON "pull_requests"("opened_at");
@@ -502,6 +595,21 @@ ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user
 
 -- AddForeignKey
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_repo_id_fkey" FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "pr_check_runs" ADD CONSTRAINT "pr_check_runs_repo_id_pr_number_fkey" FOREIGN KEY ("repo_id", "pr_number") REFERENCES "pull_requests"("repo_id", "pr_number") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "pr_reviews" ADD CONSTRAINT "pr_reviews_repo_id_pr_number_fkey" FOREIGN KEY ("repo_id", "pr_number") REFERENCES "pull_requests"("repo_id", "pr_number") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "session_commit_links" ADD CONSTRAINT "session_commit_links_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "sessions"("session_id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "session_commit_links" ADD CONSTRAINT "session_commit_links_repo_id_fkey" FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_repo_id_fkey" FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE CASCADE ON UPDATE CASCADE;

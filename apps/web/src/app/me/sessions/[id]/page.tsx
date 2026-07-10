@@ -3,8 +3,10 @@ import { notFound, redirect } from 'next/navigation';
 import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
 import { SessionFeedbackForm } from '@/components/me/SessionFeedbackForm';
+import { SessionPRLinks } from '@/components/me/SessionPRLinks';
 import { ShareSessionButton } from '@/components/me/ShareSessionButton';
 import { currentUser } from '@/lib/auth';
+import { getJiraBase } from '@/lib/config';
 import { getPrisma } from '@/lib/prisma';
 import type {
   ModelBreakdownRow,
@@ -64,11 +66,30 @@ export default async function SessionDetailPage({
     notFound();
   }
 
-  // R11: owner's existing feedback on this session, if any.
-  const feedback = await getPrisma().sessionFeedback.findUnique({
-    select: { note: true, sentiment: true },
-    where: { sessionId_userId: { sessionId: id, userId: user.id } },
-  });
+  // R11: owner's existing feedback on this session, if any — plus the
+  // correlation panel's linked PRs (Jira key / repo come from `session` itself).
+  const [feedback, prLinkRows] = await Promise.all([
+    getPrisma().sessionFeedback.findUnique({
+      select: { note: true, sentiment: true },
+      where: { sessionId_userId: { sessionId: id, userId: user.id } },
+    }),
+    getPrisma().sessionPRLink.findMany({
+      orderBy: { prNumber: 'asc' },
+      select: {
+        linkSource: true,
+        prNumber: true,
+        pullRequest: { select: { state: true, title: true } },
+      },
+      where: { sessionId: id },
+    }),
+  ]);
+
+  const prLinks = prLinkRows.map((l) => ({
+    linkSource: l.linkSource as string,
+    prNumber: l.prNumber,
+    prState: l.pullRequest.state as string,
+    prTitle: l.pullRequest.title,
+  }));
 
   const activeShares = rawShares
     .filter((s): s is typeof s & { expiresAt: Date } => s.expiresAt !== null)
@@ -92,6 +113,15 @@ export default async function SessionDetailPage({
           feedback?.sentiment === 'up' || feedback?.sentiment === 'down' ? feedback.sentiment : null
         }
         initialNote={feedback?.note ?? null}
+      />
+
+      <SessionPRLinks
+        canLink={session.repoId != null}
+        jiraBase={getJiraBase()}
+        jiraKey={session.jiraKey}
+        links={prLinks}
+        repoName={session.repoName}
+        sessionId={id}
       />
 
       <SessionDetailTabs

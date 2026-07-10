@@ -16,6 +16,10 @@ const ConfigSchema = z.object({
   // When set, GET /admin/health requires a matching X-Admin-Secret header.
   // When unset, the admin endpoint is disabled (404) rather than leaking counters.
   admin_secret: z.string().min(1).optional(),
+  // Commit→session correlation window: a default-branch commit is attributed to
+  // a session when it lands within the session's activity window extended by
+  // this many hours (devs routinely commit shortly after the session ends).
+  commit_link_grace_hours: z.coerce.number().int().min(0).default(24),
   database_url: z.string().min(1),
   git_sha: z.string().default('dev'),
   github_app_id: z.coerce.number().int().positive(),
@@ -26,6 +30,9 @@ const ConfigSchema = z.object({
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   node_env: z.enum(['development', 'production', 'test']).default('development'),
   port: z.coerce.number().int().min(1).max(65535).default(4001),
+  // Session↔PR backfill window: sessions starting up to this many days before
+  // the PR opened are link candidates (P2-004 hardening).
+  pr_link_lookback_days: z.coerce.number().int().min(1).default(7),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -33,6 +40,7 @@ export type Config = z.infer<typeof ConfigSchema>;
 export function loadConfig(): Config {
   return ConfigSchema.parse({
     admin_secret: process.env.ADMIN_SECRET,
+    commit_link_grace_hours: process.env.COMMIT_LINK_GRACE_HOURS,
     database_url: process.env.DATABASE_URL,
     git_sha: process.env.GIT_SHA ?? process.env.COMMIT_SHA,
     github_app_id: process.env.GITHUB_APP_ID,
@@ -42,5 +50,6 @@ export function loadConfig(): Config {
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,
     port: process.env.GITHUB_APP_PORT,
+    pr_link_lookback_days: process.env.PR_LINK_LOOKBACK_DAYS,
   });
 }

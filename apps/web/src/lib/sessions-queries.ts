@@ -40,6 +40,7 @@ export type SessionRow = {
   endedAt: Date | null;
   eventCount: number;
   frictionScore: number | null;
+  jiraKey: string | null;
   repoName: string | null;
   sessionId: string;
   shapeLabel: string | null;
@@ -57,6 +58,8 @@ export type SessionDetail = {
   endedAt: Date | null;
   endReason: string | null;
   frictionScore: number | null;
+  jiraKey: string | null;
+  repoId: string | null;
   inputTokens: bigint;
   interruptCount: number;
   os: string | null;
@@ -149,6 +152,7 @@ export async function listSessions(
     endedAt: s.endedAt,
     eventCount: s.toolCallCount + s.userMessageCount,
     frictionScore: s.frictionScore,
+    jiraKey: s.jiraKey,
     repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
     sessionId: s.sessionId,
     shapeLabel: s.shapeLabel,
@@ -187,11 +191,13 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
     frictionScore: s.frictionScore,
     inputTokens: s.totalInputTokens,
     interruptCount: s.interruptCount,
+    jiraKey: s.jiraKey,
     os: s.os,
     outputTokens: s.totalOutputTokens,
     permissionDenyCount: s.permissionDenyCount,
     permissionPromptCount: s.permissionPromptCount,
     primaryModel: s.primaryModel,
+    repoId: s.repoId,
     repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
     sessionId: s.sessionId,
     shapeLabel: s.shapeLabel,

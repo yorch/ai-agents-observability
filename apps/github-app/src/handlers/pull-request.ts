@@ -1,4 +1,10 @@
-import { resolveApiBase } from '@ai-agents-observability/github';
+import { computePRRollup } from '@ai-agents-observability/db';
+import {
+  createGitHubClient,
+  listPRCommitShas,
+  parseRepoFullName,
+  resolveApiBase,
+} from '@ai-agents-observability/github';
 import type { RepoConfig } from '@ai-agents-observability/schemas';
 import { parseRepoConfig } from '@ai-agents-observability/schemas';
 import type { EmitterWebhookEvent } from '@octokit/webhooks';
@@ -7,7 +13,6 @@ import type { Config } from '../config';
 import { backfillPRLinks } from '../lib/backfill-pr-links';
 import { getInstallationToken } from '../lib/installation-token';
 import { buildCommentBody, postPRComment } from '../lib/pr-comment';
-import { computePRRollup } from '../lib/pr-rollup';
 import { upsertPullRequest } from '../lib/pr-upsert';
 import type { AppDb } from '../types';
 
@@ -25,7 +30,26 @@ export async function handlePullRequest(
   logger.info({ action, pr: pr.number, repo: repo.full_name }, 'pr.webhook');
 
   if (action === 'opened' || action === 'synchronize') {
-    await upsertPullRequest(db, repo, pr as Parameters<typeof upsertPullRequest>[2], 'OPEN');
+    const { repoId, prNumber } = await upsertPullRequest(
+      db,
+      repo,
+      pr as Parameters<typeof upsertPullRequest>[2],
+      'OPEN',
+    );
+
+    // Link sessions while the PR is still open (branch-name match only — cheap,
+    // no API call) so open-PR dashboards see links before merge-time reconcile.
+    const linked = await backfillPRLinks(
+      db,
+      repoId,
+      prNumber,
+      pr.head.ref,
+      pr.created_at ? new Date(pr.created_at) : null,
+      { lookbackDays: config.pr_link_lookback_days },
+    );
+    if (linked > 0) {
+      logger.info({ linked, pr: prNumber, repo: repo.full_name }, 'pr.backfill.open');
+    }
     return;
   }
 
@@ -39,12 +63,44 @@ export async function handlePullRequest(
     );
 
     if (pr.merged) {
+      // Resolve owner/name and the installation token once — both the
+      // commit-SHA fetch and the PR comment need them.
+      const parsed = parseRepoFullName(repo.full_name);
+      if (!parsed) {
+        logger.warn({ full_name: repo.full_name, pr: prNumber }, 'pr.bad_repo_name');
+      }
+      let installToken: string | null = null;
+      if (installationId && parsed) {
+        try {
+          const privateKeyPem = Buffer.from(config.github_app_private_key_b64, 'base64').toString(
+            'utf-8',
+          );
+          installToken = await getInstallationToken(
+            installationId,
+            config.github_app_id,
+            privateKeyPem,
+            config.github_host,
+          );
+        } catch (err) {
+          logger.warn({ err, pr: prNumber }, 'pr.install_token_failed');
+        }
+      }
+
+      // At merge, also match sessions by commit SHA — catches rebased/renamed
+      // branches and squash merges that the branch-name match misses.
+      let commitShas: string[] = [];
+      if (installToken && parsed) {
+        const client = createGitHubClient({ host: config.github_host, token: installToken });
+        commitShas = await listPRCommitShas(client, parsed.owner, parsed.name, prNumber);
+      }
+
       const linked = await backfillPRLinks(
         db,
         repoId,
         prNumber,
         pr.head.ref,
         pr.created_at ? new Date(pr.created_at) : null,
+        { commitShas, lookbackDays: config.pr_link_lookback_days },
       );
       logger.info({ linked, pr: prNumber, repo: repo.full_name }, 'pr.backfill');
 
@@ -77,9 +133,9 @@ export async function handlePullRequest(
         logger.info({ originalPrNumber, prNumber }, 'pr.revert.detected');
       }
 
-      if (installationId) {
+      if (installToken && parsed) {
         try {
-          await maybePostComment(db, config, logger, repoId, prNumber, pr, repo, installationId);
+          await maybePostComment(db, config, logger, repoId, prNumber, pr, parsed, installToken);
         } catch (err) {
           logger.warn({ err, pr: prNumber }, 'pr.comment.failed');
         }
@@ -95,26 +151,12 @@ async function maybePostComment(
   repoId: string,
   prNumber: number,
   pr: PullRequestEvent['pull_request'],
-  repo: PullRequestEvent['repository'],
-  installationId: number,
+  // Pre-validated by parseRepoFullName in the caller; URL-encoded below before
+  // interpolating into the fetch URL (defense-in-depth against path injection,
+  // even though the payload is signed).
+  { name, owner }: { name: string; owner: string },
+  installToken: string,
 ): Promise<void> {
-  const privateKeyPem = Buffer.from(config.github_app_private_key_b64, 'base64').toString('utf-8');
-  const installToken = await getInstallationToken(
-    installationId,
-    config.github_app_id,
-    privateKeyPem,
-    config.github_host,
-  );
-
-  // full_name should be exactly "owner/name". Validate rather than trust the
-  // payload, and URL-encode each segment before interpolating into the fetch URL
-  // (defense-in-depth against path injection, even though the payload is signed).
-  const parts = repo.full_name.split('/');
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    logger.warn({ full_name: repo.full_name, pr: prNumber }, 'pr.comment.bad_repo_name');
-    return;
-  }
-  const [owner, name] = parts as [string, string];
   const apiBase = resolveApiBase(config.github_host);
 
   const mergeCommitSha = (pr as { merge_commit_sha?: string | null }).merge_commit_sha;
@@ -162,7 +204,7 @@ async function maybePostComment(
   const body = buildCommentBody(rollup, repoConfig, agentTypes);
   const posted = await postPRComment(owner, name, prNumber, body, installToken, config.github_host);
   logger.info(
-    { posted, pr: prNumber, repo: repo.full_name },
+    { posted, pr: prNumber, repo: `${owner}/${name}` },
     posted ? 'pr.comment.posted' : 'pr.comment.skipped_existing',
   );
 }

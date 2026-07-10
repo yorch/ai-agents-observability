@@ -1,4 +1,7 @@
-import type { PrismaClient } from '@ai-agents-observability/db';
+// PR rollup computation. Lives in packages/db (not apps/github-app) because two
+// writers need it: the webhook merge path and the web app's manual link/unlink
+// action — both must produce identical rollups.
+import type { PrismaClient } from './generated/client/client';
 
 type RollupDb = Pick<PrismaClient, 'sessionPRLink' | 'session' | 'pRRollup' | 'pullRequest'>;
 

@@ -111,3 +111,49 @@ export async function getPRDetails(
     return null;
   }
 }
+
+/**
+ * Parse a webhook `repository.full_name` ("owner/name") into its segments.
+ * Returns null on anything malformed (missing slash, empty segment, extra
+ * segments) so callers can skip/log instead of writing garbage rows.
+ */
+export function parseRepoFullName(fullName: string): { name: string; owner: string } | null {
+  const parts = fullName.split('/');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return null;
+  }
+  return { name: parts[1], owner: parts[0] };
+}
+
+/**
+ * List the commit SHAs belonging to a PR. Best-effort: returns [] on any
+ * error — SHA matching is an enhancement on top of branch-name matching,
+ * never a reason to fail a webhook. Bounded at 300 commits; PRs beyond that
+ * are extreme outliers and their sessions still link by branch name.
+ */
+export async function listPRCommitShas(
+  client: GitHubClient,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<string[]> {
+  const MAX_COMMITS = 300;
+  try {
+    let fetched = 0;
+    const commits = await client.paginate(
+      client.rest.pulls.listCommits,
+      { owner, per_page: 100, pull_number: prNumber, repo },
+      (response, done) => {
+        fetched += response.data.length;
+        // Stop paginating at the cap — don't walk a 5000-commit PR.
+        if (fetched >= MAX_COMMITS) {
+          done();
+        }
+        return response.data;
+      },
+    );
+    return commits.slice(0, MAX_COMMITS).map((c) => c.sha);
+  } catch {
+    return [];
+  }
+}

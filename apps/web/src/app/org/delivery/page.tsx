@@ -1,6 +1,12 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { StatCard } from '@/components/team-org/StatCard';
-import { getOrgPRDeliveryStats, getPRWeeklyTrend, getTopReposByPR } from '@/lib/org-queries';
+import {
+  getOrgCheckHealth,
+  getOrgPRDeliveryStats,
+  getOrgReviewHealth,
+  getPRWeeklyTrend,
+  getTopReposByPR,
+} from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
@@ -27,10 +33,12 @@ export default async function OrgDeliveryPage({
   const since = daysAgo(range);
   const trendWeeks = range === 7 ? 4 : range === 30 ? 12 : 26;
 
-  const [stats, weeklyTrend, topRepos] = await Promise.all([
+  const [stats, weeklyTrend, topRepos, reviews, checkHealth] = await Promise.all([
     getOrgPRDeliveryStats(since),
     getPRWeeklyTrend(trendWeeks),
     getTopReposByPR(since),
+    getOrgReviewHealth(since),
+    getOrgCheckHealth(since),
   ]);
 
   const maxPRs = Math.max(...weeklyTrend.map((w) => w.mergedPRs), 1);
@@ -113,6 +121,77 @@ export default async function OrgDeliveryPage({
           </div>
         </section>
       )}
+
+      {/* Review health */}
+      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-white/70">Review health ({range}d)</h2>
+        {reviews.reviewedPrs === 0 ? (
+          <p className="text-sm text-white/40">
+            No submitted reviews recorded in this window. Review data arrives via the
+            pull_request_review webhook.
+          </p>
+        ) : (
+          <div className="grid grid-cols-3 gap-4">
+            <StatCard
+              label="Median time to first review"
+              value={fmtHours(reviews.medianHoursToFirstReview)}
+              sub="from PR open to first submitted review"
+            />
+            <StatCard
+              label="Reviews / PR"
+              value={reviews.avgReviewsPerPr.toFixed(1)}
+              sub={`${reviews.totalReviews} reviews on ${reviews.reviewedPrs} PRs`}
+            />
+            <StatCard
+              label="Reviewed PRs"
+              value={String(reviews.reviewedPrs)}
+              sub="PRs with at least one submitted review"
+            />
+          </div>
+        )}
+      </section>
+
+      {/* CI check health */}
+      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-white/70">Failing CI checks ({range}d)</h2>
+        {checkHealth.length === 0 ? (
+          <p className="text-sm text-white/40">
+            No failing check runs recorded in this window. Per-run outcomes arrive via the check_run
+            webhook.
+          </p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-white/40 text-left">
+                <th className="pb-2 font-medium">Check</th>
+                <th className="pb-2 font-medium text-right">Runs</th>
+                <th className="pb-2 font-medium text-right">Failures</th>
+                <th className="pb-2 font-medium text-right">Failure rate</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {checkHealth.map((c) => (
+                <tr key={c.checkName}>
+                  <td className="py-2 font-mono text-xs text-white/80">{c.checkName}</td>
+                  <td className="py-2 text-right text-white/60">{c.totalRuns}</td>
+                  <td className="py-2 text-right text-white/60">{c.failures}</td>
+                  <td
+                    className={`py-2 text-right font-mono ${
+                      c.failureRate > 0.3 ? 'text-yellow-300' : 'text-white/60'
+                    }`}
+                  >
+                    {(c.failureRate * 100).toFixed(0)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p className="text-xs text-white/30">
+          Checks that fail often on agent-linked PRs are either guarding real quality issues or
+          flaky — both worth investigating.
+        </p>
+      </section>
 
       {/* Top repos by PR activity */}
       <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">

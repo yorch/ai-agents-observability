@@ -221,3 +221,13 @@ See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` rout
 | [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | ready | — | M | P10-001 |
 | [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | ready | — | M | P10-002, P9-001 |
 | [P10-006](./P10-006-recommendation-validation-loop.md) | Recommendation validation loop | ready | — | M | P10-001, P10-003 |
+
+---
+
+## Phase 11 — Correlation & Jira Integration
+
+Deepens the session↔PR↔repo↔Jira correlation spine: commit-SHA + open-PR link backfill, review/check/push webhook capture, session-level Jira keys, the env-gated Jira issue sync, and the ROI/delivery surfaces on top. Shipped ahead of Phase 10 as a single vertical slice.
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P11-001](./P11-001-correlation-deepening.md) | Correlation deepening (sessions ↔ PRs ↔ repos ↔ Jira) | done | claude | L | P2-004, P5-004, P5-005 |

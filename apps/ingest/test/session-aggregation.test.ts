@@ -228,7 +228,7 @@ describe('upsertSessions', () => {
 
     await upsertSessions(db, events, 'u1', new Map(), PRICE_TABLES);
     const call = db.captured[0];
-    expect(call?.sql).toContain('project_name, mode,');
+    expect(call?.sql).toContain('team_id, project_name, jira_key, mode,');
     expect(call?.sql).toContain('user_message_count, notification_count, primary_model');
     expect(call?.sql).toContain(
       'permission_prompt_count = sessions.permission_prompt_count + EXCLUDED.permission_prompt_count',
@@ -238,6 +238,61 @@ describe('upsertSessions', () => {
     );
     // Representative mode is chosen by the autonomy-rank CASE on conflict.
     expect(call?.sql).toContain('WHEN EXCLUDED.mode IS NULL THEN sessions.mode');
+  });
+
+  it('extracts a session-level Jira key from the git branch', async () => {
+    const db = makeDb();
+    const event = makeEvent({
+      event_id: '01906a44-0000-7000-8000-000000000001',
+      event_type: 'SessionStart',
+      session_context: {
+        cwd: '/home/dev/proj',
+        git: {
+          branch: 'feat/PROJ-123-do-thing',
+          commit: 'abc',
+          is_dirty: false,
+          owner: 'acme',
+          pr_number: null,
+          remote_url: 'git@github.com:acme/proj.git',
+          repo: 'proj',
+        },
+        is_resume: false,
+        mode: 'normal',
+      },
+    });
+
+    await upsertSessions(db, [event], 'u1', new Map(), PRICE_TABLES);
+    expect(db.captured[0]?.params).toContain('PROJ-123');
+    expect(db.captured[0]?.sql).toContain(
+      'jira_key             = COALESCE(sessions.jira_key, EXCLUDED.jira_key)',
+    );
+  });
+
+  it('resolves team_id from the hook-reported team name when unambiguous', async () => {
+    const db = makeDb();
+    const event = makeEvent({
+      event_id: '01906a44-0000-7000-8000-000000000001',
+      event_type: 'SessionStart',
+      session_context: {
+        cwd: '/home/dev/proj',
+        git: {
+          branch: 'main',
+          commit: 'abc',
+          is_dirty: false,
+          owner: 'acme',
+          pr_number: null,
+          remote_url: 'git@github.com:acme/proj.git',
+          repo: 'proj',
+          team: 'Platform',
+        },
+        is_resume: false,
+        mode: 'normal',
+      },
+    });
+    const teamIds = new Map<string, string>([['Platform', 'team-uuid-1']]);
+
+    await upsertSessions(db, [event], 'u1', new Map(), PRICE_TABLES, null, teamIds);
+    expect(db.captured[0]?.params).toContain('team-uuid-1');
   });
 
   it('records the least-supervised mode observed across the batch', async () => {

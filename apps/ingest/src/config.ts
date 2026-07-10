@@ -15,6 +15,18 @@ const ConfigSchema = z.object({
   database_url: z.string().min(1),
   git_sha: z.string().default('dev'),
   github_sync_token: z.string().optional(),
+  // Jira issue-metadata sync (full P5-004 integration). The sync-jira job runs
+  // only when jira_base_url AND jira_api_token are both set. With jira_email
+  // set, auth is Basic email:token (Jira Cloud); without it, Bearer PAT
+  // (Jira Server/DC).
+  jira_api_token: z.string().optional(),
+  jira_base_url: z.string().url().optional(),
+  jira_email: z.string().optional(),
+  // Classic-project "Epic Link" custom field (e.g. customfield_10014); modern
+  // projects use `parent` and don't need this.
+  jira_epic_link_field: z.string().optional(),
+  // Instance-specific custom field carrying story points (e.g. customfield_10016).
+  jira_story_points_field: z.string().optional(),
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   node_env: z.enum(['development', 'production', 'test']).default('development'),
   openai_api_key: z.string().optional(),
@@ -68,6 +80,11 @@ export function loadConfig(): Config {
     database_url: process.env.DATABASE_URL,
     git_sha: process.env.GIT_SHA ?? process.env.COMMIT_SHA,
     github_sync_token: process.env.GITHUB_SYNC_TOKEN,
+    jira_api_token: process.env.JIRA_API_TOKEN,
+    jira_base_url: process.env.JIRA_BASE_URL,
+    jira_email: process.env.JIRA_EMAIL,
+    jira_epic_link_field: process.env.JIRA_EPIC_LINK_FIELD,
+    jira_story_points_field: process.env.JIRA_STORY_POINTS_FIELD,
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,
     openai_api_key: process.env.OPENAI_API_KEY,
