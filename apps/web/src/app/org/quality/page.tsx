@@ -86,35 +86,34 @@ export default async function OrgQualityPage({
                 const rateCls = smallSample ? 'text-white/30' : 'text-white/80';
                 const rateCell = (outcome: BandOutcomeKey, count: number) => {
                   const p = pValues.get(`${b.band}:${outcome}`);
+                  const significant = p !== undefined && p < SIGNIFICANCE_ALPHA;
                   return (
-                    <td
-                      className={`py-2 text-right font-mono ${rateCls}`}
-                      title={
-                        p === undefined
-                          ? undefined
-                          : `${fmtPValue(p)} vs low band (two-tailed Fisher's exact)`
-                      }
-                    >
+                    <td className={`py-2 text-right font-mono align-top ${rateCls}`}>
                       {fmtPct(count / b.mergedPrs)}
-                      {p !== undefined && p < SIGNIFICANCE_ALPHA && (
-                        <span className="text-amber-400">*</span>
+                      {significant && <span className="text-amber-400">*</span>}
+                      {p !== undefined && (
+                        <span
+                          className={`block text-[10px] ${significant ? 'text-amber-400' : 'text-white/30'}`}
+                        >
+                          {fmtPValue(p)}
+                        </span>
                       )}
                     </td>
                   );
                 };
                 return (
                   <tr key={b.band}>
-                    <td className="py-2 text-white/80">
+                    <td className="py-2 align-top text-white/80">
                       {BAND_LABELS[b.band]}
                       {smallSample && (
                         <span className="ml-2 text-xs text-white/30">small sample</span>
                       )}
                     </td>
-                    <td className="py-2 text-right text-white/60">{b.mergedPrs}</td>
+                    <td className="py-2 text-right align-top text-white/60">{b.mergedPrs}</td>
                     {rateCell('reverted', b.reverted)}
                     {rateCell('ciFailed', b.ciFailed)}
                     {rateCell('bugLinked', b.bugLinked)}
-                    <td className={`py-2 text-right font-mono ${rateCls}`}>
+                    <td className={`py-2 text-right font-mono align-top ${rateCls}`}>
                       {b.avgCostUsd > 0 ? fmtUsd(b.avgCostUsd) : '—'}
                     </td>
                   </tr>
@@ -131,7 +130,7 @@ export default async function OrgQualityPage({
           {pValues.size > 0 && (
             <>
               {' '}
-              Hover a medium/high rate for its two-tailed Fisher&apos;s-exact p-value vs the low
+              Medium/high rates show the two-tailed Fisher&apos;s-exact p-value vs the low-friction
               band; <span className="text-amber-400">*</span> marks p &lt; {SIGNIFICANCE_ALPHA}. Avg
               cost is not tested (no variance data).
             </>

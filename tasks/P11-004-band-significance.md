@@ -21,9 +21,10 @@ no way to tell a real delta from noise beyond the small-sample muting.
   deferring. Implemented dependency-free in `apps/web/src/lib/stats.ts`
   (log-factorial hypergeometric enumeration, matching R's `fisher.test` /
   scipy's `fisher_exact`).
-- **Surfacing**: every medium/high rate cell carries the p-value vs the low
-  band as a hover tooltip; rates significant at p < 0.05 get an amber `*`.
-  No baseline band → no tests, page renders as before.
+- **Surfacing**: every medium/high rate cell shows the p-value vs the low
+  band inline beneath the rate (small muted text — no hover needed, works on
+  touch); rates significant at p < 0.05 get an amber `*` and an amber
+  p-value. No baseline band → no tests, page renders as before.
 - **Not tested**: avg cost per PR — it is a mean without variance data, so no
   honest test exists at the query's current shape. Called out in the footnote.
 - The MIN_SAMPLE muting stays: significance and sample-size smallness are
@@ -35,7 +36,7 @@ no way to tell a real delta from noise beyond the small-sample muting.
 - [x] `fisherExactTwoTailed` matches R/scipy reference values
       ([[1,9],[11,3]] → 0.0027594; [[3,1],[1,3]] → 0.4857143) and returns 1
       on degenerate margins.
-- [x] Medium/high rate cells show a p-value tooltip; `*` appears only below
+- [x] Medium/high rate cells show the p-value inline; `*` appears only below
       p < 0.05; nothing renders when the low band is absent or empty.
 - [x] All four gates pass.
 
