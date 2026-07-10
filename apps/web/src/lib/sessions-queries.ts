@@ -40,6 +40,7 @@ export type SessionRow = {
   endedAt: Date | null;
   eventCount: number;
   frictionScore: number | null;
+  jiraKey: string | null;
   repoName: string | null;
   sessionId: string;
   shapeLabel: string | null;
@@ -149,6 +150,7 @@ export async function listSessions(
     endedAt: s.endedAt,
     eventCount: s.toolCallCount + s.userMessageCount,
     frictionScore: s.frictionScore,
+    jiraKey: s.jiraKey,
     repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
     sessionId: s.sessionId,
     shapeLabel: s.shapeLabel,

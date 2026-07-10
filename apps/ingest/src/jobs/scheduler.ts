@@ -40,9 +40,12 @@ const CONFIGURABLE_JOBS = [
   'evaluate-alerts',
 ] as const;
 
-// All job names accepted by the manual-trigger endpoint.
+// All job names accepted by the manual-trigger endpoint. sync-jira is included
+// so an operator can trigger a first sync right after configuring credentials —
+// it no-ops with a warning when Jira is not configured.
 const ALL_KNOWN_JOBS = new Set<string>([
   'sync-teams',
+  'sync-jira',
   'sweep-abandoned',
   'sweep-scratch',
   'run-deletions',

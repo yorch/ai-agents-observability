@@ -67,6 +67,7 @@ const jiraConfig =
         apiToken: config.jira_api_token,
         baseUrl: config.jira_base_url,
         ...(config.jira_email ? { email: config.jira_email } : {}),
+        ...(config.jira_epic_link_field ? { epicLinkField: config.jira_epic_link_field } : {}),
         ...(config.jira_story_points_field
           ? { storyPointsField: config.jira_story_points_field }
           : {}),

@@ -33,6 +33,8 @@ function formatDate(d: Date): string {
 type SessionsTableProps = {
   basePath?: string;
   currentPage: number;
+  // Jira browse base URL (NEXT_PUBLIC_JIRA_BASE_URL); keys render as plain text when unset.
+  jiraBase?: string | null;
   sessions: SessionRow[];
   total: number;
 };
@@ -44,6 +46,7 @@ export function SessionsTable({
   total,
   currentPage,
   basePath = '/me/sessions',
+  jiraBase = null,
 }: SessionsTableProps) {
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const hasPrev = currentPage > 1;
@@ -65,6 +68,7 @@ export function SessionsTable({
             <tr className="border-b border-border text-text-3 text-xs">
               <th className="text-left px-4 py-3">Started</th>
               <th className="text-left px-4 py-3">Repo</th>
+              <th className="text-left px-4 py-3">Ticket</th>
               <th className="text-left px-4 py-3">Shape</th>
               <th className="text-right px-4 py-3">Duration</th>
               <th className="text-right px-4 py-3">Events</th>
@@ -102,6 +106,24 @@ export function SessionsTable({
                   </td>
                   <td className="px-4 py-3 text-text-2 max-w-[200px] truncate">
                     {s.repoName ?? '—'}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    {s.jiraKey ? (
+                      jiraBase ? (
+                        <a
+                          href={`${jiraBase}/browse/${s.jiraKey}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent hover:opacity-80 transition-opacity"
+                        >
+                          {s.jiraKey}
+                        </a>
+                      ) : (
+                        <span className="text-text-2">{s.jiraKey}</span>
+                      )
+                    ) : (
+                      <span className="text-text-3">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {s.shapeLabel ? (

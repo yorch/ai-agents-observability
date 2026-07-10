@@ -4,8 +4,10 @@ import { getConfig } from '@/lib/config';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
   getCiCostCorrelation,
+  getCommitProvenance,
   getOrgRoiSummary,
   getRoiByRepo,
+  getSpendByEpic,
   getSpendByJiraKey,
 } from '@/lib/roi-queries';
 import { requireOrgViewer } from '@/lib/roles';
@@ -29,10 +31,12 @@ export default async function OrgRoiPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 90) as 7 | 30 | 90;
   const since = daysAgo(range);
 
-  const [summary, ci, jiraSpend, repoRoi] = await Promise.all([
+  const [summary, ci, jiraSpend, epicSpend, commits, repoRoi] = await Promise.all([
     getOrgRoiSummary(since),
     getCiCostCorrelation(since),
     getSpendByJiraKey(since),
+    getSpendByEpic(since),
+    getCommitProvenance(since),
     getRoiByRepo(since),
   ]);
 
@@ -112,48 +116,145 @@ export default async function OrgRoiPage({
         )}
       </section>
 
-      {/* Spend by Jira initiative */}
+      {/* Spend by Jira ticket */}
       <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white/70">Spend by Jira initiative ({range}d)</h2>
+        <h2 className="text-sm font-semibold text-white/70">Spend by Jira ticket ({range}d)</h2>
         {jiraSpend.length === 0 ? (
           <p className="text-sm text-white/40">
-            No PRs with a Jira key in this window. Jira keys are extracted from PR branch names.
+            No PRs or sessions with a Jira key in this window. Jira keys are extracted from branch
+            names, PR titles, and PR bodies.
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-white/40 text-left">
-                <th className="pb-2 font-medium">Jira key</th>
+                <th className="pb-2 font-medium">Ticket</th>
+                <th className="pb-2 font-medium">Status</th>
                 <th className="pb-2 font-medium text-right">PRs</th>
                 <th className="pb-2 font-medium text-right">Merged</th>
-                <th className="pb-2 font-medium text-right">Agent spend</th>
+                <th className="pb-2 font-medium text-right">Sessions</th>
+                <th className="pb-2 font-medium text-right">Session spend</th>
+                <th className="pb-2 font-medium text-right">PR spend</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {jiraSpend.map((j) => (
                 <tr key={j.jiraKey}>
-                  <td className="py-2 font-mono text-xs">
-                    {jiraBase ? (
-                      <a
-                        href={`${jiraBase}/browse/${j.jiraKey}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-400 hover:text-blue-300"
-                      >
-                        {j.jiraKey}
-                      </a>
-                    ) : (
-                      <span className="text-white/80">{j.jiraKey}</span>
+                  <td className="py-2">
+                    <span className="font-mono text-xs">
+                      {jiraBase ? (
+                        <a
+                          href={`${jiraBase}/browse/${j.jiraKey}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-300"
+                        >
+                          {j.jiraKey}
+                        </a>
+                      ) : (
+                        <span className="text-white/80">{j.jiraKey}</span>
+                      )}
+                    </span>
+                    {j.summary && (
+                      <span className="ml-2 text-xs text-white/50">
+                        {j.summary.length > 60 ? `${j.summary.slice(0, 60)}…` : j.summary}
+                      </span>
                     )}
+                  </td>
+                  <td className="py-2 text-xs text-white/50">
+                    {j.status ?? '—'}
+                    {j.issueType ? ` · ${j.issueType}` : ''}
                   </td>
                   <td className="py-2 text-right text-white/60">{j.prCount}</td>
                   <td className="py-2 text-right text-white/60">{j.mergedPrs}</td>
+                  <td className="py-2 text-right text-white/60">{j.sessionCount}</td>
+                  <td className="py-2 text-right font-mono">{fmtUsd(j.sessionCostUsd)}</td>
                   <td className="py-2 text-right font-mono">{fmtUsd(j.totalCostUsd)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        <p className="text-xs text-white/30">
+          Session spend counts every session on the ticket's branch — including work that never
+          reached a PR. PR spend is the rollup of sessions linked to the ticket's PRs. Ticket
+          status/summary appear once the Jira sync job is configured.
+        </p>
+      </section>
+
+      {/* Spend by epic */}
+      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-white/70">Spend by epic ({range}d)</h2>
+        {epicSpend.length === 0 ? (
+          <p className="text-sm text-white/40">
+            No epic-level data. Epics require the Jira sync job (JIRA_BASE_URL + JIRA_API_TOKEN) to
+            have resolved ticket metadata.
+          </p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-white/40 text-left">
+                <th className="pb-2 font-medium">Epic</th>
+                <th className="pb-2 font-medium text-right">Tickets</th>
+                <th className="pb-2 font-medium text-right">Merged PRs</th>
+                <th className="pb-2 font-medium text-right">Session spend</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {epicSpend.map((e) => (
+                <tr key={e.epicKey}>
+                  <td className="py-2">
+                    <span className="font-mono text-xs">
+                      {jiraBase ? (
+                        <a
+                          href={`${jiraBase}/browse/${e.epicKey}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-300"
+                        >
+                          {e.epicKey}
+                        </a>
+                      ) : (
+                        <span className="text-white/80">{e.epicKey}</span>
+                      )}
+                    </span>
+                    {e.epicSummary && (
+                      <span className="ml-2 text-xs text-white/50">
+                        {e.epicSummary.length > 60
+                          ? `${e.epicSummary.slice(0, 60)}…`
+                          : e.epicSummary}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 text-right text-white/60">{e.ticketCount}</td>
+                  <td className="py-2 text-right text-white/60">{e.mergedPrs}</td>
+                  <td className="py-2 text-right font-mono">{fmtUsd(e.sessionCostUsd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* Merged-work provenance */}
+      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-white/70">Merged-work provenance ({range}d)</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <StatCard
+            label="Agent-touched commits"
+            value={String(commits.linkedCommits)}
+            sub="default-branch commits attributed to a session"
+          />
+          <StatCard
+            label="Sessions with merged commits"
+            value={String(commits.sessionsWithCommits)}
+            sub="sessions whose work landed on the default branch"
+          />
+        </div>
+        <p className="text-xs text-white/30">
+          Attribution matches default-branch pushes to sessions by repo, author, and time window —
+          it requires the code to have survived review, unlike lines-of-code metrics.
+        </p>
       </section>
 
       {/* ROI by repo */}

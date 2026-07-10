@@ -22,6 +22,9 @@ const ConfigSchema = z.object({
   jira_api_token: z.string().optional(),
   jira_base_url: z.string().url().optional(),
   jira_email: z.string().optional(),
+  // Classic-project "Epic Link" custom field (e.g. customfield_10014); modern
+  // projects use `parent` and don't need this.
+  jira_epic_link_field: z.string().optional(),
   // Instance-specific custom field carrying story points (e.g. customfield_10016).
   jira_story_points_field: z.string().optional(),
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
@@ -80,6 +83,7 @@ export function loadConfig(): Config {
     jira_api_token: process.env.JIRA_API_TOKEN,
     jira_base_url: process.env.JIRA_BASE_URL,
     jira_email: process.env.JIRA_EMAIL,
+    jira_epic_link_field: process.env.JIRA_EPIC_LINK_FIELD,
     jira_story_points_field: process.env.JIRA_STORY_POINTS_FIELD,
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,

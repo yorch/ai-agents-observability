@@ -118,4 +118,23 @@ describe('runSyncJira', () => {
 
     expect(fetchMock.mock.calls[0]?.[1]?.headers?.Authorization).toBe('Bearer pat');
   });
+
+  it('falls back to the Epic Link custom field when parent is absent (classic projects)', async () => {
+    const db = makeDb({ prKeys: ['OBS-1'], sessionKeys: [] });
+    const fetchMock = vi.fn().mockResolvedValue(
+      issueResponse({
+        customfield_10014: 'OBS-500',
+        summary: 'classic project issue',
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await runSyncJira(db, { ...CONFIG, epicLinkField: 'customfield_10014' });
+
+    expect(db.jiraIssue.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ epicKey: 'OBS-500' }),
+      }),
+    );
+  });
 });

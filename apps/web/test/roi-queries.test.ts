@@ -97,18 +97,56 @@ describe('getCiCostCorrelation', () => {
 });
 
 describe('getSpendByJiraKey', () => {
-  it('maps Jira-key spend rows', async () => {
+  it('maps dual-grain (PR + session) Jira-key spend rows with issue metadata', async () => {
     mockPrisma.$queryRaw.mockResolvedValueOnce([
-      { jira_key: 'PROJ-1', merged_prs: 3n, pr_count: 4n, total_cost: 9.5 },
-      { jira_key: 'PROJ-2', merged_prs: 1n, pr_count: 1n, total_cost: 2 },
+      {
+        issue_type: 'Story',
+        jira_key: 'PROJ-1',
+        merged_prs: 3n,
+        pr_cost: 9.5,
+        pr_count: 4n,
+        session_cost: 12.25,
+        session_count: 6n,
+        status: 'In Progress',
+        summary: 'Build the widget',
+      },
+      {
+        issue_type: null,
+        jira_key: 'PROJ-2',
+        merged_prs: null,
+        pr_cost: null,
+        pr_count: null,
+        session_cost: 2,
+        session_count: 1n,
+        status: null,
+        summary: null,
+      },
     ]);
 
     const { getSpendByJiraKey } = await import('../src/lib/roi-queries.js');
     const rows = await getSpendByJiraKey(new Date('2026-01-01'));
 
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toEqual({ jiraKey: 'PROJ-1', mergedPrs: 3, prCount: 4, totalCostUsd: 9.5 });
-    expect(rows[1]?.totalCostUsd).toBe(2);
+    expect(rows[0]).toEqual({
+      issueType: 'Story',
+      jiraKey: 'PROJ-1',
+      mergedPrs: 3,
+      prCount: 4,
+      sessionCostUsd: 12.25,
+      sessionCount: 6,
+      status: 'In Progress',
+      summary: 'Build the widget',
+      totalCostUsd: 9.5,
+    });
+    // Session-only ticket (never reached a PR): PR-side aggregates coerce to 0.
+    expect(rows[1]).toMatchObject({
+      jiraKey: 'PROJ-2',
+      mergedPrs: 0,
+      prCount: 0,
+      sessionCostUsd: 2,
+      sessionCount: 1,
+      totalCostUsd: 0,
+    });
   });
 });
 

@@ -118,38 +118,169 @@ export async function getCiCostCorrelation(since: Date): Promise<CiCostCorrelati
 }
 
 export type JiraSpendRow = {
+  issueType: string | null;
   jiraKey: string;
   mergedPrs: number;
   prCount: number;
+  sessionCostUsd: number;
+  sessionCount: number;
+  status: string | null;
+  summary: string | null;
   totalCostUsd: number;
 };
 
-// Cost allocation by Jira initiative: which tracked pieces of work are absorbing
-// the most agent spend. jira_key is extracted from the PR branch/title (P5-004).
+// Cost allocation by Jira ticket. Two spend grains per key: PR-rollup spend
+// (P5-004, key from the PR branch/title) and direct session spend (key from the
+// session's git branch) — the session grain also counts work that never reached
+// a PR. Issue metadata comes from jira_issues when the sync-jira job has run.
 export async function getSpendByJiraKey(since: Date, limit = 15): Promise<JiraSpendRow[]> {
   const rows = await getPrisma().$queryRaw<
-    { jira_key: string; merged_prs: bigint; pr_count: bigint; total_cost: number | null }[]
+    {
+      issue_type: string | null;
+      jira_key: string;
+      merged_prs: bigint | null;
+      pr_count: bigint | null;
+      pr_cost: number | null;
+      session_cost: number | null;
+      session_count: bigint | null;
+      status: string | null;
+      summary: string | null;
+    }[]
   >(Prisma.sql`
+    WITH pr_spend AS (
+      SELECT
+        pr.jira_key                                              AS jira_key,
+        COUNT(pr.github_id)                                      AS pr_count,
+        COUNT(pr.github_id) FILTER (WHERE pr.state = 'MERGED')   AS merged_prs,
+        COALESCE(SUM(prr.total_cost_usd), 0)                     AS pr_cost
+      FROM pull_requests pr
+      LEFT JOIN pr_rollups prr
+        ON prr.repo_id = pr.repo_id AND prr.pr_number = pr.pr_number
+      WHERE pr.opened_at >= ${since} AND pr.jira_key IS NOT NULL
+      GROUP BY pr.jira_key
+    ),
+    session_spend AS (
+      SELECT
+        s.jira_key                       AS jira_key,
+        COUNT(*)                         AS session_count,
+        COALESCE(SUM(s.total_cost_usd), 0) AS session_cost
+      FROM sessions s
+      WHERE s.started_at >= ${since} AND s.jira_key IS NOT NULL
+      GROUP BY s.jira_key
+    )
     SELECT
-      pr.jira_key                                              AS jira_key,
-      COUNT(pr.github_id)                                      AS pr_count,
-      COUNT(pr.github_id) FILTER (WHERE pr.state = 'MERGED')   AS merged_prs,
-      COALESCE(SUM(prr.total_cost_usd), 0)                     AS total_cost
-    FROM pull_requests pr
-    LEFT JOIN pr_rollups prr
-      ON prr.repo_id = pr.repo_id AND prr.pr_number = pr.pr_number
-    WHERE pr.opened_at >= ${since} AND pr.jira_key IS NOT NULL
-    GROUP BY pr.jira_key
-    ORDER BY total_cost DESC
+      COALESCE(p.jira_key, ss.jira_key) AS jira_key,
+      ji.summary                        AS summary,
+      ji.status                         AS status,
+      ji.issue_type                     AS issue_type,
+      p.pr_count                        AS pr_count,
+      p.merged_prs                      AS merged_prs,
+      p.pr_cost                         AS pr_cost,
+      ss.session_count                  AS session_count,
+      ss.session_cost                   AS session_cost
+    FROM pr_spend p
+    FULL OUTER JOIN session_spend ss ON ss.jira_key = p.jira_key
+    LEFT JOIN jira_issues ji ON ji.key = COALESCE(p.jira_key, ss.jira_key)
+    ORDER BY GREATEST(COALESCE(p.pr_cost, 0), COALESCE(ss.session_cost, 0)) DESC
     LIMIT ${limit}
   `);
 
   return rows.map((r) => ({
+    issueType: r.issue_type,
     jiraKey: r.jira_key,
-    mergedPrs: Number(r.merged_prs),
-    prCount: Number(r.pr_count),
-    totalCostUsd: Number(r.total_cost ?? 0),
+    mergedPrs: Number(r.merged_prs ?? 0),
+    prCount: Number(r.pr_count ?? 0),
+    sessionCostUsd: Number(r.session_cost ?? 0),
+    sessionCount: Number(r.session_count ?? 0),
+    status: r.status,
+    summary: r.summary,
+    totalCostUsd: Number(r.pr_cost ?? 0),
   }));
+}
+
+export type EpicSpendRow = {
+  epicKey: string;
+  epicSummary: string | null;
+  mergedPrs: number;
+  sessionCostUsd: number;
+  ticketCount: number;
+};
+
+// Feature-level cost attribution: ticket spend rolled up to the Jira epic. Only
+// possible once sync-jira has resolved issues (epic_key comes from jira_issues),
+// so an empty result with configured Jira usually means the job hasn't run yet.
+export async function getSpendByEpic(since: Date, limit = 10): Promise<EpicSpendRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    {
+      epic_key: string;
+      epic_summary: string | null;
+      merged_prs: bigint | null;
+      session_cost: number | null;
+      ticket_count: bigint;
+    }[]
+  >(Prisma.sql`
+    WITH ticket AS (
+      SELECT
+        s.jira_key                          AS jira_key,
+        COALESCE(SUM(s.total_cost_usd), 0)  AS session_cost
+      FROM sessions s
+      WHERE s.started_at >= ${since} AND s.jira_key IS NOT NULL
+      GROUP BY s.jira_key
+    ),
+    merged AS (
+      SELECT pr.jira_key AS jira_key, COUNT(*) AS merged_prs
+      FROM pull_requests pr
+      WHERE pr.opened_at >= ${since} AND pr.jira_key IS NOT NULL AND pr.state = 'MERGED'
+      GROUP BY pr.jira_key
+    )
+    SELECT
+      ji.epic_key                          AS epic_key,
+      epic.summary                         AS epic_summary,
+      COUNT(DISTINCT ji.key)               AS ticket_count,
+      COALESCE(SUM(t.session_cost), 0)     AS session_cost,
+      COALESCE(SUM(m.merged_prs), 0)       AS merged_prs
+    FROM jira_issues ji
+    JOIN ticket t ON t.jira_key = ji.key
+    LEFT JOIN merged m ON m.jira_key = ji.key
+    LEFT JOIN jira_issues epic ON epic.key = ji.epic_key
+    WHERE ji.epic_key IS NOT NULL
+    GROUP BY ji.epic_key, epic.summary
+    ORDER BY session_cost DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((r) => ({
+    epicKey: r.epic_key,
+    epicSummary: r.epic_summary,
+    mergedPrs: Number(r.merged_prs ?? 0),
+    sessionCostUsd: Number(r.session_cost ?? 0),
+    ticketCount: Number(r.ticket_count),
+  }));
+}
+
+export type CommitProvenance = {
+  linkedCommits: number;
+  sessionsWithCommits: number;
+};
+
+// "Merged commits touched by an agent session" — the §10.5-sanctioned substitute
+// for LOC-style vanity metrics: it requires the code to have survived review and
+// landed on the default branch. Populated by the push webhook (§7.2).
+export async function getCommitProvenance(since: Date): Promise<CommitProvenance> {
+  const rows = await getPrisma().$queryRaw<
+    { linked_commits: bigint; sessions_with_commits: bigint }[]
+  >(Prisma.sql`
+    SELECT
+      COUNT(DISTINCT (repo_id, commit_sha)) AS linked_commits,
+      COUNT(DISTINCT session_id)            AS sessions_with_commits
+    FROM session_commit_links
+    WHERE committed_at >= ${since}
+  `);
+
+  return {
+    linkedCommits: Number(rows[0]?.linked_commits ?? 0),
+    sessionsWithCommits: Number(rows[0]?.sessions_with_commits ?? 0),
+  };
 }
 
 export type RepoRoiRow = {

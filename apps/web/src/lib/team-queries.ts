@@ -557,6 +557,7 @@ export async function listTeamSessions(
       endedAt: s.endedAt,
       eventCount: s.toolCallCount + s.userMessageCount,
       frictionScore: s.frictionScore,
+      jiraKey: s.jiraKey,
       ownerDisplayName: s.user.displayName,
       ownerLogin: s.user.githubLogin,
       repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,

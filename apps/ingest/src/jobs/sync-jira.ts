@@ -15,6 +15,10 @@ export type JiraSyncConfig = {
   apiToken: string;
   // Story points live in an instance-specific custom field (e.g. customfield_10016).
   storyPointsField?: string;
+  // Classic (company-managed pre-parent-field) projects carry the epic in an
+  // "Epic Link" custom field (e.g. customfield_10014) instead of `parent`.
+  // Used as a fallback when `parent` is absent.
+  epicLinkField?: string;
 };
 
 export type SyncJiraDb = Pick<PrismaClient, 'jiraIssue' | 'jobRun' | 'pullRequest' | 'session'> & {
@@ -57,6 +61,7 @@ async function fetchIssue(
     'assignee',
     'resolutiondate',
     ...(config.storyPointsField ? [config.storyPointsField] : []),
+    ...(config.epicLinkField ? [config.epicLinkField] : []),
   ].join(',');
 
   const res = await fetch(
@@ -149,11 +154,15 @@ export async function runSyncJira(
       const f = issue.fields;
       const storyPointsRaw = config.storyPointsField ? f[config.storyPointsField] : null;
       const storyPoints = typeof storyPointsRaw === 'number' ? storyPointsRaw : null;
+      // Epic: modern projects use `parent`; classic projects use the Epic Link
+      // custom field, whose value is the epic's issue key as a string.
+      const epicLinkRaw = config.epicLinkField ? f[config.epicLinkField] : null;
+      const epicKey = f.parent?.key ?? (typeof epicLinkRaw === 'string' ? epicLinkRaw : null);
 
       await db.jiraIssue.upsert({
         create: {
           assignee: f.assignee?.displayName ?? f.assignee?.name ?? null,
-          epicKey: f.parent?.key ?? null,
+          epicKey,
           issueType: f.issuetype?.name ?? null,
           key,
           resolvedAt: f.resolutiondate ? new Date(f.resolutiondate) : null,
@@ -163,7 +172,7 @@ export async function runSyncJira(
         },
         update: {
           assignee: f.assignee?.displayName ?? f.assignee?.name ?? null,
-          epicKey: f.parent?.key ?? null,
+          epicKey,
           issueType: f.issuetype?.name ?? null,
           resolvedAt: f.resolutiondate ? new Date(f.resolutiondate) : null,
           status: f.status?.name ?? null,

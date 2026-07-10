@@ -2168,3 +2168,97 @@ export async function getOrgSubagentStats(since: Date): Promise<SubagentStatRow[
     totalCostUsd: r.total_cost_usd !== null ? Number(r.total_cost_usd) : 0,
   }));
 }
+
+// ── Review & CI health (from pr_reviews / pr_check_runs webhooks) ─────────────
+
+export type ReviewHealth = {
+  avgReviewsPerPr: number;
+  medianHoursToFirstReview: number | null;
+  reviewedPrs: number;
+  totalReviews: number;
+};
+
+// Review latency and burden: how long merged/open work waits for its first
+// submitted review, and how many review rounds PRs absorb. Sourced from
+// pr_reviews (submitted reviews only), so "requested reviewers" noise is excluded.
+export async function getOrgReviewHealth(since: Date): Promise<ReviewHealth> {
+  const rows = await getPrisma().$queryRaw<
+    {
+      avg_reviews_per_pr: number | null;
+      median_hours_to_first_review: number | null;
+      reviewed_prs: bigint;
+      total_reviews: bigint;
+    }[]
+  >(Prisma.sql`
+    WITH first_review AS (
+      SELECT
+        rv.repo_id,
+        rv.pr_number,
+        COUNT(*)                                        AS review_count,
+        MIN(rv.submitted_at)                            AS first_review_at
+      FROM pr_reviews rv
+      JOIN pull_requests pr
+        ON pr.repo_id = rv.repo_id AND pr.pr_number = rv.pr_number
+      WHERE pr.opened_at >= ${since}
+      GROUP BY rv.repo_id, rv.pr_number
+    )
+    SELECT
+      COUNT(*)                                          AS reviewed_prs,
+      COALESCE(SUM(fr.review_count), 0)                 AS total_reviews,
+      AVG(fr.review_count)                              AS avg_reviews_per_pr,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (
+        ORDER BY EXTRACT(EPOCH FROM (fr.first_review_at - pr.opened_at)) / 3600.0
+      )                                                 AS median_hours_to_first_review
+    FROM first_review fr
+    JOIN pull_requests pr
+      ON pr.repo_id = fr.repo_id AND pr.pr_number = fr.pr_number
+    WHERE fr.first_review_at IS NOT NULL AND pr.opened_at IS NOT NULL
+  `);
+
+  const r = rows[0];
+  return {
+    avgReviewsPerPr: Number(r?.avg_reviews_per_pr ?? 0),
+    medianHoursToFirstReview:
+      r?.median_hours_to_first_review !== null && r?.median_hours_to_first_review !== undefined
+        ? Number(r.median_hours_to_first_review)
+        : null,
+    reviewedPrs: Number(r?.reviewed_prs ?? 0),
+    totalReviews: Number(r?.total_reviews ?? 0),
+  };
+}
+
+export type CheckHealthRow = {
+  checkName: string;
+  failureRate: number;
+  failures: number;
+  totalRuns: number;
+};
+
+// Per-check CI health from pr_check_runs: the checks that fail most often on
+// agent-linked PRs. A check with a high failure rate across many PRs is either
+// guarding real quality issues or flaky — both worth a look.
+export async function getOrgCheckHealth(since: Date, limit = 10): Promise<CheckHealthRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    { check_name: string; failure_rate: number | null; failures: bigint; total_runs: bigint }[]
+  >(Prisma.sql`
+    SELECT
+      cr.name                                                                  AS check_name,
+      COUNT(*)                                                                 AS total_runs,
+      COUNT(*) FILTER (WHERE cr.conclusion IN ('failure', 'action_required'))  AS failures,
+      COUNT(*) FILTER (WHERE cr.conclusion IN ('failure', 'action_required'))::float
+        / NULLIF(COUNT(*), 0)                                                  AS failure_rate
+    FROM pr_check_runs cr
+    WHERE cr.completed_at >= ${since} AND cr.conclusion IS NOT NULL
+    GROUP BY cr.name
+    HAVING COUNT(*) FILTER (WHERE cr.conclusion IN ('failure', 'action_required')) > 0
+    ORDER BY failures DESC, failure_rate DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((r) => ({
+    checkName: r.check_name,
+    failureRate: Number(r.failure_rate ?? 0),
+    failures: Number(r.failures),
+    totalRuns: Number(r.total_runs),
+  }));
+}
