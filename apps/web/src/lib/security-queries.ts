@@ -163,6 +163,56 @@ export type LargeOutputRow = {
   ts: Date;
 };
 
+export type RedactionClassRow = {
+  redactionClass: string;
+  sessionCount: number;
+};
+
+export type RedactionSummary = {
+  classes: RedactionClassRow[];
+  sessionsWithSecrets: number;
+  totalSessionsWithTranscript: number;
+};
+
+// Secret-exposure signal: sessions whose shipped transcript matched a redaction
+// class (e.g. an AWS key, a GitHub PAT), grouped by class. Visibility-scoped to
+// org-metadata sharers. redaction_flags is only populated for transcripts shipped
+// after the column was added, so counts are forward-looking, not historical.
+export async function getRedactionExposure(since: Date): Promise<RedactionSummary> {
+  const prisma = getPrisma();
+  const [classRows, totals] = await Promise.all([
+    prisma.$queryRaw<{ redaction_class: string; session_count: bigint }[]>(Prisma.sql`
+      SELECT flag AS redaction_class, COUNT(DISTINCT s.session_id) AS session_count
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      CROSS JOIN LATERAL unnest(s.redaction_flags) AS flag
+      WHERE s.started_at >= ${since}
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+      GROUP BY flag
+      ORDER BY session_count DESC
+    `),
+    prisma.$queryRaw<{ sessions_with_secrets: bigint; total_with_transcript: bigint }[]>(Prisma.sql`
+      SELECT
+        COUNT(*) FILTER (WHERE array_length(s.redaction_flags, 1) > 0)   AS sessions_with_secrets,
+        COUNT(*) FILTER (WHERE s.transcript_s3_key IS NOT NULL)          AS total_with_transcript
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      WHERE s.started_at >= ${since}
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+    `),
+  ]);
+  return {
+    classes: classRows.map((r) => ({
+      redactionClass: r.redaction_class,
+      sessionCount: Number(r.session_count),
+    })),
+    sessionsWithSecrets: Number(totals[0]?.sessions_with_secrets ?? 0),
+    totalSessionsWithTranscript: Number(totals[0]?.total_with_transcript ?? 0),
+  };
+}
+
 export async function getLargeOutputEvents(since: Date, limit = 20): Promise<LargeOutputRow[]> {
   const rows = await getPrisma().$queryRaw<
     {

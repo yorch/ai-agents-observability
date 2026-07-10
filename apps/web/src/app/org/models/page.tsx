@@ -1,9 +1,11 @@
 import { EmptyState } from '@/components/team-org/EmptyState';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
 import { StatCard } from '@/components/team-org/StatCard';
 import type { OrgModelDetailRow, OrgModelRoutingRow } from '@/lib/org-queries';
 import { getOrgModelDetail, getOrgModelRoutingBreakdown } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
+import { computeRoutingRecommendations } from '@/lib/routing-queries';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +112,8 @@ export default async function OrgModelsPage({
   const estimatedCacheSavings = totalCacheRead * 0.9 * avgInputCostPerToken;
 
   const insights = computeRoutingInsights(models, routing);
+  const { estimatedMonthlySaving: estimatedMonthlyRoutingSaving, recommendations: routingRecs } =
+    computeRoutingRecommendations(routing, range);
 
   return (
     <div className="space-y-8">
@@ -180,6 +184,12 @@ export default async function OrgModelsPage({
               ))}
             </div>
           )}
+
+          {/* Routing recommendations */}
+          <RoutingRecommendations
+            estimatedMonthlySaving={estimatedMonthlyRoutingSaving}
+            recommendations={routingRecs}
+          />
 
           {/* Model breakdown table */}
           <div className="space-y-3">

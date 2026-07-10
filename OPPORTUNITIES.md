@@ -83,6 +83,8 @@ Understanding the opportunity space requires a clear map of what is already capt
 
 **Feasibility:** High. Data is all there. The recommendation surface ("you could save X by routing these task types to Haiku") is a new UI component but a straightforward SQL query.
 
+> **Shipped:** `/org/models` now carries a **routing-recommendations** panel — for each premium (Opus-class) model, it estimates the spend on retrieval-only tool categories (`fs_read`, `search`) that could move to a Haiku-class model and shows a directional monthly saving (assumes ~90% per-turn saving; the copy flags it as an estimate to validate against the price table). Cache-efficiency guidance already shipped on the same page.
+
 ---
 
 ### 3.3 MCP Server Portfolio Management
@@ -120,8 +122,13 @@ Understanding the opportunity space requires a clear map of what is already capt
 > investigate error-prone tools / flaky MCP servers, tighten prompts when interrupts
 > dominate). This is the individual coaching layer. A weekly median-friction trend
 > for teams (`/team/[slug]`) and the org (`/org/dashboard`) now ships too, with
-> per-bucket small-n suppression for privacy. Cross-cohort divergence analysis and
-> shape-shift-over-time remain open.
+> per-bucket small-n suppression for privacy.
+>
+> **Shipped (temporal depth):** `/me/insights` now shows a per-user **weekly
+> session-shape trend** (shape-shift over time — movement toward focused-edit as a
+> proficiency signal), and `/org/dashboard` shows **cohort friction divergence** —
+> median friction by first-seen-month cohort (tenure proxy, no HR data), small-n
+> suppressed (≥3 devs / ≥5 scored sessions per cohort).
 
 ---
 
@@ -174,7 +181,7 @@ Understanding the opportunity space requires a clear map of what is already capt
 
 **Feasibility:** High for reporting. Medium for policy enforcement (requires a hook-side enforcement path, which is architecturally sound given the hook binary design). The audit log is already the best artifact in this space — it just needs a security-focused dashboard surface.
 
-> **Shipped:** `/org/security` reports the data-flow surface from already-captured data — tool-category exposure, per-repo exec/network/write exposure, an external-MCP egress inventory, largest data movements (`tool_output_bytes`), and a privileged-access audit summary. Secret-exposure-by-redaction-class is still a follow-up: redaction classes are computed at ship time but not yet persisted (`sessions.transcript_redacted` is currently a fixed `true`), so it can't drive a per-class report yet. Policy enforcement (block on unapproved MCP servers) remains out of scope for the observe-only architecture.
+> **Shipped:** `/org/security` reports the data-flow surface from already-captured data — tool-category exposure, per-repo exec/network/write exposure, an external-MCP egress inventory, largest data movements (`tool_output_bytes`), a privileged-access audit summary, and **secret-exposure by redaction class**. The redaction classes detected at ship time are now persisted (`sessions.redaction_flags`, populated by the ingest transcript pipeline) and grouped into a per-class report — counts are forward-looking (no historical backfill). Policy enforcement (block on unapproved MCP servers) remains out of scope for the observe-only architecture.
 
 ---
 
@@ -222,12 +229,12 @@ Ranked by **impact-to-effort**, given the current data model and what is already
 
 | # | Opportunity | Impact | Effort | Data ready? | What's missing |
 |---|---|---|---|---|---|
-| 1 | **Model cost optimization** (routing + cache efficiency guidance) | High — potential 30–50% spend reduction | Low | ✅ Per-turn model + cache tokens captured | Recommendation UI; model routing policy surface |
+| 1 | **Model cost optimization** (routing + cache efficiency guidance) | High — potential 30–50% spend reduction | Low | ✅ Per-turn model + cache tokens captured | 🟡 Routing-recommendation panel + cache guidance shipped on `/org/models`; automated routing *policy* enforcement still open |
 | 2 | **MCP portfolio dashboard** (utilization, error rate, SLO) | Medium-High — deprecate waste, surface risk | Low | ✅ `mcp_server` + `tool_exit_status` fully captured | `/org/mcp` page; error-rate column |
 | 3 | **Outcome-based ROI** (cost-per-PR trend, revert correlation, CI correlation) | High — executive-level justification | Medium | ✅ PR rollups, revert flags, CI failures all captured | 🟡 Shipped at `/org/roi` (internal joins); external business-value join still deferred |
-| 4 | **Developer skill progression** (friction trend, shape shift over time) | Medium-High — retention, training, onboarding | Medium | ✅ Friction + shape computed nightly | 🟡 `/me/insights` friction-source breakdown + recommendations, plus weekly friction trends for team/org; cross-cohort divergence still open |
+| 4 | **Developer skill progression** (friction trend, shape shift over time) | Medium-High — retention, training, onboarding | Medium | ✅ Friction + shape computed nightly | 🟡 `/me/insights` friction breakdown + recommendations + per-user weekly shape-shift trend; team/org weekly friction trends; org cohort friction divergence by first-seen month. Longitudinal pre/post-adoption still needs baseline data |
 | 5 | **Budget forecasting & cost allocation** (by team, project, Jira epic) | High — replaces spreadsheet finance | Medium | ✅ Session cost + PR rollup captured | 🟡 Spend forecast (run-rate + budget-rule comparison) shipped on `/org/dashboard`; Jira-epic cost allocation on `/org/roi`; external business-value join still deferred |
-| 6 | **Security data exposure reporting** (sensitive repos, secret hits, MCP egress) | High — compliance buyer | Medium | ✅ Tool categories, redaction metadata, audit log | 🟡 `/org/security` shipped (category/repo exposure, MCP egress, large data movements, audit summary); per-redaction-class secret hits need the redaction classes persisted first |
+| 6 | **Security data exposure reporting** (sensitive repos, secret hits, MCP egress) | High — compliance buyer | Medium | ✅ Tool categories, redaction metadata, audit log | ✅ `/org/security` shipped — category/repo exposure, MCP egress, large data movements, audit summary, and per-redaction-class secret hits (`sessions.redaction_flags`, forward-looking) |
 | 7 | **Knowledge gap detection** (aggregate transcript topic clustering) | Medium — DX and documentation | Medium-High | ✅ FTS index built | 🟡 `/org/knowledge` shipped (keyword-taxonomy topic reach, small-n suppressed); embedding-based clustering still the upgrade path |
 | 8 | **Code quality correlation** (revert + defect rate by session characteristics) | High — if bug rate correlation holds | High | ⚠️ Internal PR data ready; bug join needs Jira/Linear | External integration + statistical analysis |
 | 9 | **Multi-tool comparison** (Claude vs Cursor vs Copilot) | High — procurement decisions | High | ✅ `agent_type` schema ready; adapters exist for `opencode`, `codex` | 🟡 Comparison table shipped at `/org/agents` (cost/friction/error-rate by `agent_type`); Cursor/Copilot adapters still needed |

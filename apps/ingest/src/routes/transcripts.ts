@@ -229,6 +229,7 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
 
         await deps.db.session.update({
           data: {
+            redactionFlags: result.redactionFlags,
             transcriptBytes: BigInt(result.outputBytes),
             transcriptRedacted: true,
             transcriptS3Key: key,
