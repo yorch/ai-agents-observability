@@ -42,8 +42,9 @@ question (do PRs from high-friction sessions have worse outcomes?).
 
 ## Still deferred
 
-- Formal significance testing on the band deltas (needs volume; the muted
-  small-sample rendering is the honest interim).
+- ~~Formal significance testing on the band deltas~~ — landed in
+  [P11-004](./P11-004-band-significance.md) (Fisher's exact is valid at any
+  n, so it ships now and reaches significance only once volume exists).
 - Post-merge defect *windows* (bug created within N days of a merge, no
   explicit link) — `issue_created_at` is now stored, so this is query-only
   work when wanted, but it is heuristic and stays out until someone asks.
