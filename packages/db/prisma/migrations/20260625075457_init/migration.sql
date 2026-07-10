@@ -266,6 +266,8 @@ CREATE TABLE "jira_issues" (
     "issue_type" TEXT,
     "status" TEXT,
     "epic_key" TEXT,
+    "project_key" TEXT,
+    "project_name" TEXT,
     "story_points" DOUBLE PRECISION,
     "assignee" TEXT,
     "resolved_at" TIMESTAMPTZ(6),
@@ -515,6 +517,9 @@ CREATE INDEX "jira_issues_epic_key_idx" ON "jira_issues"("epic_key");
 
 -- CreateIndex
 CREATE INDEX "jira_issues_issue_type_idx" ON "jira_issues"("issue_type");
+
+-- CreateIndex
+CREATE INDEX "jira_issues_project_key_idx" ON "jira_issues"("project_key");
 
 -- CreateIndex
 CREATE INDEX "pull_requests_opened_at_idx" ON "pull_requests"("opened_at");

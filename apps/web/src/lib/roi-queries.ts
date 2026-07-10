@@ -118,7 +118,7 @@ export async function getCiCostCorrelation(since: Date): Promise<CiCostCorrelati
 }
 
 // Per-ticket session spend for the window — a single definition shared by the
-// ticket and epic rollups so the two dashboards can't disagree on what
+// ticket, epic, and project rollups so the dashboards can't disagree on what
 // "session spend" means.
 function sessionSpendByKeySql(since: Date): Prisma.Sql {
   return Prisma.sql`
@@ -129,6 +129,16 @@ function sessionSpendByKeySql(since: Date): Prisma.Sql {
     FROM sessions s
     WHERE s.started_at >= ${since} AND s.jira_key IS NOT NULL
     GROUP BY s.jira_key
+  `;
+}
+
+// Per-ticket merged-PR count for the window — shared by the epic and project rollups.
+function mergedPrsByKeySql(since: Date): Prisma.Sql {
+  return Prisma.sql`
+    SELECT pr.jira_key AS jira_key, COUNT(*) AS merged_prs
+    FROM pull_requests pr
+    WHERE pr.opened_at >= ${since} AND pr.jira_key IS NOT NULL AND pr.state = 'MERGED'
+    GROUP BY pr.jira_key
   `;
 }
 
@@ -229,12 +239,7 @@ export async function getSpendByEpic(since: Date, limit = 10): Promise<EpicSpend
     }[]
   >(Prisma.sql`
     WITH ticket AS (${sessionSpendByKeySql(since)}),
-    merged AS (
-      SELECT pr.jira_key AS jira_key, COUNT(*) AS merged_prs
-      FROM pull_requests pr
-      WHERE pr.opened_at >= ${since} AND pr.jira_key IS NOT NULL AND pr.state = 'MERGED'
-      GROUP BY pr.jira_key
-    )
+    merged AS (${mergedPrsByKeySql(since)})
     SELECT
       ji.epic_key                          AS epic_key,
       epic.summary                         AS epic_summary,
@@ -256,6 +261,53 @@ export async function getSpendByEpic(since: Date, limit = 10): Promise<EpicSpend
     epicKey: r.epic_key,
     epicSummary: r.epic_summary,
     mergedPrs: Number(r.merged_prs ?? 0),
+    sessionCostUsd: Number(r.session_cost ?? 0),
+    ticketCount: Number(r.ticket_count),
+  }));
+}
+
+export type ProjectSpendRow = {
+  mergedPrs: number;
+  projectKey: string;
+  projectName: string | null;
+  sessionCostUsd: number;
+  ticketCount: number;
+};
+
+// Cost allocation by Jira project — the budget/business-unit grain between
+// ticket and epic. The project key is derived from the issue-key prefix
+// (PLAT-123 → PLAT), so this works before sync-jira has ever run; the display
+// name joins in from jira_issues once issues are synced.
+export async function getSpendByProject(since: Date, limit = 10): Promise<ProjectSpendRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    {
+      merged_prs: bigint | null;
+      project_key: string;
+      project_name: string | null;
+      session_cost: number | null;
+      ticket_count: bigint;
+    }[]
+  >(Prisma.sql`
+    WITH ticket AS (${sessionSpendByKeySql(since)}),
+    merged AS (${mergedPrsByKeySql(since)})
+    SELECT
+      split_part(COALESCE(t.jira_key, m.jira_key), '-', 1)  AS project_key,
+      MAX(ji.project_name)                                  AS project_name,
+      COUNT(DISTINCT COALESCE(t.jira_key, m.jira_key))      AS ticket_count,
+      COALESCE(SUM(t.session_cost), 0)                      AS session_cost,
+      COALESCE(SUM(m.merged_prs), 0)                        AS merged_prs
+    FROM ticket t
+    FULL OUTER JOIN merged m ON m.jira_key = t.jira_key
+    LEFT JOIN jira_issues ji ON ji.key = COALESCE(t.jira_key, m.jira_key)
+    GROUP BY split_part(COALESCE(t.jira_key, m.jira_key), '-', 1)
+    ORDER BY session_cost DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((r) => ({
+    mergedPrs: Number(r.merged_prs ?? 0),
+    projectKey: r.project_key,
+    projectName: r.project_name,
     sessionCostUsd: Number(r.session_cost ?? 0),
     ticketCount: Number(r.ticket_count),
   }));

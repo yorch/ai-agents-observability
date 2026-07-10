@@ -424,6 +424,11 @@ model JiraIssue {
   issueType   String?   @map("issue_type")
   status      String?
   epicKey     String?   @map("epic_key")
+  // Project: key is also the issue-key prefix (PLAT-123 → PLAT) but stored
+  // explicitly for indexed grouping; name is display-only and API-sourced
+  // ("Platform Engineering") — not derivable from the key.
+  projectKey  String?   @map("project_key")
+  projectName String?   @map("project_name")
   storyPoints Float?    @map("story_points")
   assignee    String?
   resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz(6)
@@ -431,6 +436,7 @@ model JiraIssue {
 
   @@index([epicKey])
   @@index([issueType])
+  @@index([projectKey])
   @@map("jira_issues")
 }
 

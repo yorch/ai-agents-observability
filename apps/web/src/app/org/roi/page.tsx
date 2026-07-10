@@ -10,6 +10,7 @@ import {
   getRoiByRepo,
   getSpendByEpic,
   getSpendByJiraKey,
+  getSpendByProject,
 } from '@/lib/roi-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -32,10 +33,11 @@ export default async function OrgRoiPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 90) as 7 | 30 | 90;
   const since = daysAgo(range);
 
-  const [summary, ci, jiraSpend, epicSpend, commits, repoRoi] = await Promise.all([
+  const [summary, ci, jiraSpend, projectSpend, epicSpend, commits, repoRoi] = await Promise.all([
     getOrgRoiSummary(since),
     getCiCostCorrelation(since),
     getSpendByJiraKey(since),
+    getSpendByProject(since),
     getSpendByEpic(since),
     getCommitProvenance(since),
     getRoiByRepo(since),
@@ -169,6 +171,47 @@ export default async function OrgRoiPage({
           Session spend counts every session on the ticket's branch — including work that never
           reached a PR. PR spend is the rollup of sessions linked to the ticket's PRs. Ticket
           status/summary appear once the Jira sync job is configured.
+        </p>
+      </section>
+
+      {/* Spend by project */}
+      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-white/70">Spend by Jira project ({range}d)</h2>
+        {projectSpend.length === 0 ? (
+          <p className="text-sm text-white/40">
+            No tickets with a Jira key in this window. Project spend groups tickets by their key
+            prefix (PLAT-123 → PLAT).
+          </p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-white/40 text-left">
+                <th className="pb-2 font-medium">Project</th>
+                <th className="pb-2 font-medium text-right">Tickets</th>
+                <th className="pb-2 font-medium text-right">Merged PRs</th>
+                <th className="pb-2 font-medium text-right">Session spend</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {projectSpend.map((p) => (
+                <tr key={p.projectKey}>
+                  <td className="py-2">
+                    <span className="font-mono text-xs text-white/80">{p.projectKey}</span>
+                    {p.projectName && (
+                      <span className="ml-2 text-xs text-white/50">{p.projectName}</span>
+                    )}
+                  </td>
+                  <td className="py-2 text-right text-white/60">{p.ticketCount}</td>
+                  <td className="py-2 text-right text-white/60">{p.mergedPrs}</td>
+                  <td className="py-2 text-right font-mono">{fmtUsd(p.sessionCostUsd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p className="text-xs text-white/30">
+          Grouped by the ticket key's project prefix — works before the Jira sync has run; project
+          display names appear once issues are synced.
         </p>
       </section>
 

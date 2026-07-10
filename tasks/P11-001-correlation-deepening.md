@@ -37,8 +37,9 @@ default-branch commits), and turn the regex-only Jira integration into a real on
 ### Surfacing
 - `/org/roi`: spend-by-ticket table now dual-grain (PR-rollup spend + direct session
   spend, which counts pre-PR work) and enriched with `jira_issues` metadata; new
-  spend-by-epic rollup; "merged-work provenance" cards from `session_commit_links`
-  (the §10.5-sanctioned substitute for LOC metrics).
+  spend-by-project rollup (key-prefix grouping, works pre-sync; display names from
+  `jira_issues.project_name`); new spend-by-epic rollup; "merged-work provenance"
+  cards from `session_commit_links` (the §10.5-sanctioned substitute for LOC metrics).
 - `/org/delivery`: review health (median time-to-first-review, reviews/PR) from
   `pr_reviews`; failing-checks table (runs, failures, failure rate) from `pr_check_runs`.
 - `/me/sessions`: Ticket column (session `jira_key`, linked when

@@ -52,6 +52,7 @@ describe('runSyncJira', () => {
         customfield_10016: 5,
         issuetype: { name: 'Story' },
         parent: { key: 'OBS-100' },
+        project: { key: 'OBS', name: 'Observability' },
         resolutiondate: '2026-01-05T00:00:00Z',
         status: { name: 'Done' },
         summary: 'Do the thing',
@@ -73,6 +74,8 @@ describe('runSyncJira', () => {
           epicKey: 'OBS-100',
           issueType: 'Story',
           key: 'OBS-1',
+          projectKey: 'OBS',
+          projectName: 'Observability',
           resolvedAt: new Date('2026-01-05T00:00:00Z'),
           status: 'Done',
           storyPoints: 5,
@@ -129,6 +132,19 @@ describe('runSyncJira', () => {
     await runSyncJira(db, { apiToken: 'pat', baseUrl: 'https://jira.example.com' });
 
     expect(fetchMock.mock.calls[0]?.[1]?.headers?.Authorization).toBe('Bearer pat');
+  });
+
+  it('derives project_key from the issue-key prefix when the API omits project', async () => {
+    const db = makeDb({ prKeys: ['OBS-1'], sessionKeys: [] });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(issueResponse({ summary: 'x' })));
+
+    await runSyncJira(db, CONFIG);
+
+    expect(db.jiraIssue.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ projectKey: 'OBS', projectName: null }),
+      }),
+    );
   });
 
   it('falls back to the Epic Link custom field when parent is absent (classic projects)', async () => {

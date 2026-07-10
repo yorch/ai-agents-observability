@@ -495,6 +495,8 @@ CREATE TABLE jira_issues (
   issue_type          TEXT,
   status              TEXT,
   epic_key            TEXT,
+  project_key         TEXT,               -- also the key prefix (PLAT-123 → PLAT); indexed for project rollups
+  project_name        TEXT,               -- API-sourced display name; not derivable from the key
   story_points        DOUBLE PRECISION,
   assignee            TEXT,
   resolved_at         TIMESTAMPTZ,

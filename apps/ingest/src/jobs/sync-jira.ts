@@ -42,6 +42,7 @@ type JiraIssueFields = {
   assignee?: { displayName?: string; emailAddress?: string; name?: string } | null;
   issuetype?: { name?: string } | null;
   parent?: { key?: string } | null;
+  project?: { key?: string; name?: string } | null;
   resolutiondate?: string | null;
   status?: { name?: string } | null;
   summary?: string | null;
@@ -67,6 +68,7 @@ async function fetchIssue(
     'issuetype',
     'status',
     'parent',
+    'project',
     'assignee',
     'resolutiondate',
     ...(config.storyPointsField ? [config.storyPointsField] : []),
@@ -111,6 +113,10 @@ async function syncIssue(
     assignee: f.assignee?.displayName ?? f.assignee?.name ?? null,
     epicKey: f.parent?.key ?? (typeof epicLinkRaw === 'string' ? epicLinkRaw : null),
     issueType: f.issuetype?.name ?? null,
+    // Project key falls back to the issue-key prefix (PLAT-123 → PLAT) if the
+    // API record somehow omits project; name is API-only (display value).
+    projectKey: f.project?.key ?? key.slice(0, key.indexOf('-')),
+    projectName: f.project?.name ?? null,
     resolvedAt: f.resolutiondate ? new Date(f.resolutiondate) : null,
     status: f.status?.name ?? null,
     storyPoints: typeof storyPointsRaw === 'number' ? storyPointsRaw : null,
