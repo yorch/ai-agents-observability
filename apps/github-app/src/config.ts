@@ -1,3 +1,4 @@
+import { commaSeparatedList } from '@ai-agents-observability/schemas';
 import { z } from 'zod';
 
 // GITHUB_HOST is shared (via .env) with apps/web, which uses a BARE host
@@ -30,17 +31,7 @@ const ConfigSchema = z.object({
   // Comma-separated Jira project codes (e.g. "PLAT,OBS") that key extraction
   // accepts, unioned with project keys learned by the ingest sync-jira job.
   // When both are empty, extraction accepts any key-shaped token.
-  jira_project_keys: z
-    .string()
-    .optional()
-    .transform((v) =>
-      v
-        ? v
-            .split(',')
-            .map((k) => k.trim())
-            .filter(Boolean)
-        : [],
-    ),
+  jira_project_keys: commaSeparatedList,
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   node_env: z.enum(['development', 'production', 'test']).default('development'),
   port: z.coerce.number().int().min(1).max(65535).default(4001),

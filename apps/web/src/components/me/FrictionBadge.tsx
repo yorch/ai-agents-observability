@@ -1,3 +1,4 @@
+import { FRICTION_BAND_HIGH, FRICTION_BAND_LOW } from '@ai-agents-observability/schemas';
 import { FRICTION_VERSION } from '@/lib/effectiveness';
 
 export type FrictionInputsLite = {
@@ -11,10 +12,10 @@ export type FrictionInputsLite = {
 };
 
 function band(score: number): { color: string; label: string } {
-  if (score < 0.3) {
+  if (score < FRICTION_BAND_LOW) {
     return { color: 'bg-green-500/15 text-green-400', label: 'Low' };
   }
-  if (score <= 0.6) {
+  if (score <= FRICTION_BAND_HIGH) {
     return { color: 'bg-yellow-500/15 text-yellow-400', label: 'Medium' };
   }
   return { color: 'bg-red-500/15 text-red-400', label: 'High' };

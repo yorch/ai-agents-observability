@@ -1,3 +1,4 @@
+import { commaSeparatedList } from '@ai-agents-observability/schemas';
 import { z } from 'zod';
 
 const ConfigSchema = z.object({
@@ -28,17 +29,7 @@ const ConfigSchema = z.object({
   // Comma-separated Jira project codes (e.g. "PLAT,OBS") that key extraction
   // accepts, unioned with project keys learned by sync-jira. When both are
   // empty, extraction accepts any key-shaped token (bootstrap mode).
-  jira_project_keys: z
-    .string()
-    .optional()
-    .transform((v) =>
-      v
-        ? v
-            .split(',')
-            .map((k) => k.trim())
-            .filter(Boolean)
-        : [],
-    ),
+  jira_project_keys: commaSeparatedList,
   // Instance-specific custom field carrying story points (e.g. customfield_10016).
   jira_story_points_field: z.string().optional(),
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),

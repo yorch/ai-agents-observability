@@ -1,7 +1,7 @@
 import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { getJiraBase } from '@/lib/config';
-import { fmtPct, fmtUsd } from '@/lib/fmt';
+import { fmtDate, fmtPct, fmtUsd } from '@/lib/fmt';
 import { getDefectAttributions, getOutcomesByFrictionBand } from '@/lib/quality-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -17,13 +17,6 @@ const BAND_LABELS: Record<string, string> = {
   low: 'Low friction',
   medium: 'Medium friction',
 };
-
-function fmtDate(d: Date | null): string {
-  if (!d) {
-    return '—';
-  }
-  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 export default async function OrgQualityPage({
   searchParams,
@@ -139,7 +132,7 @@ export default async function OrgQualityPage({
             </thead>
             <tbody className="divide-y divide-white/5">
               {defects.map((d) => (
-                <tr key={`${d.bugKey}-${d.originKey}`}>
+                <tr key={`${d.bugKey}-${d.originKey}-${d.linkPhrase ?? ''}`}>
                   <td className="py-2">
                     <span className="font-mono text-xs">
                       <JiraLink jiraBase={jiraBase} jiraKey={d.bugKey} />

@@ -28,6 +28,7 @@ export type SyncJiraDb = Pick<
   'jiraIssue' | 'jiraIssueLink' | 'jobRun' | 'pullRequest' | 'session'
 > & {
   $queryRaw: PrismaClient['$queryRaw'];
+  $transaction: PrismaClient['$transaction'];
 };
 
 // Re-sync an issue only when its snapshot is older than this. Keys never seen
@@ -137,34 +138,55 @@ async function syncIssue(
     summary: f.summary ?? null,
   };
 
-  await db.jiraIssue.upsert({
-    create: { key, ...data },
-    update: { ...data, syncedAt: new Date() },
-    where: { key },
-  });
-
   // Snapshot this issue's links (delete + recreate: links can be removed in
   // Jira, and the per-issue set is tiny). `description` keeps the relation
   // phrase from this issue's perspective ("is caused by", "relates to", …) so
   // defect attribution reports linkage verbatim rather than inferring causation.
+  // A link entry can carry an inward and/or outward issue — record each side.
   const links = (f.issuelinks ?? []).flatMap((raw) => {
-    const related = raw.inwardIssue?.key ?? raw.outwardIssue?.key;
-    if (!related || !raw.type?.name) {
+    const linkType = raw.type?.name;
+    if (!linkType) {
       return [];
     }
-    return [
-      {
-        description: (raw.inwardIssue ? raw.type.inward : raw.type.outward) ?? null,
-        linkType: raw.type.name,
+    const entries: Array<{
+      description: string | null;
+      linkType: string;
+      sourceKey: string;
+      targetKey: string;
+    }> = [];
+    if (raw.inwardIssue?.key) {
+      entries.push({
+        description: raw.type?.inward ?? null,
+        linkType,
         sourceKey: key,
-        targetKey: related,
-      },
-    ];
+        targetKey: raw.inwardIssue.key,
+      });
+    }
+    if (raw.outwardIssue?.key) {
+      entries.push({
+        description: raw.type?.outward ?? null,
+        linkType,
+        sourceKey: key,
+        targetKey: raw.outwardIssue.key,
+      });
+    }
+    return entries;
   });
-  await db.jiraIssueLink.deleteMany({ where: { sourceKey: key } });
-  if (links.length > 0) {
-    await db.jiraIssueLink.createMany({ data: links, skipDuplicates: true });
-  }
+
+  // One transaction: the syncedAt bump and the link snapshot commit together,
+  // so a mid-write failure can neither leave the issue link-less nor mark a
+  // torn snapshot as fresh (which would hide it until the next resync window).
+  await db.$transaction([
+    db.jiraIssue.upsert({
+      create: { key, ...data },
+      update: { ...data, syncedAt: new Date() },
+      where: { key },
+    }),
+    db.jiraIssueLink.deleteMany({ where: { sourceKey: key } }),
+    ...(links.length > 0
+      ? [db.jiraIssueLink.createMany({ data: links, skipDuplicates: true })]
+      : []),
+  ]);
   return 'synced';
 }
 
@@ -187,22 +209,27 @@ export async function runSyncJira(
         where: { jiraKey: { not: null } },
       }),
     ]);
-    // Plus every issue referenced by a synced issue's links — a bug linked to
-    // one of our tickets is usually never worked on in a repo, so it would
-    // otherwise never sync and defect attribution couldn't see its issue type.
-    const linkTargets = await db.jiraIssueLink.findMany({
-      distinct: ['targetKey'],
-      select: { targetKey: true },
-    });
-
     const allKeys = new Set<string>();
     for (const row of [...prKeys, ...sessionKeys]) {
       if (row.jiraKey) {
         allKeys.add(row.jiraKey);
       }
     }
-    for (const row of linkTargets) {
-      allKeys.add(row.targetKey);
+
+    // Plus issues linked FROM a referenced issue — a bug linked to one of our
+    // tickets is usually never worked on in a repo, so it would otherwise
+    // never sync and defect attribution couldn't see its issue type. Bounded
+    // to one hop (sources must themselves be referenced keys) so a densely
+    // cross-linked Jira can't snowball the candidate set across runs.
+    if (allKeys.size > 0) {
+      const linkTargets = await db.jiraIssueLink.findMany({
+        distinct: ['targetKey'],
+        select: { targetKey: true },
+        where: { sourceKey: { in: [...allKeys] } },
+      });
+      for (const row of linkTargets) {
+        allKeys.add(row.targetKey);
+      }
     }
 
     // Skip keys with a fresh snapshot.

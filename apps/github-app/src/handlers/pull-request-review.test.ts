@@ -12,6 +12,9 @@ type ReviewPayload = EmitterWebhookEvent<'pull_request_review'>['payload'];
 
 function makeDb({ prTracked = true } = {}) {
   return {
+    jiraIssue: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     pRReview: {
       count: vi.fn().mockResolvedValue(3),
       upsert: vi.fn().mockResolvedValue({}),

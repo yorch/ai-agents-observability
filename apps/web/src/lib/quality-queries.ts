@@ -1,4 +1,9 @@
 import { Prisma } from '@ai-agents-observability/db';
+import {
+  BUG_ISSUE_TYPE_LIST,
+  FRICTION_BAND_HIGH,
+  FRICTION_BAND_LOW,
+} from '@ai-agents-observability/schemas';
 
 import { getPrisma } from './prisma';
 
@@ -8,8 +13,9 @@ import { getPrisma } from './prisma';
 // surface where the outcome rates diverge, with sample sizes shown, so humans
 // decide what to investigate.
 
-// Bug/Defect issue-type names (lowercased) that mark a ticket as defect work.
-const BUG_TYPES_SQL = Prisma.sql`('bug', 'defect')`;
+// Defect issue-type names, from the shared domain constant so the ROI page's
+// TS Set and this SQL IN-list can never disagree on what counts as a bug.
+const BUG_TYPES_SQL = Prisma.sql`(${Prisma.join([...BUG_ISSUE_TYPE_LIST])})`;
 
 // Tickets that have a Jira-linked Bug/Defect on either side of the link.
 // "Linked" is the honest unit: link semantics ("is caused by" vs "relates to")
@@ -38,10 +44,10 @@ export type FrictionBandOutcomeRow = {
 };
 
 // Outcome rates for merged PRs bucketed by the mean friction score of their
-// contributing sessions (same 0.3/0.6 thresholds as the session friction
-// bands). Revert and CI-failure come from internal data; bug-linked requires
-// the Jira sync. PRs with no scored contributing session are excluded — an
-// unknown-friction bucket would say nothing about the correlation.
+// contributing sessions (shared FRICTION_BAND_LOW/HIGH thresholds). Revert and
+// CI-failure come from internal data; bug-linked requires the Jira sync. PRs
+// with no scored contributing session are excluded — an unknown-friction
+// bucket would say nothing about the correlation.
 export async function getOutcomesByFrictionBand(since: Date): Promise<FrictionBandOutcomeRow[]> {
   const rows = await getPrisma().$queryRaw<
     {
@@ -54,17 +60,21 @@ export async function getOutcomesByFrictionBand(since: Date): Promise<FrictionBa
     }[]
   >(Prisma.sql`
     WITH pr_friction AS (
+      -- Window applied inside the CTE so only in-window merged PRs' links are
+      -- aggregated, not the whole session_pr_links history.
       SELECT l.repo_id, l.pr_number, AVG(s.friction_score) AS mean_friction
-      FROM session_pr_links l
+      FROM pull_requests pr
+      JOIN session_pr_links l ON l.repo_id = pr.repo_id AND l.pr_number = pr.pr_number
       JOIN sessions s ON s.session_id = l.session_id
-      WHERE s.friction_score IS NOT NULL
+      WHERE pr.state = 'MERGED' AND pr.merged_at >= ${since}
+        AND s.friction_score IS NOT NULL
       GROUP BY l.repo_id, l.pr_number
     ),
     bug_linked_tickets AS (${bugLinkedTicketsSql()})
     SELECT
       CASE
-        WHEN pf.mean_friction < 0.3 THEN 'low'
-        WHEN pf.mean_friction <= 0.6 THEN 'medium'
+        WHEN pf.mean_friction < ${FRICTION_BAND_LOW} THEN 'low'
+        WHEN pf.mean_friction <= ${FRICTION_BAND_HIGH} THEN 'medium'
         ELSE 'high'
       END                                                            AS band,
       COUNT(*)                                                       AS merged_prs,
@@ -80,7 +90,7 @@ export async function getOutcomesByFrictionBand(since: Date): Promise<FrictionBa
     GROUP BY 1
   `);
 
-  const order: Record<string, number> = { high: 2, low: 0, medium: 1 };
+  const bandOrder: FrictionBandOutcomeRow['band'][] = ['low', 'medium', 'high'];
   return rows
     .map((r) => ({
       avgCostUsd: Number(r.avg_cost ?? 0),
@@ -90,7 +100,7 @@ export async function getOutcomesByFrictionBand(since: Date): Promise<FrictionBa
       mergedPrs: Number(r.merged_prs),
       reverted: Number(r.reverted),
     }))
-    .sort((a, b) => (order[a.band] ?? 0) - (order[b.band] ?? 0));
+    .sort((a, b) => bandOrder.indexOf(a.band) - bandOrder.indexOf(b.band));
 }
 
 export type DefectAttributionRow = {
@@ -108,6 +118,10 @@ export type DefectAttributionRow = {
 // links (either direction) to a ticket that has PRs in our system. The link
 // phrase is shown verbatim ("is caused by" carries more weight than
 // "relates to") — attribution reports linkage; humans judge causation.
+// Origins that are themselves bugs are excluded so a bug↔bug link doesn't
+// render as two mirrored rows. Bugs without a synced created date are
+// excluded: the sync always fetches `created`, so NULL means a stale legacy
+// row, and letting it bypass the window would pin it into every range.
 export async function getDefectAttributions(
   since: Date,
   limit = 20,
@@ -125,16 +139,22 @@ export async function getDefectAttributions(
     }[]
   >(Prisma.sql`
     WITH bug_origin AS (
-      SELECT
-        b.key              AS bug_key,
-        b.summary          AS bug_summary,
-        b.status           AS bug_status,
-        b.issue_created_at AS bug_created_at,
-        l.description      AS link_phrase,
-        CASE WHEN l.source_key = b.key THEN l.target_key ELSE l.source_key END AS origin_key
+      -- Two index-friendly halves (bug on either link endpoint) instead of an
+      -- OR-join; the window predicate prunes inside the CTE.
+      SELECT b.key AS bug_key, b.summary AS bug_summary, b.status AS bug_status,
+             b.issue_created_at AS bug_created_at, l.description AS link_phrase,
+             l.target_key AS origin_key
       FROM jira_issue_links l
-      JOIN jira_issues b ON b.key = l.source_key OR b.key = l.target_key
+      JOIN jira_issues b ON b.key = l.source_key
       WHERE lower(b.issue_type) IN ${BUG_TYPES_SQL}
+        AND b.issue_created_at >= ${since}
+      UNION
+      SELECT b.key, b.summary, b.status, b.issue_created_at, l.description,
+             l.source_key
+      FROM jira_issue_links l
+      JOIN jira_issues b ON b.key = l.target_key
+      WHERE lower(b.issue_type) IN ${BUG_TYPES_SQL}
+        AND b.issue_created_at >= ${since}
     )
     SELECT
       bo.bug_key                                              AS bug_key,
@@ -148,10 +168,11 @@ export async function getDefectAttributions(
     FROM bug_origin bo
     JOIN pull_requests pr ON pr.jira_key = bo.origin_key
     LEFT JOIN pr_rollups prr ON prr.repo_id = pr.repo_id AND prr.pr_number = pr.pr_number
-    WHERE bo.bug_created_at IS NULL OR bo.bug_created_at >= ${since}
+    LEFT JOIN jira_issues origin ON origin.key = bo.origin_key
+    WHERE origin.issue_type IS NULL OR lower(origin.issue_type) NOT IN ${BUG_TYPES_SQL}
     GROUP BY bo.bug_key, bo.bug_summary, bo.bug_status, bo.bug_created_at,
              bo.link_phrase, bo.origin_key
-    ORDER BY bo.bug_created_at DESC NULLS LAST
+    ORDER BY bo.bug_created_at DESC
     LIMIT ${limit}
   `);
 

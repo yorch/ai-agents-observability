@@ -29,6 +29,12 @@ export async function handlePullRequest(
 
   logger.info({ action, pr: pr.number, repo: repo.full_name }, 'pr.webhook');
 
+  // Most pull_request actions (labeled, edited, assigned, …) are ignored —
+  // bail before doing any work for them.
+  if (action !== 'opened' && action !== 'synchronize' && action !== 'closed') {
+    return;
+  }
+
   const jiraAllowlist = await getJiraProjectAllowlist(db, config.jira_project_keys);
 
   if (action === 'opened' || action === 'synchronize') {

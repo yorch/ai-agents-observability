@@ -347,8 +347,9 @@ export async function getSpendByIssueType(since: Date): Promise<IssueTypeSpendRo
   }));
 }
 
-// Issue-type names that count as defect work for the bug-share stat.
-export const BUG_ISSUE_TYPES = new Set(['bug', 'defect']);
+// Issue-type names that count as defect work for the bug-share stat — shared
+// domain constant so the quality page's SQL and this Set can't diverge.
+export { BUG_ISSUE_TYPES } from '@ai-agents-observability/schemas';
 
 export type CommitProvenance = {
   linkedCommits: number;

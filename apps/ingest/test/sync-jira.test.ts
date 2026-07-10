@@ -12,6 +12,7 @@ const CONFIG = {
 function makeDb({ prKeys = ['OBS-1'], sessionKeys = ['OBS-2'], freshKeys = [] as string[] } = {}) {
   return {
     $queryRaw: vi.fn().mockResolvedValue([{ pg_try_advisory_lock: true }]),
+    $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
     jiraIssue: {
       findMany: vi.fn().mockResolvedValue(freshKeys.map((key) => ({ key }))),
       upsert: vi.fn().mockResolvedValue({}),

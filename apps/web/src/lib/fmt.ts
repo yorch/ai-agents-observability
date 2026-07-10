@@ -17,3 +17,10 @@ export function fmtUsd(n: number): string {
 export function fmtPct(ratio: number): string {
   return `${(ratio * 100).toFixed(0)}%`;
 }
+
+export function fmtDate(d: Date | null): string {
+  if (!d) {
+    return '\u2014';
+  }
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+}
