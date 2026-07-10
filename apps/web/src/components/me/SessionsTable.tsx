@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { JiraLink } from '@/components/JiraLink';
 import { StatusBadge } from '@/components/me/StatusBadge';
 import { computeFrictionScore, frictionBadge, shapeBadge } from '@/lib/effectiveness';
@@ -172,17 +173,17 @@ export function SessionsTable({
             {hasPrev && (
               <a
                 href={`?page=${currentPage - 1}`}
-                className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
               >
-                ← Prev
+                <ArrowLeftIcon /> Prev
               </a>
             )}
             {hasNext && (
               <a
                 href={`?page=${currentPage + 1}`}
-                className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
               >
-                Next →
+                Next <ArrowRightIcon />
               </a>
             )}
           </div>

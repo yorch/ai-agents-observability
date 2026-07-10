@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import type { AuditRow } from '@/lib/me-queries';
 
 type AuditTableProps = {
@@ -92,17 +93,17 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
             {hasPrev && (
               <a
                 href={`?page=${currentPage - 1}`}
-                className="rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
+                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
               >
-                ← Prev
+                <ArrowLeftIcon /> Prev
               </a>
             )}
             {hasNext && (
               <a
                 href={`?page=${currentPage + 1}`}
-                className="rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
+                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
               >
-                Next →
+                Next <ArrowRightIcon />
               </a>
             )}
           </div>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
@@ -34,9 +35,9 @@ export default async function TeamMemberTranscriptPage({
         <div className="flex items-center gap-3">
           <Link
             href={`/team/${slug}/member/${login}/sessions/${id}`}
-            className="text-sm text-white/50 hover:text-white"
+            className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
           >
-            ← Session
+            <ArrowLeftIcon /> Session
           </Link>
         </div>
         <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center">

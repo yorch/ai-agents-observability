@@ -1,4 +1,5 @@
 'use client';
+import { CaretRightIcon } from '@/components/icons';
 import type {
   ContentBlock,
   ParsedLine,
@@ -30,9 +31,12 @@ function getInputPreview(input: unknown): string {
 function ToolUseView({ block }: { block: ToolUseBlock }) {
   const preview = getInputPreview(block.input);
   return (
-    <details open className="rounded border border-accent/20 bg-accent/5 text-sm">
+    <details open className="group rounded border border-accent/20 bg-accent/5 text-sm">
       <summary className="cursor-pointer px-3 py-1.5 select-none list-none flex items-center gap-2 min-w-0">
-        <span className="text-text-3 text-xs shrink-0">▶</span>
+        <CaretRightIcon
+          size={10}
+          className="text-text-3 shrink-0 transition-transform group-open:rotate-90"
+        />
         <span className="text-xs text-text-3 font-mono shrink-0">tool</span>
         <span className="font-semibold text-accent font-mono shrink-0">{block.name}</span>
         {preview && <span className="text-xs text-text-3 truncate">{preview}</span>}
@@ -48,9 +52,12 @@ function ToolResultsView({ results }: { results: ToolResultBlock[] }) {
   return (
     <div className="space-y-1 pl-4 border-l border-border-subtle">
       {results.map((r, i) => (
-        <details key={i} className="text-sm">
+        <details key={i} className="group text-sm">
           <summary className="cursor-pointer text-xs text-text-3 select-none list-none flex items-center gap-1.5 py-0.5 hover:text-text transition-colors">
-            <span className="shrink-0">▶</span>
+            <CaretRightIcon
+              size={9}
+              className="shrink-0 transition-transform group-open:rotate-90"
+            />
             <span>{r.toolName ?? 'tool'} result</span>
           </summary>
           <pre className="mt-1 rounded bg-surface border border-border-subtle px-3 py-2 text-xs text-text-3 overflow-x-auto whitespace-pre-wrap break-words max-h-64 overflow-y-auto">

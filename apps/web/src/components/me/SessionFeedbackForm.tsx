@@ -1,8 +1,9 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useState, useTransition } from 'react';
-
 import { submitSessionFeedback } from '@/app/me/sessions/[id]/actions';
+import { ThumbsDownIcon, ThumbsUpIcon } from '@/components/icons';
 
 type Sentiment = 'up' | 'down' | null;
 
@@ -40,7 +41,7 @@ export function SessionFeedbackForm({
     save(next);
   }
 
-  const btn = (value: 'up' | 'down', label: string) => {
+  const btn = (value: 'up' | 'down', label: ReactNode) => {
     const active = sentiment === value;
     const activeCls =
       value === 'up' ? 'border-emerald-500/60 text-emerald-300' : 'border-red-500/60 text-red-300';
@@ -49,7 +50,7 @@ export function SessionFeedbackForm({
         type="button"
         onClick={() => pick(value)}
         disabled={isPending}
-        className={`rounded-md border px-3 py-1 text-sm transition-colors ${
+        className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-sm transition-colors ${
           active ? activeCls : 'border-border text-text-3 hover:text-text'
         }`}
       >
@@ -63,8 +64,18 @@ export function SessionFeedbackForm({
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-text">Was this session's work good?</p>
         <div className="flex gap-2">
-          {btn('up', '👍 Good')}
-          {btn('down', '👎 Needs work')}
+          {btn(
+            'up',
+            <>
+              <ThumbsUpIcon /> Good
+            </>,
+          )}
+          {btn(
+            'down',
+            <>
+              <ThumbsDownIcon /> Needs work
+            </>,
+          )}
         </div>
       </div>
       <textarea

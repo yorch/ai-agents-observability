@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { CaretRightIcon } from '@/components/icons';
 import { TranscriptStatsBar } from '@/components/me/TranscriptStatsBar';
 import { TranscriptTurnView } from '@/components/me/TranscriptTurnView';
 import { computeStats, type ParsedLine, parseTranscriptLine } from '@/lib/transcript-parser';
@@ -50,9 +51,12 @@ function TextBlockView({ block }: { block: TextBlock }) {
 function ToolUseBlockView({ block }: { block: ToolUseBlock }) {
   const inputJson = JSON.stringify(block.input, null, 2);
   return (
-    <details className="rounded border border-accent/20 bg-accent/5 text-sm">
+    <details className="group rounded border border-accent/20 bg-accent/5 text-sm">
       <summary className="cursor-pointer px-3 py-1.5 text-accent font-mono select-none list-none flex items-center gap-2">
-        <span className="text-text-3">▶</span>
+        <CaretRightIcon
+          size={10}
+          className="text-text-3 shrink-0 transition-transform group-open:rotate-90"
+        />
         <span className="text-xs text-text-3">tool</span>
         <span className="font-semibold">{block.name}</span>
       </summary>
@@ -70,9 +74,12 @@ function ToolResultBlockView({ block }: { block: ToolResultBlock }) {
       : (JSON.stringify(block.content, null, 2) ?? '');
   const isLong = raw.length > 500;
   return (
-    <details className="rounded border border-border bg-surface text-sm">
+    <details className="group rounded border border-border bg-surface text-sm">
       <summary className="cursor-pointer px-3 py-1.5 text-text-3 font-mono select-none list-none flex items-center gap-2">
-        <span className="text-text-3">▶</span>
+        <CaretRightIcon
+          size={10}
+          className="text-text-3 shrink-0 transition-transform group-open:rotate-90"
+        />
         <span className="text-xs">tool result</span>
         {isLong && <span className="text-text-3 text-xs">({raw.length} chars)</span>}
       </summary>

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { currentUser } from '@/lib/auth';
 import { MIN_QUERY_LENGTH, searchOwnTranscripts } from '@/lib/search-queries';
 
@@ -67,16 +68,22 @@ export default async function MeSearchPage({
             {totalPages > 1 && (
               <div className="flex items-center gap-2 text-sm">
                 {page > 1 && (
-                  <a href={buildUrl(query, page - 1)} className="text-brand-400 hover:underline">
-                    ← Prev
+                  <a
+                    href={buildUrl(query, page - 1)}
+                    className="inline-flex items-center gap-1 text-brand-400 hover:underline"
+                  >
+                    <ArrowLeftIcon /> Prev
                   </a>
                 )}
                 <span className="text-white/40">
                   {page} / {totalPages}
                 </span>
                 {page < totalPages && (
-                  <a href={buildUrl(query, page + 1)} className="text-brand-400 hover:underline">
-                    Next →
+                  <a
+                    href={buildUrl(query, page + 1)}
+                    className="inline-flex items-center gap-1 text-brand-400 hover:underline"
+                  >
+                    Next <ArrowRightIcon />
                   </a>
                 )}
               </div>

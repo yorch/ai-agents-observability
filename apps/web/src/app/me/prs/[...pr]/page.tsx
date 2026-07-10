@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { ArrowLeftIcon, ArrowRightIcon, ExternalLinkIcon } from '@/components/icons';
 import { currentUser } from '@/lib/auth';
 import { getPRDetail } from '@/lib/pr-queries';
 import { getPrisma } from '@/lib/prisma';
@@ -83,8 +84,11 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
   return (
     <div className="space-y-6">
       {/* Back link */}
-      <Link href="/me/prs" className="text-sm text-white/50 hover:text-white">
-        ← Pull Requests
+      <Link
+        href="/me/prs"
+        className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
+      >
+        <ArrowLeftIcon /> Pull Requests
       </Link>
 
       {/* Header */}
@@ -102,14 +106,14 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
               href={githubHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-white/80"
+              className="inline-flex items-center gap-1 hover:text-white/80"
             >
-              {pr.repoOwner}/{pr.repoName} #{pr.prNumber} ↗
+              {pr.repoOwner}/{pr.repoName} #{pr.prNumber} <ExternalLinkIcon size={11} />
             </a>
           </span>
           {pr.headBranch && pr.baseBranch && (
-            <span className="font-mono text-xs">
-              {pr.headBranch} → {pr.baseBranch}
+            <span className="inline-flex items-center gap-1 font-mono text-xs">
+              {pr.headBranch} <ArrowRightIcon size={11} /> {pr.baseBranch}
             </span>
           )}
           {pr.openedAt && <span>opened: {formatDate(pr.openedAt)}</span>}
@@ -217,9 +221,9 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
                 </Link>
                 <Link
                   href={`/me/sessions/${sessionId}`}
-                  className="text-xs text-white/30 hover:text-white/60"
+                  className="inline-flex items-center gap-1 text-xs text-white/30 hover:text-white/60"
                 >
-                  View →
+                  View <ArrowRightIcon />
                 </Link>
               </div>
             ))}

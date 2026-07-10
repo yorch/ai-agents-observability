@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { ArrowRightIcon } from '@/components/icons';
 import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
@@ -583,7 +584,7 @@ function SkillSequencesSection({ rows }: { rows: SkillSequenceRow[] }) {
             <div className="flex items-center justify-between text-xs">
               <span className="flex items-center gap-1.5 font-mono text-text">
                 <span className="text-text-2">{r.fromSkill}</span>
-                <span className="text-text-3">→</span>
+                <ArrowRightIcon size={11} className="text-text-3" />
                 <span className="text-accent">{r.toSkill}</span>
               </span>
               <span className="text-text-3">{r.transitionCount}×</span>

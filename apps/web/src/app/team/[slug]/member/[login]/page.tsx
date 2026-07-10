@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ArrowLeftIcon } from '@/components/icons';
 import { SessionsTable } from '@/components/me/SessionsTable';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
@@ -42,8 +43,11 @@ export default async function TeamMemberSessionsPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href={`/team/${slug}/roster`} className="text-sm text-white/50 hover:text-white">
-          ← Roster
+        <Link
+          href={`/team/${slug}/roster`}
+          className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
+        >
+          <ArrowLeftIcon /> Roster
         </Link>
       </div>
 

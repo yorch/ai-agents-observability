@@ -1,4 +1,5 @@
 import { AuditAction } from '@ai-agents-observability/db';
+import { CheckIcon } from '@/components/icons';
 import { OversightPanel } from '@/components/me/OversightPanel';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { StatCard } from '@/components/team-org/StatCard';
@@ -145,7 +146,9 @@ export default async function GovernancePage({
                   <td className="py-2 text-white/60">{r.state}</td>
                   <td className="py-2">
                     {r.reviewedByOther ? (
-                      <span className="text-emerald-400">✓ yes</span>
+                      <span className="inline-flex items-center gap-1 text-emerald-400">
+                        <CheckIcon size={12} /> yes
+                      </span>
                     ) : r.awaitingReview ? (
                       <span className="text-yellow-300">awaiting</span>
                     ) : (

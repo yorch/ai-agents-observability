@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
 import { MIN_JUSTIFICATION_LENGTH, normalizeJustification } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
@@ -70,8 +71,11 @@ export default async function OrgTranscriptPage({
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <Link href={`/org/sessions/${id}`} className="text-sm text-white/50 hover:text-white">
-            ← Session
+          <Link
+            href={`/org/sessions/${id}`}
+            className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
+          >
+            <ArrowLeftIcon /> Session
           </Link>
         </div>
         <div>

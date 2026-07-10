@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArrowRightIcon } from '@/components/icons';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireGrantRequester } from '@/lib/roles';
@@ -163,9 +164,9 @@ function GrantCard({
         {sessionLink && (
           <Link
             href={sessionLink}
-            className="text-xs text-accent hover:opacity-80 transition-opacity"
+            className="inline-flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
           >
-            View session →
+            View session <ArrowRightIcon />
           </Link>
         )}
       </div>
