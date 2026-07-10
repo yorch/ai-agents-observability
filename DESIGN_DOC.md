@@ -1058,9 +1058,13 @@ Resist the urge to build all of it. The MVP that proves value:
 - `/org/benchmarks` — per-team benchmark comparison across the org
 - `/org/delivery` — PR delivery stats: time-to-merge, weekly trend, top repos
 - `/org/tools` — org-level tool usage breakdown
-- `/admin/adapters` — per-agent adapter status (last-seen session, 7d session count)
+- `/org/security` — AI-agent data-flow & access posture: tool-category exposure, per-repo exec/network/write exposure, external MCP egress inventory, largest data movements (`tool_output_bytes`), and privileged-access audit summary. Aggregate, visibility-scoped
+- `/org/knowledge` — aggregate transcript topic clustering (keyword taxonomy over the FTS index) with small-n suppression; no individual content
+- `/admin/adapters` — per-agent adapter status (last-seen session, 7d session count) + client CLI/agent version mix
 - `/admin/jobs` — background job config (enable/disable individual scheduler jobs, trigger on demand)
 - `/admin/price-tables` — manage per-agent/per-model price tables
+
+The `/org/dashboard` also carries a **spend forecast** (trailing-7d run-rate + month-to-date projections, per-team run-rate, and a comparison against a configured `budget_threshold` alert rule). Session detail and `/me/insights` now surface the previously-captured-but-unrendered context-pressure (`compaction_count`/`clear_count`), continuity (`is_resume`), notification-kind, tool-byte-volume, `pr_review_decision`, `cost_per_loc`, and Jira `story_points` (cost-per-story-point on `/org/roi`) signals.
 
 **Success criteria:** Quarterly leadership readout uses this instead of ad-hoc spreadsheets.
 

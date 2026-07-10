@@ -4,6 +4,7 @@ import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { currentUser } from '@/lib/auth';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
+import { fmtBytes } from '@/lib/fmt';
 import {
   type ContinuitySummaryRow,
   getContinuitySummary,
@@ -269,19 +270,6 @@ function SessionSummaryCards({ summary: s }: { summary: SessionSummaryRow }) {
       ))}
     </div>
   );
-}
-
-function fmtBytes(n: number | null): string {
-  if (n == null || n === 0) {
-    return '—';
-  }
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toFixed(1)}MB`;
-  }
-  if (n >= 1_000) {
-    return `${(n / 1_000).toFixed(1)}kB`;
-  }
-  return `${n}B`;
 }
 
 const NOTIFICATION_KIND_META: Record<string, { color: string; label: string }> = {

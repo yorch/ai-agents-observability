@@ -10,6 +10,29 @@ import { fmtUsd } from '@/lib/fmt';
 const BUDGET_WARN_RATIO = 0.8;
 const BUDGET_CRITICAL_RATIO = 1.0;
 
+// One classification of the projected/budget ratio → the text + bar colors and
+// the callout copy, so the three can't drift apart.
+const BUDGET_LEVEL = {
+  critical: {
+    bar: 'bg-red-400',
+    copy: 'On track to exceed the configured budget this window.',
+    text: 'text-red-400',
+  },
+  ok: { bar: 'bg-emerald-400', copy: '', text: 'text-emerald-400' },
+  warn: {
+    bar: 'bg-yellow-400',
+    copy: 'Approaching the configured budget for this window.',
+    text: 'text-yellow-300',
+  },
+} as const;
+
+function budgetLevel(ratio: number): keyof typeof BUDGET_LEVEL {
+  if (ratio >= BUDGET_CRITICAL_RATIO) {
+    return 'critical';
+  }
+  return ratio >= BUDGET_WARN_RATIO ? 'warn' : 'ok';
+}
+
 export type SpendForecastProps = {
   budget: { budgetUsd: number; projectedSpend: number; windowDays: number } | null;
   dailyRunRate: number;
@@ -26,18 +49,7 @@ export function SpendForecast({
   teams,
 }: SpendForecastProps) {
   const budgetRatio = budget && budget.budgetUsd > 0 ? budget.projectedSpend / budget.budgetUsd : 0;
-  const budgetAccent =
-    budgetRatio >= BUDGET_CRITICAL_RATIO
-      ? 'text-red-400'
-      : budgetRatio >= BUDGET_WARN_RATIO
-        ? 'text-yellow-300'
-        : 'text-emerald-400';
-  const budgetBar =
-    budgetRatio >= BUDGET_CRITICAL_RATIO
-      ? 'bg-red-400'
-      : budgetRatio >= BUDGET_WARN_RATIO
-        ? 'bg-yellow-400'
-        : 'bg-emerald-400';
+  const level = BUDGET_LEVEL[budgetLevel(budgetRatio)];
 
   return (
     <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-4">
@@ -72,23 +84,17 @@ export function SpendForecast({
             <span className="text-white/60">
               Projected vs budget ({budget.windowDays}-day window)
             </span>
-            <span className={`font-mono font-semibold ${budgetAccent}`}>
+            <span className={`font-mono font-semibold ${level.text}`}>
               {fmtUsd(budget.projectedSpend)} / {fmtUsd(budget.budgetUsd)}
             </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-surface-2">
             <div
-              className={`h-full rounded-full ${budgetBar}`}
+              className={`h-full rounded-full ${level.bar}`}
               style={{ width: `${Math.min(100, budgetRatio * 100)}%` }}
             />
           </div>
-          {budgetRatio >= BUDGET_WARN_RATIO && (
-            <p className={`text-xs ${budgetAccent}`}>
-              {budgetRatio >= BUDGET_CRITICAL_RATIO
-                ? 'On track to exceed the configured budget this window.'
-                : 'Approaching the configured budget for this window.'}
-            </p>
-          )}
+          {level.copy && <p className={`text-xs ${level.text}`}>{level.copy}</p>}
         </div>
       )}
 

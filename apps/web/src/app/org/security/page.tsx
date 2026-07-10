@@ -1,6 +1,7 @@
 import { AuditAction } from '@ai-agents-observability/db';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { StatCard } from '@/components/team-org/StatCard';
+import { fmtBytes } from '@/lib/fmt';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
 import {
@@ -31,22 +32,6 @@ const CATEGORY_META: Record<string, { label: string; risk: 'high' | 'med' | 'low
   task: { label: 'Subagent tasks', risk: 'low' },
   web: { label: 'Network / web', risk: 'high' },
 };
-
-function fmtBytes(n: number): string {
-  if (n <= 0) {
-    return '—';
-  }
-  if (n >= 1_000_000_000) {
-    return `${(n / 1_000_000_000).toFixed(1)}GB`;
-  }
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toFixed(1)}MB`;
-  }
-  if (n >= 1_000) {
-    return `${(n / 1_000).toFixed(1)}kB`;
-  }
-  return `${n}B`;
-}
 
 const RISK_STYLES: Record<string, string> = {
   high: 'bg-red-500/15 text-red-400',

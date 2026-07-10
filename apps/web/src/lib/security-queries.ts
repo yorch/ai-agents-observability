@@ -78,8 +78,7 @@ export async function getRepoExposure(since: Date, limit = 15): Promise<RepoExpo
     }[]
   >(Prisma.sql`
     SELECT
-      CASE WHEN r.github_owner IS NOT NULL
-           THEN r.github_owner || '/' || r.github_name END        AS repo_name,
+      r.github_owner || '/' || r.github_name                     AS repo_name,
       COUNT(*) FILTER (WHERE e.tool_category = 'exec')            AS exec_calls,
       COUNT(*) FILTER (WHERE e.tool_category = 'web')             AS web_calls,
       COUNT(*) FILTER (WHERE e.tool_category = 'fs_write')        AS write_calls

@@ -18,6 +18,23 @@ export function fmtPct(ratio: number): string {
   return `${(ratio * 100).toFixed(0)}%`;
 }
 
+/** Byte count in B/kB/MB/GB, e.g. 2048 → "2.0kB". Null or non-positive → "—". */
+export function fmtBytes(n: number | null): string {
+  if (n == null || n <= 0) {
+    return '—';
+  }
+  if (n >= 1_000_000_000) {
+    return `${(n / 1_000_000_000).toFixed(1)}GB`;
+  }
+  if (n >= 1_000_000) {
+    return `${(n / 1_000_000).toFixed(1)}MB`;
+  }
+  if (n >= 1_000) {
+    return `${(n / 1_000).toFixed(1)}kB`;
+  }
+  return `${n}B`;
+}
+
 export function fmtDate(d: Date | null): string {
   if (!d) {
     return '\u2014';
