@@ -4,11 +4,13 @@ import { StatCard } from '@/components/team-org/StatCard';
 import { getJiraBase } from '@/lib/config';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
+  BUG_ISSUE_TYPES,
   getCiCostCorrelation,
   getCommitProvenance,
   getOrgRoiSummary,
   getRoiByRepo,
   getSpendByEpic,
+  getSpendByIssueType,
   getSpendByJiraKey,
   getSpendByProject,
 } from '@/lib/roi-queries';
@@ -33,17 +35,29 @@ export default async function OrgRoiPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 90) as 7 | 30 | 90;
   const since = daysAgo(range);
 
-  const [summary, ci, jiraSpend, projectSpend, epicSpend, commits, repoRoi] = await Promise.all([
-    getOrgRoiSummary(since),
-    getCiCostCorrelation(since),
-    getSpendByJiraKey(since),
-    getSpendByProject(since),
-    getSpendByEpic(since),
-    getCommitProvenance(since),
-    getRoiByRepo(since),
-  ]);
+  const [summary, ci, jiraSpend, projectSpend, epicSpend, issueTypes, commits, repoRoi] =
+    await Promise.all([
+      getOrgRoiSummary(since),
+      getCiCostCorrelation(since),
+      getSpendByJiraKey(since),
+      getSpendByProject(since),
+      getSpendByEpic(since),
+      getSpendByIssueType(since),
+      getCommitProvenance(since),
+      getRoiByRepo(since),
+    ]);
 
   const jiraBase = getJiraBase();
+
+  // Bug-work share: spend on Bug/Defect-type tickets over all *classified*
+  // ticket spend (Unclassified is excluded from the denominator so an unsynced
+  // Jira doesn't masquerade as "0% bug work").
+  const classified = issueTypes.filter((t) => t.issueType !== 'Unclassified');
+  const classifiedSpend = classified.reduce((sum, t) => sum + t.sessionCostUsd, 0);
+  const bugSpend = classified
+    .filter((t) => BUG_ISSUE_TYPES.has(t.issueType.toLowerCase()))
+    .reduce((sum, t) => sum + t.sessionCostUsd, 0);
+  const bugShare = classifiedSpend > 0 ? bugSpend / classifiedSpend : null;
   // Multiplier of how much more a CI-failed merge cost vs a clean one.
   const ciCostMultiplier =
     ci.cleanAvgCost > 0 && ci.failedAvgCost > 0 ? ci.failedAvgCost / ci.cleanAvgCost : null;
@@ -256,6 +270,63 @@ export default async function OrgRoiPage({
             </tbody>
           </table>
         )}
+      </section>
+
+      {/* Bug vs feature spend */}
+      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-white/70">Bug vs feature spend ({range}d)</h2>
+        {classified.length === 0 ? (
+          <p className="text-sm text-white/40">
+            No classified tickets in this window. Issue types come from the Jira sync (JIRA_BASE_URL
+            + JIRA_API_TOKEN).
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <StatCard
+                label="Bug-work spend"
+                value={fmtUsd(bugSpend)}
+                sub="sessions on Bug/Defect-type tickets"
+                {...(bugShare !== null && bugShare > 0.3 ? { accent: 'amber' as const } : {})}
+              />
+              <StatCard
+                label="Bug-work share"
+                value={bugShare !== null ? fmtPct(bugShare) : '—'}
+                sub="of classified ticket spend"
+              />
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-white/40 text-left">
+                  <th className="pb-2 font-medium">Issue type</th>
+                  <th className="pb-2 font-medium text-right">Tickets</th>
+                  <th className="pb-2 font-medium text-right">Session spend</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {issueTypes.map((t) => (
+                  <tr key={t.issueType}>
+                    <td
+                      className={`py-2 text-xs ${
+                        BUG_ISSUE_TYPES.has(t.issueType.toLowerCase())
+                          ? 'text-amber-300'
+                          : 'text-white/80'
+                      }`}
+                    >
+                      {t.issueType}
+                    </td>
+                    <td className="py-2 text-right text-white/60">{t.ticketCount}</td>
+                    <td className="py-2 text-right font-mono">{fmtUsd(t.sessionCostUsd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+        <p className="text-xs text-white/30">
+          This measures agent spend on bug-type tickets — a rework signal — not which PR caused
+          which defect. Unclassified rows are tickets the Jira sync hasn't resolved.
+        </p>
       </section>
 
       {/* Merged-work provenance */}

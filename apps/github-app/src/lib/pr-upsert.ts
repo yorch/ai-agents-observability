@@ -43,16 +43,18 @@ export async function upsertPullRequest(
   repoPl: RepoPayload,
   prPl: PullRequestPayload,
   state: PRState,
+  // Known Jira project codes (configured ∪ synced); null = accept any key shape.
+  jiraProjectAllowlist: ReadonlySet<string> | null = null,
 ): Promise<{ repoId: string; prNumber: number }> {
   // Two webhook deliveries for the same new repo/PR (e.g. opened + synchronize
   // arriving together) can race: both take the create path and one hits a
   // unique-constraint violation (P2002), a known Prisma upsert behaviour. Retry
   // once — the second pass finds the now-existing rows and takes the update path.
   try {
-    return await doUpsert(db, repoPl, prPl, state);
+    return await doUpsert(db, repoPl, prPl, state, jiraProjectAllowlist);
   } catch (err) {
     if (isUniqueViolation(err)) {
-      return await doUpsert(db, repoPl, prPl, state);
+      return await doUpsert(db, repoPl, prPl, state, jiraProjectAllowlist);
     }
     throw err;
   }
@@ -63,6 +65,7 @@ async function doUpsert(
   repoPl: RepoPayload,
   prPl: PullRequestPayload,
   state: PRState,
+  jiraProjectAllowlist: ReadonlySet<string> | null,
 ): Promise<{ repoId: string; prNumber: number }> {
   const parsed = parseRepoFullName(repoPl.full_name);
   if (!parsed) {
@@ -93,7 +96,12 @@ async function doUpsert(
 
   // P5-004: extract Jira key — head branch first (the strongest convention),
   // then PR title, then PR body, for repos without disciplined branch naming.
-  const jiraKey = extractJiraKeyFromSources(prPl.head.ref, prPl.title, prPl.body);
+  const jiraKey = extractJiraKeyFromSources(
+    jiraProjectAllowlist,
+    prPl.head.ref,
+    prPl.title,
+    prPl.body,
+  );
 
   await db.pullRequest.upsert({
     create: {

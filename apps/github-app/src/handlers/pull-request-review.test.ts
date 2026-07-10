@@ -2,9 +2,11 @@ import type { EmitterWebhookEvent } from '@octokit/webhooks';
 import type { Logger } from 'pino';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { Config } from '../config';
 import { handlePullRequestReview } from './pull-request-review';
 
 const logger = { info: vi.fn(), warn: vi.fn() } as unknown as Logger;
+const config = { jira_project_keys: [] } as unknown as Config;
 
 type ReviewPayload = EmitterWebhookEvent<'pull_request_review'>['payload'];
 
@@ -59,7 +61,7 @@ describe('handlePullRequestReview', () => {
   it('stores the submitted review and maintains review_count', async () => {
     const db = makeDb();
 
-    await handlePullRequestReview(payload('submitted'), db as never, logger);
+    await handlePullRequestReview(payload('submitted'), db as never, config, logger);
 
     expect(db.pRReview.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -83,7 +85,7 @@ describe('handlePullRequestReview', () => {
   it('does not rewrite an already-tracked PR (the slim review payload lacks diff stats)', async () => {
     const db = makeDb({ prTracked: true });
 
-    await handlePullRequestReview(payload('submitted'), db as never, logger);
+    await handlePullRequestReview(payload('submitted'), db as never, config, logger);
 
     expect(db.pullRequest.upsert).not.toHaveBeenCalled();
   });
@@ -91,7 +93,7 @@ describe('handlePullRequestReview', () => {
   it('creates the PR from the payload when it is not tracked yet', async () => {
     const db = makeDb({ prTracked: false });
 
-    await handlePullRequestReview(payload('submitted'), db as never, logger);
+    await handlePullRequestReview(payload('submitted'), db as never, config, logger);
 
     expect(db.pullRequest.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -104,7 +106,7 @@ describe('handlePullRequestReview', () => {
   it('marks dismissed reviews as DISMISSED', async () => {
     const db = makeDb();
 
-    await handlePullRequestReview(payload('dismissed'), db as never, logger);
+    await handlePullRequestReview(payload('dismissed'), db as never, config, logger);
 
     expect(db.pRReview.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -116,7 +118,7 @@ describe('handlePullRequestReview', () => {
   it('ignores unrelated actions', async () => {
     const db = makeDb();
 
-    await handlePullRequestReview(payload('unlocked'), db as never, logger);
+    await handlePullRequestReview(payload('unlocked'), db as never, config, logger);
 
     expect(db.pRReview.upsert).not.toHaveBeenCalled();
   });

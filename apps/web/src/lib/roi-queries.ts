@@ -313,6 +313,43 @@ export async function getSpendByProject(since: Date, limit = 10): Promise<Projec
   }));
 }
 
+export type IssueTypeSpendRow = {
+  issueType: string;
+  sessionCostUsd: number;
+  ticketCount: number;
+};
+
+// Rework signal: how much agent spend goes into Bug-type tickets vs
+// feature/task work. This is spend ON bug tickets (honest and directly
+// measurable), NOT defect attribution ("this PR caused that bug") — the
+// latter needs fix-version/issue-link data we don't collect. Classification
+// comes from jira_issues.issue_type, so tickets the sync hasn't resolved
+// group under 'Unclassified'.
+export async function getSpendByIssueType(since: Date): Promise<IssueTypeSpendRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    { issue_type: string; session_cost: number | null; ticket_count: bigint }[]
+  >(Prisma.sql`
+    WITH ticket AS (${sessionSpendByKeySql(since)})
+    SELECT
+      COALESCE(ji.issue_type, 'Unclassified')  AS issue_type,
+      COUNT(DISTINCT t.jira_key)               AS ticket_count,
+      COALESCE(SUM(t.session_cost), 0)         AS session_cost
+    FROM ticket t
+    LEFT JOIN jira_issues ji ON ji.key = t.jira_key
+    GROUP BY COALESCE(ji.issue_type, 'Unclassified')
+    ORDER BY session_cost DESC
+  `);
+
+  return rows.map((r) => ({
+    issueType: r.issue_type,
+    sessionCostUsd: Number(r.session_cost ?? 0),
+    ticketCount: Number(r.ticket_count),
+  }));
+}
+
+// Issue-type names that count as defect work for the bug-share stat.
+export const BUG_ISSUE_TYPES = new Set(['bug', 'defect']);
+
 export type CommitProvenance = {
   linkedCommits: number;
   sessionsWithCommits: number;

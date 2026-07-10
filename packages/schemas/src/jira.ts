@@ -35,14 +35,27 @@ const NON_JIRA_PREFIXES = new Set([
 /**
  * Extracts the first Jira issue key from a single string (branch name, PR
  * title, commit message, …). Returns null if no key is found.
+ *
+ * When `knownProjects` is a non-empty set (uppercase project codes, e.g. from
+ * synced jira_issues plus a configured allowlist), only keys whose prefix is
+ * in the set are accepted — a far stronger false-positive guard than the
+ * denylist. A null/empty set means "no allowlist" (bootstrap mode): every
+ * key-shaped token passes except the denylisted standards prefixes.
  */
-export function extractJiraKey(text: string): string | null {
+export function extractJiraKey(
+  text: string,
+  knownProjects: ReadonlySet<string> | null = null,
+): string | null {
   JIRA_KEY_RE.lastIndex = 0;
   let match = JIRA_KEY_RE.exec(text);
   while (match) {
     const key = match[1] as string;
     const prefix = key.slice(0, key.indexOf('-'));
-    if (!NON_JIRA_PREFIXES.has(prefix)) {
+    if (knownProjects && knownProjects.size > 0) {
+      if (knownProjects.has(prefix)) {
+        return key;
+      }
+    } else if (!NON_JIRA_PREFIXES.has(prefix)) {
       return key;
     }
     match = JIRA_KEY_RE.exec(text);
@@ -53,16 +66,17 @@ export function extractJiraKey(text: string): string | null {
 /**
  * Extracts the first Jira issue key across several candidate sources, in
  * priority order (e.g. branch name, then PR title, then PR body). Null and
- * undefined sources are skipped.
+ * undefined sources are skipped. `knownProjects` behaves as in extractJiraKey.
  */
 export function extractJiraKeyFromSources(
+  knownProjects: ReadonlySet<string> | null,
   ...sources: Array<string | null | undefined>
 ): string | null {
   for (const source of sources) {
     if (!source) {
       continue;
     }
-    const key = extractJiraKey(source);
+    const key = extractJiraKey(source, knownProjects);
     if (key) {
       return key;
     }

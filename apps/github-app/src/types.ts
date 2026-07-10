@@ -9,6 +9,7 @@ export type AppEnv = {
 export type AppDb = Pick<
   PrismaClient,
   | '$transaction'
+  | 'jiraIssue'
   | 'pRCheckRun'
   | 'pRReview'
   | 'pullRequest'

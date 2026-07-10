@@ -18,6 +18,7 @@ export default async function OrgSearchPage({
   const repoId = params.repo ?? undefined;
   const model = params.model ?? undefined;
   const toolName = params.tool ?? undefined;
+  const jiraKey = params.jira ?? undefined;
   const shape = params.shape || undefined;
   const agent = params.agent || undefined;
   const bandRaw = params.band;
@@ -88,6 +89,7 @@ export default async function OrgSearchPage({
           dateFrom,
           dateTo,
           frictionBand,
+          jiraKey,
           model,
           page,
           repoId,
@@ -206,6 +208,23 @@ export default async function OrgSearchPage({
                   name="tool"
                   defaultValue={toolName ?? ''}
                   placeholder="e.g. Edit, Bash"
+                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="filter-jira"
+                  className="text-xs text-white/50 uppercase tracking-wide"
+                >
+                  Jira ticket
+                </label>
+                <input
+                  id="filter-jira"
+                  type="text"
+                  name="jira"
+                  defaultValue={jiraKey ?? ''}
+                  placeholder="e.g. PROJ-123"
                   className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
                 />
               </div>

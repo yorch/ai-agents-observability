@@ -55,10 +55,10 @@ default-branch commits), and turn the regex-only Jira integration into a real on
 - [x] `sync-jira` is manually triggerable via the admin jobs endpoint and no-ops with a
       warning when Jira is unconfigured.
 
-## Follow-ups (not in scope)
+## Follow-ups
 
-- Migrate team-scoped queries from the `github_team` string to `sessions.team_id`.
-- `jira_key` facet in org faceted search.
-- Bug-correlation analysis surface (`jira_issues.issue_type = 'Bug'` → PR → session
-  characteristics) — the join now exists.
-- Fetch PR commit SHAs on `synchronize` (deliberately omitted to avoid an API call per push).
+Landed in [P11-002](./P11-002-correlation-follow-ups.md): project-key allowlist for
+extraction, bug-vs-feature spend, the `jira` search facet, and the team-FK query
+audit (nothing to migrate). Still deferred there: defect attribution and
+statistical bug-rate correlation. Also still deliberately omitted here: fetching
+PR commit SHAs on `synchronize` (avoids an API call per push).

@@ -39,16 +39,26 @@ describe('extractJiraKey', () => {
 
 describe('extractJiraKeyFromSources', () => {
   it('takes the first source that yields a key, in order', () => {
-    expect(extractJiraKeyFromSources('feature/no-ticket', 'OBS-1: title', 'body with OBS-2')).toBe(
-      'OBS-1',
-    );
+    expect(
+      extractJiraKeyFromSources(null, 'feature/no-ticket', 'OBS-1: title', 'body with OBS-2'),
+    ).toBe('OBS-1');
   });
 
   it('skips null and undefined sources', () => {
-    expect(extractJiraKeyFromSources(null, undefined, 'feat/JIRA-1234')).toBe('JIRA-1234');
+    expect(extractJiraKeyFromSources(null, null, undefined, 'feat/JIRA-1234')).toBe('JIRA-1234');
   });
 
   it('returns null when no source has a key', () => {
-    expect(extractJiraKeyFromSources('main', null, 'no keys here')).toBeNull();
+    expect(extractJiraKeyFromSources(null, 'main', null, 'no keys here')).toBeNull();
+  });
+
+  it('only accepts keys from known projects when an allowlist is provided', () => {
+    const known = new Set(['OBS']);
+    expect(extractJiraKeyFromSources(known, 'feat/OBS-42')).toBe('OBS-42');
+    expect(extractJiraKeyFromSources(known, 'feat/FAKE-42')).toBeNull();
+    // The allowlist even admits keys the denylist would reject.
+    expect(extractJiraKey('bump to UTF-8', new Set(['UTF']))).toBe('UTF-8');
+    // Later sources are still consulted when the first has no allowed key.
+    expect(extractJiraKeyFromSources(known, 'feat/FAKE-1', 'OBS-7: title')).toBe('OBS-7');
   });
 });

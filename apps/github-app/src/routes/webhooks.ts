@@ -106,6 +106,7 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
           await handlePullRequestReview(
             payload as EmitterWebhookEvent<'pull_request_review'>['payload'],
             db,
+            config,
             logger,
           );
         }

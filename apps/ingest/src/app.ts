@@ -77,7 +77,10 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
 
   // Auth middleware applies to all remaining /v1/* routes
   app.use('/v1/*', authRequired(deps.db, deps.logger));
-  app.route('/v1/events', eventsRouter(deps.db, priceTables, deps.logger));
+  app.route(
+    '/v1/events',
+    eventsRouter(deps.db, priceTables, deps.logger, config.jira_project_keys),
+  );
   app.route('/v1/transcripts', transcriptsRouter({ db: deps.db, s3: deps.s3 }, deps.logger));
 
   // Catch-all for unhandled throws (e.g. DB errors on the events hot path).

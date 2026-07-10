@@ -210,6 +210,8 @@ export async function upsertSessions(
   // Team-name → team_id, resolved by events.ts from synced Team rows (only for
   // unambiguous names). Turns the denormalized github_team string into a real FK.
   teamIdByName: Map<string, string> = new Map(),
+  // Known Jira project codes (configured ∪ synced); null = accept any key shape.
+  jiraProjectAllowlist: ReadonlySet<string> | null = null,
 ): Promise<UpsertResult> {
   if (events.length === 0) {
     return { sessionsTouched: 0 };
@@ -227,7 +229,7 @@ export async function upsertSessions(
       const git = ev.session_context.git ?? envelopeGit;
       // Session-level ticket attribution: same extraction rules as PR-side
       // P5-004, so a session links to its Jira key even without a PR.
-      agg.jiraKey = extractJiraKeyFromSources(git?.branch);
+      agg.jiraKey = extractJiraKeyFromSources(jiraProjectAllowlist, git?.branch);
       if (git?.owner && git?.repo) {
         agg.repoId = repoIdByKey.get(`${git.owner}/${git.repo}`) ?? null;
         if (!agg.gitBranch && git.branch) {

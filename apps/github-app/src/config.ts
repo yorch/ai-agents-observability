@@ -27,6 +27,20 @@ const ConfigSchema = z.object({
   github_app_private_key_b64: z.string().min(1),
   github_app_webhook_secret: z.string().min(1),
   github_host: z.string().url().default('https://github.com'),
+  // Comma-separated Jira project codes (e.g. "PLAT,OBS") that key extraction
+  // accepts, unioned with project keys learned by the ingest sync-jira job.
+  // When both are empty, extraction accepts any key-shaped token.
+  jira_project_keys: z
+    .string()
+    .optional()
+    .transform((v) =>
+      v
+        ? v
+            .split(',')
+            .map((k) => k.trim())
+            .filter(Boolean)
+        : [],
+    ),
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   node_env: z.enum(['development', 'production', 'test']).default('development'),
   port: z.coerce.number().int().min(1).max(65535).default(4001),
@@ -47,6 +61,7 @@ export function loadConfig(): Config {
     github_app_private_key_b64: process.env.GITHUB_APP_PRIVATE_KEY,
     github_app_webhook_secret: process.env.GITHUB_APP_WEBHOOK_SECRET,
     github_host: normalizeHost(process.env.GITHUB_HOST),
+    jira_project_keys: process.env.JIRA_PROJECT_KEYS,
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,
     port: process.env.GITHUB_APP_PORT,
