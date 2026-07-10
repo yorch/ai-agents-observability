@@ -45,6 +45,83 @@ export async function getSessionSummary(userId: string, since: Date): Promise<Se
   };
 }
 
+// Context-window pressure & session-continuity signals (Tier 1). All captured on
+// the sessions row (compaction_count, clear_count, is_resume) but previously
+// rendered nowhere. High compaction/clear counts flag sessions fighting the
+// context limit; the resume ratio is a per-user continuity signal (DESIGN_DOC
+// §10.2 "resume vs fresh-start ratio").
+export type ContinuitySummaryRow = {
+  resumedSessions: number;
+  sessionCount: number;
+  sessionsWithReset: number;
+  totalClears: number;
+  totalCompactions: number;
+};
+
+type ContinuitySummaryRaw = {
+  resumed_sessions: bigint;
+  session_count: bigint;
+  sessions_with_reset: bigint;
+  total_clears: bigint;
+  total_compactions: bigint;
+};
+
+export async function getContinuitySummary(
+  userId: string,
+  since: Date,
+): Promise<ContinuitySummaryRow> {
+  const rows = await getPrisma().$queryRaw<ContinuitySummaryRaw[]>(Prisma.sql`
+    SELECT
+      COUNT(*)                                                          AS session_count,
+      COUNT(*) FILTER (WHERE is_resume)                                 AS resumed_sessions,
+      COUNT(*) FILTER (WHERE compaction_count > 0 OR clear_count > 0)   AS sessions_with_reset,
+      COALESCE(SUM(compaction_count), 0)::bigint                        AS total_compactions,
+      COALESCE(SUM(clear_count), 0)::bigint                             AS total_clears
+    FROM sessions
+    WHERE user_id    = ${userId}::uuid
+      AND started_at >= ${since}
+  `);
+  const r = rows[0] ?? {
+    resumed_sessions: 0n,
+    session_count: 0n,
+    sessions_with_reset: 0n,
+    total_clears: 0n,
+    total_compactions: 0n,
+  };
+  return {
+    resumedSessions: Number(r.resumed_sessions),
+    sessionCount: Number(r.session_count),
+    sessionsWithReset: Number(r.sessions_with_reset),
+    totalClears: Number(r.total_clears),
+    totalCompactions: Number(r.total_compactions),
+  };
+}
+
+// Per-kind breakdown of Notification events (Tier 1). The sessions row only keeps
+// an aggregate notification_count; the normalized `notification_kind` on the
+// events firehose (permission / idle / elicitation / auth / other) is the finer
+// Human-in-the-Loop signal that was captured but never surfaced.
+export type NotificationKindRow = {
+  count: number;
+  kind: string;
+};
+
+export async function getNotificationKinds(
+  userId: string,
+  since: Date,
+): Promise<NotificationKindRow[]> {
+  const rows = await getPrisma().$queryRaw<{ count: bigint; kind: string }[]>(Prisma.sql`
+    SELECT notification_kind AS kind, COUNT(*) AS count
+    FROM events
+    WHERE user_id = ${userId}::uuid
+      AND ts     >= ${since}
+      AND notification_kind IS NOT NULL
+    GROUP BY notification_kind
+    ORDER BY count DESC
+  `);
+  return rows.map((r) => ({ count: Number(r.count), kind: r.kind }));
+}
+
 export type McpUsageRow = {
   avgDurationMs: number | null;
   callCount: number;
@@ -98,6 +175,8 @@ export type SubagentUsageRow = {
 
 export type ToolPerfRow = {
   avgDurationMs: number | null;
+  avgInputBytes: number | null;
+  avgOutputBytes: number | null;
   callCount: number;
   deniedCount: number;
   errorCount: number;
@@ -141,6 +220,8 @@ type SubagentRawRow = { subagent_type: string; use_count: bigint };
 
 type ToolPerfRawRow = {
   avg_duration_ms: string | null;
+  avg_input_bytes: string | null;
+  avg_output_bytes: string | null;
   call_count: bigint;
   denied_count: bigint;
   error_count: bigint;
@@ -360,7 +441,9 @@ export async function getToolPerf(userId: string, since: Date): Promise<ToolPerf
                          AND tool_exit_status != 0)                          AS error_count,
       COUNT(*) FILTER (WHERE tool_was_denied = true)                        AS denied_count,
       AVG(tool_duration_ms)::text                                            AS avg_duration_ms,
-      PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tool_duration_ms)::text  AS p95_duration_ms
+      PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tool_duration_ms)::text  AS p95_duration_ms,
+      AVG(tool_input_bytes)::text                                           AS avg_input_bytes,
+      AVG(tool_output_bytes)::text                                          AS avg_output_bytes
     FROM events
     WHERE user_id = ${userId}::uuid
       AND ts       >= ${since}
@@ -372,6 +455,8 @@ export async function getToolPerf(userId: string, since: Date): Promise<ToolPerf
   `);
   return rows.map((r: ToolPerfRawRow) => ({
     avgDurationMs: r.avg_duration_ms != null ? Math.round(Number(r.avg_duration_ms)) : null,
+    avgInputBytes: r.avg_input_bytes != null ? Math.round(Number(r.avg_input_bytes)) : null,
+    avgOutputBytes: r.avg_output_bytes != null ? Math.round(Number(r.avg_output_bytes)) : null,
     callCount: Number(r.call_count),
     deniedCount: Number(r.denied_count),
     errorCount: Number(r.error_count),

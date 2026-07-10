@@ -4,6 +4,7 @@ import {
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,
   ERROR_RATE_WINDOW_DAYS,
+  parseBudgetThresholdParams,
   SPEND_SPIKE_BASELINE_DAYS,
   SPEND_SPIKE_CRITICAL_SIGMA,
   SPEND_SPIKE_WARN_SIGMA,
@@ -523,6 +524,84 @@ export async function getWeeklyCostTrend(weeks = 12): Promise<DailyCostRow[]> {
   `);
 
   return rows.map((r) => ({ costUsd: Number(r.cost_usd), day: r.week }));
+}
+
+// ── Spend forecasting (Tier 2) ────────────────────────────────────────────────
+// Run-rate projection of agent spend. Weekly cost bars already show the past; a
+// forecast turns that into a forward-looking budget number finance can plan on.
+// Both spends are visibility-scoped like every other org aggregate. Projections
+// are computed by the caller from these raw sums + the calendar, so the query
+// stays a plain windowed SUM and the "days elapsed" math is testable in the page.
+
+export type SpendForecast = {
+  last7Spend: number;
+  mtdSpend: number;
+};
+
+export async function getSpendForecast(monthStart: Date, last7Start: Date): Promise<SpendForecast> {
+  const rows = await getPrisma().$queryRaw<{ last7_spend: number; mtd_spend: number }[]>(Prisma.sql`
+    SELECT
+      COALESCE(SUM(s.total_cost_usd) FILTER (WHERE s.started_at >= ${monthStart}), 0)  AS mtd_spend,
+      COALESCE(SUM(s.total_cost_usd) FILTER (WHERE s.started_at >= ${last7Start}), 0)  AS last7_spend
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    WHERE s.started_at >= LEAST(${monthStart}, ${last7Start})
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+  `);
+  return {
+    last7Spend: Number(rows[0]?.last7_spend ?? 0),
+    mtdSpend: Number(rows[0]?.mtd_spend ?? 0),
+  };
+}
+
+export type TeamSpendForecastRow = {
+  last7Spend: number;
+  teamName: string;
+  teamSlug: string;
+};
+
+// Per-team trailing-7d spend — the basis for each team's forward run-rate, so a
+// team trending hot is visible before the invoice. Same team/visibility joins as
+// getCostByTeam so the two views never disagree on who's included.
+export async function getTeamSpendForecast(last7Start: Date): Promise<TeamSpendForecastRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    { last7_spend: number; team_name: string; team_slug: string }[]
+  >(Prisma.sql`
+    SELECT
+      t.name                                         AS team_name,
+      t.github_slug                                  AS team_slug,
+      COALESCE(SUM(s.total_cost_usd), 0)             AS last7_spend
+    FROM teams t
+    JOIN team_members tm ON tm.team_id = t.id AND tm.left_at IS NULL
+    JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    JOIN sessions s ON s.user_id = u.id AND s.started_at >= ${last7Start}
+    WHERE COALESCE(vp.share_metadata_with_org, true) = true
+    GROUP BY t.id, t.name, t.github_slug
+    HAVING COALESCE(SUM(s.total_cost_usd), 0) > 0
+    ORDER BY last7_spend DESC
+    LIMIT 20
+  `);
+  return rows.map((r) => ({
+    last7Spend: Number(r.last7_spend),
+    teamName: r.team_name,
+    teamSlug: r.team_slug,
+  }));
+}
+
+// The active budget for the forecast to measure against, if an admin configured a
+// budget_threshold alert rule. Returns null when no enabled rule has a valid
+// positive budget — the forecast then simply shows no budget line.
+export async function getActiveBudget(): Promise<{ budgetUsd: number; windowDays: number } | null> {
+  const rule = await getPrisma().alertRule.findFirst({
+    where: { enabled: true, ruleType: 'budget_threshold' },
+  });
+  if (!rule) {
+    return null;
+  }
+  const parsed = parseBudgetThresholdParams(rule.params);
+  return parsed ? { budgetUsd: parsed.budgetUsd, windowDays: parsed.windowDays } : null;
 }
 
 export async function getOrgTopTools(since: Date, limit = 10): Promise<OrgToolUsage[]> {

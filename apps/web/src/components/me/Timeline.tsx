@@ -11,6 +11,18 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+// Human-friendly label for the PR's last review decision (captured on the session
+// from GitHub webhook context; surfaced here rather than left unused).
+function reviewDecisionLabel(decision: string): ReactNode {
+  const map: Record<string, { cls: string; text: string }> = {
+    APPROVED: { cls: 'text-emerald-400', text: 'approved' },
+    CHANGES_REQUESTED: { cls: 'text-amber-400', text: 'changes requested' },
+    REVIEW_REQUIRED: { cls: 'text-text-3', text: 'review required' },
+  };
+  const m = map[decision];
+  return m ? <span className={m.cls}>{m.text}</span> : decision;
+}
+
 function formatDuration(seconds: number | null): string {
   if (seconds === null) {
     return '—';
@@ -108,8 +120,36 @@ export function Timeline({
         <Stat label="User messages" value={session.userMessageCount} />
         <Stat label="Permission prompts" value={session.permissionPromptCount} />
         <Stat label="Permission denies" value={session.permissionDenyCount} />
+        <Stat
+          label="Context resets"
+          value={
+            session.compactionCount + session.clearCount > 0 ? (
+              <span>
+                {session.compactionCount} compact
+                {session.clearCount > 0 && (
+                  <span className="text-text-3"> · {session.clearCount} clear</span>
+                )}
+              </span>
+            ) : (
+              '—'
+            )
+          }
+        />
+        <Stat
+          label="Continuity"
+          value={
+            session.isResume ? (
+              <span className="text-amber-400">resumed</span>
+            ) : (
+              <span className="text-text-3">fresh start</span>
+            )
+          }
+        />
         <Stat label="Model" value={session.primaryModel ?? '—'} />
         <Stat label="OS" value={session.os ?? '—'} />
+        {session.prReviewDecision && (
+          <Stat label="PR review" value={reviewDecisionLabel(session.prReviewDecision)} />
+        )}
         <Stat
           label="Friction"
           value={

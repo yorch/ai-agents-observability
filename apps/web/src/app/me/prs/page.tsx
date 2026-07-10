@@ -78,6 +78,7 @@ function PRsTable({
               <th className="text-right px-4 py-3">Merged</th>
               <th className="text-right px-4 py-3">Sessions</th>
               <th className="text-right px-4 py-3">Cost</th>
+              <th className="text-right px-4 py-3">Cost/LOC</th>
               <th className="text-right px-4 py-3">Checks</th>
               <th className="text-right px-4 py-3">Jira</th>
             </tr>
@@ -125,6 +126,9 @@ function PRsTable({
                   <td className="px-4 py-3 text-right text-white/60">{pr.sessionCount}</td>
                   <td className="px-4 py-3 text-right text-white/60">
                     ${pr.totalCostUsd.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-white/50 text-xs font-mono">
+                    {pr.costPerLoc != null ? `$${pr.costPerLoc.toFixed(3)}` : '—'}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {pr.checkFailuresCount > 0 ? (

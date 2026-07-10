@@ -16,6 +16,8 @@ const NAV = [
   { href: '/org/skills', label: 'Skills' },
   { href: '/org/teams', label: 'Teams' },
   { href: '/org/governance', label: 'Governance' },
+  { href: '/org/security', label: 'Security' },
+  { href: '/org/knowledge', label: 'Knowledge' },
   { href: '/org/search', label: 'Search' },
 ];
 

@@ -54,22 +54,28 @@ export type SessionDetail = {
   agentVersion: string | null;
   branch: string | null;
   claudeCodeVersion: string | null;
+  clearCount: number;
   commitSha: string | null;
+  compactionCount: number;
   costUsd: number;
   durationSeconds: number | null;
   endedAt: Date | null;
   endReason: string | null;
   frictionScore: number | null;
+  isResume: boolean;
   jiraKey: string | null;
   repoId: string | null;
   inputTokens: bigint;
   interruptCount: number;
+  notificationCount: number;
   os: string | null;
   outputTokens: bigint;
   permissionDenyCount: number;
   permissionPromptCount: number;
+  prReviewDecision: string | null;
   primaryModel: string | null;
   repoName: string | null;
+  resumedFromSessionId: string | null;
   sessionId: string;
   shapeLabel: string | null;
   startedAt: Date;
@@ -183,7 +189,9 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
     agentVersion: s.agentVersion,
     branch: s.gitBranch,
     claudeCodeVersion: s.claudeCodeVersion,
+    clearCount: s.clearCount,
     commitSha: s.gitCommit,
+    compactionCount: s.compactionCount,
     costUsd: Number(s.totalCostUsd),
     durationSeconds: s.endedAt
       ? Math.round((s.endedAt.getTime() - s.startedAt.getTime()) / 1000)
@@ -193,14 +201,18 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
     frictionScore: s.frictionScore,
     inputTokens: s.totalInputTokens,
     interruptCount: s.interruptCount,
+    isResume: s.isResume,
     jiraKey: s.jiraKey,
+    notificationCount: s.notificationCount,
     os: s.os,
     outputTokens: s.totalOutputTokens,
     permissionDenyCount: s.permissionDenyCount,
     permissionPromptCount: s.permissionPromptCount,
     primaryModel: s.primaryModel,
+    prReviewDecision: s.prReviewDecision,
     repoId: s.repoId,
     repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
+    resumedFromSessionId: s.resumedFromSessionId,
     sessionId: s.sessionId,
     shapeLabel: s.shapeLabel,
     startedAt: s.startedAt,

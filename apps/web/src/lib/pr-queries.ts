@@ -13,6 +13,7 @@ export type PRListItem = {
   sessionCount: number;
   contributorCount: number;
   totalCostUsd: number;
+  costPerLoc: number | null;
   revertedAt: Date | null;
   checkFailuresCount: number;
   jiraKey: string | null;
@@ -66,6 +67,7 @@ export async function getUserPRs(
     merged.push({
       checkFailuresCount: rollup?.checkFailuresCount ?? 0,
       contributorCount: rollup?.contributingUserIds.length ?? 0,
+      costPerLoc: rollup?.costPerLoc != null ? Number(rollup.costPerLoc) : null,
       jiraKey: pr.jiraKey,
       mergedAt: pr.mergedAt,
       openedAt: pr.openedAt,
@@ -110,6 +112,7 @@ export async function getPRDetail(
     checkFailuresCount: pr.rollup?.checkFailuresCount ?? 0,
     contributingSessionIds: pr.rollup?.contributingSessionIds ?? [],
     contributorCount: pr.rollup?.contributingUserIds.length ?? 0,
+    costPerLoc: pr.rollup?.costPerLoc != null ? Number(pr.rollup.costPerLoc) : null,
     filesChanged: pr.filesChanged,
     firstSessionAt: pr.rollup?.firstSessionAt ?? null,
     headBranch: pr.headBranch,
