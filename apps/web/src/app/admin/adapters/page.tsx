@@ -44,7 +44,9 @@ export default async function AdaptersPage() {
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const since7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  const [counts7d, counts24h, crashes7d, lastSeenRows] = await Promise.all([
+  const since30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const [counts7d, counts24h, crashes7d, lastSeenRows, versionRows] = await Promise.all([
     db.session.groupBy({
       _count: { _all: true },
       by: ['agentType'],
@@ -64,6 +66,18 @@ export default async function AdaptersPage() {
       _max: { startedAt: true },
       by: ['agentType'],
     }),
+    // Client version mix (last 30d): which CLI / agent versions are in the field.
+    // COALESCE(agent_version, claude_code_version) — agent_version supersedes the
+    // legacy per-session claude_code_version alias (DESIGN_DOC §5.2).
+    db.$queryRaw<{ agent_type: string; session_count: bigint; version: string | null }[]>`
+      SELECT agent_type,
+             COALESCE(agent_version, claude_code_version) AS version,
+             COUNT(*) AS session_count
+      FROM sessions
+      WHERE started_at >= ${since30d}
+      GROUP BY agent_type, COALESCE(agent_version, claude_code_version)
+      ORDER BY agent_type, session_count DESC
+    `,
   ]);
 
   const byAgent = (rows: { _count: { _all: number }; agentType: string }[]) =>
@@ -103,6 +117,15 @@ export default async function AdaptersPage() {
   };
 
   const allRows = [...adapterRows, ...otherRows];
+
+  // Group version rows by agent, each agent's versions ordered by session count.
+  const versionsByAgent = new Map<string, { count: number; version: string }[]>();
+  for (const r of versionRows) {
+    const list = versionsByAgent.get(r.agent_type) ?? [];
+    list.push({ count: Number(r.session_count), version: r.version ?? 'unknown' });
+    versionsByAgent.set(r.agent_type, list);
+  }
+  const versionAgents = [...versionsByAgent.keys()].sort();
 
   return (
     <div className="space-y-6">
@@ -164,6 +187,57 @@ export default async function AdaptersPage() {
         Adapters ship events from developer machines via the hook CLI. This view reflects sessions
         received by the ingest service, not adapter binary availability.
       </p>
+
+      <div className="space-y-3 pt-2">
+        <div className="space-y-1">
+          <h2 className="font-display text-lg font-semibold tracking-tight text-text">
+            Client versions
+          </h2>
+          <p className="text-sm text-text-2">
+            Version mix across sessions in the last 30 days — a lagging fleet on old CLI versions is
+            a rollout signal.
+          </p>
+        </div>
+        {versionAgents.length === 0 ? (
+          <p className="text-sm text-text-3">No sessions in the last 30 days.</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {versionAgents.map((agent) => {
+              const versions = versionsByAgent.get(agent) ?? [];
+              const total = versions.reduce((s, v) => s + v.count, 0);
+              return (
+                <div
+                  key={agent}
+                  className="space-y-2 rounded-lg border border-border bg-surface p-4"
+                >
+                  <div className="flex items-baseline justify-between">
+                    <span className="font-medium text-text">{agentDisplayName(agent)}</span>
+                    <span className="font-mono text-xs text-text-3">{total} sessions</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {versions.slice(0, 6).map((v) => (
+                      <div key={v.version} className="space-y-0.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-mono text-text-2">{v.version}</span>
+                          <span className="text-text-3">
+                            {v.count} · {total > 0 ? ((v.count / total) * 100).toFixed(0) : '0'}%
+                          </span>
+                        </div>
+                        <div className="h-1 rounded-full bg-surface-2">
+                          <div
+                            className="h-full rounded-full bg-accent/50"
+                            style={{ width: `${total > 0 ? (v.count / total) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

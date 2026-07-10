@@ -4,8 +4,12 @@ import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { currentUser } from '@/lib/auth';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
+import { fmtBytes } from '@/lib/fmt';
 import {
+  type ContinuitySummaryRow,
+  getContinuitySummary,
   getMcpUsage,
+  getNotificationKinds,
   getSessionSummary,
   getSkillOutcomes,
   getSkillSequences,
@@ -16,6 +20,7 @@ import {
   getSubagentUsage,
   getToolPerf,
   type McpUsageRow,
+  type NotificationKindRow,
   type SessionSummaryRow,
   type SkillOutcomeRow,
   type SkillSequenceRow,
@@ -97,6 +102,8 @@ export default async function InsightsPage({
     toolPerf,
     effectiveness,
     summary,
+    continuity,
+    notificationKinds,
   ] = await Promise.all([
     getMcpUsage(user.id, since),
     getSkillUsage(user.id, since),
@@ -109,6 +116,8 @@ export default async function InsightsPage({
     getToolPerf(user.id, since),
     getUserEffectiveness(user.id, { since }),
     getSessionSummary(user.id, since),
+    getContinuitySummary(user.id, since),
+    getNotificationKinds(user.id, since),
   ]);
 
   const recommendations = buildRecommendations({
@@ -163,6 +172,10 @@ export default async function InsightsPage({
                   sources={effectiveness.sources}
                 />
                 {recommendations.length > 0 && <RecommendationsSection recs={recommendations} />}
+              </div>
+              <div className="grid gap-6 md:grid-cols-2">
+                <ContinuitySection continuity={continuity} />
+                <NotificationKindsSection rows={notificationKinds} />
               </div>
             </>
           )}
@@ -256,6 +269,95 @@ function SessionSummaryCards({ summary: s }: { summary: SessionSummaryRow }) {
         </div>
       ))}
     </div>
+  );
+}
+
+const NOTIFICATION_KIND_META: Record<string, { color: string; label: string }> = {
+  auth: { color: 'bg-white/30', label: 'Auth' },
+  elicitation: { color: 'bg-purple-400', label: 'Elicitation' },
+  idle: { color: 'bg-sky-400', label: 'Idle (waiting on you)' },
+  other: { color: 'bg-white/20', label: 'Other' },
+  permission: { color: 'bg-yellow-400', label: 'Permission' },
+};
+
+function ContinuitySection({ continuity: c }: { continuity: ContinuitySummaryRow }) {
+  const resumeShare = c.sessionCount > 0 ? c.resumedSessions / c.sessionCount : 0;
+  const avgCompactions = c.sessionCount > 0 ? c.totalCompactions / c.sessionCount : 0;
+  const cards = [
+    {
+      label: 'Resumed sessions',
+      sub: `${pct(c.resumedSessions, c.sessionCount)} of sessions`,
+      value: c.resumedSessions.toLocaleString(),
+    },
+    {
+      label: 'Sessions hitting a reset',
+      sub: 'compaction or /clear',
+      value: c.sessionsWithReset.toLocaleString(),
+    },
+    {
+      label: 'Compactions',
+      sub: `${avgCompactions.toFixed(1)} avg / session`,
+      value: c.totalCompactions.toLocaleString(),
+    },
+    { label: 'Clears', sub: 'context wiped', value: c.totalClears.toLocaleString() },
+  ];
+  return (
+    <SectionShell title="Context &amp; continuity" empty={c.sessionCount === 0}>
+      <p className="-mt-1 text-xs text-text-3">
+        Frequent compactions or clears flag sessions fighting the context window.
+        {resumeShare > 0.5 && ' Most of your work resumes an earlier session.'}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {cards.map((card) => (
+          <div
+            key={card.label}
+            className="rounded-lg border border-border bg-surface-2/40 px-3 py-2"
+          >
+            <p className="text-xs text-text-3">{card.label}</p>
+            <p className="text-lg font-semibold tabular-nums text-text">{card.value}</p>
+            <p className="text-[11px] text-text-3">{card.sub}</p>
+          </div>
+        ))}
+      </div>
+    </SectionShell>
+  );
+}
+
+function NotificationKindsSection({ rows }: { rows: NotificationKindRow[] }) {
+  const total = rows.reduce((s, r) => s + r.count, 0);
+  return (
+    <SectionShell title="Attention requests" empty={rows.length === 0}>
+      <p className="-mt-1 text-xs text-text-3">
+        How often the agent stopped to get your attention, by kind.
+      </p>
+      <div className="space-y-1.5">
+        {rows.map((r) => {
+          const meta = NOTIFICATION_KIND_META[r.kind] ?? {
+            color: 'bg-white/20',
+            label: r.kind,
+          };
+          return (
+            <div key={r.kind} className="space-y-0.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-text-2">
+                  <span className={`h-2 w-2 rounded-full ${meta.color}`} />
+                  {meta.label}
+                </span>
+                <span className="text-text-3">
+                  {r.count}× · {pct(r.count, total)}
+                </span>
+              </div>
+              <div className="h-1 rounded-full bg-surface-2">
+                <div
+                  className={`h-full rounded-full ${meta.color}`}
+                  style={{ width: `${total > 0 ? (r.count / total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </SectionShell>
   );
 }
 
@@ -560,6 +662,8 @@ function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
                 <th className="pb-2 font-medium text-right">Denied</th>
                 <th className="pb-2 font-medium text-right">Avg</th>
                 <th className="pb-2 font-medium text-right">p95</th>
+                <th className="pb-2 font-medium text-right">Avg in</th>
+                <th className="pb-2 font-medium text-right">Avg out</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -587,6 +691,12 @@ function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
                   </td>
                   <td className="py-2 text-right font-mono text-xs text-text-3">
                     {fmtDuration(r.p95DurationMs)}
+                  </td>
+                  <td className="py-2 text-right font-mono text-xs text-text-3">
+                    {fmtBytes(r.avgInputBytes)}
+                  </td>
+                  <td className="py-2 text-right font-mono text-xs text-text-3">
+                    {fmtBytes(r.avgOutputBytes)}
                   </td>
                 </tr>
               ))}

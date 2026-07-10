@@ -156,6 +156,8 @@ Understanding the opportunity space requires a clear map of what is already capt
 
 **Feasibility:** Medium-High. The FTS index is already built. Aggregate topic clustering requires either a simple keyword taxonomy or a lightweight embedding model (the `embed-transcripts` job is scaffolded but gated in Phase 7). Keyword taxonomy is low-effort and sufficient for most use cases.
 
+> **Shipped:** `/org/knowledge` surfaces aggregate topic reach (session + distinct-user counts per topic) via a fixed keyword taxonomy over the FTS index — visibility-scoped, with small-n suppression so no topic can re-identify an individual. Embedding-based clustering remains the (gated) upgrade path.
+
 ---
 
 ### 3.7 Security & Compliance
@@ -172,6 +174,8 @@ Understanding the opportunity space requires a clear map of what is already capt
 
 **Feasibility:** High for reporting. Medium for policy enforcement (requires a hook-side enforcement path, which is architecturally sound given the hook binary design). The audit log is already the best artifact in this space — it just needs a security-focused dashboard surface.
 
+> **Shipped:** `/org/security` reports the data-flow surface from already-captured data — tool-category exposure, per-repo exec/network/write exposure, an external-MCP egress inventory, largest data movements (`tool_output_bytes`), and a privileged-access audit summary. Secret-exposure-by-redaction-class is still a follow-up: redaction classes are computed at ship time but not yet persisted (`sessions.transcript_redacted` is currently a fixed `true`), so it can't drive a per-class report yet. Policy enforcement (block on unapproved MCP servers) remains out of scope for the observe-only architecture.
+
 ---
 
 ### 3.8 Financial Planning & Vendor Strategy
@@ -185,6 +189,8 @@ Understanding the opportunity space requires a clear map of what is already capt
 - **Budget enforcement**: Phase 9 alerts fire on spend spikes. The next step is pre-authorized budget caps per team with automatic notification before overage — not just after.
 
 **Feasibility:** High for forecasting and allocation (data is there, UI is the work). The multi-vendor comparison requires adapter work (Phase 8 proved the pattern with `opencode` and `codex`).
+
+> **Shipped:** `/org/dashboard` now carries a spend forecast — trailing-7d run-rate and month-to-date projections, per-team run-rate, and a comparison against a configured `budget_threshold` alert rule (warn/critical at the same 0.8/1.0 ratios the alert engine uses). The `budget_threshold` rule itself is already evaluated by the ingest alert engine, so budget enforcement is now proactive (projection before overage), not just reactive spend-spike alerts.
 
 > **Partially shipped (2026-06-30):** `/org/agents` now has an agent-comparison table
 > (sessions, total + avg cost, median friction, tool error rate, tokens by
@@ -220,9 +226,9 @@ Ranked by **impact-to-effort**, given the current data model and what is already
 | 2 | **MCP portfolio dashboard** (utilization, error rate, SLO) | Medium-High — deprecate waste, surface risk | Low | ✅ `mcp_server` + `tool_exit_status` fully captured | `/org/mcp` page; error-rate column |
 | 3 | **Outcome-based ROI** (cost-per-PR trend, revert correlation, CI correlation) | High — executive-level justification | Medium | ✅ PR rollups, revert flags, CI failures all captured | 🟡 Shipped at `/org/roi` (internal joins); external business-value join still deferred |
 | 4 | **Developer skill progression** (friction trend, shape shift over time) | Medium-High — retention, training, onboarding | Medium | ✅ Friction + shape computed nightly | 🟡 `/me/insights` friction-source breakdown + recommendations, plus weekly friction trends for team/org; cross-cohort divergence still open |
-| 5 | **Budget forecasting & cost allocation** (by team, project, Jira epic) | High — replaces spreadsheet finance | Medium | ✅ Session cost + PR rollup captured | Jira join (one integration); forecast UI |
-| 6 | **Security data exposure reporting** (sensitive repos, secret hits, MCP egress) | High — compliance buyer | Medium | ✅ Tool categories, redaction metadata, audit log | Security-focused dashboard page |
-| 7 | **Knowledge gap detection** (aggregate transcript topic clustering) | Medium — DX and documentation | Medium-High | ✅ FTS index built | Topic taxonomy or lightweight embedding; careful UX |
+| 5 | **Budget forecasting & cost allocation** (by team, project, Jira epic) | High — replaces spreadsheet finance | Medium | ✅ Session cost + PR rollup captured | 🟡 Spend forecast (run-rate + budget-rule comparison) shipped on `/org/dashboard`; Jira-epic cost allocation on `/org/roi`; external business-value join still deferred |
+| 6 | **Security data exposure reporting** (sensitive repos, secret hits, MCP egress) | High — compliance buyer | Medium | ✅ Tool categories, redaction metadata, audit log | 🟡 `/org/security` shipped (category/repo exposure, MCP egress, large data movements, audit summary); per-redaction-class secret hits need the redaction classes persisted first |
+| 7 | **Knowledge gap detection** (aggregate transcript topic clustering) | Medium — DX and documentation | Medium-High | ✅ FTS index built | 🟡 `/org/knowledge` shipped (keyword-taxonomy topic reach, small-n suppressed); embedding-based clustering still the upgrade path |
 | 8 | **Code quality correlation** (revert + defect rate by session characteristics) | High — if bug rate correlation holds | High | ⚠️ Internal PR data ready; bug join needs Jira/Linear | External integration + statistical analysis |
 | 9 | **Multi-tool comparison** (Claude vs Cursor vs Copilot) | High — procurement decisions | High | ✅ `agent_type` schema ready; adapters exist for `opencode`, `codex` | 🟡 Comparison table shipped at `/org/agents` (cost/friction/error-rate by `agent_type`); Cursor/Copilot adapters still needed |
 

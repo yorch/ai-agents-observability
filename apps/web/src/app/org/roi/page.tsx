@@ -13,6 +13,7 @@ import {
   getSpendByIssueType,
   getSpendByJiraKey,
   getSpendByProject,
+  getStoryPointEconomics,
 } from '@/lib/roi-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -35,17 +36,27 @@ export default async function OrgRoiPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 90) as 7 | 30 | 90;
   const since = daysAgo(range);
 
-  const [summary, ci, jiraSpend, projectSpend, epicSpend, issueTypes, commits, repoRoi] =
-    await Promise.all([
-      getOrgRoiSummary(since),
-      getCiCostCorrelation(since),
-      getSpendByJiraKey(since),
-      getSpendByProject(since),
-      getSpendByEpic(since),
-      getSpendByIssueType(since),
-      getCommitProvenance(since),
-      getRoiByRepo(since),
-    ]);
+  const [
+    summary,
+    ci,
+    jiraSpend,
+    projectSpend,
+    epicSpend,
+    issueTypes,
+    commits,
+    repoRoi,
+    storyPoints,
+  ] = await Promise.all([
+    getOrgRoiSummary(since),
+    getCiCostCorrelation(since),
+    getSpendByJiraKey(since),
+    getSpendByProject(since),
+    getSpendByEpic(since),
+    getSpendByIssueType(since),
+    getCommitProvenance(since),
+    getRoiByRepo(since),
+    getStoryPointEconomics(since),
+  ]);
 
   const jiraBase = getJiraBase();
 
@@ -269,6 +280,42 @@ export default async function OrgRoiPage({
               ))}
             </tbody>
           </table>
+        )}
+      </section>
+
+      {/* Cost per story point */}
+      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-white/70">Cost per story point ({range}d)</h2>
+        {storyPoints.totalStoryPoints === 0 ? (
+          <p className="text-sm text-white/40">
+            No estimated tickets with agent spend in this window. Story points come from the Jira
+            sync (JIRA_BASE_URL + JIRA_API_TOKEN); tickets without an estimate are excluded.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              <StatCard
+                label="Cost / story point"
+                value={storyPoints.costPerPoint !== null ? fmtUsd(storyPoints.costPerPoint) : '—'}
+                sub="agent spend ÷ estimated points"
+              />
+              <StatCard
+                label="Story points delivered"
+                value={storyPoints.totalStoryPoints.toLocaleString()}
+                sub={`${storyPoints.ticketCount} estimated tickets`}
+              />
+              <StatCard
+                label="Attributed spend"
+                value={fmtUsd(storyPoints.sessionCostUsd)}
+                sub="on estimated tickets"
+              />
+            </div>
+            <p className="text-xs text-white/30">
+              A defensible effort-normalized cost — unlike lines-of-code metrics, it uses the team's
+              own sprint estimates. Only tickets carrying both a point estimate and agent spend
+              count.
+            </p>
+          </>
         )}
       </section>
 

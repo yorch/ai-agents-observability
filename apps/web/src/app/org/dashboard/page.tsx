@@ -5,8 +5,10 @@ import { AdoptionFunnel } from '@/components/team-org/AdoptionFunnel';
 import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable';
+import { SpendForecast } from '@/components/team-org/SpendForecast';
 import { StatCardWithDelta } from '@/components/team-org/StatCardWithDelta';
 import {
+  getActiveBudget,
   getAnomalies,
   getCostByModel,
   getCostByRepo,
@@ -16,7 +18,9 @@ import {
   getOrgFrictionTrend,
   getOrgSummaryWithDelta,
   getOrgTopTools,
+  getSpendForecast,
   getTeamModelGovernance,
+  getTeamSpendForecast,
   getWeeklyCostTrend,
 } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
@@ -35,6 +39,15 @@ export default async function OrgDashboardPage({
   const { orgRole } = await requireOrgViewer();
   const isAdmin = isOrgAdmin(orgRole);
 
+  // Calendar boundaries for the spend forecast: month-to-date pace and the
+  // trailing-7d run rate. Kept out of the query so the "days elapsed" math is
+  // visible and testable here rather than buried in SQL.
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const last7Start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const dayOfMonth = now.getDate();
+
   const [
     summaryWithDelta,
     teamCost,
@@ -47,6 +60,9 @@ export default async function OrgDashboardPage({
     frictionTrend,
     funnel,
     modelGov,
+    forecast,
+    teamForecast,
+    budget,
   ] = await Promise.all([
     getOrgSummaryWithDelta(range),
     getCostByTeam(since),
@@ -59,11 +75,27 @@ export default async function OrgDashboardPage({
     getOrgFrictionTrend(since),
     getOrgAdoptionFunnel(range),
     isAdmin ? getTeamModelGovernance(since) : Promise.resolve([]),
+    getSpendForecast(monthStart, last7Start),
+    getTeamSpendForecast(last7Start),
+    getActiveBudget(),
   ]);
 
   const { current: summary, deltas } = summaryWithDelta;
 
   const modelTotalCost = modelCost.reduce((s, r) => s + r.costUsd, 0);
+
+  // Forecast projections (Tier 2). Trailing-7d run rate drives the 30-day and
+  // budget-window projections; month-to-date pace drives the calendar-month one.
+  const dailyRunRate = forecast.last7Spend / 7;
+  const projected30d = dailyRunRate * 30;
+  const monthProjection = dayOfMonth > 0 ? (forecast.mtdSpend / dayOfMonth) * daysInMonth : 0;
+  const forecastBudget = budget
+    ? {
+        budgetUsd: budget.budgetUsd,
+        projectedSpend: dailyRunRate * budget.windowDays,
+        windowDays: budget.windowDays,
+      }
+    : null;
 
   return (
     <div className="space-y-6">
@@ -126,6 +158,15 @@ export default async function OrgDashboardPage({
           <WeeklyTrendBars trend={trend} />
         </section>
       )}
+
+      {/* Spend forecast */}
+      <SpendForecast
+        budget={forecastBudget}
+        dailyRunRate={dailyRunRate}
+        monthProjection={monthProjection}
+        projected30d={projected30d}
+        teams={teamForecast}
+      />
 
       {/* Adoption funnel */}
       <AdoptionFunnel funnel={funnel} />

@@ -266,6 +266,43 @@ export async function getSpendByEpic(since: Date, limit = 10): Promise<EpicSpend
   }));
 }
 
+export type StoryPointEconomics = {
+  costPerPoint: number | null;
+  sessionCostUsd: number;
+  ticketCount: number;
+  totalStoryPoints: number;
+};
+
+// Cost-per-story-point — the one ROI denominator that isn't LOC-vanity. Joins
+// agent session spend (by jira_key) to jira_issues.story_points. Only tickets
+// that carry BOTH a story-point estimate and agent spend in the window count, so
+// an unestimated backlog or an unrun sync-jira job simply yields a null rate
+// rather than a misleading one. story_points is summed once per ticket (the
+// ticket CTE is already grouped by key) to avoid fan-out double-counting.
+export async function getStoryPointEconomics(since: Date): Promise<StoryPointEconomics> {
+  const rows = await getPrisma().$queryRaw<
+    { session_cost: number | null; story_points: number | null; ticket_count: bigint }[]
+  >(Prisma.sql`
+    WITH ticket AS (${sessionSpendByKeySql(since)})
+    SELECT
+      COUNT(DISTINCT ji.key)                   AS ticket_count,
+      COALESCE(SUM(ji.story_points), 0)        AS story_points,
+      COALESCE(SUM(t.session_cost), 0)         AS session_cost
+    FROM ticket t
+    JOIN jira_issues ji ON ji.key = t.jira_key
+    WHERE ji.story_points IS NOT NULL AND ji.story_points > 0
+  `);
+  const r = rows[0];
+  const points = Number(r?.story_points ?? 0);
+  const cost = Number(r?.session_cost ?? 0);
+  return {
+    costPerPoint: points > 0 ? cost / points : null,
+    sessionCostUsd: cost,
+    ticketCount: Number(r?.ticket_count ?? 0),
+    totalStoryPoints: points,
+  };
+}
+
 export type ProjectSpendRow = {
   mergedPrs: number;
   projectKey: string;
