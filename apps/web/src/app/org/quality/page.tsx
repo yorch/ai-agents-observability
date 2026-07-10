@@ -4,6 +4,8 @@ import { getJiraBase } from '@/lib/config';
 import { fmtDate, fmtPct, fmtUsd } from '@/lib/fmt';
 import { getDefectAttributions, getOutcomesByFrictionBand } from '@/lib/quality-queries';
 import { requireOrgViewer } from '@/lib/roles';
+import type { BandOutcomeKey } from '@/lib/stats';
+import { compareBandsToBaseline, fmtPValue } from '@/lib/stats';
 import { daysAgo } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +13,10 @@ export const dynamic = 'force-dynamic';
 // Below this many merged PRs a band's rates say very little — show them muted
 // with the sample size, never as a confident number.
 const MIN_SAMPLE = 10;
+
+// Two-tailed Fisher's exact p-value below which a band's rate is marked as
+// significantly different from the low-friction baseline.
+const SIGNIFICANCE_ALPHA = 0.05;
 
 const BAND_LABELS: Record<string, string> = {
   high: 'High friction',
@@ -36,6 +42,12 @@ export default async function OrgQualityPage({
   const jiraBase = getJiraBase();
 
   const totalPrs = bands.reduce((sum, b) => sum + b.mergedPrs, 0);
+
+  // Fisher's exact p-values for each medium/high rate vs the low baseline —
+  // exact at any n, so small bands honestly come back "not significant".
+  const pValues = new Map(
+    compareBandsToBaseline(bands).map((c) => [`${c.band}:${c.outcome}`, c.pValue]),
+  );
 
   return (
     <div className="space-y-6">
@@ -72,25 +84,36 @@ export default async function OrgQualityPage({
               {bands.map((b) => {
                 const smallSample = b.mergedPrs < MIN_SAMPLE;
                 const rateCls = smallSample ? 'text-white/30' : 'text-white/80';
+                const rateCell = (outcome: BandOutcomeKey, count: number) => {
+                  const p = pValues.get(`${b.band}:${outcome}`);
+                  const significant = p !== undefined && p < SIGNIFICANCE_ALPHA;
+                  return (
+                    <td className={`py-2 text-right font-mono align-top ${rateCls}`}>
+                      {fmtPct(count / b.mergedPrs)}
+                      {significant && <span className="text-amber-400">*</span>}
+                      {p !== undefined && (
+                        <span
+                          className={`block text-[10px] ${significant ? 'text-amber-400' : 'text-white/30'}`}
+                        >
+                          {fmtPValue(p)}
+                        </span>
+                      )}
+                    </td>
+                  );
+                };
                 return (
                   <tr key={b.band}>
-                    <td className="py-2 text-white/80">
+                    <td className="py-2 align-top text-white/80">
                       {BAND_LABELS[b.band]}
                       {smallSample && (
                         <span className="ml-2 text-xs text-white/30">small sample</span>
                       )}
                     </td>
-                    <td className="py-2 text-right text-white/60">{b.mergedPrs}</td>
-                    <td className={`py-2 text-right font-mono ${rateCls}`}>
-                      {fmtPct(b.reverted / b.mergedPrs)}
-                    </td>
-                    <td className={`py-2 text-right font-mono ${rateCls}`}>
-                      {fmtPct(b.ciFailed / b.mergedPrs)}
-                    </td>
-                    <td className={`py-2 text-right font-mono ${rateCls}`}>
-                      {fmtPct(b.bugLinked / b.mergedPrs)}
-                    </td>
-                    <td className={`py-2 text-right font-mono ${rateCls}`}>
+                    <td className="py-2 text-right align-top text-white/60">{b.mergedPrs}</td>
+                    {rateCell('reverted', b.reverted)}
+                    {rateCell('ciFailed', b.ciFailed)}
+                    {rateCell('bugLinked', b.bugLinked)}
+                    <td className={`py-2 text-right font-mono align-top ${rateCls}`}>
                       {b.avgCostUsd > 0 ? fmtUsd(b.avgCostUsd) : '—'}
                     </td>
                   </tr>
@@ -104,6 +127,14 @@ export default async function OrgQualityPage({
           thresholds as the session friction bands). Association, not causation — bands under{' '}
           {MIN_SAMPLE} PRs are muted. Bug-linked requires the Jira sync; revert and CI rates work
           without it.
+          {pValues.size > 0 && (
+            <>
+              {' '}
+              Medium/high rates show the two-tailed Fisher&apos;s-exact p-value vs the low-friction
+              band; <span className="text-amber-400">*</span> marks p &lt; {SIGNIFICANCE_ALPHA}. Avg
+              cost is not tested (no variance data).
+            </>
+          )}
         </p>
       </section>
 
