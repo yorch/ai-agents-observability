@@ -113,6 +113,125 @@ const SESSION_STATUSES = [
   { value: 'ABANDONED' as const, weight: 6 },
 ];
 
+// ── HITL / autonomy coverage ──────────────────────────────────────────────────
+// Canonical permission/autonomy modes (packages/schemas session-context.ts). The
+// session-representative mode is the *most autonomous* observed, so we sample a
+// per-event mode and reduce with AUTONOMY_RANK.
+const PERMISSION_MODES = [
+  { value: 'normal', weight: 55 },
+  { value: 'plan', weight: 9 },
+  { value: 'accept_edits', weight: 21 },
+  { value: 'auto', weight: 7 },
+  { value: 'dont_ask', weight: 5 },
+  { value: 'bypass', weight: 3 },
+];
+
+const AUTONOMY_RANK: Record<string, number> = {
+  accept_edits: 2,
+  auto: 3,
+  bypass: 5,
+  dont_ask: 4,
+  normal: 1,
+  plan: 0,
+};
+
+// Notification-event classification (packages/schemas notification.ts). The three
+// blocking kinds (permission/idle/elicitation) are the core "agent stopped for a
+// human" signal that the oversight dashboards chart.
+const NOTIFICATION_KINDS = [
+  { value: 'permission', weight: 45 },
+  { value: 'idle', weight: 28 },
+  { value: 'elicitation', weight: 12 },
+  { value: 'auth', weight: 8 },
+  { value: 'other', weight: 7 },
+];
+
+// Session shape labels (packages/schemas effectiveness.ts classifySessionShape).
+const SHAPE_LABELS = [
+  'exploratory',
+  'focused-edit',
+  'debugging',
+  'planning',
+  'multi-tool',
+  'minimal',
+];
+
+// Non-default agents. DESIGN_DOC ships Codex + OpenCode adapters; the adapter
+// health + agent-comparison surfaces stay empty until sessions carry these.
+const NON_DEFAULT_AGENTS = ['CODEX', 'OPENCODE'] as const;
+
+// repo name → Jira project key, so session/PR jira_key values resolve to a real
+// jira_issues row (roi-queries groups spend by ticket, quality-queries traverses).
+const REPO_JIRA_PROJECT: Record<string, string> = {
+  'api-service': 'API',
+  'demo-app': 'PLAT',
+  'infra-scripts': 'INFRA',
+};
+
+function pickMode(): string {
+  return faker.helpers.weightedArrayElement(PERMISSION_MODES);
+}
+
+// The representative session mode = the most autonomous of a small per-session
+// sample, matching how ingest derives sessions.mode from its events.
+function representativeMode(): string {
+  const samples = Array.from({ length: faker.number.int({ max: 4, min: 1 }) }, pickMode);
+  return samples.reduce((a, b) => ((AUTONOMY_RANK[b] ?? 0) > (AUTONOMY_RANK[a] ?? 0) ? b : a));
+}
+
+function endReasonFor(status: string): string | null {
+  switch (status) {
+    case 'COMPLETED':
+      return faker.helpers.arrayElement(['user_exit', 'clear', 'normal_stop']);
+    case 'CRASHED':
+      return faker.helpers.arrayElement(['crash:oom', 'crash:uncaught_exception', 'crash:sigkill']);
+    case 'TIMED_OUT':
+      return 'idle_timeout';
+    case 'ABANDONED':
+      return faker.helpers.arrayElement(['abandoned', 'window_closed']);
+    default:
+      return null;
+  }
+}
+
+// The extra HITL / provenance columns shared by every extensive-seed session.
+// Spread into the Prisma create so all three session loops stay in sync.
+function hitlSessionFields(opts: {
+  status: string;
+  mode: string;
+  userMessageCount: number;
+  repoName?: string;
+}) {
+  const { status, mode, userMessageCount, repoName } = opts;
+  const notificationCount = faker.number.int({ max: 7, min: 0 });
+  const responseSampleCount =
+    notificationCount > 0 ? faker.number.int({ max: notificationCount, min: 0 }) : 0;
+  const totalResponseMs =
+    responseSampleCount > 0
+      ? BigInt(responseSampleCount * faker.number.int({ max: 90_000, min: 1_500 }))
+      : BigInt(0);
+  const project = repoName ? REPO_JIRA_PROJECT[repoName] : undefined;
+  return {
+    clearCount: faker.number.int({ max: 2, min: 0 }),
+    endReason: endReasonFor(status),
+    frictionScore: faker.datatype.boolean({ probability: 0.7 })
+      ? faker.number.float({ fractionDigits: 2, max: 1.0, min: 0.0 })
+      : null,
+    gitRemoteUrl: repoName ? `git@github.com:${EXT_ORG}/${repoName}.git` : null,
+    hostHash: faker.string.alphanumeric({ casing: 'lower', length: 16 }),
+    interruptCount: faker.number.int({ max: Math.max(1, Math.ceil(userMessageCount / 4)), min: 0 }),
+    jiraKey:
+      project && faker.datatype.boolean({ probability: 0.4 })
+        ? `${project}-${faker.number.int({ max: 8, min: 1 })}`
+        : null,
+    mode,
+    notificationCount,
+    responseSampleCount,
+    shapeLabel: faker.helpers.arrayElement(SHAPE_LABELS),
+    totalResponseMs,
+  };
+}
+
 // ── Shared credential constants ───────────────────────────────────────────────
 
 const SEED_PW_EMAIL = 'local@example.com';
@@ -450,6 +569,8 @@ async function insertEvents(
   durationMs: number,
   toolCallCount: number,
   model: string,
+  sessionMode = 'normal',
+  agentType = 'CLAUDE_CODE',
 ) {
   const eventCount = faker.number.int({ max: Math.min(14, toolCallCount + 3), min: 3 });
 
@@ -458,19 +579,22 @@ async function insertEvents(
       startedAt.getTime() + Math.floor((e / Math.max(1, eventCount - 1)) * durationMs),
     );
     const eventId = crypto.randomUUID();
+    // Most events run at the session's representative mode; a minority sample a
+    // less-autonomous mode (the session mode is the *max* autonomy observed).
+    const evtMode = faker.datatype.boolean({ probability: 0.8 }) ? sessionMode : pickMode();
 
     if (e === 0) {
       await db.$executeRaw`
         INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type, model, mode)
         VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
-                'CLAUDE_CODE', 'SessionStart', ${model}, 'normal')
+                ${agentType}, 'SessionStart', ${model}, ${evtMode})
         ON CONFLICT (session_id, event_id, ts) DO NOTHING
       `;
     } else if (e === eventCount - 1) {
       await db.$executeRaw`
         INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type, model, mode)
         VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
-                'CLAUDE_CODE', 'Stop', ${model}, 'normal')
+                ${agentType}, 'Stop', ${model}, ${evtMode})
         ON CONFLICT (session_id, event_id, ts) DO NOTHING
       `;
     } else if (e % 4 === 1) {
@@ -479,7 +603,18 @@ async function insertEvents(
       await db.$executeRaw`
         INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type, model, input_tokens, turn_number, mode)
         VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
-                'CLAUDE_CODE', 'UserPromptSubmit', ${model}, ${inputToks}, ${turnNum}, 'normal')
+                ${agentType}, 'UserPromptSubmit', ${model}, ${inputToks}, ${turnNum}, ${evtMode})
+        ON CONFLICT (session_id, event_id, ts) DO NOTHING
+      `;
+    } else if (e % 6 === 3) {
+      // Notification event — the agent stopped for a human (HITL oversight signal).
+      const kind = faker.helpers.weightedArrayElement(NOTIFICATION_KINDS);
+      const turnNum = Math.ceil(e / 4);
+      await db.$executeRaw`
+        INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
+                            notification_kind, turn_number, model, mode)
+        VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
+                ${agentType}, 'Notification', ${kind}, ${turnNum}, ${model}, ${evtMode})
         ON CONFLICT (session_id, event_id, ts) DO NOTHING
       `;
     } else {
@@ -490,8 +625,13 @@ async function insertEvents(
         min: toolName === 'Bash' ? 30 : 5,
       });
       const outputToks = faker.number.int({ max: 600, min: 10 });
+      const cacheRead = faker.number.int({ max: 8000, min: 0 });
+      const cacheCreation = faker.number.int({ max: 1500, min: 0 });
       const costVal = faker.number.float({ fractionDigits: 6, max: 0.02, min: 0.0001 });
       const turnNum = Math.ceil(e / 4);
+      // Non-zero exit + interrupt correlate with an errored tool call.
+      const exitStatus = wasDenied || faker.datatype.boolean({ probability: 0.05 }) ? 1 : 0;
+      const wasInterrupted = faker.datatype.boolean({ probability: 0.03 });
       const useSkill = faker.datatype.boolean({ probability: 0.12 });
       const useMcp = !useSkill && faker.datatype.boolean({ probability: 0.06 });
 
@@ -499,12 +639,14 @@ async function insertEvents(
         const { skillName, path: skillPath } = faker.helpers.weightedArrayElement(SKILL_NAMES);
         await db.$executeRaw`
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
-                              tool_name, skill_name, slash_command, skill_path,
-                              tool_duration_ms, output_tokens, cost_usd, turn_number, model, mode)
+                              tool_name, tool_category, skill_name, slash_command, skill_path,
+                              tool_duration_ms, tool_exit_status, output_tokens,
+                              cache_read_tokens, cache_creation_tokens, cost_usd, turn_number, model, mode)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
-                  'CLAUDE_CODE', 'PostToolUse',
-                  'Skill', ${skillName}, ${skillName}, ${skillPath},
-                  ${toolDurMs}, ${outputToks}, ${costVal}, ${turnNum}, ${model}, 'normal')
+                  ${agentType}, 'PostToolUse',
+                  'Skill', 'builtin', ${skillName}, ${skillName}, ${skillPath},
+                  ${toolDurMs}, 0, ${outputToks},
+                  ${cacheRead}, ${cacheCreation}, ${costVal}, ${turnNum}, ${model}, ${evtMode})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else if (useMcp) {
@@ -517,12 +659,16 @@ async function insertEvents(
         ]);
         await db.$executeRaw`
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
-                              tool_name, tool_duration_ms, tool_was_denied,
-                              output_tokens, cost_usd, mcp_server, mcp_tool, turn_number, model, mode)
+                              tool_name, tool_category, tool_duration_ms, tool_exit_status,
+                              tool_was_denied, tool_was_interrupted, output_tokens,
+                              cache_read_tokens, cache_creation_tokens, cost_usd,
+                              mcp_server, mcp_tool, turn_number, model, mode)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
-                  'CLAUDE_CODE', 'PostToolUse',
-                  ${toolName}, ${toolDurMs}, ${wasDenied},
-                  ${outputToks}, ${costVal}, ${mcpServer}, ${mcpTool}, ${turnNum}, ${model}, 'normal')
+                  ${agentType}, 'PostToolUse',
+                  ${`mcp__${mcpServer}__${mcpTool}`}, 'mcp', ${toolDurMs}, ${exitStatus},
+                  ${wasDenied}, ${wasInterrupted}, ${outputToks},
+                  ${cacheRead}, ${cacheCreation}, ${costVal},
+                  ${mcpServer}, ${mcpTool}, ${turnNum}, ${model}, ${evtMode})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else if (toolName === 'Agent') {
@@ -532,23 +678,27 @@ async function insertEvents(
         const subagentCost = faker.number.float({ fractionDigits: 6, max: 0.15, min: 0.005 });
         await db.$executeRaw`
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
-                              tool_name, subagent_type, tool_duration_ms, tool_was_denied,
-                              output_tokens, cost_usd, turn_number, model, mode)
+                              tool_name, tool_category, subagent_type, tool_duration_ms,
+                              tool_exit_status, tool_was_denied, output_tokens,
+                              cache_read_tokens, cache_creation_tokens, cost_usd, turn_number, model, mode)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
-                  'CLAUDE_CODE', 'PostToolUse',
-                  'Agent', ${subagentType}, ${subagentDurMs}, ${wasDenied},
-                  ${subagentOutputToks}, ${subagentCost}, ${turnNum}, ${model}, 'normal')
+                  ${agentType}, 'PostToolUse',
+                  'Agent', 'builtin', ${subagentType}, ${subagentDurMs},
+                  ${exitStatus}, ${wasDenied}, ${subagentOutputToks},
+                  ${cacheRead}, ${cacheCreation}, ${subagentCost}, ${turnNum}, ${model}, ${evtMode})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else {
         await db.$executeRaw`
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
-                              tool_name, tool_duration_ms, tool_was_denied,
-                              output_tokens, cost_usd, turn_number, model, mode)
+                              tool_name, tool_category, tool_duration_ms, tool_exit_status,
+                              tool_was_denied, tool_was_interrupted, output_tokens,
+                              cache_read_tokens, cache_creation_tokens, cost_usd, turn_number, model, mode)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
-                  'CLAUDE_CODE', 'PostToolUse',
-                  ${toolName}, ${toolDurMs}, ${wasDenied},
-                  ${outputToks}, ${costVal}, ${turnNum}, ${model}, 'normal')
+                  ${agentType}, 'PostToolUse',
+                  ${toolName}, 'builtin', ${toolDurMs}, ${exitStatus},
+                  ${wasDenied}, ${wasInterrupted}, ${outputToks},
+                  ${cacheRead}, ${cacheCreation}, ${costVal}, ${turnNum}, ${model}, ${evtMode})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       }
@@ -877,6 +1027,8 @@ async function basicSeed() {
       const toolCalls = faker.number.int({ max: 100, min: 5 });
       const model = faker.helpers.weightedArrayElement(MODELS);
       const status = faker.helpers.weightedArrayElement(SESSION_STATUSES);
+      const mode = representativeMode();
+      const userMessageCount = faker.number.int({ max: 25, min: 1 });
 
       const adminSession = await db.session.create({
         data: {
@@ -909,7 +1061,8 @@ async function basicSeed() {
           totalInputTokens: BigInt(inputTokens),
           totalOutputTokens: BigInt(outputTokens),
           userId: adminUser.id,
-          userMessageCount: faker.number.int({ max: 25, min: 1 }),
+          userMessageCount,
+          ...hitlSessionFields({ mode, repoName: 'demo-app', status, userMessageCount }),
         },
       });
 
@@ -920,6 +1073,7 @@ async function basicSeed() {
         durationMs,
         toolCalls,
         model,
+        mode,
       );
 
       if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.6 })) {
@@ -1316,7 +1470,75 @@ const EXT_PRS: PRDef[] = [
   },
 ];
 
+// Users that exercise the remaining org/team roles + the deactivated state, so
+// every OrgRole and TeamRole value appears in the seed (admin pages, role gating).
+const EXTRA_ROLE_USERS = [
+  {
+    email: 'val@example.com',
+    login: 'val-viewer',
+    name: 'Val Osei',
+    orgRole: 'VIEWER_AGGREGATE' as const,
+    password: 'val1234',
+    role: 'MEMBER' as const,
+  },
+  {
+    email: 'ines@example.com',
+    login: 'ines-investigator',
+    name: 'Ines Rossi',
+    orgRole: 'INVESTIGATOR' as const,
+    password: 'ines1234',
+    role: 'MEMBER' as const,
+  },
+  {
+    email: 'mika@example.com',
+    login: 'mika-maintainer',
+    name: 'Mika Halla',
+    orgRole: 'MEMBER' as const,
+    password: 'mika1234',
+    role: 'MAINTAINER' as const,
+  },
+  {
+    // Left the org — exercises users.deactivated_at (adoption/active-user queries).
+    deactivated: true,
+    email: 'quinn@example.com',
+    login: 'quinn-former',
+    name: 'Quinn Alvarez',
+    orgRole: 'MEMBER' as const,
+    password: 'quinn1234',
+    role: 'MEMBER' as const,
+  },
+];
+
 async function extensiveSeed() {
+  // ── Cleanup: standalone / ops / alert / jira tables (demo-only, safe to wipe) ──
+  // These have no cascading FK to the seeded users, so re-running the seed must
+  // clear them explicitly to stay idempotent.
+  await db.jiraIssueLink.deleteMany({});
+  await db.jiraIssue.deleteMany({});
+  await db.jobRun.deleteMany({});
+  await db.jobConfig.deleteMany({});
+  await db.webhookDelivery.deleteMany({});
+  await db.alertEvent.deleteMany({});
+  await db.alertChannelConfig.deleteMany({});
+  await db.alertDeliveryLog.deleteMany({});
+  await db.sessionFeedback.deleteMany({});
+  // Reset any leftover rule silence so re-runs start from a clean state.
+  await db.alertRule.updateMany({ data: { silencedUntil: null }, where: {} });
+
+  // ── Cleanup: EXTRA_ROLE_USERS ─────────────────────────────────────────────────
+  const roleUserRows = await db.user.findMany({
+    where: { email: { in: EXTRA_ROLE_USERS.map((u) => u.email) } },
+  });
+  const roleUserIds = roleUserRows.map((u: { id: string }) => u.id);
+  if (roleUserIds.length > 0) {
+    for (const uid of roleUserIds) {
+      await db.$executeRaw`DELETE FROM events WHERE user_id = ${uid}::uuid`;
+    }
+    await db.session.deleteMany({ where: { userId: { in: roleUserIds } } });
+    await db.auditLog.deleteMany({ where: { actorUserId: { in: roleUserIds } } });
+    await db.user.deleteMany({ where: { id: { in: roleUserIds } } });
+  }
+
   // ── Cleanup: EXT_DEVS ─────────────────────────────────────────────────────────
   const extEmails = EXT_DEVS.map((d) => d.email);
   const extLogins = EXT_DEVS.map((d) => d.login);
@@ -1367,12 +1589,16 @@ async function extensiveSeed() {
   const adminUser = await db.user.findUniqueOrThrow({ where: { email: SEED_ADMIN_EMAIL } });
 
   // ── EXTRA_TEAMS ───────────────────────────────────────────────────────────────
-  for (const teamDef of EXTRA_TEAMS) {
+  for (const [teamIdx, teamDef] of EXTRA_TEAMS.entries()) {
     const extraTeam = await db.team.create({
       data: {
         githubId: teamDef.githubId,
         githubSlug: teamDef.githubSlug,
         name: teamDef.name,
+        // Sub-teams of the Platform team — exercises the team hierarchy.
+        parentTeamId: team.id,
+        // One team overrides the global transcript retention (P9-004).
+        retentionDays: teamIdx === 0 ? 30 : null,
         syncedAt: new Date(),
       },
     });
@@ -1422,6 +1648,8 @@ async function extensiveSeed() {
           const toolCalls = faker.number.int({ max: 100, min: 2 });
           const model = faker.helpers.weightedArrayElement(MODELS);
           const status = faker.helpers.weightedArrayElement(SESSION_STATUSES);
+          const mode = representativeMode();
+          const userMessageCount = faker.number.int({ max: 25, min: 1 });
           const extraSession = await db.session.create({
             data: {
               agentType: 'CLAUDE_CODE',
@@ -1453,7 +1681,8 @@ async function extensiveSeed() {
               totalInputTokens: BigInt(inputTokens),
               totalOutputTokens: BigInt(outputTokens),
               userId: extraUser.id,
-              userMessageCount: faker.number.int({ max: 25, min: 1 }),
+              userMessageCount,
+              ...hitlSessionFields({ mode, repoName: teamDef.repo.name, status, userMessageCount }),
             },
           });
           await insertEvents(
@@ -1463,6 +1692,7 @@ async function extensiveSeed() {
             durationMs,
             toolCalls,
             model,
+            mode,
           );
           if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.4 })) {
             await insertTranscript(extraSession.sessionId, startedAt, durationMs);
@@ -1588,6 +1818,16 @@ async function extensiveSeed() {
         const cacheRead = faker.number.int({ max: 40000, min: 0 });
         const cacheCreation = faker.number.int({ max: 8000, min: 0 });
         const toolCalls = faker.number.int({ max: 120, min: 2 });
+        const mode = representativeMode();
+        const isResume = faker.datatype.boolean({ probability: 0.08 });
+        const userMessageCount = faker.number.int({ max: 30, min: 1 });
+        // Chain a resumed session to a prior one from the same dev when available.
+        const resumedFromSessionId =
+          isResume && devSessions.length > 0
+            ? (faker.helpers.arrayElement(devSessions) ?? null)
+            : null;
+        // Some sessions carry live PR/CI context (surfaced by the skill-CI-health query).
+        const hasPrContext = faker.datatype.boolean({ probability: 0.25 });
 
         const session = await db.session.create({
           data: {
@@ -1597,19 +1837,25 @@ async function extensiveSeed() {
             compactionCount: faker.number.int({ max: 4, min: 0 }),
             cwd: `/home/${dev.login}/${repo.cwdSuffix}`,
             endedAt,
-            frictionScore: faker.datatype.boolean({ probability: 0.3 })
-              ? faker.number.float({ fractionDigits: 2, max: 1.0, min: 0.0 })
-              : null,
             gitBranch: faker.helpers.arrayElement(repo.branches),
             gitCommit: faker.git.commitSha({ length: 40 }),
+            githubLogin: dev.login,
             gitIsDirty: faker.datatype.boolean({ probability: 0.3 }),
-            isResume: faker.datatype.boolean({ probability: 0.08 }),
+            isResume,
             lastEventAt: endedAt,
             os: faker.helpers.arrayElement(['darwin', 'darwin', 'linux']),
             permissionDenyCount: faker.number.int({ max: 5, min: 0 }),
             permissionPromptCount: faker.number.int({ max: 10, min: 0 }),
+            prCiStatus: hasPrContext
+              ? faker.helpers.arrayElement(['SUCCESS', 'FAILURE', 'PENDING'])
+              : null,
             primaryModel: model,
+            prNumber: hasPrContext ? faker.number.int({ max: 405, min: 201 }) : null,
+            prReviewDecision: hasPrContext
+              ? faker.helpers.arrayElement(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED'])
+              : null,
             repoId,
+            resumedFromSessionId,
             sessionId: faker.string.uuid(),
             startedAt,
             status,
@@ -1621,14 +1867,15 @@ async function extensiveSeed() {
             totalInputTokens: BigInt(inputTokens),
             totalOutputTokens: BigInt(outputTokens),
             userId: devId,
-            userMessageCount: faker.number.int({ max: 30, min: 1 }),
+            userMessageCount,
+            ...hitlSessionFields({ mode, repoName: repo.name, status, userMessageCount }),
           },
         });
 
         devSessions.push(session.sessionId);
         totalSessions++;
 
-        await insertEvents(session.sessionId, devId, startedAt, durationMs, toolCalls, model);
+        await insertEvents(session.sessionId, devId, startedAt, durationMs, toolCalls, model, mode);
 
         if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.35 })) {
           await insertTranscript(session.sessionId, startedAt, durationMs);
@@ -1663,6 +1910,14 @@ async function extensiveSeed() {
 
     const otherLogins = EXT_DEVS.map((d) => d.login).filter((l) => l !== pr.authorLogin);
     const reviewerLogins = faker.helpers.arrayElements(otherLogins, { max: 2, min: 1 });
+    const project = REPO_JIRA_PROJECT[pr.repoName];
+    // Ticket key resolves to a seeded jira_issues row (see seedJira). PRs without
+    // a key exercise the "no ticket" path in the ROI/quality joins.
+    const jiraKey =
+      project && faker.datatype.boolean({ probability: 0.75 })
+        ? `${project}-${(pr.number % 8) + 1}`
+        : null;
+    const headSha = faker.git.commitSha({ length: 40 });
 
     await db.pullRequest.create({
       data: {
@@ -1673,6 +1928,8 @@ async function extensiveSeed() {
         filesChanged: faker.number.int({ max: 35, min: 1 }),
         githubId: BigInt(20_000_000 + pr.number),
         headBranch: pr.headBranch,
+        isDraft: pr.state === 'OPEN' ? faker.datatype.boolean({ probability: 0.3 }) : false,
+        jiraKey,
         labels: pr.labels,
         linesAdded: faker.number.int({ max: 800, min: 5 }),
         linesRemoved: faker.number.int({ max: 400, min: 0 }),
@@ -1680,12 +1937,76 @@ async function extensiveSeed() {
         openedAt,
         prNumber: pr.number,
         repoId,
-        reviewCount: faker.number.int({ max: 5, min: 1 }),
+        reviewCount: reviewerLogins.length,
         reviewerLogins,
         state: pr.state,
         title: pr.title,
       },
     });
+
+    // ── Check runs (CI health, org-queries getCheckRunHealth) ──
+    const checkNames = faker.helpers.arrayElements(
+      ['ci/build', 'ci/lint', 'ci/test', 'ci/typecheck'],
+      { max: 4, min: 2 },
+    );
+    let checkFailures = 0;
+    for (const [ci, name] of checkNames.entries()) {
+      // Merged PRs almost always ended green; open/closed ones fail more often.
+      const conclusion = isMerged
+        ? faker.helpers.weightedArrayElement([
+            { value: 'success', weight: 90 },
+            { value: 'failure', weight: 6 },
+            { value: 'neutral', weight: 4 },
+          ])
+        : faker.helpers.weightedArrayElement([
+            { value: 'success', weight: 55 },
+            { value: 'failure', weight: 35 },
+            { value: 'neutral', weight: 10 },
+          ]);
+      if (conclusion === 'failure') {
+        checkFailures++;
+      }
+      const checkStarted = new Date(
+        openedAt.getTime() + faker.number.int({ max: 3600_000, min: 0 }),
+      );
+      await db.pRCheckRun.create({
+        data: {
+          completedAt: new Date(
+            checkStarted.getTime() + faker.number.int({ max: 900_000, min: 30_000 }),
+          ),
+          conclusion,
+          githubId: BigInt(70_000_000 + pr.number * 10 + ci),
+          headSha,
+          name,
+          prNumber: pr.number,
+          repoId,
+          startedAt: checkStarted,
+          status: 'completed',
+        },
+      });
+    }
+
+    // ── Reviews (review latency / burden, org-queries getReviewStats) ──
+    for (const [ri, reviewer] of reviewerLogins.entries()) {
+      const submittedAt = new Date(
+        openedAt.getTime() + faker.number.int({ max: 3, min: 1 }) * 3_600_000,
+      );
+      await db.pRReview.create({
+        data: {
+          githubId: BigInt(80_000_000 + pr.number * 10 + ri),
+          prNumber: pr.number,
+          repoId,
+          reviewerLogin: reviewer,
+          state: isMerged
+            ? faker.helpers.weightedArrayElement([
+                { value: 'APPROVED', weight: 80 },
+                { value: 'COMMENTED', weight: 20 },
+              ])
+            : faker.helpers.arrayElement(['CHANGES_REQUESTED', 'COMMENTED', 'APPROVED']),
+          submittedAt,
+        },
+      });
+    }
 
     const authorSessions = sessionsByDev.get(pr.authorLogin) ?? [];
     if (authorSessions.length > 0) {
@@ -1704,6 +2025,7 @@ async function extensiveSeed() {
         const contrib = linkedSessions.slice(0, Math.min(3, linkedSessions.length));
         await db.pRRollup.create({
           data: {
+            checkFailuresCount: checkFailures,
             contributingSessionIds: contrib,
             contributingUserIds: authorUserId ? [authorUserId] : [],
             costPerLoc: faker.number.float({ fractionDigits: 6, max: 0.08, min: 0.0005 }),
@@ -1720,8 +2042,41 @@ async function extensiveSeed() {
             totalToolErrors: faker.number.int({ max: 20, min: 0 }),
           },
         });
+
+        // Commit → session provenance (default-branch push attribution, ROI query).
+        for (const sessionId of contrib) {
+          await db.sessionCommitLink.create({
+            data: {
+              authorLogin: pr.authorLogin,
+              commitSha: faker.git.commitSha({ length: 40 }),
+              committedAt: new Date(
+                mergedAt.getTime() - faker.number.int({ max: 3600_000, min: 0 }),
+              ),
+              repoId,
+              sessionId,
+            },
+          });
+        }
       }
     }
+  }
+
+  // Revert detection (P5-003): mark one merged demo-app PR as reverting an earlier
+  // one so the revert/defect surfaces have a live example.
+  const revertRepoId = repoMap.get('demo-app');
+  if (revertRepoId) {
+    await db.pullRequest
+      .update({
+        data: { revertOfPrNumber: 202 },
+        where: { repoId_prNumber: { prNumber: 206, repoId: revertRepoId } },
+      })
+      .catch(() => undefined);
+    await db.pullRequest
+      .update({
+        data: { revertedAt: new Date(now - 9 * 86_400_000) },
+        where: { repoId_prNumber: { prNumber: 202, repoId: revertRepoId } },
+      })
+      .catch(() => undefined);
   }
 
   // ── Additional admin sessions (on top of what basic created) ──────────────────
@@ -1758,6 +2113,8 @@ async function extensiveSeed() {
         const cacheRead = faker.number.int({ max: 40000, min: 0 });
         const cacheCreation = faker.number.int({ max: 8000, min: 0 });
         const toolCalls = faker.number.int({ max: 120, min: 2 });
+        const mode = representativeMode();
+        const userMessageCount = faker.number.int({ max: 30, min: 1 });
         const session = await db.session.create({
           data: {
             agentType: 'CLAUDE_CODE',
@@ -1766,11 +2123,9 @@ async function extensiveSeed() {
             compactionCount: faker.number.int({ max: 4, min: 0 }),
             cwd: `/home/admin/${adminRepo.cwdSuffix}`,
             endedAt,
-            frictionScore: faker.datatype.boolean({ probability: 0.3 })
-              ? faker.number.float({ fractionDigits: 2, max: 1.0, min: 0.0 })
-              : null,
             gitBranch: faker.helpers.arrayElement(adminRepo.branches),
             gitCommit: faker.git.commitSha({ length: 40 }),
+            githubLogin: 'dave-lead',
             gitIsDirty: faker.datatype.boolean({ probability: 0.3 }),
             isResume: faker.datatype.boolean({ probability: 0.08 }),
             lastEventAt: endedAt,
@@ -1790,7 +2145,8 @@ async function extensiveSeed() {
             totalInputTokens: BigInt(inputTokens),
             totalOutputTokens: BigInt(outputTokens),
             userId: adminUser.id,
-            userMessageCount: faker.number.int({ max: 30, min: 1 }),
+            userMessageCount,
+            ...hitlSessionFields({ mode, repoName: adminRepo.name, status, userMessageCount }),
           },
         });
         totalSessions++;
@@ -1802,6 +2158,7 @@ async function extensiveSeed() {
           durationMs,
           toolCalls,
           model,
+          mode,
         );
         if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.35 })) {
           await insertTranscript(session.sessionId, startedAt, durationMs);
@@ -1811,12 +2168,156 @@ async function extensiveSeed() {
     }
   }
 
+  // ── Extra-role users (VIEWER_AGGREGATE / INVESTIGATOR / MAINTAINER / deactivated) ──
+  const roleUserMap = new Map<string, string>();
+  for (const ru of EXTRA_ROLE_USERS) {
+    const passwordHash = await hashPassword(ru.password);
+    const created = await db.user.create({
+      data: {
+        createdAt: new Date(now - 90 * 86_400_000),
+        deactivatedAt:
+          'deactivated' in ru && ru.deactivated ? new Date(now - 14 * 86_400_000) : null,
+        displayName: ru.name,
+        email: ru.email,
+        githubLogin: ru.login,
+        lastSeenAt:
+          'deactivated' in ru && ru.deactivated ? new Date(now - 14 * 86_400_000) : new Date(),
+        orgRole: ru.orgRole,
+        passwordHash,
+        primaryTeamId: team.id,
+        visibilityPolicy: {
+          create: {
+            shareMetadataWithOrg: true,
+            shareMetadataWithTeam: true,
+            shareTranscriptsWithOrg: false,
+            shareTranscriptsWithTeam: false,
+          },
+        },
+      },
+    });
+    roleUserMap.set(ru.login, created.id);
+    await db.teamMember.create({
+      data: { roleInTeam: ru.role, teamId: team.id, userId: created.id },
+    });
+    // A few recent sessions each so they show up in rosters and adoption metrics.
+    const active = !('deactivated' in ru && ru.deactivated);
+    if (active) {
+      for (let daysAgo = 6; daysAgo >= 0; daysAgo -= 2) {
+        await createRichSession({
+          agentType: 'CLAUDE_CODE',
+          branches: demoAppRepo ? ['main', 'feat/roster', 'fix/gate'] : ['main'],
+          cwd: `/home/${ru.login}/projects/demo-app`,
+          durationMs: weightedDurationMs(),
+          login: ru.login,
+          model: faker.helpers.weightedArrayElement(MODELS),
+          repoId: demoAppRepo.id,
+          repoName: 'demo-app',
+          startedAt: new Date(
+            now - daysAgo * 86_400_000 - faker.number.int({ max: 6 * 3_600_000, min: 0 }),
+          ),
+          status: 'COMPLETED',
+          userId: created.id,
+        });
+        totalSessions++;
+      }
+    }
+  }
+
+  // ── In-progress (ACTIVE) sessions — the live "running now" state ──────────────
+  let activeCount = 0;
+  for (const login of ['alice-coder', 'bob-engineer']) {
+    const uid = devUserMap.get(login);
+    if (!uid) {
+      continue;
+    }
+    const startedAt = new Date(now - faker.number.int({ max: 25 * 60_000, min: 3 * 60_000 }));
+    await createRichSession({
+      active: true,
+      branches: ['feat/live-work', 'main'],
+      cwd: `/home/${login}/projects/demo-app`,
+      durationMs: now - startedAt.getTime(),
+      login,
+      model: 'claude-sonnet-4-6',
+      repoId: demoAppRepo.id,
+      repoName: 'demo-app',
+      startedAt,
+      status: 'ACTIVE',
+      userId: uid,
+    });
+    activeCount++;
+    totalSessions++;
+  }
+
+  // ── Multi-agent sessions (Codex + OpenCode) — adapter-health + agent comparison ──
+  // Recent so the adapters page marks them "active" (last 48h / 24h windows).
+  let multiAgentCount = 0;
+  const multiAgentDevs = ['carol-dev', 'eva-new', 'bob-engineer'];
+  for (const agentType of NON_DEFAULT_AGENTS) {
+    for (const login of multiAgentDevs) {
+      const uid = devUserMap.get(login);
+      if (!uid) {
+        continue;
+      }
+      const sessionsForAgent = faker.number.int({ max: 4, min: 2 });
+      for (let s = 0; s < sessionsForAgent; s++) {
+        // Spread across the last ~3 days; the first is always within 24h.
+        const startedAt = new Date(
+          now - (s === 0 ? 1 : faker.number.int({ max: 72, min: 2 })) * 3_600_000,
+        );
+        await createRichSession({
+          agentType,
+          branches: ['main', 'feat/agent-task', 'fix/adapter'],
+          cwd: `/home/${login}/projects/${agentType === 'CODEX' ? 'api-service' : 'demo-app'}`,
+          durationMs: weightedDurationMs(),
+          login,
+          model:
+            agentType === 'CODEX'
+              ? faker.helpers.arrayElement(['gpt-5-codex', 'gpt-5'])
+              : faker.helpers.arrayElement(['claude-sonnet-4-6', 'qwen-2.5-coder']),
+          repoId:
+            (agentType === 'CODEX' ? repoMap.get('api-service') : demoAppRepo.id) ?? demoAppRepo.id,
+          repoName: agentType === 'CODEX' ? 'api-service' : 'demo-app',
+          startedAt,
+          status: faker.helpers.weightedArrayElement(SESSION_STATUSES),
+          userId: uid,
+        });
+        multiAgentCount++;
+        totalSessions++;
+      }
+    }
+  }
+
+  // ── Standalone surfaces: Jira, governance, ops, alert runtime ────────────────
+  const investigatorId = roleUserMap.get('ines-investigator') ?? null;
+  const governanceTargets = [devUserMap.get('alice-coder'), devUserMap.get('carol-dev')].filter(
+    (v): v is string => Boolean(v),
+  );
+  const localUser = await db.user.findUnique({ where: { email: SEED_PW_EMAIL } });
+  const demoUser = await db.user.findUnique({ where: { githubLogin: BASIC_LOGIN } });
+  await seedJira();
+  await seedOps();
+  await seedAlertRuntime(adminUser.id);
+  await seedGovernance({
+    adminUserId: adminUser.id,
+    demoUserId: demoUser?.id ?? null,
+    granteeUserId: investigatorId ?? adminUser.id,
+    localUserId: localUser?.id ?? null,
+    targetUserIds: governanceTargets,
+  });
+
   const mergedCount = EXT_PRS.filter((p) => p.state === 'MERGED').length;
   const totalTeams = 1 + EXTRA_TEAMS.length;
-  const totalUsers = 3 + EXT_DEVS.length + EXTRA_TEAMS.reduce((n, t) => n + t.users.length, 0);
+  const totalUsers =
+    3 +
+    EXT_DEVS.length +
+    EXTRA_ROLE_USERS.length +
+    EXTRA_TEAMS.reduce((n, t) => n + t.users.length, 0);
   console.log(`\nExtensive seed complete (builds on basic seed).`);
   console.log(
     `  ${totalTeams} teams · ${totalUsers} users · ${totalSessions} extensive sessions (+~120 from basic) · ${EXT_PRS.length} PRs (${mergedCount} merged)`,
+  );
+  console.log(
+    `  coverage: ${activeCount} ACTIVE · ${multiAgentCount} Codex/OpenCode · ${roleUserMap.size} extra-role users · Jira + governance + alerts + ops seeded`,
   );
 
   console.log(`\n  Platform Team`);
@@ -1843,6 +2344,527 @@ async function extensiveSeed() {
     for (const u of teamDef.users) {
       console.log(`    ${u.email.padEnd(32)}  ${u.password.padEnd(12)}  ${u.role}`);
     }
+  }
+}
+
+// ── Rich-session helper (extra-role, ACTIVE, and multi-agent sessions) ────────
+
+type SessionStatusLit = 'ACTIVE' | 'COMPLETED' | 'CRASHED' | 'TIMED_OUT' | 'ABANDONED';
+type AgentTypeLit =
+  | 'CLAUDE_CODE'
+  | 'CURSOR'
+  | 'AIDER'
+  | 'COPILOT'
+  | 'CODEX'
+  | 'WINDSURF'
+  | 'OPENCODE';
+
+async function createRichSession(opts: {
+  userId: string;
+  repoId: string;
+  repoName: string;
+  login: string;
+  cwd: string;
+  startedAt: Date;
+  durationMs: number;
+  status: SessionStatusLit;
+  model: string;
+  branches: string[];
+  agentType?: AgentTypeLit;
+  active?: boolean;
+}): Promise<string> {
+  const { userId, repoId, repoName, login, cwd, startedAt, durationMs, status, model, branches } =
+    opts;
+  const agentType = opts.agentType ?? 'CLAUDE_CODE';
+  const active = opts.active ?? false;
+  const endedAt = active ? null : new Date(startedAt.getTime() + durationMs);
+  const inputTokens = faker.number.int({ max: 80000, min: 500 });
+  const outputTokens = faker.number.int({ max: 15000, min: 200 });
+  const cacheRead = faker.number.int({ max: 40000, min: 0 });
+  const cacheCreation = faker.number.int({ max: 8000, min: 0 });
+  const toolCalls = faker.number.int({ max: 120, min: 2 });
+  const userMessageCount = faker.number.int({ max: 30, min: 1 });
+  const mode = representativeMode();
+  const ccVersion = faker.helpers.arrayElement(CC_VERSIONS);
+  const session = await db.session.create({
+    data: {
+      agentType,
+      agentVersion: ccVersion,
+      claudeCodeVersion: agentType === 'CLAUDE_CODE' ? ccVersion : null,
+      compactionCount: faker.number.int({ max: 4, min: 0 }),
+      cwd,
+      endedAt,
+      gitBranch: faker.helpers.arrayElement(branches),
+      gitCommit: faker.git.commitSha({ length: 40 }),
+      githubLogin: login,
+      gitIsDirty: faker.datatype.boolean({ probability: 0.3 }),
+      lastEventAt: active ? new Date() : (endedAt as Date),
+      os: faker.helpers.arrayElement(['darwin', 'darwin', 'linux']),
+      permissionDenyCount: faker.number.int({ max: 5, min: 0 }),
+      permissionPromptCount: faker.number.int({ max: 10, min: 0 }),
+      primaryModel: model,
+      repoId,
+      sessionId: faker.string.uuid(),
+      startedAt,
+      status,
+      toolCallCount: toolCalls,
+      toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.12), min: 0 }),
+      totalCacheCreation: BigInt(cacheCreation),
+      totalCacheRead: BigInt(cacheRead),
+      totalCostUsd: calcCost(inputTokens, outputTokens, cacheRead, cacheCreation),
+      totalInputTokens: BigInt(inputTokens),
+      totalOutputTokens: BigInt(outputTokens),
+      userId,
+      userMessageCount,
+      ...hitlSessionFields({ mode, repoName, status, userMessageCount }),
+    },
+  });
+  await insertEvents(
+    session.sessionId,
+    userId,
+    startedAt,
+    durationMs,
+    toolCalls,
+    model,
+    mode,
+    agentType,
+  );
+  return session.sessionId;
+}
+
+// ── Jira issues + issue links ─────────────────────────────────────────────────
+
+async function seedJira(): Promise<void> {
+  const projects = [
+    { key: 'PLAT', name: 'Platform Engineering' },
+    { key: 'API', name: 'API Platform' },
+    { key: 'INFRA', name: 'Infrastructure' },
+  ];
+  const issueTypes = [
+    { value: 'Story', weight: 40 },
+    { value: 'Bug', weight: 30 },
+    { value: 'Task', weight: 20 },
+    { value: 'Epic', weight: 10 },
+  ];
+  const statuses = ['To Do', 'In Progress', 'In Review', 'Done'];
+  const assignees = ['alice-coder', 'bob-engineer', 'carol-dev', 'dave-lead', 'eva-new'];
+  const allKeys: string[] = [];
+
+  for (const p of projects) {
+    const epicKey = `${p.key}-100`;
+    await db.jiraIssue.create({
+      data: {
+        issueCreatedAt: new Date(Date.now() - 150 * 86_400_000),
+        issueType: 'Epic',
+        key: epicKey,
+        projectKey: p.key,
+        projectName: p.name,
+        status: 'In Progress',
+        summary: `${p.name} — quarterly initiative`,
+        syncedAt: new Date(),
+      },
+    });
+    for (let n = 1; n <= 8; n++) {
+      const key = `${p.key}-${n}`;
+      const issueType = faker.helpers.weightedArrayElement(issueTypes);
+      const status = faker.helpers.arrayElement(statuses);
+      const createdAt = new Date(Date.now() - faker.number.int({ max: 120, min: 10 }) * 86_400_000);
+      await db.jiraIssue.create({
+        data: {
+          assignee: faker.helpers.arrayElement(assignees),
+          epicKey,
+          issueCreatedAt: createdAt,
+          issueType,
+          key,
+          projectKey: p.key,
+          projectName: p.name,
+          resolvedAt:
+            status === 'Done'
+              ? new Date(createdAt.getTime() + faker.number.int({ max: 20, min: 1 }) * 86_400_000)
+              : null,
+          status,
+          storyPoints: faker.helpers.arrayElement([1, 2, 3, 5, 8, 13]),
+          summary: faker.git.commitMessage(),
+          syncedAt: new Date(),
+        },
+      });
+      allKeys.push(key);
+    }
+  }
+
+  // Issue-to-issue links — the blast-radius traversal quality-queries walks.
+  const linkKinds = [
+    { description: 'blocks', linkType: 'Blocks' },
+    { description: 'relates to', linkType: 'Relates' },
+    { description: 'is caused by', linkType: 'Causes' },
+  ];
+  for (let i = 0; i < 8; i++) {
+    const sourceKey = faker.helpers.arrayElement(allKeys);
+    const targetKey = faker.helpers.arrayElement(allKeys);
+    if (sourceKey === targetKey) {
+      continue;
+    }
+    const kind = faker.helpers.arrayElement(linkKinds);
+    await db.jiraIssueLink.upsert({
+      create: { description: kind.description, linkType: kind.linkType, sourceKey, targetKey },
+      update: {},
+      where: {
+        sourceKey_targetKey_linkType: { linkType: kind.linkType, sourceKey, targetKey },
+      },
+    });
+  }
+}
+
+// ── Ops surfaces: job config/runs + webhook deliveries ────────────────────────
+
+async function seedOps(): Promise<void> {
+  const now = Date.now();
+  const jobs = [
+    { hour: 2, jobName: 'sweep-retention', minute: 0 },
+    { hour: 3, jobName: 'index-transcripts', minute: 30 },
+    { hour: 5, jobName: 'compute-effectiveness', minute: 0 },
+    { hour: 1, jobName: 'evaluate-alerts', minute: 0 },
+    { hour: 4, jobName: 'sync-teams', minute: 15 },
+    { hour: 6, jobName: 'sync-jira', minute: 45 },
+  ];
+  for (const j of jobs) {
+    await db.jobConfig.create({
+      data: {
+        enabled: j.jobName !== 'sync-jira',
+        jobName: j.jobName,
+        runHourUtc: j.hour,
+        runMinuteUtc: j.minute,
+      },
+    });
+    // A short history per job: several successes, an occasional error, one live run.
+    const runs = faker.number.int({ max: 5, min: 2 });
+    for (let r = 0; r < runs; r++) {
+      const startedAt = new Date(
+        now - (r + 1) * 86_400_000 - faker.number.int({ max: 3600_000, min: 0 }),
+      );
+      const outcome =
+        r === 0 && faker.datatype.boolean({ probability: 0.2 })
+          ? 'running'
+          : faker.helpers.weightedArrayElement([
+              { value: 'success', weight: 85 },
+              { value: 'error', weight: 15 },
+            ]);
+      await db.jobRun.create({
+        data: {
+          errorText: outcome === 'error' ? 'timed out waiting for S3 HeadBucket' : null,
+          finishedAt:
+            outcome === 'running'
+              ? null
+              : new Date(startedAt.getTime() + faker.number.int({ max: 120_000, min: 500 })),
+          jobName: j.jobName,
+          startedAt,
+          status: outcome,
+        },
+      });
+    }
+  }
+
+  // Webhook deliveries (collected by the github-app) — pruned to recent history.
+  const hookEvents = [
+    { action: 'opened', eventType: 'pull_request' },
+    { action: 'synchronize', eventType: 'pull_request' },
+    { action: 'closed', eventType: 'pull_request' },
+    { action: null, eventType: 'push' },
+    { action: 'completed', eventType: 'check_run' },
+    { action: 'submitted', eventType: 'pull_request_review' },
+    { action: 'created', eventType: 'installation' },
+  ];
+  for (let i = 0; i < 24; i++) {
+    const ev = faker.helpers.arrayElement(hookEvents);
+    const status = faker.helpers.weightedArrayElement([
+      { value: 'processed', weight: 80 },
+      { value: 'ignored', weight: 15 },
+      { value: 'error', weight: 5 },
+    ]);
+    const receivedAt = new Date(now - faker.number.int({ max: 10 * 86_400_000, min: 0 }));
+    await db.webhookDelivery.create({
+      data: {
+        action: ev.action,
+        deliveryId: faker.string.uuid(),
+        errorText: status === 'error' ? 'handler threw: unexpected payload shape' : null,
+        eventType: ev.eventType,
+        processedAt: status === 'error' ? null : new Date(receivedAt.getTime() + 250),
+        receivedAt,
+        repo: faker.helpers.arrayElement(['demo-app', 'api-service', 'infra-scripts']),
+        status,
+      },
+    });
+  }
+}
+
+// ── Alert runtime: channels, firings, delivery log, one silenced rule ─────────
+
+async function seedAlertRuntime(adminUserId: string): Promise<void> {
+  const now = Date.now();
+  await db.alertChannelConfig.create({
+    data: {
+      channelType: 'slack_webhook',
+      config: { url: 'https://hooks.slack.com/services/T000/B000/demo' },
+      enabled: true,
+    },
+  });
+  await db.alertChannelConfig.create({
+    data: { channelType: 'webhook', config: { url: 'https://example.com/alerts' }, enabled: true },
+  });
+  await db.alertChannelConfig.create({
+    data: { channelType: 'email', config: { to: 'oncall@example.com' }, enabled: false },
+  });
+
+  const rules = await db.alertRule.findMany();
+  const ruleByType = new Map(
+    rules.map((r: { id: string; ruleType: string }) => [r.ruleType, r.id]),
+  );
+
+  // Silence one rule to exercise the silenced state.
+  const spendRuleId = ruleByType.get('spend_spike');
+  if (spendRuleId) {
+    await db.alertRule.update({
+      data: { silencedUntil: new Date(now + 4 * 3_600_000) },
+      where: { id: spendRuleId },
+    });
+  }
+
+  // Firings across a few rules: one open, one resolved, one acknowledged.
+  const firings = [
+    {
+      acknowledged: false,
+      details: { sigma: 3.4, windowSpendUsd: 812.5 },
+      firedAt: new Date(now - 2 * 3_600_000),
+      resolved: false,
+      ruleType: 'spend_spike',
+      severity: 'critical',
+    },
+    {
+      acknowledged: true,
+      details: { errorRate: 0.14, toolCalls: 1320 },
+      firedAt: new Date(now - 26 * 3_600_000),
+      resolved: true,
+      ruleType: 'high_error_rate',
+      severity: 'warn',
+    },
+    {
+      acknowledged: false,
+      details: { lowOversightShare: 0.58, sessions: 41 },
+      firedAt: new Date(now - 3 * 86_400_000),
+      resolved: true,
+      ruleType: 'autonomy_surge',
+      severity: 'warn',
+    },
+    {
+      acknowledged: true,
+      details: { unknownModelEvents: 73 },
+      firedAt: new Date(now - 5 * 86_400_000),
+      resolved: true,
+      ruleType: 'unknown_model_surge',
+      severity: 'warn',
+    },
+  ];
+  for (const f of firings) {
+    const ruleId = ruleByType.get(f.ruleType);
+    if (!ruleId) {
+      continue;
+    }
+    await db.alertEvent.create({
+      data: {
+        acknowledgedAt: f.acknowledged ? new Date(f.firedAt.getTime() + 30 * 60_000) : null,
+        acknowledgedByUserId: f.acknowledged ? adminUserId : null,
+        details: f.details,
+        firedAt: f.firedAt,
+        resolvedAt: f.resolved ? new Date(f.firedAt.getTime() + 2 * 3_600_000) : null,
+        ruleId,
+        severity: f.severity,
+      },
+    });
+  }
+
+  // Delivery attempts — some fail so the "recent delivery failures" panel renders.
+  for (let i = 0; i < 8; i++) {
+    const success = faker.datatype.boolean({ probability: 0.7 });
+    await db.alertDeliveryLog.create({
+      data: {
+        attemptedAt: new Date(now - faker.number.int({ max: 7 * 86_400_000, min: 0 })),
+        channelType: faker.helpers.arrayElement(['slack_webhook', 'webhook', 'email']),
+        error: success
+          ? null
+          : faker.helpers.arrayElement([
+              '503 from endpoint',
+              'connection timeout',
+              'invalid webhook url',
+            ]),
+        success,
+      },
+    });
+  }
+}
+
+// ── Governance: audit log, access grants, deletion requests, session feedback ──
+
+async function seedGovernance(opts: {
+  adminUserId: string;
+  granteeUserId: string;
+  targetUserIds: string[];
+  localUserId: string | null;
+  demoUserId: string | null;
+}): Promise<void> {
+  const { adminUserId, granteeUserId, targetUserIds, localUserId, demoUserId } = opts;
+  const now = Date.now();
+
+  // Session ids to reference (targets of VIEW_SESSION audits + single-session grants).
+  const sampleSessions = await db.session.findMany({
+    select: { sessionId: true, userId: true },
+    take: 40,
+  });
+  const sessionIds = sampleSessions.map((s: { sessionId: string }) => s.sessionId);
+
+  // ── Audit log — spread across the action types, targeting real users/sessions ──
+  const auditActions = [
+    'VIEW_SESSION',
+    'VIEW_TRANSCRIPT',
+    'EXPORT_TEAM',
+    'EXPORT_ORG',
+    'ADMIN_IMPERSONATE',
+    'HOOK_TOKEN_ISSUED',
+    'ROLE_GRANT',
+    'RETENTION_OVERRIDE_CHANGED',
+    'GRANT_REQUESTED',
+    'GRANT_APPROVED',
+    'GRANT_REVOKED',
+    'ALERT_ACKNOWLEDGED',
+    'ALERT_SILENCED',
+    'DELETE_REQUEST',
+  ] as const;
+  const auditTargets = [...targetUserIds, localUserId, demoUserId].filter((v): v is string =>
+    Boolean(v),
+  );
+  for (let i = 0; i < 40; i++) {
+    const action = faker.helpers.arrayElement(auditActions);
+    const targetUserId = faker.helpers.arrayElement(auditTargets);
+    const touchesSession =
+      action === 'VIEW_SESSION' || action === 'VIEW_TRANSCRIPT' || action === 'ADMIN_IMPERSONATE';
+    await db.auditLog.create({
+      data: {
+        action,
+        actorUserId: faker.helpers.arrayElement([adminUserId, granteeUserId]),
+        ip: faker.internet.ipv4(),
+        justification: faker.helpers.arrayElement([
+          'Investigating a cost anomaly',
+          'Responding to a support request',
+          'Quarterly access review',
+          'User-requested export',
+        ]),
+        targetSessionId:
+          touchesSession && sessionIds.length > 0 ? faker.helpers.arrayElement(sessionIds) : null,
+        targetUserId,
+        ts: new Date(now - faker.number.int({ max: 30 * 86_400_000, min: 0 })),
+        userAgent: 'Mozilla/5.0 (seed)',
+      },
+    });
+  }
+
+  // ── Access grants — every status (pending / active / expired / revoked) ──
+  const grantTarget = targetUserIds[0] ?? localUserId;
+  if (grantTarget) {
+    // pending
+    await db.accessGrant.create({
+      data: {
+        granteeUserId,
+        justification: 'Need to review recent sessions for an incident.',
+        requestedAt: new Date(now - 2 * 3_600_000),
+        scope: 'USER_SESSIONS',
+        targetUserId: grantTarget,
+      },
+    });
+    // active
+    await db.accessGrant.create({
+      data: {
+        expiresAt: new Date(now + 3 * 86_400_000),
+        grantedAt: new Date(now - 1 * 86_400_000),
+        grantedByUserId: adminUserId,
+        granteeUserId,
+        justification: 'Approved: transcript review for defect attribution.',
+        requestedAt: new Date(now - 1 * 86_400_000 - 3_600_000),
+        scope: 'USER_SESSIONS',
+        targetUserId: grantTarget,
+      },
+    });
+    // expired
+    await db.accessGrant.create({
+      data: {
+        expiresAt: new Date(now - 2 * 86_400_000),
+        grantedAt: new Date(now - 9 * 86_400_000),
+        grantedByUserId: adminUserId,
+        granteeUserId,
+        justification: 'Time-boxed access (now expired).',
+        requestedAt: new Date(now - 9 * 86_400_000),
+        scope: 'SINGLE_SESSION',
+        targetSessionId: sessionIds[0] ?? null,
+      },
+    });
+    // revoked
+    await db.accessGrant.create({
+      data: {
+        expiresAt: new Date(now + 5 * 86_400_000),
+        grantedAt: new Date(now - 4 * 86_400_000),
+        grantedByUserId: adminUserId,
+        granteeUserId,
+        justification: 'Revoked after the investigation closed.',
+        requestedAt: new Date(now - 4 * 86_400_000),
+        revokedAt: new Date(now - 3 * 86_400_000),
+        scope: 'SINGLE_SESSION',
+        targetSessionId: sessionIds[1] ?? null,
+      },
+    });
+  }
+
+  // ── Deletion requests (GDPR) — one processed, one pending ──
+  if (localUserId) {
+    await db.deletionRequest.create({
+      data: {
+        processedAt: new Date(now - 20 * 86_400_000),
+        reason: 'Test account cleanup',
+        requestedAt: new Date(now - 21 * 86_400_000),
+        userId: localUserId,
+      },
+    });
+  }
+  if (demoUserId) {
+    await db.deletionRequest.create({
+      data: {
+        reason: 'User-requested erasure',
+        requestedAt: new Date(now - 1 * 86_400_000),
+        userId: demoUserId,
+      },
+    });
+  }
+
+  // ── Session feedback (HITL ground truth) — thumbs up/down on some sessions ──
+  const feedbackSessions = sampleSessions.slice(0, 24);
+  for (const s of feedbackSessions) {
+    if (!faker.datatype.boolean({ probability: 0.6 })) {
+      continue;
+    }
+    const sentiment = faker.helpers.weightedArrayElement([
+      { value: 'up', weight: 70 },
+      { value: 'down', weight: 30 },
+    ]);
+    await db.sessionFeedback.upsert({
+      create: {
+        note:
+          sentiment === 'down'
+            ? faker.helpers.arrayElement(['Went off track', 'Needed too much correction', null])
+            : faker.helpers.arrayElement(['Nailed it', 'Saved me an hour', null]),
+        sentiment,
+        sessionId: s.sessionId,
+        userId: s.userId,
+      },
+      update: { sentiment },
+      where: { sessionId_userId: { sessionId: s.sessionId, userId: s.userId } },
+    });
   }
 }
 
