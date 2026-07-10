@@ -38,3 +38,12 @@ export function getConfig(): WebConfig {
   }
   return _config;
 }
+
+/**
+ * Jira browse base URL, normalized (no trailing slash), or null when Jira
+ * links are not configured. Use this instead of reading jiraBaseUrl directly
+ * so every page builds `${base}/browse/${key}` links identically.
+ */
+export function getJiraBase(): string | null {
+  return getConfig().jiraBaseUrl?.replace(/\/$/, '') ?? null;
+}

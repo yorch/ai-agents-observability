@@ -2180,7 +2180,9 @@ export type ReviewHealth = {
 
 // Review latency and burden: how long merged/open work waits for its first
 // submitted review, and how many review rounds PRs absorb. Sourced from
-// pr_reviews (submitted reviews only), so "requested reviewers" noise is excluded.
+// pr_reviews — submitted reviews only (no "requested reviewers" noise), but
+// deliberately including comment-only and later-dismissed reviews: both are
+// real reviewer engagement, and time-to-first-feedback is the latency signal.
 export async function getOrgReviewHealth(since: Date): Promise<ReviewHealth> {
   const rows = await getPrisma().$queryRaw<
     {

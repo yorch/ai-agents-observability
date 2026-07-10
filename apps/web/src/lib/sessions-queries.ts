@@ -58,6 +58,8 @@ export type SessionDetail = {
   endedAt: Date | null;
   endReason: string | null;
   frictionScore: number | null;
+  jiraKey: string | null;
+  repoId: string | null;
   inputTokens: bigint;
   interruptCount: number;
   os: string | null;
@@ -189,11 +191,13 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
     frictionScore: s.frictionScore,
     inputTokens: s.totalInputTokens,
     interruptCount: s.interruptCount,
+    jiraKey: s.jiraKey,
     os: s.os,
     outputTokens: s.totalOutputTokens,
     permissionDenyCount: s.permissionDenyCount,
     permissionPromptCount: s.permissionPromptCount,
     primaryModel: s.primaryModel,
+    repoId: s.repoId,
     repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
     sessionId: s.sessionId,
     shapeLabel: s.shapeLabel,

@@ -141,6 +141,23 @@ describe('upsertPullRequest', () => {
     );
   });
 
+  it('does not overwrite diff stats when the payload omits them (abbreviated PR objects)', async () => {
+    const db = makeDb();
+    const { additions, changed_files, deletions, ...slim } = prPayload;
+    void additions;
+    void changed_files;
+    void deletions;
+
+    await upsertPullRequest(db, repoPayload, slim as typeof prPayload, 'OPEN');
+
+    const call = (db.pullRequest.upsert as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      update: Record<string, unknown>;
+    };
+    expect(call.update).not.toHaveProperty('linesAdded');
+    expect(call.update).not.toHaveProperty('linesRemoved');
+    expect(call.update).not.toHaveProperty('filesChanged');
+  });
+
   it('retries once on a unique-constraint race', async () => {
     const db = makeDb({
       repo: {

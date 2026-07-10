@@ -1,3 +1,4 @@
+import { parseRepoFullName } from '@ai-agents-observability/github';
 import type { EmitterWebhookEvent } from '@octokit/webhooks';
 import type { Logger } from 'pino';
 import { upsertPullRequest } from '../lib/pr-upsert';
@@ -7,9 +8,10 @@ type PullRequestReviewEvent = EmitterWebhookEvent<'pull_request_review'>['payloa
 
 /**
  * pull_request_review webhook → pr_reviews rows (review latency / burden
- * signals) + a maintained pull_requests.review_count. The PR row is upserted
- * from the payload first, so the review's FK target always exists — this also
- * keeps PRs current in installs that receive reviews before a PR sync.
+ * signals) + a maintained pull_requests.review_count. When the PR isn't
+ * tracked yet it is created from the payload; already-tracked PRs are left
+ * untouched — the review payload's abbreviated PR object lacks diff stats,
+ * so writing it through the full upsert would erase them.
  */
 export async function handlePullRequestReview(
   payload: PullRequestReviewEvent,
@@ -24,15 +26,39 @@ export async function handlePullRequestReview(
     return;
   }
 
-  // The review payload's pull_request has no `merged` boolean — derive state
-  // from state + merged_at.
-  const state = pr.state === 'open' ? 'OPEN' : pr.merged_at ? 'MERGED' : 'CLOSED';
-  const { repoId, prNumber } = await upsertPullRequest(
-    db,
-    repo,
-    { ...pr, merged: pr.merged_at != null } as Parameters<typeof upsertPullRequest>[2],
-    state,
-  );
+  const parsed = parseRepoFullName(repo.full_name);
+  if (!parsed) {
+    logger.warn({ repoFullName: repo.full_name }, 'pr_review: unexpected repository full_name');
+    return;
+  }
+
+  const repoRow = await db.repo.findFirst({
+    select: { id: true },
+    where: { githubName: parsed.name, githubOwner: parsed.owner },
+  });
+  const existing = repoRow
+    ? await db.pullRequest.findUnique({
+        select: { prNumber: true },
+        where: { repoId_prNumber: { prNumber: pr.number, repoId: repoRow.id } },
+      })
+    : null;
+
+  let repoId: string;
+  const prNumber = pr.number;
+  if (repoRow && existing) {
+    repoId = repoRow.id;
+  } else {
+    // First time we see this PR — create it from the payload. The abbreviated
+    // PR object has no `merged` boolean; derive state from state + merged_at.
+    const state = pr.state === 'open' ? 'OPEN' : pr.merged_at ? 'MERGED' : 'CLOSED';
+    const created = await upsertPullRequest(
+      db,
+      repo,
+      { ...pr, merged: pr.merged_at != null } as Parameters<typeof upsertPullRequest>[2],
+      state,
+    );
+    repoId = created.repoId;
+  }
 
   const reviewState = action === 'dismissed' ? 'DISMISSED' : review.state.toUpperCase();
 

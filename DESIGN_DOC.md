@@ -700,8 +700,8 @@ GitHub does several jobs in this design.
 - On open/synchronize: upsert the PR and link sessions by branch name (open-PR dashboards see links before merge)
 - On merge: finalize PR rollup, compute final cost, link contributing sessions (by branch name and by commit SHA), snapshot lines changed
 - Webhook for `pull_request_review`: per-review rows in `pr_reviews`; `review_count` maintained from submitted reviews
-- Webhook for `check_run`: per-run outcomes in `pr_check_runs` + the P5-005 failure counter
-- Webhook for `push` on default branch: commit→sessions correlation via author + timestamp window into `session_commit_links`
+- Webhook for `check_run`: per-run outcomes in `pr_check_runs`; the P5-005 failure counter is derived from those rows (idempotent under redeliveries)
+- Webhook for `push` on default branch: commit→sessions correlation via author + timestamp window (grace configurable via `COMMIT_LINK_GRACE_HOURS`, default 24h) into `session_commit_links`
 - API enrichment: PR title, labels, reviewers, time-to-merge, review comment count
 
 ### 7.3 As Context Source for Sessions

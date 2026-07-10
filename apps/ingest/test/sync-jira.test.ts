@@ -109,6 +109,18 @@ describe('runSyncJira', () => {
     );
   });
 
+  it('marks the run as error when every fetch fails (bad credentials / Jira down)', async () => {
+    const db = makeDb();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 } as Response));
+
+    await runSyncJira(db, CONFIG);
+
+    expect(db.jiraIssue.upsert).not.toHaveBeenCalled();
+    expect(db.jobRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'error' }) }),
+    );
+  });
+
   it('uses Bearer auth when no email is configured (Jira Server/DC PAT)', async () => {
     const db = makeDb({ prKeys: ['OBS-1'], sessionKeys: [] });
     const fetchMock = vi.fn().mockResolvedValue(issueResponse({ summary: 'x' }));

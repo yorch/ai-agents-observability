@@ -1,6 +1,8 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import type { Logger } from 'pino';
 
+import { withJobRun } from './job-run';
+
 // Full Jira integration (P5-004 follow-up). Env-gated: the job only runs when
 // JIRA_BASE_URL and JIRA_API_TOKEN are configured. It resolves every Jira key
 // referenced by pull_requests.jira_key / sessions.jira_key into a jira_issues
@@ -32,6 +34,10 @@ const RESYNC_AFTER_MS = 6 * 60 * 60 * 1000;
 // Upper bound of API calls per run; the remainder syncs on later runs.
 const MAX_ISSUES_PER_RUN = 500;
 
+// Concurrent in-flight Jira requests — enough to cut wall time ~10x without
+// tripping Jira Cloud rate limits.
+const FETCH_CONCURRENCY = 8;
+
 type JiraIssueFields = {
   assignee?: { displayName?: string; emailAddress?: string; name?: string } | null;
   issuetype?: { name?: string } | null;
@@ -48,10 +54,13 @@ function authHeader(config: JiraSyncConfig): string {
   return `Bearer ${config.apiToken}`;
 }
 
+// 'missing' = 404: the key was extracted from a branch/title and may simply not
+// be a real issue. Anything else non-2xx (401/403/429/5xx) throws — those are
+// sync failures, not missing issues, and must not masquerade as success.
 async function fetchIssue(
   config: JiraSyncConfig,
   key: string,
-): Promise<{ fields: JiraIssueFields } | null> {
+): Promise<{ fields: JiraIssueFields } | 'missing'> {
   const base = config.baseUrl.replace(/\/$/, '');
   const fields = [
     'summary',
@@ -73,10 +82,47 @@ async function fetchIssue(
       },
     },
   );
+  if (res.status === 404) {
+    return 'missing';
+  }
   if (!res.ok) {
-    return null;
+    throw new Error(`Jira responded ${res.status} for ${key}`);
   }
   return (await res.json()) as { fields: JiraIssueFields };
+}
+
+async function syncIssue(
+  db: SyncJiraDb,
+  config: JiraSyncConfig,
+  key: string,
+): Promise<'synced' | 'missing'> {
+  const issue = await fetchIssue(config, key);
+  if (issue === 'missing') {
+    return 'missing';
+  }
+
+  const f = issue.fields;
+  const storyPointsRaw = config.storyPointsField ? f[config.storyPointsField] : null;
+  // Epic: modern projects use `parent`; classic projects use the Epic Link
+  // custom field, whose value is the epic's issue key as a string.
+  const epicLinkRaw = config.epicLinkField ? f[config.epicLinkField] : null;
+
+  const data = {
+    assignee: f.assignee?.displayName ?? f.assignee?.name ?? null,
+    epicKey: f.parent?.key ?? (typeof epicLinkRaw === 'string' ? epicLinkRaw : null),
+    issueType: f.issuetype?.name ?? null,
+    resolvedAt: f.resolutiondate ? new Date(f.resolutiondate) : null,
+    status: f.status?.name ?? null,
+    storyPoints: typeof storyPointsRaw === 'number' ? storyPointsRaw : null,
+    summary: f.summary ?? null,
+  };
+
+  await db.jiraIssue.upsert({
+    create: { key, ...data },
+    update: { ...data, syncedAt: new Date() },
+    where: { key },
+  });
+  return 'synced';
 }
 
 export async function runSyncJira(
@@ -84,24 +130,7 @@ export async function runSyncJira(
   config: JiraSyncConfig,
   logger?: Logger,
 ): Promise<void> {
-  const jobName = 'sync-jira';
-  const startedAt = new Date();
-
-  const lockResult = await db.$queryRaw<[{ pg_try_advisory_lock: boolean }]>`
-    SELECT pg_try_advisory_lock(hashtext(${`job:${jobName}`}))
-  `;
-  if (!lockResult[0]?.pg_try_advisory_lock) {
-    logger?.warn({ jobName }, 'Advisory lock not acquired, skipping job run');
-    return;
-  }
-
-  let jobRunId: bigint | undefined;
-  try {
-    const jobRun = await db.jobRun.create({
-      data: { jobName, startedAt, status: 'running' },
-    });
-    jobRunId = jobRun.id;
-
+  await withJobRun(db, 'sync-jira', logger, async () => {
     // Every key referenced anywhere (PR-side extraction + session-side extraction).
     const [prKeys, sessionKeys] = await Promise.all([
       db.pullRequest.findMany({
@@ -135,74 +164,34 @@ export async function runSyncJira(
     const keys = [...allKeys].slice(0, MAX_ISSUES_PER_RUN);
     let synced = 0;
     let missing = 0;
+    let failed = 0;
 
-    for (const key of keys) {
-      let issue: { fields: JiraIssueFields } | null;
-      try {
-        issue = await fetchIssue(config, key);
-      } catch (err) {
-        logger?.warn({ err, key }, 'sync-jira: fetch failed');
-        continue;
+    for (let i = 0; i < keys.length; i += FETCH_CONCURRENCY) {
+      const chunk = keys.slice(i, i + FETCH_CONCURRENCY);
+      const results = await Promise.allSettled(chunk.map((key) => syncIssue(db, config, key)));
+      for (const [j, result] of results.entries()) {
+        if (result.status === 'fulfilled') {
+          if (result.value === 'synced') {
+            synced += 1;
+          } else {
+            missing += 1;
+          }
+        } else {
+          failed += 1;
+          logger?.warn({ err: result.reason, key: chunk[j] }, 'sync-jira: fetch failed');
+        }
       }
-      if (!issue) {
-        // 404 / no permission — the key was extracted from a branch or title
-        // and may simply not be a real issue. Count it, don't create a row.
-        missing += 1;
-        continue;
-      }
-
-      const f = issue.fields;
-      const storyPointsRaw = config.storyPointsField ? f[config.storyPointsField] : null;
-      const storyPoints = typeof storyPointsRaw === 'number' ? storyPointsRaw : null;
-      // Epic: modern projects use `parent`; classic projects use the Epic Link
-      // custom field, whose value is the epic's issue key as a string.
-      const epicLinkRaw = config.epicLinkField ? f[config.epicLinkField] : null;
-      const epicKey = f.parent?.key ?? (typeof epicLinkRaw === 'string' ? epicLinkRaw : null);
-
-      await db.jiraIssue.upsert({
-        create: {
-          assignee: f.assignee?.displayName ?? f.assignee?.name ?? null,
-          epicKey,
-          issueType: f.issuetype?.name ?? null,
-          key,
-          resolvedAt: f.resolutiondate ? new Date(f.resolutiondate) : null,
-          status: f.status?.name ?? null,
-          storyPoints,
-          summary: f.summary ?? null,
-        },
-        update: {
-          assignee: f.assignee?.displayName ?? f.assignee?.name ?? null,
-          epicKey,
-          issueType: f.issuetype?.name ?? null,
-          resolvedAt: f.resolutiondate ? new Date(f.resolutiondate) : null,
-          status: f.status?.name ?? null,
-          storyPoints,
-          summary: f.summary ?? null,
-          syncedAt: new Date(),
-        },
-        where: { key },
-      });
-      synced += 1;
     }
 
-    logger?.info({ candidates: keys.length, jobName, missing, synced }, 'sync-jira: completed');
+    logger?.info(
+      { candidates: keys.length, failed, jobName: 'sync-jira', missing, synced },
+      'sync-jira: completed',
+    );
 
-    await db.jobRun.update({
-      data: { finishedAt: new Date(), status: 'success' },
-      where: { id: jobRunId },
-    });
-  } catch (err) {
-    const errorText = err instanceof Error ? err.message : String(err);
-    logger?.error({ err, jobName }, 'Job failed');
-    if (jobRunId !== undefined) {
-      await db.jobRun
-        .update({
-          data: { errorText, finishedAt: new Date(), status: 'error' },
-          where: { id: jobRunId },
-        })
-        .catch(() => {});
+    // All candidates failed and nothing synced — bad credentials or Jira down.
+    // Surface it as a failed run instead of a green one.
+    if (failed > 0 && synced === 0 && missing === 0) {
+      throw new Error(`sync-jira: all ${failed} issue fetches failed`);
     }
-  } finally {
-    await db.$queryRaw`SELECT pg_advisory_unlock(hashtext(${`job:${jobName}`}))`.catch(() => {});
-  }
+  });
 }

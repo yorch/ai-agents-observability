@@ -2,7 +2,7 @@ import { PERMISSION_MODES } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
 import { SessionsTable } from '@/components/me/SessionsTable';
 import { currentUser } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getJiraBase } from '@/lib/config';
 import { getPrisma } from '@/lib/prisma';
 import { type FrictionBand, listDistinctRepos, listSessions } from '@/lib/sessions-queries';
 
@@ -274,7 +274,7 @@ export default async function SessionsPage({
         sessions={sessions}
         total={total}
         currentPage={page}
-        jiraBase={getConfig().jiraBaseUrl?.replace(/\/$/, '') ?? null}
+        jiraBase={getJiraBase()}
       />
     </div>
   );

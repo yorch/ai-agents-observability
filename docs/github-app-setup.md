@@ -46,7 +46,9 @@ See **DESIGN_DOC §7.2** for the full architecture description of the GitHub App
 
 6. Subscribe to **Events**:
    - `pull_request`
-   - `push`
+   - `pull_request_review` — feeds `pr_reviews` + review-latency metrics
+   - `check_run` — feeds `pr_check_runs` + the CI failure counter
+   - `push` — default-branch commit→session correlation
    - `installation`
    - `installation_repositories`
 
@@ -122,6 +124,6 @@ webhooks. [smee.io](https://smee.io) provides a free relay channel.
 3. Select **All repositories** or choose specific repositories.
 4. Click **Install**.
 
-Once installed, the App will start receiving `pull_request`, `push`, and `installation` webhook
-events for the selected repositories. Verify delivery in **Settings → Developer Settings →
+Once installed, the App will start receiving `pull_request`, `pull_request_review`, `check_run`,
+`push`, and `installation` webhook events for the selected repositories. Verify delivery in **Settings → Developer Settings →
 GitHub Apps → \<your app\> → Advanced → Recent Deliveries**.

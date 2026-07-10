@@ -508,6 +508,9 @@ CREATE INDEX "pr_reviews_repo_id_pr_number_idx" ON "pr_reviews"("repo_id", "pr_n
 CREATE INDEX "session_commit_links_repo_id_commit_sha_idx" ON "session_commit_links"("repo_id", "commit_sha");
 
 -- CreateIndex
+CREATE INDEX "session_commit_links_committed_at_idx" ON "session_commit_links"("committed_at");
+
+-- CreateIndex
 CREATE INDEX "jira_issues_epic_key_idx" ON "jira_issues"("epic_key");
 
 -- CreateIndex
@@ -599,6 +602,9 @@ ALTER TABLE "pr_reviews" ADD CONSTRAINT "pr_reviews_repo_id_pr_number_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "session_commit_links" ADD CONSTRAINT "session_commit_links_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "sessions"("session_id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "session_commit_links" ADD CONSTRAINT "session_commit_links_repo_id_fkey" FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_repo_id_fkey" FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE CASCADE ON UPDATE CASCADE;

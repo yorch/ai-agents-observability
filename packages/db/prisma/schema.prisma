@@ -157,9 +157,10 @@ model Repo {
   owningTeamId  String?  @map("owning_team_id") @db.Uuid
   firstSeenAt   DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
 
-  owningTeam   Team?         @relation(fields: [owningTeamId], references: [id])
+  owningTeam   Team?               @relation(fields: [owningTeamId], references: [id])
   sessions     Session[]
   pullRequests PullRequest[]
+  commitLinks  SessionCommitLink[]
 
   @@unique([githubOwner, githubName])
   @@map("repos")
@@ -403,9 +404,12 @@ model SessionCommitLink {
   linkedAt    DateTime  @default(now()) @map("linked_at") @db.Timestamptz(6)
 
   session Session @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  repo    Repo    @relation(fields: [repoId], references: [id], onDelete: Cascade)
 
   @@id([sessionId, repoId, commitSha])
   @@index([repoId, commitSha])
+  // The ROI merged-work-provenance query range-scans by commit time.
+  @@index([committedAt])
   @@map("session_commit_links")
 }
 

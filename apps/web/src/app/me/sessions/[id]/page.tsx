@@ -6,7 +6,7 @@ import { SessionFeedbackForm } from '@/components/me/SessionFeedbackForm';
 import { SessionPRLinks } from '@/components/me/SessionPRLinks';
 import { ShareSessionButton } from '@/components/me/ShareSessionButton';
 import { currentUser } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getJiraBase } from '@/lib/config';
 import { getPrisma } from '@/lib/prisma';
 import type {
   ModelBreakdownRow,
@@ -67,8 +67,8 @@ export default async function SessionDetailPage({
   }
 
   // R11: owner's existing feedback on this session, if any — plus the
-  // correlation panel's data (linked PRs, Jira key, repo context).
-  const [feedback, prLinkRows, correlation] = await Promise.all([
+  // correlation panel's linked PRs (Jira key / repo come from `session` itself).
+  const [feedback, prLinkRows] = await Promise.all([
     getPrisma().sessionFeedback.findUnique({
       select: { note: true, sentiment: true },
       where: { sessionId_userId: { sessionId: id, userId: user.id } },
@@ -82,13 +82,8 @@ export default async function SessionDetailPage({
       },
       where: { sessionId: id },
     }),
-    getPrisma().session.findFirst({
-      select: { jiraKey: true, repoId: true },
-      where: { sessionId: id, userId: user.id },
-    }),
   ]);
 
-  const jiraBase = getConfig().jiraBaseUrl?.replace(/\/$/, '') ?? null;
   const prLinks = prLinkRows.map((l) => ({
     linkSource: l.linkSource as string,
     prNumber: l.prNumber,
@@ -121,9 +116,9 @@ export default async function SessionDetailPage({
       />
 
       <SessionPRLinks
-        canLink={correlation?.repoId != null}
-        jiraBase={jiraBase}
-        jiraKey={correlation?.jiraKey ?? null}
+        canLink={session.repoId != null}
+        jiraBase={getJiraBase()}
+        jiraKey={session.jiraKey}
         links={prLinks}
         repoName={session.repoName}
         sessionId={id}

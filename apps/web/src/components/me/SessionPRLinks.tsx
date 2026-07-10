@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 
 import { linkSessionPR, unlinkSessionPR } from '@/app/me/sessions/[id]/actions';
+import { JiraLink } from '@/components/JiraLink';
 
 export type SessionPRLinkItem = {
   linkSource: string;
@@ -39,51 +40,32 @@ export function SessionPRLinks({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  function add() {
+  function submit(action: typeof linkSessionPR, prValue: string, onSuccess?: () => void): void {
     const fd = new FormData();
     fd.set('sessionId', sessionId);
-    fd.set('prNumber', prNumber.trim());
+    fd.set('prNumber', prValue);
     setError(null);
     startTransition(async () => {
-      const result = await linkSessionPR(fd);
+      const result = await action(fd);
       if ('error' in result) {
         setError(result.error);
       } else {
-        setPrNumber('');
+        onSuccess?.();
       }
     });
   }
 
-  function remove(pr: number) {
-    const fd = new FormData();
-    fd.set('sessionId', sessionId);
-    fd.set('prNumber', String(pr));
-    setError(null);
-    startTransition(async () => {
-      const result = await unlinkSessionPR(fd);
-      if ('error' in result) {
-        setError(result.error);
-      }
-    });
-  }
+  const add = () => submit(linkSessionPR, prNumber.trim(), () => setPrNumber(''));
+  const remove = (pr: number) => submit(unlinkSessionPR, String(pr));
 
   return (
     <div className="rounded-lg border border-border p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium">Pull requests &amp; ticket</h2>
         {jiraKey ? (
-          jiraBase ? (
-            <a
-              href={`${jiraBase}/browse/${jiraKey}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-blue-400 hover:text-blue-300"
-            >
-              {jiraKey}
-            </a>
-          ) : (
-            <span className="text-sm text-text-3">{jiraKey}</span>
-          )
+          <span className="text-sm">
+            <JiraLink jiraBase={jiraBase} jiraKey={jiraKey} plainClassName="text-text-3" />
+          </span>
         ) : null}
       </div>
 

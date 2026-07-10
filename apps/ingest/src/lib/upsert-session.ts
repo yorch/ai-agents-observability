@@ -86,9 +86,9 @@ function emptyAgg(sessionId: string, userId: string, event: Event): SessionAgg {
     hostHash: event.client.hostname_hash,
     interruptCount: 0,
     isResume: event.session_context.is_resume,
-    // Session-level ticket attribution: same extraction rules as PR-side P5-004,
-    // so a session links to its Jira key even if it never produces a PR.
-    jiraKey: extractJiraKeyFromSources(event.session_context.git?.branch),
+    // Extracted once per session in upsertSessions, from the effective branch
+    // (event git, else batch-envelope git).
+    jiraKey: null,
     lastTs: ts,
     // Representative autonomy mode = the least-supervised mode seen across the
     // session's events; accumulated in applyEvent (incl. the first event).
@@ -225,6 +225,9 @@ export async function upsertSessions(
       // git resolution, but events.ts has already upserted the Repo row
       // (and registered it in repoIdByKey) from the envelope.
       const git = ev.session_context.git ?? envelopeGit;
+      // Session-level ticket attribution: same extraction rules as PR-side
+      // P5-004, so a session links to its Jira key even without a PR.
+      agg.jiraKey = extractJiraKeyFromSources(git?.branch);
       if (git?.owner && git?.repo) {
         agg.repoId = repoIdByKey.get(`${git.owner}/${git.repo}`) ?? null;
         if (!agg.gitBranch && git.branch) {
@@ -241,9 +244,6 @@ export async function upsertSessions(
         }
         if (!agg.prNumber && git.pr_number !== null) {
           agg.prNumber = git.pr_number;
-        }
-        if (!agg.jiraKey && git.branch) {
-          agg.jiraKey = extractJiraKeyFromSources(git.branch);
         }
       }
       if (agg.githubTeam) {

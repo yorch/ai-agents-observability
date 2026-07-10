@@ -25,9 +25,12 @@ default-branch commits), and turn the regex-only Jira integration into a real on
   configurable via `PR_LINK_LOOKBACK_DAYS`, and a MANUAL link/unlink UI on the
   own-session page (recomputes the rollup; `computePRRollup` moved to `packages/db`).
 - New webhook handlers: `pull_request_review` → `pr_reviews` (+ maintained
-  `review_count`); `check_run` → `pr_check_runs` per-run history (failure counter
-  preserved); `push` on the default branch → `session_commit_links` via
-  author + timestamp window (DESIGN_DOC §7.2), keeping `repos.default_branch` current.
+  `review_count`; already-tracked PRs are not rewritten from the slim review
+  payload); `check_run` → `pr_check_runs` per-run history (the failure counter is
+  now derived from those rows — idempotent under redeliveries); `push` on the
+  default branch → `session_commit_links` via author + timestamp window
+  (`COMMIT_LINK_GRACE_HOURS`, default 24h; DESIGN_DOC §7.2), keeping
+  `repos.default_branch` current.
 - `sessions.team_id` FK resolved at ingest from the hook-reported team name
   (unambiguous names only).
 

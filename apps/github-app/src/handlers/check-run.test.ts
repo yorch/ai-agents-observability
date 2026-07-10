@@ -5,12 +5,15 @@ import { type CheckRunPayload, handleCheckRun } from './check-run';
 
 const logger = { info: vi.fn(), warn: vi.fn() } as unknown as Logger;
 
-function makeDb({ repoFound = true, prFound = true } = {}) {
+function makeDb({ repoFound = true, trackedPrs = [7], failureCount = 1 } = {}) {
   return {
-    pRCheckRun: { upsert: vi.fn().mockResolvedValue({}) },
+    pRCheckRun: {
+      count: vi.fn().mockResolvedValue(failureCount),
+      upsert: vi.fn().mockResolvedValue({}),
+    },
     pRRollup: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     pullRequest: {
-      findUnique: vi.fn().mockResolvedValue(prFound ? { prNumber: 7 } : null),
+      findMany: vi.fn().mockResolvedValue(trackedPrs.map((prNumber) => ({ prNumber }))),
     },
     repo: { findFirst: vi.fn().mockResolvedValue(repoFound ? { id: 'repo-id' } : null) },
   };
@@ -35,8 +38,8 @@ function payload(overrides: Partial<NonNullable<CheckRunPayload['check_run']>> =
 }
 
 describe('handleCheckRun', () => {
-  it('stores a per-run outcome row and increments the failure counter', async () => {
-    const db = makeDb();
+  it('stores a per-run outcome row and recomputes the failure counter from rows', async () => {
+    const db = makeDb({ failureCount: 2 });
 
     await handleCheckRun(payload(), db as never, logger);
 
@@ -53,23 +56,35 @@ describe('handleCheckRun', () => {
         }),
       }),
     );
+    // Counter is derived (set), not incremented — redeliveries can't drift it.
     expect(db.pRRollup.updateMany).toHaveBeenCalledWith({
-      data: { checkFailuresCount: { increment: 1 } },
+      data: { checkFailuresCount: 2 },
       where: { prNumber: 7, repoId: 'repo-id' },
     });
   });
 
-  it('stores successful runs without touching the failure counter', async () => {
+  it('stores in-progress runs without touching the failure counter', async () => {
     const db = makeDb();
 
-    await handleCheckRun(payload({ conclusion: 'success' }), db as never, logger);
+    await handleCheckRun(payload({ conclusion: null, status: 'in_progress' }), db as never, logger);
 
     expect(db.pRCheckRun.upsert).toHaveBeenCalled();
     expect(db.pRRollup.updateMany).not.toHaveBeenCalled();
   });
 
+  it('recomputes the counter on success too (a re-run may have cleared failures)', async () => {
+    const db = makeDb({ failureCount: 0 });
+
+    await handleCheckRun(payload({ conclusion: 'success' }), db as never, logger);
+
+    expect(db.pRRollup.updateMany).toHaveBeenCalledWith({
+      data: { checkFailuresCount: 0 },
+      where: { prNumber: 7, repoId: 'repo-id' },
+    });
+  });
+
   it('skips PRs that are not tracked yet', async () => {
-    const db = makeDb({ prFound: false });
+    const db = makeDb({ trackedPrs: [] });
 
     await handleCheckRun(payload(), db as never, logger);
 

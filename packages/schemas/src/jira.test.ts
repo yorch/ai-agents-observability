@@ -20,6 +20,21 @@ describe('extractJiraKey', () => {
     expect(extractJiraKey('feature/no-ticket')).toBeNull();
     expect(extractJiraKey('')).toBeNull();
   });
+
+  it('ignores key-shaped standards tokens (UTF-8, SHA-256, CVE-…)', () => {
+    expect(extractJiraKey('Add UTF-8 support')).toBeNull();
+    expect(extractJiraKey('use SHA-256 for hashing')).toBeNull();
+    expect(extractJiraKey('fix CVE-2024 handling per RFC-5322 and ISO-8601')).toBeNull();
+    // …but still finds a real key alongside them.
+    expect(extractJiraKey('OBS-42: switch to UTF-8')).toBe('OBS-42');
+    expect(extractJiraKey('Add UTF-8 support for OBS-42')).toBe('OBS-42');
+  });
+
+  it('does not match inside longer tokens', () => {
+    expect(extractJiraKey('xOBS-42')).toBeNull();
+    expect(extractJiraKey('OBS-42x')).toBeNull();
+    expect(extractJiraKey('PRE-OBS-42')).toBeNull();
+  });
 });
 
 describe('extractJiraKeyFromSources', () => {

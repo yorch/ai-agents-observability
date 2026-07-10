@@ -8,6 +8,8 @@ export {
   getPRDetails,
   getRepo,
   getTeamMembers,
+  listPRCommitShas,
+  parseRepoFullName,
 } from './helpers';
 
 export type { RepoSummary, TeamSummary, UserSummary, UserTeamSummary } from './types';

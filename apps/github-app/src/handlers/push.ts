@@ -1,4 +1,6 @@
+import { parseRepoFullName } from '@ai-agents-observability/github';
 import type { Logger } from 'pino';
+import type { Config } from '../config';
 import type { AppDb } from '../types';
 
 // Structural payload shape — webhooks.ts parses the body as a plain object.
@@ -12,29 +14,35 @@ export type PushPayload = {
   repository?: { default_branch?: string; full_name?: string };
 };
 
-// A commit is attributed to a session when it lands within the session's
-// activity window, extended by this grace period — devs routinely commit
-// shortly after the agent session ends.
-const COMMIT_GRACE_MS = 24 * 60 * 60 * 1000;
+type CandidateSession = { lastEventAt: Date; sessionId: string; startedAt: Date };
 
 /**
  * push webhook on the default branch → commit→session correlation
- * (DESIGN_DOC §7.2): match by repo + commit author login + timestamp window,
- * recorded in session_commit_links. Also keeps repos.default_branch current.
+ * (DESIGN_DOC §7.2): match by repo + commit author login + timestamp window
+ * (session activity extended by COMMIT_LINK_GRACE_HOURS — devs routinely
+ * commit shortly after the agent session ends), recorded in
+ * session_commit_links. Also keeps repos.default_branch current.
+ *
+ * One session query per distinct author covers all of the push's commits;
+ * per-commit matching happens in memory and all links land in one createMany.
  */
-export async function handlePush(payload: PushPayload, db: AppDb, logger: Logger): Promise<void> {
+export async function handlePush(
+  payload: PushPayload,
+  db: AppDb,
+  config: Config,
+  logger: Logger,
+): Promise<void> {
   const repoFullName = payload.repository?.full_name;
   const defaultBranch = payload.repository?.default_branch;
   if (!repoFullName || !payload.ref) {
     return;
   }
 
-  const parts = repoFullName.split('/');
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+  const parsed = parseRepoFullName(repoFullName);
+  if (!parsed) {
     logger.warn({ repoFullName }, 'push: unexpected repository full_name format');
     return;
   }
-  const [owner, name] = parts as [string, string];
 
   // Only default-branch pushes count as "merged work" for correlation.
   if (!defaultBranch || payload.ref !== `refs/heads/${defaultBranch}`) {
@@ -43,7 +51,7 @@ export async function handlePush(payload: PushPayload, db: AppDb, logger: Logger
 
   const repo = await db.repo.findFirst({
     select: { defaultBranch: true, id: true },
-    where: { githubName: name, githubOwner: owner },
+    where: { githubName: parsed.name, githubOwner: parsed.owner },
   });
   if (!repo) {
     return;
@@ -56,7 +64,10 @@ export async function handlePush(payload: PushPayload, db: AppDb, logger: Logger
     });
   }
 
-  let linked = 0;
+  const graceMs = config.commit_link_grace_hours * 60 * 60 * 1000;
+
+  // Group the push's commits by author so each author needs one session query.
+  const byAuthor = new Map<string, Array<{ committedAt: Date; sha: string }>>();
   for (const commit of payload.commits ?? []) {
     const authorLogin = commit.author?.username;
     if (!authorLogin || !commit.id) {
@@ -66,36 +77,59 @@ export async function handlePush(payload: PushPayload, db: AppDb, logger: Logger
     if (!committedAt || Number.isNaN(committedAt.getTime())) {
       continue;
     }
+    const list = byAuthor.get(authorLogin) ?? [];
+    list.push({ committedAt, sha: commit.id });
+    byAuthor.set(authorLogin, list);
+  }
 
-    // Author + timestamp window: the commit falls between session start and
-    // last activity + grace. github_login is the hook-reported author identity.
-    const sessions = await db.session.findMany({
-      select: { sessionId: true },
+  const links: Array<{
+    authorLogin: string;
+    commitSha: string;
+    committedAt: Date;
+    repoId: string;
+    sessionId: string;
+  }> = [];
+
+  for (const [authorLogin, commits] of byAuthor) {
+    const times = commits.map((c) => c.committedAt.getTime());
+    const windowMin = new Date(Math.min(...times) - graceMs);
+    const windowMax = new Date(Math.max(...times));
+
+    // Superset window for all of this author's commits; exact per-commit
+    // matching (start ≤ commit ≤ lastEvent + grace) happens below in memory.
+    const sessions: CandidateSession[] = await db.session.findMany({
+      select: { lastEventAt: true, sessionId: true, startedAt: true },
       where: {
         githubLogin: authorLogin,
-        lastEventAt: { gte: new Date(committedAt.getTime() - COMMIT_GRACE_MS) },
+        lastEventAt: { gte: windowMin },
         repoId: repo.id,
-        startedAt: { lte: committedAt },
+        startedAt: { lte: windowMax },
       },
     });
     if (sessions.length === 0) {
       continue;
     }
 
-    await db.sessionCommitLink.createMany({
-      data: sessions.map((s) => ({
-        authorLogin,
-        commitSha: commit.id,
-        committedAt,
-        repoId: repo.id,
-        sessionId: s.sessionId,
-      })),
-      skipDuplicates: true,
-    });
-    linked += sessions.length;
+    for (const { committedAt, sha } of commits) {
+      const ts = committedAt.getTime();
+      for (const s of sessions) {
+        if (s.startedAt.getTime() <= ts && s.lastEventAt.getTime() >= ts - graceMs) {
+          links.push({
+            authorLogin,
+            commitSha: sha,
+            committedAt,
+            repoId: repo.id,
+            sessionId: s.sessionId,
+          });
+        }
+      }
+    }
   }
 
-  if (linked > 0) {
-    logger.info({ linked, repo: repoFullName }, 'push.commit_links');
+  if (links.length === 0) {
+    return;
   }
+
+  await db.sessionCommitLink.createMany({ data: links, skipDuplicates: true });
+  logger.info({ linked: links.length, repo: repoFullName }, 'push.commit_links');
 }

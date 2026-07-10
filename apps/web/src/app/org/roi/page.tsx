@@ -1,6 +1,7 @@
+import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { StatCard } from '@/components/team-org/StatCard';
-import { getConfig } from '@/lib/config';
+import { getJiraBase } from '@/lib/config';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
   getCiCostCorrelation,
@@ -40,7 +41,7 @@ export default async function OrgRoiPage({
     getRoiByRepo(since),
   ]);
 
-  const jiraBase = getConfig().jiraBaseUrl?.replace(/\/$/, '') ?? null;
+  const jiraBase = getJiraBase();
   // Multiplier of how much more a CI-failed merge cost vs a clean one.
   const ciCostMultiplier =
     ci.cleanAvgCost > 0 && ci.failedAvgCost > 0 ? ci.failedAvgCost / ci.cleanAvgCost : null;
@@ -142,18 +143,7 @@ export default async function OrgRoiPage({
                 <tr key={j.jiraKey}>
                   <td className="py-2">
                     <span className="font-mono text-xs">
-                      {jiraBase ? (
-                        <a
-                          href={`${jiraBase}/browse/${j.jiraKey}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:text-blue-300"
-                        >
-                          {j.jiraKey}
-                        </a>
-                      ) : (
-                        <span className="text-white/80">{j.jiraKey}</span>
-                      )}
+                      <JiraLink jiraBase={jiraBase} jiraKey={j.jiraKey} />
                     </span>
                     {j.summary && (
                       <span className="ml-2 text-xs text-white/50">
@@ -205,18 +195,7 @@ export default async function OrgRoiPage({
                 <tr key={e.epicKey}>
                   <td className="py-2">
                     <span className="font-mono text-xs">
-                      {jiraBase ? (
-                        <a
-                          href={`${jiraBase}/browse/${e.epicKey}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:text-blue-300"
-                        >
-                          {e.epicKey}
-                        </a>
-                      ) : (
-                        <span className="text-white/80">{e.epicKey}</span>
-                      )}
+                      <JiraLink jiraBase={jiraBase} jiraKey={e.epicKey} />
                     </span>
                     {e.epicSummary && (
                       <span className="ml-2 text-xs text-white/50">

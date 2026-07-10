@@ -117,6 +117,21 @@ export async function getCiCostCorrelation(since: Date): Promise<CiCostCorrelati
   };
 }
 
+// Per-ticket session spend for the window — a single definition shared by the
+// ticket and epic rollups so the two dashboards can't disagree on what
+// "session spend" means.
+function sessionSpendByKeySql(since: Date): Prisma.Sql {
+  return Prisma.sql`
+    SELECT
+      s.jira_key                          AS jira_key,
+      COUNT(*)                            AS session_count,
+      COALESCE(SUM(s.total_cost_usd), 0)  AS session_cost
+    FROM sessions s
+    WHERE s.started_at >= ${since} AND s.jira_key IS NOT NULL
+    GROUP BY s.jira_key
+  `;
+}
+
 export type JiraSpendRow = {
   issueType: string | null;
   jiraKey: string;
@@ -159,15 +174,7 @@ export async function getSpendByJiraKey(since: Date, limit = 15): Promise<JiraSp
       WHERE pr.opened_at >= ${since} AND pr.jira_key IS NOT NULL
       GROUP BY pr.jira_key
     ),
-    session_spend AS (
-      SELECT
-        s.jira_key                       AS jira_key,
-        COUNT(*)                         AS session_count,
-        COALESCE(SUM(s.total_cost_usd), 0) AS session_cost
-      FROM sessions s
-      WHERE s.started_at >= ${since} AND s.jira_key IS NOT NULL
-      GROUP BY s.jira_key
-    )
+    session_spend AS (${sessionSpendByKeySql(since)})
     SELECT
       COALESCE(p.jira_key, ss.jira_key) AS jira_key,
       ji.summary                        AS summary,
@@ -209,6 +216,8 @@ export type EpicSpendRow = {
 // Feature-level cost attribution: ticket spend rolled up to the Jira epic. Only
 // possible once sync-jira has resolved issues (epic_key comes from jira_issues),
 // so an empty result with configured Jira usually means the job hasn't run yet.
+// Tickets join via LEFT JOINs on BOTH grains — a ticket whose sessions predate
+// the window but whose merged PRs are inside it still counts toward the epic.
 export async function getSpendByEpic(since: Date, limit = 10): Promise<EpicSpendRow[]> {
   const rows = await getPrisma().$queryRaw<
     {
@@ -219,14 +228,7 @@ export async function getSpendByEpic(since: Date, limit = 10): Promise<EpicSpend
       ticket_count: bigint;
     }[]
   >(Prisma.sql`
-    WITH ticket AS (
-      SELECT
-        s.jira_key                          AS jira_key,
-        COALESCE(SUM(s.total_cost_usd), 0)  AS session_cost
-      FROM sessions s
-      WHERE s.started_at >= ${since} AND s.jira_key IS NOT NULL
-      GROUP BY s.jira_key
-    ),
+    WITH ticket AS (${sessionSpendByKeySql(since)}),
     merged AS (
       SELECT pr.jira_key AS jira_key, COUNT(*) AS merged_prs
       FROM pull_requests pr
@@ -240,10 +242,11 @@ export async function getSpendByEpic(since: Date, limit = 10): Promise<EpicSpend
       COALESCE(SUM(t.session_cost), 0)     AS session_cost,
       COALESCE(SUM(m.merged_prs), 0)       AS merged_prs
     FROM jira_issues ji
-    JOIN ticket t ON t.jira_key = ji.key
+    LEFT JOIN ticket t ON t.jira_key = ji.key
     LEFT JOIN merged m ON m.jira_key = ji.key
     LEFT JOIN jira_issues epic ON epic.key = ji.epic_key
     WHERE ji.epic_key IS NOT NULL
+      AND (t.jira_key IS NOT NULL OR m.jira_key IS NOT NULL)
     GROUP BY ji.epic_key, epic.summary
     ORDER BY session_cost DESC
     LIMIT ${limit}

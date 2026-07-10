@@ -1,4 +1,5 @@
 import { isUniqueViolation, type PrismaClient } from '@ai-agents-observability/db';
+import { parseRepoFullName } from '@ai-agents-observability/github';
 import { extractJiraKeyFromSources } from '@ai-agents-observability/schemas';
 
 type PRState = 'OPEN' | 'CLOSED' | 'MERGED';
@@ -63,7 +64,11 @@ async function doUpsert(
   prPl: PullRequestPayload,
   state: PRState,
 ): Promise<{ repoId: string; prNumber: number }> {
-  const [owner, name] = repoPl.full_name.split('/') as [string, string];
+  const parsed = parseRepoFullName(repoPl.full_name);
+  if (!parsed) {
+    throw new Error(`upsertPullRequest: malformed repository full_name "${repoPl.full_name}"`);
+  }
+  const { name, owner } = parsed;
 
   // Lazy-upsert the repo row (default_branch feeds push→session correlation)
   const repo = await db.repo.upsert({
@@ -115,16 +120,20 @@ async function doUpsert(
     update: {
       authorUserId: authorUser?.id ?? null,
       closedAt: prPl.closed_at ? new Date(prPl.closed_at) : null,
-      filesChanged: prPl.changed_files ?? null,
-      isDraft: prPl.draft ?? null,
       jiraKey,
       labels: prPl.labels.map((l) => l.name),
-      linesAdded: prPl.additions ?? null,
-      linesRemoved: prPl.deletions ?? null,
       mergedAt: prPl.merged_at ? new Date(prPl.merged_at) : null,
       reviewerLogins: prPl.requested_reviewers.map((r) => r.login),
       state,
       title: prPl.title,
+      // Diff-stat fields are absent from the abbreviated PR object that
+      // non-pull_request webhooks (e.g. pull_request_review) carry. Only
+      // overwrite them when the payload actually has them — otherwise a review
+      // event would null out metrics a prior pull_request delivery populated.
+      ...(prPl.additions !== undefined ? { linesAdded: prPl.additions } : {}),
+      ...(prPl.deletions !== undefined ? { linesRemoved: prPl.deletions } : {}),
+      ...(prPl.changed_files !== undefined ? { filesChanged: prPl.changed_files } : {}),
+      ...(prPl.draft !== undefined ? { isDraft: prPl.draft } : {}),
     },
     where: { repoId_prNumber: { prNumber: prPl.number, repoId: repo.id } },
   });

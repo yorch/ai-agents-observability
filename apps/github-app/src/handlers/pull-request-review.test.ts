@@ -8,17 +8,21 @@ const logger = { info: vi.fn(), warn: vi.fn() } as unknown as Logger;
 
 type ReviewPayload = EmitterWebhookEvent<'pull_request_review'>['payload'];
 
-function makeDb() {
+function makeDb({ prTracked = true } = {}) {
   return {
     pRReview: {
       count: vi.fn().mockResolvedValue(3),
       upsert: vi.fn().mockResolvedValue({}),
     },
     pullRequest: {
+      findUnique: vi.fn().mockResolvedValue(prTracked ? { prNumber: 7 } : null),
       update: vi.fn().mockResolvedValue({}),
       upsert: vi.fn().mockResolvedValue({}),
     },
-    repo: { upsert: vi.fn().mockResolvedValue({ id: 'repo-id' }) },
+    repo: {
+      findFirst: vi.fn().mockResolvedValue({ id: 'repo-id' }),
+      upsert: vi.fn().mockResolvedValue({ id: 'repo-id' }),
+    },
     user: { findUnique: vi.fn().mockResolvedValue(null) },
   };
 }
@@ -74,6 +78,27 @@ describe('handlePullRequestReview', () => {
       data: { reviewCount: 3 },
       where: { repoId_prNumber: { prNumber: 7, repoId: 'repo-id' } },
     });
+  });
+
+  it('does not rewrite an already-tracked PR (the slim review payload lacks diff stats)', async () => {
+    const db = makeDb({ prTracked: true });
+
+    await handlePullRequestReview(payload('submitted'), db as never, logger);
+
+    expect(db.pullRequest.upsert).not.toHaveBeenCalled();
+  });
+
+  it('creates the PR from the payload when it is not tracked yet', async () => {
+    const db = makeDb({ prTracked: false });
+
+    await handlePullRequestReview(payload('submitted'), db as never, logger);
+
+    expect(db.pullRequest.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ prNumber: 7, state: 'OPEN' }),
+      }),
+    );
+    expect(db.pRReview.upsert).toHaveBeenCalled();
   });
 
   it('marks dismissed reviews as DISMISSED', async () => {

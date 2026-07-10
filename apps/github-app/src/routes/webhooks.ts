@@ -112,7 +112,7 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
 
         // Default-branch pushes → commit→session correlation (DESIGN_DOC §7.2).
         if (event === 'push') {
-          await handlePush(payload as PushPayload, db, logger);
+          await handlePush(payload as PushPayload, db, config, logger);
         }
         recordProcessed(`${event}.${action}`, Date.now() - start);
         await db.webhookDelivery

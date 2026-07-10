@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { JiraLink } from '@/components/JiraLink';
 import { StatusBadge } from '@/components/me/StatusBadge';
 import { computeFrictionScore, frictionBadge, shapeBadge } from '@/lib/effectiveness';
 import type { SessionRow } from '@/lib/sessions-queries';
@@ -109,18 +110,12 @@ export function SessionsTable({
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
                     {s.jiraKey ? (
-                      jiraBase ? (
-                        <a
-                          href={`${jiraBase}/browse/${s.jiraKey}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent hover:opacity-80 transition-opacity"
-                        >
-                          {s.jiraKey}
-                        </a>
-                      ) : (
-                        <span className="text-text-2">{s.jiraKey}</span>
-                      )
+                      <JiraLink
+                        jiraBase={jiraBase}
+                        jiraKey={s.jiraKey}
+                        className="text-accent hover:opacity-80 transition-opacity"
+                        plainClassName="text-text-2"
+                      />
                     ) : (
                       <span className="text-text-3">—</span>
                     )}
