@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation';
 import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
+import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
 import { currentUser } from '@/lib/auth';
+import { getUserShapeTrend } from '@/lib/cohort-queries';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
 import { fmtBytes } from '@/lib/fmt';
 import {
@@ -104,6 +106,7 @@ export default async function InsightsPage({
     summary,
     continuity,
     notificationKinds,
+    shapeTrend,
   ] = await Promise.all([
     getMcpUsage(user.id, since),
     getSkillUsage(user.id, since),
@@ -118,6 +121,7 @@ export default async function InsightsPage({
     getSessionSummary(user.id, since),
     getContinuitySummary(user.id, since),
     getNotificationKinds(user.id, since),
+    getUserShapeTrend(user.id, since),
   ]);
 
   const recommendations = buildRecommendations({
@@ -166,6 +170,7 @@ export default async function InsightsPage({
                 />
                 <ShapeDistributionChart histogram={effectiveness.shapeHistogram} />
               </div>
+              <ShapeTrendChart buckets={shapeTrend} />
               <div className="grid gap-6 md:grid-cols-2">
                 <FrictionSourcesChart
                   scoredSessionCount={effectiveness.scoredSessionCount}

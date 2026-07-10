@@ -9,6 +9,7 @@ import {
   getCategoryExposure,
   getEgressServers,
   getLargeOutputEvents,
+  getRedactionExposure,
   getRepoExposure,
 } from '@/lib/security-queries';
 import { daysAgo } from '@/lib/time';
@@ -39,6 +40,15 @@ const RISK_STYLES: Record<string, string> = {
   med: 'bg-yellow-500/15 text-yellow-400',
 };
 
+const REDACTION_CLASS_LABELS: Record<string, string> = {
+  aws_key: 'AWS key',
+  generic_secret: 'Generic secret / .env',
+  github_pat: 'GitHub PAT',
+  jwt: 'JWT',
+  private_key: 'Private key',
+  slack_token: 'Slack token',
+};
+
 export default async function OrgSecurityPage({
   searchParams,
 }: {
@@ -51,21 +61,30 @@ export default async function OrgSecurityPage({
   const since = daysAgo(range);
   const db = getPrisma();
 
-  const [categories, repoExposure, egress, largeOutputs, transcriptViews, sessionViews, exports] =
-    await Promise.all([
-      getCategoryExposure(since),
-      getRepoExposure(since),
-      getEgressServers(since),
-      getLargeOutputEvents(since),
-      db.auditLog.count({ where: { action: AuditAction.VIEW_TRANSCRIPT, ts: { gte: since } } }),
-      db.auditLog.count({ where: { action: AuditAction.VIEW_SESSION, ts: { gte: since } } }),
-      db.auditLog.count({
-        where: {
-          action: { in: [AuditAction.EXPORT_TEAM, AuditAction.EXPORT_ORG] },
-          ts: { gte: since },
-        },
-      }),
-    ]);
+  const [
+    categories,
+    repoExposure,
+    egress,
+    largeOutputs,
+    redaction,
+    transcriptViews,
+    sessionViews,
+    exports,
+  ] = await Promise.all([
+    getCategoryExposure(since),
+    getRepoExposure(since),
+    getEgressServers(since),
+    getLargeOutputEvents(since),
+    getRedactionExposure(since),
+    db.auditLog.count({ where: { action: AuditAction.VIEW_TRANSCRIPT, ts: { gte: since } } }),
+    db.auditLog.count({ where: { action: AuditAction.VIEW_SESSION, ts: { gte: since } } }),
+    db.auditLog.count({
+      where: {
+        action: { in: [AuditAction.EXPORT_TEAM, AuditAction.EXPORT_ORG] },
+        ts: { gte: since },
+      },
+    }),
+  ]);
 
   const highRiskCalls = categories
     .filter((c) => CATEGORY_META[c.category]?.risk === 'high')
@@ -195,6 +214,50 @@ export default async function OrgSecurityPage({
         )}
       </section>
 
+      {/* Secret exposure by class */}
+      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-white/70">Secret exposure by class</h2>
+          <p className="mt-0.5 text-xs text-white/40">
+            Sessions whose shipped transcript matched a redaction class before it hit storage.
+            Forward-looking only — historical transcripts are not backfilled.
+          </p>
+        </div>
+        <p className="text-xs text-white/50">
+          <span className="font-mono text-white/80">{redaction.sessionsWithSecrets}</span> of{' '}
+          <span className="font-mono text-white/80">{redaction.totalSessionsWithTranscript}</span>{' '}
+          transcripts in this window matched a redaction class.
+        </p>
+        {redaction.classes.length === 0 ? (
+          <p className="text-sm text-white/40">
+            No redaction classes recorded in this window. Capture began when the{' '}
+            <code className="font-mono text-white/60">redaction_flags</code> column was added;
+            historical transcripts are not backfilled.
+          </p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-white/40 text-left">
+                <th className="pb-2 font-medium">Class</th>
+                <th className="pb-2 font-medium text-right">Sessions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {redaction.classes.map((c) => (
+                <tr key={c.redactionClass}>
+                  <td className="py-2 text-white/80">
+                    {REDACTION_CLASS_LABELS[c.redactionClass] ?? c.redactionClass}
+                  </td>
+                  <td className="py-2 text-right font-mono text-red-300/80">
+                    {c.sessionCount.toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
       {/* Large data movements */}
       <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
         <div>
@@ -240,8 +303,7 @@ export default async function OrgSecurityPage({
       <p className="text-xs text-white/30 text-center pt-2">
         Aggregate and visibility-scoped: only developers who share metadata with the org contribute,
         and no tool inputs/outputs are stored — the events firehose keeps hashes and byte sizes
-        only. Transcript-level secret-class attribution is a follow-up (redaction classes are
-        computed at ship time but not yet persisted).
+        only.
       </p>
     </div>
   );

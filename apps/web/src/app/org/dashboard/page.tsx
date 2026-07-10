@@ -2,11 +2,13 @@ import { FrictionDistributionChart } from '@/components/me/FrictionDistributionC
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
 import { AdoptionFunnel } from '@/components/team-org/AdoptionFunnel';
+import { CohortFrictionTable } from '@/components/team-org/CohortFrictionTable';
 import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable';
 import { SpendForecast } from '@/components/team-org/SpendForecast';
 import { StatCardWithDelta } from '@/components/team-org/StatCardWithDelta';
+import { getOrgCohortFriction } from '@/lib/cohort-queries';
 import {
   getActiveBudget,
   getAnomalies,
@@ -63,6 +65,7 @@ export default async function OrgDashboardPage({
     forecast,
     teamForecast,
     budget,
+    cohortFriction,
   ] = await Promise.all([
     getOrgSummaryWithDelta(range),
     getCostByTeam(since),
@@ -78,6 +81,7 @@ export default async function OrgDashboardPage({
     getSpendForecast(monthStart, last7Start),
     getTeamSpendForecast(last7Start),
     getActiveBudget(),
+    getOrgCohortFriction(since),
   ]);
 
   const { current: summary, deltas } = summaryWithDelta;
@@ -285,6 +289,8 @@ export default async function OrgDashboardPage({
       </div>
 
       <CohortFrictionTrendChart points={frictionTrend} title="Org friction trend (weekly)" />
+
+      <CohortFrictionTable rows={cohortFriction} />
 
       {!isAdmin && (
         <p className="text-xs text-white/30 text-center pt-4">

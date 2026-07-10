@@ -282,6 +282,11 @@ model Session {
   transcriptBytes      BigInt?   @map("transcript_bytes")
   transcriptUploadedAt DateTime? @map("transcript_uploaded_at") @db.Timestamptz(6)
   transcriptRedacted   Boolean   @default(false) @map("transcript_redacted")
+  // Redaction classes matched in the shipped transcript (e.g. aws_key, github_pat,
+  // jwt, private_key) — computed at ship time but previously only logged, never
+  // persisted. Empty by default; not backfilled for transcripts shipped before
+  // this column existed.
+  redactionFlags       String[]  @default([]) @map("redaction_flags")
 
   shapeLabel           String?   @map("shape_label")
   frictionScore        Float?    @map("friction_score")

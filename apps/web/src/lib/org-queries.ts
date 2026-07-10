@@ -163,6 +163,37 @@ export async function getOrgSummary(since: Date): Promise<OrgSummary> {
   return getOrgSummaryWindow(since);
 }
 
+// ── Cost rollups: backed by the `daily_cost_by_user` continuous aggregate ────
+//
+// `daily_cost_by_user` (packages/db/sql/migrations/0001_init.sql), keyed on
+// (day, user_id, agent_type), is materialized hourly off the `events`
+// hypertable with `materialized_only = false` (real-time aggregation), so it
+// always reflects up-to-the-hour data without a union against raw events.
+// Because it carries `user_id`, it can be joined against
+// `users`/`visibility_policies` and scoped exactly like the raw-table
+// queries below — a user who has not opted in to `share_metadata_with_org`
+// never contributes, matching every other org-queries function.
+//
+// `daily_cost_by_model` and `daily_tool_usage` are the other two continuous
+// aggregates defined alongside `daily_cost_by_user`, but they are keyed on
+// (day, model, agent_type) and (day, tool_name, tool_category, agent_type)
+// respectively — neither carries `user_id`. They are intentionally NOT used
+// for any visibility-scoped org view: without a per-user dimension there is
+// no way to exclude opted-out users' data from the rollup, so using them
+// here would leak metadata the user chose not to share with the org.
+// Redefining those aggregates to add a `user_id` dimension (and re-deriving
+// per-model/per-tool org views off the redefined aggregate) is future work.
+//
+// One semantic note that applies to every function below: `daily_cost_by_user`
+// buckets by the UTC day an *event* occurred, whereas `sessions` timestamps
+// are keyed off `started_at`. For a session that starts near a day boundary
+// this can shift a small amount of cost across the boundary — negligible at
+// weekly granularity, but worth knowing if a `since` cutoff lands mid-day.
+// Similarly, `session_count`/`total_cost_usd` here are the SUM across the
+// aggregate's per-day buckets, so a session whose events span multiple days
+// is counted once per day it touched, not once overall (unlike
+// `COUNT(sessions.session_id)`); acceptable at the weekly/team rollup
+// granularity these functions report at.
 export async function getCostByTeam(since: Date): Promise<TeamCostRow[]> {
   const rows = await getPrisma().$queryRaw<
     {
@@ -176,14 +207,14 @@ export async function getCostByTeam(since: Date): Promise<TeamCostRow[]> {
     SELECT
       t.name                                         AS team_name,
       t.github_slug                                  AS team_slug,
-      COUNT(DISTINCT s.user_id)                      AS user_count,
-      COUNT(s.session_id)                            AS session_count,
-      COALESCE(SUM(s.total_cost_usd), 0)             AS cost_usd
+      COUNT(DISTINCT d.user_id)                      AS user_count,
+      COALESCE(SUM(d.session_count), 0)              AS session_count,
+      COALESCE(SUM(d.total_cost_usd), 0)             AS cost_usd
     FROM teams t
     JOIN team_members tm ON tm.team_id = t.id AND tm.left_at IS NULL
     JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    JOIN sessions s ON s.user_id = u.id AND s.started_at >= ${since}
+    JOIN daily_cost_by_user d ON d.user_id = u.id AND d.day >= date_trunc('day', ${since})
     WHERE COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY t.id, t.name, t.github_slug
     ORDER BY cost_usd DESC
@@ -510,16 +541,19 @@ export async function getOrgFrictionTrend(since: Date): Promise<FrictionTrendBuc
 
 export async function getWeeklyCostTrend(weeks = 12): Promise<DailyCostRow[]> {
   const since = new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000);
+  // Bucketed by `daily_cost_by_user.day` (event day) rather than
+  // `sessions.started_at` (session-start day) — see the note above
+  // `getCostByTeam`; the difference is negligible at weekly granularity.
   const rows = await getPrisma().$queryRaw<{ cost_usd: number; week: Date }[]>(Prisma.sql`
     SELECT
-      date_trunc('week', s.started_at)              AS week,
-      COALESCE(SUM(s.total_cost_usd), 0)            AS cost_usd
-    FROM sessions s
-    JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      date_trunc('week', d.day)                      AS week,
+      COALESCE(SUM(d.total_cost_usd), 0)             AS cost_usd
+    FROM daily_cost_by_user d
+    JOIN users u ON u.id = d.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${since}
+    WHERE d.day >= date_trunc('day', ${since})
       AND COALESCE(vp.share_metadata_with_org, true) = true
-    GROUP BY date_trunc('week', s.started_at)
+    GROUP BY date_trunc('week', d.day)
     ORDER BY week ASC
   `);
 
@@ -1568,17 +1602,22 @@ export type CostPerDeveloperRow = {
   totalCostUsd: number;
 };
 
-/** Admin-only: per-developer cost breakdown, ordered by cost desc. */
+/**
+ * Admin-only: per-developer cost breakdown, ordered by cost desc. Backed by
+ * `daily_cost_by_user` (see the note above `getCostByTeam`); unlike the
+ * org-scoped rollups this view is intentionally NOT visibility-filtered —
+ * admins see every developer regardless of `share_metadata_with_org`.
+ */
 export async function getCostPerDeveloper(since: Date, limit = 20): Promise<CostPerDeveloperRow[]> {
   const rows = await getPrisma().$queryRaw<
     { github_login: string; session_count: bigint; total_cost_usd: number }[]
   >(Prisma.sql`
     SELECT
       u.github_login,
-      COUNT(s.session_id)            AS session_count,
-      COALESCE(SUM(s.total_cost_usd), 0) AS total_cost_usd
+      COALESCE(SUM(d.session_count), 0)     AS session_count,
+      COALESCE(SUM(d.total_cost_usd), 0)    AS total_cost_usd
     FROM users u
-    JOIN sessions s ON s.user_id = u.id AND s.started_at >= ${since}
+    JOIN daily_cost_by_user d ON d.user_id = u.id AND d.day >= date_trunc('day', ${since})
     WHERE u.deactivated_at IS NULL
     GROUP BY u.id, u.github_login
     ORDER BY total_cost_usd DESC

@@ -300,6 +300,7 @@ CREATE TABLE sessions (
   transcript_bytes        BIGINT,
   transcript_uploaded_at  TIMESTAMPTZ,
   transcript_redacted     BOOLEAN NOT NULL DEFAULT false,
+  redaction_flags         TEXT[] NOT NULL DEFAULT '{}',  -- redaction classes detected at ship time (populated by the ingest pipeline); drives /org/security secret-exposure-by-class
 
   -- Effectiveness signals (computed by ingest scheduler; see §10.2)
   shape_label             TEXT,         -- 'exploratory'|'implementation'|'debugging'|'planning'
@@ -1064,7 +1065,7 @@ Resist the urge to build all of it. The MVP that proves value:
 - `/admin/jobs` — background job config (enable/disable individual scheduler jobs, trigger on demand)
 - `/admin/price-tables` — manage per-agent/per-model price tables
 
-The `/org/dashboard` also carries a **spend forecast** (trailing-7d run-rate + month-to-date projections, per-team run-rate, and a comparison against a configured `budget_threshold` alert rule). Session detail and `/me/insights` now surface the previously-captured-but-unrendered context-pressure (`compaction_count`/`clear_count`), continuity (`is_resume`), notification-kind, tool-byte-volume, `pr_review_decision`, `cost_per_loc`, and Jira `story_points` (cost-per-story-point on `/org/roi`) signals.
+The `/org/dashboard` also carries a **spend forecast** (trailing-7d run-rate + month-to-date projections, per-team run-rate, and a comparison against a configured `budget_threshold` alert rule) and a **cohort friction divergence** table (median friction by first-seen-month cohort, small-n suppressed). Session detail and `/me/insights` now surface the previously-captured-but-unrendered context-pressure (`compaction_count`/`clear_count`), continuity (`is_resume`), notification-kind, tool-byte-volume, `pr_review_decision`, `cost_per_loc`, and Jira `story_points` (cost-per-story-point on `/org/roi`) signals, plus a per-user **weekly shape-shift trend**. `/org/models` carries **routing recommendations** (estimated savings from routing retrieval-only turns to a cheaper model), `/org/security` adds **secret-exposure by redaction class** (`sessions.redaction_flags`), and the org cost rollups (weekly trend, cost-by-team, cost-per-developer) read from the `daily_cost_by_user` continuous aggregate. (The `daily_cost_by_model` / `daily_tool_usage` aggregates are intentionally *not* used for visibility-scoped org views — they lack a `user_id` dimension, so scoping out opted-out users isn't possible without redefining them.)
 
 **Success criteria:** Quarterly leadership readout uses this instead of ad-hoc spreadsheets.
 
