@@ -72,6 +72,8 @@ const TOOL_NAMES = [
   { value: 'Write', weight: 3 },
   { value: 'Agent', weight: 8 },
   { value: 'MultiEdit', weight: 5 },
+  { value: 'WebFetch', weight: 3 },
+  { value: 'WebSearch', weight: 2 },
 ];
 
 const SUBAGENT_TYPES = [
@@ -2868,6 +2870,94 @@ async function seedGovernance(opts: {
   }
 }
 
+// ── Post-seed telemetry finalization ────────────────────────────────────────
+// Backfills columns/aggregates that the newer dashboards read but that the
+// per-row inserts don't populate, so a freshly seeded DB drives every surface:
+// granular tool categories + byte volumes (security & insights), transcript
+// pointers + redaction classes (security secret-exposure), and the continuous
+// aggregates the org cost rollups now read. Idempotent-ish: safe to re-run after
+// a reseed. Operates on whatever basic/extensive seeded, so it runs once in main.
+async function finalizeTelemetry() {
+  console.log('  Finalizing telemetry (tool categories, byte volumes, redaction, aggregates)…');
+
+  // 1. Granular tool_category from tool_name. The hook emits fs_read/exec/web/…;
+  //    the per-row seed inserts a flat 'builtin'/'mcp'. Reclassify so the
+  //    tool-category exposure, routing, and tool-usage views reflect the real
+  //    taxonomy (DESIGN_DOC §5.3).
+  await db.$executeRawUnsafe(`
+    UPDATE events SET tool_category = CASE
+      WHEN mcp_server IS NOT NULL THEN 'mcp'
+      WHEN tool_name = 'Bash' THEN 'exec'
+      WHEN tool_name = 'Read' THEN 'fs_read'
+      WHEN tool_name IN ('Edit','Write','MultiEdit') THEN 'fs_write'
+      WHEN tool_name IN ('Grep','Glob') THEN 'search'
+      WHEN tool_name IN ('WebFetch','WebSearch') THEN 'web'
+      WHEN tool_name = 'Agent' THEN 'task'
+      ELSE 'other'
+    END
+    WHERE event_type = 'PostToolUse' AND tool_name IS NOT NULL
+  `);
+
+  // 2. Tool byte volumes — captured per event in prod, absent from the seed.
+  //    web/mcp/fs_read carry larger outputs; a rare multi-MB spike feeds the
+  //    "largest data movements" exfil-shaped signal on /org/security and the
+  //    per-tool byte columns on /me/insights.
+  await db.$executeRawUnsafe(`
+    UPDATE events SET
+      tool_input_bytes = 80 + floor(random() * 4000)::int,
+      tool_output_bytes = CASE
+        WHEN tool_category IN ('web','mcp') THEN
+          1000 + floor(random() * 250000)::int
+          + (CASE WHEN random() < 0.04 THEN floor(random() * 3000000)::int ELSE 0 END)
+        WHEN tool_category = 'fs_read' THEN 400 + floor(random() * 90000)::int
+        ELSE 100 + floor(random() * 16000)::int
+      END
+    WHERE event_type = 'PostToolUse' AND tool_name IS NOT NULL
+  `);
+
+  // 3. Transcript pointers on a realistic fraction of sessions that lack one. The
+  //    showcase transcript is a real S3 upload; these are synthetic pointers so
+  //    the transcript-dependent COUNTs (secret-exposure denominator) are coherent.
+  //    (Their transcript *viewer* won't resolve in dev — the search/knowledge
+  //    surfaces read transcript_index, which is seeded separately.)
+  await db.$executeRawUnsafe(`
+    UPDATE sessions SET
+      transcript_s3_key = 'transcripts/seed/' || session_id::text || '.jsonl.zst',
+      transcript_uploaded_at = COALESCE(transcript_uploaded_at, ended_at, last_event_at),
+      transcript_redacted = true
+    WHERE transcript_s3_key IS NULL AND random() < 0.4
+  `);
+
+  // 4. Redaction classes on ~30% of transcripted sessions — the secret-exposure
+  //    signal /org/security groups by class. Each flagged session gets 1–2 classes.
+  await db.$executeRawUnsafe(`
+    UPDATE sessions s SET redaction_flags = sub.flags
+    FROM (
+      SELECT session_id, ARRAY(
+        SELECT c FROM unnest(
+          ARRAY['aws_key','github_pat','jwt','slack_token','generic_secret','private_key']
+        ) AS c
+        ORDER BY random() LIMIT (1 + floor(random() * 2)::int)
+      ) AS flags
+      FROM sessions
+      WHERE transcript_s3_key IS NOT NULL AND random() < 0.3
+    ) sub
+    WHERE s.session_id = sub.session_id
+  `);
+
+  // 5. Materialize the continuous aggregates the org cost rollups now read
+  //    (getWeeklyCostTrend / getCostByTeam / getCostPerDeveloper). A cagg created
+  //    WITH NO DATA is otherwise empty until the hourly policy runs. Refresh can't
+  //    run inside a txn; guarded so a non-Timescale dev DB doesn't fail the seed.
+  for (const cagg of ['daily_cost_by_user', 'daily_cost_by_model', 'daily_tool_usage']) {
+    try {
+      await db.$executeRawUnsafe(`CALL refresh_continuous_aggregate('${cagg}', NULL, NULL)`);
+    } catch (err) {
+      console.warn(`  ⚠ could not refresh ${cagg}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -2876,6 +2966,7 @@ async function main() {
   } else {
     await basicSeed();
   }
+  await finalizeTelemetry();
   await db.$disconnect();
 }
 
