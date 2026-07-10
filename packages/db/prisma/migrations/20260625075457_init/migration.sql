@@ -170,6 +170,7 @@ CREATE TABLE "sessions" (
     "transcript_bytes" BIGINT,
     "transcript_uploaded_at" TIMESTAMPTZ(6),
     "transcript_redacted" BOOLEAN NOT NULL DEFAULT false,
+    "redaction_flags" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     "shape_label" TEXT,
     "friction_score" DOUBLE PRECISION,
     "total_response_ms" BIGINT NOT NULL DEFAULT 0,
