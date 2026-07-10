@@ -16,6 +16,11 @@ function makeDb({ prKeys = ['OBS-1'], sessionKeys = ['OBS-2'], freshKeys = [] as
       findMany: vi.fn().mockResolvedValue(freshKeys.map((key) => ({ key }))),
       upsert: vi.fn().mockResolvedValue({}),
     },
+    jiraIssueLink: {
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     jobRun: {
       create: vi.fn().mockResolvedValue({ id: 1n }),
       update: vi.fn().mockResolvedValue({}),
@@ -28,6 +33,11 @@ function makeDb({ prKeys = ['OBS-1'], sessionKeys = ['OBS-2'], freshKeys = [] as
     },
   } as unknown as SyncJiraDb & {
     jiraIssue: { findMany: ReturnType<typeof vi.fn>; upsert: ReturnType<typeof vi.fn> };
+    jiraIssueLink: {
+      createMany: ReturnType<typeof vi.fn>;
+      deleteMany: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
+    };
     jobRun: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   };
 }
@@ -132,6 +142,49 @@ describe('runSyncJira', () => {
     await runSyncJira(db, { apiToken: 'pat', baseUrl: 'https://jira.example.com' });
 
     expect(fetchMock.mock.calls[0]?.[1]?.headers?.Authorization).toBe('Bearer pat');
+  });
+
+  it('snapshots issue links with the relation phrase from the issue perspective', async () => {
+    const db = makeDb({ prKeys: ['OBS-9'], sessionKeys: [] });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        issueResponse({
+          issuelinks: [
+            {
+              inwardIssue: { key: 'OBS-1' },
+              type: { inward: 'is caused by', name: 'Problem/Incident', outward: 'causes' },
+            },
+            {
+              outwardIssue: { key: 'OBS-2' },
+              type: { inward: 'is related to', name: 'Relates', outward: 'relates to' },
+            },
+          ],
+          summary: 'a bug',
+        }),
+      ),
+    );
+
+    await runSyncJira(db, CONFIG);
+
+    expect(db.jiraIssueLink.deleteMany).toHaveBeenCalledWith({ where: { sourceKey: 'OBS-9' } });
+    expect(db.jiraIssueLink.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          description: 'is caused by',
+          linkType: 'Problem/Incident',
+          sourceKey: 'OBS-9',
+          targetKey: 'OBS-1',
+        },
+        {
+          description: 'relates to',
+          linkType: 'Relates',
+          sourceKey: 'OBS-9',
+          targetKey: 'OBS-2',
+        },
+      ],
+      skipDuplicates: true,
+    });
   });
 
   it('derives project_key from the issue-key prefix when the API omits project', async () => {

@@ -44,6 +44,6 @@ and finish the search integration.
 
 ## Still deferred
 
-- Defect *attribution* (which PR introduced which bug) — needs Jira issue links
-  or fix-version data the sync doesn't collect.
-- Statistical correlation surfaces (bug rate vs session friction/shape).
+Both items below landed in [P11-003](./P11-003-defect-attribution.md):
+defect attribution via synced Jira issue links, and the friction-band outcome
+correlation surface at `/org/quality`.

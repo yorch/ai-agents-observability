@@ -23,7 +23,10 @@ export type JiraSyncConfig = {
   epicLinkField?: string;
 };
 
-export type SyncJiraDb = Pick<PrismaClient, 'jiraIssue' | 'jobRun' | 'pullRequest' | 'session'> & {
+export type SyncJiraDb = Pick<
+  PrismaClient,
+  'jiraIssue' | 'jiraIssueLink' | 'jobRun' | 'pullRequest' | 'session'
+> & {
   $queryRaw: PrismaClient['$queryRaw'];
 };
 
@@ -38,8 +41,16 @@ const MAX_ISSUES_PER_RUN = 500;
 // tripping Jira Cloud rate limits.
 const FETCH_CONCURRENCY = 8;
 
+type JiraIssueLinkRaw = {
+  inwardIssue?: { key?: string } | null;
+  outwardIssue?: { key?: string } | null;
+  type?: { inward?: string; name?: string; outward?: string } | null;
+};
+
 type JiraIssueFields = {
   assignee?: { displayName?: string; emailAddress?: string; name?: string } | null;
+  created?: string | null;
+  issuelinks?: JiraIssueLinkRaw[] | null;
   issuetype?: { name?: string } | null;
   parent?: { key?: string } | null;
   project?: { key?: string; name?: string } | null;
@@ -70,6 +81,8 @@ async function fetchIssue(
     'parent',
     'project',
     'assignee',
+    'created',
+    'issuelinks',
     'resolutiondate',
     ...(config.storyPointsField ? [config.storyPointsField] : []),
     ...(config.epicLinkField ? [config.epicLinkField] : []),
@@ -112,6 +125,7 @@ async function syncIssue(
   const data = {
     assignee: f.assignee?.displayName ?? f.assignee?.name ?? null,
     epicKey: f.parent?.key ?? (typeof epicLinkRaw === 'string' ? epicLinkRaw : null),
+    issueCreatedAt: f.created ? new Date(f.created) : null,
     issueType: f.issuetype?.name ?? null,
     // Project key falls back to the issue-key prefix (PLAT-123 → PLAT) if the
     // API record somehow omits project; name is API-only (display value).
@@ -128,6 +142,29 @@ async function syncIssue(
     update: { ...data, syncedAt: new Date() },
     where: { key },
   });
+
+  // Snapshot this issue's links (delete + recreate: links can be removed in
+  // Jira, and the per-issue set is tiny). `description` keeps the relation
+  // phrase from this issue's perspective ("is caused by", "relates to", …) so
+  // defect attribution reports linkage verbatim rather than inferring causation.
+  const links = (f.issuelinks ?? []).flatMap((raw) => {
+    const related = raw.inwardIssue?.key ?? raw.outwardIssue?.key;
+    if (!related || !raw.type?.name) {
+      return [];
+    }
+    return [
+      {
+        description: (raw.inwardIssue ? raw.type.inward : raw.type.outward) ?? null,
+        linkType: raw.type.name,
+        sourceKey: key,
+        targetKey: related,
+      },
+    ];
+  });
+  await db.jiraIssueLink.deleteMany({ where: { sourceKey: key } });
+  if (links.length > 0) {
+    await db.jiraIssueLink.createMany({ data: links, skipDuplicates: true });
+  }
   return 'synced';
 }
 
@@ -150,11 +187,22 @@ export async function runSyncJira(
         where: { jiraKey: { not: null } },
       }),
     ]);
+    // Plus every issue referenced by a synced issue's links — a bug linked to
+    // one of our tickets is usually never worked on in a repo, so it would
+    // otherwise never sync and defect attribution couldn't see its issue type.
+    const linkTargets = await db.jiraIssueLink.findMany({
+      distinct: ['targetKey'],
+      select: { targetKey: true },
+    });
+
     const allKeys = new Set<string>();
     for (const row of [...prKeys, ...sessionKeys]) {
       if (row.jiraKey) {
         allKeys.add(row.jiraKey);
       }
+    }
+    for (const row of linkTargets) {
+      allKeys.add(row.targetKey);
     }
 
     // Skip keys with a fresh snapshot.
