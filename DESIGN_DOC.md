@@ -664,7 +664,7 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 | `sweep-abandoned` | every 10 min | Marks stale ACTIVE sessions as ABANDONED (no event for >30min) |
 | `sweep-scratch` | hourly | Cleans up orphaned transcript chunk scratch files |
 | `sync-teams` | hourly | GitHub team membership sync for all orgs |
-| `sync-jira` | every 6h when `JIRA_BASE_URL` + `JIRA_API_TOKEN` are set | Resolves every `jira_key` on PRs/sessions into a `jira_issues` row (summary, type, status, epic, story points) via the Jira REST API |
+| `sync-jira` | every 6h when `JIRA_BASE_URL` + `JIRA_API_TOKEN` are set | Resolves every `jira_key` on PRs/sessions (plus linked issues) into `jira_issues` rows (summary, type, status, epic, project, story points, created date) and snapshots issue links into `jira_issue_links` — the basis for defect attribution on `/org/quality` |
 | `run-deletions` | every 6h | Processes queued GDPR `DeletionRequest` rows |
 | `sweep-retention` | configurable, default 02:00 UTC | Deletes transcripts (S3 + `transcript_s3_key`) past the global or per-team retention window |
 | `index-transcripts` | configurable, default 03:30 UTC | Populates `transcript_index` for Postgres FTS |

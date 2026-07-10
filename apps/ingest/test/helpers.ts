@@ -8,6 +8,9 @@ export function makeTestDeps(): AppDeps {
     $executeRaw: async () => 0,
     $queryRaw: async () => [],
     authToken: { findFirst: async () => null } as unknown as AppDeps['db']['authToken'],
+    jiraIssue: {
+      findMany: async () => [],
+    } as unknown as AppDeps['db']['jiraIssue'],
     repo: {
       upsert: async () => ({ id: '00000000-0000-0000-0000-000000000099' }),
     } as unknown as AppDeps['db']['repo'],

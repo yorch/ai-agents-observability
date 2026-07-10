@@ -270,10 +270,22 @@ CREATE TABLE "jira_issues" (
     "project_name" TEXT,
     "story_points" DOUBLE PRECISION,
     "assignee" TEXT,
+    "issue_created_at" TIMESTAMPTZ(6),
     "resolved_at" TIMESTAMPTZ(6),
     "synced_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "jira_issues_pkey" PRIMARY KEY ("key")
+);
+
+-- CreateTable
+CREATE TABLE "jira_issue_links" (
+    "source_key" TEXT NOT NULL,
+    "target_key" TEXT NOT NULL,
+    "link_type" TEXT NOT NULL,
+    "description" TEXT,
+    "synced_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "jira_issue_links_pkey" PRIMARY KEY ("source_key","target_key","link_type")
 );
 
 -- CreateTable
@@ -520,6 +532,9 @@ CREATE INDEX "jira_issues_issue_type_idx" ON "jira_issues"("issue_type");
 
 -- CreateIndex
 CREATE INDEX "jira_issues_project_key_idx" ON "jira_issues"("project_key");
+
+-- CreateIndex
+CREATE INDEX "jira_issue_links_target_key_idx" ON "jira_issue_links"("target_key");
 
 -- CreateIndex
 CREATE INDEX "pull_requests_opened_at_idx" ON "pull_requests"("opened_at");

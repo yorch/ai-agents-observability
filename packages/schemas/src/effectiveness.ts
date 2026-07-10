@@ -9,6 +9,12 @@
 
 export const FRICTION_VERSION = 1;
 
+// Friction band boundaries — the single source for every surface that buckets
+// scores into low/medium/high (session filters, badges, and the org quality
+// page's SQL). score < LOW → low; score <= HIGH → medium; else high.
+export const FRICTION_BAND_LOW = 0.3;
+export const FRICTION_BAND_HIGH = 0.6;
+
 export type FrictionInputs = {
   durationSeconds: number | null;
   interruptCount: number;

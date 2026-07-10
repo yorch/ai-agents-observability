@@ -1184,6 +1184,8 @@ export type SessionSearchFilters = {
   dateFrom?: Date | undefined;
   dateTo?: Date | undefined;
   frictionBand?: FrictionBand | undefined;
+  // Jira issue key (exact, case-insensitive — normalized to uppercase).
+  jiraKey?: string | undefined;
   model?: string | undefined;
   page?: number | undefined;
   repoId?: string | undefined;
@@ -1259,6 +1261,7 @@ export async function searchSessions(
           },
         }
       : {}),
+    ...(filters.jiraKey ? { jiraKey: filters.jiraKey.trim().toUpperCase() } : {}),
     ...(filters.model ? { primaryModel: filters.model } : {}),
     ...(filters.repoId ? { repoId: filters.repoId } : {}),
     ...(filters.shapeLabels?.length ? { shapeLabel: { in: filters.shapeLabels } } : {}),

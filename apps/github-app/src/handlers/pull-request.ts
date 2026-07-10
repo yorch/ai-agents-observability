@@ -1,4 +1,4 @@
-import { computePRRollup } from '@ai-agents-observability/db';
+import { computePRRollup, getJiraProjectAllowlist } from '@ai-agents-observability/db';
 import {
   createGitHubClient,
   listPRCommitShas,
@@ -29,12 +29,21 @@ export async function handlePullRequest(
 
   logger.info({ action, pr: pr.number, repo: repo.full_name }, 'pr.webhook');
 
+  // Most pull_request actions (labeled, edited, assigned, …) are ignored —
+  // bail before doing any work for them.
+  if (action !== 'opened' && action !== 'synchronize' && action !== 'closed') {
+    return;
+  }
+
+  const jiraAllowlist = await getJiraProjectAllowlist(db, config.jira_project_keys);
+
   if (action === 'opened' || action === 'synchronize') {
     const { repoId, prNumber } = await upsertPullRequest(
       db,
       repo,
       pr as Parameters<typeof upsertPullRequest>[2],
       'OPEN',
+      jiraAllowlist,
     );
 
     // Link sessions while the PR is still open (branch-name match only — cheap,
@@ -60,6 +69,7 @@ export async function handlePullRequest(
       repo,
       pr as Parameters<typeof upsertPullRequest>[2],
       state,
+      jiraAllowlist,
     );
 
     if (pr.merged) {

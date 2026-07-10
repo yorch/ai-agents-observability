@@ -431,6 +431,8 @@ model JiraIssue {
   projectName String?   @map("project_name")
   storyPoints Float?    @map("story_points")
   assignee    String?
+  // Jira's own created date — enables post-merge-defect windows.
+  issueCreatedAt DateTime? @map("issue_created_at") @db.Timestamptz(6)
   resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz(6)
   syncedAt    DateTime  @default(now()) @map("synced_at") @db.Timestamptz(6)
 
@@ -438,6 +440,23 @@ model JiraIssue {
   @@index([issueType])
   @@index([projectKey])
   @@map("jira_issues")
+}
+
+// Issue-to-issue links from the Jira API (issuelinks), snapshotted per synced
+// issue. `description` is the relation phrase from the source's perspective
+// ("is caused by", "relates to", …) — surfaced verbatim so defect attribution
+// reports linkage and lets humans judge causation. Keys are plain strings (no
+// FK): either endpoint may not be synced yet.
+model JiraIssueLink {
+  sourceKey   String   @map("source_key")
+  targetKey   String   @map("target_key")
+  linkType    String   @map("link_type")
+  description String?
+  syncedAt    DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  @@id([sourceKey, targetKey, linkType])
+  @@index([targetKey])
+  @@map("jira_issue_links")
 }
 
 model SessionPRLink {

@@ -231,3 +231,5 @@ Deepens the session↔PR↔repo↔Jira correlation spine: commit-SHA + open-PR l
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P11-001](./P11-001-correlation-deepening.md) | Correlation deepening (sessions ↔ PRs ↔ repos ↔ Jira) | done | claude | L | P2-004, P5-004, P5-005 |
+| [P11-002](./P11-002-correlation-follow-ups.md) | Correlation follow-ups (project-key allowlist, bug spend, jira facet) | done | claude | M | P11-001 |
+| [P11-003](./P11-003-defect-attribution.md) | Defect attribution & quality correlation (/org/quality) | done | claude | M | P11-002 |

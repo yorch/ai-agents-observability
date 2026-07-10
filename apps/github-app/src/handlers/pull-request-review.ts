@@ -1,6 +1,8 @@
+import { getJiraProjectAllowlist } from '@ai-agents-observability/db';
 import { parseRepoFullName } from '@ai-agents-observability/github';
 import type { EmitterWebhookEvent } from '@octokit/webhooks';
 import type { Logger } from 'pino';
+import type { Config } from '../config';
 import { upsertPullRequest } from '../lib/pr-upsert';
 import type { AppDb } from '../types';
 
@@ -16,6 +18,7 @@ type PullRequestReviewEvent = EmitterWebhookEvent<'pull_request_review'>['payloa
 export async function handlePullRequestReview(
   payload: PullRequestReviewEvent,
   db: AppDb,
+  config: Config,
   logger: Logger,
 ): Promise<void> {
   const { action, pull_request: pr, repository: repo, review } = payload;
@@ -56,6 +59,7 @@ export async function handlePullRequestReview(
       repo,
       { ...pr, merged: pr.merged_at != null } as Parameters<typeof upsertPullRequest>[2],
       state,
+      await getJiraProjectAllowlist(db, config.jira_project_keys),
     );
     repoId = created.repoId;
   }

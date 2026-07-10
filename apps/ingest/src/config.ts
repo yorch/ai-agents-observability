@@ -1,3 +1,4 @@
+import { commaSeparatedList } from '@ai-agents-observability/schemas';
 import { z } from 'zod';
 
 const ConfigSchema = z.object({
@@ -25,6 +26,10 @@ const ConfigSchema = z.object({
   // Classic-project "Epic Link" custom field (e.g. customfield_10014); modern
   // projects use `parent` and don't need this.
   jira_epic_link_field: z.string().optional(),
+  // Comma-separated Jira project codes (e.g. "PLAT,OBS") that key extraction
+  // accepts, unioned with project keys learned by sync-jira. When both are
+  // empty, extraction accepts any key-shaped token (bootstrap mode).
+  jira_project_keys: commaSeparatedList,
   // Instance-specific custom field carrying story points (e.g. customfield_10016).
   jira_story_points_field: z.string().optional(),
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
@@ -84,6 +89,7 @@ export function loadConfig(): Config {
     jira_base_url: process.env.JIRA_BASE_URL,
     jira_email: process.env.JIRA_EMAIL,
     jira_epic_link_field: process.env.JIRA_EPIC_LINK_FIELD,
+    jira_project_keys: process.env.JIRA_PROJECT_KEYS,
     jira_story_points_field: process.env.JIRA_STORY_POINTS_FIELD,
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,

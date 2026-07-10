@@ -1,4 +1,5 @@
 import { type $Enums, Prisma } from '@ai-agents-observability/db';
+import { FRICTION_BAND_HIGH, FRICTION_BAND_LOW } from '@ai-agents-observability/schemas';
 import { getPrisma } from './prisma';
 
 export type ModelBreakdownRow = {
@@ -22,16 +23,17 @@ const MAX_PAGE = 10_000;
 export type FrictionBand = 'low' | 'medium' | 'high';
 
 // Maps a friction band to a frictionScore range predicate. Bands per P7-003:
-// Low < 0.3, Medium 0.3–0.6, High > 0.6. Range comparisons on a nullable column
-// never match NULL, so insufficient-data sessions are excluded from every band.
+// Low < FRICTION_BAND_LOW, Medium ..HIGH, High above. Range comparisons on a
+// nullable column never match NULL, so insufficient-data sessions are excluded
+// from every band.
 export function frictionBandWhere(band: FrictionBand): Prisma.FloatNullableFilter {
   if (band === 'low') {
-    return { lt: 0.3 };
+    return { lt: FRICTION_BAND_LOW };
   }
   if (band === 'high') {
-    return { gt: 0.6 };
+    return { gt: FRICTION_BAND_HIGH };
   }
-  return { gte: 0.3, lte: 0.6 };
+  return { gte: FRICTION_BAND_LOW, lte: FRICTION_BAND_HIGH };
 }
 
 export type SessionRow = {

@@ -33,6 +33,8 @@ export {
   classifySessionShape,
   computeFrictionScore,
   EXEC_TOOLS,
+  FRICTION_BAND_HIGH,
+  FRICTION_BAND_LOW,
   FRICTION_VERSION,
   FRICTION_WEIGHTS,
   frictionComponents,
@@ -40,6 +42,7 @@ export {
   READ_TOOLS,
   WRITE_TOOLS,
 } from './effectiveness';
+export { commaSeparatedList } from './env';
 export type {
   AgentType,
   Event,
@@ -56,6 +59,7 @@ export {
   EventTypeSchema,
 } from './event';
 export { extractJiraKey, extractJiraKeyFromSources } from './jira';
+export { BUG_ISSUE_TYPE_LIST, BUG_ISSUE_TYPES } from './jira-domain';
 export type { NotificationKind } from './notification';
 export {
   BLOCKING_NOTIFICATION_KINDS,

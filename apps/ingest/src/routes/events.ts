@@ -1,3 +1,4 @@
+import { getJiraProjectAllowlist } from '@ai-agents-observability/db';
 import type { Event } from '@ai-agents-observability/schemas';
 import { EventSchema, EventsBatchEnvelopeSchema } from '@ai-agents-observability/schemas';
 import { zValidator } from '@hono/zod-validator';
@@ -23,6 +24,9 @@ export function eventsRouter(
   db: EventsDb,
   priceTables: PriceTableRegistry,
   logger: Logger,
+  // Operator-configured Jira project codes (JIRA_PROJECT_KEYS), unioned with
+  // synced jira_issues project keys to constrain session key extraction.
+  jiraProjectKeys: readonly string[] = [],
 ): Hono<AppEnv> {
   const router = new Hono<AppEnv>();
 
@@ -139,6 +143,10 @@ export function eventsRouter(
         }
       }
 
+      // Project-key allowlist for session jira_key extraction (cached 5 min in
+      // packages/db; falls back to accept-all when no keys are known yet).
+      const jiraProjectAllowlist = await getJiraProjectAllowlist(db, jiraProjectKeys);
+
       const reqId = c.get('requestId');
       const start = Date.now();
 
@@ -163,6 +171,7 @@ export function eventsRouter(
             priceTables,
             topGit,
             teamIdByName,
+            jiraProjectAllowlist,
           );
           return {
             acceptedEvents: acceptedEventsTx,
