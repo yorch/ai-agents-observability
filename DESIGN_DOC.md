@@ -395,8 +395,10 @@ CREATE INDEX ON events (agent_type, ts DESC);
 
 **Continuous aggregates (materialized, 1-hour refresh):**
 - `daily_cost_by_user` — `(day, user_id, agent_type)` → token totals and cost
-- `daily_cost_by_model` — `(day, model, agent_type)` → token totals and cost
-- `daily_tool_usage` — `(day, tool_name, tool_category, agent_type)` → call counts
+- `daily_cost_by_model` — `(day, user_id, model, agent_type)` → token totals, cost, session count
+- `daily_tool_usage` — `(day, user_id, tool_name, tool_category, agent_type)` → call counts
+
+All three carry `user_id` (added to the model/tool aggregates in migration `0005`), so every org rollup that reads them can be visibility-scoped (`WHERE user_id IN (sharers)`) exactly like the raw-events queries.
 
 ### 5.4 Pull Requests & Rollups (Postgres)
 
@@ -1065,7 +1067,7 @@ Resist the urge to build all of it. The MVP that proves value:
 - `/admin/jobs` — background job config (enable/disable individual scheduler jobs, trigger on demand)
 - `/admin/price-tables` — manage per-agent/per-model price tables
 
-The `/org/dashboard` also carries a **spend forecast** (trailing-7d run-rate + month-to-date projections, per-team run-rate, and a comparison against a configured `budget_threshold` alert rule) and a **cohort friction divergence** table (median friction by first-seen-month cohort, small-n suppressed). Session detail and `/me/insights` now surface the previously-captured-but-unrendered context-pressure (`compaction_count`/`clear_count`), continuity (`is_resume`), notification-kind, tool-byte-volume, `pr_review_decision`, `cost_per_loc`, and Jira `story_points` (cost-per-story-point on `/org/roi`) signals, plus a per-user **weekly shape-shift trend**. `/org/models` carries **routing recommendations** (estimated savings from routing retrieval-only turns to a cheaper model), `/org/security` adds **secret-exposure by redaction class** (`sessions.redaction_flags`), and the org cost rollups (weekly trend, cost-by-team, cost-per-developer) read from the `daily_cost_by_user` continuous aggregate. (The `daily_cost_by_model` / `daily_tool_usage` aggregates are intentionally *not* used for visibility-scoped org views — they lack a `user_id` dimension, so scoping out opted-out users isn't possible without redefining them.)
+The `/org/dashboard` also carries a **spend forecast** (trailing-7d run-rate + month-to-date projections, per-team run-rate, and a comparison against a configured `budget_threshold` alert rule) and a **cohort friction divergence** table (median friction by first-seen-month cohort, small-n suppressed). Session detail and `/me/insights` now surface the previously-captured-but-unrendered context-pressure (`compaction_count`/`clear_count`), continuity (`is_resume`), notification-kind, tool-byte-volume, `pr_review_decision`, `cost_per_loc`, and Jira `story_points` (cost-per-story-point on `/org/roi`) signals, plus a per-user **weekly shape-shift trend**. `/org/models` carries **routing recommendations** whose per-model saving fraction is derived from the ingest price table (`GET /v1/price-table`, falling back to a flat heuristic when `INGEST_URL` is unset), paired with a `routing_waste` **alert rule** (premium-model spend on retrieval-only categories over a threshold). `/org/security` adds **secret-exposure by redaction class** (`sessions.redaction_flags`). `/org/roi` adds a **business-value** section (delivered story-points × the configured `VALUE_PER_STORY_POINT` vs agent spend) when that rate is set. The org cost/model/tool rollups read from the `daily_cost_by_user`, `daily_cost_by_model`, and `daily_tool_usage` continuous aggregates — all three now carry `user_id` (migration `0005`) so each is visibility-scoped like the raw-events queries it replaced.
 
 **Success criteria:** Quarterly leadership readout uses this instead of ad-hoc spreadsheets.
 

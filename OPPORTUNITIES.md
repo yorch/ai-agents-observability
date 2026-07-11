@@ -63,8 +63,11 @@ Understanding the opportunity space requires a clear map of what is already capt
 > **Partially shipped (2026-06-30):** `/org/roi` now surfaces the internal-join ROI
 > metrics — agent spend, cost-per-merged-PR, reverted (rework) spend, a clean-CI vs
 > CI-failed cost comparison, spend-by-Jira-key cost allocation, and per-repo ROI
-> (cost/PR + revert + CI-clean rate). Only the external business-value join (story
-> points / revenue) remains deferred.
+> (cost/PR + revert + CI-clean rate). A **configurable business-value join** now
+> ships too: set `VALUE_PER_STORY_POINT` and `/org/roi` shows value-delivered
+> (delivered story points × the rate) vs agent spend, a net-value figure, and a
+> return multiple. A *true* external revenue/outcome join (pulling real business
+> value rather than a configured per-point rate) remains deferred.
 
 ---
 
@@ -83,7 +86,7 @@ Understanding the opportunity space requires a clear map of what is already capt
 
 **Feasibility:** High. Data is all there. The recommendation surface ("you could save X by routing these task types to Haiku") is a new UI component but a straightforward SQL query.
 
-> **Shipped:** `/org/models` now carries a **routing-recommendations** panel — for each premium (Opus-class) model, it estimates the spend on retrieval-only tool categories (`fs_read`, `search`) that could move to a Haiku-class model and shows a directional monthly saving (assumes ~90% per-turn saving; the copy flags it as an estimate to validate against the price table). Cache-efficiency guidance already shipped on the same page.
+> **Shipped:** `/org/models` carries a **routing-recommendations** panel — for each premium (Opus-class) model, it estimates the spend on retrieval-only tool categories (`fs_read`, `search`) that could move to a Haiku-class model. The saved fraction is now **derived per-model from the ingest price table** (`GET /v1/price-table`: `1 − haikuInputRate/premiumInputRate`, capped at 95%), falling back to the flat ~90% heuristic only when `INGEST_URL` is unset. A **`routing_waste` alert rule** (seeded, disabled by default) promotes the same signal to a proactive notification when premium-on-retrieval spend crosses a threshold. Cache-efficiency guidance shares the page. True enforcement (auto-route/block) still needs a hook-side path.
 
 ---
 
@@ -229,7 +232,7 @@ Ranked by **impact-to-effort**, given the current data model and what is already
 
 | # | Opportunity | Impact | Effort | Data ready? | What's missing |
 |---|---|---|---|---|---|
-| 1 | **Model cost optimization** (routing + cache efficiency guidance) | High — potential 30–50% spend reduction | Low | ✅ Per-turn model + cache tokens captured | 🟡 Routing-recommendation panel + cache guidance shipped on `/org/models`; automated routing *policy* enforcement still open |
+| 1 | **Model cost optimization** (routing + cache efficiency guidance) | High — potential 30–50% spend reduction | Low | ✅ Per-turn model + cache tokens captured | 🟡 Price-precise routing recommendations + cache guidance on `/org/models`, plus a `routing_waste` alert; automated routing *policy* enforcement (hook-side) still open |
 | 2 | **MCP portfolio dashboard** (utilization, error rate, SLO) | Medium-High — deprecate waste, surface risk | Low | ✅ `mcp_server` + `tool_exit_status` fully captured | `/org/mcp` page; error-rate column |
 | 3 | **Outcome-based ROI** (cost-per-PR trend, revert correlation, CI correlation) | High — executive-level justification | Medium | ✅ PR rollups, revert flags, CI failures all captured | 🟡 Shipped at `/org/roi` (internal joins); external business-value join still deferred |
 | 4 | **Developer skill progression** (friction trend, shape shift over time) | Medium-High — retention, training, onboarding | Medium | ✅ Friction + shape computed nightly | 🟡 `/me/insights` friction breakdown + recommendations + per-user weekly shape-shift trend; team/org weekly friction trends; org cohort friction divergence by first-seen month. Longitudinal pre/post-adoption still needs baseline data |

@@ -4,8 +4,9 @@ import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendat
 import { StatCard } from '@/components/team-org/StatCard';
 import type { OrgModelDetailRow, OrgModelRoutingRow } from '@/lib/org-queries';
 import { getOrgModelDetail, getOrgModelRoutingBreakdown } from '@/lib/org-queries';
+import { getModelInputPrices } from '@/lib/price-client';
 import { requireOrgViewer } from '@/lib/roles';
-import { computeRoutingRecommendations } from '@/lib/routing-queries';
+import { buildSavingsRatioResolver, computeRoutingRecommendations } from '@/lib/routing-queries';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
 
@@ -96,9 +97,10 @@ export default async function OrgModelsPage({
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
-  const [models, routing] = await Promise.all([
+  const [models, routing, modelPrices] = await Promise.all([
     getOrgModelDetail(since),
     getOrgModelRoutingBreakdown(since),
+    getModelInputPrices(),
   ]);
 
   const totalCostUsd = models.reduce((s, m) => s + m.totalCostUsd, 0);
@@ -112,8 +114,12 @@ export default async function OrgModelsPage({
   const estimatedCacheSavings = totalCacheRead * 0.9 * avgInputCostPerToken;
 
   const insights = computeRoutingInsights(models, routing);
+  // Price-derived per-model savings ratio when the ingest price table is
+  // reachable; falls back to the flat heuristic when INGEST_URL is unset.
+  const savingsRatioFor = buildSavingsRatioResolver(modelPrices);
+  const pricePrecise = modelPrices !== null;
   const { estimatedMonthlySaving: estimatedMonthlyRoutingSaving, recommendations: routingRecs } =
-    computeRoutingRecommendations(routing, range);
+    computeRoutingRecommendations(routing, range, savingsRatioFor);
 
   return (
     <div className="space-y-8">
@@ -188,6 +194,7 @@ export default async function OrgModelsPage({
           {/* Routing recommendations */}
           <RoutingRecommendations
             estimatedMonthlySaving={estimatedMonthlyRoutingSaving}
+            pricePrecise={pricePrecise}
             recommendations={routingRecs}
           />
 
