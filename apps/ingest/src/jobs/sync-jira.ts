@@ -21,6 +21,8 @@ export type JiraSyncConfig = {
   // "Epic Link" custom field (e.g. customfield_10014) instead of `parent`.
   // Used as a fallback when `parent` is absent.
   epicLinkField?: string;
+  // Per-issue business value custom field (currency units). Optional.
+  valueField?: string;
 };
 
 export type SyncJiraDb = Pick<
@@ -87,6 +89,7 @@ async function fetchIssue(
     'resolutiondate',
     ...(config.storyPointsField ? [config.storyPointsField] : []),
     ...(config.epicLinkField ? [config.epicLinkField] : []),
+    ...(config.valueField ? [config.valueField] : []),
   ].join(',');
 
   const res = await fetch(
@@ -122,9 +125,11 @@ async function syncIssue(
   // Epic: modern projects use `parent`; classic projects use the Epic Link
   // custom field, whose value is the epic's issue key as a string.
   const epicLinkRaw = config.epicLinkField ? f[config.epicLinkField] : null;
+  const businessValueRaw = config.valueField ? f[config.valueField] : null;
 
   const data = {
     assignee: f.assignee?.displayName ?? f.assignee?.name ?? null,
+    businessValue: typeof businessValueRaw === 'number' ? businessValueRaw : null,
     epicKey: f.parent?.key ?? (typeof epicLinkRaw === 'string' ? epicLinkRaw : null),
     issueCreatedAt: f.created ? new Date(f.created) : null,
     issueType: f.issuetype?.name ?? null,

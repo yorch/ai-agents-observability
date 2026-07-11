@@ -71,6 +71,7 @@ const jiraConfig =
         ...(config.jira_story_points_field
           ? { storyPointsField: config.jira_story_points_field }
           : {}),
+        ...(config.jira_value_field ? { valueField: config.jira_value_field } : {}),
       }
     : undefined;
 

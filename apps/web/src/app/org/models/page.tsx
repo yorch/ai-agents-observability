@@ -1,9 +1,14 @@
 import { EmptyState } from '@/components/team-org/EmptyState';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
 import { StatCard } from '@/components/team-org/StatCard';
 import type { OrgModelDetailRow, OrgModelRoutingRow } from '@/lib/org-queries';
-import { getOrgModelDetail, getOrgModelRoutingBreakdown } from '@/lib/org-queries';
+import {
+  getOrgModelDetail,
+  getOrgModelRoutingBreakdown,
+  getRoutingSpendByTeam,
+} from '@/lib/org-queries';
 import { getModelInputPrices } from '@/lib/price-client';
 import { requireOrgViewer } from '@/lib/roles';
 import { buildSavingsRatioResolver, computeRoutingRecommendations } from '@/lib/routing-queries';
@@ -97,10 +102,11 @@ export default async function OrgModelsPage({
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
-  const [models, routing, modelPrices] = await Promise.all([
+  const [models, routing, modelPrices, routingByTeam] = await Promise.all([
     getOrgModelDetail(since),
     getOrgModelRoutingBreakdown(since),
     getModelInputPrices(),
+    getRoutingSpendByTeam(since),
   ]);
 
   const totalCostUsd = models.reduce((s, m) => s + m.totalCostUsd, 0);
@@ -199,6 +205,9 @@ export default async function OrgModelsPage({
             pricePrecise={pricePrecise}
             recommendations={routingRecs}
           />
+
+          {/* Routing accountability by team */}
+          <RoutingByTeam rows={routingByTeam} />
 
           {/* Model breakdown table */}
           <div className="space-y-3">

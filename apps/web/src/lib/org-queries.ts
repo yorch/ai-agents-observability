@@ -17,6 +17,7 @@ import {
   mapTrendRows,
 } from './effectiveness-queries';
 import { getPrisma } from './prisma';
+import { CHEAP_SUITABLE_CATEGORIES, PREMIUM_PATTERN } from './routing-queries';
 import { searchTranscriptMatches } from './search-queries';
 import { type FrictionBand, frictionBandWhere } from './sessions-queries';
 import { daysAgo } from './time';
@@ -394,6 +395,69 @@ export async function getOrgModelRoutingBreakdown(since: Date): Promise<OrgModel
     model: r.model,
     toolCategory: r.tool_category,
     totalCostUsd: Number(r.total_cost_usd),
+  }));
+}
+
+export type RoutingTeamRow = {
+  premiumRetrievalUsd: number; // opus spend on fs_read/search
+  premiumTotalUsd: number; // all opus spend (context/denominator)
+  teamName: string;
+  teamSlug: string;
+};
+
+/**
+ * Team-level breakdown of premium-model (Opus) spend on retrieval-only tool
+ * categories — an accountability surface pairing the org-wide `routing_waste`
+ * alert with "who". Observe-only: this never changes model selection, it only
+ * surfaces spend for leads to act on (DESIGN_DOC §10.3a). Same teams →
+ * team_members → users → visibility_policies join as getCostByTeam, scoped to
+ * `share_metadata_with_org` like every other org aggregate. Team-level only
+ * (no per-developer rows) to keep this an aggregate accountability view rather
+ * than individual exposure. Reads the raw `events` hypertable for per-event
+ * model + tool_category + cost. The premium/retrieval policy is sourced from
+ * PREMIUM_PATTERN / CHEAP_SUITABLE_CATEGORIES (routing-queries.ts) so it can't
+ * drift from the routing recommendations; the ingest routing_waste alert
+ * mirrors the same policy in its own (separate-app) SQL.
+ */
+export async function getRoutingSpendByTeam(since: Date): Promise<RoutingTeamRow[]> {
+  const retrievalCategories = [...CHEAP_SUITABLE_CATEGORIES];
+  const premiumLike = `%${PREMIUM_PATTERN}%`;
+  const rows = await getPrisma().$queryRaw<
+    {
+      premium_retrieval_usd: number;
+      premium_total_usd: number;
+      team_name: string;
+      team_slug: string;
+    }[]
+  >(Prisma.sql`
+    -- Retrieval spend is computed once in the subquery and filtered on the
+    -- alias, so the category set isn't restated in a HAVING clause.
+    SELECT team_name, team_slug, premium_retrieval_usd, premium_total_usd
+    FROM (
+      SELECT
+        t.name                                                                                              AS team_name,
+        t.github_slug                                                                                       AS team_slug,
+        COALESCE(SUM(e.cost_usd) FILTER (WHERE e.tool_category = ANY(${retrievalCategories}::text[])), 0)   AS premium_retrieval_usd,
+        COALESCE(SUM(e.cost_usd), 0)                                                                        AS premium_total_usd
+      FROM teams t
+      JOIN team_members tm ON tm.team_id = t.id AND tm.left_at IS NULL
+      JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      JOIN events e ON e.user_id = u.id AND e.ts >= ${since}
+        AND e.event_type = 'PostToolUse' AND e.model ILIKE ${premiumLike}
+      WHERE COALESCE(vp.share_metadata_with_org, true) = true
+      GROUP BY t.id, t.name, t.github_slug
+    ) agg
+    WHERE agg.premium_retrieval_usd > 0
+    ORDER BY agg.premium_retrieval_usd DESC
+    LIMIT 20
+  `);
+
+  return rows.map((r) => ({
+    premiumRetrievalUsd: Number(r.premium_retrieval_usd),
+    premiumTotalUsd: Number(r.premium_total_usd),
+    teamName: r.team_name,
+    teamSlug: r.team_slug,
   }));
 }
 

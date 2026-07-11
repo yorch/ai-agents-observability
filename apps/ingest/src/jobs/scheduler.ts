@@ -3,6 +3,7 @@ import type { S3Client } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
 import type { EmailConfig } from '../lib/notify/email';
+import { runBackfillRedaction } from './backfill-redaction';
 import { runComputeEffectiveness, runComputeEffectivenessBackfill } from './compute-effectiveness';
 import { runEvaluateAlerts } from './evaluate-alerts';
 import { runIndexTranscripts } from './index-transcripts';
@@ -42,13 +43,16 @@ const CONFIGURABLE_JOBS = [
 
 // All job names accepted by the manual-trigger endpoint. sync-jira is included
 // so an operator can trigger a first sync right after configuring credentials —
-// it no-ops with a warning when Jira is not configured.
+// it no-ops with a warning when Jira is not configured. backfill-redaction is
+// included so an operator can drain the pre-column redaction_flags backlog
+// after deploy (one trigger drains the whole backlog — see backfill-redaction.ts).
 const ALL_KNOWN_JOBS = new Set<string>([
   'sync-teams',
   'sync-jira',
   'sweep-abandoned',
   'sweep-scratch',
   'run-deletions',
+  'backfill-redaction',
   ...CONFIGURABLE_JOBS,
 ]);
 
@@ -126,6 +130,17 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
     case 'compute-effectiveness-backfill':
       await runComputeEffectivenessBackfill(
         db as Parameters<typeof runComputeEffectivenessBackfill>[0],
+        logger,
+      );
+      break;
+    // Operator-triggered one-shot: backfill sessions.redaction_flags for
+    // transcripts archived before the column existed, by scanning stored
+    // (already-redacted) transcript text for [REDACTED:<class>] markers.
+    case 'backfill-redaction':
+      await runBackfillRedaction(
+        db as Parameters<typeof runBackfillRedaction>[0],
+        s3,
+        bucket,
         logger,
       );
       break;

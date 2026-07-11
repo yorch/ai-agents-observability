@@ -5,6 +5,7 @@ import { getConfig, getJiraBase } from '@/lib/config';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
   BUG_ISSUE_TYPES,
+  getBusinessValueEconomics,
   getCiCostCorrelation,
   getCommitProvenance,
   getOrgRoiSummary,
@@ -46,6 +47,7 @@ export default async function OrgRoiPage({
     commits,
     repoRoi,
     storyPoints,
+    bizValue,
   ] = await Promise.all([
     getOrgRoiSummary(since),
     getCiCostCorrelation(since),
@@ -56,6 +58,7 @@ export default async function OrgRoiPage({
     getCommitProvenance(since),
     getRoiByRepo(since),
     getStoryPointEconomics(since),
+    getBusinessValueEconomics(since),
   ]);
 
   const jiraBase = getJiraBase();
@@ -65,8 +68,13 @@ export default async function OrgRoiPage({
   // The whole section is hidden when VALUE_PER_STORY_POINT is unset.
   const valuePerPoint = getConfig().valuePerStoryPoint;
   const businessValue = (valuePerPoint ?? 0) * storyPoints.totalStoryPoints;
-  const valueRoiMultiple =
-    storyPoints.sessionCostUsd > 0 ? businessValue / storyPoints.sessionCostUsd : 0;
+
+  // FU2: prefer the real per-issue value synced from Jira (a true external join)
+  // over the flat story-point proxy above, whenever the sync has populated it.
+  const hasRealValue = bizValue.totalValueUsd > 0;
+  const valueDeliveredUsd = hasRealValue ? bizValue.totalValueUsd : businessValue;
+  const valueSpendUsd = hasRealValue ? bizValue.sessionCostUsd : storyPoints.sessionCostUsd;
+  const valueReturnMultiple = valueSpendUsd > 0 ? valueDeliveredUsd / valueSpendUsd : 0;
 
   // Bug-work share: spend on Bug/Defect-type tickets over all *classified*
   // ticket spend (Unclassified is excluded from the denominator so an unsynced
@@ -327,8 +335,11 @@ export default async function OrgRoiPage({
         )}
       </section>
 
-      {/* Business value delivered (only when a value-per-point rate is configured) */}
-      {valuePerPoint !== undefined && valuePerPoint > 0 && storyPoints.totalStoryPoints > 0 && (
+      {/* Business value delivered — real per-issue value (Jira value field) when
+          available, else the flat story-point proxy (VALUE_PER_STORY_POINT).
+          businessValue > 0 iff the proxy is configured (rate > 0) and points were
+          delivered, so it stands in for the full proxy-availability check. */}
+      {(hasRealValue || businessValue > 0) && (
         <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
           <h2 className="text-sm font-semibold text-white/70">
             Business value delivered ({range}d)
@@ -336,35 +347,50 @@ export default async function OrgRoiPage({
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <StatCard
               label="Value delivered"
-              value={fmtUsd(businessValue)}
-              sub={`${storyPoints.totalStoryPoints.toLocaleString()} pts × ${fmtUsd(valuePerPoint)}`}
+              value={fmtUsd(valueDeliveredUsd)}
+              sub={
+                hasRealValue
+                  ? `${bizValue.ticketCount} tickets · Jira value field`
+                  : `${storyPoints.totalStoryPoints.toLocaleString()} pts × ${fmtUsd(valuePerPoint ?? 0)}`
+              }
             />
             <StatCard
               label="Agent spend"
-              value={fmtUsd(storyPoints.sessionCostUsd)}
-              sub="on estimated tickets"
+              value={fmtUsd(valueSpendUsd)}
+              sub={hasRealValue ? 'on valued tickets' : 'on estimated tickets'}
             />
             <StatCard
               label="Net value"
-              value={fmtUsd(businessValue - storyPoints.sessionCostUsd)}
+              value={fmtUsd(valueDeliveredUsd - valueSpendUsd)}
               sub="value − agent spend"
-              {...(businessValue - storyPoints.sessionCostUsd >= 0
+              {...(valueDeliveredUsd - valueSpendUsd >= 0
                 ? { accent: 'green' as const }
                 : { accent: 'red' as const })}
             />
             <StatCard
               label="Return multiple"
-              value={storyPoints.sessionCostUsd > 0 ? `${valueRoiMultiple.toFixed(1)}×` : '—'}
+              value={valueSpendUsd > 0 ? `${valueReturnMultiple.toFixed(1)}×` : '—'}
               sub="value ÷ agent spend"
-              {...(storyPoints.sessionCostUsd > 0
-                ? { accent: valueRoiMultiple >= 1 ? ('green' as const) : ('amber' as const) }
+              {...(valueSpendUsd > 0
+                ? { accent: valueReturnMultiple >= 1 ? ('green' as const) : ('amber' as const) }
                 : {})}
             />
           </div>
           <p className="text-xs text-white/30">
-            Value is delivered story points × the configured <code>VALUE_PER_STORY_POINT</code> rate
-            ({fmtUsd(valuePerPoint)}/pt) — a directional business-value proxy, only as good as your
-            per-point valuation. Compares that against agent spend on the same estimated tickets.
+            {hasRealValue ? (
+              <>
+                Value comes from the synced Jira value field (<code>JIRA_VALUE_FIELD</code>) — a
+                true external join, summed per ticket over tickets that also had agent spend in this
+                window.
+              </>
+            ) : (
+              <>
+                Value is delivered story points × the configured <code>VALUE_PER_STORY_POINT</code>{' '}
+                rate ({fmtUsd(valuePerPoint ?? 0)}/pt) — a directional business-value proxy, only as
+                good as your per-point valuation. Compares that against agent spend on the same
+                estimated tickets.
+              </>
+            )}
           </p>
         </section>
       )}

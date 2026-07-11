@@ -32,6 +32,9 @@ const ConfigSchema = z.object({
   jira_project_keys: commaSeparatedList,
   // Instance-specific custom field carrying story points (e.g. customfield_10016).
   jira_story_points_field: z.string().optional(),
+  // Optional Jira custom field holding a per-issue business value (currency
+  // units), e.g. "customfield_10032". Synced into jira_issues.business_value.
+  jira_value_field: z.string().optional(),
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   node_env: z.enum(['development', 'production', 'test']).default('development'),
   openai_api_key: z.string().optional(),
@@ -91,6 +94,7 @@ export function loadConfig(): Config {
     jira_epic_link_field: process.env.JIRA_EPIC_LINK_FIELD,
     jira_project_keys: process.env.JIRA_PROJECT_KEYS,
     jira_story_points_field: process.env.JIRA_STORY_POINTS_FIELD,
+    jira_value_field: process.env.JIRA_VALUE_FIELD,
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,
     openai_api_key: process.env.OPENAI_API_KEY,

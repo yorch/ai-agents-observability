@@ -256,8 +256,9 @@ enforcement helpers (`hasActiveGrant`, `resolveOrgSessionAccess`, …) live in
 - **No vanity metrics:** "lines of code generated" and "% of code written by AI"
   are explicitly rejected. Outcome-based ROI (cost-per-merged-PR, revert/rework
   spend, CI-clean rate) is the sanctioned framing — now shipped at `/org/roi`.
-- **Deferred (not rejected):** external business-value joins (story points /
-  revenue), full Jira/Linear API sync, bug-correlation, IDE telemetry joins,
+- **Deferred (not rejected):** external business-value joins beyond Jira (Linear /
+  revenue) — the Jira per-issue value join now ships via `JIRA_VALUE_FIELD`;
+  bug-correlation, IDE telemetry joins,
   Cursor/Aider/Copilot/Windsurf adapters (schema-ready, no adapter), semantic
   transcript search (declined pending a proven gap + self-hosted embeddings),
   vendor cost reconciliation (scaffolded, gated).
@@ -272,14 +273,17 @@ transcript search, and most of the `OPPORTUNITIES.md` backlog — model-routing
 recommendations (`/org/models`), the security/exposure dashboard (`/org/security`,
 incl. secret-exposure by persisted `redaction_flags`), budget/spend forecasting
 (`/org/dashboard`), knowledge-gap clustering (`/org/knowledge`), and cohort/
-shape-shift effectiveness views. Current open items:
+shape-shift effectiveness views. Also now closed: the **Jira per-issue
+business-value join** (`JIRA_VALUE_FIELD` → `jira_issues.business_value`, preferred
+over the flat proxy on `/org/roi`), **redaction-class historical backfill** (the
+operator-triggered `backfill-redaction` job), and **per-team routing accountability**
+(premium-on-retrieval spend on `/org/models`). Current open items:
 
 | Gap / seam | Where | Architectural implication |
 |---|---|---|
-| **External business-value join** (revenue) | product | A configurable `VALUE_PER_STORY_POINT` now drives value-vs-spend on `/org/roi`; a true external revenue/business-outcome join is still the missing piece for non-estimate cost-per-feature ROI. |
-| **Redaction-class backfill** | ingest / db | Secret-exposure counts on `/org/security` are forward-only; a job re-running redaction over stored transcripts would populate history. (The tool/model aggregate `user_id` gap is closed — migration `0005`.) |
+| **External business-value join beyond Jira** (Linear / revenue) | product | The Jira per-issue value join now ships (`JIRA_VALUE_FIELD`); a Linear/revenue/business-outcome source is the remaining piece for non-Jira shops. |
 | **Second-agent transcript upload** (opencode) | hook | opencode history is directory-shaped; single-file shippers don't cover it. |
-| **Automated model-routing enforcement** | ingest / hook | The `routing_waste` alert makes waste actionable, but true enforcement (auto-route or block premium calls on cheap categories) still needs a hook-side path. |
+| **Model-routing *blocking* enforcement** | hook | The `routing_waste` alert + per-team routing-accountability table make waste actionable, but hook-side auto-route/block is intentionally out of scope — the platform is observe-only (`DESIGN_DOC §10.3a`: nothing intercepts a live tool call). "Enforcement" here is visibility + accountability + alert. |
 | **Cost reconciliation is scaffold-only** (`NullBillingSource`) | ingest `reconcile-cost` | Needs a real vendor billing client behind the flag. |
 | **Semantic search prototype gated** (P7-007 no-go) | `sql/prototypes/`, `embed-transcripts` | Requires a self-hosted embedding path + a proven recall gap to revisit. |
 | **Redaction has no email/PII or git-remote-URL rule** | `packages/redaction` | New user-pasted content shapes must add rules; remote-URL PATs slip through. |
@@ -318,15 +322,18 @@ Vectors 1–4 from the prior snapshot have now shipped — model-routing
 recommendations, the security/exposure dashboard, budget/spend forecasting, and
 deeper effectiveness (cohort divergence + shape-shift). What remains:
 
-1. **Perfect the shipped surfaces** — redaction-class historical backfill. (The
-   tool/model aggregates now carry `user_id` and the org model/tool views read
-   them; routing-savings estimates now use the real price table — both done.)
-2. **Automated routing policy** — the `routing_waste` alert makes waste
-   actionable; the next step is real enforcement (auto-route or block), which
-   needs a hook-side path.
-3. **External business-value join** — a configurable per-story-point value now
-   drives value-vs-spend on `/org/roi`; a true external revenue/outcome join is
-   the remaining piece for a non-estimate cost-per-feature ROI.
+1. **Perfect the shipped surfaces** — redaction-class historical backfill now
+   ships (the operator-triggered `backfill-redaction` job scans stored
+   transcripts for `[REDACTED:<class>]` markers). The tool/model aggregates carry
+   `user_id`; routing-savings estimates use the real price table — all done.
+2. **Routing accountability, not blocking** — the `routing_waste` alert plus a
+   per-team routing-accountability table on `/org/models` make premium-on-retrieval
+   waste actionable. Hook-side auto-route/block stays out of scope by design (the
+   platform is observe-only, `DESIGN_DOC §10.3a`).
+3. **External business-value join** — the Jira per-issue value join now ships
+   (`JIRA_VALUE_FIELD` → `jira_issues.business_value`, preferred over the flat
+   per-point proxy on `/org/roi`); a Linear/revenue/outcome source remains the
+   piece for non-Jira shops.
 4. **Heavier deferred items** — additional agent adapters, vendor cost
    reconciliation, semantic search (if a gap is proven), IDE telemetry joins.
 

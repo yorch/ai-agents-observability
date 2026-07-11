@@ -270,6 +270,7 @@ CREATE TABLE "jira_issues" (
     "project_key" TEXT,
     "project_name" TEXT,
     "story_points" DOUBLE PRECISION,
+    "business_value" DOUBLE PRECISION,
     "assignee" TEXT,
     "issue_created_at" TIMESTAMPTZ(6),
     "resolved_at" TIMESTAMPTZ(6),

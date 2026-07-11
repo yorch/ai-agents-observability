@@ -435,6 +435,10 @@ model JiraIssue {
   projectKey  String?   @map("project_key")
   projectName String?   @map("project_name")
   storyPoints Float?    @map("story_points")
+  // Optional per-issue business value (currency units), synced from a Jira
+  // custom field (JIRA_VALUE_FIELD). Enables a true external business-value
+  // join on /org/roi instead of the flat VALUE_PER_STORY_POINT proxy.
+  businessValue Float?  @map("business_value")
   assignee    String?
   // Jira's own created date — enables post-merge-defect windows.
   issueCreatedAt DateTime? @map("issue_created_at") @db.Timestamptz(6)

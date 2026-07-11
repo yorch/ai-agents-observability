@@ -7,12 +7,15 @@ import type { OrgModelRoutingRow } from '@/lib/org-queries';
 
 // Model ids containing this substring (case-insensitive) are treated as
 // premium-tier. `sonnet` is deliberately excluded — it's "mid", not premium.
-const PREMIUM_PATTERN = 'opus';
+// Exported so the raw-SQL routing surfaces (getRoutingSpendByTeam) source the
+// policy from here instead of re-hardcoding it. NOTE: the ingest routing_waste
+// alert (evaluate-alerts.ts) is a separate app and mirrors the same policy.
+export const PREMIUM_PATTERN = 'opus';
 
 // Tool categories that are pure retrieval — no hard reasoning required, so a
 // Haiku-class model is a safe downgrade target. Conservative on purpose:
 // `exec` is debatable (tool calls can gate on reasoning) so it's left out.
-const CHEAP_SUITABLE_CATEGORIES = new Set(['fs_read', 'search']);
+export const CHEAP_SUITABLE_CATEGORIES = new Set(['fs_read', 'search']);
 
 // Fallback fraction saved when no price table is available (INGEST_URL unset, or
 // the model/target is missing rates). Directional only. When prices ARE present,

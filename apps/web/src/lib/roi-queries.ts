@@ -303,6 +303,40 @@ export async function getStoryPointEconomics(since: Date): Promise<StoryPointEco
   };
 }
 
+export type BusinessValueEconomics = {
+  sessionCostUsd: number; // agent spend on tickets that carry a real value
+  ticketCount: number; // tickets with both a value and spend
+  totalValueUsd: number; // sum of jira_issues.business_value
+};
+
+// True external business-value join: sums the per-issue value synced from Jira
+// (jira_issues.business_value) for tickets that also had agent spend in the
+// window. Returns zeros when the JIRA_VALUE_FIELD sync hasn't populated any
+// values — the ROI page then falls back to the flat story-point proxy.
+// Intentionally parallel to getStoryPointEconomics (same ticket-CTE + join
+// shape, different summed column); left as two functions rather than merged
+// because parameterizing the column name would need Prisma.raw injection.
+export async function getBusinessValueEconomics(since: Date): Promise<BusinessValueEconomics> {
+  const rows = await getPrisma().$queryRaw<
+    { session_cost: number | null; ticket_count: bigint; total_value: number | null }[]
+  >(Prisma.sql`
+    WITH ticket AS (${sessionSpendByKeySql(since)})
+    SELECT
+      COUNT(DISTINCT ji.key)               AS ticket_count,
+      COALESCE(SUM(ji.business_value), 0)  AS total_value,
+      COALESCE(SUM(t.session_cost), 0)     AS session_cost
+    FROM ticket t
+    JOIN jira_issues ji ON ji.key = t.jira_key
+    WHERE ji.business_value IS NOT NULL AND ji.business_value > 0
+  `);
+  const r = rows[0];
+  return {
+    sessionCostUsd: Number(r?.session_cost ?? 0),
+    ticketCount: Number(r?.ticket_count ?? 0),
+    totalValueUsd: Number(r?.total_value ?? 0),
+  };
+}
+
 export type ProjectSpendRow = {
   mergedPrs: number;
   projectKey: string;
