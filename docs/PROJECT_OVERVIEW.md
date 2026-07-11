@@ -171,10 +171,13 @@ opt-in bot comment) and `check_run` (CI failure counts). GHES-capable.
   **`/me/grants`**, settings (profile / privacy / audit).
 - **Team (`/team/[slug]/*`):** overview, roster, sessions, PRs, member drill-in
   (audit-logged), adoption, tools, **MCP**, **agents**, **skills** (+ drill-down).
-- **Org (`/org/*`):** dashboard (cost, trends, anomalies, friction), adoption,
-  delivery, benchmarks, teams, faceted search, tools, **MCP portfolio**,
-  **skills analytics**, **agents comparison**, **models** (routing/cache
-  opportunities), **governance** (HITL oversight, provenance), **ROI**.
+- **Org (`/org/*`):** dashboard (cost, trends, anomalies, friction, **spend
+  forecast**, **cohort friction divergence**), adoption, delivery, benchmarks,
+  teams, faceted search, tools, **MCP portfolio**, **skills analytics**,
+  **agents comparison**, **models** (**routing recommendations** + cache
+  opportunities), **governance** (HITL oversight, provenance), **ROI**,
+  **security** (data-flow exposure, MCP egress, secret-exposure by redaction
+  class, audit summary), **knowledge** (aggregate transcript topic clustering).
 - **Admin (`/admin/*`):** jobs, org-roles, **team-roles**, **price-tables**,
   **retention**, **access-grants** (request/approve), **adapters**, **alerts**.
 - **Time-range pickers (7/30/90d)** across all org/team analytics.
@@ -265,14 +268,18 @@ enforcement helpers (`hasActiveGrant`, `resolveOrgSessionAccess`, …) live in
 
 Gaps from the prior snapshot that are now **closed:** git-at-session-start capture,
 transcript viewer redesign, friction/shape surfacing, `/install` page, self-service
-transcript search. Current open items:
+transcript search, and most of the `OPPORTUNITIES.md` backlog — model-routing
+recommendations (`/org/models`), the security/exposure dashboard (`/org/security`,
+incl. secret-exposure by persisted `redaction_flags`), budget/spend forecasting
+(`/org/dashboard`), knowledge-gap clustering (`/org/knowledge`), and cohort/
+shape-shift effectiveness views. Current open items:
 
 | Gap / seam | Where | Architectural implication |
 |---|---|---|
-| **`OPPORTUNITIES.md` backlog** — model-routing recommendations, security/exposure dashboard, budget forecasting, knowledge-gap clustering, cohort/onboarding curves | product-level | The highest-signal input for new specs; most are "data is ready, UI is the work." |
-| **External business-value join** (Jira epics / story points / revenue) | product | Unlocks cost-per-feature ROI; needs one external integration. |
+| **External business-value join** (Jira epics / story points / revenue) | product | Cost-per-story-point ships on `/org/roi`; the external revenue/business join is still the missing piece for full cost-per-feature ROI. |
+| **Redaction-class backfill + tool/model aggregate `user_id`** | ingest / db | Secret-exposure counts are forward-only (no historical backfill); `daily_cost_by_model` / `daily_tool_usage` lack `user_id`, so they can't back visibility-scoped org views without redefinition. |
 | **Second-agent transcript upload** (opencode) | hook | opencode history is directory-shaped; single-file shippers don't cover it. |
-| **`budget_threshold` alerts reserved but inert** | ingest `evaluate-alerts` | Rule type defined/seeded-disabled; needs evaluation logic + admin budget config. |
+| **Automated model-routing policy** | ingest / hook | Recommendations are advisory; enforcement (auto-route or block) would need a hook-side path. |
 | **Cost reconciliation is scaffold-only** (`NullBillingSource`) | ingest `reconcile-cost` | Needs a real vendor billing client behind the flag. |
 | **Semantic search prototype gated** (P7-007 no-go) | `sql/prototypes/`, `embed-transcripts` | Requires a self-hosted embedding path + a proven recall gap to revisit. |
 | **Redaction has no email/PII or git-remote-URL rule** | `packages/redaction` | New user-pasted content shapes must add rules; remote-URL PATs slip through. |
@@ -306,18 +313,22 @@ Three architectural invariants any new spec must respect:
    agent label — the hook adapter seam, per-agent pricing, and de-Claude-ified UI
    already exist. Adding an agent = a new adapter, not a schema change.
 
-**Expansion vectors, ranked by leverage-to-cost** (aligned with `OPPORTUNITIES.md`):
+**Expansion vectors, ranked by leverage-to-cost** (aligned with `OPPORTUNITIES.md`).
+Vectors 1–4 from the prior snapshot have now shipped — model-routing
+recommendations, the security/exposure dashboard, budget/spend forecasting, and
+deeper effectiveness (cohort divergence + shape-shift). What remains:
 
-1. **Model cost optimization** — routing recommendations + cache-efficiency
-   guidance on the already-captured per-turn `model` data. High impact, low effort.
-2. **Security & compliance surface** — a dashboard over tool categories, redaction
-   metadata, MCP egress, and the audit log (SOC 2 evidence). Data is ready.
-3. **Budget forecasting & cost allocation** — extend spend data to per-team/epic
-   forecasts; pairs with the deferred Jira join.
-4. **Deeper effectiveness** — cross-cohort divergence, shape-shift-over-time,
-   onboarding curves; the P5/P7 signals give the runway.
-5. **Heavier deferred items** — external business-value join, additional agent
-   adapters, vendor cost reconciliation, semantic search (if a gap is proven).
+1. **Perfect the shipped surfaces** — redaction-class historical backfill; give
+   `daily_cost_by_model` / `daily_tool_usage` a `user_id` dimension so the heavy
+   tool/model org views can move off raw `events`; join the real price table into
+   routing-savings estimates.
+2. **Automated routing policy** — turn the advisory recommendations into
+   enforcement (auto-route or block), which needs a hook-side path.
+3. **External business-value join** — story points / revenue for full
+   cost-per-feature ROI (cost-per-story-point already ships; the external join
+   does not).
+4. **Heavier deferred items** — additional agent adapters, vendor cost
+   reconciliation, semantic search (if a gap is proven), IDE telemetry joins.
 
 ---
 
