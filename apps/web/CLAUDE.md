@@ -13,7 +13,7 @@ Read [`/PLAN.md`](../../PLAN.md) and [`/tasks/`](../../tasks/) before picking up
   - `/login`, `/install`, `/health`, `/metrics` — public.
   - `/me/*` — authenticated, own-data scope. Session list, PR list, insights, search, transcript viewer, privacy settings, audit feed.
   - `/team/[slug]/*` — authenticated, team-scoped. Roster, member sessions, PR tab. Gated by `team_lead` role via `requireTeamAccess()`.
-  - `/org/*` — authenticated, org-scoped. Dashboard, adoption funnel, benchmarks, delivery stats, tools breakdown, search, cross-user session/transcript. Gated by `org_admin` or `viewer_aggregate` roles.
+  - `/org/*` — authenticated, org-scoped. Dashboard (incl. spend forecast + cohort friction), adoption funnel, benchmarks, delivery stats, tools breakdown, models (routing recommendations), ROI, quality, security (data-flow/secret exposure), knowledge (topic clustering), governance, search, cross-user session/transcript. Gated by `org_admin` or `viewer_aggregate` roles.
   - `/admin/*` — authenticated, `org_admin` only. Alerts, access grants, adapters, jobs, org roles, team roles, price tables, retention.
   - `/api/auth/*` — OAuth + session endpoints; device-code flow for the hook binary.
   - `/api/me/*` — transcript proxy, data export, self-deletion.
