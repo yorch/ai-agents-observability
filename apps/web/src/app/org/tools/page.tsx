@@ -1,3 +1,4 @@
+import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { StatCard } from '@/components/team-org/StatCard';
 import {
@@ -501,7 +502,7 @@ function SkillSequences({ rows }: { rows: OrgSkillSequenceRow[] }) {
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-mono">
               <span className="text-white/70">{r.fromSkill}</span>
-              <span className="text-white/30">→</span>
+              <ArrowRightIcon size={11} className="text-white/30" />
               <span className="text-brand-400">{r.toSkill}</span>
             </span>
             <span className="text-white/40">{r.transitionCount}×</span>

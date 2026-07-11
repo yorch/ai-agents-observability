@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { ArrowLeftIcon } from '@/components/icons';
 import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
 import { SessionFeedbackForm } from '@/components/me/SessionFeedbackForm';
@@ -97,8 +98,11 @@ export default async function SessionDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link href="/me/sessions" className="text-sm text-text-3 hover:text-accent transition-colors">
-        ← Sessions
+      <Link
+        href="/me/sessions"
+        className="inline-flex items-center gap-1 text-sm text-text-3 hover:text-accent transition-colors"
+      >
+        <ArrowLeftIcon /> Sessions
       </Link>
 
       <SessionDetailHeader

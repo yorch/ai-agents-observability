@@ -1,3 +1,4 @@
+import { TriangleDownIcon, TriangleUpIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { getTeamBenchmarks } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
@@ -27,11 +28,19 @@ function DeltaBadge({
   const dir = delta(value, median, lowerIsBetter);
   const color =
     dir === 'above' ? 'text-green-400' : dir === 'below' ? 'text-red-400' : 'text-white/50';
-  const arrow = dir === 'above' ? '▲' : dir === 'below' ? '▼' : '–';
   return (
-    <span className={`font-mono text-xs ${color}`} title={`Org median: ${median}`}>
+    <span
+      className={`inline-flex items-center gap-1 font-mono text-xs ${color}`}
+      title={`Org median: ${median}`}
+    >
       {label}
-      <span className="ml-1 text-[10px]">{arrow}</span>
+      {dir === 'above' ? (
+        <TriangleUpIcon size={9} />
+      ) : dir === 'below' ? (
+        <TriangleDownIcon size={9} />
+      ) : (
+        <span className="text-[10px]">–</span>
+      )}
     </span>
   );
 }
@@ -80,10 +89,12 @@ export default async function OrgBenchmarksPage({
             value={`${(medians.toolSuccessRate * 100).toFixed(1)}%`}
           />
         </div>
-        <p className="text-xs text-white/30 mt-3">
-          Arrows (▲ / ▼) in the table below indicate whether each team is above or below these org
-          medians. ▲ = better than median (lower cost, lower friction, higher activity, higher
-          success).
+        <p className="inline-flex flex-wrap items-center gap-1 text-xs text-white/30 mt-3">
+          Direction markers (<TriangleUpIcon size={9} className="text-green-400" /> /
+          <TriangleDownIcon size={9} className="text-red-400" />) in the table below indicate
+          whether each team is above or below these org medians.
+          <TriangleUpIcon size={9} className="text-green-400" /> = better than median (lower cost,
+          lower friction, higher activity, higher success).
         </p>
       </section>
 

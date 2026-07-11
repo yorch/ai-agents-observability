@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { frictionBadge, shapeBadge } from '@/lib/effectiveness';
 import type { SessionDetail, SessionEvent } from '@/lib/sessions-queries';
 
@@ -42,7 +43,7 @@ function formatDuration(seconds: number | null): string {
 
 function describeEvent(ev: SessionEvent): {
   color: string;
-  label: string;
+  label: ReactNode;
   sublabel?: string | undefined;
 } {
   if (ev.eventType === 'SessionStart') {
@@ -64,7 +65,12 @@ function describeEvent(ev: SessionEvent): {
   if (ev.eventType === 'PreToolUse' || ev.eventType === 'PostToolUse') {
     const tool = ev.toolName ?? ev.mcpTool ?? '?';
     const denied = ev.toolWasDenied;
-    const label = `${ev.eventType === 'PreToolUse' ? '→' : '←'} ${tool}`;
+    const label = (
+      <span className="inline-flex items-center gap-1.5">
+        {ev.eventType === 'PreToolUse' ? <ArrowRightIcon size={12} /> : <ArrowLeftIcon size={12} />}
+        {tool}
+      </span>
+    );
     const color = denied
       ? 'bg-red-400'
       : ev.eventType === 'PostToolUse'

@@ -1,3 +1,4 @@
+import { ArrowDownIcon, ArrowUpIcon } from '@/components/icons';
 import type { UsageSummary } from '@/lib/me-queries';
 
 function DeltaBadge({ current, previous }: { current: number; previous: number }) {
@@ -5,7 +6,11 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
     return null;
   }
   if (previous === 0) {
-    return <span className="text-xs text-green-400 font-mono">↑ new</span>;
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-green-400 font-mono">
+        <ArrowUpIcon size={12} /> new
+      </span>
+    );
   }
 
   const pct = ((current - previous) / previous) * 100;
@@ -15,8 +20,10 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
 
   const up = pct > 0;
   return (
-    <span className={`text-xs font-mono ${up ? 'text-green-400' : 'text-red-400'}`}>
-      {up ? '↑' : '↓'} {Math.abs(pct).toFixed(0)}%
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-mono ${up ? 'text-green-400' : 'text-red-400'}`}
+    >
+      {up ? <ArrowUpIcon size={12} /> : <ArrowDownIcon size={12} />} {Math.abs(pct).toFixed(0)}%
     </span>
   );
 }

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ArrowLeftIcon } from '@/components/icons';
 import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
@@ -80,8 +81,11 @@ export default async function TeamSessionDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link href={`/team/${slug}/sessions`} className="text-sm text-white/50 hover:text-white">
-        ← Sessions
+      <Link
+        href={`/team/${slug}/sessions`}
+        className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
+      >
+        <ArrowLeftIcon /> Sessions
       </Link>
 
       <SessionDetailHeader

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArrowLeftIcon, CheckIcon } from '@/components/icons';
 
 export default function InstallPage() {
   const targets = [
@@ -11,8 +12,11 @@ export default function InstallPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-12 space-y-10">
       <div>
-        <Link href="/me" className="text-sm text-white/50 hover:text-white">
-          ← Back
+        <Link
+          href="/me"
+          className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
+        >
+          <ArrowLeftIcon /> Back
         </Link>
       </div>
 
@@ -114,8 +118,8 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
       {/* Verify */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-xs font-semibold text-white/40 border border-white/10">
-            ✓
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-white/40 border border-white/10">
+            <CheckIcon size={12} />
           </span>
           <h2 className="text-base font-medium text-white/60">Verify</h2>
         </div>

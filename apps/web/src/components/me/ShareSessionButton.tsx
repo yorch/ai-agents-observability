@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-
 import type { ShareResult } from '@/app/me/sessions/[id]/actions';
 import { revokeShare, shareSession } from '@/app/me/sessions/[id]/actions';
+import { ArrowRightIcon } from '@/components/icons';
 
 type ActiveShare = { expiresAt: Date; granteeEmail: string | null; id: string };
 
@@ -153,9 +153,9 @@ export function ShareSessionButton({
                   setLastShared(null);
                   setError(null);
                 }}
-                className="text-[10px] text-text-3 hover:text-text transition-colors"
+                className="inline-flex items-center gap-1 text-[10px] text-text-3 hover:text-text transition-colors"
               >
-                Share with another →
+                Share with another <ArrowRightIcon size={11} />
               </button>
             </div>
           )}

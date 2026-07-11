@@ -1,3 +1,4 @@
+import { SparkleIcon } from '@/components/icons';
 import type { FrictionSources } from '@/lib/effectiveness-queries';
 
 // Order, label, color, and one-line meaning for each friction driver. The keys
@@ -41,7 +42,10 @@ export function FrictionSourcesChart({
       {scoredSessionCount === 0 ? (
         <p className="text-sm text-text-3">No scored sessions in this period.</p>
       ) : total === 0 ? (
-        <p className="text-sm text-text-2">No measurable friction — your sessions ran clean. 🎉</p>
+        <p className="inline-flex items-center gap-1.5 text-sm text-text-2">
+          No measurable friction — your sessions ran clean.
+          <SparkleIcon className="text-emerald-400" />
+        </p>
       ) : (
         <>
           <div className="mb-4 flex h-3 w-full overflow-hidden rounded-full bg-surface-2">

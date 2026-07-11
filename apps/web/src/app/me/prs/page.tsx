@@ -1,4 +1,10 @@
 import { redirect } from 'next/navigation';
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ExternalLinkIcon,
+  WarningIcon,
+} from '../../../components/icons';
 import { JiraLink } from '../../../components/JiraLink';
 import { currentUser } from '../../../lib/auth';
 import { getJiraBase } from '../../../lib/config';
@@ -108,9 +114,9 @@ function PRsTable({
                         href={githubHref}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hover:text-white/60"
+                        className="inline-flex items-center gap-1 hover:text-white/60"
                       >
-                        #{pr.prNumber} ↗
+                        #{pr.prNumber} <ExternalLinkIcon size={11} />
                       </a>
                     </div>
                   </td>
@@ -132,8 +138,8 @@ function PRsTable({
                   </td>
                   <td className="px-4 py-3 text-right">
                     {pr.checkFailuresCount > 0 ? (
-                      <span className="text-amber-400 text-xs font-medium">
-                        ⚠ {pr.checkFailuresCount}
+                      <span className="inline-flex items-center gap-1 text-amber-400 text-xs font-medium">
+                        <WarningIcon size={12} /> {pr.checkFailuresCount}
                       </span>
                     ) : (
                       <span className="text-white/20 text-xs">—</span>
@@ -167,17 +173,17 @@ function PRsTable({
             {hasPrev && (
               <a
                 href={`?page=${currentPage - 1}${stateParam}`}
-                className="rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
+                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
               >
-                ← Prev
+                <ArrowLeftIcon /> Prev
               </a>
             )}
             {hasNext && (
               <a
                 href={`?page=${currentPage + 1}${stateParam}`}
-                className="rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
+                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
               >
-                Next →
+                Next <ArrowRightIcon />
               </a>
             )}
           </div>

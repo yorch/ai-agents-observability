@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArrowLeftIcon } from '@/components/icons';
 
 export default function PRNotFound() {
   return (
@@ -9,9 +10,9 @@ export default function PRNotFound() {
       </p>
       <Link
         href="/me/prs"
-        className="mt-6 rounded-md border border-white/10 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
+        className="mt-6 inline-flex items-center gap-1 rounded-md border border-white/10 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
       >
-        ← Back to Pull Requests
+        <ArrowLeftIcon /> Back to Pull Requests
       </Link>
     </div>
   );

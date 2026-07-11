@@ -1,3 +1,4 @@
+import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
 import { getPrisma } from '@/lib/prisma';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
@@ -396,9 +397,9 @@ export default async function OrgSearchPage({
                   {page > 1 && (
                     <a
                       href={buildUrl(params, { page: page - 1 })}
-                      className="text-brand-400 hover:underline"
+                      className="inline-flex items-center gap-1 text-brand-400 hover:underline"
                     >
-                      ← Prev
+                      <ArrowLeftIcon /> Prev
                     </a>
                   )}
                   <span className="text-white/40">
@@ -407,9 +408,9 @@ export default async function OrgSearchPage({
                   {page < totalPages && (
                     <a
                       href={buildUrl(params, { page: page + 1 })}
-                      className="text-brand-400 hover:underline"
+                      className="inline-flex items-center gap-1 text-brand-400 hover:underline"
                     >
-                      Next →
+                      Next <ArrowRightIcon />
                     </a>
                   )}
                 </div>

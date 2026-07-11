@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptViewer } from '@/components/me/TranscriptViewer';
 
 export function TranscriptPanel({
@@ -19,8 +20,11 @@ export function TranscriptPanel({
 }) {
   return (
     <div className="space-y-6">
-      <Link href={backHref} className="text-sm text-text-3 hover:text-accent transition-colors">
-        ← Session
+      <Link
+        href={backHref}
+        className="inline-flex items-center gap-1 text-sm text-text-3 hover:text-accent transition-colors"
+      >
+        <ArrowLeftIcon /> Session
       </Link>
 
       <div>
