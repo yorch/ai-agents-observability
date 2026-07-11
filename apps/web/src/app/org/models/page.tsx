@@ -117,7 +117,9 @@ export default async function OrgModelsPage({
   // Price-derived per-model savings ratio when the ingest price table is
   // reachable; falls back to the flat heuristic when INGEST_URL is unset.
   const savingsRatioFor = buildSavingsRatioResolver(modelPrices);
-  const pricePrecise = modelPrices !== null;
+  // Only claim price-precision when the table actually yielded usable rates — an
+  // empty map falls back to the flat heuristic inside buildSavingsRatioResolver.
+  const pricePrecise = modelPrices !== null && Object.keys(modelPrices).length > 0;
   const { estimatedMonthlySaving: estimatedMonthlyRoutingSaving, recommendations: routingRecs } =
     computeRoutingRecommendations(routing, range, savingsRatioFor);
 

@@ -356,9 +356,9 @@ export default async function OrgRoiPage({
               label="Return multiple"
               value={storyPoints.sessionCostUsd > 0 ? `${valueRoiMultiple.toFixed(1)}×` : '—'}
               sub="value ÷ agent spend"
-              {...(valueRoiMultiple >= 1
-                ? { accent: 'green' as const }
-                : { accent: 'amber' as const })}
+              {...(storyPoints.sessionCostUsd > 0
+                ? { accent: valueRoiMultiple >= 1 ? ('green' as const) : ('amber' as const) }
+                : {})}
             />
           </div>
           <p className="text-xs text-white/30">
