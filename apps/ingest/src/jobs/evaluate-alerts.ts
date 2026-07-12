@@ -13,6 +13,9 @@ import {
   ERROR_RATE_WINDOW_DAYS,
   LOW_OVERSIGHT_MODES,
   parseBudgetThresholdParams,
+  ROUTING_WASTE_CRITICAL_MULTIPLE,
+  ROUTING_WASTE_DEFAULT_USD,
+  ROUTING_WASTE_WINDOW_DAYS,
   SPEND_SPIKE_BASELINE_DAYS,
   SPEND_SPIKE_CRITICAL_SIGMA,
   SPEND_SPIKE_WARN_SIGMA,
@@ -178,6 +181,42 @@ async function evalBudgetThreshold(db: AlertsDb, params: unknown): Promise<Evalu
   };
 }
 
+// Routing waste: premium (Opus-class) model spend on retrieval-only tool
+// categories (fs_read / search) over the recent window — the same signal the
+// /org/models routing recommendation surfaces, promoted to a proactive alert.
+// Aggregate + visibility-scoped like the other evaluators. Fires on absolute
+// wasted spend (params.thresholdUsd overrides the default); critical at 2×.
+async function evalRoutingWaste(db: AlertsDb, params: unknown): Promise<Evaluation> {
+  const threshold = Number(paramsObject(params).thresholdUsd ?? ROUTING_WASTE_DEFAULT_USD);
+  if (!(threshold > 0)) {
+    return null;
+  }
+  const windowStart = new Date(Date.now() - ROUTING_WASTE_WINDOW_DAYS * 86_400_000);
+  const rows = await db.$queryRaw<{ waste: number }[]>(Prisma.sql`
+    SELECT COALESCE(SUM(e.cost_usd), 0) AS waste
+    FROM events e
+    JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    WHERE e.ts >= ${windowStart}
+      AND e.event_type = 'PostToolUse'
+      AND e.model ILIKE '%opus%'
+      AND e.tool_category IN ('fs_read', 'search')
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+  `);
+  const waste = Number(rows[0]?.waste ?? 0);
+  if (waste < threshold) {
+    return null;
+  }
+  return {
+    details: {
+      thresholdUsd: threshold,
+      wasteUsd: waste,
+      windowDays: ROUTING_WASTE_WINDOW_DAYS,
+    },
+    severity: waste >= threshold * ROUTING_WASTE_CRITICAL_MULTIPLE ? 'critical' : 'warn',
+  };
+}
+
 // Autonomy surge (R9): the share of recent sessions running with no per-action
 // human gate (bypass / dont_ask). A rising share is oversight erosion. Aggregate
 // and visibility-scoped like the other evaluators — no individual is named.
@@ -224,6 +263,8 @@ async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
       return evalUnknownModelSurge(db, rule.params);
     case 'budget_threshold':
       return evalBudgetThreshold(db, rule.params);
+    case 'routing_waste':
+      return evalRoutingWaste(db, rule.params);
     case 'autonomy_surge':
       return evalAutonomySurge(db, rule.params);
     default:

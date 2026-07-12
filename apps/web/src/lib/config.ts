@@ -12,6 +12,11 @@ const WebConfigSchema = z.object({
   s3Endpoint: z.string().optional(),
   s3Region: z.string().default('us-east-1'),
   s3SecretAccessKey: z.string().min(1),
+  // Org-wide business value of one delivered Jira story point, in USD. When set
+  // (> 0), /org/roi shows value-delivered vs agent-spend. Optional: the whole
+  // business-value section is hidden when unset. `.catch` keeps a malformed value
+  // from failing web startup — it just disables the section.
+  valuePerStoryPoint: z.coerce.number().nonnegative().optional().catch(undefined),
 });
 
 export type WebConfig = z.infer<typeof WebConfigSchema>;
@@ -34,6 +39,7 @@ export function getConfig(): WebConfig {
       s3Endpoint: process.env.S3_ENDPOINT,
       s3Region: process.env.S3_REGION,
       s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+      valuePerStoryPoint: process.env.VALUE_PER_STORY_POINT,
     });
   }
   return _config;

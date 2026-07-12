@@ -174,15 +174,15 @@ export async function getOrgSummary(since: Date): Promise<OrgSummary> {
 // queries below — a user who has not opted in to `share_metadata_with_org`
 // never contributes, matching every other org-queries function.
 //
-// `daily_cost_by_model` and `daily_tool_usage` are the other two continuous
-// aggregates defined alongside `daily_cost_by_user`, but they are keyed on
-// (day, model, agent_type) and (day, tool_name, tool_category, agent_type)
-// respectively — neither carries `user_id`. They are intentionally NOT used
-// for any visibility-scoped org view: without a per-user dimension there is
-// no way to exclude opted-out users' data from the rollup, so using them
-// here would leak metadata the user chose not to share with the org.
-// Redefining those aggregates to add a `user_id` dimension (and re-deriving
-// per-model/per-tool org views off the redefined aggregate) is future work.
+// `daily_cost_by_model` and `daily_tool_usage` also carry `user_id` (added in
+// migration 0005), so they are visibility-scoped the same way: `getOrgModelDetail`
+// and `getOrgTopTools` read them with a `user_id IN (visible)` filter instead of
+// scanning raw `events`. Two semantic notes on the model rollup: `session_count`
+// is `SUM(session_count)` across daily buckets, so a session spanning midnight is
+// counted once per day it was active; and the aggregate covers every model-bearing
+// event (not just PostToolUse/Stop), so token totals are marginally more inclusive
+// than the old raw-events query (cost is unchanged — only completion events carry
+// `cost_usd`). Both are acceptable for an org-level rollup.
 //
 // One semantic note that applies to every function below: `daily_cost_by_user`
 // buckets by the UTC day an *event* occurred, whereas `sessions` timestamps
@@ -325,17 +325,15 @@ export async function getOrgModelDetail(since: Date): Promise<OrgModelDetailRow[
   >(Prisma.sql`
     SELECT
       model,
-      COUNT(DISTINCT session_id)                        AS session_count,
-      COALESCE(SUM(cost_usd), 0)                        AS total_cost_usd,
-      COALESCE(SUM(input_tokens), 0)                    AS input_tokens,
-      COALESCE(SUM(output_tokens), 0)                   AS output_tokens,
-      COALESCE(SUM(cache_read_tokens), 0)               AS cache_read_tokens,
-      COALESCE(SUM(cache_creation_tokens), 0)           AS cache_creation_tokens
-    FROM events
+      COALESCE(SUM(session_count), 0)                   AS session_count,
+      COALESCE(SUM(total_cost_usd), 0)                  AS total_cost_usd,
+      COALESCE(SUM(total_input_tokens), 0)              AS input_tokens,
+      COALESCE(SUM(total_output_tokens), 0)             AS output_tokens,
+      COALESCE(SUM(total_cache_read), 0)                AS cache_read_tokens,
+      COALESCE(SUM(total_cache_creation), 0)            AS cache_creation_tokens
+    FROM daily_cost_by_model
     WHERE user_id IN (${uuids})
-      AND ts >= ${since}
-      AND event_type IN ('PostToolUse', 'Stop')
-      AND model IS NOT NULL
+      AND day >= date_trunc('day', ${since})
     GROUP BY model
     ORDER BY total_cost_usd DESC
   `);
@@ -648,11 +646,10 @@ export async function getOrgTopTools(since: Date, limit = 10): Promise<OrgToolUs
   const rows = await getPrisma().$queryRaw<
     { agent_type: string; call_count: bigint; tool_name: string }[]
   >(Prisma.sql`
-    SELECT agent_type, tool_name, COUNT(*) AS call_count
-    FROM events
+    SELECT agent_type, tool_name, SUM(call_count) AS call_count
+    FROM daily_tool_usage
     WHERE user_id IN (${uuids})
-      AND ts >= ${since}
-      AND event_type = 'PostToolUse'
+      AND day >= date_trunc('day', ${since})
       AND tool_name IS NOT NULL
     GROUP BY agent_type, tool_name
     ORDER BY call_count DESC

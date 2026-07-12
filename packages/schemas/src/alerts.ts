@@ -11,7 +11,8 @@ export type AlertRuleType =
   | 'high_error_rate'
   | 'unknown_model_surge'
   | 'autonomy_surge'
-  | 'budget_threshold';
+  | 'budget_threshold'
+  | 'routing_waste';
 
 export type AlertSeverity = 'warn' | 'critical';
 
@@ -64,6 +65,15 @@ export function parseBudgetThresholdParams(raw: unknown): BudgetThresholdParams 
   const result = BudgetThresholdParamsSchema.safeParse(raw ?? {});
   return result.success ? result.data : null;
 }
+
+// Routing waste: premium-tier (Opus-class) model spend on retrieval-only tool
+// categories (fs_read / search) over the recent window — money that a Haiku-class
+// model would have largely saved (mirrors the /org/models routing recommendation).
+// Fires on absolute wasted spend so it's meaningful without a configured budget;
+// the threshold is overridable per-rule via params.thresholdUsd. Critical at 2×.
+export const ROUTING_WASTE_WINDOW_DAYS = 7;
+export const ROUTING_WASTE_DEFAULT_USD = 25;
+export const ROUTING_WASTE_CRITICAL_MULTIPLE = 2;
 
 // Autonomy surge (R9, Human-in-the-loop governance): share of sessions running
 // in a low-oversight mode (bypass / dont_ask — no per-action human gate) over the

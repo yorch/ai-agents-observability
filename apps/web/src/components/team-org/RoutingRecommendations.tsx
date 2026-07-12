@@ -8,11 +8,15 @@ import type { RoutingRecommendation } from '@/lib/routing-queries';
 
 export type RoutingRecommendationsProps = {
   estimatedMonthlySaving: number;
+  // True when the saving fraction came from the ingest price table (per-model),
+  // false when it fell back to the flat heuristic (INGEST_URL unset / fetch failed).
+  pricePrecise: boolean;
   recommendations: RoutingRecommendation[];
 };
 
 export function RoutingRecommendations({
   estimatedMonthlySaving,
+  pricePrecise,
   recommendations,
 }: RoutingRecommendationsProps) {
   return (
@@ -63,14 +67,17 @@ export function RoutingRecommendations({
                 <p className="text-lg font-semibold font-mono text-emerald-400">
                   {fmtUsd(rec.estimatedMonthlySaving)}
                 </p>
-                <p className="text-[10px] text-white/30">if routed to Haiku</p>
+                <p className="text-[10px] text-white/30">
+                  ~{Math.round(rec.savingsRatio * 100)}% cheaper if routed to Haiku
+                </p>
               </div>
             </div>
           ))}
 
           <p className="text-[11px] text-white/30">
-            Estimate assumes retrieval-only turns move to a Haiku-class model (~90% cheaper per
-            turn); validate against your price table before acting.
+            {pricePrecise
+              ? 'Saving fractions are derived per-model from the current ingest price table (retrieval turns priced at the cheapest Haiku-class input rate). Still directional — real savings depend on the routed model handling the task.'
+              : 'INGEST_URL is not set, so this uses a flat ~90%-cheaper heuristic. Point the web app at ingest to derive per-model savings from the live price table.'}
           </p>
         </div>
       )}

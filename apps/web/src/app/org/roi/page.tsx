@@ -1,7 +1,7 @@
 import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { StatCard } from '@/components/team-org/StatCard';
-import { getJiraBase } from '@/lib/config';
+import { getConfig, getJiraBase } from '@/lib/config';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
   BUG_ISSUE_TYPES,
@@ -59,6 +59,14 @@ export default async function OrgRoiPage({
   ]);
 
   const jiraBase = getJiraBase();
+
+  // Business-value join (Part 2): value delivered = story points × the configured
+  // per-point rate, compared against agent spend on the same estimated tickets.
+  // The whole section is hidden when VALUE_PER_STORY_POINT is unset.
+  const valuePerPoint = getConfig().valuePerStoryPoint;
+  const businessValue = (valuePerPoint ?? 0) * storyPoints.totalStoryPoints;
+  const valueRoiMultiple =
+    storyPoints.sessionCostUsd > 0 ? businessValue / storyPoints.sessionCostUsd : 0;
 
   // Bug-work share: spend on Bug/Defect-type tickets over all *classified*
   // ticket spend (Unclassified is excluded from the denominator so an unsynced
@@ -318,6 +326,48 @@ export default async function OrgRoiPage({
           </>
         )}
       </section>
+
+      {/* Business value delivered (only when a value-per-point rate is configured) */}
+      {valuePerPoint !== undefined && valuePerPoint > 0 && storyPoints.totalStoryPoints > 0 && (
+        <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-white/70">
+            Business value delivered ({range}d)
+          </h2>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <StatCard
+              label="Value delivered"
+              value={fmtUsd(businessValue)}
+              sub={`${storyPoints.totalStoryPoints.toLocaleString()} pts × ${fmtUsd(valuePerPoint)}`}
+            />
+            <StatCard
+              label="Agent spend"
+              value={fmtUsd(storyPoints.sessionCostUsd)}
+              sub="on estimated tickets"
+            />
+            <StatCard
+              label="Net value"
+              value={fmtUsd(businessValue - storyPoints.sessionCostUsd)}
+              sub="value − agent spend"
+              {...(businessValue - storyPoints.sessionCostUsd >= 0
+                ? { accent: 'green' as const }
+                : { accent: 'red' as const })}
+            />
+            <StatCard
+              label="Return multiple"
+              value={storyPoints.sessionCostUsd > 0 ? `${valueRoiMultiple.toFixed(1)}×` : '—'}
+              sub="value ÷ agent spend"
+              {...(storyPoints.sessionCostUsd > 0
+                ? { accent: valueRoiMultiple >= 1 ? ('green' as const) : ('amber' as const) }
+                : {})}
+            />
+          </div>
+          <p className="text-xs text-white/30">
+            Value is delivered story points × the configured <code>VALUE_PER_STORY_POINT</code> rate
+            ({fmtUsd(valuePerPoint)}/pt) — a directional business-value proxy, only as good as your
+            per-point valuation. Compares that against agent spend on the same estimated tickets.
+          </p>
+        </section>
+      )}
 
       {/* Bug vs feature spend */}
       <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">

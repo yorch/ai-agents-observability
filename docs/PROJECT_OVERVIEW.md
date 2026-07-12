@@ -276,10 +276,10 @@ shape-shift effectiveness views. Current open items:
 
 | Gap / seam | Where | Architectural implication |
 |---|---|---|
-| **External business-value join** (Jira epics / story points / revenue) | product | Cost-per-story-point ships on `/org/roi`; the external revenue/business join is still the missing piece for full cost-per-feature ROI. |
-| **Redaction-class backfill + tool/model aggregate `user_id`** | ingest / db | Secret-exposure counts are forward-only (no historical backfill); `daily_cost_by_model` / `daily_tool_usage` lack `user_id`, so they can't back visibility-scoped org views without redefinition. |
+| **External business-value join** (revenue) | product | A configurable `VALUE_PER_STORY_POINT` now drives value-vs-spend on `/org/roi`; a true external revenue/business-outcome join is still the missing piece for non-estimate cost-per-feature ROI. |
+| **Redaction-class backfill** | ingest / db | Secret-exposure counts on `/org/security` are forward-only; a job re-running redaction over stored transcripts would populate history. (The tool/model aggregate `user_id` gap is closed — migration `0005`.) |
 | **Second-agent transcript upload** (opencode) | hook | opencode history is directory-shaped; single-file shippers don't cover it. |
-| **Automated model-routing policy** | ingest / hook | Recommendations are advisory; enforcement (auto-route or block) would need a hook-side path. |
+| **Automated model-routing enforcement** | ingest / hook | The `routing_waste` alert makes waste actionable, but true enforcement (auto-route or block premium calls on cheap categories) still needs a hook-side path. |
 | **Cost reconciliation is scaffold-only** (`NullBillingSource`) | ingest `reconcile-cost` | Needs a real vendor billing client behind the flag. |
 | **Semantic search prototype gated** (P7-007 no-go) | `sql/prototypes/`, `embed-transcripts` | Requires a self-hosted embedding path + a proven recall gap to revisit. |
 | **Redaction has no email/PII or git-remote-URL rule** | `packages/redaction` | New user-pasted content shapes must add rules; remote-URL PATs slip through. |
@@ -318,15 +318,15 @@ Vectors 1–4 from the prior snapshot have now shipped — model-routing
 recommendations, the security/exposure dashboard, budget/spend forecasting, and
 deeper effectiveness (cohort divergence + shape-shift). What remains:
 
-1. **Perfect the shipped surfaces** — redaction-class historical backfill; give
-   `daily_cost_by_model` / `daily_tool_usage` a `user_id` dimension so the heavy
-   tool/model org views can move off raw `events`; join the real price table into
-   routing-savings estimates.
-2. **Automated routing policy** — turn the advisory recommendations into
-   enforcement (auto-route or block), which needs a hook-side path.
-3. **External business-value join** — story points / revenue for full
-   cost-per-feature ROI (cost-per-story-point already ships; the external join
-   does not).
+1. **Perfect the shipped surfaces** — redaction-class historical backfill. (The
+   tool/model aggregates now carry `user_id` and the org model/tool views read
+   them; routing-savings estimates now use the real price table — both done.)
+2. **Automated routing policy** — the `routing_waste` alert makes waste
+   actionable; the next step is real enforcement (auto-route or block), which
+   needs a hook-side path.
+3. **External business-value join** — a configurable per-story-point value now
+   drives value-vs-spend on `/org/roi`; a true external revenue/outcome join is
+   the remaining piece for a non-estimate cost-per-feature ROI.
 4. **Heavier deferred items** — additional agent adapters, vendor cost
    reconciliation, semantic search (if a gap is proven), IDE telemetry joins.
 
