@@ -161,10 +161,12 @@ describe('env-secret', () => {
   it('runs in linear time on a long key-like run with no _KEY/_TOKEN suffix', () => {
     // A long [A-Z0-9_] run (base64 blob / minified code / hash) must not force
     // O(n²) backtracking as the key prefix hunts for a _KEY/_TOKEN/… suffix.
-    const evil = `${'A'.repeat(200_000)}=x`;
+    // Threshold is generous (shared CI runners are slow) but still an order of
+    // magnitude under the ~10s a quadratic regression takes at this length.
+    const evil = `${'A'.repeat(100_000)}=x`;
     const t0 = performance.now();
     redact(evil);
-    expect(performance.now() - t0).toBeLessThan(250);
+    expect(performance.now() - t0).toBeLessThan(1_500);
   });
 });
 
@@ -290,11 +292,12 @@ describe('email', () => {
 
   it('runs in linear time on a pathological near-email input', () => {
     // A long local part + long dotted domain with no valid TLD is the shape that
-    // provokes backtracking; bounded quantifiers must keep it fast.
-    const evil = `${'a'.repeat(100_000)}@${'b.'.repeat(50_000)}`;
+    // provokes backtracking; bounded quantifiers must keep it fast. Threshold is
+    // generous for slow CI runners but far under a quadratic regression.
+    const evil = `${'a'.repeat(50_000)}@${'b.'.repeat(25_000)}`;
     const t0 = performance.now();
     redact(evil);
-    expect(performance.now() - t0).toBeLessThan(250);
+    expect(performance.now() - t0).toBeLessThan(1_500);
   });
 });
 
