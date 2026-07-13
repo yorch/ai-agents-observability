@@ -4,6 +4,7 @@ import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import type { AppDeps } from './app';
 import { createApp } from './app';
 import { loadConfig } from './config';
+import { AnthropicBillingSource } from './jobs/anthropic-billing-source';
 import { startScheduler } from './jobs/scheduler';
 import { createLogger } from './lib/logger';
 
@@ -75,10 +76,25 @@ const jiraConfig =
       }
     : undefined;
 
+// Vendor-cost source for reconcile-cost — the Anthropic Cost Report client when
+// an admin key is configured; otherwise undefined (scheduler falls back to the
+// NullBillingSource no-op). Reconciliation still requires BILLING_RECONCILIATION_ENABLED.
+const billingSource = config.anthropic_admin_key
+  ? new AnthropicBillingSource({
+      adminKey: config.anthropic_admin_key,
+      baseUrl: config.anthropic_base_url,
+      logger,
+      ...(config.anthropic_cost_workspace_id
+        ? { workspaceId: config.anthropic_cost_workspace_id }
+        : {}),
+    })
+  : undefined;
+
 startScheduler({
   billingReconciliationEnabled: config.billing_reconciliation_enabled,
   bucket: config.s3_bucket,
   db,
+  ...(billingSource ? { billingSource } : {}),
   ...(emailConfig ? { emailConfig } : {}),
   ...(config.github_sync_token ? { githubSyncToken: config.github_sync_token } : {}),
   ...(jiraConfig ? { jiraConfig } : {}),

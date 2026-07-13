@@ -7,7 +7,7 @@ import { runBackfillRedaction } from './backfill-redaction';
 import { runComputeEffectiveness, runComputeEffectivenessBackfill } from './compute-effectiveness';
 import { runEvaluateAlerts } from './evaluate-alerts';
 import { runIndexTranscripts } from './index-transcripts';
-import { NullBillingSource, runReconcileCost } from './reconcile-cost';
+import { type BillingSource, NullBillingSource, runReconcileCost } from './reconcile-cost';
 import { runDeletions } from './run-deletions';
 import { runSweepAbandoned } from './sweep-abandoned';
 import { runSweepRetention } from './sweep-retention';
@@ -17,6 +17,10 @@ import { runSyncTeams } from './sync-teams';
 
 export type SchedulerDeps = {
   appBaseUrl?: string;
+  // Vendor-cost source for reconcile-cost. Undefined → NullBillingSource (the
+  // job runs but records no drift). Wired to AnthropicBillingSource in index.ts
+  // when ANTHROPIC_ADMIN_KEY is configured.
+  billingSource?: BillingSource;
   billingReconciliationEnabled?: boolean;
   bucket: string;
   db: PrismaClient;
@@ -70,6 +74,7 @@ function slotKey(date: Date): string {
 export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<void> {
   const {
     appBaseUrl,
+    billingSource,
     bucket,
     db,
     emailConfig,
@@ -144,12 +149,13 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
         logger,
       );
       break;
-    // Gated cost reconciliation (P8-006). Ships with NullBillingSource until a
-    // real vendor billing client is plugged in.
+    // Gated cost reconciliation (P8-006). Uses the wired billing source
+    // (AnthropicBillingSource when ANTHROPIC_ADMIN_KEY is set), else the
+    // NullBillingSource no-op so the job still runs (records no drift).
     case 'reconcile-cost':
       await runReconcileCost(
         db as Parameters<typeof runReconcileCost>[0],
-        new NullBillingSource(),
+        billingSource ?? new NullBillingSource(),
         {
           logger,
         },
@@ -356,6 +362,7 @@ export function startScheduler(deps: SchedulerDeps): void {
   logger?.info(
     {
       reconcileCost: deps.billingReconciliationEnabled === true,
+      reconcileCostSource: deps.billingSource ? 'anthropic' : 'null',
       syncJira: deps.jiraConfig !== undefined,
     },
     'Job scheduler started (DB-poll every 60s: sweep-retention/index-transcripts/compute-effectiveness; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',

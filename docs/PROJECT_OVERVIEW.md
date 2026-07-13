@@ -284,7 +284,7 @@ operator-triggered `backfill-redaction` job), and **per-team routing accountabil
 | **External business-value join beyond Jira** (Linear / revenue) | product | The Jira per-issue value join now ships (`JIRA_VALUE_FIELD`); a Linear/revenue/business-outcome source is the remaining piece for non-Jira shops. |
 | **Second-agent transcript upload** (opencode) | hook | opencode history is directory-shaped; single-file shippers don't cover it. |
 | **Model-routing *blocking* enforcement** | hook | The `routing_waste` alert + per-team routing-accountability table make waste actionable, but hook-side auto-route/block is intentionally out of scope — the platform is observe-only (`DESIGN_DOC §10.3a`: nothing intercepts a live tool call). "Enforcement" here is visibility + accountability + alert. |
-| **Cost reconciliation is scaffold-only** (`NullBillingSource`) | ingest `reconcile-cost` | Needs a real vendor billing client behind the flag. |
+| **Cost reconciliation beyond Anthropic** | ingest `reconcile-cost` | The Anthropic vendor client now ships (`AnthropicBillingSource`, Admin Cost Report API, `ANTHROPIC_ADMIN_KEY`); other vendors (e.g. OpenAI for Codex) still have no billing source. |
 | **Semantic search prototype gated** (P7-007 no-go) | `sql/prototypes/`, `embed-transcripts` | Requires a self-hosted embedding path + a proven recall gap to revisit. |
 | **Redaction: ML-grade PII (names, phone numbers)** | `packages/redaction` | Regex `email` and `git-remote-url` (URL-embedded credentials) rules now ship; name/phone detection would need an ML pass (deferred, `DESIGN_DOC §9.2`). |
 | **Grant expiry enforced at read-time, not swept** | `apps/web` grant helpers | No background revocation job; fine today, worth noting for audit completeness. |

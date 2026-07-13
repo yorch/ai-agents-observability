@@ -3,6 +3,16 @@ import { z } from 'zod';
 
 const ConfigSchema = z.object({
   admin_secret: z.string().optional(),
+  // Anthropic Admin API key (`sk-ant-admin...`) for the cost-reconciliation
+  // job's vendor-cost source (Cost Report API). When set (and billing
+  // reconciliation is enabled), reconcile-cost compares client-computed cost
+  // against Anthropic's billed cost; unset → NullBillingSource (no comparison).
+  anthropic_admin_key: z.string().optional(),
+  // Base URL for the Anthropic API (override for testing / gov endpoints).
+  anthropic_base_url: z.string().url().default('https://api.anthropic.com'),
+  // Optional: restrict the Cost Report to a single workspace (a dedicated
+  // Claude Code workspace). Unset → the org's total Anthropic spend.
+  anthropic_cost_workspace_id: z.string().optional(),
   // Public base URL of the web app, used to build dashboard links in alert
   // notifications (P9-002). Empty by default — links are then relative.
   app_base_url: z.string().default(''),
@@ -83,6 +93,9 @@ export type Config = z.infer<typeof ConfigSchema>;
 export function loadConfig(): Config {
   return ConfigSchema.parse({
     admin_secret: process.env.ADMIN_SECRET,
+    anthropic_admin_key: process.env.ANTHROPIC_ADMIN_KEY,
+    anthropic_base_url: process.env.ANTHROPIC_BASE_URL,
+    anthropic_cost_workspace_id: process.env.ANTHROPIC_COST_WORKSPACE_ID,
     app_base_url: process.env.APP_BASE_URL,
     billing_reconciliation_enabled: process.env.BILLING_RECONCILIATION_ENABLED,
     database_url: process.env.DATABASE_URL,
