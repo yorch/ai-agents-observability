@@ -157,6 +157,15 @@ describe('env-secret', () => {
     const { flags } = redact('PORT=3000');
     expect(flags).not.toContain('env-secret');
   });
+
+  it('runs in linear time on a long key-like run with no _KEY/_TOKEN suffix', () => {
+    // A long [A-Z0-9_] run (base64 blob / minified code / hash) must not force
+    // O(n²) backtracking as the key prefix hunts for a _KEY/_TOKEN/… suffix.
+    const evil = `${'A'.repeat(200_000)}=x`;
+    const t0 = performance.now();
+    redact(evil);
+    expect(performance.now() - t0).toBeLessThan(250);
+  });
 });
 
 // ── Private key ───────────────────────────────────────────────────────────────
@@ -277,6 +286,15 @@ describe('email', () => {
   it('leaves clean prose unchanged', () => {
     const clean = 'no addresses in this sentence';
     expect(redact(clean).text).toBe(clean);
+  });
+
+  it('runs in linear time on a pathological near-email input', () => {
+    // A long local part + long dotted domain with no valid TLD is the shape that
+    // provokes backtracking; bounded quantifiers must keep it fast.
+    const evil = `${'a'.repeat(100_000)}@${'b.'.repeat(50_000)}`;
+    const t0 = performance.now();
+    redact(evil);
+    expect(performance.now() - t0).toBeLessThan(250);
   });
 });
 
