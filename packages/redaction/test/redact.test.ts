@@ -157,6 +157,17 @@ describe('env-secret', () => {
     const { flags } = redact('PORT=3000');
     expect(flags).not.toContain('env-secret');
   });
+
+  it('runs in linear time on a long key-like run with no _KEY/_TOKEN suffix', () => {
+    // A long [A-Z0-9_] run (base64 blob / minified code / hash) must not force
+    // O(n²) backtracking as the key prefix hunts for a _KEY/_TOKEN/… suffix.
+    // Threshold is generous (shared CI runners are slow) but still an order of
+    // magnitude under the ~10s a quadratic regression takes at this length.
+    const evil = `${'A'.repeat(100_000)}=x`;
+    const t0 = performance.now();
+    redact(evil);
+    expect(performance.now() - t0).toBeLessThan(1_500);
+  });
 });
 
 // ── Private key ───────────────────────────────────────────────────────────────
@@ -207,12 +218,16 @@ describe('property: random alphanum never false-positives on structural rules', 
     fc.assert(
       fc.property(fc.stringMatching(/^[a-z0-9 _-]{1,200}$/), (s) => {
         const { flags } = redact(s);
+        // email / git-remote-url can't match this charset either (no @, ., or
+        // ://), so the invariant covers them too.
         const structuralRules = [
           'aws-access-key',
           'github-token',
           'jwt',
           'slack-token',
           'private-key',
+          'email',
+          'git-remote-url',
         ];
         for (const rule of structuralRules) {
           expect(flags).not.toContain(rule);
@@ -250,5 +265,75 @@ describe('scanRedactionMarkers', () => {
     }`;
     const { text, flags } = redact(line);
     expect(scanRedactionMarkers(text)).toEqual([...flags].sort());
+  });
+});
+
+// ── Email (PII) ───────────────────────────────────────────────────────────────
+
+describe('email', () => {
+  it('redacts all positive cassette examples', () => {
+    const lines = loadCassette('email.txt').split('\n');
+    for (const line of lines) {
+      const { text, flags } = redact(line);
+      expect(flags).toContain('email');
+      expect(text).toContain('[REDACTED:email]');
+    }
+  });
+
+  it('does not flag an @handle or a bare domain (no local@domain.tld shape)', () => {
+    expect(redact('ping @octocat on the thread').flags).not.toContain('email');
+    expect(redact('visit example.com for the docs').flags).not.toContain('email');
+  });
+
+  it('leaves clean prose unchanged', () => {
+    const clean = 'no addresses in this sentence';
+    expect(redact(clean).text).toBe(clean);
+  });
+
+  it('runs in linear time on a pathological near-email input', () => {
+    // A long local part + long dotted domain with no valid TLD is the shape that
+    // provokes backtracking; bounded quantifiers must keep it fast. Threshold is
+    // generous for slow CI runners but far under a quadratic regression.
+    const evil = `${'a'.repeat(50_000)}@${'b.'.repeat(25_000)}`;
+    const t0 = performance.now();
+    redact(evil);
+    expect(performance.now() - t0).toBeLessThan(1_500);
+  });
+});
+
+// ── Git remote URL credentials ────────────────────────────────────────────────
+
+describe('git-remote-url', () => {
+  it('redacts userinfo credentials in all positive cassette examples', () => {
+    const lines = loadCassette('git-remote-url.txt').split('\n');
+    for (const line of lines) {
+      const { text, flags } = redact(line);
+      expect(flags).toContain('git-remote-url');
+      expect(text).toContain('[REDACTED:git-remote-url]@');
+    }
+  });
+
+  it('preserves scheme + host, redacting only the userinfo', () => {
+    const { text } = redact('https://user:pw@github.com/org/repo.git');
+    expect(text).toBe('https://[REDACTED:git-remote-url]@github.com/org/repo.git');
+  });
+
+  it('does not fire on a credential-free URL', () => {
+    expect(redact('clone https://github.com/org/repo.git').flags).not.toContain('git-remote-url');
+    // A path containing @ (not userinfo) must not trigger it either.
+    expect(redact('GET https://api.example.com/v1/@mentions').flags).not.toContain(
+      'git-remote-url',
+    );
+  });
+
+  it('does not clobber a known token already redacted in the userinfo', () => {
+    // github-token runs first and redacts the PAT; git-remote-url must skip the
+    // resulting [REDACTED:github-token] marker rather than replacing it.
+    const { text, flags } = redact(
+      'origin https://ghp_16C7e42F292c6912E169B7B89B29DCA4BCBA@github.com/o/r.git',
+    );
+    expect(flags).toContain('github-token');
+    expect(flags).not.toContain('git-remote-url');
+    expect(text).toContain('[REDACTED:github-token]@github.com');
   });
 });

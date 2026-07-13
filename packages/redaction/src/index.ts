@@ -1,6 +1,8 @@
 import { awsAccessKeyRule } from './rules/aws-access-key';
 import { awsSecretKeyRule } from './rules/aws-secret-key';
+import { emailRule } from './rules/email';
 import { envSecretRule } from './rules/env-secret';
+import { gitRemoteUrlRule } from './rules/git-remote-url';
 import { githubTokenRule } from './rules/github-token';
 import { jwtRule } from './rules/jwt';
 import { privateKeyRule } from './rules/private-key';
@@ -9,6 +11,10 @@ import type { RedactionRule } from './rules/types';
 
 export type { RedactionRule };
 
+// Order matters: the structural secret rules run first so a known token inside a
+// URL's userinfo is redacted with its own class before git-remote-url sees it
+// (git-remote-url then skips the resulting `[REDACTED:…]` marker rather than
+// clobbering it). email runs last — a bare address never overlaps the others.
 const RULES: RedactionRule[] = [
   awsAccessKeyRule,
   awsSecretKeyRule,
@@ -17,6 +23,8 @@ const RULES: RedactionRule[] = [
   slackTokenRule,
   envSecretRule,
   privateKeyRule,
+  gitRemoteUrlRule,
+  emailRule,
 ];
 
 export type RedactionResult = {

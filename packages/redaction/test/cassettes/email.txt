@@ -1,0 +1,4 @@
+Contact the admin at jane.doe@example.com for access
+alice+work@sub.domain.co.uk
+bob_smith99@company.io
+please loop in first.last@team.engineering.acme.dev
