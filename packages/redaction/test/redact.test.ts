@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { redact } from '../src/index';
+import { redact, scanRedactionMarkers } from '../src/index';
 
 function loadCassette(name: string): string {
   return readFileSync(join(import.meta.dirname, 'cassettes', name), 'utf-8').trim();
@@ -220,5 +220,35 @@ describe('property: random alphanum never false-positives on structural rules', 
       }),
       { numRuns: 500 },
     );
+  });
+});
+
+// ── scanRedactionMarkers (inverse of makeRule's marker) ───────────────────────
+
+describe('scanRedactionMarkers', () => {
+  it('returns the distinct, sorted set of redaction classes found', () => {
+    const text =
+      'token [REDACTED:github-token] then [REDACTED:aws-access-key] and again [REDACTED:github-token]';
+    expect(scanRedactionMarkers(text)).toEqual(['aws-access-key', 'github-token']);
+  });
+
+  it('returns an empty array when no markers are present', () => {
+    expect(scanRedactionMarkers('a perfectly clean transcript line')).toEqual([]);
+  });
+
+  it('does not match malformed or partial markers', () => {
+    // Missing closing bracket / empty class / wrong case must not match.
+    expect(scanRedactionMarkers('[REDACTED:github-token [REDACTED:] [redacted:jwt]')).toEqual([]);
+  });
+
+  // Contract enforcement: whatever classes redact() reports, the markers it
+  // leaves behind must be recoverable by scanRedactionMarkers — otherwise the
+  // ingest backfill would under-count. Round-trips real cassette secrets.
+  it('recovers exactly the classes redact() flagged (round-trip)', () => {
+    const line = `${loadCassette('aws-access-key.txt').split('\n')[0]} ${
+      loadCassette('github-token.txt').split('\n')[0]
+    }`;
+    const { text, flags } = redact(line);
+    expect(scanRedactionMarkers(text)).toEqual([...flags].sort());
   });
 });

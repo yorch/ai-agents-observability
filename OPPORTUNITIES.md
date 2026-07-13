@@ -66,8 +66,16 @@ Understanding the opportunity space requires a clear map of what is already capt
 > (cost/PR + revert + CI-clean rate). A **configurable business-value join** now
 > ships too: set `VALUE_PER_STORY_POINT` and `/org/roi` shows value-delivered
 > (delivered story points × the rate) vs agent spend, a net-value figure, and a
-> return multiple. A *true* external revenue/outcome join (pulling real business
-> value rather than a configured per-point rate) remains deferred.
+> return multiple.
+>
+> **True external join shipped (2026-07-11):** the value proxy is no longer the only
+> option. Set `JIRA_VALUE_FIELD` to a Jira custom-field id and the sync-jira job
+> pulls each ticket's real per-issue business value into `jira_issues.business_value`;
+> `/org/roi` then prefers that summed real value over the flat per-point rate,
+> falling back to the proxy (and finally to hiding the section) when no synced
+> ticket carries a value. This closes the "pull real business value rather than a
+> configured per-point rate" gap for Jira; Linear/LaunchDarkly sources remain
+> deferred.
 
 ---
 
@@ -232,12 +240,12 @@ Ranked by **impact-to-effort**, given the current data model and what is already
 
 | # | Opportunity | Impact | Effort | Data ready? | What's missing |
 |---|---|---|---|---|---|
-| 1 | **Model cost optimization** (routing + cache efficiency guidance) | High — potential 30–50% spend reduction | Low | ✅ Per-turn model + cache tokens captured | 🟡 Price-precise routing recommendations + cache guidance on `/org/models`, plus a `routing_waste` alert; automated routing *policy* enforcement (hook-side) still open |
+| 1 | **Model cost optimization** (routing + cache efficiency guidance) | High — potential 30–50% spend reduction | Low | ✅ Per-turn model + cache tokens captured | 🟡 Price-precise routing recommendations + cache guidance on `/org/models`, a `routing_waste` alert, and a per-team **routing accountability** table (premium spend on retrieval-only work) on `/org/models`. Hook-side *blocking* enforcement is intentionally out of scope — the platform is observe-only (`DESIGN_DOC §10.3a`), so "enforcement" is visibility + accountability + alert, not interception |
 | 2 | **MCP portfolio dashboard** (utilization, error rate, SLO) | Medium-High — deprecate waste, surface risk | Low | ✅ `mcp_server` + `tool_exit_status` fully captured | `/org/mcp` page; error-rate column |
-| 3 | **Outcome-based ROI** (cost-per-PR trend, revert correlation, CI correlation) | High — executive-level justification | Medium | ✅ PR rollups, revert flags, CI failures all captured | 🟡 Shipped at `/org/roi` (internal joins); external business-value join still deferred |
+| 3 | **Outcome-based ROI** (cost-per-PR trend, revert correlation, CI correlation) | High — executive-level justification | Medium | ✅ PR rollups, revert flags, CI failures all captured | ✅ Shipped at `/org/roi` (internal joins); external business-value join now shipped for Jira (`JIRA_VALUE_FIELD` → `jira_issues.business_value`), with a flat `VALUE_PER_STORY_POINT` proxy fallback. Linear/LaunchDarkly sources still deferred |
 | 4 | **Developer skill progression** (friction trend, shape shift over time) | Medium-High — retention, training, onboarding | Medium | ✅ Friction + shape computed nightly | 🟡 `/me/insights` friction breakdown + recommendations + per-user weekly shape-shift trend; team/org weekly friction trends; org cohort friction divergence by first-seen month. Longitudinal pre/post-adoption still needs baseline data |
-| 5 | **Budget forecasting & cost allocation** (by team, project, Jira epic) | High — replaces spreadsheet finance | Medium | ✅ Session cost + PR rollup captured | 🟡 Spend forecast (run-rate + budget-rule comparison) shipped on `/org/dashboard`; Jira-epic cost allocation on `/org/roi`; external business-value join still deferred |
-| 6 | **Security data exposure reporting** (sensitive repos, secret hits, MCP egress) | High — compliance buyer | Medium | ✅ Tool categories, redaction metadata, audit log | ✅ `/org/security` shipped — category/repo exposure, MCP egress, large data movements, audit summary, and per-redaction-class secret hits (`sessions.redaction_flags`, forward-looking) |
+| 5 | **Budget forecasting & cost allocation** (by team, project, Jira epic) | High — replaces spreadsheet finance | Medium | ✅ Session cost + PR rollup captured | 🟡 Spend forecast (run-rate + budget-rule comparison) shipped on `/org/dashboard`; Jira-epic cost allocation on `/org/roi`; external business-value join now shipped for Jira (`JIRA_VALUE_FIELD`) |
+| 6 | **Security data exposure reporting** (sensitive repos, secret hits, MCP egress) | High — compliance buyer | Medium | ✅ Tool categories, redaction metadata, audit log | ✅ `/org/security` shipped — category/repo exposure, MCP egress, large data movements, audit summary, and per-redaction-class secret hits (`sessions.redaction_flags`). Populated forward at ingest; an operator-triggered `backfill-redaction` job backfills historical sessions by scanning stored transcripts for `[REDACTED:<class>]` markers |
 | 7 | **Knowledge gap detection** (aggregate transcript topic clustering) | Medium — DX and documentation | Medium-High | ✅ FTS index built | 🟡 `/org/knowledge` shipped (keyword-taxonomy topic reach, small-n suppressed); embedding-based clustering still the upgrade path |
 | 8 | **Code quality correlation** (revert + defect rate by session characteristics) | High — if bug rate correlation holds | High | ⚠️ Internal PR data ready; bug join needs Jira/Linear | External integration + statistical analysis |
 | 9 | **Multi-tool comparison** (Claude vs Cursor vs Copilot) | High — procurement decisions | High | ✅ `agent_type` schema ready; adapters exist for `opencode`, `codex` | 🟡 Comparison table shipped at `/org/agents` (cost/friction/error-rate by `agent_type`); Cursor/Copilot adapters still needed |
