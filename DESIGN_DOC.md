@@ -800,12 +800,14 @@ Before upload to object storage, the client (yes, client-side, because we don't 
 - Slack tokens (`xox[abp]-`)
 - Generic `.env`-style lines (`KEY=value` where key matches `*_KEY`, `*_TOKEN`, `*_SECRET`, `*_PASSWORD`)
 - Private key headers (`-----BEGIN ... PRIVATE KEY-----`)
+- URL-embedded credentials (`scheme://user:secret@host` — the userinfo is scrubbed, scheme/host/path preserved; runs after the token rules so a known token in the password keeps its own class)
+- Email addresses (PII; regex with a required dotted TLD)
 
 Matches are replaced with `[REDACTED:type]` placeholders (square brackets, not angle brackets — the markers must survive being rendered as HTML in the transcript-search excerpt view without being mistaken for a tag). The transcript is tagged `transcript_redacted=true` with a list of redaction classes encountered.
 
 ### 9.2 Deferred Redaction Work
 
-- ML-based PII detection (names, emails of non-employees, phone numbers in customer data)
+- ML-based PII detection (names, phone numbers in customer data). Regex email redaction now ships (§9.1); ML-grade name/phone detection remains deferred.
 - Repo-specific redaction policies (e.g., "this repo touches PHI, scrub harder")
 - Per-user opt-in to stronger redaction tiers
 - Re-redaction sweeps when new patterns are added
@@ -1205,3 +1207,4 @@ Beyond Phase 5, the natural extensions:
 | 2026-06-30 | Jorge (with Claude) | Added §10.3a Human-in-the-loop signals (permission/autonomy mode capture, notification classification, response latency, oversight dashboards, alert ack/silence, `autonomy_surge` rule, AI-authored-code provenance, per-session feedback) following the HITL assessment in `docs/research/2026-06-30-human-in-the-loop-assessment.md` |
 | 2026-07-10 | Jorge (with Claude) | Correlation deepening: session-level `jira_key` + `team_id` FK (§5.2); `pr_check_runs`, `pr_reviews`, `session_commit_links`, `jira_issues` tables + hardened session↔PR backfill (SHA matching, open-PR linking, configurable window, manual link UI) (§5.4); `sync-jira` job (§6.5); `pull_request_review`/`check_run`/`push` webhook handling (§7.2); updated §2.3 and §13 Q6 accordingly |
 | 2026-07-11 | Jorge (with Claude) | Follow-ups: per-team **routing accountability** table on `/org/models` (observe-only substitute for hook-side routing enforcement, `§10.3a`); **true external business-value join** (`JIRA_VALUE_FIELD` → `jira_issues.business_value`, `sync-jira`) preferred over the flat `VALUE_PER_STORY_POINT` proxy on `/org/roi`; operator-triggered `backfill-redaction` job populating `sessions.redaction_flags` for pre-column transcripts by scanning stored text for `[REDACTED:<class>]` markers |
+| 2026-07-13 | Jorge (with Claude) | Two new redaction classes (§9.1): **URL-embedded credentials** (`git-remote-url` — scrubs `scheme://user:secret@host` userinfo, runs after the token rules so a known token keeps its own class) and **email** addresses (PII); fixed `/org/security`'s redaction-class labels to key by the persisted rule names |

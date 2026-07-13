@@ -286,7 +286,7 @@ operator-triggered `backfill-redaction` job), and **per-team routing accountabil
 | **Model-routing *blocking* enforcement** | hook | The `routing_waste` alert + per-team routing-accountability table make waste actionable, but hook-side auto-route/block is intentionally out of scope — the platform is observe-only (`DESIGN_DOC §10.3a`: nothing intercepts a live tool call). "Enforcement" here is visibility + accountability + alert. |
 | **Cost reconciliation is scaffold-only** (`NullBillingSource`) | ingest `reconcile-cost` | Needs a real vendor billing client behind the flag. |
 | **Semantic search prototype gated** (P7-007 no-go) | `sql/prototypes/`, `embed-transcripts` | Requires a self-hosted embedding path + a proven recall gap to revisit. |
-| **Redaction has no email/PII or git-remote-URL rule** | `packages/redaction` | New user-pasted content shapes must add rules; remote-URL PATs slip through. |
+| **Redaction: ML-grade PII (names, phone numbers)** | `packages/redaction` | Regex `email` and `git-remote-url` (URL-embedded credentials) rules now ship; name/phone detection would need an ML pass (deferred, `DESIGN_DOC §9.2`). |
 | **Grant expiry enforced at read-time, not swept** | `apps/web` grant helpers | No background revocation job; fine today, worth noting for audit completeness. |
 | **Cursor/Aider/Copilot/Windsurf are schema-only** | hook adapters | Multi-vendor comparison at `/org/agents` needs their adapters + telemetry contract. |
 | **github-app ignores draft-only PR transitions** | `handlers/pull-request.ts` | `ready_for_review`/`converted_to_draft` don't trigger upsert; `is_draft` lags until next push/close. |

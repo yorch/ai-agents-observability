@@ -1,0 +1,4 @@
+git clone https://alice:s3cr3tPassw0rd@gitlab.com/team/app.git
+git remote add origin https://x-access-token:abc123def456ghi@bitbucket.org/o/r.git
+https://deploy-bot:my-plain-password@git.internal.example.com/infra.git
+fetching from https://svcaccount@nexus.example.net/repo/blob.tar.gz

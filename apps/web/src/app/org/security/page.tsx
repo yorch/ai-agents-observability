@@ -40,13 +40,19 @@ const RISK_STYLES: Record<string, string> = {
   med: 'bg-yellow-500/15 text-yellow-400',
 };
 
+// Keyed by the redaction rule names persisted in sessions.redaction_flags (see
+// packages/redaction) — kebab-case, not the snake_case these labels once used
+// (which never matched, so the table fell back to raw class names).
 const REDACTION_CLASS_LABELS: Record<string, string> = {
-  aws_key: 'AWS key',
-  generic_secret: 'Generic secret / .env',
-  github_pat: 'GitHub PAT',
+  'aws-access-key': 'AWS access key',
+  'aws-secret-key': 'AWS secret key',
+  email: 'Email address',
+  'env-secret': 'Generic secret / .env',
+  'git-remote-url': 'URL credentials',
+  'github-token': 'GitHub token',
   jwt: 'JWT',
-  private_key: 'Private key',
-  slack_token: 'Slack token',
+  'private-key': 'Private key',
+  'slack-token': 'Slack token',
 };
 
 export default async function OrgSecurityPage({
