@@ -327,7 +327,7 @@ async function runMeasure(
 
   for (const query of MEASURE_QUERIES) {
     const embeddings = await embedBatch([query], apiKey, logger);
-    if (!embeddings || !embeddings[0]) {
+    if (!embeddings?.[0]) {
       logger.warn({ query }, 'Could not embed query, skipping');
       continue;
     }

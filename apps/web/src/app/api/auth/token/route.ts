@@ -41,7 +41,7 @@ export const POST = withRouteLogging('auth.token', async (request: Request) => {
   // If the user has no password set (GitHub-only account), burn time with the
   // dummy hash then reject — do NOT fall through to verifyPassword with the
   // sentinel value, which an attacker who knows it could exploit.
-  if (!user || !user.passwordHash) {
+  if (!user?.passwordHash) {
     await getDummyHash();
     return rejectInvalidCredentials(email);
   }

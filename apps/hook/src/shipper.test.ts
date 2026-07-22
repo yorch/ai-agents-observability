@@ -50,7 +50,7 @@ function startMockIngestServer(statusCode = 200): {
     port: 0,
   });
 
-  return { port: server.port, received, server };
+  return { port: server.port ?? 0, received, server };
 }
 
 /** Decompress a zstd buffer into a string. */

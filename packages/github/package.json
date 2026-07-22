@@ -19,7 +19,7 @@
     "@octokit/plugin-enterprise-compatibility": "catalog:"
   },
   "devDependencies": {
-    "@types/node": ">=24",
+    "@types/node": "24.13.3",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
