@@ -145,7 +145,7 @@ function startMockServer(options: {
     port: 0, // random port
   });
 
-  return { port: server.port, received, server };
+  return { port: server.port ?? 0, received, server };
 }
 
 // ── Setup / teardown ─────────────────────────────────────────────────────────
@@ -193,10 +193,10 @@ describe('runImport — auth checks', () => {
 
     const fetchCalls: string[] = [];
     const origFetch = globalThis.fetch;
-    globalThis.fetch = (input: string | URL | Request, _init?: RequestInit) => {
+    globalThis.fetch = ((input: string | URL | Request, _init?: RequestInit) => {
       fetchCalls.push(String(input));
       return origFetch(input, _init);
-    };
+    }) as typeof fetch;
 
     try {
       const code = await runImport(['import', '--dry-run', '--quiet']);

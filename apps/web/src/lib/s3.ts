@@ -42,7 +42,7 @@ export async function streamTranscript(
   const source =
     obj.Body instanceof Readable
       ? obj.Body
-      : Readable.fromWeb(obj.Body as import('stream/web').ReadableStream);
+      : Readable.fromWeb(obj.Body as unknown as import('stream/web').ReadableStream);
   const decompressor = createZstdDecompress();
   // `.pipe` does not forward source errors to the destination — wire them up so
   // an S3 read failure tears down the decompressor (and thus the HTTP response)
@@ -50,5 +50,5 @@ export async function streamTranscript(
   source.on('error', (err) => decompressor.destroy(err));
   source.pipe(decompressor);
 
-  return Readable.toWeb(decompressor) as ReadableStream<Uint8Array>;
+  return Readable.toWeb(decompressor) as unknown as ReadableStream<Uint8Array>;
 }

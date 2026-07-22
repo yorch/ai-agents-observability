@@ -65,7 +65,7 @@ function startMockServer(responses: number[]): {
     port: 0, // random port
   });
 
-  return { port: server.port, received, server };
+  return { port: server.port ?? 0, received, server };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
