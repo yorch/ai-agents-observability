@@ -10,7 +10,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "prisma generate",
+    "build": "bun run db:generate",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "db:generate": "DATABASE_URL=dummy prisma generate",
