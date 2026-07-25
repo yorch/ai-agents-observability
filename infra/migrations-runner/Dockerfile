@@ -23,7 +23,12 @@ COPY packages/schemas/package.json packages/schemas/
 # so this one-shot image stays lean. keytar is never loaded at runtime here (the
 # runner only applies migrations), so no libsecret is needed at runtime.
 RUN apk add --no-cache --virtual .build-deps build-base python3 libsecret-dev \
-  && bun install --frozen-lockfile --ignore-scripts \
+  # The root `postinstall` runs `prisma generate`, so the schema must be present
+  # before install. Copying it here (rather than skipping scripts) keeps native
+  # dependency builds — notably keytar via node-gyp — working.
+  COPY packages/db/prisma.config.ts packages/db/
+  COPY packages/db/prisma packages/db/prisma
+  && bun install --frozen-lockfile \
   && apk del .build-deps
 
 # Source layer
