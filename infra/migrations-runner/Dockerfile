@@ -23,7 +23,7 @@ COPY packages/schemas/package.json packages/schemas/
 # so this one-shot image stays lean. keytar is never loaded at runtime here (the
 # runner only applies migrations), so no libsecret is needed at runtime.
 RUN apk add --no-cache --virtual .build-deps build-base python3 libsecret-dev \
-  && bun install --frozen-lockfile \
+  && bun install --frozen-lockfile --ignore-scripts \
   && apk del .build-deps
 
 # Source layer

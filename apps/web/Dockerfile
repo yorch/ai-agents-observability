@@ -23,7 +23,7 @@ COPY packages/db/package.json packages/db/
 COPY packages/github/package.json packages/github/
 COPY packages/redaction/package.json packages/redaction/
 COPY packages/schemas/package.json packages/schemas/
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 FROM deps AS build
