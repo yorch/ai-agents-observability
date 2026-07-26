@@ -1,30 +1,6 @@
-.git
-.gitignore
 
-# Node / bun
-node_modules
-**/node_modules
-**/.next
-**/dist
-**/.turbo
-**/*.tsbuildinfo
 
-# Env / secrets
-.env
-.env.*
-!.env.example
-!**/.env.example
-
-# Tooling / OS
-.DS_Store
-*.log
-coverage
-.idea
-.vscode
-
-# Docker / docs
-Dockerfile
-.dockerignore
-docker-compose*.yml
-README.md
-docs
+# Local infra state (the docker:infra postgres/minio bind mounts). Root-owned by
+# the container, so sending it as build context both bloats the context and can
+# fail outright with "error from sender: ... permission denied".
+data/
