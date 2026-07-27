@@ -1,61 +1,67 @@
-# Dependencies
+# ── Dependencies ────────────────────────────────────────────────
 node_modules/
 
-# Build outputs
+# ── Build output ────────────────────────────────────────────────
 dist/
 .next/
 *.tsbuildinfo
-
 # Turbo
 .turbo/
-
-# Environment files
-.env
-.env.local
-.env.*.local
-!.env.example
-
-# Bun
-bun.lockb
-.*.bun-build
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Test coverage
-coverage/
-
-# Logs
-*.log
-logs/
-
-# Next.js generated files
-next-env.d.ts
-
-# Compiled hook binaries
-apps/hook/bin/
-apps/hook/dist/
-
 # Prisma generated client
 packages/db/src/generated/
 
-# MinIO local data
-infra/.minio-data/
+# ── Env files ───────────────────────────────────────────────────
+# Ignore every env file except the committed examples.
+# `.env.*` does not match `.env` itself, hence both lines; the negations come
+# last so they win regardless of what appears above.
+.env.local
+.env.*.local
+.env
+.env.*
+!.env.example
+!.env.*.example
 
-# Claude Code internal (worktrees, session state)
-.claude/
-
-# Temporary scripts / scratch files
-/tmp/
-
+# ── Local infra state ───────────────────────────────────────────
+# Local infra volumes created by `docker:infra:up` (root-owned).
+# Anchored to the repo root so it never shadows a source dir named `data`.
 # Data — root-level stack bind mounts only (Postgres/MinIO/Prometheus/Grafana).
 # Anchored with a leading slash so it does NOT match app-level data dirs such as
 # apps/ingest/src/data/ (which holds committed price-table JSON).
 /data/
+
+# ── Editor / IDE ────────────────────────────────────────────────
+# Share project editor config; ignore everything else the editor writes.
+.idea/
+*.swp
+*.swo
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# ── OS ──────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs & caches ───────────────────────────────────────────────
+*.log
+logs/
+
+# ── Testing & coverage ──────────────────────────────────────────
+coverage/
+
+# ── Project-specific ────────────────────────────────────────────
+bun.lockb
+.*.bun-build
+# Next.js generated files
+next-env.d.ts
+# Compiled hook binaries
+apps/hook/bin/
+apps/hook/dist/
+# MinIO local data
+infra/.minio-data/
+# Claude Code internal (worktrees, session state)
+.claude/
+# Temporary scripts / scratch files
+/tmp/
