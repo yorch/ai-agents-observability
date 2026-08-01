@@ -66,10 +66,6 @@
 
   /* Recessive chart grid/axis lines. */
   --color-grid: var(--c-grid);
-
-  /* brand-500 alias keeps any untouched references working */
-  --color-brand-500: var(--c-accent);
-  --color-brand-600: var(--c-accent);
 }
 
 /* ── Dark (default) ───────────────────────────────────────────────────────── */

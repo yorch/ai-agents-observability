@@ -17,7 +17,7 @@ export default async function SettingsPrivacyPage() {
   return (
     <div className="space-y-8 max-w-lg">
       <div>
-        <h2 className="text-lg font-semibold">Privacy</h2>
+        <h2 className="font-display text-lg font-semibold text-text">Privacy</h2>
         <p className="mt-0.5 text-sm text-text-2">
           Control what data is shared with your team and organization.
         </p>

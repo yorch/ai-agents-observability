@@ -25,7 +25,9 @@ export default async function AdminJobsPage() {
     <div className="space-y-6">
       <div>
         <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Admin</p>
-        <h1 className="text-2xl font-semibold">Scheduled Jobs</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+          Scheduled Jobs
+        </h1>
         <p className="mt-1 text-sm text-text-2">
           Toggle, reschedule, and manually trigger nightly jobs. Changes take effect on the next
           60-second scheduler poll.
@@ -142,7 +144,7 @@ export default async function AdminJobsPage() {
                         <input type="hidden" name="jobName" value={cfg.jobName} />
                         <button
                           type="submit"
-                          className="rounded px-3 py-1 text-xs font-medium bg-brand-500 hover:bg-brand-600 text-bg"
+                          className="rounded px-3 py-1 text-xs font-medium bg-accent hover:opacity-90 text-bg"
                         >
                           Run now
                         </button>

@@ -94,7 +94,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       {/* Header */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-start gap-3">
-          <h1 className="text-xl font-semibold flex-1 min-w-0">
+          <h1 className="min-w-0 flex-1 font-display text-xl font-semibold tracking-tight text-text">
             {pr.title ?? `PR #${pr.prNumber}`}
           </h1>
           <StateBadge state={pr.state} />
@@ -204,7 +204,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       {/* Contributing sessions */}
       {pr.contributingSessionIds.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-text-2">
+          <h2 className="font-display text-sm font-semibold text-text">
             Contributing Sessions ({pr.contributingSessionIds.length})
           </h2>
           <div className="rounded-lg border border-border overflow-hidden">

@@ -24,7 +24,9 @@ export function ToolsTab({
     <div className="space-y-4">
       {tools.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="text-xs text-text-3 uppercase tracking-widest mb-3">Tools Used</h3>
+          <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
+            Tools Used
+          </h3>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-text-3 text-xs border-b border-border">
@@ -67,7 +69,9 @@ export function ToolsTab({
 
       {subagents.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="text-xs text-text-3 uppercase tracking-widest mb-3">Subagents Spawned</h3>
+          <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
+            Subagents Spawned
+          </h3>
           <div className="divide-y divide-border">
             {subagents.map((r) => (
               <div key={r.subagentType} className="flex items-center justify-between py-2">

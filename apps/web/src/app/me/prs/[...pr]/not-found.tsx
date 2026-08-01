@@ -4,7 +4,7 @@ import { ArrowLeftIcon } from '@/components/icons';
 export default function PRNotFound() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
-      <h1 className="text-2xl font-semibold">PR not found</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-text">PR not found</h1>
       <p className="mt-2 text-sm text-text-2">
         PR not found or you haven&apos;t contributed to it.
       </p>

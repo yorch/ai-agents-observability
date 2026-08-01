@@ -79,7 +79,9 @@ export default async function OrgTranscriptPage({
           </Link>
         </div>
         <div>
-          <h1 className="text-xl font-semibold">Request transcript access</h1>
+          <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+            Request transcript access
+          </h1>
           <p className="mt-1 text-sm text-text-2">
             {owner} has not shared transcripts with the org. Viewing this transcript is logged and
             visible to {owner} in their own audit feed.
@@ -100,7 +102,7 @@ export default async function OrgTranscriptPage({
           />
           <button
             type="submit"
-            className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-bg hover:bg-brand-600"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
           >
             View with justification
           </button>

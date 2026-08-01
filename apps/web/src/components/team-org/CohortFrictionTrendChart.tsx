@@ -15,7 +15,7 @@ export function CohortFrictionTrendChart({
 }) {
   const header = (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">{title}</h2>
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">{title}</h2>
       <span className="text-[10px] uppercase tracking-wide text-text-3">v{FRICTION_VERSION}</span>
     </div>
   );
@@ -49,8 +49,8 @@ export function CohortFrictionTrendChart({
         role="img"
         aria-label="Weekly median friction score"
       >
-        <path d={area} className="fill-brand-500/15" />
-        <path d={line} className="fill-none stroke-brand-500" strokeWidth={1.5} />
+        <path d={area} className="fill-accent/15" />
+        <path d={line} className="fill-none stroke-accent" strokeWidth={1.5} />
       </svg>
       <div className="mt-2 flex justify-between text-[10px] text-text-3">
         <span>{points[0]?.weekStart}</span>

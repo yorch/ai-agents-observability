@@ -164,7 +164,7 @@ export default async function OrgModelsPage({
           {/* Routing insights */}
           {insights.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-text-2 uppercase tracking-wider">
+              <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
                 Routing opportunities
               </h2>
               {insights.map((ins) => (
@@ -207,7 +207,7 @@ export default async function OrgModelsPage({
 
           {/* Model breakdown table */}
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-text-2 uppercase tracking-wider">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
               Spend by model
             </h2>
             <div className="overflow-x-auto rounded-lg border border-border">
@@ -269,7 +269,7 @@ export default async function OrgModelsPage({
 
           {/* Cache guidance */}
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-text-2 uppercase tracking-wider">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
               Cache efficiency guidance
             </h2>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">

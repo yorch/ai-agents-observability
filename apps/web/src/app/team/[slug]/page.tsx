@@ -55,7 +55,9 @@ export default async function TeamOverviewPage({
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team</p>
-          <h1 className="text-2xl font-semibold">{teamName}</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+            {teamName}
+          </h1>
           <p className="mt-1 text-sm text-text-2">Trailing {range} days</p>
         </div>
         <DateRangePicker range={range} />

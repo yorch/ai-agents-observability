@@ -236,7 +236,7 @@ function DaysSelector({ current }: { current: Days }) {
 function RecommendationsSection({ recs }: { recs: Recommendation[] }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
         Recommendations
       </h2>
       <ul className="space-y-2.5">
@@ -378,7 +378,7 @@ function SectionShell({
 }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">{title}</h2>
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">{title}</h2>
       {empty ? <p className="text-sm text-text-3">No data in this window.</p> : children}
     </section>
   );
@@ -465,7 +465,7 @@ function SkillsSection({
 
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">Skills</h2>
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Skills</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -571,7 +571,7 @@ function SkillSequencesSection({ rows }: { rows: SkillSequenceRow[] }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
       <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+        <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
           Skill workflows
         </h2>
         <p className="mt-1 text-xs text-text-3">
@@ -651,7 +651,7 @@ function SubagentsSection({ rows }: { rows: SubagentUsageRow[] }) {
 function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
         Tool performance
       </h2>
       {rows.length === 0 ? (

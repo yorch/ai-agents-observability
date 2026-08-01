@@ -40,7 +40,7 @@ export default async function AlertsAdminPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold">Alerts</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">Alerts</h1>
         <p className="text-sm text-text-2">
           Rules, notification channels, and history. Notifications carry aggregate signals only —
           never session ids, user handles, or transcript content.
@@ -109,7 +109,7 @@ export default async function AlertsAdminPage() {
                       <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
                       <button
                         type="submit"
-                        className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-brand-500/80 hover:bg-brand-600 text-bg' : 'border border-border hover:bg-surface-2'}`}
+                        className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-accent/80 hover:opacity-90 text-bg' : 'border border-border hover:bg-surface-2'}`}
                       >
                         {r.enabled ? 'Enabled' : 'Disabled'}
                       </button>
@@ -212,7 +212,7 @@ export default async function AlertsAdminPage() {
           />
           <button
             type="submit"
-            className="rounded-md bg-brand-500 px-3 py-1 text-sm font-medium text-bg hover:bg-brand-600"
+            className="rounded-md bg-accent px-3 py-1 text-sm font-medium text-bg hover:opacity-90"
           >
             Add channel
           </button>

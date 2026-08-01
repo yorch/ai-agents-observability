@@ -96,7 +96,7 @@ export default async function OrgDeliveryPage({
       {/* Weekly PR trend */}
       {weeklyTrend.length > 0 && (
         <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-semibold text-text-2 mb-4">
+          <h2 className="mb-4 font-display text-sm font-semibold text-text">
             Weekly merged PRs ({trendWeeks} weeks)
           </h2>
           <div className="flex items-end gap-1 h-24">
@@ -110,7 +110,7 @@ export default async function OrgDeliveryPage({
                 <div key={w.week.toISOString()} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-[10px] text-text-3">{w.mergedPRs}</span>
                   <div
-                    className="w-full rounded-t bg-brand-500/70 min-h-1"
+                    className="w-full rounded-t bg-accent/70 min-h-1"
                     style={{ height: `${height}px` }}
                     title={`${label}: ${w.mergedPRs} PRs · $${w.totalCostUsd.toFixed(2)} total`}
                   />
@@ -124,7 +124,7 @@ export default async function OrgDeliveryPage({
 
       {/* Review health */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Review health ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">Review health ({range}d)</h2>
         {reviews.reviewedPrs === 0 ? (
           <p className="text-sm text-text-3">
             No submitted reviews recorded in this window. Review data arrives via the
@@ -153,7 +153,9 @@ export default async function OrgDeliveryPage({
 
       {/* CI check health */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Failing CI checks ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          Failing CI checks ({range}d)
+        </h2>
         {checkHealth.length === 0 ? (
           <p className="text-sm text-text-3">
             No failing check runs recorded in this window. Per-run outcomes arrive via the check_run
@@ -195,7 +197,9 @@ export default async function OrgDeliveryPage({
 
       {/* Top repos by PR activity */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Top repos by merged PRs ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          Top repos by merged PRs ({range}d)
+        </h2>
         {topRepos.length === 0 ? (
           <p className="text-sm text-text-3">No merged PR data available.</p>
         ) : (

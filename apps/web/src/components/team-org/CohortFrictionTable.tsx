@@ -23,7 +23,7 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
 
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-text-2">Cohort friction divergence</h2>
+      <h2 className="font-display text-sm font-semibold text-text">Cohort friction divergence</h2>
       <p className="text-xs text-text-2">
         Median friction by first-seen-month cohort. Diverging newer cohorts may signal an onboarding
         or enablement gap. Aggregate, ≥3 devs per cohort.

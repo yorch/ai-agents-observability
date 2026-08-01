@@ -55,7 +55,7 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
           }}
           maxLength={120}
           placeholder="Your name"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
       </div>
 
@@ -72,7 +72,7 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
             setStatus(null);
           }}
           placeholder="you@example.com"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
         <p className="text-xs text-text-3">
           Overrides the email synced from GitHub. Leave blank to use your GitHub email.
@@ -84,7 +84,7 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
           type="button"
           onClick={handleSave}
           disabled={isPending}
-          className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-bg hover:bg-brand-600 transition-colors disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90 transition-colors disabled:opacity-50"
         >
           {isPending ? 'Saving…' : 'Save profile'}
         </button>

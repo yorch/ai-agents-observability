@@ -107,7 +107,7 @@ export default async function GrantsPage() {
 
       {active.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">Active</h2>
+          <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Active</h2>
           {active.map((g) => (
             <GrantCard key={g.id} grant={g} status="active" />
           ))}
@@ -116,7 +116,7 @@ export default async function GrantsPage() {
 
       {pending.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+          <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
             Pending approval
           </h2>
           {pending.map((g) => (
@@ -127,7 +127,7 @@ export default async function GrantsPage() {
 
       {past.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">Past</h2>
+          <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Past</h2>
           {past.map((g) => (
             <GrantCard key={g.id} grant={g} status={grantStatus(g)} />
           ))}

@@ -25,7 +25,7 @@ export default async function OrgRolesAdminPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold">Org roles</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">Org roles</h1>
         <p className="text-sm text-text-2">
           Assign org-level roles. <span className="text-text-2">investigator</span> grants aggregate
           access plus the ability to request time-boxed access grants — never standing access to
@@ -64,7 +64,7 @@ export default async function OrgRolesAdminPage() {
                   </select>
                   <button
                     type="submit"
-                    className="rounded-md bg-brand-500 px-3 py-1 text-xs font-medium text-bg hover:bg-brand-600"
+                    className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-bg hover:opacity-90"
                   >
                     Save
                   </button>

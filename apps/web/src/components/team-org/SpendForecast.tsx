@@ -54,7 +54,7 @@ export function SpendForecast({
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-text-2">Spend forecast</h2>
+        <h2 className="font-display text-sm font-semibold text-text">Spend forecast</h2>
         <p className="mt-0.5 text-xs text-text-3">
           Run-rate projection from recent spend — a planning estimate, not a guarantee.
         </p>

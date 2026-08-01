@@ -112,7 +112,7 @@ export default async function OrgSearchPage({
     <div className="space-y-6">
       <div>
         <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Org</p>
-        <h1 className="text-2xl font-semibold">Search</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Search</h1>
         <p className="mt-1 text-sm text-text-2">
           Faceted session search · transcript full-text search
         </p>
@@ -335,7 +335,7 @@ export default async function OrgSearchPage({
               />
               <button
                 type="submit"
-                className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-bg hover:bg-brand-600"
+                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
               >
                 Search
               </button>
@@ -345,7 +345,7 @@ export default async function OrgSearchPage({
           {/* Transcript results */}
           {query && (
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold text-text-2">
+              <h2 className="font-display text-sm font-semibold text-text">
                 Transcript matches for &quot;{query}&quot;
               </h2>
               {transcriptResults.length === 0 ? (
@@ -365,7 +365,7 @@ export default async function OrgSearchPage({
                         <span>·</span>
                         <a
                           href={`/org/sessions/${r.sessionId}`}
-                          className="text-brand-400 hover:underline font-mono"
+                          className="text-accent hover:underline font-mono"
                         >
                           {r.sessionId.slice(0, 8)}…
                         </a>
@@ -386,7 +386,7 @@ export default async function OrgSearchPage({
           {/* Session results */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-text-2">
+              <h2 className="font-display text-sm font-semibold text-text">
                 Sessions {sessionResults.total > 0 && `(${sessionResults.total})`}
               </h2>
               {totalPages > 1 && (
@@ -394,7 +394,7 @@ export default async function OrgSearchPage({
                   {page > 1 && (
                     <a
                       href={buildUrl(params, { page: page - 1 })}
-                      className="inline-flex items-center gap-1 text-brand-400 hover:underline"
+                      className="inline-flex items-center gap-1 text-accent hover:underline"
                     >
                       <ArrowLeftIcon /> Prev
                     </a>
@@ -405,7 +405,7 @@ export default async function OrgSearchPage({
                   {page < totalPages && (
                     <a
                       href={buildUrl(params, { page: page + 1 })}
-                      className="inline-flex items-center gap-1 text-brand-400 hover:underline"
+                      className="inline-flex items-center gap-1 text-accent hover:underline"
                     >
                       Next <ArrowRightIcon />
                     </a>
@@ -437,7 +437,7 @@ export default async function OrgSearchPage({
                         <td className="py-2">
                           <a
                             href={`/org/sessions/${s.sessionId}`}
-                            className="font-mono text-xs text-brand-400 hover:underline"
+                            className="font-mono text-xs text-accent hover:underline"
                           >
                             {s.sessionId.slice(0, 8)}…
                           </a>

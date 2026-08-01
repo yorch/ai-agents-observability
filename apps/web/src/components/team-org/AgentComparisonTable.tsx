@@ -19,7 +19,7 @@ export function AgentComparisonTable({ rows }: { rows: AgentComparisonRow[] }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
       <div>
-        <h2 className="text-sm font-semibold text-text-2">Agent comparison</h2>
+        <h2 className="font-display text-sm font-semibold text-text">Agent comparison</h2>
         <p className="text-xs text-text-3">
           Cost efficiency and outcome quality by coding agent · aggregate, visibility-scoped
         </p>

@@ -216,7 +216,9 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Pull Requests</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+        Pull Requests
+      </h1>
 
       {/* Summary stats */}
       {total > 0 && (
@@ -246,7 +248,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
             id="state-filter"
             name="state"
             defaultValue={stateFilter}
-            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
           >
             <option value="all">All states</option>
             <option value="open">Open</option>
@@ -256,7 +258,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
 
         <button
           type="submit"
-          className="rounded-md bg-brand-500 px-4 py-1.5 text-sm font-medium text-bg hover:bg-brand-600 transition-colors"
+          className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-bg hover:opacity-90 transition-colors"
         >
           Filter
         </button>

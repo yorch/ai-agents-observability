@@ -7,7 +7,7 @@ import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTr
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable';
 import { SpendForecast } from '@/components/team-org/SpendForecast';
-import { Stat } from '@/components/ui';
+import { axisMoney, BarChart, Card, Stat } from '@/components/ui';
 import { getOrgCohortFriction } from '@/lib/cohort-queries';
 import {
   getActiveBudget,
@@ -106,7 +106,9 @@ export default async function OrgDashboardPage({
       <div className="flex justify-between items-start">
         <div>
           <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Org</p>
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+            Dashboard
+          </h1>
           <p className="mt-1 text-sm text-text-2">Trailing {range} days · aggregate view</p>
         </div>
         <DateRangePicker range={range} />
@@ -157,10 +159,19 @@ export default async function OrgDashboardPage({
 
       {/* Weekly cost trend */}
       {trend.length > 0 && (
-        <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-semibold text-text-2 mb-4">Weekly cost trend</h2>
-          <WeeklyTrendBars trend={trend} />
-        </section>
+        <Card title="Weekly cost trend" caption="Twelve weeks" hint="hover for detail">
+          <BarChart
+            data={trend.map((t) => ({
+              label: new Date(t.day).toLocaleDateString(undefined, {
+                day: 'numeric',
+                month: 'short',
+              }),
+              values: [t.costUsd],
+            }))}
+            format={axisMoney}
+            series={['Spend']}
+          />
+        </Card>
       )}
 
       {/* Spend forecast */}
@@ -178,7 +189,7 @@ export default async function OrgDashboardPage({
       <div className="grid gap-6 md:grid-cols-2">
         {/* Cost by team */}
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-text-2">Cost by team (top 10)</h2>
+          <h2 className="font-display text-sm font-semibold text-text">Cost by team (top 10)</h2>
           {teamCost.length === 0 ? (
             <p className="text-sm text-text-3">No team data available.</p>
           ) : (
@@ -196,7 +207,7 @@ export default async function OrgDashboardPage({
                   <tr key={t.teamSlug}>
                     <td className="py-2">
                       {isAdmin ? (
-                        <a href={`/team/${t.teamSlug}`} className="text-brand-400 hover:underline">
+                        <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
                           {t.teamName}
                         </a>
                       ) : (
@@ -215,7 +226,7 @@ export default async function OrgDashboardPage({
 
         {/* Cost by repo */}
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-text-2">Cost by repo (top 10)</h2>
+          <h2 className="font-display text-sm font-semibold text-text">Cost by repo (top 10)</h2>
           {repoCost.length === 0 ? (
             <p className="text-sm text-text-3">No repo data available.</p>
           ) : (
@@ -246,7 +257,7 @@ export default async function OrgDashboardPage({
       <div className="grid gap-6 md:grid-cols-2">
         {/* Model mix */}
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-text-2">Cost by model</h2>
+          <h2 className="font-display text-sm font-semibold text-text">Cost by model</h2>
           {modelCost.length === 0 ? (
             <p className="text-sm text-text-3">No model data available.</p>
           ) : (
@@ -261,7 +272,7 @@ export default async function OrgDashboardPage({
                     </div>
                     <div className="h-1.5 rounded-full bg-surface-2">
                       <div
-                        className="h-full rounded-full bg-brand-500"
+                        className="h-full rounded-full bg-accent"
                         style={{ width: `${pct.toFixed(1)}%` }}
                       />
                     </div>
@@ -298,32 +309,6 @@ export default async function OrgDashboardPage({
           role.
         </p>
       )}
-    </div>
-  );
-}
-
-function WeeklyTrendBars({ trend }: { trend: { costUsd: number; day: Date }[] }) {
-  const max = Math.max(...trend.map((t) => t.costUsd), 0.01);
-  return (
-    <div className="flex items-end gap-1 h-24">
-      {trend.map((t) => {
-        const height = Math.max(4, (t.costUsd / max) * 96);
-        const label = new Date(t.day).toLocaleDateString(undefined, {
-          day: 'numeric',
-          month: 'short',
-        });
-        return (
-          <div key={t.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
-            <span className="text-[10px] text-text-3">${t.costUsd.toFixed(0)}</span>
-            <div
-              className="w-full rounded-t bg-brand-500/70 min-h-1"
-              style={{ height: `${height}px` }}
-              title={`${label}: $${t.costUsd.toFixed(2)}`}
-            />
-            <span className="text-[9px] text-text-3">{label}</span>
-          </div>
-        );
-      })}
     </div>
   );
 }

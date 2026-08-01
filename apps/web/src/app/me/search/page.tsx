@@ -28,7 +28,9 @@ export default async function MeSearchPage({
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
       <div>
-        <h1 className="text-2xl font-semibold">Search my transcripts</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+          Search my transcripts
+        </h1>
         <p className="mt-1 text-sm text-text-2">
           Full-text search across your own session transcripts.
         </p>
@@ -45,7 +47,7 @@ export default async function MeSearchPage({
         />
         <button
           type="submit"
-          className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-bg hover:bg-brand-600"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
         >
           Search
         </button>
@@ -60,7 +62,7 @@ export default async function MeSearchPage({
       {results && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-text-2">
+            <h2 className="font-display text-sm font-semibold text-text">
               Matches {results.total > 0 && `(${results.total} sessions)`}
             </h2>
             {totalPages > 1 && (
@@ -68,7 +70,7 @@ export default async function MeSearchPage({
                 {page > 1 && (
                   <a
                     href={buildUrl(query, page - 1)}
-                    className="inline-flex items-center gap-1 text-brand-400 hover:underline"
+                    className="inline-flex items-center gap-1 text-accent hover:underline"
                   >
                     <ArrowLeftIcon /> Prev
                   </a>
@@ -79,7 +81,7 @@ export default async function MeSearchPage({
                 {page < totalPages && (
                   <a
                     href={buildUrl(query, page + 1)}
-                    className="inline-flex items-center gap-1 text-brand-400 hover:underline"
+                    className="inline-flex items-center gap-1 text-accent hover:underline"
                   >
                     Next <ArrowRightIcon />
                   </a>
@@ -104,7 +106,7 @@ export default async function MeSearchPage({
                     <span>·</span>
                     <a
                       href={`/me/sessions/${s.sessionId}/transcript`}
-                      className="font-mono text-brand-400 hover:underline"
+                      className="font-mono text-accent hover:underline"
                     >
                       open transcript
                     </a>

@@ -25,7 +25,9 @@ export default async function RetentionAdminPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold">Transcript retention</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+          Transcript retention
+        </h1>
         <p className="text-sm text-text-2">
           Per-team transcript retention overrides. Blank = global default ({GLOBAL_DEFAULT_DAYS}{' '}
           days). Overrides are clamped to the org maximum ({ORG_MAX_DAYS} days). Changes are
@@ -65,7 +67,7 @@ export default async function RetentionAdminPage() {
                   />
                   <button
                     type="submit"
-                    className="rounded-md bg-brand-500 px-3 py-1 text-xs font-medium text-bg hover:bg-brand-600"
+                    className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-bg hover:opacity-90"
                   >
                     Save
                   </button>

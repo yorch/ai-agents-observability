@@ -60,7 +60,7 @@ export default async function OrgQualityPage({
 
       {/* Outcome rates by friction band */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">
+        <h2 className="font-display text-sm font-semibold text-text">
           PR outcomes by session friction ({range}d)
         </h2>
         {totalPrs === 0 ? (
@@ -140,7 +140,7 @@ export default async function OrgQualityPage({
 
       {/* Defect attribution */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">
+        <h2 className="font-display text-sm font-semibold text-text">
           Bugs linked to tracked work ({range}d)
         </h2>
         {defects.length === 0 ? (

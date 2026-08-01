@@ -53,7 +53,9 @@ export default async function TeamMemberSessionsPage({
 
       <div>
         <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team member</p>
-        <h1 className="text-2xl font-semibold">{displayName}</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+          {displayName}
+        </h1>
         {member.displayName && <p className="text-xs text-text-3 mt-0.5">@{member.githubLogin}</p>}
         <p className="mt-1 text-sm text-text-2">{total} sessions total</p>
       </div>

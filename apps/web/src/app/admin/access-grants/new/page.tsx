@@ -9,7 +9,9 @@ export default async function NewAccessGrantPage() {
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold">Request access grant</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+          Request access grant
+        </h1>
         <p className="text-sm text-text-2">
           Request time-boxed access to a transcript (§8.4). The request grants nothing until an
           org_admin approves it with an expiry. Every step is audited and visible to the viewed
@@ -74,7 +76,7 @@ export default async function NewAccessGrantPage() {
         <div className="flex gap-2">
           <button
             type="submit"
-            className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-bg hover:bg-brand-600"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
           >
             Submit request
           </button>

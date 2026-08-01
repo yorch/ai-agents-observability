@@ -21,7 +21,7 @@ export function RoutingRecommendations({
 }: RoutingRecommendationsProps) {
   return (
     <div className="space-y-3">
-      <h2 className="text-sm font-semibold text-text-2 uppercase tracking-wider">
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
         Routing recommendations
       </h2>
 

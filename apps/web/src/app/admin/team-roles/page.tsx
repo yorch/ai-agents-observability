@@ -23,7 +23,7 @@ export default async function TeamRolesAdminPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold">Team roles</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">Team roles</h1>
         <p className="text-sm text-text-2">
           Grant or revoke team-lead access. Leads can view their team&apos;s sessions and cost.
           Access is assigned explicitly here — it is never inferred from GitHub team roles.
@@ -54,7 +54,7 @@ export default async function TeamRolesAdminPage() {
                         <span className="text-text">{name}</span>
                         <span
                           className={`rounded px-1.5 py-0.5 text-xs ${
-                            isLead ? 'bg-brand-500/20 text-brand-300' : 'bg-surface-2 text-text-3'
+                            isLead ? 'bg-accent/20 text-accent' : 'bg-surface-2 text-text-3'
                           }`}
                         >
                           {m.roleInTeam}

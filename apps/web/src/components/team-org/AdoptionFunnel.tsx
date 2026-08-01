@@ -40,7 +40,7 @@ export function AdoptionFunnel({
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-text-2">Adoption funnel</h2>
+      <h2 className="font-display text-sm font-semibold text-text">Adoption funnel</h2>
       <div className="space-y-2">
         {rows.map(({ label, value, delta }) => (
           <div key={label} className="flex justify-between">

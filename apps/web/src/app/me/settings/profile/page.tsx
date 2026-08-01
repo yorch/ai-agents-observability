@@ -13,7 +13,7 @@ export default async function SettingsProfilePage() {
   return (
     <div className="space-y-6 max-w-lg">
       <div>
-        <h2 className="text-lg font-semibold">Profile</h2>
+        <h2 className="font-display text-lg font-semibold text-text">Profile</h2>
         <p className="mt-0.5 text-sm text-text-2">Update your display name and email address.</p>
       </div>
       <ProfileForm

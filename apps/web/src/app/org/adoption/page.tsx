@@ -63,7 +63,7 @@ export default async function OrgAdoptionPage({
 
       {/* Weekly active users trend */}
       <section className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-semibold text-text-2 mb-4">
+        <h2 className="mb-4 font-display text-sm font-semibold text-text">
           Weekly active users (trailing {range} days)
         </h2>
         {weeklyTrend.length === 0 ? (
@@ -76,7 +76,9 @@ export default async function OrgAdoptionPage({
       <div className="grid gap-6 md:grid-cols-2">
         {/* Session frequency distribution */}
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-text-2">Session frequency ({range}d)</h2>
+          <h2 className="font-display text-sm font-semibold text-text">
+            Session frequency ({range}d)
+          </h2>
           <p className="text-xs text-text-3">
             Among org-sharing users — how often are they using Claude Code?
           </p>
@@ -97,7 +99,7 @@ export default async function OrgAdoptionPage({
                     </div>
                     <div className="h-2 rounded-full bg-surface-2">
                       <div
-                        className={`h-full rounded-full ${b.bucket === 'Inactive' ? 'bg-surface-3' : 'bg-brand-500/70'}`}
+                        className={`h-full rounded-full ${b.bucket === 'Inactive' ? 'bg-surface-3' : 'bg-accent/70'}`}
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>
@@ -110,7 +112,9 @@ export default async function OrgAdoptionPage({
 
         {/* Adoption by team */}
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-text-2">Team adoption rate ({range}d)</h2>
+          <h2 className="font-display text-sm font-semibold text-text">
+            Team adoption rate ({range}d)
+          </h2>
           <p className="text-xs text-text-3">
             Active members / total team members with sessions in the window.
           </p>
@@ -131,7 +135,7 @@ export default async function OrgAdoptionPage({
                   <tr key={t.teamSlug}>
                     <td className="py-2">
                       {isAdmin ? (
-                        <a href={`/team/${t.teamSlug}`} className="text-brand-400 hover:underline">
+                        <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
                           {t.teamName}
                         </a>
                       ) : (
@@ -172,7 +176,7 @@ function ActiveUsersBars({ trend }: { trend: { activeUsers: number; day: Date }[
           <div key={t.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
             <span className="text-[10px] text-text-3">{t.activeUsers}</span>
             <div
-              className="w-full rounded-t bg-brand-500/70 min-h-1"
+              className="w-full rounded-t bg-accent/70 min-h-1"
               style={{ height: `${height}px` }}
               title={`${label}: ${t.activeUsers} active users`}
             />

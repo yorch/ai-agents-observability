@@ -46,7 +46,9 @@ export default async function GovernancePage({
     <div className="space-y-8">
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold">Governance &amp; oversight</h1>
+          <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+            Governance &amp; oversight
+          </h1>
           <p className="max-w-2xl text-sm text-text-2">
             Aggregate evidence of agent autonomy and privileged-access governance over the selected
             window. Oversight evidence for AI-coding governance (EU AI Act Art. 14 / NIST AI RMF /

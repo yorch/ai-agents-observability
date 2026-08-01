@@ -4,7 +4,7 @@ export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Merged PRs</h2>
+        <h2 className="font-display text-sm font-semibold text-text">Merged PRs</h2>
         <p className="text-sm text-text-3">No merged PRs in this period.</p>
       </div>
     );
@@ -12,7 +12,7 @@ export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-text-2">Merged PRs</h2>
+      <h2 className="font-display text-sm font-semibold text-text">Merged PRs</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -37,7 +37,7 @@ export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
                     href={`https://github.com/${row.repoOwner}/${row.repoName}/pull/${row.prNumber}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-brand-400 hover:underline font-mono text-xs"
+                    className="text-accent hover:underline font-mono text-xs"
                   >
                     #{row.prNumber}
                   </a>

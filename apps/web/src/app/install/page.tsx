@@ -21,7 +21,9 @@ export default function InstallPage() {
       </div>
 
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold">Install the telemetry hook</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+          Install the telemetry hook
+        </h1>
         <p className="text-sm text-text-2">
           The hook is a lightweight CLI that runs on your machine alongside Claude Code, capturing
           session events and shipping them to this dashboard.
@@ -31,7 +33,7 @@ export default function InstallPage() {
       {/* Step 1 — Download */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-500/20 text-xs font-semibold text-brand-400 border border-brand-500/30">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent border border-accent/30">
             1
           </span>
           <h2 className="text-base font-medium">Download the binary</h2>
@@ -41,7 +43,7 @@ export default function InstallPage() {
           Pick the binary for your platform from the{' '}
           <a
             href="https://github.com/ai-agents-observability/releases/latest"
-            className="text-brand-400 hover:underline"
+            className="text-accent hover:underline"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -79,7 +81,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
       {/* Step 2 — Install hooks */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-500/20 text-xs font-semibold text-brand-400 border border-brand-500/30">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent border border-accent/30">
             2
           </span>
           <h2 className="text-base font-medium">Install Claude Code hooks</h2>
@@ -97,7 +99,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
       {/* Step 3 — Log in */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-500/20 text-xs font-semibold text-brand-400 border border-brand-500/30">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent border border-accent/30">
             3
           </span>
           <h2 className="text-base font-medium">Authenticate</h2>
@@ -125,7 +127,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
         </div>
         <p className="text-sm text-text-2">
           Start a Claude Code session. After it ends, refresh your{' '}
-          <Link href="/me" className="text-brand-400 hover:underline">
+          <Link href="/me" className="text-accent hover:underline">
             My Agents
           </Link>{' '}
           page — you should see the session appear within a few seconds.
@@ -151,7 +153,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
         </div>
         <p className="text-xs text-text-3">
           You can also manage privacy settings from the{' '}
-          <Link href="/me/privacy" className="text-brand-400 hover:underline">
+          <Link href="/me/privacy" className="text-accent hover:underline">
             Privacy
           </Link>{' '}
           page.

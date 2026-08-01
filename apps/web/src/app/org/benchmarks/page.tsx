@@ -69,7 +69,9 @@ export default async function OrgBenchmarksPage({
 
       {/* Org median reference */}
       <section className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-semibold text-text-2 mb-3">Org medians (baseline)</h2>
+        <h2 className="mb-3 font-display text-sm font-semibold text-text">
+          Org medians (baseline)
+        </h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <MedianCard
             label="Cost / session"
@@ -107,7 +109,7 @@ export default async function OrgBenchmarksPage({
         </section>
       ) : (
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-text-2">Team comparison</h2>
+          <h2 className="font-display text-sm font-semibold text-text">Team comparison</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -126,7 +128,7 @@ export default async function OrgBenchmarksPage({
                   <tr key={t.teamSlug}>
                     <td className="py-2 pr-4">
                       {isAdmin ? (
-                        <a href={`/team/${t.teamSlug}`} className="text-brand-400 hover:underline">
+                        <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
                           {t.teamName}
                         </a>
                       ) : (

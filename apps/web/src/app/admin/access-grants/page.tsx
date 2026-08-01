@@ -65,7 +65,7 @@ function GrantCard({ g }: { g: Grant }) {
             />
             <button
               type="submit"
-              className="rounded-md bg-brand-500 px-3 py-1 text-xs font-medium text-bg hover:bg-brand-600"
+              className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-bg hover:opacity-90"
             >
               Approve (h)
             </button>
@@ -102,7 +102,9 @@ export default async function AccessGrantsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold">Access grants</h1>
+          <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+            Access grants
+          </h1>
           <p className="text-sm text-text-2">
             Time-boxed, audited transcript access (§8.4). Approve a request to grant access for a
             bounded window; revoke any time. The viewed user sees every grant in their audit feed.
@@ -110,7 +112,7 @@ export default async function AccessGrantsPage() {
         </div>
         <a
           href="/admin/access-grants/new"
-          className="rounded-md bg-brand-500 px-3 py-1.5 text-sm font-medium text-bg hover:bg-brand-600"
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:opacity-90"
         >
           New request
         </a>
@@ -137,7 +139,7 @@ export default async function AccessGrantsPage() {
               />
               <button
                 type="submit"
-                className="rounded-md border border-brand-500/60 px-3 py-1 text-xs font-medium text-brand-200 hover:bg-brand-500/10"
+                className="rounded-md border border-accent/60 px-3 py-1 text-xs font-medium text-accent hover:bg-accent/10"
               >
                 Approve all ({pending.length})
               </button>

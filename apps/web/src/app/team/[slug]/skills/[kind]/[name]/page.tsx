@@ -63,7 +63,7 @@ export default async function TeamSkillDetailPage({
             {' / '}
             <span className="capitalize">{kind}</span>
           </p>
-          <h1 className="text-2xl font-semibold font-mono">/{name}</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">/{name}</h1>
           <p className="mt-1 text-sm text-text-2">Trailing {range} days</p>
         </div>
         <DateRangePicker range={range} />
@@ -89,7 +89,9 @@ export default async function TeamSkillDetailPage({
       {/* Daily trend */}
       {trend.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="text-xs text-text-3 uppercase tracking-widest mb-3">Daily invocations</h3>
+          <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
+            Daily invocations
+          </h3>
           <div className="flex items-end gap-1 h-20">
             {trend.map((r) => (
               <div
@@ -144,7 +146,9 @@ export default async function TeamSkillDetailPage({
       {/* Top users */}
       {topUsers.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="text-xs text-text-3 uppercase tracking-widest mb-3">Top users</h3>
+          <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
+            Top users
+          </h3>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-text-3 text-xs border-b border-border">

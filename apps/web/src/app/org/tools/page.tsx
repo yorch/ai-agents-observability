@@ -95,7 +95,7 @@ export default async function OrgToolsPage({
       {/* Daily volume trend */}
       {dailyVolume.length > 0 && (
         <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-semibold text-text-2 mb-4">
+          <h2 className="mb-4 font-display text-sm font-semibold text-text">
             Daily tool call volume ({range}d)
           </h2>
           <DailyVolumeBars volume={dailyVolume} />
@@ -104,7 +104,7 @@ export default async function OrgToolsPage({
 
       {/* Top tools table */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Top tools ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">Top tools ({range}d)</h2>
         {tools.length === 0 ? (
           <p className="text-sm text-text-3">No tool data available.</p>
         ) : (
@@ -115,7 +115,7 @@ export default async function OrgToolsPage({
       <div className="grid gap-6 md:grid-cols-2">
         {/* Category breakdown */}
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-text-2">By category</h2>
+          <h2 className="font-display text-sm font-semibold text-text">By category</h2>
           {categories.length === 0 ? (
             <p className="text-sm text-text-3">No data available.</p>
           ) : (
@@ -125,7 +125,7 @@ export default async function OrgToolsPage({
 
         {/* MCP servers */}
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-text-2">MCP servers</h2>
+          <h2 className="font-display text-sm font-semibold text-text">MCP servers</h2>
           {mcpServers.length === 0 ? (
             <p className="text-sm text-text-3">No MCP usage in this period.</p>
           ) : (
@@ -136,7 +136,7 @@ export default async function OrgToolsPage({
 
       {/* Skills & slash commands — always rendered so the section is visible even before data */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Skills & slash commands</h2>
+        <h2 className="font-display text-sm font-semibold text-text">Skills & slash commands</h2>
         {skills.length === 0 ? (
           <p className="text-sm text-text-3">
             No skill or slash command invocations in the last {range} days. Skills are captured when
@@ -153,7 +153,7 @@ export default async function OrgToolsPage({
       {teamSkillMatrix.length > 0 && (
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
           <div>
-            <h2 className="text-sm font-semibold text-text-2">Skill adoption by team</h2>
+            <h2 className="font-display text-sm font-semibold text-text">Skill adoption by team</h2>
             <p className="text-xs text-text-3 mt-0.5">Which skills each team uses most</p>
           </div>
           <TeamSkillMatrix rows={teamSkillMatrix} />
@@ -164,7 +164,7 @@ export default async function OrgToolsPage({
       {skillSequences.length > 0 && (
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
           <div>
-            <h2 className="text-sm font-semibold text-text-2">Skill workflows</h2>
+            <h2 className="font-display text-sm font-semibold text-text">Skill workflows</h2>
             <p className="text-xs text-text-3 mt-0.5">
               Most common consecutive skill pairs within sessions
             </p>
@@ -177,7 +177,7 @@ export default async function OrgToolsPage({
       {skillRoi.length > 0 && (
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
           <div>
-            <h2 className="text-sm font-semibold text-text-2">Skill × PR CI status</h2>
+            <h2 className="font-display text-sm font-semibold text-text">Skill × PR CI status</h2>
             <p className="text-xs text-text-3 mt-0.5">
               Sessions using each skill, broken down by PR CI outcome
             </p>
@@ -204,7 +204,7 @@ function DailyVolumeBars({ volume }: { volume: DailyToolVolumeRow[] }) {
           <div key={v.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
             <span className="text-[9px] text-text-3">{v.callCount}</span>
             <div
-              className="w-full rounded-t bg-brand-500/70 relative min-h-1"
+              className="w-full rounded-t bg-accent/70 relative min-h-1"
               style={{ height: `${height}px` }}
               title={`${label}: ${v.callCount} calls, ${v.denyCount} denied`}
             >
@@ -249,7 +249,7 @@ function ToolsTable({ tools }: { tools: ToolStatRow[] }) {
                   </span>
                   <div className="h-1 w-full rounded-full bg-surface">
                     <div
-                      className="h-full rounded-full bg-brand-500/60"
+                      className="h-full rounded-full bg-accent/60"
                       style={{ width: `${(t.callCount / maxCalls) * 100}%` }}
                     />
                   </div>
@@ -300,7 +300,7 @@ function CategoryBreakdown({ categories }: { categories: CategoryStatRow[] }) {
             </div>
             <div className="h-1.5 rounded-full bg-surface-2">
               <div
-                className="h-full rounded-full bg-brand-500"
+                className="h-full rounded-full bg-accent"
                 style={{ width: `${pct.toFixed(1)}%` }}
               />
             </div>
@@ -383,7 +383,7 @@ function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skill
                     <span className="font-mono text-xs text-text">{s.name}</span>
                     <div className="h-1 w-full rounded-full bg-surface">
                       <div
-                        className="h-full rounded-full bg-brand-500/60"
+                        className="h-full rounded-full bg-accent/60"
                         style={{ width: `${(s.callCount / maxCalls) * 100}%` }}
                       />
                     </div>
@@ -392,9 +392,7 @@ function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skill
                 <td className="py-2">
                   <span
                     className={`text-xs px-1.5 py-0.5 rounded font-mono ${
-                      s.kind === 'skill'
-                        ? 'bg-brand-500/20 text-brand-400'
-                        : 'bg-surface-2 text-text-2'
+                      s.kind === 'skill' ? 'bg-accent/20 text-accent' : 'bg-surface-2 text-text-2'
                     }`}
                   >
                     {s.kind === 'skill' ? 'skill' : '/cmd'}
@@ -463,7 +461,7 @@ function TeamSkillMatrix({ rows }: { rows: TeamSkillRow[] }) {
                 <span className="font-mono text-text">{name}</span>
                 <span
                   className={`ml-2 text-[10px] px-1 py-0.5 rounded ${
-                    kind === 'skill' ? 'bg-brand-500/20 text-brand-400' : 'bg-surface-2 text-text-2'
+                    kind === 'skill' ? 'bg-accent/20 text-accent' : 'bg-surface-2 text-text-2'
                   }`}
                 >
                   {kind === 'skill' ? 's' : '/'}
@@ -499,13 +497,13 @@ function SkillSequences({ rows }: { rows: OrgSkillSequenceRow[] }) {
             <span className="flex items-center gap-1.5 font-mono">
               <span className="text-text-2">{r.fromSkill}</span>
               <ArrowRightIcon size={11} className="text-text-3" />
-              <span className="text-brand-400">{r.toSkill}</span>
+              <span className="text-accent">{r.toSkill}</span>
             </span>
             <span className="text-text-3">{r.transitionCount}×</span>
           </div>
           <div className="h-1 rounded-full bg-surface">
             <div
-              className="h-full rounded-full bg-brand-500/50"
+              className="h-full rounded-full bg-accent/50"
               style={{ width: `${(r.transitionCount / maxCount) * 100}%` }}
             />
           </div>

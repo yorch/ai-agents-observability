@@ -55,7 +55,9 @@ export default async function OrgKnowledgePage({
         <>
           <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
             <div>
-              <h2 className="text-sm font-semibold text-text-2">Topics by session reach</h2>
+              <h2 className="font-display text-sm font-semibold text-text">
+                Topics by session reach
+              </h2>
               <p className="mt-0.5 text-xs text-text-3">
                 Share of the {totalSessions.toLocaleString()} indexed sessions whose prompts touched
                 each topic. A high-reach topic is where docs, onboarding, or tooling could cut
@@ -103,7 +105,7 @@ function TopicBar({ topic, total }: { topic: KnowledgeTopicRow; total: number })
       </div>
       <div className="h-2 rounded-full bg-surface-2">
         <div
-          className="h-full rounded-full bg-brand-500/70"
+          className="h-full rounded-full bg-accent/70"
           style={{ width: `${Math.max(2, share * 100)}%` }}
         />
       </div>

@@ -28,8 +28,8 @@ function ToggleRow({
         role="switch"
         aria-checked={toggle.value}
         onClick={() => onChange(toggle.name, !toggle.value)}
-        className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-transparent ${
-          toggle.value ? 'border-brand-500 bg-brand-500' : 'border-border-strong bg-surface-2'
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-transparent ${
+          toggle.value ? 'border-accent bg-accent' : 'border-border-strong bg-surface-2'
         }`}
       >
         <span
@@ -120,7 +120,7 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
           type="button"
           onClick={handleSave}
           disabled={isPending}
-          className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-bg hover:bg-brand-600 transition-colors disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90 transition-colors disabled:opacity-50"
         >
           {isPending ? 'Saving…' : 'Save settings'}
         </button>

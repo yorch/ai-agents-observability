@@ -128,7 +128,7 @@ export default async function OrgRoiPage({
 
       {/* CI outcome cost correlation */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">CI outcome vs cost</h2>
+        <h2 className="font-display text-sm font-semibold text-text">CI outcome vs cost</h2>
         {ci.cleanCount === 0 && ci.failedCount === 0 ? (
           <p className="text-sm text-text-3">No merged PRs with cost data in this window.</p>
         ) : (
@@ -160,7 +160,9 @@ export default async function OrgRoiPage({
 
       {/* Spend by Jira ticket */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Spend by Jira ticket ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          Spend by Jira ticket ({range}d)
+        </h2>
         {jiraSpend.length === 0 ? (
           <p className="text-sm text-text-3">
             No PRs or sessions with a Jira key in this window. Jira keys are extracted from branch
@@ -215,7 +217,9 @@ export default async function OrgRoiPage({
 
       {/* Spend by project */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Spend by Jira project ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          Spend by Jira project ({range}d)
+        </h2>
         {projectSpend.length === 0 ? (
           <p className="text-sm text-text-3">
             No tickets with a Jira key in this window. Project spend groups tickets by their key
@@ -256,7 +260,7 @@ export default async function OrgRoiPage({
 
       {/* Spend by epic */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Spend by epic ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">Spend by epic ({range}d)</h2>
         {epicSpend.length === 0 ? (
           <p className="text-sm text-text-3">
             No epic-level data. Epics require the Jira sync job (JIRA_BASE_URL + JIRA_API_TOKEN) to
@@ -299,7 +303,9 @@ export default async function OrgRoiPage({
 
       {/* Cost per story point */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Cost per story point ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          Cost per story point ({range}d)
+        </h2>
         {storyPoints.totalStoryPoints === 0 ? (
           <p className="text-sm text-text-3">
             No estimated tickets with agent spend in this window. Story points come from the Jira
@@ -339,7 +345,9 @@ export default async function OrgRoiPage({
           delivered, so it stands in for the full proxy-availability check. */}
       {(hasRealValue || businessValue > 0) && (
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-text-2">Business value delivered ({range}d)</h2>
+          <h2 className="font-display text-sm font-semibold text-text">
+            Business value delivered ({range}d)
+          </h2>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Stat
               label="Value delivered"
@@ -393,7 +401,9 @@ export default async function OrgRoiPage({
 
       {/* Bug vs feature spend */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Bug vs feature spend ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          Bug vs feature spend ({range}d)
+        </h2>
         {classified.length === 0 ? (
           <p className="text-sm text-text-3">
             No classified tickets in this window. Issue types come from the Jira sync (JIRA_BASE_URL
@@ -448,7 +458,9 @@ export default async function OrgRoiPage({
 
       {/* Merged-work provenance */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">Merged-work provenance ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          Merged-work provenance ({range}d)
+        </h2>
         <div className="grid grid-cols-2 gap-4">
           <Stat
             label="Agent-touched commits"
@@ -469,7 +481,7 @@ export default async function OrgRoiPage({
 
       {/* ROI by repo */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-text-2">ROI by repo ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">ROI by repo ({range}d)</h2>
         {repoRoi.length === 0 ? (
           <p className="text-sm text-text-3">No merged PR data available.</p>
         ) : (

@@ -129,7 +129,7 @@ export default async function OrgSecurityPage({
       {/* Tool-category exposure */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
         <div>
-          <h2 className="text-sm font-semibold text-text-2">Tool-category exposure</h2>
+          <h2 className="font-display text-sm font-semibold text-text">Tool-category exposure</h2>
           <p className="mt-0.5 text-xs text-text-3">
             What kinds of powerful access the agents used, and how widely.
           </p>
@@ -144,7 +144,7 @@ export default async function OrgSecurityPage({
       {/* Per-repo exposure */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
         <div>
-          <h2 className="text-sm font-semibold text-text-2">Exposure by repo</h2>
+          <h2 className="font-display text-sm font-semibold text-text">Exposure by repo</h2>
           <p className="mt-0.5 text-xs text-text-3">
             Repos ranked by code-execution and network egress — where a data-exposure review starts.
           </p>
@@ -184,7 +184,9 @@ export default async function OrgSecurityPage({
       {/* External egress */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
         <div>
-          <h2 className="text-sm font-semibold text-text-2">External egress (MCP servers)</h2>
+          <h2 className="font-display text-sm font-semibold text-text">
+            External egress (MCP servers)
+          </h2>
           <p className="mt-0.5 text-xs text-text-3">
             Each MCP server is an external service the agents reached — an egress inventory for
             security review.
@@ -223,7 +225,7 @@ export default async function OrgSecurityPage({
       {/* Secret exposure by class */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
         <div>
-          <h2 className="text-sm font-semibold text-text-2">Secret exposure by class</h2>
+          <h2 className="font-display text-sm font-semibold text-text">Secret exposure by class</h2>
           <p className="mt-0.5 text-xs text-text-3">
             Sessions whose shipped transcript matched a redaction class before it hit storage.
             Forward-looking only — historical transcripts are not backfilled.
@@ -267,7 +269,7 @@ export default async function OrgSecurityPage({
       {/* Large data movements */}
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
         <div>
-          <h2 className="text-sm font-semibold text-text-2">Largest data movements</h2>
+          <h2 className="font-display text-sm font-semibold text-text">Largest data movements</h2>
           <p className="mt-0.5 text-xs text-text-3">
             Biggest single tool outputs on network / MCP / file-read — the rows to eyeball first.
             Sizes only; no content is stored.
