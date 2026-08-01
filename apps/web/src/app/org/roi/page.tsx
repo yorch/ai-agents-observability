@@ -1,6 +1,6 @@
 import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Stat } from '@/components/ui';
 import { getConfig, getJiraBase } from '@/lib/config';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
@@ -100,28 +100,28 @@ export default async function OrgRoiPage({
 
       {/* Headline ROI cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
+        <Stat
           label={`Agent spend (${range}d)`}
           value={fmtUsd(summary.totalSpendUsd)}
           sub={`${summary.mergedPrs} PRs merged`}
         />
-        <StatCard
+        <Stat
           label="Cost / merged PR"
           value={summary.costPerMergedPr > 0 ? fmtUsd(summary.costPerMergedPr) : '—'}
           sub="merged-PR spend ÷ merged PRs"
         />
-        <StatCard
+        <Stat
           label="Reverted spend"
           value={fmtUsd(summary.revertedSpendUsd)}
           sub={`${fmtPct(summary.revertedSpendShare)} of spend · ${summary.revertedPrs} PRs`}
-          {...(summary.revertedSpendShare > HIGH_REVERT_RATE ? { accent: 'red' as const } : {})}
+          {...(summary.revertedSpendShare > HIGH_REVERT_RATE ? { accent: 'crit' as const } : {})}
         />
-        <StatCard
+        <Stat
           label="CI-clean merge rate"
           value={fmtPct(summary.ciCleanMergeRate)}
           sub="merged with no failing checks"
           {...(summary.ciCleanMergeRate < LOW_CI_CLEAN_RATE && summary.mergedPrs > 0
-            ? { accent: 'amber' as const }
+            ? { accent: 'warn' as const }
             : {})}
         />
       </div>
@@ -134,17 +134,17 @@ export default async function OrgRoiPage({
         ) : (
           <>
             <div className="grid grid-cols-2 gap-4">
-              <StatCard
+              <Stat
                 label="Clean-CI merges"
                 value={ci.cleanAvgCost > 0 ? fmtUsd(ci.cleanAvgCost) : '—'}
                 sub={`avg cost · ${ci.cleanCount} PRs`}
-                accent="green"
+                accent="good"
               />
-              <StatCard
+              <Stat
                 label="CI-failed merges"
                 value={ci.failedAvgCost > 0 ? fmtUsd(ci.failedAvgCost) : '—'}
                 sub={`avg cost · ${ci.failedCount} PRs`}
-                {...(ciCostMultiplier && ciCostMultiplier > 1 ? { accent: 'amber' as const } : {})}
+                {...(ciCostMultiplier && ciCostMultiplier > 1 ? { accent: 'warn' as const } : {})}
               />
             </div>
             {ciCostMultiplier && ciCostMultiplier > 1 && (
@@ -308,17 +308,17 @@ export default async function OrgRoiPage({
         ) : (
           <>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-              <StatCard
+              <Stat
                 label="Cost / story point"
                 value={storyPoints.costPerPoint !== null ? fmtUsd(storyPoints.costPerPoint) : '—'}
                 sub="agent spend ÷ estimated points"
               />
-              <StatCard
+              <Stat
                 label="Story points delivered"
                 value={storyPoints.totalStoryPoints.toLocaleString()}
                 sub={`${storyPoints.ticketCount} estimated tickets`}
               />
-              <StatCard
+              <Stat
                 label="Attributed spend"
                 value={fmtUsd(storyPoints.sessionCostUsd)}
                 sub="on estimated tickets"
@@ -341,7 +341,7 @@ export default async function OrgRoiPage({
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
           <h2 className="text-sm font-semibold text-text-2">Business value delivered ({range}d)</h2>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <StatCard
+            <Stat
               label="Value delivered"
               value={fmtUsd(valueDeliveredUsd)}
               sub={
@@ -350,25 +350,25 @@ export default async function OrgRoiPage({
                   : `${storyPoints.totalStoryPoints.toLocaleString()} pts × ${fmtUsd(valuePerPoint ?? 0)}`
               }
             />
-            <StatCard
+            <Stat
               label="Agent spend"
               value={fmtUsd(valueSpendUsd)}
               sub={hasRealValue ? 'on valued tickets' : 'on estimated tickets'}
             />
-            <StatCard
+            <Stat
               label="Net value"
               value={fmtUsd(valueDeliveredUsd - valueSpendUsd)}
               sub="value − agent spend"
               {...(valueDeliveredUsd - valueSpendUsd >= 0
-                ? { accent: 'green' as const }
-                : { accent: 'red' as const })}
+                ? { accent: 'good' as const }
+                : { accent: 'crit' as const })}
             />
-            <StatCard
+            <Stat
               label="Return multiple"
               value={valueSpendUsd > 0 ? `${valueReturnMultiple.toFixed(1)}×` : '—'}
               sub="value ÷ agent spend"
               {...(valueSpendUsd > 0
-                ? { accent: valueReturnMultiple >= 1 ? ('green' as const) : ('amber' as const) }
+                ? { accent: valueReturnMultiple >= 1 ? ('good' as const) : ('warn' as const) }
                 : {})}
             />
           </div>
@@ -402,13 +402,13 @@ export default async function OrgRoiPage({
         ) : (
           <>
             <div className="grid grid-cols-2 gap-4">
-              <StatCard
+              <Stat
                 label="Bug-work spend"
                 value={fmtUsd(bugSpend)}
                 sub="sessions on Bug/Defect-type tickets"
-                {...(bugShare !== null && bugShare > 0.3 ? { accent: 'amber' as const } : {})}
+                {...(bugShare !== null && bugShare > 0.3 ? { accent: 'warn' as const } : {})}
               />
-              <StatCard
+              <Stat
                 label="Bug-work share"
                 value={bugShare !== null ? fmtPct(bugShare) : '—'}
                 sub="of classified ticket spend"
@@ -450,12 +450,12 @@ export default async function OrgRoiPage({
       <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
         <h2 className="text-sm font-semibold text-text-2">Merged-work provenance ({range}d)</h2>
         <div className="grid grid-cols-2 gap-4">
-          <StatCard
+          <Stat
             label="Agent-touched commits"
             value={String(commits.linkedCommits)}
             sub="default-branch commits attributed to a session"
           />
-          <StatCard
+          <Stat
             label="Sessions with merged commits"
             value={String(commits.sessionsWithCommits)}
             sub="sessions whose work landed on the default branch"

@@ -1,9 +1,5 @@
-import { DataTable } from '@/components/team-org/DataTable';
-import { EmptyState } from '@/components/team-org/EmptyState';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { SectionCard } from '@/components/team-org/SectionCard';
-import { SectionHeader } from '@/components/team-org/SectionHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamSkillUsage,
@@ -12,7 +8,6 @@ import {
   resolveTeamVisibility,
 } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
-import { TeamSubNav } from '../layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,16 +45,14 @@ export default async function TeamToolsPage({
         title={teamName}
       />
 
-      <TeamSubNav slug={slug} active="tools" />
-
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Tool calls" value={totalCalls.toLocaleString()} />
-        <StatCard label="Unique tools" value={tools.length.toString()} />
-        <StatCard label="Denial rate" value={`${(denyRate * 100).toFixed(1)}%`} />
+        <Stat label="Tool calls" value={totalCalls.toLocaleString()} />
+        <Stat label="Unique tools" value={tools.length.toString()} />
+        <Stat label="Denial rate" value={`${(denyRate * 100).toFixed(1)}%`} />
       </div>
 
       {categories.length > 0 && (
-        <SectionCard>
+        <Card>
           <SectionHeader>By category</SectionHeader>
           <div className="flex flex-wrap gap-2">
             {categories.map((c) => (
@@ -74,13 +67,13 @@ export default async function TeamToolsPage({
               </div>
             ))}
           </div>
-        </SectionCard>
+        </Card>
       )}
 
       {tools.length > 0 ? (
-        <SectionCard>
+        <Card>
           <SectionHeader>Top tools</SectionHeader>
-          <DataTable
+          <Table
             columns={[
               { label: 'Tool' },
               { align: 'right', label: 'Calls', mono: true },
@@ -110,16 +103,16 @@ export default async function TeamToolsPage({
                 <td className="py-2 text-right font-mono text-text-2">{r.distinctUsers}</td>
               </tr>
             ))}
-          </DataTable>
-        </SectionCard>
+          </Table>
+        </Card>
       ) : (
         <EmptyState>No tool activity in this period</EmptyState>
       )}
 
       {skills.length > 0 && (
-        <SectionCard>
+        <Card>
           <SectionHeader>Skills &amp; slash commands</SectionHeader>
-          <DataTable
+          <Table
             columns={[
               { label: 'Name' },
               { label: 'Type' },
@@ -139,8 +132,8 @@ export default async function TeamToolsPage({
                 </td>
               </tr>
             ))}
-          </DataTable>
-        </SectionCard>
+          </Table>
+        </Card>
       )}
     </div>
   );

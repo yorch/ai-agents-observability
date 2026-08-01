@@ -1,11 +1,8 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { SectionCard } from '@/components/team-org/SectionCard';
-import { SectionHeader } from '@/components/team-org/SectionHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Card, SectionHeader, Stat } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamSessionFrequencyDistribution, resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
-import { TeamSubNav } from '../layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,15 +38,13 @@ export default async function TeamAdoptionPage({
         title={teamName}
       />
 
-      <TeamSubNav slug={slug} active="adoption" />
-
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Total members" value={totalCount.toString()} />
-        <StatCard label={`Active (${range}d)`} value={activeCount.toString()} />
-        <StatCard label="Adoption rate" value={`${Math.round(adoptionRate * 100)}%`} />
+        <Stat label="Total members" value={totalCount.toString()} />
+        <Stat label={`Active (${range}d)`} value={activeCount.toString()} />
+        <Stat label="Adoption rate" value={`${Math.round(adoptionRate * 100)}%`} />
       </div>
 
-      <SectionCard>
+      <Card>
         <SectionHeader>Session frequency distribution</SectionHeader>
         <div className="space-y-3">
           {distribution.map((b) => (
@@ -73,7 +68,7 @@ export default async function TeamAdoptionPage({
           Based on {visibleIds.length} of {totalCount} members who share metadata. Buckets: Inactive
           = 0 sessions, Light = 1–4, Moderate = 5–19, Active = 20–49, Power = 50+.
         </p>
-      </SectionCard>
+      </Card>
     </div>
   );
 }

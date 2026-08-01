@@ -69,7 +69,7 @@ export function McpServerCard({
 
       <div className="flex flex-wrap gap-2">
         <MetricPill
-          accent={errorRate >= 0.15 ? 'red' : errorRate >= 0.05 ? 'amber' : 'none'}
+          accent={errorRate >= 0.15 ? 'crit' : errorRate >= 0.05 ? 'warn' : 'none'}
           label="error rate"
           value={`${(errorRate * 100).toFixed(1)}%`}
         />
@@ -80,12 +80,12 @@ export function McpServerCard({
           <MetricPill label="p95 latency" value={fmtDuration(data.p95DurationMs)} />
         )}
         <MetricPill
-          accent={data.totalDenies > 0 ? 'amber' : 'none'}
+          accent={data.totalDenies > 0 ? 'warn' : 'none'}
           label="denies"
           value={data.totalDenies.toString()}
         />
         <MetricPill
-          accent={data.totalErrors > 0 ? 'red' : 'none'}
+          accent={data.totalErrors > 0 ? 'crit' : 'none'}
           label="errors"
           value={data.totalErrors.toString()}
         />
@@ -150,12 +150,12 @@ export function MetricPill({
   label,
   value,
 }: {
-  accent?: 'amber' | 'none' | 'red';
+  accent?: 'crit' | 'none' | 'warn';
   label: string;
   value: string;
 }) {
   const valueCls =
-    accent === 'red' ? 'text-crit' : accent === 'amber' ? 'text-warn' : 'text-text-2';
+    accent === 'crit' ? 'text-crit' : accent === 'warn' ? 'text-warn' : 'text-text-2';
   return (
     <div className="flex items-center gap-1.5 rounded border border-border bg-surface px-2 py-0.5">
       <span className="text-[10px] uppercase tracking-wide text-text-3">{label}</span>

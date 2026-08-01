@@ -1,11 +1,6 @@
 import Link from 'next/link';
-import { TeamSubNav } from '@/app/team/[slug]/layout';
-import { DataTable } from '@/components/team-org/DataTable';
-import { EmptyState } from '@/components/team-org/EmptyState';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { SectionCard } from '@/components/team-org/SectionCard';
-import { SectionHeader } from '@/components/team-org/SectionHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamDailySkillVolume,
@@ -51,16 +46,14 @@ export default async function TeamSkillsPage({
         title={teamName}
       />
 
-      <TeamSubNav slug={slug} active="skills" />
-
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Unique skills" value={skills.length.toString()} />
-        <StatCard label="Total invocations" value={totalInvocations.toLocaleString()} />
-        <StatCard label="Active adopters" value={uniqueAdopters.toString()} />
+        <Stat label="Unique skills" value={skills.length.toString()} />
+        <Stat label="Total invocations" value={totalInvocations.toLocaleString()} />
+        <Stat label="Active adopters" value={uniqueAdopters.toString()} />
       </div>
 
       {trend.length > 0 && (
-        <SectionCard>
+        <Card>
           <SectionHeader>Daily invocations</SectionHeader>
           <div className="flex h-16 items-end gap-1">
             {trend.map((r) => (
@@ -72,13 +65,13 @@ export default async function TeamSkillsPage({
               />
             ))}
           </div>
-        </SectionCard>
+        </Card>
       )}
 
       {skills.length > 0 ? (
-        <SectionCard>
+        <Card>
           <SectionHeader>All skills</SectionHeader>
-          <DataTable
+          <Table
             columns={[
               { label: 'Name' },
               { label: 'Type' },
@@ -110,16 +103,16 @@ export default async function TeamSkillsPage({
                 </td>
               </tr>
             ))}
-          </DataTable>
-        </SectionCard>
+          </Table>
+        </Card>
       ) : (
         <EmptyState>No skill activity in this period</EmptyState>
       )}
 
       {funnel.length > 0 && (
-        <SectionCard>
+        <Card>
           <SectionHeader>Adoption — new vs returning users</SectionHeader>
-          <DataTable
+          <Table
             columns={[
               { label: 'Skill' },
               { align: 'right', label: 'Active users', mono: true },
@@ -135,8 +128,8 @@ export default async function TeamSkillsPage({
                 <td className="py-2 text-right font-mono text-text-2">{r.returningUsers}</td>
               </tr>
             ))}
-          </DataTable>
-        </SectionCard>
+          </Table>
+        </Card>
       )}
     </div>
   );

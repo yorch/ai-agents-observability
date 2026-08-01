@@ -1,3 +1,4 @@
+import { PageHeader as BasePageHeader } from '@/components/ui';
 import { DateRangePicker } from './DateRangePicker';
 
 type PageHeaderProps = {
@@ -7,17 +8,18 @@ type PageHeaderProps = {
   title: string;
 };
 
+/**
+ * Team/org page header — the `ui` primitive with this section's range picker
+ * wired into its action slot, so the 18 dashboard routes don't each repeat the
+ * composition. The primitive itself stays free of any particular control.
+ */
 export function PageHeader({ breadcrumb, description, range, title }: PageHeaderProps) {
   return (
-    <div className={range !== undefined ? 'flex items-start justify-between' : undefined}>
-      <div>
-        {breadcrumb && (
-          <p className="mb-1 text-xs uppercase tracking-wider text-text-3">{breadcrumb}</p>
-        )}
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        {description && <p className="mt-1 text-sm text-text-2">{description}</p>}
-      </div>
-      {range !== undefined && <DateRangePicker range={range} />}
-    </div>
+    <BasePageHeader
+      title={title}
+      {...(breadcrumb ? { breadcrumb } : {})}
+      {...(description ? { description } : {})}
+      {...(range !== undefined ? { action: <DateRangePicker range={range} /> } : {})}
+    />
   );
 }

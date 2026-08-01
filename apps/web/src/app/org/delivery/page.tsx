@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Stat } from '@/components/ui';
 import {
   getOrgCheckHealth,
   getOrgPRDeliveryStats,
@@ -54,22 +54,22 @@ export default async function OrgDeliveryPage({
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
+        <Stat
           label={`PRs opened (${range}d)`}
           value={stats.totalPRs.toString()}
           sub={`${stats.mergedPRs} merged`}
         />
-        <StatCard
+        <Stat
           label="Merge rate"
           value={`${(stats.mergeRate * 100).toFixed(0)}%`}
           {...(stats.totalPRs > 0 ? { sub: `${stats.totalPRs - stats.mergedPRs} unmerged` } : {})}
         />
-        <StatCard
+        <Stat
           label="Median time-to-merge"
           value={fmtHours(stats.medianTimeToMergeHours)}
           sub="from open to merge"
         />
-        <StatCard
+        <Stat
           label="Avg cost / PR"
           value={stats.avgCostPerPR > 0 ? `$${stats.avgCostPerPR.toFixed(2)}` : '—'}
           {...(stats.medianCostPerPR != null
@@ -132,17 +132,17 @@ export default async function OrgDeliveryPage({
           </p>
         ) : (
           <div className="grid grid-cols-3 gap-4">
-            <StatCard
+            <Stat
               label="Median time to first review"
               value={fmtHours(reviews.medianHoursToFirstReview)}
               sub="from PR open to first submitted review"
             />
-            <StatCard
+            <Stat
               label="Reviews / PR"
               value={reviews.avgReviewsPerPr.toFixed(1)}
               sub={`${reviews.totalReviews} reviews on ${reviews.reviewedPrs} PRs`}
             />
-            <StatCard
+            <Stat
               label="Reviewed PRs"
               value={String(reviews.reviewedPrs)}
               sub="PRs with at least one submitted review"

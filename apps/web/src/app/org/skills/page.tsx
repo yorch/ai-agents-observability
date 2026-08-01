@@ -1,10 +1,6 @@
 import Link from 'next/link';
-import { DataTable } from '@/components/team-org/DataTable';
-import { EmptyState } from '@/components/team-org/EmptyState';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { SectionCard } from '@/components/team-org/SectionCard';
-import { SectionHeader } from '@/components/team-org/SectionHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
 import {
   getDailySkillVolume,
   getOrgSkillSequences,
@@ -47,13 +43,13 @@ export default async function OrgSkillsPage({
       />
 
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Unique skills" value={skills.length.toString()} />
-        <StatCard label="Total invocations" value={totalInvocations.toLocaleString()} />
-        <StatCard label="Active adopters" value={uniqueAdopters.toString()} />
+        <Stat label="Unique skills" value={skills.length.toString()} />
+        <Stat label="Total invocations" value={totalInvocations.toLocaleString()} />
+        <Stat label="Active adopters" value={uniqueAdopters.toString()} />
       </div>
 
       {trend.length > 0 && (
-        <SectionCard>
+        <Card>
           <SectionHeader>Daily invocations</SectionHeader>
           <div className="flex h-16 items-end gap-1">
             {trend.map((r) => (
@@ -65,13 +61,13 @@ export default async function OrgSkillsPage({
               />
             ))}
           </div>
-        </SectionCard>
+        </Card>
       )}
 
       {skills.length > 0 ? (
-        <SectionCard>
+        <Card>
           <SectionHeader>All skills</SectionHeader>
-          <DataTable
+          <Table
             columns={[
               { label: 'Name' },
               { label: 'Type' },
@@ -103,16 +99,16 @@ export default async function OrgSkillsPage({
                 </td>
               </tr>
             ))}
-          </DataTable>
-        </SectionCard>
+          </Table>
+        </Card>
       ) : (
         <EmptyState>No skill activity in this period</EmptyState>
       )}
 
       {funnel.length > 0 && (
-        <SectionCard>
+        <Card>
           <SectionHeader>Adoption — new vs returning users</SectionHeader>
-          <DataTable
+          <Table
             columns={[
               { label: 'Skill' },
               { align: 'right', label: 'Active users', mono: true },
@@ -128,14 +124,14 @@ export default async function OrgSkillsPage({
                 <td className="py-2 text-right font-mono text-text-2">{r.returningUsers}</td>
               </tr>
             ))}
-          </DataTable>
-        </SectionCard>
+          </Table>
+        </Card>
       )}
 
       {sequences.length > 0 && (
-        <SectionCard>
+        <Card>
           <SectionHeader>Common skill sequences</SectionHeader>
-          <DataTable
+          <Table
             columns={[
               { label: 'From' },
               { label: 'To' },
@@ -151,11 +147,11 @@ export default async function OrgSkillsPage({
                 </td>
               </tr>
             ))}
-          </DataTable>
+          </Table>
           <p className="mt-3 text-xs text-text-3">
             Most frequent skill-to-skill transitions within the same session.
           </p>
-        </SectionCard>
+        </Card>
       )}
     </div>
   );

@@ -7,7 +7,7 @@ import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTr
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable';
 import { SpendForecast } from '@/components/team-org/SpendForecast';
-import { StatCardWithDelta } from '@/components/team-org/StatCardWithDelta';
+import { Stat } from '@/components/ui';
 import { getOrgCohortFriction } from '@/lib/cohort-queries';
 import {
   getActiveBudget,
@@ -132,23 +132,23 @@ export default async function OrgDashboardPage({
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-        <StatCardWithDelta
+        <Stat
           label={`Total cost (${range}d)`}
           value={`$${summary.totalCostUsd.toFixed(2)}`}
           delta={deltas.totalCostUsd}
         />
-        <StatCardWithDelta
+        <Stat
           label="Sessions"
           value={summary.sessionCount.toString()}
           delta={deltas.sessionCount}
         />
-        <StatCardWithDelta
+        <Stat
           label="Active users"
           value={summary.activeUsers.toString()}
           delta={deltas.activeUsers}
         />
-        <StatCardWithDelta label="Teams" value={summary.teamCount.toString()} />
-        <StatCardWithDelta
+        <Stat label="Teams" value={summary.teamCount.toString()} />
+        <Stat
           label="Cache hit rate"
           value={`${summary.cacheHitRate.toFixed(1)}%`}
           delta={deltas.cacheHitRate}

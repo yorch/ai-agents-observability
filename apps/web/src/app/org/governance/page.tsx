@@ -2,7 +2,7 @@ import { AuditAction } from '@ai-agents-observability/db';
 import { CheckIcon } from '@/components/icons';
 import { OversightPanel } from '@/components/me/OversightPanel';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Stat } from '@/components/ui';
 import { getOrgOversight } from '@/lib/oversight-queries';
 import { getAgentPrProvenance } from '@/lib/pr-provenance-queries';
 import { getPrisma } from '@/lib/prisma';
@@ -68,23 +68,23 @@ export default async function GovernancePage({
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-text">Privileged-access governance</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard
+          <Stat
             label="Active grants"
             value={activeGrants.toLocaleString()}
             sub="time-boxed, in effect"
           />
-          <StatCard
+          <Stat
             label="Pending grants"
             value={pendingGrants.toLocaleString()}
             sub="awaiting approval"
             warn={pendingGrants > 0}
           />
-          <StatCard
+          <Stat
             label="Grants approved"
             value={grantsApproved.toLocaleString()}
             sub={`in last ${range}d`}
           />
-          <StatCard
+          <Stat
             label="Transcript views"
             value={transcriptViews.toLocaleString()}
             sub={`audited · last ${range}d`}
@@ -100,24 +100,20 @@ export default async function GovernancePage({
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-text">AI-authored code review</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard label="Agent-assisted PRs" value={provenance.total.toLocaleString()} />
-          <StatCard
+          <Stat label="Agent-assisted PRs" value={provenance.total.toLocaleString()} />
+          <Stat
             label="Awaiting review"
             value={provenance.awaitingReview.toLocaleString()}
             sub="open, no reviewer"
             warn={provenance.awaitingReview > 0}
           />
-          <StatCard
+          <Stat
             label="Merged w/o independent review"
             value={provenance.mergedWithoutIndependentReview.toLocaleString()}
             sub="reviewer = author / none"
-            accent={provenance.mergedWithoutIndependentReview > 0 ? 'red' : 'green'}
+            accent={provenance.mergedWithoutIndependentReview > 0 ? 'crit' : 'good'}
           />
-          <StatCard
-            label="Window"
-            value={`${range}d`}
-            sub={`${provenance.rows.length} PRs shown`}
-          />
+          <Stat label="Window" value={`${range}d`} sub={`${provenance.rows.length} PRs shown`} />
         </div>
         {provenance.rows.length === 0 ? (
           <p className="text-sm text-text-3">No agent-assisted PRs in this window.</p>

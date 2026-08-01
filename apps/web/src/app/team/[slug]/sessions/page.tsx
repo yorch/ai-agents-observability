@@ -1,7 +1,6 @@
 import { TeamSessionsTable } from '@/components/team/TeamSessionsTable';
 import { requireTeamLead } from '@/lib/roles';
 import { listTeamSessions, resolveTeamVisibility } from '@/lib/team-queries';
-import { TeamSubNav } from '../layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,8 +35,6 @@ export default async function TeamSessionsPage({
           )}
         </p>
       </div>
-
-      <TeamSubNav slug={slug} active="sessions" />
 
       <TeamSessionsTable sessions={sessions} total={total} currentPage={page} slug={slug} />
     </div>

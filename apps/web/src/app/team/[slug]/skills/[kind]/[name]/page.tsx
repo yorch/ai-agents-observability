@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { TeamSubNav } from '@/app/team/[slug]/layout';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { requireTeamLead } from '@/lib/roles';
 import {
@@ -69,8 +68,6 @@ export default async function TeamSkillDetailPage({
         </div>
         <DateRangePicker range={range} />
       </div>
-
-      <TeamSubNav slug={slug} active="skills" />
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">

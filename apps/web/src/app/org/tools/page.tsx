@@ -1,6 +1,6 @@
 import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Stat } from '@/components/ui';
 import {
   type CategoryStatRow,
   type DailyToolVolumeRow,
@@ -79,14 +79,14 @@ export default async function OrgToolsPage({
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label={`Tool calls (${range}d)`} value={totalCalls.toLocaleString()} />
-        <StatCard label="Unique tools" value={uniqueTools.toString()} />
-        <StatCard
+        <Stat label={`Tool calls (${range}d)`} value={totalCalls.toLocaleString()} />
+        <Stat label="Unique tools" value={uniqueTools.toString()} />
+        <Stat
           label="Denial rate"
           value={totalCalls > 0 ? `${(overallDenyRate * 100).toFixed(1)}%` : '—'}
           warn={overallDenyRate > 0.05}
         />
-        <StatCard
+        <Stat
           label="Avg duration"
           value={overallAvgDuration !== null ? `${overallAvgDuration.toLocaleString()} ms` : '—'}
         />

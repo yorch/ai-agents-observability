@@ -1,6 +1,6 @@
 import { AuditAction } from '@ai-agents-observability/db';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Stat } from '@/components/ui';
 import { fmtBytes } from '@/lib/fmt';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
@@ -107,23 +107,23 @@ export default async function OrgSecurityPage({
       />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
+        <Stat
           label="High-risk tool calls"
           value={highRiskCalls.toLocaleString()}
           sub="code execution + network"
-          {...(highRiskCalls > 0 ? { accent: 'amber' as const } : {})}
+          {...(highRiskCalls > 0 ? { accent: 'warn' as const } : {})}
         />
-        <StatCard
+        <Stat
           label="External services (MCP)"
           value={egress.length.toString()}
           sub={`${totalEgressCalls.toLocaleString()} egress calls`}
         />
-        <StatCard
+        <Stat
           label="Privileged views"
           value={(transcriptViews + sessionViews).toLocaleString()}
           sub={`${transcriptViews} transcript · ${sessionViews} session`}
         />
-        <StatCard label="Data exports" value={exports.toLocaleString()} sub="team + org" />
+        <Stat label="Data exports" value={exports.toLocaleString()} sub="team + org" />
       </div>
 
       {/* Tool-category exposure */}

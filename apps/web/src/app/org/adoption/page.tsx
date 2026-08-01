@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Stat } from '@/components/ui';
 import {
   getActiveUsersTrend,
   getAdoptionByTeam,
@@ -43,15 +43,15 @@ export default async function OrgAdoptionPage({
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label={`Active users (${range}d)`} value={summary.activeUsers.toString()} />
-        <StatCard label={`Total sessions (${range}d)`} value={summary.sessionCount.toString()} />
-        <StatCard
+        <Stat label={`Active users (${range}d)`} value={summary.activeUsers.toString()} />
+        <Stat label={`Total sessions (${range}d)`} value={summary.sessionCount.toString()} />
+        <Stat
           label={`Sessions / user (${range}d)`}
           value={
             summary.activeUsers > 0 ? (summary.sessionCount / summary.activeUsers).toFixed(1) : '—'
           }
         />
-        <StatCard
+        <Stat
           label={`Avg cost / session (${range}d)`}
           value={
             summary.sessionCount > 0 && summary.totalCostUsd > 0

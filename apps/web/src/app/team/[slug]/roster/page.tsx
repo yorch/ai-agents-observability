@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { TeamSubNav } from '@/app/team/[slug]/layout';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
@@ -49,8 +48,6 @@ export default async function TeamRosterPage({
         </div>
         <DateRangePicker range={range} />
       </div>
-
-      <TeamSubNav slug={slug} active="roster" />
 
       {members.length === 0 ? (
         <div className="rounded-lg border border-border bg-surface p-8 text-center">

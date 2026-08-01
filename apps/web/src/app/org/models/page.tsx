@@ -1,8 +1,7 @@
-import { EmptyState } from '@/components/team-org/EmptyState';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
-import { StatCard } from '@/components/team-org/StatCard';
+import { EmptyState, Stat } from '@/components/ui';
 import type { OrgModelDetailRow, OrgModelRoutingRow } from '@/lib/org-queries';
 import {
   getOrgModelDetail,
@@ -140,25 +139,22 @@ export default async function OrgModelsPage({
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
+        <Stat
           label={`LLM spend (${range}d)`}
           value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
         />
-        <StatCard
+        <Stat
           label="Cache hit rate"
           value={totalInput > 0 ? `${(orgCacheEfficiency * 100).toFixed(1)}%` : '—'}
           note="target: 40–60%"
-          accent={orgCacheEfficiency < 0.2 ? 'red' : orgCacheEfficiency < 0.4 ? 'amber' : 'green'}
+          accent={orgCacheEfficiency < 0.2 ? 'crit' : orgCacheEfficiency < 0.4 ? 'warn' : 'good'}
         />
-        <StatCard
+        <Stat
           label="Est. cache savings"
           value={estimatedCacheSavings > 0 ? `$${estimatedCacheSavings.toFixed(2)}` : '—'}
           note="vs. paying full input price"
         />
-        <StatCard
-          label="Active models"
-          value={models.length > 0 ? models.length.toString() : '—'}
-        />
+        <Stat label="Active models" value={models.length > 0 ? models.length.toString() : '—'} />
       </div>
 
       {models.length === 0 ? (
@@ -278,17 +274,17 @@ export default async function OrgModelsPage({
             </h2>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <GuidanceCard
-                accent="green"
+                accent="good"
                 title="What cache hit rate means"
                 body="Claude's prompt cache reuses previous context at ~10% of the input token price. A 40–60% cache hit rate is typical for iterative coding sessions. Below 20% suggests sessions are starting fresh each time."
               />
               <GuidanceCard
-                accent="amber"
+                accent="warn"
                 title="How to improve cache efficiency"
                 body="Keep system prompts and file context stable across turns. Avoid regenerating tool outputs that haven't changed. Long-running sessions naturally accumulate cache — encourage fewer session restarts."
               />
               <GuidanceCard
-                accent="blue"
+                accent="series1"
                 title="Model routing quick wins"
                 body="File reads, grep, and web searches don't require Opus-level reasoning. Routing these to Haiku or Sonnet reduces cost 5–15× per call with no quality loss. Claude Code's model selection is controllable via the model field in API calls."
               />
@@ -327,18 +323,18 @@ function GuidanceCard({
   body,
   title,
 }: {
-  accent: 'amber' | 'blue' | 'green';
+  accent: 'good' | 'series1' | 'warn';
   body: string;
   title: string;
 }) {
   const borderCls =
-    accent === 'green'
+    accent === 'good'
       ? 'border-good-line'
-      : accent === 'amber'
+      : accent === 'warn'
         ? 'border-warn-line'
         : 'border-series-1/40';
   const titleCls =
-    accent === 'green' ? 'text-good' : accent === 'amber' ? 'text-warn' : 'text-series-1';
+    accent === 'good' ? 'text-good' : accent === 'warn' ? 'text-warn' : 'text-series-1';
   return (
     <div className={`rounded-lg border ${borderCls} bg-surface p-4 space-y-2`}>
       <p className={`text-xs font-semibold ${titleCls}`}>{title}</p>

@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { StatCard } from '@/components/team-org/StatCard';
 import { TeamPrRollupTable } from '@/components/team-org/TeamPrRollupTable';
+import { Stat } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamPRDeliveryStats,
@@ -8,7 +8,6 @@ import {
   resolveTeamVisibility,
 } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
-import { TeamSubNav } from '../layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,13 +50,11 @@ export default async function TeamPrsPage({
         title={teamName}
       />
 
-      <TeamSubNav slug={slug} active="prs" />
-
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="PRs opened" value={delivery.totalPRs.toString()} />
-        <StatCard label="Merge rate" value={`${Math.round(delivery.mergeRate * 100)}%`} />
-        <StatCard label="Median time to merge" value={fmtHours(delivery.medianTimeToMergeHours)} />
-        <StatCard
+        <Stat label="PRs opened" value={delivery.totalPRs.toString()} />
+        <Stat label="Merge rate" value={`${Math.round(delivery.mergeRate * 100)}%`} />
+        <Stat label="Median time to merge" value={fmtHours(delivery.medianTimeToMergeHours)} />
+        <Stat
           label="Avg cost / PR"
           value={delivery.avgCostPerPR > 0 ? `$${delivery.avgCostPerPR.toFixed(2)}` : '—'}
         />
