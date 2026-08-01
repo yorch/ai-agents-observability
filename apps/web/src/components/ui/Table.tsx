@@ -13,13 +13,15 @@ export type Column = {
 export function Table({ children, columns }: { children: ReactNode; columns: Column[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      {/* Column gutters are imposed by the table rather than by each cell, so
+          rows built from bare `<td>`s stay aligned with the header. */}
+      <table className="w-full text-sm [&_td]:pr-6 [&_td:last-child]:pr-0 [&_th]:pr-6 [&_th:last-child]:pr-0">
         <thead>
           <tr className="border-b border-border text-xs text-text-3">
             {columns.map((col) => (
               <th
                 key={col.label}
-                className={`whitespace-nowrap pr-6 pb-2 last:pr-0 ${
+                className={`whitespace-nowrap pb-2 ${
                   col.align === 'right' ? 'text-right' : 'text-left'
                 }${col.mono ? ' font-mono' : ''}`}
               >
@@ -54,11 +56,7 @@ export function Cell({
   num?: boolean;
 }) {
   return (
-    <td
-      className={`py-2 pr-6 last:pr-0${num ? ' text-right font-mono' : ''}${
-        className ? ` ${className}` : ''
-      }`}
-    >
+    <td className={`py-2${num ? ' text-right font-mono' : ''}${className ? ` ${className}` : ''}`}>
       {children}
     </td>
   );

@@ -1,4 +1,5 @@
 import { agentDisplayName } from '@ai-agents-observability/schemas';
+import { Badge } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -110,11 +111,11 @@ export default async function AdaptersPage() {
     .filter((a) => !(ADAPTER_AGENTS as readonly string[]).includes(a))
     .map(buildRow);
 
-  const BADGE_STYLES = {
-    active: 'bg-good-soft text-good',
-    inactive: 'bg-surface-2 text-text-3',
-    stale: 'bg-warn-soft text-warn',
-  };
+  const BADGE_TONE = {
+    active: 'good',
+    inactive: 'neutral',
+    stale: 'warn',
+  } as const;
 
   const allRows = [...adapterRows, ...otherRows];
 
@@ -159,11 +160,7 @@ export default async function AdaptersPage() {
                   <span className="ml-2 font-mono text-xs text-text-3">{agent}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <span
-                    className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${BADGE_STYLES[badge]}`}
-                  >
-                    {badge}
-                  </span>
+                  <Badge tone={BADGE_TONE[badge]}>{badge}</Badge>
                 </td>
                 <td className="px-4 py-3 text-xs text-text-2">{fmtRelative(lastSeen)}</td>
                 <td className="px-4 py-3 text-right font-mono text-text-2">{sessions24h}</td>

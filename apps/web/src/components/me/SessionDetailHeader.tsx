@@ -2,7 +2,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { FrictionBadge } from '@/components/me/FrictionBadge';
 import { StatusBadge } from '@/components/me/StatusBadge';
-import { type ShapeLabel, shapeBadge } from '@/lib/effectiveness';
+import { SeriesBadge } from '@/components/ui';
+import { type ShapeLabel, shapeSeriesIndex } from '@/lib/effectiveness';
 import type { SessionDetail } from '@/lib/sessions-queries';
 
 export function SessionDetailHeader({
@@ -36,13 +37,9 @@ export function SessionDetailHeader({
         </div>
         <div className="flex flex-wrap items-start gap-2 pt-0.5">
           {session.shapeLabel && (
-            <span
-              className={`inline-flex items-center rounded px-2 py-1 text-xs ${shapeBadge(
-                session.shapeLabel as ShapeLabel,
-              )}`}
-            >
+            <SeriesBadge index={shapeSeriesIndex(session.shapeLabel as ShapeLabel)}>
               {session.shapeLabel}
-            </span>
+            </SeriesBadge>
           )}
           <FrictionBadge
             score={session.frictionScore}

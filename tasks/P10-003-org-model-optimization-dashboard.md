@@ -47,7 +47,9 @@ and low-volume segments are suppressed, not shown with false precision.
 
 ## Implementation notes
 
-- Reuse `StatCard`, `PageHeader`, `DateRangePicker`, and the team-org component set.
+- Build from `@/components/ui` (`Stat`, `Card`, `Table`, `Badge`, `PageHeader`, the chart set)
+  plus `DateRangePicker` from `team-org`. `StatCard`/`SectionCard`/`DataTable` were folded into
+  those primitives — see [`apps/web/CLAUDE.md`](../apps/web/CLAUDE.md).
 - Factor the caveat into a small shared `<EffectivenessCaveat/>` so P10-004 reuses it.
 - Ranges: low = conservative (next-cheaper tier only, on clearly cheap categories);
   high = optimistic (full eligible spend). Label both.

@@ -2,7 +2,8 @@ import Link from 'next/link';
 
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { StatusBadge } from '@/components/me/StatusBadge';
-import { computeFrictionScore, frictionBadge, shapeBadge } from '@/lib/effectiveness';
+import { SeriesBadge, TONE_TEXT } from '@/components/ui';
+import { computeFrictionScore, frictionBadge, shapeSeriesIndex } from '@/lib/effectiveness';
 import type { TeamSessionRow } from '@/lib/team-queries';
 
 function formatDuration(seconds: number | null): string {
@@ -114,11 +115,13 @@ export function TeamSessionsTable({
                   </td>
                   <td className="px-4 py-3">
                     {s.shapeLabel ? (
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded ${shapeBadge(s.shapeLabel as Parameters<typeof shapeBadge>[0])}`}
+                      <SeriesBadge
+                        index={shapeSeriesIndex(
+                          s.shapeLabel as Parameters<typeof shapeSeriesIndex>[0],
+                        )}
                       >
                         {s.shapeLabel}
-                      </span>
+                      </SeriesBadge>
                     ) : (
                       <span className="text-text-3 text-xs">—</span>
                     )}
@@ -135,7 +138,7 @@ export function TeamSessionsTable({
                   <td className="px-4 py-3 text-center">
                     {badge ? (
                       <span
-                        className={`text-xs font-medium font-mono ${badge.color}`}
+                        className={`text-xs font-medium font-mono ${TONE_TEXT[badge.tone]}`}
                         title={`${((friction ?? 0) * 100).toFixed(0)}%`}
                       >
                         {badge.label}

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon, ExternalLinkIcon } from '@/components/icons';
+import { PrStateBadge } from '@/components/me/PrStateBadge';
 import { currentUser } from '@/lib/auth';
 import { getPRDetail } from '@/lib/pr-queries';
 import { getPrisma } from '@/lib/prisma';
@@ -8,16 +9,6 @@ import { getPrisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 type PageParams = { pr: string[] };
-
-function StateBadge({ state }: { state: string }) {
-  const colors: Record<string, string> = {
-    closed: 'bg-crit-soft text-crit',
-    merged: 'bg-series-4/20 text-series-4',
-    open: 'bg-good-soft text-good',
-  };
-  const color = colors[state] ?? 'bg-surface-2 text-text-2';
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{state}</span>;
-}
 
 function formatDate(d: Date | null): string {
   if (!d) {
@@ -97,7 +88,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
           <h1 className="min-w-0 flex-1 font-display text-xl font-semibold tracking-tight text-text">
             {pr.title ?? `PR #${pr.prNumber}`}
           </h1>
-          <StateBadge state={pr.state} />
+          <PrStateBadge state={pr.state} />
         </div>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-2">

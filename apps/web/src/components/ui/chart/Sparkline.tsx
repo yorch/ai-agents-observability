@@ -22,12 +22,25 @@ const DOT: Record<Tone, string> = {
  * Trend shape for a stat tile — no axes, no labels. The endpoint gets a dot so
  * the eye lands on "where it is now" rather than the whole line.
  */
-export function Sparkline({ points, tone = 'neutral' }: { points: number[]; tone?: Tone }) {
+export function Sparkline({
+  domain,
+  points,
+  tone = 'neutral',
+}: {
+  /**
+   * Shared [min, max] across a column of sparklines, so rows can be compared
+   * against each other. Omit to scale each line to its own range, which shows
+   * shape but not relative magnitude.
+   */
+  domain?: [number, number];
+  points: number[];
+  tone?: Tone;
+}) {
   if (points.length < 2) {
     return null;
   }
-  const min = Math.min(...points);
-  const max = Math.max(...points);
+  const min = domain ? domain[0] : Math.min(...points);
+  const max = domain ? domain[1] : Math.max(...points);
   const span = max - min || 1;
   // Inset by the dot radius so the endpoint marker never clips the viewBox.
   const x = (i: number) => 2 + (i / (points.length - 1)) * (W - 4);

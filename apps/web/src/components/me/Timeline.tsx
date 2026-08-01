@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { frictionBadge, shapeBadge } from '@/lib/effectiveness';
+import { SeriesBadge, TONE_TEXT } from '@/components/ui';
+import { frictionBadge, shapeSeriesIndex } from '@/lib/effectiveness';
 import type { SessionDetail, SessionEvent } from '@/lib/sessions-queries';
 
 function Stat({ label, value }: { label: string; value: ReactNode }) {
@@ -160,7 +161,7 @@ export function Timeline({
           label="Friction"
           value={
             frictionInfo ? (
-              <span className={frictionInfo.color}>
+              <span className={TONE_TEXT[frictionInfo.tone]}>
                 {frictionInfo.label}{' '}
                 <span className="text-text-3 text-xs">
                   ({((frictionScore ?? 0) * 100).toFixed(0)}%)
@@ -175,11 +176,13 @@ export function Timeline({
           label="Shape"
           value={
             session.shapeLabel ? (
-              <span
-                className={`text-xs px-1.5 py-0.5 rounded ${shapeBadge(session.shapeLabel as Parameters<typeof shapeBadge>[0])}`}
+              <SeriesBadge
+                index={shapeSeriesIndex(
+                  session.shapeLabel as Parameters<typeof shapeSeriesIndex>[0],
+                )}
               >
                 {session.shapeLabel}
-              </span>
+              </SeriesBadge>
             ) : (
               '—'
             )

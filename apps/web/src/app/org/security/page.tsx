@@ -1,6 +1,6 @@
 import { AuditAction } from '@ai-agents-observability/db';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Stat } from '@/components/ui';
+import { Badge, type BadgeTone, Stat } from '@/components/ui';
 import { fmtBytes } from '@/lib/fmt';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
@@ -34,10 +34,10 @@ const CATEGORY_META: Record<string, { label: string; risk: 'high' | 'med' | 'low
   web: { label: 'Network / web', risk: 'high' },
 };
 
-const RISK_STYLES: Record<string, string> = {
-  high: 'bg-crit-soft text-crit',
-  low: 'bg-surface-2 text-text-3',
-  med: 'bg-warn-soft text-warn',
+const RISK_TONE: Record<string, BadgeTone> = {
+  high: 'crit',
+  low: 'neutral',
+  med: 'warn',
 };
 
 // Keyed by the redaction rule names persisted in sessions.redaction_flags (see
@@ -336,11 +336,7 @@ function CategoryTable({ rows }: { rows: CategoryExposureRow[] }) {
             <tr key={r.category}>
               <td className="py-2 text-text">{meta.label}</td>
               <td className="py-2">
-                <span
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${RISK_STYLES[meta.risk]}`}
-                >
-                  {meta.risk}
-                </span>
+                <Badge tone={RISK_TONE[meta.risk] ?? 'neutral'}>{meta.risk}</Badge>
               </td>
               <td className="py-2 pr-4 w-1/3">
                 <div className="h-1.5 rounded-full bg-surface-2">

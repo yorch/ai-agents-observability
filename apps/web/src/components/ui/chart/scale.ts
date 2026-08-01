@@ -2,15 +2,6 @@
 // axes, gridlines and bar widths stay consistent across pages.
 
 /** The six categorical series, in fixed assignment order. */
-export const SERIES_CLASS = [
-  'fill-series-1',
-  'fill-series-2',
-  'fill-series-3',
-  'fill-series-4',
-  'fill-series-5',
-  'fill-series-6',
-] as const;
-
 export const SERIES_BG = [
   'bg-series-1',
   'bg-series-2',
@@ -20,19 +11,27 @@ export const SERIES_BG = [
   'bg-series-6',
 ] as const;
 
-export const SERIES_COUNT = SERIES_CLASS.length;
+export const SERIES_COUNT = SERIES_BG.length;
 
 /**
  * Colour follows the entity, never its rank — so callers pass a stable index
  * (position in the canonical entity list), not the sorted position. Anything
  * past the sixth entity folds into "Other" rather than inventing a hue.
  */
-export function seriesFill(index: number): string {
-  return SERIES_CLASS[Math.min(index, SERIES_COUNT - 1)] ?? SERIES_CLASS[0];
-}
-
 export function seriesBg(index: number): string {
   return SERIES_BG[Math.min(index, SERIES_COUNT - 1)] ?? SERIES_BG[0];
+}
+
+/**
+ * Folds a list down to at most six entries so no two entities share a hue.
+ * `combine` builds the "Other" row from the tail — a 7th series is never a
+ * generated colour.
+ */
+export function foldToSeries<T>(items: T[], combine: (tail: T[]) => T): T[] {
+  if (items.length <= SERIES_COUNT) {
+    return items;
+  }
+  return [...items.slice(0, SERIES_COUNT - 1), combine(items.slice(SERIES_COUNT - 1))];
 }
 
 /**
@@ -64,11 +63,4 @@ export function axisMoney(v: number): string {
     return `$${Number.isInteger(k) ? k : k.toFixed(1)}k`;
   }
   return `$${Math.round(v)}`;
-}
-
-export function axisCount(v: number): string {
-  if (v === 0) {
-    return '0';
-  }
-  return v >= 1000 ? `${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : String(Math.round(v));
 }

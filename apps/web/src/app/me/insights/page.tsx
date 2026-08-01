@@ -4,6 +4,7 @@ import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
+import { Sparkline } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserShapeTrend } from '@/lib/cohort-queries';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
@@ -278,12 +279,14 @@ function SessionSummaryCards({ summary: s }: { summary: SessionSummaryRow }) {
   );
 }
 
+// Kinds are categorical. `other` is the genuine catch-all and stays neutral;
+// everything named gets its own series slot.
 const NOTIFICATION_KIND_META: Record<string, { color: string; label: string }> = {
-  auth: { color: 'bg-surface-3', label: 'Auth' },
+  auth: { color: 'bg-series-6', label: 'Auth' },
   elicitation: { color: 'bg-series-4', label: 'Elicitation' },
   idle: { color: 'bg-series-1', label: 'Idle (waiting on you)' },
   other: { color: 'bg-surface-3', label: 'Other' },
-  permission: { color: 'bg-warn', label: 'Permission' },
+  permission: { color: 'bg-series-2', label: 'Permission' },
 };
 
 function ContinuitySection({ continuity: c }: { continuity: ContinuitySummaryRow }) {
@@ -533,7 +536,7 @@ function SkillsSection({
                     </div>
                   </td>
                   <td className="py-2 pl-2">
-                    <MiniSparkline values={sparkline} max={sparkMax} />
+                    <Sparkline points={sparkline} domain={[0, sparkMax]} tone="accent" />
                   </td>
                 </tr>
               );
@@ -542,27 +545,6 @@ function SkillsSection({
         </table>
       </div>
     </section>
-  );
-}
-
-function MiniSparkline({ values, max }: { max: number; values: number[] }) {
-  if (values.length === 0) {
-    return <span className="text-text-3 text-xs">—</span>;
-  }
-  return (
-    <div className="flex items-end gap-px h-6 w-16">
-      {values.map((v, i) => {
-        const h = Math.max(2, (v / max) * 24);
-        return (
-          <div
-            key={i}
-            className="flex-1 rounded-sm bg-accent/60"
-            style={{ height: `${h}px` }}
-            title={String(v)}
-          />
-        );
-      })}
-    </div>
   );
 }
 

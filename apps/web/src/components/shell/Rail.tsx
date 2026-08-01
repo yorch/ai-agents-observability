@@ -16,6 +16,7 @@ import {
   teamNav,
   teamSlugOf,
 } from './nav-model';
+import { SignOutButton } from './SignOutButton';
 
 export type RailTeam = { githubSlug: string; name: string };
 
@@ -154,14 +155,22 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
           </div>
         ))}
 
-        <div className="mt-auto hidden items-center gap-2.5 px-2 pt-4 lg:flex">
+        <div className="mt-auto flex items-center gap-2.5 px-2 pt-4 max-lg:hidden">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 font-mono text-[9px] text-text-2">
             {initials(userLabel)}
           </span>
-          <span className="truncate text-xs text-text-2" title={userLabel}>
+          <span className="min-w-0 flex-1 truncate text-xs text-text-2" title={userLabel}>
             {userLabel}
           </span>
           <ThemeToggle />
+          <SignOutButton />
+        </div>
+
+        {/* The drawer has no footer of its own, so the account actions ride at
+            the end of the scrolling list on small screens. */}
+        <div className="flex items-center gap-3 border-t border-border px-2 pt-3 lg:hidden">
+          <span className="min-w-0 flex-1 truncate text-xs text-text-2">{userLabel}</span>
+          <SignOutButton />
         </div>
       </nav>
     </>

@@ -210,7 +210,7 @@ function DailyVolumeBars({ volume }: { volume: DailyToolVolumeRow[] }) {
             >
               {denyHeight > 0 && (
                 <div
-                  className="absolute bottom-0 left-0 right-0 rounded-t bg-warn-soft"
+                  className="absolute right-0 bottom-0 left-0 rounded-t bg-warn"
                   style={{ height: `${denyHeight}px` }}
                 />
               )}
@@ -557,7 +557,7 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
                           ? 'bg-good/50'
                           : r.ciStatus === 'failure'
                             ? 'bg-crit/50'
-                            : 'bg-warn-soft'
+                            : 'bg-warn/50'
                       }`}
                       title={`${r.ciStatus}: ${r.sessionCount} sessions`}
                     />
@@ -573,12 +573,14 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
   );
 }
 
+// Categories, not severities — each gets its own fixed series slot so no two
+// kinds share a colour and none of them reads as a warning.
 const CATEGORY_COLORS: Record<string, string> = {
-  browser: 'bg-good-soft text-good',
+  browser: 'bg-series-3/20 text-series-3',
   file_ops: 'bg-series-1/20 text-series-1',
-  mcp: 'bg-warn-soft text-warn',
+  mcp: 'bg-series-5/20 text-series-5',
   search: 'bg-series-4/20 text-series-4',
-  shell: 'bg-warn-soft text-warn',
+  shell: 'bg-series-2/20 text-series-2',
 };
 
 function CategoryBadge({ category }: { category: string }) {

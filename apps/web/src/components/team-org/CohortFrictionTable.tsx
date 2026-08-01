@@ -1,3 +1,4 @@
+import { TONE_BG, TONE_TEXT } from '@/components/ui';
 import type { CohortFrictionRow } from '@/lib/cohort-queries';
 import { frictionBadge } from '@/lib/effectiveness';
 
@@ -50,13 +51,13 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
                 <tr key={r.cohortMonth}>
                   <td className="py-2 font-mono text-xs">{r.cohortMonth}</td>
                   <td className="py-2 text-right text-text-2">{r.userCount}</td>
-                  <td className={`py-2 text-right font-mono ${badge.color}`}>
+                  <td className={`py-2 text-right font-mono ${TONE_TEXT[badge.tone]}`}>
                     {(median * 100).toFixed(0)}%
                   </td>
                   <td className="py-2 pl-3">
                     <div className="h-1.5 rounded-full bg-surface-2">
                       <div
-                        className={`h-full rounded-full ${badge.color.replace('text-', 'bg-')}`}
+                        className={`h-full rounded-full ${TONE_BG[badge.tone]}`}
                         style={{ width: `${(median / maxFriction) * 100}%` }}
                       />
                     </div>

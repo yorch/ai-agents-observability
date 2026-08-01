@@ -1,4 +1,4 @@
-import { Card, Cell, Legend, Row, seriesBg, Table } from '@/components/ui';
+import { Card, Cell, foldToSeries, Legend, Row, seriesBg, Table } from '@/components/ui';
 
 type ModelEntry = { costUsd: number; model: string; sessionCount: number; turns: number };
 
@@ -16,13 +16,22 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
     1,
   );
 
+  // The query is unbounded, and past six models the palette would start
+  // repeating — the tail folds into one "Other" row instead.
+  const shown = foldToSeries(models, (tail) => ({
+    costUsd: tail.reduce((sum, m) => sum + m.costUsd, 0),
+    model: `Other (${tail.length})`,
+    sessionCount: tail.reduce((sum, m) => sum + m.sessionCount, 0),
+    turns: tail.reduce((sum, m) => sum + m.turns, 0),
+  }));
+
   return (
     <Card title="Model usage" caption="Share of turns">
       {/* Segmented bar, proportional to turns. Models are separate entities, so
           they take the series palette — the accent shaded three ways could not
           tell them apart. A hairline gap keeps adjacent segments distinct. */}
       <div className="flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-surface-2">
-        {models.map((m, i) => (
+        {shown.map((m, i) => (
           <span
             key={m.model}
             className={seriesBg(i)}
@@ -31,7 +40,7 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
           />
         ))}
       </div>
-      <Legend items={models.map((m, index) => ({ index, label: m.model }))} />
+      <Legend items={shown.map((m, index) => ({ index, label: m.model }))} />
 
       <div className="mt-4">
         <Table
@@ -42,7 +51,7 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
             { align: 'right', label: 'Cost', mono: true },
           ]}
         >
-          {models.map((m, i) => (
+          {shown.map((m, i) => (
             <Row key={m.model}>
               <Cell>
                 <span className="flex items-center gap-2">

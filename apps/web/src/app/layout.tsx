@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import '../styles/globals.css';
 
 import { Rail, type RailTeam } from '@/components/shell/Rail';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { currentUser } from '@/lib/auth';
 import { getPrisma } from '@/lib/prisma';
 import { canRequestGrants } from '@/lib/roles';
@@ -35,6 +36,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang="en">
+      <head>
+        {/* Applies the stored theme before first paint. Without it the page
+            renders dark and then snaps to light on hydration. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')}catch{}`,
+          }}
+        />
+      </head>
       <body className="bg-bg font-body text-text">
         {user ? (
           // The rail owns navigation, so pages render straight into the canvas
@@ -52,7 +62,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </main>
           </div>
         ) : (
-          <main className="min-h-screen px-6 py-8">{children}</main>
+          // Signed-out routes (login, install) get no rail, but the theme
+          // toggle still has to be reachable — it is the only control that
+          // sets `html.light`.
+          <div className="flex min-h-screen flex-col">
+            <div className="flex justify-end px-6 py-4">
+              <ThemeToggle />
+            </div>
+            <main className="flex-1 px-6 pb-8">{children}</main>
+          </div>
         )}
       </body>
     </html>

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { PrStateBadge } from '@/components/me/PrStateBadge';
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -20,16 +21,6 @@ type SearchParams = {
   page?: string;
   state?: string;
 };
-
-function StateBadge({ state }: { state: string }) {
-  const colors: Record<string, string> = {
-    closed: 'bg-crit-soft text-crit',
-    merged: 'bg-series-4/20 text-series-4',
-    open: 'bg-good-soft text-good',
-  };
-  const color = colors[state] ?? 'bg-surface-2 text-text-2';
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{state}</span>;
-}
 
 function formatDate(d: Date | null): string {
   if (!d) {
@@ -124,7 +115,7 @@ function PRsTable({
                     {pr.repoOwner}/{pr.repoName}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <StateBadge state={pr.state} />
+                    <PrStateBadge state={pr.state} />
                   </td>
                   <td className="px-4 py-3 text-right text-text-2 text-xs">
                     {formatDate(pr.mergedAt)}
