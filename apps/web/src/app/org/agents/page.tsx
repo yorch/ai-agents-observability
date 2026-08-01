@@ -38,7 +38,7 @@ export default async function OrgAgentsPage({
 
       <AgentComparisonTable rows={agentComparison} />
 
-      <h2 className="pt-2 text-sm font-semibold text-white/70">Sub-agent usage</h2>
+      <h2 className="pt-2 text-sm font-semibold text-text-2">Sub-agent usage</h2>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label={`Agent spawns (${range}d)`} value={totalSpawns.toLocaleString()} />

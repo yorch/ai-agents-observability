@@ -35,13 +35,13 @@ export default async function TeamMemberTranscriptPage({
         <div className="flex items-center gap-3">
           <Link
             href={`/team/${slug}/member/${login}/sessions/${id}`}
-            className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
+            className="inline-flex items-center gap-1 text-sm text-text-2 hover:text-text"
           >
             <ArrowLeftIcon /> Session
           </Link>
         </div>
-        <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center">
-          <p className="text-sm text-white/50">
+        <div className="rounded-lg border border-border bg-surface p-8 text-center">
+          <p className="text-sm text-text-2">
             This member has not shared transcripts with the team.
           </p>
         </div>

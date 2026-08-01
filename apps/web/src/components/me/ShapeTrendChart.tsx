@@ -3,12 +3,12 @@ import type { WeeklyShapeBucket } from '@/lib/cohort-queries';
 // Matches the segment colors in ShapeDistributionChart (not exported from
 // there) so a shape reads the same color everywhere on /me/insights.
 const SHAPE_COLOR: Record<string, string> = {
-  debugging: 'bg-orange-400',
-  exploratory: 'bg-blue-400',
-  'focused-edit': 'bg-green-400',
+  debugging: 'bg-warn',
+  exploratory: 'bg-series-1',
+  'focused-edit': 'bg-good',
   minimal: 'bg-surface-2',
-  'multi-tool': 'bg-purple-400',
-  planning: 'bg-sky-400',
+  'multi-tool': 'bg-series-4',
+  planning: 'bg-series-1',
 };
 
 const BAR_HEIGHT_PX = 96;

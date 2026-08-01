@@ -14,18 +14,18 @@ export function StatCard({ accent, label, note, sub, value, warn }: StatCardProp
   const effectiveAccent = accent ?? (warn ? 'amber' : undefined);
   const valueCls =
     effectiveAccent === 'red'
-      ? 'text-red-400'
+      ? 'text-crit'
       : effectiveAccent === 'amber'
-        ? 'text-yellow-300'
+        ? 'text-warn'
         : effectiveAccent === 'green'
-          ? 'text-emerald-400'
+          ? 'text-good'
           : '';
   return (
-    <div className="space-y-1 rounded-lg border border-white/10 bg-white/5 p-4">
-      <p className="text-xs uppercase tracking-wider text-white/40">{label}</p>
+    <div className="space-y-1 rounded-lg border border-border bg-surface p-4">
+      <p className="text-xs uppercase tracking-wider text-text-3">{label}</p>
       <p className={`font-mono text-2xl font-semibold ${valueCls}`}>{value}</p>
-      {sub && <p className="text-xs text-white/30">{sub}</p>}
-      {note && <p className="text-[10px] font-mono text-white/30">{note}</p>}
+      {sub && <p className="text-xs text-text-3">{sub}</p>}
+      {note && <p className="text-[10px] font-mono text-text-3">{note}</p>}
     </div>
   );
 }

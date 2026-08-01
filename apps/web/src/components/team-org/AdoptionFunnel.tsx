@@ -21,11 +21,11 @@ export function AdoptionFunnel({
 
     let colorClass: string;
     if (percentValue === 0) {
-      colorClass = 'text-white/40';
+      colorClass = 'text-text-3';
     } else if (isPositive) {
-      colorClass = 'text-emerald-400';
+      colorClass = 'text-good';
     } else {
-      colorClass = 'text-red-400';
+      colorClass = 'text-crit';
     }
 
     return <span className={`ml-2 inline text-xs font-mono ${colorClass}`}>{percentText}</span>;
@@ -39,14 +39,14 @@ export function AdoptionFunnel({
   ];
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-white/70">Adoption funnel</h2>
+    <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <h2 className="text-sm font-semibold text-text-2">Adoption funnel</h2>
       <div className="space-y-2">
         {rows.map(({ label, value, delta }) => (
           <div key={label} className="flex justify-between">
-            <span className="text-sm text-white/50">{label}</span>
+            <span className="text-sm text-text-2">{label}</span>
             <div className="flex items-baseline">
-              <span className="font-semibold text-white font-mono">{value}</span>
+              <span className="font-semibold text-text font-mono">{value}</span>
               {renderDeltaBadge(delta)}
             </div>
           </div>

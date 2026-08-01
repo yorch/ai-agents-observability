@@ -86,7 +86,7 @@ export default async function OrgSessionDetailPage({
     <div className="space-y-6">
       <Link
         href="/org/search"
-        className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
+        className="inline-flex items-center gap-1 text-sm text-text-2 hover:text-text"
       >
         <ArrowLeftIcon /> Search
       </Link>

@@ -21,16 +21,16 @@ export function StatCardWithDelta({
 
     let colorClass: string;
     if (percentValue === 0) {
-      colorClass = 'text-white/40';
+      colorClass = 'text-text-3';
     } else if (isPositive) {
-      colorClass = invertColor ? 'text-red-400' : 'text-emerald-400';
+      colorClass = invertColor ? 'text-crit' : 'text-good';
     } else {
-      colorClass = invertColor ? 'text-emerald-400' : 'text-red-400';
+      colorClass = invertColor ? 'text-good' : 'text-crit';
     }
 
     return (
       <div
-        className={`ml-2 inline-flex rounded-full bg-white/10 px-2 py-0.5 text-xs font-mono ${colorClass}`}
+        className={`ml-2 inline-flex rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono ${colorClass}`}
       >
         {percentText}
       </div>
@@ -38,10 +38,10 @@ export function StatCardWithDelta({
   };
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-1">
-      <p className="text-xs text-white/50">{label}</p>
+    <div className="rounded-lg border border-border bg-surface p-4 space-y-1">
+      <p className="text-xs text-text-2">{label}</p>
       <div className="flex items-baseline gap-1">
-        <p className="text-2xl font-semibold text-white">{value}</p>
+        <p className="text-2xl font-semibold text-text">{value}</p>
         {renderDelta()}
       </div>
     </div>

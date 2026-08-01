@@ -55,12 +55,12 @@ export default async function TeamAdoptionPage({
           {distribution.map((b) => (
             <div key={b.bucket}>
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-sm text-white/80">{b.bucket}</span>
-                <span className="font-mono text-sm text-white/50">
+                <span className="text-sm text-text">{b.bucket}</span>
+                <span className="font-mono text-sm text-text-2">
                   {b.userCount} member{b.userCount !== 1 ? 's' : ''}
                 </span>
               </div>
-              <div className="h-2 rounded-full bg-white/10">
+              <div className="h-2 rounded-full bg-surface-2">
                 <div
                   className="h-2 rounded-full bg-accent transition-all"
                   style={{ width: `${(b.userCount / maxCount) * 100}%` }}
@@ -69,7 +69,7 @@ export default async function TeamAdoptionPage({
             </div>
           ))}
         </div>
-        <p className="mt-4 text-xs text-white/30">
+        <p className="mt-4 text-xs text-text-3">
           Based on {visibleIds.length} of {totalCount} members who share metadata. Buckets: Inactive
           = 0 sessions, Light = 1–4, Moderate = 5–19, Active = 20–49, Power = 50+.
         </p>

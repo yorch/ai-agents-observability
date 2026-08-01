@@ -62,12 +62,12 @@ export default async function OrgAdoptionPage({
       </div>
 
       {/* Weekly active users trend */}
-      <section className="rounded-lg border border-white/10 bg-white/5 p-4">
-        <h2 className="text-sm font-semibold text-white/70 mb-4">
+      <section className="rounded-lg border border-border bg-surface p-4">
+        <h2 className="text-sm font-semibold text-text-2 mb-4">
           Weekly active users (trailing {range} days)
         </h2>
         {weeklyTrend.length === 0 ? (
-          <p className="text-sm text-white/40">No data yet.</p>
+          <p className="text-sm text-text-3">No data yet.</p>
         ) : (
           <ActiveUsersBars trend={weeklyTrend} />
         )}
@@ -75,13 +75,13 @@ export default async function OrgAdoptionPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Session frequency distribution */}
-        <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-white/70">Session frequency ({range}d)</h2>
-          <p className="text-xs text-white/40">
+        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-text-2">Session frequency ({range}d)</h2>
+          <p className="text-xs text-text-3">
             Among org-sharing users — how often are they using Claude Code?
           </p>
           {totalUsersInDist === 0 ? (
-            <p className="text-sm text-white/40">No data.</p>
+            <p className="text-sm text-text-3">No data.</p>
           ) : (
             <div className="space-y-2 pt-1">
               {frequencyDist.map((b) => {
@@ -90,14 +90,14 @@ export default async function OrgAdoptionPage({
                 return (
                   <div key={b.bucket} className="space-y-1">
                     <div className="flex justify-between text-xs">
-                      <span className="text-white/70">{b.bucket}</span>
-                      <span className="text-white/50">
+                      <span className="text-text-2">{b.bucket}</span>
+                      <span className="text-text-2">
                         {b.userCount} users · {pct.toFixed(0)}%
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-white/10">
+                    <div className="h-2 rounded-full bg-surface-2">
                       <div
-                        className={`h-full rounded-full ${b.bucket === 'Inactive' ? 'bg-white/20' : 'bg-brand-500/70'}`}
+                        className={`h-full rounded-full ${b.bucket === 'Inactive' ? 'bg-surface-3' : 'bg-brand-500/70'}`}
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>
@@ -109,24 +109,24 @@ export default async function OrgAdoptionPage({
         </section>
 
         {/* Adoption by team */}
-        <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-white/70">Team adoption rate ({range}d)</h2>
-          <p className="text-xs text-white/40">
+        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-text-2">Team adoption rate ({range}d)</h2>
+          <p className="text-xs text-text-3">
             Active members / total team members with sessions in the window.
           </p>
           {adoptionByTeam.length === 0 ? (
-            <p className="text-sm text-white/40">No team data available.</p>
+            <p className="text-sm text-text-3">No team data available.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-white/40 text-left">
+                <tr className="text-text-3 text-left">
                   <th className="pb-2 font-medium">Team</th>
                   <th className="pb-2 font-medium text-right">Active</th>
                   <th className="pb-2 font-medium text-right">Total</th>
                   <th className="pb-2 font-medium text-right">Rate</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-border-subtle">
                 {adoptionByTeam.map((t) => (
                   <tr key={t.teamSlug}>
                     <td className="py-2">
@@ -138,8 +138,8 @@ export default async function OrgAdoptionPage({
                         t.teamName
                       )}
                     </td>
-                    <td className="py-2 text-right text-white/60">{t.activeUsers}</td>
-                    <td className="py-2 text-right text-white/60">{t.totalMembers}</td>
+                    <td className="py-2 text-right text-text-2">{t.activeUsers}</td>
+                    <td className="py-2 text-right text-text-2">{t.totalMembers}</td>
                     <td className="py-2 text-right">
                       <AdoptionBadge rate={t.adoptionRate} />
                     </td>
@@ -151,7 +151,7 @@ export default async function OrgAdoptionPage({
         </section>
       </div>
 
-      <p className="text-xs text-white/30 text-center pt-2">
+      <p className="text-xs text-text-3 text-center pt-2">
         Only users who have opted into org-level metadata sharing are counted in these aggregates.
       </p>
     </div>
@@ -170,13 +170,13 @@ function ActiveUsersBars({ trend }: { trend: { activeUsers: number; day: Date }[
         });
         return (
           <div key={t.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
-            <span className="text-[10px] text-white/40">{t.activeUsers}</span>
+            <span className="text-[10px] text-text-3">{t.activeUsers}</span>
             <div
               className="w-full rounded-t bg-brand-500/70 min-h-1"
               style={{ height: `${height}px` }}
               title={`${label}: ${t.activeUsers} active users`}
             />
-            <span className="text-[9px] text-white/30">{label}</span>
+            <span className="text-[9px] text-text-3">{label}</span>
           </div>
         );
       })}
@@ -186,6 +186,6 @@ function ActiveUsersBars({ trend }: { trend: { activeUsers: number; day: Date }[
 
 function AdoptionBadge({ rate }: { rate: number }) {
   const pct = (rate * 100).toFixed(0);
-  const color = rate >= 0.7 ? 'text-green-400' : rate >= 0.4 ? 'text-yellow-400' : 'text-white/40';
+  const color = rate >= 0.7 ? 'text-good' : rate >= 0.4 ? 'text-warn' : 'text-text-3';
   return <span className={`font-mono ${color}`}>{pct}%</span>;
 }

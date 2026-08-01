@@ -59,19 +59,19 @@ export default async function OrgQualityPage({
       />
 
       {/* Outcome rates by friction band */}
-      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white/70">
+      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-text-2">
           PR outcomes by session friction ({range}d)
         </h2>
         {totalPrs === 0 ? (
-          <p className="text-sm text-white/40">
+          <p className="text-sm text-text-3">
             No merged PRs with friction-scored contributing sessions in this window. Friction scores
             are computed nightly by the compute-effectiveness job.
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-white/40 text-left">
+              <tr className="text-text-3 text-left">
                 <th className="pb-2 font-medium">Contributing-session friction</th>
                 <th className="pb-2 font-medium text-right">Merged PRs</th>
                 <th className="pb-2 font-medium text-right">Revert rate</th>
@@ -80,20 +80,20 @@ export default async function OrgQualityPage({
                 <th className="pb-2 font-medium text-right">Avg cost / PR</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-border-subtle">
               {bands.map((b) => {
                 const smallSample = b.mergedPrs < MIN_SAMPLE;
-                const rateCls = smallSample ? 'text-white/30' : 'text-white/80';
+                const rateCls = smallSample ? 'text-text-3' : 'text-text';
                 const rateCell = (outcome: BandOutcomeKey, count: number) => {
                   const p = pValues.get(`${b.band}:${outcome}`);
                   const significant = p !== undefined && p < SIGNIFICANCE_ALPHA;
                   return (
                     <td className={`py-2 text-right font-mono align-top ${rateCls}`}>
                       {fmtPct(count / b.mergedPrs)}
-                      {significant && <span className="text-amber-400">*</span>}
+                      {significant && <span className="text-warn">*</span>}
                       {p !== undefined && (
                         <span
-                          className={`block text-[10px] ${significant ? 'text-amber-400' : 'text-white/30'}`}
+                          className={`block text-[10px] ${significant ? 'text-warn' : 'text-text-3'}`}
                         >
                           {fmtPValue(p)}
                         </span>
@@ -103,13 +103,13 @@ export default async function OrgQualityPage({
                 };
                 return (
                   <tr key={b.band}>
-                    <td className="py-2 align-top text-white/80">
+                    <td className="py-2 align-top text-text">
                       {BAND_LABELS[b.band]}
                       {smallSample && (
-                        <span className="ml-2 text-xs text-white/30">small sample</span>
+                        <span className="ml-2 text-xs text-text-3">small sample</span>
                       )}
                     </td>
-                    <td className="py-2 text-right align-top text-white/60">{b.mergedPrs}</td>
+                    <td className="py-2 text-right align-top text-text-2">{b.mergedPrs}</td>
                     {rateCell('reverted', b.reverted)}
                     {rateCell('ciFailed', b.ciFailed)}
                     {rateCell('bugLinked', b.bugLinked)}
@@ -122,7 +122,7 @@ export default async function OrgQualityPage({
             </tbody>
           </table>
         )}
-        <p className="text-xs text-white/30">
+        <p className="text-xs text-text-3">
           Merged PRs bucketed by the mean friction score of their contributing sessions (same
           thresholds as the session friction bands). Association, not causation — bands under{' '}
           {MIN_SAMPLE} PRs are muted. Bug-linked requires the Jira sync; revert and CI rates work
@@ -131,20 +131,20 @@ export default async function OrgQualityPage({
             <>
               {' '}
               Medium/high rates show the two-tailed Fisher&apos;s-exact p-value vs the low-friction
-              band; <span className="text-amber-400">*</span> marks p &lt; {SIGNIFICANCE_ALPHA}. Avg
-              cost is not tested (no variance data).
+              band; <span className="text-warn">*</span> marks p &lt; {SIGNIFICANCE_ALPHA}. Avg cost
+              is not tested (no variance data).
             </>
           )}
         </p>
       </section>
 
       {/* Defect attribution */}
-      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white/70">
+      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-text-2">
           Bugs linked to tracked work ({range}d)
         </h2>
         {defects.length === 0 ? (
-          <p className="text-sm text-white/40">
+          <p className="text-sm text-text-3">
             No Bug-type issues linked to tracked tickets. Attribution needs the Jira sync
             (JIRA_BASE_URL + JIRA_API_TOKEN) and Jira issue links between bugs and the work that
             introduced them.
@@ -152,7 +152,7 @@ export default async function OrgQualityPage({
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-white/40 text-left">
+              <tr className="text-text-3 text-left">
                 <th className="pb-2 font-medium">Bug</th>
                 <th className="pb-2 font-medium">Link</th>
                 <th className="pb-2 font-medium">Origin ticket</th>
@@ -161,7 +161,7 @@ export default async function OrgQualityPage({
                 <th className="pb-2 font-medium text-right">Bug created</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-border-subtle">
               {defects.map((d) => (
                 <tr key={`${d.bugKey}-${d.originKey}-${d.linkPhrase ?? ''}`}>
                   <td className="py-2">
@@ -169,29 +169,25 @@ export default async function OrgQualityPage({
                       <JiraLink jiraBase={jiraBase} jiraKey={d.bugKey} />
                     </span>
                     {d.bugSummary && (
-                      <span className="ml-2 text-xs text-white/50">
+                      <span className="ml-2 text-xs text-text-2">
                         {d.bugSummary.length > 50 ? `${d.bugSummary.slice(0, 50)}…` : d.bugSummary}
                       </span>
                     )}
-                    {d.bugStatus && (
-                      <span className="ml-2 text-xs text-white/30">{d.bugStatus}</span>
-                    )}
+                    {d.bugStatus && <span className="ml-2 text-xs text-text-3">{d.bugStatus}</span>}
                   </td>
-                  <td className="py-2 text-xs text-white/50">{d.linkPhrase ?? 'linked'}</td>
+                  <td className="py-2 text-xs text-text-2">{d.linkPhrase ?? 'linked'}</td>
                   <td className="py-2 font-mono text-xs">
                     <JiraLink jiraBase={jiraBase} jiraKey={d.originKey} />
                   </td>
-                  <td className="py-2 text-right text-white/60">{d.originMergedPrs}</td>
+                  <td className="py-2 text-right text-text-2">{d.originMergedPrs}</td>
                   <td className="py-2 text-right font-mono">{fmtUsd(d.originSpendUsd)}</td>
-                  <td className="py-2 text-right text-xs text-white/50">
-                    {fmtDate(d.bugCreatedAt)}
-                  </td>
+                  <td className="py-2 text-right text-xs text-text-2">{fmtDate(d.bugCreatedAt)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-        <p className="text-xs text-white/30">
+        <p className="text-xs text-text-3">
           A bug appears here when a Jira issue link connects it (either direction) to a ticket whose
           PRs we track. The link phrase is shown verbatim — "is caused by" carries more weight than
           "relates to". This reports linkage; causation is a human judgement.

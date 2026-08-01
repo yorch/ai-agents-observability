@@ -55,15 +55,15 @@ export default async function OrgSkillDetailPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">
-            <Link href="/org/skills" className="hover:text-white/60">
+          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">
+            <Link href="/org/skills" className="hover:text-text-2">
               Skills
             </Link>
             {' / '}
             <span className="capitalize">{kind}</span>
           </p>
           <h1 className="text-2xl font-semibold font-mono">/{name}</h1>
-          <p className="mt-1 text-sm text-white/50">Trailing {range} days</p>
+          <p className="mt-1 text-sm text-text-2">Trailing {range} days</p>
         </div>
         <DateRangePicker range={range} />
       </div>
@@ -78,8 +78,8 @@ export default async function OrgSkillDetailPage({
             value: stat?.avgSessionCostUsd != null ? `$${stat.avgSessionCostUsd.toFixed(3)}` : '—',
           },
         ].map((c) => (
-          <div key={c.label} className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <p className="text-xs text-white/40 uppercase tracking-wider">{c.label}</p>
+          <div key={c.label} className="rounded-lg border border-border bg-surface p-4">
+            <p className="text-xs text-text-3 uppercase tracking-wider">{c.label}</p>
             <p className="mt-1 text-2xl font-semibold font-mono">{c.value}</p>
           </div>
         ))}
@@ -87,10 +87,8 @@ export default async function OrgSkillDetailPage({
 
       {/* Daily trend */}
       {trend.length > 0 && (
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h3 className="text-xs text-white/40 uppercase tracking-widest mb-3">
-            Daily invocations
-          </h3>
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <h3 className="text-xs text-text-3 uppercase tracking-widest mb-3">Daily invocations</h3>
           <div className="flex items-end gap-1 h-20">
             {trend.map((r) => (
               <div
@@ -106,31 +104,31 @@ export default async function OrgSkillDetailPage({
 
       <div className="grid grid-cols-2 gap-6">
         {/* Cost impact */}
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h3 className="text-xs text-white/40 uppercase tracking-widest mb-4">Cost impact</h3>
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <h3 className="text-xs text-text-3 uppercase tracking-widest mb-4">Cost impact</h3>
           {costRows.length > 0 ? (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-white/70">Sessions using /{name}</span>
-                <span className="font-mono text-sm text-white">
+                <span className="text-sm text-text-2">Sessions using /{name}</span>
+                <span className="font-mono text-sm text-text">
                   {withSkill ? `$${withSkill.avgCostUsd.toFixed(3)}` : '—'}
-                  <span className="text-white/30 text-xs ml-2">
+                  <span className="text-text-3 text-xs ml-2">
                     ({withSkill?.sessionCount ?? 0} sessions)
                   </span>
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-white/70">Sessions without</span>
-                <span className="font-mono text-sm text-white/60">
+                <span className="text-sm text-text-2">Sessions without</span>
+                <span className="font-mono text-sm text-text-2">
                   {withoutSkill ? `$${withoutSkill.avgCostUsd.toFixed(3)}` : '—'}
-                  <span className="text-white/30 text-xs ml-2">
+                  <span className="text-text-3 text-xs ml-2">
                     ({withoutSkill?.sessionCount ?? 0} sessions)
                   </span>
                 </span>
               </div>
               {withSkill && withoutSkill && (
-                <div className="pt-2 border-t border-white/10">
-                  <p className="text-xs text-white/40">
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs text-text-3">
                     {withSkill.avgCostUsd > withoutSkill.avgCostUsd
                       ? `Sessions using /${name} cost ${((withSkill.avgCostUsd / withoutSkill.avgCostUsd - 1) * 100).toFixed(0)}% more on average — longer or more complex tasks.`
                       : `Sessions using /${name} cost ${((1 - withSkill.avgCostUsd / withoutSkill.avgCostUsd) * 100).toFixed(0)}% less on average.`}
@@ -139,43 +137,41 @@ export default async function OrgSkillDetailPage({
               )}
             </div>
           ) : (
-            <p className="text-sm text-white/30">No cost data available</p>
+            <p className="text-sm text-text-3">No cost data available</p>
           )}
         </div>
 
         {/* CI correlation */}
         {ciRows.length > 0 && (
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <h3 className="text-xs text-white/40 uppercase tracking-widest mb-4">
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <h3 className="text-xs text-text-3 uppercase tracking-widest mb-4">
               CI outcome correlation
             </h3>
             <div className="space-y-2">
               {ciRows.map((r) => (
                 <div key={r.ciStatus ?? 'unknown'} className="flex justify-between items-center">
-                  <span className="text-sm capitalize text-white/70">{r.ciStatus}</span>
-                  <span className="font-mono text-sm text-white/60">
+                  <span className="text-sm capitalize text-text-2">{r.ciStatus}</span>
+                  <span className="font-mono text-sm text-text-2">
                     {r.sessionCount}{' '}
-                    <span className="text-white/30 text-xs">
+                    <span className="text-text-3 text-xs">
                       ({ciTotal > 0 ? Math.round((r.sessionCount / ciTotal) * 100) : 0}%)
                     </span>
                   </span>
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-xs text-white/30">
-              PR CI status for sessions using this skill.
-            </p>
+            <p className="mt-3 text-xs text-text-3">PR CI status for sessions using this skill.</p>
           </div>
         )}
       </div>
 
       {/* Top users */}
       {topUsers.length > 0 && (
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h3 className="text-xs text-white/40 uppercase tracking-widest mb-3">Top users</h3>
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <h3 className="text-xs text-text-3 uppercase tracking-widest mb-3">Top users</h3>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-white/40 text-xs border-b border-white/10">
+              <tr className="text-text-3 text-xs border-b border-border">
                 <th className="text-left pb-2">Member</th>
                 <th className="text-right pb-2 font-mono">Invocations</th>
                 <th className="text-right pb-2 font-mono">Sessions</th>
@@ -183,15 +179,15 @@ export default async function OrgSkillDetailPage({
             </thead>
             <tbody>
               {topUsers.map((u, i) => (
-                <tr key={u.githubLogin ?? i} className="border-b border-white/5">
+                <tr key={u.githubLogin ?? i} className="border-b border-border-subtle">
                   <td className="py-2">
-                    <p className="text-white/80">{u.displayName ?? u.githubLogin}</p>
-                    {u.displayName && <p className="text-xs text-white/40">@{u.githubLogin}</p>}
+                    <p className="text-text">{u.displayName ?? u.githubLogin}</p>
+                    {u.displayName && <p className="text-xs text-text-3">@{u.githubLogin}</p>}
                   </td>
-                  <td className="py-2 text-right font-mono text-white/70">
+                  <td className="py-2 text-right font-mono text-text-2">
                     {u.invocationCount.toLocaleString()}
                   </td>
-                  <td className="py-2 text-right font-mono text-white/50">{u.sessionCount}</td>
+                  <td className="py-2 text-right font-mono text-text-2">{u.sessionCount}</td>
                 </tr>
               ))}
             </tbody>

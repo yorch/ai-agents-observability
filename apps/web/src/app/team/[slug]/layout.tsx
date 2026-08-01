@@ -21,10 +21,10 @@ export function TeamSubNav({
   slug: string;
 }) {
   const linkClass = (tab: string) =>
-    `text-sm pb-3 transition-colors ${active === tab ? 'text-white border-b-2 border-brand-500' : 'text-white/50 hover:text-white/80'}`;
+    `text-sm pb-3 transition-colors ${active === tab ? 'text-text border-b-2 border-brand-500' : 'text-text-2 hover:text-text'}`;
 
   return (
-    <nav className="mb-6 flex gap-6 border-b border-white/10">
+    <nav className="mb-6 flex gap-6 border-b border-border">
       <Link href={`/team/${slug}`} className={linkClass('overview')}>
         Overview
       </Link>

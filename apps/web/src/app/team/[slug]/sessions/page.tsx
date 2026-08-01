@@ -24,13 +24,13 @@ export default async function TeamSessionsPage({
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Team</p>
+        <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team</p>
         <h1 className="text-2xl font-semibold">{teamName}</h1>
-        <p className="mt-1 text-sm text-white/50">
+        <p className="mt-1 text-sm text-text-2">
           {total} sessions across {visibleIds.length} member
           {visibleIds.length !== 1 ? 's' : ''}
           {hiddenCount > 0 && (
-            <span className="ml-1 text-white/30">
+            <span className="ml-1 text-text-3">
               ({hiddenCount} member{hiddenCount !== 1 ? 's' : ''} opted out of sharing)
             </span>
           )}

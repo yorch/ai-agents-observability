@@ -23,11 +23,11 @@ type SearchParams = {
 
 function StateBadge({ state }: { state: string }) {
   const colors: Record<string, string> = {
-    closed: 'bg-red-500/20 text-red-400',
-    merged: 'bg-purple-500/20 text-purple-400',
-    open: 'bg-green-500/20 text-green-400',
+    closed: 'bg-crit-soft text-crit',
+    merged: 'bg-series-4/20 text-series-4',
+    open: 'bg-good-soft text-good',
   };
-  const color = colors[state] ?? 'bg-white/10 text-white/50';
+  const color = colors[state] ?? 'bg-surface-2 text-text-2';
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{state}</span>;
 }
 
@@ -63,9 +63,9 @@ function PRsTable({
 
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center">
-        <p className="text-sm font-medium text-white/70">No PRs yet.</p>
-        <p className="mt-1 text-sm text-white/40">
+      <div className="rounded-lg border border-border bg-surface p-8 text-center">
+        <p className="text-sm font-medium text-text-2">No PRs yet.</p>
+        <p className="mt-1 text-sm text-text-3">
           PRs appear here after the GitHub App is installed and you merge a PR.
         </p>
       </div>
@@ -74,10 +74,10 @@ function PRsTable({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-white/10">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/10 text-white/40 text-xs">
+            <tr className="border-b border-border text-text-3 text-xs">
               <th className="text-left px-4 py-3">PR</th>
               <th className="text-left px-4 py-3">Repo</th>
               <th className="text-center px-4 py-3">State</th>
@@ -96,53 +96,53 @@ function PRsTable({
               return (
                 <tr
                   key={`${pr.repoOwner}/${pr.repoName}#${pr.prNumber}`}
-                  className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                  className="border-b border-border-subtle hover:bg-surface-2 transition-colors"
                 >
                   <td className="px-4 py-3 max-w-[300px]">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <a href={detailHref} className="text-white/80 hover:text-white line-clamp-1">
+                      <a href={detailHref} className="text-text hover:text-text line-clamp-1">
                         {pr.title ?? `#${pr.prNumber}`}
                       </a>
                       {pr.revertedAt && (
-                        <span className="rounded-full bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-400 shrink-0">
+                        <span className="rounded-full bg-crit-soft px-1.5 py-0.5 text-[10px] font-medium text-crit shrink-0">
                           reverted
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-white/30 mt-0.5">
+                    <div className="text-xs text-text-3 mt-0.5">
                       <a
                         href={githubHref}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 hover:text-white/60"
+                        className="inline-flex items-center gap-1 hover:text-text-2"
                       >
                         #{pr.prNumber} <ExternalLinkIcon size={11} />
                       </a>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-white/60 text-xs">
+                  <td className="px-4 py-3 text-text-2 text-xs">
                     {pr.repoOwner}/{pr.repoName}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <StateBadge state={pr.state} />
                   </td>
-                  <td className="px-4 py-3 text-right text-white/50 text-xs">
+                  <td className="px-4 py-3 text-right text-text-2 text-xs">
                     {formatDate(pr.mergedAt)}
                   </td>
-                  <td className="px-4 py-3 text-right text-white/60">{pr.sessionCount}</td>
-                  <td className="px-4 py-3 text-right text-white/60">
+                  <td className="px-4 py-3 text-right text-text-2">{pr.sessionCount}</td>
+                  <td className="px-4 py-3 text-right text-text-2">
                     ${pr.totalCostUsd.toFixed(2)}
                   </td>
-                  <td className="px-4 py-3 text-right text-white/50 text-xs font-mono">
+                  <td className="px-4 py-3 text-right text-text-2 text-xs font-mono">
                     {pr.costPerLoc != null ? `$${pr.costPerLoc.toFixed(3)}` : '—'}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {pr.checkFailuresCount > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-amber-400 text-xs font-medium">
+                      <span className="inline-flex items-center gap-1 text-warn text-xs font-medium">
                         <WarningIcon size={12} /> {pr.checkFailuresCount}
                       </span>
                     ) : (
-                      <span className="text-white/20 text-xs">—</span>
+                      <span className="text-text-3 text-xs">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right text-xs">
@@ -150,10 +150,10 @@ function PRsTable({
                       <JiraLink
                         jiraBase={jiraBase}
                         jiraKey={pr.jiraKey}
-                        plainClassName="text-white/50"
+                        plainClassName="text-text-2"
                       />
                     ) : (
-                      <span className="text-white/20">—</span>
+                      <span className="text-text-3">—</span>
                     )}
                   </td>
                 </tr>
@@ -165,7 +165,7 @@ function PRsTable({
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">
-          <p className="text-white/40">
+          <p className="text-text-3">
             {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of{' '}
             {total}
           </p>
@@ -173,7 +173,7 @@ function PRsTable({
             {hasPrev && (
               <a
                 href={`?page=${currentPage - 1}${stateParam}`}
-                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
+                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 transition-colors"
               >
                 <ArrowLeftIcon /> Prev
               </a>
@@ -181,7 +181,7 @@ function PRsTable({
             {hasNext && (
               <a
                 href={`?page=${currentPage + 1}${stateParam}`}
-                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
+                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 transition-colors"
               >
                 Next <ArrowRightIcon />
               </a>
@@ -221,16 +221,16 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
       {/* Summary stats */}
       {total > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <div className="text-xs text-white/40 uppercase tracking-wide">Total PRs</div>
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <div className="text-xs text-text-3 uppercase tracking-wide">Total PRs</div>
             <div className="mt-1 text-2xl font-semibold">{total}</div>
           </div>
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <div className="text-xs text-white/40 uppercase tracking-wide">Total Cost</div>
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <div className="text-xs text-text-3 uppercase tracking-wide">Total Cost</div>
             <div className="mt-1 text-2xl font-semibold">${totalCost.toFixed(2)}</div>
           </div>
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <div className="text-xs text-white/40 uppercase tracking-wide">Total Sessions</div>
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <div className="text-xs text-text-3 uppercase tracking-wide">Total Sessions</div>
             <div className="mt-1 text-2xl font-semibold">{totalSessions}</div>
           </div>
         </div>
@@ -239,14 +239,14 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
       {/* Filter bar */}
       <form method="GET" className="flex flex-wrap gap-3 items-end">
         <div className="flex flex-col gap-1">
-          <label htmlFor="state-filter" className="text-xs text-white/50">
+          <label htmlFor="state-filter" className="text-xs text-text-2">
             State
           </label>
           <select
             id="state-filter"
             name="state"
             defaultValue={stateFilter}
-            className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text focus:outline-none focus:ring-1 focus:ring-brand-500"
           >
             <option value="all">All states</option>
             <option value="open">Open</option>
@@ -264,7 +264,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
         {stateFilter !== 'all' && (
           <a
             href="/me/prs"
-            className="rounded-md border border-white/10 px-4 py-1.5 text-sm hover:bg-white/10 transition-colors"
+            className="rounded-md border border-border px-4 py-1.5 text-sm hover:bg-surface-2 transition-colors"
           >
             Clear
           </a>

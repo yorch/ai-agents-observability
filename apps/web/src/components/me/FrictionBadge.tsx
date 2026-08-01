@@ -13,12 +13,12 @@ export type FrictionInputsLite = {
 
 function band(score: number): { color: string; label: string } {
   if (score < FRICTION_BAND_LOW) {
-    return { color: 'bg-green-500/15 text-green-400', label: 'Low' };
+    return { color: 'bg-good-soft text-good', label: 'Low' };
   }
   if (score <= FRICTION_BAND_HIGH) {
-    return { color: 'bg-yellow-500/15 text-yellow-400', label: 'Medium' };
+    return { color: 'bg-warn-soft text-warn', label: 'Medium' };
   }
-  return { color: 'bg-red-500/15 text-red-400', label: 'High' };
+  return { color: 'bg-crit-soft text-crit', label: 'High' };
 }
 
 function explain(score: number, i: FrictionInputsLite): string {

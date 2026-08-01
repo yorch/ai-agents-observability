@@ -244,7 +244,7 @@ function RecommendationsSection({ recs }: { recs: Recommendation[] }) {
           <li key={r.id} className="flex gap-2.5">
             <span
               className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${
-                r.severity === 'warn' ? 'bg-yellow-400' : 'bg-sky-400'
+                r.severity === 'warn' ? 'bg-warn' : 'bg-series-1'
               }`}
             />
             <div className="space-y-0.5">
@@ -279,11 +279,11 @@ function SessionSummaryCards({ summary: s }: { summary: SessionSummaryRow }) {
 }
 
 const NOTIFICATION_KIND_META: Record<string, { color: string; label: string }> = {
-  auth: { color: 'bg-white/30', label: 'Auth' },
-  elicitation: { color: 'bg-purple-400', label: 'Elicitation' },
-  idle: { color: 'bg-sky-400', label: 'Idle (waiting on you)' },
-  other: { color: 'bg-white/20', label: 'Other' },
-  permission: { color: 'bg-yellow-400', label: 'Permission' },
+  auth: { color: 'bg-surface-3', label: 'Auth' },
+  elicitation: { color: 'bg-series-4', label: 'Elicitation' },
+  idle: { color: 'bg-series-1', label: 'Idle (waiting on you)' },
+  other: { color: 'bg-surface-3', label: 'Other' },
+  permission: { color: 'bg-warn', label: 'Permission' },
 };
 
 function ContinuitySection({ continuity: c }: { continuity: ContinuitySummaryRow }) {
@@ -339,7 +339,7 @@ function NotificationKindsSection({ rows }: { rows: NotificationKindRow[] }) {
       <div className="space-y-1.5">
         {rows.map((r) => {
           const meta = NOTIFICATION_KIND_META[r.kind] ?? {
-            color: 'bg-white/20',
+            color: 'bg-surface-3',
             label: r.kind,
           };
           return (
@@ -424,9 +424,9 @@ function McpSection({ rows }: { rows: McpUsageRow[] }) {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  ABANDONED: 'bg-yellow-500/20 text-yellow-400',
-  COMPLETED: 'bg-emerald-500/20 text-emerald-400',
-  ERROR: 'bg-red-500/20 text-red-400',
+  ABANDONED: 'bg-warn-soft text-warn',
+  COMPLETED: 'bg-good-soft text-good',
+  ERROR: 'bg-crit-soft text-crit',
 };
 
 function SkillsSection({
@@ -680,14 +680,14 @@ function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
                   <td className="py-2 text-right text-text-2">{r.callCount}</td>
                   <td
                     className={`py-2 text-right text-xs ${
-                      r.errorCount > 0 ? 'text-red-400' : 'text-text-3'
+                      r.errorCount > 0 ? 'text-crit' : 'text-text-3'
                     }`}
                   >
                     {r.errorCount > 0 ? `${r.errorCount} (${pct(r.errorCount, r.callCount)})` : '—'}
                   </td>
                   <td
                     className={`py-2 text-right text-xs ${
-                      r.deniedCount > 0 ? 'text-yellow-400' : 'text-text-3'
+                      r.deniedCount > 0 ? 'text-warn' : 'text-text-3'
                     }`}
                   >
                     {r.deniedCount > 0 ? r.deniedCount : '—'}

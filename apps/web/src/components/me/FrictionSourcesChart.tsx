@@ -4,16 +4,16 @@ import type { FrictionSources } from '@/lib/effectiveness-queries';
 // Order, label, color, and one-line meaning for each friction driver. The keys
 // match FrictionSources; the values are the mean weighted contribution to friction.
 const DRIVERS: { color: string; desc: string; key: keyof FrictionSources; label: string }[] = [
-  { color: 'bg-yellow-400', desc: 'permission prompts denied', key: 'denial', label: 'Denials' },
-  { color: 'bg-red-400', desc: 'tool calls that errored', key: 'error', label: 'Tool errors' },
+  { color: 'bg-warn', desc: 'permission prompts denied', key: 'denial', label: 'Denials' },
+  { color: 'bg-crit', desc: 'tool calls that errored', key: 'error', label: 'Tool errors' },
   {
-    color: 'bg-sky-400',
+    color: 'bg-series-1',
     desc: 'sessions interrupted mid-task',
     key: 'interrupt',
     label: 'Interrupts',
   },
   {
-    color: 'bg-purple-400',
+    color: 'bg-series-4',
     desc: 'sessions abandoned within a minute',
     key: 'abandonment',
     label: 'Early abandonment',
@@ -44,7 +44,7 @@ export function FrictionSourcesChart({
       ) : total === 0 ? (
         <p className="inline-flex items-center gap-1.5 text-sm text-text-2">
           No measurable friction — your sessions ran clean.
-          <SparkleIcon className="text-emerald-400" />
+          <SparkleIcon className="text-good" />
         </p>
       ) : (
         <>

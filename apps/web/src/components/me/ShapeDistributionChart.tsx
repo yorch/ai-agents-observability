@@ -1,11 +1,11 @@
 // Per-shape segment colors. Kept here (UI copy) rather than in packages/schemas.
 const SHAPE_COLOR: Record<string, string> = {
-  debugging: 'bg-orange-400',
-  exploratory: 'bg-blue-400',
-  'focused-edit': 'bg-green-400',
+  debugging: 'bg-warn',
+  exploratory: 'bg-series-1',
+  'focused-edit': 'bg-good',
   minimal: 'bg-surface-2',
-  'multi-tool': 'bg-purple-400',
-  planning: 'bg-sky-400',
+  'multi-tool': 'bg-series-4',
+  planning: 'bg-series-1',
 };
 
 const SHAPE_DESC: Record<string, string> = {

@@ -24,15 +24,15 @@ const NAV = [
 export function OrgSubNav() {
   const pathname = usePathname();
   return (
-    <nav className="mb-6 flex gap-6 border-b border-white/10">
+    <nav className="mb-6 flex gap-6 border-b border-border">
       {NAV.map((item) => (
         <Link
           key={item.href}
           href={item.href}
           className={`pb-3 text-sm transition-colors ${
             pathname.startsWith(item.href)
-              ? 'border-b-2 border-brand-500 text-white'
-              : 'text-white/50 hover:text-white/80'
+              ? 'border-b-2 border-brand-500 text-text'
+              : 'text-text-2 hover:text-text'
           }`}
         >
           {item.label}

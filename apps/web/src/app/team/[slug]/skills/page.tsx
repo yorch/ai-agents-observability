@@ -88,7 +88,10 @@ export default async function TeamSkillsPage({
             ]}
           >
             {skills.map((r) => (
-              <tr key={`${r.kind}:${r.name}`} className="border-b border-white/5 hover:bg-white/5">
+              <tr
+                key={`${r.kind}:${r.name}`}
+                className="border-b border-border-subtle hover:bg-surface-2"
+              >
                 <td className="py-2">
                   <Link
                     href={`/team/${slug}/skills/${r.kind}/${encodeURIComponent(r.name)}`}
@@ -97,12 +100,12 @@ export default async function TeamSkillsPage({
                     /{r.name}
                   </Link>
                 </td>
-                <td className="py-2 text-xs capitalize text-white/40">{r.kind}</td>
-                <td className="py-2 text-right font-mono text-white/70">
+                <td className="py-2 text-xs capitalize text-text-3">{r.kind}</td>
+                <td className="py-2 text-right font-mono text-text-2">
                   {r.callCount.toLocaleString()}
                 </td>
-                <td className="py-2 text-right font-mono text-white/60">{r.distinctUsers}</td>
-                <td className="py-2 text-right font-mono text-white/50">
+                <td className="py-2 text-right font-mono text-text-2">{r.distinctUsers}</td>
+                <td className="py-2 text-right font-mono text-text-2">
                   {r.avgSessionCostUsd != null ? `$${r.avgSessionCostUsd.toFixed(3)}` : '—'}
                 </td>
               </tr>
@@ -125,11 +128,11 @@ export default async function TeamSkillsPage({
             ]}
           >
             {funnel.map((r) => (
-              <tr key={r.name} className="border-b border-white/5">
-                <td className="py-2 font-mono text-white/80">/{r.name}</td>
-                <td className="py-2 text-right font-mono text-white/70">{r.recentUsers}</td>
-                <td className="py-2 text-right font-mono text-emerald-400">{r.newUsers}</td>
-                <td className="py-2 text-right font-mono text-white/50">{r.returningUsers}</td>
+              <tr key={r.name} className="border-b border-border-subtle">
+                <td className="py-2 font-mono text-text">/{r.name}</td>
+                <td className="py-2 text-right font-mono text-text-2">{r.recentUsers}</td>
+                <td className="py-2 text-right font-mono text-good">{r.newUsers}</td>
+                <td className="py-2 text-right font-mono text-text-2">{r.returningUsers}</td>
               </tr>
             ))}
           </DataTable>

@@ -10,10 +10,10 @@ export function AgentsTable({
 }) {
   const maxSpawns = Math.max(...agents.map((a) => a.spawnCount), 1);
   return (
-    <div className="overflow-x-auto rounded-lg border border-white/10">
+    <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-white/10 text-left text-white/30">
+          <tr className="border-b border-border text-left text-text-3">
             <th className="px-4 py-3 font-medium">Agent type</th>
             <th className="px-4 py-3 text-right font-medium">Spawns</th>
             <th className="px-4 py-3 text-right font-medium">Share</th>
@@ -30,34 +30,34 @@ export function AgentsTable({
             return (
               <tr
                 key={label}
-                className="border-b border-white/5 transition-colors hover:bg-white/5"
+                className="border-b border-border-subtle transition-colors hover:bg-surface-2"
               >
                 <td className="px-4 py-3">
                   <div className="space-y-1.5">
                     <span
-                      className={`font-mono text-white/80 ${a.subagentType === null ? 'italic text-white/40' : ''}`}
+                      className={`font-mono text-text ${a.subagentType === null ? 'italic text-text-3' : ''}`}
                     >
                       {label}
                     </span>
-                    <div className="h-1 w-40 rounded-full bg-white/5">
+                    <div className="h-1 w-40 rounded-full bg-surface">
                       <div
-                        className="h-full rounded-full bg-pink-500/50"
+                        className="h-full rounded-full bg-series-6/50"
                         style={{ width: `${barPct}%` }}
                       />
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-right font-mono font-medium text-white/80">
+                <td className="px-4 py-3 text-right font-mono font-medium text-text">
                   {a.spawnCount.toLocaleString()}
                 </td>
-                <td className="px-4 py-3 text-right text-white/50">{sharePct.toFixed(1)}%</td>
-                <td className="px-4 py-3 text-right text-white/50">
+                <td className="px-4 py-3 text-right text-text-2">{sharePct.toFixed(1)}%</td>
+                <td className="px-4 py-3 text-right text-text-2">
                   {a.distinctUsers.toLocaleString()}
                 </td>
-                <td className="px-4 py-3 text-right font-mono text-white/50">
+                <td className="px-4 py-3 text-right font-mono text-text-2">
                   {a.avgDurationMs !== null ? fmtDuration(a.avgDurationMs) : '—'}
                 </td>
-                <td className="px-4 py-3 text-right font-mono text-white/50">
+                <td className="px-4 py-3 text-right font-mono text-text-2">
                   {a.totalCostUsd > 0 ? `$${a.totalCostUsd.toFixed(3)}` : '—'}
                 </td>
               </tr>

@@ -33,7 +33,7 @@ export function DeleteDataButton() {
 
   if (done) {
     return (
-      <p className="text-sm text-white/70">
+      <p className="text-sm text-text-2">
         Deletion request received. Your data will be removed within 30 days.
       </p>
     );
@@ -45,11 +45,11 @@ export function DeleteDataButton() {
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className="rounded-md border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+        className="rounded-md border border-crit-line bg-crit-soft px-4 py-2 text-sm font-medium text-crit hover:bg-crit-soft transition-colors disabled:opacity-50"
       >
         {pending ? 'Requesting…' : 'Delete my data'}
       </button>
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm text-crit">{error}</p>}
     </div>
   );
 }

@@ -14,15 +14,15 @@ const BUDGET_CRITICAL_RATIO = 1.0;
 // the callout copy, so the three can't drift apart.
 const BUDGET_LEVEL = {
   critical: {
-    bar: 'bg-red-400',
+    bar: 'bg-crit',
     copy: 'On track to exceed the configured budget this window.',
-    text: 'text-red-400',
+    text: 'text-crit',
   },
-  ok: { bar: 'bg-emerald-400', copy: '', text: 'text-emerald-400' },
+  ok: { bar: 'bg-good', copy: '', text: 'text-good' },
   warn: {
-    bar: 'bg-yellow-400',
+    bar: 'bg-warn',
     copy: 'Approaching the configured budget for this window.',
-    text: 'text-yellow-300',
+    text: 'text-warn',
   },
 } as const;
 
@@ -52,10 +52,10 @@ export function SpendForecast({
   const level = BUDGET_LEVEL[budgetLevel(budgetRatio)];
 
   return (
-    <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-4">
+    <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-white/70">Spend forecast</h2>
-        <p className="mt-0.5 text-xs text-white/40">
+        <h2 className="text-sm font-semibold text-text-2">Spend forecast</h2>
+        <p className="mt-0.5 text-xs text-text-3">
           Run-rate projection from recent spend — a planning estimate, not a guarantee.
         </p>
       </div>
@@ -79,9 +79,9 @@ export function SpendForecast({
       </div>
 
       {budget && (
-        <div className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 p-3">
+        <div className="space-y-1.5 rounded-lg border border-border bg-surface p-3">
           <div className="flex items-baseline justify-between text-xs">
-            <span className="text-white/60">
+            <span className="text-text-2">
               Projected vs budget ({budget.windowDays}-day window)
             </span>
             <span className={`font-mono font-semibold ${level.text}`}>
@@ -100,7 +100,7 @@ export function SpendForecast({
 
       {teams.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-xs font-medium uppercase tracking-widest text-white/40">
+          <p className="text-xs font-medium uppercase tracking-widest text-text-3">
             Projected 30-day spend by team
           </p>
           <div className="space-y-1">
@@ -108,8 +108,8 @@ export function SpendForecast({
               const teamProjected = (t.last7Spend / 7) * 30;
               return (
                 <div key={t.teamSlug} className="flex items-center justify-between text-xs">
-                  <span className="text-white/70">{t.teamName}</span>
-                  <span className="font-mono text-white/60">{fmtUsd(teamProjected)}</span>
+                  <span className="text-text-2">{t.teamName}</span>
+                  <span className="font-mono text-text-2">{fmtUsd(teamProjected)}</span>
                 </div>
               );
             })}
@@ -122,10 +122,10 @@ export function SpendForecast({
 
 function ForecastTile({ label, sub, value }: { label: string; sub: string; value: string }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-      <p className="text-xs text-white/40">{label}</p>
-      <p className="mt-1 font-mono text-xl font-semibold text-white">{value}</p>
-      <p className="text-[11px] text-white/30">{sub}</p>
+    <div className="rounded-lg border border-border bg-surface p-3">
+      <p className="text-xs text-text-3">{label}</p>
+      <p className="mt-1 font-mono text-xl font-semibold text-text">{value}</p>
+      <p className="text-[11px] text-text-3">{sub}</p>
     </div>
   );
 }

@@ -10,7 +10,7 @@ export function DataTable({ children, columns }: { children: ReactNode; columns:
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="border-b border-white/10 text-xs text-white/40">
+        <tr className="border-b border-border text-xs text-text-3">
           {columns.map((col) => (
             <th
               key={col.label}

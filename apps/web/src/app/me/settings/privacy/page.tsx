@@ -55,8 +55,8 @@ export default async function SettingsPrivacyPage() {
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-red-400">Danger zone</h3>
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-3">
+        <h3 className="text-sm font-medium text-crit">Danger zone</h3>
+        <div className="rounded-lg border border-crit-line bg-crit-soft p-4 space-y-3">
           <p className="text-sm text-text-2">
             Request permanent deletion of all your data. This action cannot be undone. Your account,
             sessions, and transcripts will be scheduled for deletion.

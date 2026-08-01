@@ -1,14 +1,14 @@
 const STATUS_COLORS: Record<string, string> = {
-  ABANDONED: 'bg-yellow-500/15 text-yellow-400',
-  ACTIVE: 'bg-green-500/15 text-green-400',
-  abandoned: 'bg-yellow-500/15 text-yellow-400',
-  active: 'bg-green-500/15 text-green-400',
+  ABANDONED: 'bg-warn-soft text-warn',
+  ACTIVE: 'bg-good-soft text-good',
+  abandoned: 'bg-warn-soft text-warn',
+  active: 'bg-good-soft text-good',
   COMPLETED: 'bg-accent/15 text-accent',
-  CRASHED: 'bg-red-500/15 text-red-400',
+  CRASHED: 'bg-crit-soft text-crit',
   completed: 'bg-accent/15 text-accent',
-  crashed: 'bg-red-500/15 text-red-400',
-  TIMED_OUT: 'bg-orange-500/15 text-orange-400',
-  timed_out: 'bg-orange-500/15 text-orange-400',
+  crashed: 'bg-crit-soft text-crit',
+  TIMED_OUT: 'bg-warn-soft text-warn',
+  timed_out: 'bg-warn-soft text-warn',
 };
 
 export function StatusBadge({ status }: { status: string }) {

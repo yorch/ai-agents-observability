@@ -43,8 +43,7 @@ export function SessionFeedbackForm({
 
   const btn = (value: 'up' | 'down', label: ReactNode) => {
     const active = sentiment === value;
-    const activeCls =
-      value === 'up' ? 'border-emerald-500/60 text-emerald-300' : 'border-red-500/60 text-red-300';
+    const activeCls = value === 'up' ? 'border-good-line text-good' : 'border-crit-line text-crit';
     return (
       <button
         type="button"

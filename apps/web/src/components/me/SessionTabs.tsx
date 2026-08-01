@@ -46,12 +46,12 @@ export function ToolsTab({
                   </td>
                   <td className="py-2 text-right text-text-2 font-mono">{r.callCount}</td>
                   <td
-                    className={`py-2 text-right font-mono ${r.errorCount > 0 ? 'text-red-400' : 'text-text-3'}`}
+                    className={`py-2 text-right font-mono ${r.errorCount > 0 ? 'text-crit' : 'text-text-3'}`}
                   >
                     {r.errorCount > 0 ? r.errorCount : '—'}
                   </td>
                   <td
-                    className={`py-2 text-right font-mono ${r.deniedCount > 0 ? 'text-amber-400' : 'text-text-3'}`}
+                    className={`py-2 text-right font-mono ${r.deniedCount > 0 ? 'text-warn' : 'text-text-3'}`}
                   >
                     {r.deniedCount > 0 ? r.deniedCount : '—'}
                   </td>

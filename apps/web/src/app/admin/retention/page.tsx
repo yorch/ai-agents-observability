@@ -26,29 +26,29 @@ export default async function RetentionAdminPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-xl font-semibold">Transcript retention</h1>
-        <p className="text-sm text-white/50">
+        <p className="text-sm text-text-2">
           Per-team transcript retention overrides. Blank = global default ({GLOBAL_DEFAULT_DAYS}{' '}
           days). Overrides are clamped to the org maximum ({ORG_MAX_DAYS} days). Changes are
           audited.
         </p>
       </div>
 
-      {teams.length === 0 && <p className="text-sm text-white/40">No teams synced yet.</p>}
+      {teams.length === 0 && <p className="text-sm text-text-3">No teams synced yet.</p>}
 
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-white/40 border-b border-white/10">
+          <tr className="text-left text-text-3 border-b border-border">
             <th className="pb-2 font-medium">Team</th>
             <th className="pb-2 font-medium text-right">Override (days)</th>
             <th className="pb-2 font-medium text-right">Effective</th>
             <th className="pb-2 font-medium" />
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/5">
+        <tbody className="divide-y divide-border-subtle">
           {teams.map((team) => (
             <tr key={team.id}>
               <td className="py-2">
-                {team.name} <span className="text-white/30">{team.githubSlug}</span>
+                {team.name} <span className="text-text-3">{team.githubSlug}</span>
               </td>
               <td className="py-2 text-right">
                 <form action={setTeamRetention} className="inline-flex items-center gap-2">
@@ -61,7 +61,7 @@ export default async function RetentionAdminPage() {
                     defaultValue={team.retentionDays ?? ''}
                     placeholder={`${GLOBAL_DEFAULT_DAYS}`}
                     aria-label={`Retention override for ${team.name}`}
-                    className="w-24 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right"
+                    className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-right"
                   />
                   <button
                     type="submit"
@@ -71,11 +71,9 @@ export default async function RetentionAdminPage() {
                   </button>
                 </form>
               </td>
-              <td className="py-2 text-right font-mono text-white/60">
+              <td className="py-2 text-right font-mono text-text-2">
                 {effectiveDays(team.retentionDays)}d
-                {team.retentionDays === null && (
-                  <span className="ml-1 text-white/30">(default)</span>
-                )}
+                {team.retentionDays === null && <span className="ml-1 text-text-3">(default)</span>}
               </td>
               <td className="py-2" />
             </tr>

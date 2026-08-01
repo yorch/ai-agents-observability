@@ -111,9 +111,9 @@ export default async function AdaptersPage() {
     .map(buildRow);
 
   const BADGE_STYLES = {
-    active: 'bg-green-500/15 text-green-400',
+    active: 'bg-good-soft text-good',
     inactive: 'bg-surface-2 text-text-3',
-    stale: 'bg-yellow-500/15 text-yellow-400',
+    stale: 'bg-warn-soft text-warn',
   };
 
   const allRows = [...adapterRows, ...otherRows];
@@ -172,7 +172,7 @@ export default async function AdaptersPage() {
                   {crashRate == null ? (
                     <span className="text-text-3">—</span>
                   ) : (
-                    <span className={crashRate > 5 ? 'text-red-400' : 'text-text-3'}>
+                    <span className={crashRate > 5 ? 'text-crit' : 'text-text-3'}>
                       {crashRate.toFixed(1)}%
                     </span>
                   )}

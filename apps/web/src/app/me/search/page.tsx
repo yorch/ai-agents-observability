@@ -29,7 +29,7 @@ export default async function MeSearchPage({
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
       <div>
         <h1 className="text-2xl font-semibold">Search my transcripts</h1>
-        <p className="mt-1 text-sm text-white/50">
+        <p className="mt-1 text-sm text-text-2">
           Full-text search across your own session transcripts.
         </p>
       </div>
@@ -41,7 +41,7 @@ export default async function MeSearchPage({
           defaultValue={rawQuery}
           placeholder="Search your transcripts…"
           aria-label="Search your transcripts"
-          className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+          className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm"
         />
         <button
           type="submit"
@@ -51,18 +51,16 @@ export default async function MeSearchPage({
         </button>
       </form>
 
-      {!query && <p className="text-sm text-white/40">Enter a term to search your transcripts.</p>}
+      {!query && <p className="text-sm text-text-3">Enter a term to search your transcripts.</p>}
 
       {tooShort && (
-        <p className="text-sm text-yellow-300/80">
-          Enter at least {MIN_QUERY_LENGTH} characters to search.
-        </p>
+        <p className="text-sm text-warn">Enter at least {MIN_QUERY_LENGTH} characters to search.</p>
       )}
 
       {results && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-white/70">
+            <h2 className="text-sm font-semibold text-text-2">
               Matches {results.total > 0 && `(${results.total} sessions)`}
             </h2>
             {totalPages > 1 && (
@@ -75,7 +73,7 @@ export default async function MeSearchPage({
                     <ArrowLeftIcon /> Prev
                   </a>
                 )}
-                <span className="text-white/40">
+                <span className="text-text-3">
                   {page} / {totalPages}
                 </span>
                 {page < totalPages && (
@@ -91,16 +89,16 @@ export default async function MeSearchPage({
           </div>
 
           {results.sessions.length === 0 ? (
-            <p className="text-sm text-white/40">No matching sessions.</p>
+            <p className="text-sm text-text-3">No matching sessions.</p>
           ) : (
             <div className="space-y-3">
               {results.sessions.map((s) => (
                 <div
                   key={s.sessionId}
-                  className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2"
+                  className="rounded-lg border border-border bg-surface p-4 space-y-2"
                 >
-                  <div className="flex items-center gap-2 text-xs text-white/40">
-                    <span className="text-white/70">{s.repoName ?? 'Unknown repo'}</span>
+                  <div className="flex items-center gap-2 text-xs text-text-3">
+                    <span className="text-text-2">{s.repoName ?? 'Unknown repo'}</span>
                     <span>·</span>
                     <span>{new Date(s.startedAt).toLocaleString()}</span>
                     <span>·</span>
@@ -115,7 +113,7 @@ export default async function MeSearchPage({
                     {s.excerpts.map((e) => (
                       <p
                         key={`${s.sessionId}-${e.role}-${e.ts?.toISOString() ?? ''}`}
-                        className="text-sm text-white/70 leading-relaxed"
+                        className="text-sm text-text-2 leading-relaxed"
                         // Excerpt is HTML-escaped server-side (search-queries.highlightExcerpt),
                         // with only <mark> tags re-introduced around matches — safe to render.
                         dangerouslySetInnerHTML={{ __html: e.excerpt }}

@@ -83,7 +83,7 @@ export default async function TeamSessionDetailPage({
     <div className="space-y-6">
       <Link
         href={`/team/${slug}/sessions`}
-        className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
+        className="inline-flex items-center gap-1 text-sm text-text-2 hover:text-text"
       >
         <ArrowLeftIcon /> Sessions
       </Link>

@@ -7,7 +7,7 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
   }
   if (previous === 0) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-green-400 font-mono">
+      <span className="inline-flex items-center gap-1 text-xs text-good font-mono">
         <ArrowUpIcon size={12} /> new
       </span>
     );
@@ -21,7 +21,7 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
   const up = pct > 0;
   return (
     <span
-      className={`inline-flex items-center gap-1 text-xs font-mono ${up ? 'text-green-400' : 'text-red-400'}`}
+      className={`inline-flex items-center gap-1 text-xs font-mono ${up ? 'text-good' : 'text-crit'}`}
     >
       {up ? <ArrowUpIcon size={12} /> : <ArrowDownIcon size={12} />} {Math.abs(pct).toFixed(0)}%
     </span>

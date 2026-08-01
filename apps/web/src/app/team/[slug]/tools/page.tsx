@@ -65,10 +65,10 @@ export default async function TeamToolsPage({
             {categories.map((c) => (
               <div
                 key={c.category}
-                className="flex items-center gap-2 rounded bg-white/10 px-3 py-1.5 text-sm"
+                className="flex items-center gap-2 rounded bg-surface-2 px-3 py-1.5 text-sm"
               >
-                <span className="capitalize text-white/80">{c.category}</span>
-                <span className="font-mono text-xs text-white/50">
+                <span className="capitalize text-text">{c.category}</span>
+                <span className="font-mono text-xs text-text-2">
                   {c.callCount.toLocaleString()}
                 </span>
               </div>
@@ -91,23 +91,23 @@ export default async function TeamToolsPage({
             ]}
           >
             {tools.map((r) => (
-              <tr key={r.toolName} className="border-b border-white/5">
-                <td className="py-2 font-mono text-white/80">{r.toolName}</td>
-                <td className="py-2 text-right font-mono text-white/60">
+              <tr key={r.toolName} className="border-b border-border-subtle">
+                <td className="py-2 font-mono text-text">{r.toolName}</td>
+                <td className="py-2 text-right font-mono text-text-2">
                   {r.callCount.toLocaleString()}
                 </td>
                 <td
-                  className={`py-2 text-right font-mono ${r.denyCount > 0 ? 'text-amber-400' : 'text-white/30'}`}
+                  className={`py-2 text-right font-mono ${r.denyCount > 0 ? 'text-warn' : 'text-text-3'}`}
                 >
                   {r.denyCount > 0 ? r.denyCount : '—'}
                 </td>
-                <td className="py-2 text-right font-mono text-white/50">
+                <td className="py-2 text-right font-mono text-text-2">
                   {r.denyRate > 0 ? `${(r.denyRate * 100).toFixed(1)}%` : '—'}
                 </td>
-                <td className="py-2 text-right font-mono text-white/50">
+                <td className="py-2 text-right font-mono text-text-2">
                   {r.avgDurationMs !== null ? r.avgDurationMs : '—'}
                 </td>
-                <td className="py-2 text-right font-mono text-white/50">{r.distinctUsers}</td>
+                <td className="py-2 text-right font-mono text-text-2">{r.distinctUsers}</td>
               </tr>
             ))}
           </DataTable>
@@ -129,12 +129,12 @@ export default async function TeamToolsPage({
             ]}
           >
             {skills.map((r) => (
-              <tr key={`${r.kind}:${r.name}`} className="border-b border-white/5">
-                <td className="py-2 font-mono text-white/80">/{r.name}</td>
-                <td className="py-2 text-xs capitalize text-white/40">{r.kind}</td>
-                <td className="py-2 text-right font-mono text-white/60">{r.callCount}</td>
-                <td className="py-2 text-right font-mono text-white/50">{r.distinctUsers}</td>
-                <td className="py-2 text-right font-mono text-white/50">
+              <tr key={`${r.kind}:${r.name}`} className="border-b border-border-subtle">
+                <td className="py-2 font-mono text-text">/{r.name}</td>
+                <td className="py-2 text-xs capitalize text-text-3">{r.kind}</td>
+                <td className="py-2 text-right font-mono text-text-2">{r.callCount}</td>
+                <td className="py-2 text-right font-mono text-text-2">{r.distinctUsers}</td>
+                <td className="py-2 text-right font-mono text-text-2">
                   {r.avgSessionCostUsd !== null ? `$${r.avgSessionCostUsd.toFixed(3)}` : '—'}
                 </td>
               </tr>

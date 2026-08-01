@@ -10,7 +10,7 @@ export default async function NewAccessGrantPage() {
     <div className="mx-auto max-w-xl space-y-6">
       <div className="space-y-1">
         <h1 className="text-xl font-semibold">Request access grant</h1>
-        <p className="text-sm text-white/50">
+        <p className="text-sm text-text-2">
           Request time-boxed access to a transcript (§8.4). The request grants nothing until an
           org_admin approves it with an expiry. Every step is audited and visible to the viewed
           user.
@@ -19,14 +19,14 @@ export default async function NewAccessGrantPage() {
 
       <form action={requestGrant} className="space-y-4">
         <div className="space-y-1">
-          <label htmlFor="scope" className="text-xs uppercase tracking-wide text-white/50">
+          <label htmlFor="scope" className="text-xs uppercase tracking-wide text-text-2">
             Scope
           </label>
           <select
             id="scope"
             name="scope"
             defaultValue="SINGLE_SESSION"
-            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
           >
             <option value="SINGLE_SESSION">A single session</option>
             <option value="USER_SESSIONS">All sessions for one user</option>
@@ -34,34 +34,31 @@ export default async function NewAccessGrantPage() {
         </div>
 
         <div className="space-y-1">
-          <label
-            htmlFor="targetSessionId"
-            className="text-xs uppercase tracking-wide text-white/50"
-          >
+          <label htmlFor="targetSessionId" className="text-xs uppercase tracking-wide text-text-2">
             Target session id (for single-session scope)
           </label>
           <input
             id="targetSessionId"
             name="targetSessionId"
             placeholder="session UUID"
-            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono"
+            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-mono"
           />
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="targetUserId" className="text-xs uppercase tracking-wide text-white/50">
+          <label htmlFor="targetUserId" className="text-xs uppercase tracking-wide text-text-2">
             Target user id (for user-sessions scope)
           </label>
           <input
             id="targetUserId"
             name="targetUserId"
             placeholder="user UUID"
-            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono"
+            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-mono"
           />
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="justification" className="text-xs uppercase tracking-wide text-white/50">
+          <label htmlFor="justification" className="text-xs uppercase tracking-wide text-text-2">
             Justification (required)
           </label>
           <textarea
@@ -70,7 +67,7 @@ export default async function NewAccessGrantPage() {
             required
             rows={3}
             placeholder="Why is this access needed?"
-            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
           />
         </div>
 
@@ -83,7 +80,7 @@ export default async function NewAccessGrantPage() {
           </button>
           <a
             href="/admin/access-grants"
-            className="rounded-md border border-white/10 px-4 py-2 text-sm hover:bg-white/10"
+            className="rounded-md border border-border px-4 py-2 text-sm hover:bg-surface-2"
           >
             Cancel
           </a>

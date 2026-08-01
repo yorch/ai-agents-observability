@@ -89,7 +89,7 @@ export function SessionPRLinks({
                   type="button"
                   onClick={() => remove(link.prNumber)}
                   disabled={isPending}
-                  className="text-xs text-text-3 hover:text-red-300 transition-colors"
+                  className="text-xs text-text-3 hover:text-crit transition-colors"
                 >
                   remove
                 </button>
@@ -124,7 +124,7 @@ export function SessionPRLinks({
         </p>
       )}
 
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-sm text-crit">{error}</p> : null}
     </div>
   );
 }
