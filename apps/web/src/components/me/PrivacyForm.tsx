@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react';
 
 import { savePrivacySettings } from '@/app/me/settings/privacy/actions';
+import { Card } from '@/components/ui';
 
 type Toggle = {
   description: string;
@@ -108,7 +109,7 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <Card>
       <div className="divide-y divide-border-subtle">
         {toggles.map((toggle) => (
           <ToggleRow key={toggle.name} toggle={toggle} onChange={handleToggle} />
@@ -126,6 +127,6 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
         </button>
         {saved && <span className="text-sm text-good">Saved</span>}
       </div>
-    </div>
+    </Card>
   );
 }

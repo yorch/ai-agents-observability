@@ -4,10 +4,10 @@ import type { FrictionSources } from '@/lib/effectiveness-queries';
 // Order, label, color, and one-line meaning for each friction driver. The keys
 // match FrictionSources; the values are the mean weighted contribution to friction.
 const DRIVERS: { color: string; desc: string; key: keyof FrictionSources; label: string }[] = [
-  { color: 'bg-warn', desc: 'permission prompts denied', key: 'denial', label: 'Denials' },
-  { color: 'bg-crit', desc: 'tool calls that errored', key: 'error', label: 'Tool errors' },
+  { color: 'bg-series-1', desc: 'permission prompts denied', key: 'denial', label: 'Denials' },
+  { color: 'bg-series-2', desc: 'tool calls that errored', key: 'error', label: 'Tool errors' },
   {
-    color: 'bg-series-1',
+    color: 'bg-series-3',
     desc: 'sessions interrupted mid-task',
     key: 'interrupt',
     label: 'Interrupts',

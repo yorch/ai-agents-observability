@@ -2,9 +2,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { FrictionBadge } from '@/components/me/FrictionBadge';
 import { StatusBadge } from '@/components/me/StatusBadge';
-import { SeriesBadge } from '@/components/ui';
-import { type ShapeLabel, shapeSeriesIndex } from '@/lib/effectiveness';
 import type { SessionDetail } from '@/lib/sessions-queries';
+import { ShapeBadge } from './shape';
 
 export function SessionDetailHeader({
   extra,
@@ -36,11 +35,7 @@ export function SessionDetailHeader({
           {session.endedAt && <span>ended: {session.endedAt.toLocaleString()}</span>}
         </div>
         <div className="flex flex-wrap items-start gap-2 pt-0.5">
-          {session.shapeLabel && (
-            <SeriesBadge index={shapeSeriesIndex(session.shapeLabel as ShapeLabel)}>
-              {session.shapeLabel}
-            </SeriesBadge>
-          )}
+          {session.shapeLabel && <ShapeBadge label={session.shapeLabel} />}
           <FrictionBadge
             score={session.frictionScore}
             inputs={{

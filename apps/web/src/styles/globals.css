@@ -14,7 +14,8 @@
 /*   ink       text-text · text-text-2 · text-text-3                          */
 /*   signature text-accent · bg-accent (carries text-bg) · bg-accent-dim      */
 /*   status    {text,bg,border}-{good,warn,crit}[-soft|-line]                 */
-/*   series    text/bg/fill/stroke-series-1 … -6 (charts only, fixed order)   */
+/*   domain    {text,bg,border}-merged[-soft|-line] — PR "merged" purple      */
+/*   series    text/bg/border-series-1 … -6 (charts only, fixed order)        */
 
 @theme {
   --font-display: var(--font-syne), ui-sans-serif, sans-serif;
@@ -52,6 +53,12 @@
   --color-crit: var(--c-crit);
   --color-crit-soft: var(--c-crit-soft);
   --color-crit-line: var(--c-crit-line);
+
+  /* Pull-request "merged" purple. A domain colour, not a chart series: it must
+     not move when the series palette is re-tuned for colour-vision deficiency. */
+  --color-merged: var(--c-merged);
+  --color-merged-soft: var(--c-merged-soft);
+  --color-merged-line: var(--c-merged-line);
 
   /* Chart series — assigned by entity in fixed order, never cycled by rank.
      Validated for colour-vision deficiency against both grounds: worst
@@ -98,6 +105,10 @@
   --c-crit-soft: rgba(255, 107, 112, 0.12);
   --c-crit-line: rgba(255, 107, 112, 0.38);
 
+  --c-merged: #b07cf5;
+  --c-merged-soft: rgba(176, 124, 245, 0.14);
+  --c-merged-line: rgba(176, 124, 245, 0.4);
+
   --c-grid: rgba(232, 232, 242, 0.07);
 }
 
@@ -131,6 +142,10 @@ html.light {
   --c-crit: #c8353c;
   --c-crit-soft: rgba(200, 53, 60, 0.1);
   --c-crit-line: rgba(200, 53, 60, 0.32);
+
+  --c-merged: #7c3fbe;
+  --c-merged-soft: rgba(124, 63, 190, 0.1);
+  --c-merged-line: rgba(124, 63, 190, 0.32);
 
   --c-grid: rgba(20, 20, 28, 0.08);
 }

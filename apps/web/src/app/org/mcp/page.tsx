@@ -86,7 +86,7 @@ export default async function OrgMcpPage({
         <Stat
           label="Error / deny rate"
           value={totalCalls > 0 ? `${(overallErrorRate * 100).toFixed(1)}%` : '—'}
-          warn={overallErrorRate > 0.05}
+          accent={overallErrorRate > 0.05 ? 'warn' : undefined}
         />
         <Stat
           label="Attributed LLM cost"

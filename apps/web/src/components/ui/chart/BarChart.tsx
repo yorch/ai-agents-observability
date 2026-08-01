@@ -66,39 +66,43 @@ export function BarChart({
               ))}
 
               <div className="absolute inset-0 flex items-end gap-1">
-                {data.map((d, i) => (
-                  // One full-width slot per period keeps bars aligned with their
-                  // axis labels; the bar inside is capped so a short series
-                  // draws bars rather than slabs.
-                  <div
-                    key={d.label}
-                    className="flex h-full min-w-0 flex-1 items-end justify-center"
-                  >
+                {data.map((d, i) => {
+                  const total = totals[i] ?? 0;
+                  return (
+                    // One full-width slot per period keeps bars aligned with their
+                    // axis labels; the bar inside is capped so a short series
+                    // draws bars rather than slabs.
                     <div
-                      className="flex w-full max-w-7 flex-col justify-end"
-                      style={{ height: `${((totals[i] ?? 0) / top) * 100}%` }}
+                      key={d.label}
+                      className="flex h-full min-w-0 flex-1 items-end justify-center"
                     >
-                      {/* Drawn top-down so the first series sits at the base. */}
-                      {[...d.values].reverse().map((v, revIdx) => {
-                        const s = d.values.length - 1 - revIdx;
-                        const share = totals[i] ? (v / (totals[i] as number)) * 100 : 0;
-                        if (share <= 0) {
-                          return null;
-                        }
-                        return (
-                          <span
-                            key={series[s] ?? s}
-                            className={`block ${seriesBg(s)} ${
-                              revIdx === 0 ? 'rounded-t-[3px]' : ''
-                            } ${revIdx > 0 ? 'mt-[1.5px]' : ''}`}
-                            style={{ height: `${share}%` }}
-                            data-tip={`${d.label} · ${series[s] ?? ''}|${format(v)}`}
-                          />
-                        );
-                      })}
+                      {/* column-reverse stacks the first series at the base, so
+                        the values can be walked forward. */}
+                      <div
+                        className="flex w-full max-w-7 flex-col-reverse"
+                        style={{ height: `${(total / top) * 100}%` }}
+                      >
+                        {d.values.map((v, s) => {
+                          const share = total ? (v / total) * 100 : 0;
+                          if (share <= 0) {
+                            return null;
+                          }
+                          const isTop = s === d.values.length - 1;
+                          return (
+                            <span
+                              key={series[s] ?? s}
+                              className={`block ${seriesBg(s)}${isTop ? ' rounded-t-[3px]' : ''}${
+                                s > 0 ? ' mb-[1.5px]' : ''
+                              }`}
+                              style={{ height: `${share}%` }}
+                              data-tip={`${d.label} · ${series[s] ?? ''}|${format(v)}`}
+                            />
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

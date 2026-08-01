@@ -1,6 +1,6 @@
 import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Stat } from '@/components/ui';
+import { Card, SeriesBadge, Stat } from '@/components/ui';
 import {
   type CategoryStatRow,
   type DailyToolVolumeRow,
@@ -84,7 +84,7 @@ export default async function OrgToolsPage({
         <Stat
           label="Denial rate"
           value={totalCalls > 0 ? `${(overallDenyRate * 100).toFixed(1)}%` : '—'}
-          warn={overallDenyRate > 0.05}
+          accent={overallDenyRate > 0.05 ? 'warn' : undefined}
         />
         <Stat
           label="Avg duration"
@@ -94,12 +94,12 @@ export default async function OrgToolsPage({
 
       {/* Daily volume trend */}
       {dailyVolume.length > 0 && (
-        <section className="rounded-lg border border-border bg-surface p-4">
+        <Card>
           <h2 className="mb-4 font-display text-sm font-semibold text-text">
             Daily tool call volume ({range}d)
           </h2>
           <DailyVolumeBars volume={dailyVolume} />
-        </section>
+        </Card>
       )}
 
       {/* Top tools table */}
@@ -575,15 +575,14 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
 
 // Categories, not severities — each gets its own fixed series slot so no two
 // kinds share a colour and none of them reads as a warning.
-const CATEGORY_COLORS: Record<string, string> = {
-  browser: 'bg-series-3/20 text-series-3',
-  file_ops: 'bg-series-1/20 text-series-1',
-  mcp: 'bg-series-5/20 text-series-5',
-  search: 'bg-series-4/20 text-series-4',
-  shell: 'bg-series-2/20 text-series-2',
+const CATEGORY_SERIES: Record<string, number> = {
+  browser: 2,
+  file_ops: 0,
+  mcp: 4,
+  search: 3,
+  shell: 1,
 };
 
 function CategoryBadge({ category }: { category: string }) {
-  const cls = CATEGORY_COLORS[category] ?? 'bg-surface-2 text-text-2';
-  return <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${cls}`}>{category}</span>;
+  return <SeriesBadge index={CATEGORY_SERIES[category] ?? null}>{category}</SeriesBadge>;
 }

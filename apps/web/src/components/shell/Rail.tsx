@@ -82,7 +82,6 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
           Observability
         </Link>
         <div className="flex items-center gap-4">
-          <ThemeToggle />
           <button
             type="button"
             aria-expanded={open}
@@ -155,7 +154,10 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
           </div>
         ))}
 
-        <div className="mt-auto flex items-center gap-2.5 px-2 pt-4 max-lg:hidden">
+        {/* One account row, not one per breakpoint — a second copy would mean a
+            second hydrated ThemeToggle and a second MutationObserver. Ordered
+            first in the drawer, pinned last in the rail. */}
+        <div className="flex items-center gap-2.5 px-2 max-lg:order-first max-lg:border-b max-lg:border-border max-lg:pb-3 lg:mt-auto lg:pt-4">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 font-mono text-[9px] text-text-2">
             {initials(userLabel)}
           </span>
@@ -163,13 +165,6 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
             {userLabel}
           </span>
           <ThemeToggle />
-          <SignOutButton />
-        </div>
-
-        {/* The drawer has no footer of its own, so the account actions ride at
-            the end of the scrolling list on small screens. */}
-        <div className="flex items-center gap-3 border-t border-border px-2 pt-3 lg:hidden">
-          <span className="min-w-0 flex-1 truncate text-xs text-text-2">{userLabel}</span>
           <SignOutButton />
         </div>
       </nav>

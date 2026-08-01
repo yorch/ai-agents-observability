@@ -37,6 +37,12 @@ function statusBadge(lastSeen: Date | null, sessions7d: number): 'active' | 'sta
   return 'active';
 }
 
+const BADGE_TONE = {
+  active: 'good',
+  inactive: 'neutral',
+  stale: 'warn',
+} as const;
+
 export default async function AdaptersPage() {
   await requireOrgAdmin();
 
@@ -110,12 +116,6 @@ export default async function AdaptersPage() {
   const otherRows = [...allAgents]
     .filter((a) => !(ADAPTER_AGENTS as readonly string[]).includes(a))
     .map(buildRow);
-
-  const BADGE_TONE = {
-    active: 'good',
-    inactive: 'neutral',
-    stale: 'warn',
-  } as const;
 
   const allRows = [...adapterRows, ...otherRows];
 

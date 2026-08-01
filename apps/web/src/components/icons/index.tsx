@@ -359,3 +359,31 @@ export function PolicyIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Arrow leaving a doorway — sign out. */
+export function SignOutIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6.2 13.5H3.6a1.4 1.4 0 0 1-1.4-1.4V3.9a1.4 1.4 0 0 1 1.4-1.4h2.6M10.4 11.1 13.5 8l-3.1-3.1M13.5 8H6.2" />
+    </Icon>
+  );
+}
+
+/** Sun — the light theme. */
+export function SunIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="8" r="2.7" />
+      <path d="M8 1.1v1.1M8 13.8v1.1M1.1 8h1.1M13.8 8h1.1M3.25 3.25l.78.78M11.97 11.97l.78.78M11.97 4.03l.78-.78M4.03 11.97l-.78.78" />
+    </Icon>
+  );
+}
+
+/** Crescent — the dark theme. */
+export function MoonIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 1.1a6.9 6.9 0 1 0 5.3 11.35A5.3 5.3 0 0 1 6.6 4.28 6.9 6.9 0 0 1 8 1.1Z" />
+    </Icon>
+  );
+}

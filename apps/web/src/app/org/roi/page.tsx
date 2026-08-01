@@ -114,15 +114,17 @@ export default async function OrgRoiPage({
           label="Reverted spend"
           value={fmtUsd(summary.revertedSpendUsd)}
           sub={`${fmtPct(summary.revertedSpendShare)} of spend · ${summary.revertedPrs} PRs`}
-          {...(summary.revertedSpendShare > HIGH_REVERT_RATE ? { accent: 'crit' as const } : {})}
+          accent={summary.revertedSpendShare > HIGH_REVERT_RATE ? 'crit' : undefined}
         />
         <Stat
           label="CI-clean merge rate"
           value={fmtPct(summary.ciCleanMergeRate)}
           sub="merged with no failing checks"
-          {...(summary.ciCleanMergeRate < LOW_CI_CLEAN_RATE && summary.mergedPrs > 0
-            ? { accent: 'warn' as const }
-            : {})}
+          accent={
+            summary.ciCleanMergeRate < LOW_CI_CLEAN_RATE && summary.mergedPrs > 0
+              ? 'warn'
+              : undefined
+          }
         />
       </div>
 
@@ -144,7 +146,7 @@ export default async function OrgRoiPage({
                 label="CI-failed merges"
                 value={ci.failedAvgCost > 0 ? fmtUsd(ci.failedAvgCost) : '—'}
                 sub={`avg cost · ${ci.failedCount} PRs`}
-                {...(ciCostMultiplier && ciCostMultiplier > 1 ? { accent: 'warn' as const } : {})}
+                accent={ciCostMultiplier && ciCostMultiplier > 1 ? 'warn' : undefined}
               />
             </div>
             {ciCostMultiplier && ciCostMultiplier > 1 && (
@@ -367,17 +369,13 @@ export default async function OrgRoiPage({
               label="Net value"
               value={fmtUsd(valueDeliveredUsd - valueSpendUsd)}
               sub="value − agent spend"
-              {...(valueDeliveredUsd - valueSpendUsd >= 0
-                ? { accent: 'good' as const }
-                : { accent: 'crit' as const })}
+              accent={valueDeliveredUsd - valueSpendUsd >= 0 ? 'good' : 'crit'}
             />
             <Stat
               label="Return multiple"
               value={valueSpendUsd > 0 ? `${valueReturnMultiple.toFixed(1)}×` : '—'}
               sub="value ÷ agent spend"
-              {...(valueSpendUsd > 0
-                ? { accent: valueReturnMultiple >= 1 ? ('good' as const) : ('warn' as const) }
-                : {})}
+              accent={valueSpendUsd > 0 ? (valueReturnMultiple >= 1 ? 'good' : 'warn') : undefined}
             />
           </div>
           <p className="text-xs text-text-3">
@@ -416,7 +414,7 @@ export default async function OrgRoiPage({
                 label="Bug-work spend"
                 value={fmtUsd(bugSpend)}
                 sub="sessions on Bug/Defect-type tickets"
-                {...(bugShare !== null && bugShare > 0.3 ? { accent: 'warn' as const } : {})}
+                accent={bugShare !== null && bugShare > 0.3 ? 'warn' : undefined}
               />
               <Stat
                 label="Bug-work share"

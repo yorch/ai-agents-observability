@@ -1,3 +1,4 @@
+import { Stat } from '@/components/ui';
 import { fmtUsd } from '@/lib/fmt';
 
 // Forward-looking spend projection (Tier 2). Presentational: the page computes the
@@ -61,21 +62,17 @@ export function SpendForecast({
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <ForecastTile
+        <Stat
           label="Projected 30-day spend"
           value={fmtUsd(projected30d)}
           sub="at the trailing-7d run rate"
         />
-        <ForecastTile
+        <Stat
           label="This month (projected)"
           value={fmtUsd(monthProjection)}
           sub="month-to-date pace"
         />
-        <ForecastTile
-          label="Daily run rate"
-          value={fmtUsd(dailyRunRate)}
-          sub="avg / day, last 7d"
-        />
+        <Stat label="Daily run rate" value={fmtUsd(dailyRunRate)} sub="avg / day, last 7d" />
       </div>
 
       {budget && (
@@ -117,15 +114,5 @@ export function SpendForecast({
         </div>
       )}
     </section>
-  );
-}
-
-function ForecastTile({ label, sub, value }: { label: string; sub: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-surface p-3">
-      <p className="text-xs text-text-3">{label}</p>
-      <p className="mt-1 font-mono text-xl font-semibold text-text">{value}</p>
-      <p className="text-[11px] text-text-3">{sub}</p>
-    </div>
   );
 }

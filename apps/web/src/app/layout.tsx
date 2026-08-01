@@ -23,6 +23,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       teams = await getPrisma().team.findMany({
         orderBy: { name: 'asc' },
         select: { githubSlug: true, name: true },
+        // Bounded: this list ships in the RSC payload of every page, and is
+        // only read by the rail's team picker.
+        take: 100,
       });
     } else {
       const membership = await getPrisma().teamMember.findFirst({

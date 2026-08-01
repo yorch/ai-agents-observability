@@ -9,8 +9,12 @@ const ACCENT_CLASS: Record<Accent, string> = {
 };
 
 type StatProps = {
-  /** Tints the value. Use only when the number itself carries state. */
-  accent?: Accent;
+  /**
+   * Tints the value. Use only when the number itself carries state.
+   * Explicitly `| undefined` so callers can write `accent={cond ? 'crit' : undefined}`
+   * under exactOptionalPropertyTypes instead of spreading a conditional object.
+   */
+  accent?: Accent | undefined;
   /** Period-over-period change as a fraction (0.182 renders as +18%). */
   delta?: number | null;
   /**
@@ -24,11 +28,13 @@ type StatProps = {
   /** Small regular text below the value — e.g. "vs. previous period". */
   sub?: string;
   value: string;
-  /** Shorthand for accent="warn". */
-  warn?: boolean;
 };
 
-function Delta({ value, inverted }: { value: number; inverted: boolean }) {
+/**
+ * Signed percent with a direction arrow. Exported because summary blocks
+ * outside a Stat tile need the same treatment.
+ */
+export function Delta({ value, inverted }: { value: number; inverted: boolean }) {
   const pct = Math.round(value * 100);
   if (pct === 0) {
     return <span className="font-mono text-xs text-text-3">±0%</span>;
@@ -48,27 +54,13 @@ function Delta({ value, inverted }: { value: number; inverted: boolean }) {
   );
 }
 
-/**
- * The stat tile. Supersedes the three near-identical implementations this app
- * used to carry (StatCard, StatCardWithDelta, and the private Card inside
- * SummaryCards).
- */
-export function Stat({
-  accent,
-  delta,
-  deltaInverted = false,
-  label,
-  note,
-  sub,
-  value,
-  warn,
-}: StatProps) {
-  const effective = accent ?? (warn ? 'warn' : undefined);
+/** The stat tile. Every summary number in the app is one of these. */
+export function Stat({ accent, delta, deltaInverted = false, label, note, sub, value }: StatProps) {
   return (
     <div className="space-y-1 rounded-lg border border-border bg-surface p-4">
       <p className="text-xs uppercase tracking-wider text-text-3">{label}</p>
       <p
-        className={`font-mono text-2xl font-semibold ${effective ? ACCENT_CLASS[effective] : 'text-text'}`}
+        className={`font-mono text-2xl font-semibold ${accent ? ACCENT_CLASS[accent] : 'text-text'}`}
       >
         {value}
       </p>

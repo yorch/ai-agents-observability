@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 
-export type BadgeTone = 'good' | 'warn' | 'crit' | 'neutral' | 'accent';
+import type { Tone } from '@/lib/tone';
+
+export type BadgeTone = Tone;
 
 const TONE: Record<BadgeTone, string> = {
   accent: 'text-accent border-accent/40 bg-accent-dim',

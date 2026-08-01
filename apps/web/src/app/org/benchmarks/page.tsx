@@ -1,5 +1,6 @@
 import { TriangleDownIcon, TriangleUpIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import { Card } from '@/components/ui';
 import { getTeamBenchmarks } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -68,7 +69,7 @@ export default async function OrgBenchmarksPage({
       />
 
       {/* Org median reference */}
-      <section className="rounded-lg border border-border bg-surface p-4">
+      <Card>
         <h2 className="mb-3 font-display text-sm font-semibold text-text">
           Org medians (baseline)
         </h2>
@@ -97,16 +98,16 @@ export default async function OrgBenchmarksPage({
           <TriangleUpIcon size={9} className="text-good" /> = better than median (lower cost, lower
           friction, higher activity, higher success).
         </p>
-      </section>
+      </Card>
 
       {/* Benchmark table */}
       {teams.length === 0 ? (
-        <section className="rounded-lg border border-border bg-surface p-4">
+        <Card>
           <p className="text-sm text-text-3">
             No team data yet. Teams need ≥5 sessions from org-sharing users in the last {weeks}{' '}
             weeks to appear here.
           </p>
-        </section>
+        </Card>
       ) : (
         <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">Team comparison</h2>

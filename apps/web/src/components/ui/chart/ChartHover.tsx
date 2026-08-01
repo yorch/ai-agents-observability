@@ -15,27 +15,40 @@ type Tip = { label: string; value: string; x: number; y: number };
 export function ChartHover({ children }: { children: ReactNode }) {
   const [tip, setTip] = useState<Tip | null>(null);
   const host = useRef<HTMLDivElement>(null);
+  // The mark under the cursor last time we measured. `pointermove` fires per
+  // frame; without this the handler would force two layout flushes and a React
+  // render on every one, even while the cursor sits still on the same bar.
+  const current = useRef<Element | null>(null);
 
   const onMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const mark = (e.target as Element).closest?.('[data-tip]');
+    const mark = (e.target as Element).closest?.('[data-tip]') ?? null;
+    if (mark === current.current) {
+      return;
+    }
+    current.current = mark;
+
     const box = host.current?.getBoundingClientRect();
     if (!mark || !box) {
       setTip(null);
       return;
     }
-    const raw = mark.getAttribute('data-tip') ?? '';
-    const [label, value = ''] = raw.split('|');
+    const [label = '', value = ''] = (mark.getAttribute('data-tip') ?? '').split('|');
     const rect = mark.getBoundingClientRect();
     setTip({
-      label: label ?? '',
+      label,
       value,
       x: rect.left + rect.width / 2 - box.left,
       y: rect.top - box.top,
     });
   }, []);
 
+  const onLeave = useCallback(() => {
+    current.current = null;
+    setTip(null);
+  }, []);
+
   return (
-    <div ref={host} className="relative" onPointerMove={onMove} onPointerLeave={() => setTip(null)}>
+    <div ref={host} className="relative" onPointerMove={onMove} onPointerLeave={onLeave}>
       {children}
       {tip && (
         <div

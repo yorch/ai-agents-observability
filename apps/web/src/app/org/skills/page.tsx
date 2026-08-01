@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
 import {
@@ -31,7 +32,6 @@ export default async function OrgSkillsPage({
 
   const totalInvocations = skills.reduce((s, r) => s + r.callCount, 0);
   const uniqueAdopters = funnel.length > 0 ? Math.max(...funnel.map((r) => r.recentUsers)) : 0;
-  const maxTrend = Math.max(...trend.map((r) => r.invocationCount), 1);
 
   return (
     <div className="space-y-6">
@@ -48,21 +48,7 @@ export default async function OrgSkillsPage({
         <Stat label="Active adopters" value={uniqueAdopters.toString()} />
       </div>
 
-      {trend.length > 0 && (
-        <Card>
-          <SectionHeader>Daily invocations</SectionHeader>
-          <div className="flex h-16 items-end gap-1">
-            {trend.map((r) => (
-              <div
-                key={r.day.toISOString()}
-                className="flex-1 rounded-t bg-accent/60"
-                style={{ height: `${(r.invocationCount / maxTrend) * 100}%` }}
-                title={`${r.day.toLocaleDateString()}: ${r.invocationCount}`}
-              />
-            ))}
-          </div>
-        </Card>
-      )}
+      <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />
 
       {skills.length > 0 ? (
         <Card>

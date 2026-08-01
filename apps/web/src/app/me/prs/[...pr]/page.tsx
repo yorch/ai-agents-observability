@@ -2,26 +2,15 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon, ExternalLinkIcon } from '@/components/icons';
 import { PrStateBadge } from '@/components/me/PrStateBadge';
+import { Card } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
+import { fmtDate } from '@/lib/fmt';
 import { getPRDetail } from '@/lib/pr-queries';
 import { getPrisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 type PageParams = { pr: string[] };
-
-function formatDate(d: Date | null): string {
-  if (!d) {
-    return '—';
-  }
-  return d.toLocaleDateString('en-US', {
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
 
 function formatActiveTime(seconds: number | null): string {
   if (seconds === null || seconds === 0) {
@@ -107,8 +96,8 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
               {pr.headBranch} <ArrowRightIcon size={11} /> {pr.baseBranch}
             </span>
           )}
-          {pr.openedAt && <span>opened: {formatDate(pr.openedAt)}</span>}
-          {pr.mergedAt && <span>merged: {formatDate(pr.mergedAt)}</span>}
+          {pr.openedAt && <span>opened: {fmtDate(pr.openedAt)}</span>}
+          {pr.mergedAt && <span>merged: {fmtDate(pr.mergedAt)}</span>}
         </div>
 
         {/* Diff stats */}
@@ -135,24 +124,24 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       {/* Summary cards */}
       {hasRollup && (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <div className="rounded-lg border border-border bg-surface p-4">
+          <Card>
             <div className="text-xs text-text-3 uppercase tracking-wide">Cost</div>
             <div className="mt-1 text-2xl font-semibold">${pr.totalCostUsd.toFixed(2)}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-surface p-4">
+          </Card>
+          <Card>
             <div className="text-xs text-text-3 uppercase tracking-wide">Sessions</div>
             <div className="mt-1 text-2xl font-semibold">{pr.sessionCount}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-surface p-4">
+          </Card>
+          <Card>
             <div className="text-xs text-text-3 uppercase tracking-wide">Contributors</div>
             <div className="mt-1 text-2xl font-semibold">{pr.contributorCount}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-surface p-4">
+          </Card>
+          <Card>
             <div className="text-xs text-text-3 uppercase tracking-wide">Active Time</div>
             <div className="mt-1 text-2xl font-semibold">
               {formatActiveTime(pr.totalActiveSeconds)}
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
@@ -185,8 +174,8 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
             </div>
             {(pr.firstSessionAt || pr.lastSessionAt) && (
               <div className="pt-2 border-t border-border text-xs text-text-3 flex gap-4">
-                {pr.firstSessionAt && <span>first session: {formatDate(pr.firstSessionAt)}</span>}
-                {pr.lastSessionAt && <span>last session: {formatDate(pr.lastSessionAt)}</span>}
+                {pr.firstSessionAt && <span>first session: {fmtDate(pr.firstSessionAt)}</span>}
+                {pr.lastSessionAt && <span>last session: {fmtDate(pr.lastSessionAt)}</span>}
               </div>
             )}
           </div>

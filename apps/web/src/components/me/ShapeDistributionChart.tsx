@@ -1,12 +1,4 @@
-// Per-shape segment colors. Kept here (UI copy) rather than in packages/schemas.
-const SHAPE_COLOR: Record<string, string> = {
-  debugging: 'bg-warn',
-  exploratory: 'bg-series-1',
-  'focused-edit': 'bg-good',
-  minimal: 'bg-surface-2',
-  'multi-tool': 'bg-series-4',
-  planning: 'bg-series-1',
-};
+import { shapeBg } from './shape';
 
 const SHAPE_DESC: Record<string, string> = {
   debugging: 'heavy execution, retries',
@@ -35,7 +27,7 @@ export function ShapeDistributionChart({ histogram }: { histogram: Record<string
             {entries.map(([label, count]) => (
               <div
                 key={label}
-                className={SHAPE_COLOR[label] ?? 'bg-surface-2'}
+                className={shapeBg(label)}
                 style={{ width: `${(count / total) * 100}%` }}
                 title={`${label}: ${count}`}
               />
@@ -45,9 +37,7 @@ export function ShapeDistributionChart({ histogram }: { histogram: Record<string
             {entries.map(([label, count]) => (
               <li key={label} className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-text">
-                  <span
-                    className={`inline-block h-2 w-2 rounded-full ${SHAPE_COLOR[label] ?? 'bg-surface-2'}`}
-                  />
+                  <span className={`inline-block h-2 w-2 rounded-full ${shapeBg(label)}`} />
                   {label}
                   <span className="text-text-3">— {SHAPE_DESC[label] ?? ''}</span>
                 </span>

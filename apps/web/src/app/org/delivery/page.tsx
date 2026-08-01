@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Stat } from '@/components/ui';
+import { Card, Stat } from '@/components/ui';
 import {
   getOrgCheckHealth,
   getOrgPRDeliveryStats,
@@ -95,7 +95,7 @@ export default async function OrgDeliveryPage({
 
       {/* Weekly PR trend */}
       {weeklyTrend.length > 0 && (
-        <section className="rounded-lg border border-border bg-surface p-4">
+        <Card>
           <h2 className="mb-4 font-display text-sm font-semibold text-text">
             Weekly merged PRs ({trendWeeks} weeks)
           </h2>
@@ -119,7 +119,7 @@ export default async function OrgDeliveryPage({
               );
             })}
           </div>
-        </section>
+        </Card>
       )}
 
       {/* Review health */}

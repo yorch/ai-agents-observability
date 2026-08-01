@@ -1,3 +1,4 @@
+import { Card } from '@/components/ui';
 import { FRICTION_VERSION } from '@/lib/effectiveness';
 import type { EffectivenessDistribution } from '@/lib/effectiveness-queries';
 
@@ -25,12 +26,12 @@ export function FrictionDistributionChart({
 
   if (!friction || scoredSessions < MIN_AGG_SCORED) {
     return (
-      <div className="rounded-lg border border-border bg-surface p-4">
+      <Card>
         {header}
         <p className="text-sm text-text-3">
           Not enough data — needs at least {MIN_AGG_SCORED} scored sessions in this period.
         </p>
-      </div>
+      </Card>
     );
   }
 

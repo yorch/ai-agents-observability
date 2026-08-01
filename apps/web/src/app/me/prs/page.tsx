@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { PrStateBadge } from '@/components/me/PrStateBadge';
+import { Card } from '@/components/ui';
+import { fmtDate } from '@/lib/fmt';
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -21,17 +23,6 @@ type SearchParams = {
   page?: string;
   state?: string;
 };
-
-function formatDate(d: Date | null): string {
-  if (!d) {
-    return '—';
-  }
-  return d.toLocaleDateString('en-US', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
 
 function PRsTable({
   items,
@@ -118,7 +109,7 @@ function PRsTable({
                     <PrStateBadge state={pr.state} />
                   </td>
                   <td className="px-4 py-3 text-right text-text-2 text-xs">
-                    {formatDate(pr.mergedAt)}
+                    {fmtDate(pr.mergedAt)}
                   </td>
                   <td className="px-4 py-3 text-right text-text-2">{pr.sessionCount}</td>
                   <td className="px-4 py-3 text-right text-text-2">
@@ -214,18 +205,18 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
       {/* Summary stats */}
       {total > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg border border-border bg-surface p-4">
+          <Card>
             <div className="text-xs text-text-3 uppercase tracking-wide">Total PRs</div>
             <div className="mt-1 text-2xl font-semibold">{total}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-surface p-4">
+          </Card>
+          <Card>
             <div className="text-xs text-text-3 uppercase tracking-wide">Total Cost</div>
             <div className="mt-1 text-2xl font-semibold">${totalCost.toFixed(2)}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-surface p-4">
+          </Card>
+          <Card>
             <div className="text-xs text-text-3 uppercase tracking-wide">Total Sessions</div>
             <div className="mt-1 text-2xl font-semibold">{totalSessions}</div>
-          </div>
+          </Card>
         </div>
       )}
 

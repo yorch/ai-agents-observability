@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { Card } from '@/components/ui';
 import {
   getOrgSkillCostComparison,
   getOrgSkillDailyTrend,
@@ -44,8 +46,6 @@ export default async function OrgSkillDetailPage({
   if (!stat && trend.length === 0) {
     notFound();
   }
-
-  const maxTrend = Math.max(...trend.map((r) => r.invocationCount), 1);
   const withSkill = costRows.find((r) => r.hasSkill);
   const withoutSkill = costRows.find((r) => !r.hasSkill);
   const ciRows = roiRows.filter((r) => r.skillName === name && r.ciStatus != null);
@@ -85,28 +85,11 @@ export default async function OrgSkillDetailPage({
         ))}
       </div>
 
-      {/* Daily trend */}
-      {trend.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
-            Daily invocations
-          </h3>
-          <div className="flex items-end gap-1 h-20">
-            {trend.map((r) => (
-              <div
-                key={r.day.toISOString()}
-                className="flex-1 bg-accent/60 rounded-t min-h-[2px]"
-                style={{ height: `${Math.max((r.invocationCount / maxTrend) * 100, 2)}%` }}
-                title={`${r.day.toLocaleDateString()}: ${r.invocationCount} invocations`}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />
 
       <div className="grid grid-cols-2 gap-6">
         {/* Cost impact */}
-        <div className="rounded-lg border border-border bg-surface p-4">
+        <Card>
           <h3 className="text-xs text-text-3 uppercase tracking-widest mb-4">Cost impact</h3>
           {costRows.length > 0 ? (
             <div className="space-y-3">
@@ -141,11 +124,11 @@ export default async function OrgSkillDetailPage({
           ) : (
             <p className="text-sm text-text-3">No cost data available</p>
           )}
-        </div>
+        </Card>
 
         {/* CI correlation */}
         {ciRows.length > 0 && (
-          <div className="rounded-lg border border-border bg-surface p-4">
+          <Card>
             <h3 className="text-xs text-text-3 uppercase tracking-widest mb-4">
               CI outcome correlation
             </h3>
@@ -163,13 +146,13 @@ export default async function OrgSkillDetailPage({
               ))}
             </div>
             <p className="mt-3 text-xs text-text-3">PR CI status for sessions using this skill.</p>
-          </div>
+          </Card>
         )}
       </div>
 
       {/* Top users */}
       {topUsers.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4">
+        <Card>
           <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
             Top users
           </h3>
@@ -196,7 +179,7 @@ export default async function OrgSkillDetailPage({
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
     </div>
   );

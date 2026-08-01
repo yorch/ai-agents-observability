@@ -1,3 +1,8 @@
+/** Null-tolerant `fmtDuration`, for latency columns that may have no sample. */
+export function fmtDurationOrDash(ms: number | null): string {
+  return ms === null ? '\u2014' : fmtDuration(ms);
+}
+
 export function fmtDuration(ms: number): string {
   if (ms >= 60_000) {
     return `${(ms / 60_000).toFixed(1)}m`;

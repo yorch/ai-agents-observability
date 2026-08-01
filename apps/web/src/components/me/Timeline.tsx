@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { SeriesBadge, TONE_TEXT } from '@/components/ui';
-import { frictionBadge, shapeSeriesIndex } from '@/lib/effectiveness';
+import { TONE_TEXT } from '@/components/ui';
+import { frictionBadge } from '@/lib/effectiveness';
 import type { SessionDetail, SessionEvent } from '@/lib/sessions-queries';
+import { ShapeBadge } from './shape';
 
 function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -172,22 +173,7 @@ export function Timeline({
             )
           }
         />
-        <Stat
-          label="Shape"
-          value={
-            session.shapeLabel ? (
-              <SeriesBadge
-                index={shapeSeriesIndex(
-                  session.shapeLabel as Parameters<typeof shapeSeriesIndex>[0],
-                )}
-              >
-                {session.shapeLabel}
-              </SeriesBadge>
-            ) : (
-              '—'
-            )
-          }
-        />
+        <Stat label="Shape" value={<ShapeBadge label={session.shapeLabel} />} />
       </div>
 
       {/* Per-event timeline */}

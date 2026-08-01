@@ -4,7 +4,7 @@ import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
-import { Sparkline } from '@/components/ui';
+import { EmptyState, Sparkline } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserShapeTrend } from '@/lib/cohort-queries';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
@@ -154,11 +154,9 @@ export default async function InsightsPage({
       </div>
 
       {!hasSessionData && !hasEventData ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
-          <p className="text-sm text-text-3">
-            No data for the selected window. Run some sessions to see insights here.
-          </p>
-        </div>
+        <EmptyState>
+          No data for the selected window. Run some sessions to see insights here.
+        </EmptyState>
       ) : (
         <>
           {hasSessionData && <SessionSummaryCards summary={summary} />}

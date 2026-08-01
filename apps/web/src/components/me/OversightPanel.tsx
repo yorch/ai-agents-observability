@@ -1,3 +1,5 @@
+import { Card, Stat } from '@/components/ui';
+import { fmtDurationOrDash, fmtPct } from '@/lib/fmt';
 import type { OversightSummary } from '@/lib/oversight-queries';
 
 // Oversight & Autonomy panel (R4) + over-trust callout (R5). Pure presentational
@@ -25,33 +27,6 @@ const MODE_LABEL: Record<string, string> = {
   plan: 'plan',
 };
 
-function pct(n: number): string {
-  return `${(n * 100).toFixed(0)}%`;
-}
-
-function humanMs(ms: number | null): string {
-  if (ms === null) {
-    return '—';
-  }
-  if (ms < 1000) {
-    return `${Math.round(ms)}ms`;
-  }
-  if (ms < 60_000) {
-    return `${(ms / 1000).toFixed(1)}s`;
-  }
-  return `${(ms / 60_000).toFixed(1)}m`;
-}
-
-function Tile({ label, value, sub }: { label: string; sub?: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-surface p-3">
-      <p className="text-xs text-text-3 uppercase tracking-widest">{label}</p>
-      <p className="mt-1 text-xl font-semibold text-text">{value}</p>
-      {sub && <p className="text-xs text-text-3">{sub}</p>}
-    </div>
-  );
-}
-
 export function OversightPanel({ data }: { data: OversightSummary }) {
   if (data.totalSessions === 0) {
     return null;
@@ -70,11 +45,11 @@ export function OversightPanel({ data }: { data: OversightSummary }) {
       )}
 
       {/* Autonomy mode mix */}
-      <div className="rounded-lg border border-border bg-surface p-4">
+      <Card>
         <div className="flex items-baseline justify-between">
           <p className="text-sm font-medium text-text">Autonomy mix</p>
           <p className="text-xs text-text-3">
-            {pct(data.lowOversightShare)} ungated · {data.totalSessions} sessions
+            {fmtPct(data.lowOversightShare)} ungated · {data.totalSessions} sessions
           </p>
         </div>
         <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-surface-2">
@@ -95,25 +70,25 @@ export function OversightPanel({ data }: { data: OversightSummary }) {
             </span>
           ))}
         </div>
-      </div>
+      </Card>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Tile
+        <Stat
           label="Denial rate"
-          value={pct(data.denyRate)}
+          value={fmtPct(data.denyRate)}
           sub={`${data.permissionDenyCount}/${data.toolCallCount} tool calls`}
         />
-        <Tile
+        <Stat
           label="Avg response"
-          value={humanMs(data.avgResponseMs)}
+          value={fmtDurationOrDash(data.avgResponseMs)}
           sub={`${data.responseSampleCount} prompts`}
         />
-        <Tile
+        <Stat
           label="Prompts"
           value={data.permissionPromptCount.toLocaleString()}
           sub="permission"
         />
-        <Tile label="Interrupts" value={data.interruptCount.toLocaleString()} sub="by you" />
+        <Stat label="Interrupts" value={data.interruptCount.toLocaleString()} sub="by you" />
       </div>
     </div>
   );

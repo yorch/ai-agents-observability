@@ -1,3 +1,4 @@
+import { Badge, type BadgeTone } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -161,18 +162,12 @@ export default async function AdminJobsPage() {
   );
 }
 
+const JOB_STATUS_TONE: Record<string, BadgeTone> = {
+  error: 'crit',
+  running: 'accent',
+  success: 'good',
+};
+
 function StatusBadge({ status }: { status: string }) {
-  const classes =
-    status === 'success'
-      ? 'bg-good-soft text-good border-good-line'
-      : status === 'running'
-        ? 'bg-series-1/20 text-series-1 border-series-1/40'
-        : status === 'error'
-          ? 'bg-crit-soft text-crit border-crit-line'
-          : 'bg-surface-2 text-text-2 border-border';
-  return (
-    <span className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {status}
-    </span>
-  );
+  return <Badge tone={JOB_STATUS_TONE[status] ?? 'neutral'}>{status}</Badge>;
 }

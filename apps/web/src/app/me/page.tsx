@@ -54,7 +54,7 @@ export default async function MePage({
   const hasData = thisPeriod.sessionCount > 0;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="space-y-8">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-text">

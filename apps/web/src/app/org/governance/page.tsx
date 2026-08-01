@@ -79,7 +79,7 @@ export default async function GovernancePage({
             label="Pending grants"
             value={pendingGrants.toLocaleString()}
             sub="awaiting approval"
-            warn={pendingGrants > 0}
+            accent={pendingGrants > 0 ? 'warn' : undefined}
           />
           <Stat
             label="Grants approved"
@@ -107,7 +107,7 @@ export default async function GovernancePage({
             label="Awaiting review"
             value={provenance.awaitingReview.toLocaleString()}
             sub="open, no reviewer"
-            warn={provenance.awaitingReview > 0}
+            accent={provenance.awaitingReview > 0 ? 'warn' : undefined}
           />
           <Stat
             label="Merged w/o independent review"

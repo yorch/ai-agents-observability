@@ -111,7 +111,7 @@ export default async function OrgSecurityPage({
           label="High-risk tool calls"
           value={highRiskCalls.toLocaleString()}
           sub="code execution + network"
-          {...(highRiskCalls > 0 ? { accent: 'warn' as const } : {})}
+          accent={highRiskCalls > 0 ? 'warn' : undefined}
         />
         <Stat
           label="External services (MCP)"

@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Stat } from '@/components/ui';
+import { Card, Stat } from '@/components/ui';
 import {
   getActiveUsersTrend,
   getAdoptionByTeam,
@@ -62,7 +62,7 @@ export default async function OrgAdoptionPage({
       </div>
 
       {/* Weekly active users trend */}
-      <section className="rounded-lg border border-border bg-surface p-4">
+      <Card>
         <h2 className="mb-4 font-display text-sm font-semibold text-text">
           Weekly active users (trailing {range} days)
         </h2>
@@ -71,7 +71,7 @@ export default async function OrgAdoptionPage({
         ) : (
           <ActiveUsersBars trend={weeklyTrend} />
         )}
-      </section>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Session frequency distribution */}
