@@ -1,4 +1,4 @@
-import { Cell, Row, Table } from '@/components/ui';
+import { Card, Cell, Row, Table } from '@/components/ui';
 import { fmtDuration } from '@/lib/fmt';
 
 export type McpToolRow = {
@@ -45,7 +45,7 @@ export function McpServerCard({
 }) {
   const health = healthProps(errorRate);
   return (
-    <section className="space-y-4 rounded-lg border border-border bg-surface p-4">
+    <Card contentClassName="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span
@@ -135,7 +135,7 @@ export function McpServerCard({
           </Row>
         ))}
       </Table>
-    </section>
+    </Card>
   );
 }
 

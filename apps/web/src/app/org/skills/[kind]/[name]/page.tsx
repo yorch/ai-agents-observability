@@ -78,10 +78,10 @@ export default async function OrgSkillDetailPage({
             value: stat?.avgSessionCostUsd != null ? `$${stat.avgSessionCostUsd.toFixed(3)}` : '—',
           },
         ].map((c) => (
-          <div key={c.label} className="rounded-lg border border-border bg-surface p-4">
+          <Card key={c.label}>
             <p className="text-xs text-text-3 uppercase tracking-wider">{c.label}</p>
             <p className="mt-1 text-2xl font-semibold font-mono">{c.value}</p>
-          </div>
+          </Card>
         ))}
       </div>
 

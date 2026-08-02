@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui';
+import { Button, Card } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { LEAD_ROLES, requireOrgAdmin } from '@/lib/roles';
 
@@ -42,7 +42,7 @@ export default async function TeamRolesAdminPage() {
             {team.members.length === 0 ? (
               <p className="text-xs text-text-3">No active members.</p>
             ) : (
-              <ul className="divide-y divide-border-subtle rounded-lg border border-border bg-surface">
+              <Card flush contentClassName="divide-y divide-border-subtle">
                 {team.members.map((m) => {
                   const isLead = LEAD_ROLES.includes(m.roleInTeam);
                   const name = m.user.displayName ?? `@${m.user.githubLogin ?? m.user.id}`;
@@ -72,7 +72,7 @@ export default async function TeamRolesAdminPage() {
                     </li>
                   );
                 })}
-              </ul>
+              </Card>
             )}
           </section>
         ))}

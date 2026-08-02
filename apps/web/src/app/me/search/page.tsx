@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { Button, Input } from '@/components/ui';
+import { Button, Card, Input } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { MIN_QUERY_LENGTH, searchOwnTranscripts } from '@/lib/search-queries';
 
@@ -91,10 +91,7 @@ export default async function MeSearchPage({
           ) : (
             <div className="space-y-3">
               {results.sessions.map((s) => (
-                <div
-                  key={s.sessionId}
-                  className="rounded-lg border border-border bg-surface p-4 space-y-2"
-                >
+                <Card key={s.sessionId} contentClassName="space-y-2">
                   <div className="flex items-center gap-2 text-xs text-text-3">
                     <span className="text-text-2">{s.repoName ?? 'Unknown repo'}</span>
                     <span>·</span>
@@ -118,7 +115,7 @@ export default async function MeSearchPage({
                       />
                     ))}
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           )}

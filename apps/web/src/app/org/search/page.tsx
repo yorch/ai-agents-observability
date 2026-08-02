@@ -1,5 +1,5 @@
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { Button, Cell, Input, Row, Select, Table } from '@/components/ui';
+import { Button, Card, Cell, Input, Row, Select, Table } from '@/components/ui';
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
 import { getPrisma } from '@/lib/prisma';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
@@ -318,10 +318,7 @@ export default async function OrgSearchPage({
               ) : (
                 <div className="space-y-3">
                   {transcriptResults.map((r) => (
-                    <div
-                      key={`${r.sessionId}-${r.messageIdx}`}
-                      className="rounded-lg border border-border bg-surface p-4 space-y-2"
-                    >
+                    <Card key={`${r.sessionId}-${r.messageIdx}`} contentClassName="space-y-2">
                       <div className="flex items-center gap-2 text-xs text-text-3">
                         <span className="font-semibold text-text-2">{r.githubLogin}</span>
                         <span>·</span>
@@ -338,7 +335,7 @@ export default async function OrgSearchPage({
                         className="text-sm text-text-2 leading-relaxed"
                         dangerouslySetInnerHTML={{ __html: r.excerpt }}
                       />
-                    </div>
+                    </Card>
                   ))}
                 </div>
               )}

@@ -1,4 +1,4 @@
-import { Badge, type BadgeTone, Button, Cell, EmptyState, Row, Table } from '@/components/ui';
+import { Badge, type BadgeTone, Button, Card, Cell, EmptyState, Row, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -40,7 +40,7 @@ export default async function AdminJobsPage() {
           No job configs yet — they appear once the ingest service starts and seeds the defaults.
         </EmptyState>
       ) : (
-        <div className="rounded-lg border border-border bg-surface overflow-hidden">
+        <Card>
           <Table
             columns={[
               { label: 'Job' },
@@ -148,7 +148,7 @@ export default async function AdminJobsPage() {
               );
             })}
           </Table>
-        </div>
+        </Card>
       )}
     </div>
   );

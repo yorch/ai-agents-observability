@@ -105,7 +105,7 @@ export function SkillsTab({ rows }: { rows: SessionSkillRow[] }) {
           <p className="text-2xl font-display font-semibold text-text mt-1">{total}</p>
         </div>
       </div>
-      <div className="rounded-lg border border-border bg-surface divide-y divide-border">
+      <Card flush contentClassName="divide-y divide-border">
         {rows.map((r) => (
           <div key={r.skillName} className="flex items-center justify-between px-4 py-3">
             <div className="min-w-0">
@@ -119,7 +119,7 @@ export function SkillsTab({ rows }: { rows: SessionSkillRow[] }) {
             </span>
           </div>
         ))}
-      </div>
+      </Card>
     </div>
   );
 }

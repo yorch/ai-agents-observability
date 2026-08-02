@@ -1,4 +1,4 @@
-import { Cell, Row, Table } from '@/components/ui';
+import { Card, Cell, Row, Table } from '@/components/ui';
 import { fmtUsd } from '@/lib/fmt';
 import type { RoutingTeamRow } from '@/lib/org-queries';
 
@@ -31,9 +31,9 @@ export function RoutingByTeam({ rows }: RoutingByTeamProps) {
       </p>
 
       {rows.length === 0 ? (
-        <p className="rounded-lg border border-border bg-surface p-4 text-xs text-text-2">
+        <Card className="text-xs text-text-2">
           No team has premium-model spend on retrieval-only tool categories in this window.
-        </p>
+        </Card>
       ) : (
         <Table
           columns={[

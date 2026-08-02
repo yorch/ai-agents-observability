@@ -40,7 +40,7 @@ export function FrictionDistributionChart({
   const mid = clamp(friction.p50) * 100;
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <Card>
       {header}
       <div className="relative h-3 w-full rounded-full bg-surface-2">
         {/* p25–p75 interquartile span */}
@@ -63,6 +63,6 @@ export function FrictionDistributionChart({
       <p className="mt-2 text-[10px] text-text-3">
         {scoredSessions} scored sessions · 0 (low) – 1 (high)
       </p>
-    </div>
+    </Card>
   );
 }

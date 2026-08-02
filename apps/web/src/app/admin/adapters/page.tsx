@@ -1,5 +1,5 @@
 import { agentDisplayName } from '@ai-agents-observability/schemas';
-import { Badge, Cell, Row, Table } from '@/components/ui';
+import { Badge, Card, Cell, Row, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -202,10 +202,7 @@ export default async function AdaptersPage() {
               const versions = versionsByAgent.get(agent) ?? [];
               const total = versions.reduce((s, v) => s + v.count, 0);
               return (
-                <div
-                  key={agent}
-                  className="space-y-2 rounded-lg border border-border bg-surface p-4"
-                >
+                <Card key={agent} contentClassName="space-y-2">
                   <div className="flex items-baseline justify-between">
                     <span className="font-medium text-text">{agentDisplayName(agent)}</span>
                     <span className="font-mono text-xs text-text-3">{total} sessions</span>
@@ -228,7 +225,7 @@ export default async function AdaptersPage() {
                       </div>
                     ))}
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>

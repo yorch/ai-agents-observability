@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { TONE_TEXT } from '@/components/ui';
+import { Card, TONE_TEXT } from '@/components/ui';
 import { frictionBadge } from '@/lib/effectiveness';
 import type { SessionDetail, SessionEvent } from '@/lib/sessions-queries';
 import { ShapeBadge } from './shape';
@@ -121,7 +121,7 @@ export function Timeline({
   return (
     <div className="space-y-6">
       {/* Summary stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 rounded-lg border border-border bg-surface p-4">
+      <Card className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Stat label="Duration" value={formatDuration(session.durationSeconds)} />
         <Stat label="Tool calls" value={session.toolCallCount} />
         <Stat label="Tool errors" value={session.toolErrorCount} />
@@ -174,7 +174,7 @@ export function Timeline({
           }
         />
         <Stat label="Shape" value={<ShapeBadge label={session.shapeLabel} />} />
-      </div>
+      </Card>
 
       {/* Per-event timeline */}
       {events.length > 0 ? (

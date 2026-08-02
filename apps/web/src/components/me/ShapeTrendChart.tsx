@@ -1,3 +1,4 @@
+import { Card } from '@/components/ui';
 import type { WeeklyShapeBucket } from '@/lib/cohort-queries';
 import { shapeBg } from './shape';
 
@@ -16,7 +17,7 @@ export function ShapeTrendChart({ buckets }: { buckets: WeeklyShapeBucket[] }) {
   );
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <Card>
       <h2 className="mb-1 text-xs font-semibold uppercase tracking-widest text-text-3">
         Shape mix by week
       </h2>
@@ -72,6 +73,6 @@ export function ShapeTrendChart({ buckets }: { buckets: WeeklyShapeBucket[] }) {
           </ul>
         </>
       )}
-    </div>
+    </Card>
   );
 }
