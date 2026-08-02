@@ -2,10 +2,18 @@
 
 This file provides guidance to AI Agents working **across the monorepo**. Per-app conventions live alongside the app:
 
-- **`apps/web/`** — see [`apps/web/AGENTS.md`](apps/web/AGENTS.md) (authoritative for the Next 16 SPA).
-- This root file covers cross-cutting concerns only. Add a per-directory `AGENTS.md` when a workspace's conventions genuinely differ; don't restate what's here.
+| Directory | File | Covers |
+|---|---|---|
+| `apps/web/` | [`AGENTS.md`](apps/web/AGENTS.md) | tokens, UI primitives, chart grammar, routing (authoritative for the Next 16 SPA) |
+| `apps/hook/` | [`AGENTS.md`](apps/hook/AGENTS.md) | adapter seam, the always-exit-0 rule, the perf budget, cross-compile |
+| `apps/ingest/` | [`AGENTS.md`](apps/ingest/AGENTS.md) | routes, double redaction, cost recompute, the scheduled jobs |
+| `packages/db/` | [`AGENTS.md`](packages/db/AGENTS.md) | the two migration layers and the squashed-migration drift trap |
+
+Those files **load only when an agent touches that directory**, so detail there is free; detail here is paid for in every session. This root file therefore covers cross-cutting concerns only. Put a new rule in the narrowest file it applies to, and add a per-directory `AGENTS.md` when a workspace's conventions genuinely differ.
 
 > **Convention:** in every directory that has both, `AGENTS.md` is the real file and `CLAUDE.md` is a symlink to it. Edit `AGENTS.md`. Claude Code reads `CLAUDE.md`; other agents read `AGENTS.md`; the symlink means one file serves both.
+>
+> **Nested files add, they don't override.** Claude Code concatenates this file with the per-directory one. Other agents may load only the *nearest* file ([the AGENTS.md spec says "the closest one takes precedence"](https://agents.md/) and leaves merge behaviour unspecified), so each per-directory file restates the two or three invariants that would be dangerous to lose. Never write a rule in a nested file that *contradicts* this one — that resolves differently depending on which agent is reading.
 
 > **Start here:** read [`DESIGN_DOC.md`](DESIGN_DOC.md) for the project's purpose (self-hosted observability for AI coding agents — Claude Code first, with OpenCode and Codex adapters implemented), then [`PLAN.md`](PLAN.md) and [`tasks/INDEX.md`](tasks/INDEX.md) for current scope.
 
@@ -66,81 +74,34 @@ Run them in this order: lint → typecheck → build → test. Fix each failure 
 
 **Agent-neutrality is a live constraint, not an aspiration.** New capabilities branch on `agent_type`, use the `<agent>:<tool>` naming convention, and drive user-facing copy from the agent label. Don't write "Claude Code" into a user-facing string or a schema field that any agent flows through.
 
-```text
-apps/
-  web/          # Next.js 16 + React 19.2 + Tailwind 4 — dashboards & "My Agents" UI. See apps/web/CLAUDE.md.
-  ingest/       # Hono + Bun.serve — receives telemetry events from the hook CLI; writes events to TimescaleDB + transcripts to S3 (MinIO locally).
-  github-app/   # Hono + Bun.serve — GitHub webhook handler; enriches PRs into the schema.
-  hook/         # Bun single-binary CLI (`claude-telemetry-<os>-<arch>`) — installed on developer machines, captures agent events + transcripts via the adapter seam, ships them to ingest.
-packages/
-  auth/         # auth helpers (server-side `currentUser()`, session decode). Web imports from here — DO NOT introduce NextAuth.
-  db/           # Prisma 7 client + schema + raw-SQL migrations runner. Client generated to `packages/db/src/generated/client`.
-  github/       # GitHub API client (octokit wrapper) — shared by web + github-app.
-  redaction/    # secret-redaction pipeline (token/PII scrub) applied before transcripts hit S3.
-  schemas/      # cross-package TypeScript/zod schemas for telemetry events.
-infra/
-  migrations-runner/  # one-shot Bun image — runs Prisma SQL migrations on stack startup, then exits. Run by docker-compose at boot.
-```
-
-### Why each service exists
-
-| Service | Runtime | Purpose | HTTP? |
+| Workspace | Runtime | Purpose | HTTP? |
 |---|---|---|---|
-| `apps/web` | Bun build → Next 16 standalone | dashboards, individual "My Agents", admin | yes (HEALTHCHECK on `/health`) |
-| `apps/ingest` | `Bun.serve` (Hono) | telemetry endpoint + scheduled jobs (archive rollup, S3 health check) | yes |
+| `apps/web` | Bun build → Next 16 standalone | dashboards, "My Agents", admin | yes |
+| `apps/ingest` | `Bun.serve` (Hono) | telemetry intake + scheduled jobs | yes |
 | `apps/github-app` | `Bun.serve` (Hono) | GitHub webhook receiver — PR enrichment | yes |
 | `apps/hook` | single-binary CLI (`bun build --compile`) | runs on dev machines; **not** a server | no |
-| `infra/migrations-runner` | Bun + Prisma | runs `applySqlMigrations()` once per stack boot, then exits | no (no HEALTHCHECK by design) |
+| `infra/migrations-runner` | Bun + Prisma | `applySqlMigrations()` once per stack boot, then exits | no, by design |
+| `packages/auth` | — | `currentUser()`, session decode, JWT issuance. **Not NextAuth** | — |
+| `packages/db` | — | Prisma 7 client + schema + SQL migration runner | — |
+| `packages/github` | — | Octokit wrapper — shared by web + github-app | — |
+| `packages/redaction` | — | secret/PII scrub, applied before transcripts hit S3 | — |
+| `packages/schemas` | — | the zod wire contract for telemetry events | — |
 
 ### Migrations — the "runner" pattern
 
-Unlike most workspace repos (which run `prisma migrate deploy` in each app's `docker-entrypoint.sh`), this repo uses a **dedicated `infra/migrations-runner/` one-shot container**. The runner waits for Postgres health, runs migrations via `packages/db`'s `applySqlMigrations()`, then exits with status 0. The other services depend on the runner's `condition: service_completed_successfully` in compose so they only start once the schema is current.
+Unlike most workspace repos (which migrate from each app's `docker-entrypoint.sh`), a **dedicated `infra/migrations-runner/` one-shot container** runs them once and exits 0; every service gates on its `condition: service_completed_successfully`. With four services needing the same schema state, migrate-on-boot in each would race or need careful ordering.
 
-Why this pattern: with **4 services** all needing the same migration state, "migrate-on-boot in each service" would either race or require complex ordering. A single runner is simpler and unambiguous.
-
-### Database (`packages/db/`)
-
-Prisma 7 + **TimescaleDB** (custom Postgres image with hypertable extensions). Schema lives at `packages/db/prisma/schema.prisma`; generated client at `packages/db/src/generated/client` (gitignored).
-
-Two migration layers, applied in order by the runner:
-1. **Relational schema** — a single squashed Prisma migration at `packages/db/prisma/migrations/20260625075457_init/` (the project is pre-deployment, so phase migrations were merged into one Prisma-generated migration). Regenerate/verify with `prisma migrate dev` (needs the Prisma engine, which is egress-blocked in CI sandboxes — see note below).
-2. **Custom SQL** — everything Prisma's DSL can't model lives in `packages/db/sql/migrations/` and is applied by `applySqlMigrations()` after `prisma migrate deploy`: TimescaleDB DDL (hypertables, continuous aggregates, retention policies) in `0001_init.sql`, and data seeds like the built-in alert rules in `0002_seed_builtin_alert_rules.sql`.
-
-**Schema change workflow (dev):** Because Prisma uses a single squashed init migration, its idempotency check is name-based — editing `migration.sql` after it has been applied to a database will silently drift. Whenever the Prisma schema changes, reset the local database before redeploying:
-```bash
-bun run docker:infra:down:v   # wipes volumes
-bun run docker:infra:up
-bun run db:deploy
-bun run db:seed               # optional
-```
-Do **not** work around drift by adding `ALTER TABLE` patches to `packages/db/sql/migrations/` — that layer is reserved for TimescaleDB DDL and data seeds that Prisma cannot model.
-
-**Enum convention:** all Prisma/DB enum values are **UPPER_SNAKE_CASE** (`OrgRole.ORG_ADMIN`, `AgentType.CLAUDE_CODE`). The telemetry wire schema (`packages/schemas`) uses the same casing, so `agent_type` flows hook → ingest → DB without translation.
-
-### Storage (`apps/ingest` + MinIO/S3)
-
-Session transcripts are too large for the relational DB. They're streamed to S3-compatible object storage (MinIO locally, real S3 in prod), and the relational row carries the S3 key. `apps/ingest/src/index.ts` runs a `HeadBucketCommand` at boot to validate the bucket exists + credentials work — boot fails loud if not.
-
-### Hook CLI distribution (`apps/hook/`)
-
-The hook is the developer-facing artifact. Built with `bun build --compile --target bun-<os>-<arch>`, it ships as a **single executable** with no Node/Bun runtime required on the dev machine. The `build:all` script cross-compiles all four targets:
-
-- `claude-telemetry-darwin-arm64` (Apple Silicon)
-- `claude-telemetry-darwin-x64` (Intel Mac)
-- `claude-telemetry-linux-arm64`
-- `claude-telemetry-linux-x64`
-
-The CLI installs the host agent's hooks (`commands/install`), captures events via stdin/stdout (`hook-entry`), batches them in a background flusher (`flusher`), and ships them to the configured ingest endpoint (`shipper`). Per-agent capture lives behind the adapter seam in `apps/hook/src/adapters/` — `claude-code.ts`, `opencode.ts`, `codex.ts`. Adding an agent means adding an adapter, not changing the schema.
+**Before you change `schema.prisma`, read [`packages/db/AGENTS.md`](packages/db/AGENTS.md)** — the squashed init migration drifts silently if you patch it, and the recovery is a database reset.
 
 ## Key conventions
 
 - **Bun, not Node.** The runtime is Bun (Bun.serve for HTTP, bun build for compile, bun run for scripts). Don't add Node-specific build steps; don't introduce npm/yarn/pnpm to bun-only workspaces.
 - **Turbo + workspace foreach.** Cross-package commands go through `turbo run …`. When adding a new app or package, add it to `turbo.json` so cache + dependency ordering work.
 - **`/health`** is the canonical liveness path on web, ingest, and github-app. Public, no DB call, returns build metadata.
-- **Migrations live in `packages/db/`** and apply via the `infra/migrations-runner/` container — **not** in app entrypoints. Schema-derived relational changes go through Prisma (`prisma migrate dev`); TimescaleDB DDL and data seeds Prisma can't model go in a numbered file under `packages/db/sql/migrations/`. Keep custom SQL out of the Prisma migration so it stays regenerable.
+- **Migrations live in `packages/db/`** and apply via the `infra/migrations-runner/` container — **not** in app entrypoints. Relational changes go through Prisma; what Prisma can't model goes in a numbered file under `packages/db/sql/migrations/`. Details and the drift trap: [`packages/db/AGENTS.md`](packages/db/AGENTS.md).
 - **TimescaleDB persists to a bind mount** (`./data/postgres`), as do MinIO, Prometheus, and Grafana. The stack runs the `timescale/timescaledb` image (standard Postgres uid handling), so bind mounts are intentional and keep all stack state under `./data/` for easy backup/inspection. (The older `timescaledb-ha` image required named volumes for uid reasons; that constraint no longer applies.)
-- **`apps/web` uses `@ai-agents-observability/auth`** — never introduce NextAuth. Use `currentUser()` from `apps/web/src/lib/auth.ts` in server components / route handlers (see [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) for the full conventions).
+- **`apps/web` uses `@ai-agents-observability/auth`** — never introduce NextAuth. Use `currentUser()` from `apps/web/src/lib/auth.ts` in server components / route handlers (see [`apps/web/AGENTS.md`](apps/web/AGENTS.md) for the full conventions).
 - **Redaction runs before S3 writes.** Transcripts pass through `packages/redaction` first — never write raw transcripts to MinIO/S3. New telemetry shapes that carry user-pasted content must add their own redaction rules to that package.
 - **`packages/schemas` is the truth** for telemetry event shapes. The hook CLI, ingest, and web all import from there. Don't redeclare event types app-locally.
 - **Service-side env validation** — each app's `loadConfig()` (Zod-validated) is the only place that touches `process.env`. Missing config is a startup failure, not a runtime crash.
-- **Heavy WIP.** Later-phase features and follow-ups are tracked in `tasks/INDEX.md`; Phases 7–9 task work is `done`, with caveats documented in the task files. Check the task status before assuming a feature is fully signed off.
+- **Check task status before assuming a feature is signed off.** [`tasks/INDEX.md`](tasks/INDEX.md) is the source of truth for what is `done` vs `ready` vs `review` — the roadmap prose in `README.md` / `PLAN.md` is a convenience copy and has drifted before. Caveats live in the individual task files.

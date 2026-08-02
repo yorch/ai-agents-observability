@@ -4,8 +4,17 @@
 **Scope:** Every Markdown file in the repo (132 files), assessed against current
 Claude Code memory guidance and the AGENTS.md conventions that settled during
 2026. Covers both audiences — docs humans read and docs agents load.
-**Status:** Assessment. The **Tier 1** corrections below were applied in the same
-PR. Tiers 2–4 are recommendations awaiting a decision.
+**Status:** Assessment. **Tier 1** (factual corrections) and **§4.3/§4.4** (the
+per-directory `AGENTS.md` split) were applied in the same PR. The rest of Tier 2,
+plus Tiers 3–4, are recommendations awaiting a decision.
+
+> **Correction, 2026-08-02.** An earlier revision of this file described the hook's
+> hot-path budget as "<10ms (CI-enforced)". It is not enforced. `.github/workflows/perf.yml`
+> budgets **<15 ms p99** and runs `continue-on-error: true` — report-only, because a
+> Bun single-file-binary cold start measures ~60–80 ms on shared runners regardless of
+> code. The <10 ms figure is the design target on developer hardware. Caught while
+> writing `apps/hook/AGENTS.md` from source; it is the same class of drift this audit
+> is about, which is the argument for §5's automated checks rather than more careful reading.
 
 ---
 
@@ -89,6 +98,34 @@ Cursor, Aider, Devin, Copilot, Gemini CLI, Windsurf, Amazon Q):
   raised cost ~23%, "primarily because they duplicated content already available
   in the repository." **Duplication is not neutral. It is a measurable tax.**
 
+### 2.1 The one place the two ecosystems disagree
+
+Worth stating precisely, because it decides how nested files must be written:
+
+| | Behaviour with nested files |
+|---|---|
+| **Claude Code** | Root loads at launch; a subdirectory's file loads **on demand when Claude reads a file there**. They **concatenate** — documented, unambiguous |
+| **Codex CLI** | Concatenates the chain from git root → cwd, capped at 32 KiB |
+| **agents.md spec** | *"Agents automatically read the nearest file in the directory tree, so the closest one takes precedence."* **Precedence, not merge** — and merge behaviour is left unspecified |
+
+The spec's ambiguity is not resolved: [issue #53](https://github.com/agentsmd/agents.md/issues/53)
+asks exactly whether a nested file ignores or merges with root, and has sat
+unanswered since September 2025.
+
+**Two consequences for this repo**, which ships `codex` and `opencode` adapters and
+should expect contributors running those agents:
+
+1. A nested file must **never contradict** the root — a contradiction resolves one way
+   under concatenation and the other under nearest-wins.
+2. Each nested file should **deliberately restate** the two or three invariants that
+   would be dangerous to lose if only it loaded. `apps/web` was already doing this by
+   accident (it repeats the NextAuth ban); it is now done on purpose in all four.
+
+The on-demand loading is also the reason the answer to "do we need two files?" is
+"yes, and more" — a leaf file costs **nothing** until an agent touches that directory,
+while every line in the root is paid for in every session, including sessions that
+never go near the code it describes.
+
 **How this repo scores.** Size: good. Symlink bridge: correct. Specificity:
 excellent — `apps/web/AGENTS.md` is a model of the genre. Duplication: **this is
 where the repo loses points**, and per the finding above, that is the expensive axis.
@@ -152,14 +189,15 @@ Options, in preference order:
 2. **Fold §§1–4 into `DESIGN_DOC.md`** and delete the rest.
 3. Leave as-is and accept the drift.
 
-### 4.3 Add `AGENTS.md` to the workspaces that earn one
+### 4.3 Add `AGENTS.md` to the workspaces that earn one — **applied**
 
 Seven of twelve workspaces have no doc of any kind. The ones that would carry
 real, non-derivable content:
 
-- **`apps/hook/`** — the adapter seam contract, the <10ms hot-path budget (CI-enforced),
-  "hook entrypoints always exit 0," the SQLite/WAL queue invariants. Currently
-  buried in a README written for binary *consumers*, not for agents editing the code.
+- **`apps/hook/`** — the adapter seam contract, the hot-path budget *and the fact that
+  CI does not enforce it*, "hook entrypoints always exit 0," the SQLite/WAL queue
+  invariants. Currently buried in a README written for binary *consumers*, not for
+  agents editing the code.
 - **`apps/ingest/`** — `loadConfig()` as the only `process.env` reader, the boot
   `HeadBucketCommand`, advisory-locked job scheduling, re-redaction on receipt.
 - **`packages/db/`** — the squashed-migration drift trap. This is the sharpest
@@ -170,7 +208,7 @@ real, non-derivable content:
 precisely the pattern measured to *reduce* success rates. Write them only where
 a real convention or a real trap exists.
 
-### 4.4 Move path-specific rules out of the root file
+### 4.4 Move path-specific rules out of the root file — **applied**
 
 Per §2, the root file should keep cross-cutting rules and shed anything scoped to
 one directory. Candidates for `.claude/rules/` with `paths:` frontmatter, or for
@@ -263,13 +301,18 @@ Worth stating plainly, because "audit" tends to imply "change everything":
 
 | Priority | Action | Effort | Kills |
 |---|---|---|---|
-| **1** | Tier 1 corrections | done | 13 verified errors |
-| **2** | §4.1 collapse status to `INDEX.md` | ~half a day | the top drift generator |
-| **3** | §5.2–5.4 CI checks + build gate | ~2 hours | three error *classes* |
-| **4** | §4.3 `AGENTS.md` for `db` / `hook` / `ingest` | ~half a day | root-file bloat, buried footguns |
+| **1** | Tier 1 corrections | **done** | 13 verified errors |
+| **2** | §4.3 + §4.4 per-directory `AGENTS.md` split | **done** | root-file bloat, buried footguns |
+| **3** | §4.1 collapse status to `INDEX.md` | ~half a day | the top drift generator |
+| **4** | §5.2–5.4 CI checks + build gate | ~2 hours | three error *classes* |
 | **5** | §5.3 generate `INDEX.md` from frontmatter | ~half a day | hand-maintenance at 96 files |
 | **6** | §6 `.claude/` — settings + SessionStart first | ~2 hours | session friction; dogfooding gap |
 | **7** | §4.2 decide `PROJECT_OVERVIEW.md`'s role | a conversation | the hardest-drifting file |
+
+**Result of #2:** root `AGENTS.md` 146 → **107 lines** (paid every session), while
+`packages/db` (76), `apps/hook` (72) and `apps/ingest` (71) gained more detail than the
+root ever carried — loaded only when an agent works in those directories. Every file
+is comfortably inside the 200-line target, and no session pays for all five.
 
 ---
 

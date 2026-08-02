@@ -1,7 +1,13 @@
 # apps/web — agent notes
 
-> `CLAUDE.md` in this directory is a symlink to `AGENTS.md`, matching the repo root.
-> `AGENTS.md` is the canonical file; edit that one.
+> `CLAUDE.md` here is a symlink to this file. Edit `AGENTS.md`.
+>
+> **Root rules still apply.** Claude Code concatenates this file with the repo-root
+> [`AGENTS.md`](../../AGENTS.md); some other agents load only the *nearest* file.
+> The invariants most expensive to lose are restated here for that case:
+> four gates before every commit (`bun run check` → `typecheck` → `build` → `test`);
+> `packages/schemas` is the only source of telemetry event shapes; and auth is
+> `@ai-agents-observability/auth` — **never NextAuth**.
 
 Read [`/PLAN.md`](../../PLAN.md) and [`/tasks/`](../../tasks/) before picking up work in this app.
 
