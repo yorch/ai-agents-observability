@@ -12,7 +12,8 @@
 /*   surfaces  bg-bg · bg-surface · bg-surface-2 · bg-surface-3               */
 /*   lines     border-border-subtle · border-border · border-border-strong    */
 /*   ink       text-text · text-text-2 · text-text-3                          */
-/*   signature text-accent · bg-accent (carries text-bg) · bg-accent-dim      */
+/*   signature text-accent · bg-accent (carries text-bg)                      */
+/*             bg-accent-{muted,soft,dim} · border-accent-line                 */
 /*   status    {text,bg,border}-{good,warn,crit}[-soft|-line]                 */
 /*   domain    {text,bg,border}-merged[-soft|-line] — PR "merged" purple      */
 /*   series    text/bg/border-series-1 … -6 (charts only, fixed order)        */
@@ -39,9 +40,19 @@
 
   /* Signature. Safe as ink on bg/surface in both themes, and safe as a fill
      with `text-bg` on top: dark pairs lime with near-black ink, light pairs
-     olive with near-white ink. */
+     olive with near-white ink.
+
+     Four emphasis roles, so callers pick a meaning rather than an alpha:
+       accent        ink, and solid fills (buttons, the active mark)
+       accent-muted  data fills that should not shout (bars, meters)
+       accent-soft   chip and pill backgrounds
+       accent-dim    a wash behind a row or panel
+       accent-line   borders */
   --color-accent: var(--c-accent);
+  --color-accent-muted: var(--c-accent-muted);
+  --color-accent-soft: var(--c-accent-soft);
   --color-accent-dim: var(--c-accent-dim);
+  --color-accent-line: var(--c-accent-line);
 
   /* Status — reserved for state. Never used as a chart series. */
   --color-good: var(--c-good);
@@ -93,7 +104,10 @@
   --c-text-3: #7d7d90;
 
   --c-accent: #c8ff57;
+  --c-accent-muted: rgba(200, 255, 87, 0.65);
+  --c-accent-soft: rgba(200, 255, 87, 0.18);
   --c-accent-dim: rgba(200, 255, 87, 0.1);
+  --c-accent-line: rgba(200, 255, 87, 0.4);
 
   --c-good: #3ddc97;
   --c-good-soft: rgba(61, 220, 151, 0.12);
@@ -131,7 +145,12 @@ html.light {
   /* The lime is 1.2:1 on white — unusable as ink, so light darkens it to an
      olive that reads on paper and still carries `text-bg` as a fill. */
   --c-accent: #4f7a00;
-  --c-accent-dim: rgba(107, 160, 0, 0.1);
+  /* The olive is far darker than the lime, so the same alphas would read much
+     heavier on paper — the mid steps are pulled back to match. */
+  --c-accent-muted: rgba(79, 122, 0, 0.55);
+  --c-accent-soft: rgba(79, 122, 0, 0.14);
+  --c-accent-dim: rgba(79, 122, 0, 0.08);
+  --c-accent-line: rgba(79, 122, 0, 0.32);
 
   --c-good: #07845c;
   --c-good-soft: rgba(7, 132, 92, 0.1);

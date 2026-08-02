@@ -109,7 +109,7 @@ export default async function OrgBenchmarksPage({
           </p>
         </Card>
       ) : (
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">Team comparison</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -179,10 +179,10 @@ export default async function OrgBenchmarksPage({
               </tbody>
             </table>
           </div>
-        </section>
+        </Card>
       )}
 
-      <div className="rounded-lg border border-border bg-surface p-4 space-y-2 text-xs text-text-3">
+      <Card className="space-y-2 text-xs text-text-3">
         <p className="font-semibold text-text-2">Metric definitions</p>
         <ul className="space-y-1 list-disc list-inside">
           <li>
@@ -207,7 +207,7 @@ export default async function OrgBenchmarksPage({
           Only teams with ≥5 sessions from org-sharing users in the last {weeks} weeks are shown.
           Benchmarks compare within the org, not against external baselines.
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

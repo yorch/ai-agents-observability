@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { DeleteDataButton } from '@/components/me/DeleteDataButton';
 import { PrivacyForm } from '@/components/me/PrivacyForm';
+import { Card } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getVisibilityPolicy } from '@/lib/visibility';
 
@@ -41,7 +42,7 @@ export default async function SettingsPrivacyPage() {
 
       <section className="space-y-3">
         <h3 className="text-sm font-medium text-text-2">Pause data collection</h3>
-        <div className="rounded-lg border border-border bg-surface p-4 space-y-2">
+        <Card className="space-y-2">
           <p className="text-sm text-text-2">
             Run the following command to temporarily pause telemetry from your local machine:
           </p>
@@ -51,7 +52,7 @@ export default async function SettingsPrivacyPage() {
           <p className="text-xs text-text-3">
             Run <code className="font-mono">claude-telemetry resume</code> to re-enable.
           </p>
-        </div>
+        </Card>
       </section>
 
       <section className="space-y-3">

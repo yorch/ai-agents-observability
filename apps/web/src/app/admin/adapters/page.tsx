@@ -222,7 +222,7 @@ export default async function AdaptersPage() {
                         </div>
                         <div className="h-1 rounded-full bg-surface-2">
                           <div
-                            className="h-full rounded-full bg-accent/50"
+                            className="h-full rounded-full bg-accent-muted"
                             style={{ width: `${total > 0 ? (v.count / total) * 100 : 0}%` }}
                           />
                         </div>

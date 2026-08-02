@@ -1,4 +1,4 @@
-import { TONE_BG, TONE_TEXT } from '@/components/ui';
+import { Card, TONE_BG, TONE_TEXT } from '@/components/ui';
 import type { CohortFrictionRow } from '@/lib/cohort-queries';
 import { frictionBadge } from '@/lib/effectiveness';
 
@@ -23,7 +23,7 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
   const maxFriction = Math.max(...qualifying.map((r) => r.medianFriction ?? 0), 0.01);
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+    <Card className="space-y-3">
       <h2 className="font-display text-sm font-semibold text-text">Cohort friction divergence</h2>
       <p className="text-xs text-text-2">
         Median friction by first-seen-month cohort. Diverging newer cohorts may signal an onboarding
@@ -68,6 +68,6 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
           </tbody>
         </table>
       )}
-    </section>
+    </Card>
   );
 }

@@ -1,17 +1,18 @@
+import { Card } from '@/components/ui';
 import type { TeamModelGovernanceRow } from '@/lib/org-queries';
 
 export function ModelGovernanceTable({ rows }: { rows: TeamModelGovernanceRow[] }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Model governance by team</h2>
         <p className="text-sm text-text-3">No data available.</p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+    <Card className="space-y-3">
       <h2 className="font-display text-sm font-semibold text-text">Model governance by team</h2>
       <p className="text-xs text-text-3">Top model by cost per team (top 10 teams).</p>
       <div className="overflow-x-auto">
@@ -40,6 +41,6 @@ export function ModelGovernanceTable({ rows }: { rows: TeamModelGovernanceRow[] 
           </tbody>
         </table>
       </div>
-    </div>
+    </Card>
   );
 }

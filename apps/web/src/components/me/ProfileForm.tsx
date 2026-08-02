@@ -1,7 +1,8 @@
 'use client';
-import { useState, useTransition } from 'react';
 
+import { useState, useTransition } from 'react';
 import { saveProfile } from '@/app/me/settings/profile/actions';
+import { Button, Card } from '@/components/ui';
 
 type Props = {
   initialDisplayName: string | null;
@@ -32,7 +33,7 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-4">
+    <Card className="space-y-4">
       {githubLogin && (
         <div className="space-y-1">
           <p className="block text-xs font-medium text-text-2">GitHub login</p>
@@ -80,20 +81,15 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
       </div>
 
       <div className="flex items-center gap-3 pt-1">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isPending}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90 transition-colors disabled:opacity-50"
-        >
+        <Button onClick={handleSave} disabled={isPending}>
           {isPending ? 'Saving…' : 'Save profile'}
-        </button>
+        </Button>
         {status && (
           <span className={`text-sm ${status.ok ? 'text-good' : 'text-crit'}`}>
             {status.message}
           </span>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

@@ -188,7 +188,7 @@ export default async function OrgDashboardPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Cost by team */}
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">Cost by team (top 10)</h2>
           {teamCost.length === 0 ? (
             <p className="text-sm text-text-3">No team data available.</p>
@@ -222,10 +222,10 @@ export default async function OrgDashboardPage({
               </tbody>
             </table>
           )}
-        </section>
+        </Card>
 
         {/* Cost by repo */}
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">Cost by repo (top 10)</h2>
           {repoCost.length === 0 ? (
             <p className="text-sm text-text-3">No repo data available.</p>
@@ -251,12 +251,12 @@ export default async function OrgDashboardPage({
               </tbody>
             </table>
           )}
-        </section>
+        </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Model mix */}
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">Cost by model</h2>
           {modelCost.length === 0 ? (
             <p className="text-sm text-text-3">No model data available.</p>
@@ -281,7 +281,7 @@ export default async function OrgDashboardPage({
               })}
             </div>
           )}
-        </section>
+        </Card>
 
         {/* Top tools */}
         <TopTools title="Top Tools (org-wide)" tools={tools} />

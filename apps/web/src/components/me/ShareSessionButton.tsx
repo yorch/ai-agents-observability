@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import type { ShareResult } from '@/app/me/sessions/[id]/actions';
 import { revokeShare, shareSession } from '@/app/me/sessions/[id]/actions';
 import { ArrowRightIcon } from '@/components/icons';
+import { Button } from '@/components/ui';
 
 type ActiveShare = { expiresAt: Date; granteeEmail: string | null; id: string };
 
@@ -88,7 +89,7 @@ export function ShareSessionButton({
       >
         Share
         {count > 0 && (
-          <span className="rounded-full bg-accent/20 px-1.5 py-0.5 text-[10px] font-medium text-accent leading-none">
+          <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent leading-none">
             {count}
           </span>
         )}
@@ -118,13 +119,9 @@ export function ShareSessionButton({
                   <form action={revokeShare}>
                     <input type="hidden" name="grantId" value={share.id} />
                     <input type="hidden" name="sessionId" value={sessionId} />
-                    <button
-                      type="submit"
-                      title="Revoke access"
-                      className="rounded px-1.5 py-0.5 text-[10px] text-text-3 hover:bg-crit-soft hover:text-crit transition-colors"
-                    >
+                    <Button variant="danger" type="submit" title="Revoke access">
                       Revoke
-                    </button>
+                    </Button>
                   </form>
                 </div>
               ))}
@@ -183,13 +180,9 @@ export function ShareSessionButton({
                     <option value="7">Expires in 7 days</option>
                     <option value="30">Expires in 30 days</option>
                   </select>
-                  <button
-                    type="submit"
-                    disabled={isPending}
-                    className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-bg hover:opacity-90 disabled:opacity-50 transition-opacity"
-                  >
+                  <Button size="sm" type="submit" disabled={isPending}>
                     {isPending ? '…' : 'Share'}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>

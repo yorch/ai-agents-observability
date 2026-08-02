@@ -1,6 +1,7 @@
 import { PERMISSION_MODES } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
 import { SessionsTable } from '@/components/me/SessionsTable';
+import { Button } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
 import { getPrisma } from '@/lib/prisma';
@@ -234,12 +235,7 @@ export default async function SessionsPage({
           </div>
         )}
 
-        <button
-          type="submit"
-          className="rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-bg hover:opacity-90 transition-opacity"
-        >
-          Filter
-        </button>
+        <Button type="submit">Filter</Button>
 
         {(repo || status || params.from || params.to || shape || agent || frictionBand || mode) && (
           <a

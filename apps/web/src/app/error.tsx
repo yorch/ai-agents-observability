@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { Button } from '@/components/ui';
 
 export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
   useEffect(() => {
@@ -13,13 +14,9 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
       <h1 className="font-display text-xl font-semibold tracking-tight text-text">
         Something went wrong.
       </h1>
-      <button
-        type="button"
-        onClick={reset}
-        className="rounded-md border border-border-strong px-3 py-1 text-sm hover:bg-surface-2"
-      >
+      <Button variant="secondary" size="sm" onClick={reset}>
         Try again
-      </button>
+      </Button>
     </div>
   );
 }

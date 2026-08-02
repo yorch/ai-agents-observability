@@ -2,6 +2,8 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
+import { Segmented, SegmentedButton } from '@/components/ui';
+
 export function DateRangePicker({ range }: { range: 7 | 30 | 90 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -20,21 +22,16 @@ export function DateRangePicker({ range }: { range: 7 | 30 | 90 }) {
   ];
 
   return (
-    <div className="flex gap-2">
+    <Segmented label="Date range">
       {ranges.map(({ label, value }) => (
-        <button
+        <SegmentedButton
           key={value}
-          type="button"
+          selected={range === value}
           onClick={() => handleRangeChange(value)}
-          className={`rounded-full px-3 py-1 text-xs transition-colors ${
-            range === value
-              ? 'border border-border-strong bg-surface-2 text-text'
-              : 'text-text-2 hover:bg-surface-2 hover:text-text'
-          }`}
         >
           {label}
-        </button>
+        </SegmentedButton>
       ))}
-    </div>
+    </Segmented>
   );
 }

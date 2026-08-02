@@ -2,6 +2,7 @@ import {
   BUDGET_THRESHOLD_WINDOW_DAYS,
   parseBudgetThresholdParams,
 } from '@ai-agents-observability/schemas';
+import { Button } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import {
@@ -75,12 +76,9 @@ export default async function AlertsAdminPage() {
                     {silenced ? (
                       <form action={unsilenceRule}>
                         <input type="hidden" name="id" value={r.id} />
-                        <button
-                          type="submit"
-                          className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-2"
-                        >
+                        <Button variant="secondary" size="sm" type="submit">
                           Unsilence
-                        </button>
+                        </Button>
                       </form>
                     ) : (
                       <form action={silenceRule} className="flex items-center gap-1">
@@ -96,12 +94,9 @@ export default async function AlertsAdminPage() {
                           <option value="24">24h</option>
                           <option value="72">72h</option>
                         </select>
-                        <button
-                          type="submit"
-                          className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-2"
-                        >
+                        <Button variant="secondary" size="sm" type="submit">
                           Silence
-                        </button>
+                        </Button>
                       </form>
                     )}
                     <form action={toggleRule}>
@@ -109,7 +104,7 @@ export default async function AlertsAdminPage() {
                       <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
                       <button
                         type="submit"
-                        className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-accent/80 hover:opacity-90 text-bg' : 'border border-border hover:bg-surface-2'}`}
+                        className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-accent-muted hover:opacity-90 text-bg' : 'border border-border hover:bg-surface-2'}`}
                       >
                         {r.enabled ? 'Enabled' : 'Disabled'}
                       </button>
@@ -142,12 +137,9 @@ export default async function AlertsAdminPage() {
                         className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-sm"
                       />
                     </label>
-                    <button
-                      type="submit"
-                      className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-2"
-                    >
+                    <Button variant="secondary" size="sm" type="submit">
                       Save budget
-                    </button>
+                    </Button>
                     {budgetUsd === undefined && (
                       <span className="text-xs text-warn">Set a budget to activate this rule.</span>
                     )}
@@ -174,21 +166,15 @@ export default async function AlertsAdminPage() {
               <form action={toggleChannel}>
                 <input type="hidden" name="id" value={c.id} />
                 <input type="hidden" name="enabled" value={(!c.enabled).toString()} />
-                <button
-                  type="submit"
-                  className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-2"
-                >
+                <Button variant="secondary" size="sm" type="submit">
                   {c.enabled ? 'Disable' : 'Enable'}
-                </button>
+                </Button>
               </form>
               <form action={deleteChannel}>
                 <input type="hidden" name="id" value={c.id} />
-                <button
-                  type="submit"
-                  className="rounded-md border border-crit-line px-3 py-1 text-xs text-crit hover:bg-crit-soft"
-                >
+                <Button variant="danger" size="sm" type="submit">
                   Remove
-                </button>
+                </Button>
               </form>
             </div>
           </div>
@@ -210,12 +196,9 @@ export default async function AlertsAdminPage() {
             aria-label="Channel target"
             className="flex-1 min-w-64 rounded-md border border-border bg-surface px-3 py-1 text-sm"
           />
-          <button
-            type="submit"
-            className="rounded-md bg-accent px-3 py-1 text-sm font-medium text-bg hover:opacity-90"
-          >
+          <Button size="sm" type="submit">
             Add channel
-          </button>
+          </Button>
         </form>
       </section>
 
@@ -264,12 +247,9 @@ export default async function AlertsAdminPage() {
                     ) : (
                       <form action={acknowledgeAlert}>
                         <input type="hidden" name="id" value={e.id.toString()} />
-                        <button
-                          type="submit"
-                          className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-2"
-                        >
+                        <Button variant="secondary" size="sm" type="submit">
                           Acknowledge
-                        </button>
+                        </Button>
                       </form>
                     )}
                   </td>

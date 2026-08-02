@@ -1,4 +1,5 @@
 import { OrgRole } from '@ai-agents-observability/db';
+import { Button } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setOrgRole } from './actions';
@@ -62,12 +63,9 @@ export default async function OrgRolesAdminPage() {
                       </option>
                     ))}
                   </select>
-                  <button
-                    type="submit"
-                    className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-bg hover:opacity-90"
-                  >
+                  <Button size="sm" type="submit">
                     Save
-                  </button>
+                  </Button>
                 </form>
               </td>
             </tr>

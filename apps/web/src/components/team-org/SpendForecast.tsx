@@ -1,4 +1,4 @@
-import { Stat } from '@/components/ui';
+import { Card, Stat } from '@/components/ui';
 import { fmtUsd } from '@/lib/fmt';
 
 // Forward-looking spend projection (Tier 2). Presentational: the page computes the
@@ -53,7 +53,7 @@ export function SpendForecast({
   const level = BUDGET_LEVEL[budgetLevel(budgetRatio)];
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
+    <Card className="space-y-4">
       <div>
         <h2 className="font-display text-sm font-semibold text-text">Spend forecast</h2>
         <p className="mt-0.5 text-xs text-text-3">
@@ -113,6 +113,6 @@ export function SpendForecast({
           </div>
         </div>
       )}
-    </section>
+    </Card>
   );
 }

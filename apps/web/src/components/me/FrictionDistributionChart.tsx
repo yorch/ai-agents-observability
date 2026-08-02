@@ -45,7 +45,7 @@ export function FrictionDistributionChart({
       <div className="relative h-3 w-full rounded-full bg-surface-2">
         {/* p25–p75 interquartile span */}
         <div
-          className="absolute h-full rounded-full bg-accent/40"
+          className="absolute h-full rounded-full bg-accent-muted"
           style={{ left: `${left}%`, width: `${Math.max(right - left, 0)}%` }}
         />
         {/* p50 marker */}

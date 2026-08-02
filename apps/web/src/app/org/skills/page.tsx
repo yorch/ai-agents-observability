@@ -70,7 +70,7 @@ export default async function OrgSkillsPage({
                 <td className="py-2">
                   <Link
                     href={`/org/skills/${r.kind}/${encodeURIComponent(r.name)}`}
-                    className="font-mono text-accent hover:text-accent/70"
+                    className="font-mono text-accent hover:opacity-80"
                   >
                     /{r.name}
                   </Link>

@@ -77,7 +77,7 @@ function describeEvent(ev: SessionEvent): {
       ? 'bg-crit'
       : ev.eventType === 'PostToolUse'
         ? 'bg-good/60'
-        : 'bg-accent/60';
+        : 'bg-accent-muted';
     const sublabel = denied ? 'denied' : ev.mcpServer ? `via ${ev.mcpServer}` : undefined;
     return { color, label, sublabel };
   }
@@ -215,7 +215,7 @@ export function Timeline({
           <div className="space-y-4">
             {milestones.map((event, i) => (
               <div key={i} className="flex gap-4 pl-8 relative">
-                <div className="absolute left-0 top-1.5 h-5 w-5 rounded-full bg-accent/15 border border-accent/40 flex items-center justify-center">
+                <div className="absolute left-0 top-1.5 h-5 w-5 rounded-full bg-accent-soft border border-accent-line flex items-center justify-center">
                   <div className="h-2 w-2 rounded-full bg-accent" />
                 </div>
                 <div>

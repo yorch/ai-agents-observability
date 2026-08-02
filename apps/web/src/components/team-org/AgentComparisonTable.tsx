@@ -1,4 +1,5 @@
 import { agentDisplayName } from '@ai-agents-observability/schemas';
+import { Card } from '@/components/ui';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import type { AgentComparisonRow } from '@/lib/org-queries';
 
@@ -17,7 +18,7 @@ function fmtTokens(n: number): string {
 // baseline before a second tool is adopted.
 export function AgentComparisonTable({ rows }: { rows: AgentComparisonRow[] }) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+    <Card className="space-y-3">
       <div>
         <h2 className="font-display text-sm font-semibold text-text">Agent comparison</h2>
         <p className="text-xs text-text-3">
@@ -62,6 +63,6 @@ export function AgentComparisonTable({ rows }: { rows: AgentComparisonRow[] }) {
           </tbody>
         </table>
       )}
-    </section>
+    </Card>
   );
 }

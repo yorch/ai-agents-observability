@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useState, useTransition } from 'react';
 import { submitSessionFeedback } from '@/app/me/sessions/[id]/actions';
 import { ThumbsDownIcon, ThumbsUpIcon } from '@/components/icons';
+import { Button, Card } from '@/components/ui';
 
 type Sentiment = 'up' | 'down' | null;
 
@@ -59,7 +60,7 @@ export function SessionFeedbackForm({
   };
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+    <Card className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-text">Was this session's work good?</p>
         <div className="flex gap-2">
@@ -88,16 +89,15 @@ export function SessionFeedbackForm({
         className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-text focus:border-accent focus:outline-none"
       />
       <div className="flex items-center gap-3">
-        <button
-          type="button"
+        <Button
+          size="sm"
           onClick={() => save(sentiment)}
           disabled={isPending || sentiment === null}
-          className="rounded-md bg-accent px-3 py-1 text-sm font-semibold text-bg hover:opacity-90 disabled:opacity-40"
         >
           {isPending ? 'Saving…' : 'Save note'}
-        </button>
+        </Button>
         {saved && !isPending && <span className="text-xs text-text-3">Saved</span>}
       </div>
-    </div>
+    </Card>
   );
 }

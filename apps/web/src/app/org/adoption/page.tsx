@@ -75,7 +75,7 @@ export default async function OrgAdoptionPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Session frequency distribution */}
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">
             Session frequency ({range}d)
           </h2>
@@ -99,7 +99,7 @@ export default async function OrgAdoptionPage({
                     </div>
                     <div className="h-2 rounded-full bg-surface-2">
                       <div
-                        className={`h-full rounded-full ${b.bucket === 'Inactive' ? 'bg-surface-3' : 'bg-accent/70'}`}
+                        className={`h-full rounded-full ${b.bucket === 'Inactive' ? 'bg-surface-3' : 'bg-accent-muted'}`}
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>
@@ -108,10 +108,10 @@ export default async function OrgAdoptionPage({
               })}
             </div>
           )}
-        </section>
+        </Card>
 
         {/* Adoption by team */}
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">
             Team adoption rate ({range}d)
           </h2>
@@ -152,7 +152,7 @@ export default async function OrgAdoptionPage({
               </tbody>
             </table>
           )}
-        </section>
+        </Card>
       </div>
 
       <p className="text-xs text-text-3 text-center pt-2">
@@ -176,7 +176,7 @@ function ActiveUsersBars({ trend }: { trend: { activeUsers: number; day: Date }[
           <div key={t.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
             <span className="text-[10px] text-text-3">{t.activeUsers}</span>
             <div
-              className="w-full rounded-t bg-accent/70 min-h-1"
+              className="w-full rounded-t bg-accent-muted min-h-1"
               style={{ height: `${height}px` }}
               title={`${label}: ${t.activeUsers} active users`}
             />

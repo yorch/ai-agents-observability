@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 
 import { savePrivacySettings } from '@/app/me/settings/privacy/actions';
-import { Card } from '@/components/ui';
+import { Button, Card } from '@/components/ui';
 
 type Toggle = {
   description: string;
@@ -117,14 +117,9 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isPending}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90 transition-colors disabled:opacity-50"
-        >
+        <Button onClick={handleSave} disabled={isPending}>
           {isPending ? 'Saving…' : 'Save settings'}
-        </button>
+        </Button>
         {saved && <span className="text-sm text-good">Saved</span>}
       </div>
     </Card>

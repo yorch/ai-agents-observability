@@ -1,6 +1,6 @@
 import { AuditAction } from '@ai-agents-observability/db';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Badge, type BadgeTone, Stat } from '@/components/ui';
+import { Badge, type BadgeTone, Card, Stat } from '@/components/ui';
 import { fmtBytes } from '@/lib/fmt';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
@@ -127,7 +127,7 @@ export default async function OrgSecurityPage({
       </div>
 
       {/* Tool-category exposure */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <div>
           <h2 className="font-display text-sm font-semibold text-text">Tool-category exposure</h2>
           <p className="mt-0.5 text-xs text-text-3">
@@ -139,10 +139,10 @@ export default async function OrgSecurityPage({
         ) : (
           <CategoryTable rows={categories} />
         )}
-      </section>
+      </Card>
 
       {/* Per-repo exposure */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <div>
           <h2 className="font-display text-sm font-semibold text-text">Exposure by repo</h2>
           <p className="mt-0.5 text-xs text-text-3">
@@ -179,10 +179,10 @@ export default async function OrgSecurityPage({
             </tbody>
           </table>
         )}
-      </section>
+      </Card>
 
       {/* External egress */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <div>
           <h2 className="font-display text-sm font-semibold text-text">
             External egress (MCP servers)
@@ -220,10 +220,10 @@ export default async function OrgSecurityPage({
             </tbody>
           </table>
         )}
-      </section>
+      </Card>
 
       {/* Secret exposure by class */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <div>
           <h2 className="font-display text-sm font-semibold text-text">Secret exposure by class</h2>
           <p className="mt-0.5 text-xs text-text-3">
@@ -264,10 +264,10 @@ export default async function OrgSecurityPage({
             </tbody>
           </table>
         )}
-      </section>
+      </Card>
 
       {/* Large data movements */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <div>
           <h2 className="font-display text-sm font-semibold text-text">Largest data movements</h2>
           <p className="mt-0.5 text-xs text-text-3">
@@ -304,7 +304,7 @@ export default async function OrgSecurityPage({
             </tbody>
           </table>
         )}
-      </section>
+      </Card>
 
       <p className="text-xs text-text-3 text-center pt-2">
         Aggregate and visibility-scoped: only developers who share metadata with the org contribute,
@@ -341,7 +341,7 @@ function CategoryTable({ rows }: { rows: CategoryExposureRow[] }) {
               <td className="py-2 pr-4 w-1/3">
                 <div className="h-1.5 rounded-full bg-surface-2">
                   <div
-                    className={`h-full rounded-full ${meta.risk === 'high' ? 'bg-crit/60' : 'bg-accent/50'}`}
+                    className={`h-full rounded-full ${meta.risk === 'high' ? 'bg-crit/60' : 'bg-accent-muted'}`}
                     style={{ width: `${(r.totalCalls / maxCalls) * 100}%` }}
                   />
                 </div>

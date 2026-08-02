@@ -1,6 +1,6 @@
 import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Stat } from '@/components/ui';
+import { Card, Stat } from '@/components/ui';
 import { getConfig, getJiraBase } from '@/lib/config';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
@@ -129,7 +129,7 @@ export default async function OrgRoiPage({
       </div>
 
       {/* CI outcome cost correlation */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">CI outcome vs cost</h2>
         {ci.cleanCount === 0 && ci.failedCount === 0 ? (
           <p className="text-sm text-text-3">No merged PRs with cost data in this window.</p>
@@ -158,10 +158,10 @@ export default async function OrgRoiPage({
             )}
           </>
         )}
-      </section>
+      </Card>
 
       {/* Spend by Jira ticket */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Spend by Jira ticket ({range}d)
         </h2>
@@ -215,10 +215,10 @@ export default async function OrgRoiPage({
           reached a PR. PR spend is the rollup of sessions linked to the ticket's PRs. Ticket
           status/summary appear once the Jira sync job is configured.
         </p>
-      </section>
+      </Card>
 
       {/* Spend by project */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Spend by Jira project ({range}d)
         </h2>
@@ -258,10 +258,10 @@ export default async function OrgRoiPage({
           Grouped by the ticket key's project prefix — works before the Jira sync has run; project
           display names appear once issues are synced.
         </p>
-      </section>
+      </Card>
 
       {/* Spend by epic */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Spend by epic ({range}d)</h2>
         {epicSpend.length === 0 ? (
           <p className="text-sm text-text-3">
@@ -301,10 +301,10 @@ export default async function OrgRoiPage({
             </tbody>
           </table>
         )}
-      </section>
+      </Card>
 
       {/* Cost per story point */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Cost per story point ({range}d)
         </h2>
@@ -339,14 +339,14 @@ export default async function OrgRoiPage({
             </p>
           </>
         )}
-      </section>
+      </Card>
 
       {/* Business value delivered — real per-issue value (Jira value field) when
           available, else the flat story-point proxy (VALUE_PER_STORY_POINT).
           businessValue > 0 iff the proxy is configured (rate > 0) and points were
           delivered, so it stands in for the full proxy-availability check. */}
       {(hasRealValue || businessValue > 0) && (
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">
             Business value delivered ({range}d)
           </h2>
@@ -394,11 +394,11 @@ export default async function OrgRoiPage({
               </>
             )}
           </p>
-        </section>
+        </Card>
       )}
 
       {/* Bug vs feature spend */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Bug vs feature spend ({range}d)
         </h2>
@@ -452,10 +452,10 @@ export default async function OrgRoiPage({
           This measures agent spend on bug-type tickets — a rework signal — not which PR caused
           which defect. Unclassified rows are tickets the Jira sync hasn't resolved.
         </p>
-      </section>
+      </Card>
 
       {/* Merged-work provenance */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Merged-work provenance ({range}d)
         </h2>
@@ -475,10 +475,10 @@ export default async function OrgRoiPage({
           Attribution matches default-branch pushes to sessions by repo, author, and time window —
           it requires the code to have survived review, unlike lines-of-code metrics.
         </p>
-      </section>
+      </Card>
 
       {/* ROI by repo */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">ROI by repo ({range}d)</h2>
         {repoRoi.length === 0 ? (
           <p className="text-sm text-text-3">No merged PR data available.</p>
@@ -518,7 +518,7 @@ export default async function OrgRoiPage({
             </tbody>
           </table>
         )}
-      </section>
+      </Card>
 
       <p className="text-xs text-text-3 text-center pt-2">
         Spend is the agent cost rolled up to each PR from its contributing sessions. Reverted spend

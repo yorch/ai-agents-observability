@@ -1,3 +1,4 @@
+import { Button, Card } from '@/components/ui';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -36,7 +37,7 @@ function expiringSoon(g: Grant): boolean {
 function GrantCard({ g }: { g: Grant }) {
   const st = status(g);
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-2 text-sm">
+    <Card className="space-y-2 text-sm">
       <div className="flex items-center gap-2 text-xs text-text-3">
         <span className="rounded bg-surface-2 px-1.5 py-0.5 text-text-2">{st}</span>
         <span>· scope: {g.scope}</span>
@@ -63,27 +64,21 @@ function GrantCard({ g }: { g: Grant }) {
               aria-label="Grant lifetime (hours)"
               className="w-20 rounded-md border border-border bg-surface px-2 py-1 text-right text-xs"
             />
-            <button
-              type="submit"
-              className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-bg hover:opacity-90"
-            >
+            <Button size="sm" type="submit">
               Approve (h)
-            </button>
+            </Button>
           </form>
         )}
         {st === 'active' && (
           <form action={revokeGrant}>
             <input type="hidden" name="id" value={g.id} />
-            <button
-              type="submit"
-              className="rounded-md border border-crit-line px-3 py-1 text-xs text-crit hover:bg-crit-soft"
-            >
+            <Button variant="danger" size="sm" type="submit">
               Revoke
-            </button>
+            </Button>
           </form>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -139,7 +134,7 @@ export default async function AccessGrantsPage() {
               />
               <button
                 type="submit"
-                className="rounded-md border border-accent/60 px-3 py-1 text-xs font-medium text-accent hover:bg-accent/10"
+                className="rounded-md border border-accent-line px-3 py-1 text-xs font-medium text-accent hover:bg-accent-dim"
               >
                 Approve all ({pending.length})
               </button>

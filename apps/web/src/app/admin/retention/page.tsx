@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setTeamRetention } from './actions';
@@ -65,12 +66,9 @@ export default async function RetentionAdminPage() {
                     aria-label={`Retention override for ${team.name}`}
                     className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-right"
                   />
-                  <button
-                    type="submit"
-                    className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-bg hover:opacity-90"
-                  >
+                  <Button size="sm" type="submit">
                     Save
-                  </button>
+                  </Button>
                 </form>
               </td>
               <td className="py-2 text-right font-mono text-text-2">

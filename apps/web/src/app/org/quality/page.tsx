@@ -1,5 +1,6 @@
 import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import { Card } from '@/components/ui';
 import { getJiraBase } from '@/lib/config';
 import { fmtDate, fmtPct, fmtUsd } from '@/lib/fmt';
 import { getDefectAttributions, getOutcomesByFrictionBand } from '@/lib/quality-queries';
@@ -59,7 +60,7 @@ export default async function OrgQualityPage({
       />
 
       {/* Outcome rates by friction band */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           PR outcomes by session friction ({range}d)
         </h2>
@@ -136,10 +137,10 @@ export default async function OrgQualityPage({
             </>
           )}
         </p>
-      </section>
+      </Card>
 
       {/* Defect attribution */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Bugs linked to tracked work ({range}d)
         </h2>
@@ -192,7 +193,7 @@ export default async function OrgQualityPage({
           PRs we track. The link phrase is shown verbatim — "is caused by" carries more weight than
           "relates to". This reports linkage; causation is a human judgement.
         </p>
-      </section>
+      </Card>
     </div>
   );
 }

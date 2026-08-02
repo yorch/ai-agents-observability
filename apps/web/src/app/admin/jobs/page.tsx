@@ -1,4 +1,4 @@
-import { Badge, type BadgeTone } from '@/components/ui';
+import { Badge, type BadgeTone, Button, EmptyState } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -36,11 +36,9 @@ export default async function AdminJobsPage() {
       </div>
 
       {configs.length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
-          <p className="text-sm text-text-2">
-            No job configs yet — they appear once the ingest service starts and seeds the defaults.
-          </p>
-        </div>
+        <EmptyState>
+          No job configs yet — they appear once the ingest service starts and seeds the defaults.
+        </EmptyState>
       ) : (
         <div className="rounded-lg border border-border bg-surface overflow-hidden">
           <table className="w-full text-sm">
@@ -143,12 +141,9 @@ export default async function AdminJobsPage() {
                     <td className="px-4 py-4">
                       <form action={triggerJob}>
                         <input type="hidden" name="jobName" value={cfg.jobName} />
-                        <button
-                          type="submit"
-                          className="rounded px-3 py-1 text-xs font-medium bg-accent hover:opacity-90 text-bg"
-                        >
+                        <Button size="sm" type="submit">
                           Run now
-                        </button>
+                        </Button>
                       </form>
                     </td>
                   </tr>

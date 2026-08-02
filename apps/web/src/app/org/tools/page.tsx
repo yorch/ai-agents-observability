@@ -103,39 +103,39 @@ export default async function OrgToolsPage({
       )}
 
       {/* Top tools table */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Top tools ({range}d)</h2>
         {tools.length === 0 ? (
           <p className="text-sm text-text-3">No tool data available.</p>
         ) : (
           <ToolsTable tools={tools} />
         )}
-      </section>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Category breakdown */}
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">By category</h2>
           {categories.length === 0 ? (
             <p className="text-sm text-text-3">No data available.</p>
           ) : (
             <CategoryBreakdown categories={categories} />
           )}
-        </section>
+        </Card>
 
         {/* MCP servers */}
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">MCP servers</h2>
           {mcpServers.length === 0 ? (
             <p className="text-sm text-text-3">No MCP usage in this period.</p>
           ) : (
             <McpTable servers={mcpServers} />
           )}
-        </section>
+        </Card>
       </div>
 
       {/* Skills & slash commands — always rendered so the section is visible even before data */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Skills & slash commands</h2>
         {skills.length === 0 ? (
           <p className="text-sm text-text-3">
@@ -147,22 +147,22 @@ export default async function OrgToolsPage({
         ) : (
           <SkillsTable skills={skills} adoption={skillAdoption} />
         )}
-      </section>
+      </Card>
 
       {/* Team skill matrix */}
       {teamSkillMatrix.length > 0 && (
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <div>
             <h2 className="font-display text-sm font-semibold text-text">Skill adoption by team</h2>
             <p className="text-xs text-text-3 mt-0.5">Which skills each team uses most</p>
           </div>
           <TeamSkillMatrix rows={teamSkillMatrix} />
-        </section>
+        </Card>
       )}
 
       {/* Skill workflows */}
       {skillSequences.length > 0 && (
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <div>
             <h2 className="font-display text-sm font-semibold text-text">Skill workflows</h2>
             <p className="text-xs text-text-3 mt-0.5">
@@ -170,12 +170,12 @@ export default async function OrgToolsPage({
             </p>
           </div>
           <SkillSequences rows={skillSequences} />
-        </section>
+        </Card>
       )}
 
       {/* Skill ROI */}
       {skillRoi.length > 0 && (
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card className="space-y-3">
           <div>
             <h2 className="font-display text-sm font-semibold text-text">Skill × PR CI status</h2>
             <p className="text-xs text-text-3 mt-0.5">
@@ -183,7 +183,7 @@ export default async function OrgToolsPage({
             </p>
           </div>
           <SkillRoiTable rows={skillRoi} />
-        </section>
+        </Card>
       )}
     </div>
   );
@@ -204,7 +204,7 @@ function DailyVolumeBars({ volume }: { volume: DailyToolVolumeRow[] }) {
           <div key={v.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
             <span className="text-[9px] text-text-3">{v.callCount}</span>
             <div
-              className="w-full rounded-t bg-accent/70 relative min-h-1"
+              className="w-full rounded-t bg-accent-muted relative min-h-1"
               style={{ height: `${height}px` }}
               title={`${label}: ${v.callCount} calls, ${v.denyCount} denied`}
             >
@@ -249,7 +249,7 @@ function ToolsTable({ tools }: { tools: ToolStatRow[] }) {
                   </span>
                   <div className="h-1 w-full rounded-full bg-surface">
                     <div
-                      className="h-full rounded-full bg-accent/60"
+                      className="h-full rounded-full bg-accent-muted"
                       style={{ width: `${(t.callCount / maxCalls) * 100}%` }}
                     />
                   </div>
@@ -383,7 +383,7 @@ function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skill
                     <span className="font-mono text-xs text-text">{s.name}</span>
                     <div className="h-1 w-full rounded-full bg-surface">
                       <div
-                        className="h-full rounded-full bg-accent/60"
+                        className="h-full rounded-full bg-accent-muted"
                         style={{ width: `${(s.callCount / maxCalls) * 100}%` }}
                       />
                     </div>
@@ -392,7 +392,7 @@ function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skill
                 <td className="py-2">
                   <span
                     className={`text-xs px-1.5 py-0.5 rounded font-mono ${
-                      s.kind === 'skill' ? 'bg-accent/20 text-accent' : 'bg-surface-2 text-text-2'
+                      s.kind === 'skill' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-2'
                     }`}
                   >
                     {s.kind === 'skill' ? 'skill' : '/cmd'}
@@ -461,7 +461,7 @@ function TeamSkillMatrix({ rows }: { rows: TeamSkillRow[] }) {
                 <span className="font-mono text-text">{name}</span>
                 <span
                   className={`ml-2 text-[10px] px-1 py-0.5 rounded ${
-                    kind === 'skill' ? 'bg-accent/20 text-accent' : 'bg-surface-2 text-text-2'
+                    kind === 'skill' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-2'
                   }`}
                 >
                   {kind === 'skill' ? 's' : '/'}
@@ -503,7 +503,7 @@ function SkillSequences({ rows }: { rows: OrgSkillSequenceRow[] }) {
           </div>
           <div className="h-1 rounded-full bg-surface">
             <div
-              className="h-full rounded-full bg-accent/50"
+              className="h-full rounded-full bg-accent-muted"
               style={{ width: `${(r.transitionCount / maxCount) * 100}%` }}
             />
           </div>

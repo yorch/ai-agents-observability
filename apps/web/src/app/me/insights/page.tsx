@@ -4,7 +4,7 @@ import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
-import { EmptyState, Sparkline } from '@/components/ui';
+import { Card, EmptyState, Segmented, SegmentedLink, Sparkline } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserShapeTrend } from '@/lib/cohort-queries';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
@@ -216,25 +216,19 @@ export default async function InsightsPage({
 
 function DaysSelector({ current }: { current: Days }) {
   return (
-    <div className="flex gap-1 rounded-lg border border-border bg-surface p-1">
+    <Segmented label="Time range">
       {DAYS_OPTS.map((d) => (
-        <a
-          key={d}
-          href={`/me/insights?days=${d}`}
-          className={`rounded-md px-3 py-1 text-xs font-medium font-mono transition-colors ${
-            current === d ? 'bg-accent text-bg' : 'text-text-3 hover:text-text hover:bg-surface-2'
-          }`}
-        >
+        <SegmentedLink key={d} href={`/me/insights?days=${d}`} selected={current === d}>
           {d}d
-        </a>
+        </SegmentedLink>
       ))}
-    </div>
+    </Segmented>
   );
 }
 
 function RecommendationsSection({ recs }: { recs: Recommendation[] }) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+    <Card className="space-y-3">
       <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
         Recommendations
       </h2>
@@ -253,7 +247,7 @@ function RecommendationsSection({ recs }: { recs: Recommendation[] }) {
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }
 
@@ -378,10 +372,10 @@ function SectionShell({
   title: string;
 }) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+    <Card className="space-y-3">
       <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">{title}</h2>
       {empty ? <p className="text-sm text-text-3">No data in this window.</p> : children}
-    </section>
+    </Card>
   );
 }
 
@@ -465,7 +459,7 @@ function SkillsSection({
   const maxCalls = Math.max(...rows.map((r) => r.useCount), 1);
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
+    <Card className="space-y-4">
       <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Skills</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -500,7 +494,7 @@ function SkillsSection({
                       )}
                       <div className="h-1 w-full rounded-full bg-surface-2">
                         <div
-                          className="h-full rounded-full bg-accent/50"
+                          className="h-full rounded-full bg-accent-muted"
                           style={{ width: `${(r.useCount / maxCalls) * 100}%` }}
                         />
                       </div>
@@ -542,14 +536,14 @@ function SkillsSection({
           </tbody>
         </table>
       </div>
-    </section>
+    </Card>
   );
 }
 
 function SkillSequencesSection({ rows }: { rows: SkillSequenceRow[] }) {
   const maxCount = Math.max(...rows.map((r) => r.transitionCount), 1);
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+    <Card className="space-y-3">
       <div>
         <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
           Skill workflows
@@ -571,14 +565,14 @@ function SkillSequencesSection({ rows }: { rows: SkillSequenceRow[] }) {
             </div>
             <div className="h-1 rounded-full bg-surface-2">
               <div
-                className="h-full rounded-full bg-accent/40"
+                className="h-full rounded-full bg-accent-muted"
                 style={{ width: `${(r.transitionCount / maxCount) * 100}%` }}
               />
             </div>
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -597,7 +591,7 @@ function SlashCommandsSection({ rows }: { rows: SlashCommandRow[] }) {
               </div>
               <div className="h-1 rounded-full bg-surface-2">
                 <div
-                  className="h-full rounded-full bg-accent/50"
+                  className="h-full rounded-full bg-accent-muted"
                   style={{ width: `${barPct.toFixed(1)}%` }}
                 />
               </div>
@@ -630,7 +624,7 @@ function SubagentsSection({ rows }: { rows: SubagentUsageRow[] }) {
 
 function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+    <Card className="space-y-3">
       <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
         Tool performance
       </h2>
@@ -690,6 +684,6 @@ function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
           </table>
         </div>
       )}
-    </section>
+    </Card>
   );
 }

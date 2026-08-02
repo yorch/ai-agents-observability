@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { PrStateBadge } from '@/components/me/PrStateBadge';
-import { Card } from '@/components/ui';
+import { Button, Card, EmptyState } from '@/components/ui';
 import { fmtDate } from '@/lib/fmt';
 import {
   ArrowLeftIcon,
@@ -45,12 +45,9 @@ function PRsTable({
 
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-surface p-8 text-center">
-        <p className="text-sm font-medium text-text-2">No PRs yet.</p>
-        <p className="mt-1 text-sm text-text-3">
-          PRs appear here after the GitHub App is installed and you merge a PR.
-        </p>
-      </div>
+      <EmptyState title="No PRs yet.">
+        PRs appear here after the GitHub App is installed and you merge a PR.
+      </EmptyState>
     );
   }
 
@@ -238,12 +235,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
           </select>
         </div>
 
-        <button
-          type="submit"
-          className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-bg hover:opacity-90 transition-colors"
-        >
-          Filter
-        </button>
+        <Button type="submit">Filter</Button>
 
         {stateFilter !== 'all' && (
           <a

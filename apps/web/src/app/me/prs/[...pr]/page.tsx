@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon, ExternalLinkIcon } from '@/components/icons';
 import { PrStateBadge } from '@/components/me/PrStateBadge';
-import { Card } from '@/components/ui';
+import { Card, EmptyState } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { fmtDate } from '@/lib/fmt';
 import { getPRDetail } from '@/lib/pr-queries';
@@ -114,11 +114,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
 
       {/* No rollup state */}
       {!hasRollup && (
-        <div className="rounded-lg border border-border bg-surface p-6 text-center">
-          <p className="text-sm text-text-2">
-            Rollup computed at merge time. Check back after this PR is merged.
-          </p>
-        </div>
+        <EmptyState>Rollup computed at merge time. Check back after this PR is merged.</EmptyState>
       )}
 
       {/* Summary cards */}
@@ -150,7 +146,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
         (pr.totalInputTokens !== null ||
           pr.totalOutputTokens !== null ||
           pr.totalToolCalls !== null) && (
-          <div className="rounded-lg border border-border bg-surface p-4 space-y-2">
+          <Card className="space-y-2">
             <h2 className="text-sm font-medium text-text-2">Usage breakdown</h2>
             <div className="grid grid-cols-3 gap-4 text-sm">
               {pr.totalInputTokens !== null && (
@@ -178,7 +174,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
                 {pr.lastSessionAt && <span>last session: {fmtDate(pr.lastSessionAt)}</span>}
               </div>
             )}
-          </div>
+          </Card>
         )}
 
       {/* Contributing sessions */}

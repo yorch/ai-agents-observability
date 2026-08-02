@@ -5,7 +5,7 @@ import type { Tone } from '@/lib/tone';
 export type BadgeTone = Tone;
 
 const TONE: Record<BadgeTone, string> = {
-  accent: 'text-accent border-accent/40 bg-accent-dim',
+  accent: 'text-accent border-accent-line bg-accent-dim',
   crit: 'text-crit border-crit-line bg-crit-soft',
   good: 'text-good border-good-line bg-good-soft',
   neutral: 'text-text-2 border-border bg-surface-2',

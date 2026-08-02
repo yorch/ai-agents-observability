@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
+import { Card, EmptyState } from '@/components/ui';
 import { getKnowledgeTopics, type KnowledgeTopicRow } from '@/lib/knowledge-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -43,17 +44,14 @@ export default async function OrgKnowledgePage({
       />
 
       {totalSessions === 0 ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
-          <p className="text-sm font-medium text-text-2">No indexed transcripts in this window.</p>
-          <p className="mt-1 text-sm text-text-3">
-            Topic clustering runs over the transcript full-text index, populated by the
-            <span className="font-mono"> index-transcripts</span> ingest job. It appears here once
-            transcripts have been shipped and indexed.
-          </p>
-        </div>
+        <EmptyState title="No indexed transcripts in this window.">
+          Topic clustering runs over the transcript full-text index, populated by the
+          <span className="font-mono"> index-transcripts</span> ingest job. It appears here once
+          transcripts have been shipped and indexed.
+        </EmptyState>
       ) : (
         <>
-          <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
+          <Card className="space-y-4">
             <div>
               <h2 className="font-display text-sm font-semibold text-text">
                 Topics by session reach
@@ -76,7 +74,7 @@ export default async function OrgKnowledgePage({
                 ))}
               </div>
             )}
-          </section>
+          </Card>
 
           <p className="text-xs text-text-3">
             Topics are matched by a fixed keyword taxonomy over user prompts — directional, not
@@ -105,7 +103,7 @@ function TopicBar({ topic, total }: { topic: KnowledgeTopicRow; total: number })
       </div>
       <div className="h-2 rounded-full bg-surface-2">
         <div
-          className="h-full rounded-full bg-accent/70"
+          className="h-full rounded-full bg-accent-muted"
           style={{ width: `${Math.max(2, share * 100)}%` }}
         />
       </div>

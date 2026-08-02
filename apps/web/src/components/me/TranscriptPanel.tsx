@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptViewer } from '@/components/me/TranscriptViewer';
+import { EmptyState } from '@/components/ui';
 
 export function TranscriptPanel({
   apiUrl,
@@ -36,9 +37,7 @@ export function TranscriptPanel({
       {hasTranscript ? (
         <TranscriptViewer sessionId={sessionId} apiUrl={apiUrl} />
       ) : (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
-          <p className="text-sm text-text-3">No transcript available for this session.</p>
-        </div>
+        <EmptyState>No transcript available for this session.</EmptyState>
       )}
     </div>
   );

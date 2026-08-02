@@ -110,7 +110,7 @@ export default async function OrgDeliveryPage({
                 <div key={w.week.toISOString()} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-[10px] text-text-3">{w.mergedPRs}</span>
                   <div
-                    className="w-full rounded-t bg-accent/70 min-h-1"
+                    className="w-full rounded-t bg-accent-muted min-h-1"
                     style={{ height: `${height}px` }}
                     title={`${label}: ${w.mergedPRs} PRs · $${w.totalCostUsd.toFixed(2)} total`}
                   />
@@ -123,7 +123,7 @@ export default async function OrgDeliveryPage({
       )}
 
       {/* Review health */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Review health ({range}d)</h2>
         {reviews.reviewedPrs === 0 ? (
           <p className="text-sm text-text-3">
@@ -149,10 +149,10 @@ export default async function OrgDeliveryPage({
             />
           </div>
         )}
-      </section>
+      </Card>
 
       {/* CI check health */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Failing CI checks ({range}d)
         </h2>
@@ -193,10 +193,10 @@ export default async function OrgDeliveryPage({
           Checks that fail often on agent-linked PRs are either guarding real quality issues or
           flaky — both worth investigating.
         </p>
-      </section>
+      </Card>
 
       {/* Top repos by PR activity */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Top repos by merged PRs ({range}d)
         </h2>
@@ -230,7 +230,7 @@ export default async function OrgDeliveryPage({
             </tbody>
           </table>
         )}
-      </section>
+      </Card>
 
       <p className="text-xs text-text-3 text-center pt-2">
         PR cost reflects sessions from users who share metadata with the org. TTM = time from PR

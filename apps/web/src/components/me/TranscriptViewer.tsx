@@ -51,7 +51,7 @@ function TextBlockView({ block }: { block: TextBlock }) {
 function ToolUseBlockView({ block }: { block: ToolUseBlock }) {
   const inputJson = JSON.stringify(block.input, null, 2);
   return (
-    <details className="group rounded border border-accent/20 bg-accent/5 text-sm">
+    <details className="group rounded border border-accent-line bg-accent-dim text-sm">
       <summary className="cursor-pointer px-3 py-1.5 text-accent font-mono select-none list-none flex items-center gap-2">
         <CaretRightIcon
           size={10}
@@ -161,7 +161,7 @@ function RawLine({ line }: { line: RawLine }) {
         isUser
           ? 'bg-surface border border-border-subtle'
           : isAssistant
-            ? 'bg-accent/5 border border-accent/15'
+            ? 'bg-accent-dim border border-accent-line'
             : 'bg-surface border border-border-subtle'
       }`}
     >
@@ -383,7 +383,7 @@ export function TranscriptViewer({
             }}
             className={`rounded px-2.5 py-1 text-xs transition-colors ${
               viewMode === 'conversation'
-                ? 'bg-accent/20 text-accent'
+                ? 'bg-accent-soft text-accent'
                 : 'text-text-3 hover:text-text'
             }`}
           >
@@ -396,7 +396,7 @@ export function TranscriptViewer({
               setVisibleCount(WINDOW_STEP);
             }}
             className={`rounded px-2.5 py-1 text-xs transition-colors ${
-              viewMode === 'raw' ? 'bg-accent/20 text-accent' : 'text-text-3 hover:text-text'
+              viewMode === 'raw' ? 'bg-accent-soft text-accent' : 'text-text-3 hover:text-text'
             }`}
           >
             Raw

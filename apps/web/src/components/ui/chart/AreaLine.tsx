@@ -41,7 +41,7 @@ export function AreaLine({
         role="img"
         aria-label={ariaLabel}
       >
-        <path d={area} className="fill-accent/15" />
+        <path d={area} className="fill-accent-soft" />
         <path d={line} className="fill-none stroke-accent" strokeWidth={1.5} />
       </svg>
       <div className="mt-2 flex justify-between text-[10px] text-text-3">

@@ -1,3 +1,4 @@
+import { Card, EmptyState } from '@/components/ui';
 import type {
   ModelBreakdownRow,
   SessionSkillRow,
@@ -13,17 +14,13 @@ export function ToolsTab({
   tools: SessionToolRow[];
 }) {
   if (tools.length === 0 && subagents.length === 0) {
-    return (
-      <div className="rounded-lg border border-border bg-surface p-6 text-center text-sm text-text-3">
-        No tool activity recorded for this session
-      </div>
-    );
+    return <EmptyState>No tool activity recorded for this session</EmptyState>;
   }
 
   return (
     <div className="space-y-4">
       {tools.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4">
+        <Card>
           <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
             Tools Used
           </h3>
@@ -64,11 +61,11 @@ export function ToolsTab({
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
 
       {subagents.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4">
+        <Card>
           <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
             Subagents Spawned
           </h3>
@@ -82,7 +79,7 @@ export function ToolsTab({
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -90,11 +87,7 @@ export function ToolsTab({
 
 export function SkillsTab({ rows }: { rows: SessionSkillRow[] }) {
   if (rows.length === 0) {
-    return (
-      <div className="rounded-lg border border-border bg-surface p-6 text-center text-sm text-text-3">
-        No skills used in this session
-      </div>
-    );
+    return <EmptyState>No skills used in this session</EmptyState>;
   }
 
   const total = rows.reduce((sum, r) => sum + r.useCount, 0);
@@ -132,7 +125,7 @@ export function SkillsTab({ rows }: { rows: SessionSkillRow[] }) {
 
 export function ModelsTab({ costUsd, rows }: { costUsd: number; rows: ModelBreakdownRow[] }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <Card>
       <h3 className="text-xs text-text-3 uppercase tracking-widest mb-4">Model Breakdown</h3>
       <table className="w-full text-sm">
         <thead>
@@ -169,6 +162,6 @@ export function ModelsTab({ costUsd, rows }: { costUsd: number; rows: ModelBreak
       <div className="mt-4 pt-4 border-t border-border text-xs text-text-3">
         Total cost: <span className="text-text-2 font-mono">${costUsd.toFixed(4)}</span>
       </div>
-    </div>
+    </Card>
   );
 }

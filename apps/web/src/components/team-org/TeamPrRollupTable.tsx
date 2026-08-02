@@ -1,17 +1,18 @@
+import { Card } from '@/components/ui';
 import type { TeamPrRollupRow } from '@/lib/team-queries';
 
 export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Merged PRs</h2>
         <p className="text-sm text-text-3">No merged PRs in this period.</p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+    <Card className="space-y-3">
       <h2 className="font-display text-sm font-semibold text-text">Merged PRs</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -63,6 +64,6 @@ export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </Card>
   );
 }

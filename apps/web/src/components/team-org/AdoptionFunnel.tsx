@@ -1,3 +1,5 @@
+import { Card } from '@/components/ui';
+
 export function AdoptionFunnel({
   funnel: { everUsers, active30d, active7d, newThisMonth, active30dDelta },
 }: {
@@ -39,7 +41,7 @@ export function AdoptionFunnel({
   ];
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+    <Card className="space-y-3">
       <h2 className="font-display text-sm font-semibold text-text">Adoption funnel</h2>
       <div className="space-y-2">
         {rows.map(({ label, value, delta }) => (
@@ -52,6 +54,6 @@ export function AdoptionFunnel({
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

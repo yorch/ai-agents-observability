@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { LEAD_ROLES, requireOrgAdmin } from '@/lib/roles';
 
@@ -54,7 +55,7 @@ export default async function TeamRolesAdminPage() {
                         <span className="text-text">{name}</span>
                         <span
                           className={`rounded px-1.5 py-0.5 text-xs ${
-                            isLead ? 'bg-accent/20 text-accent' : 'bg-surface-2 text-text-3'
+                            isLead ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-3'
                           }`}
                         >
                           {m.roleInTeam}
@@ -64,12 +65,9 @@ export default async function TeamRolesAdminPage() {
                         <input type="hidden" name="teamId" value={team.id} />
                         <input type="hidden" name="userId" value={m.userId} />
                         <input type="hidden" name="role" value={isLead ? 'MEMBER' : 'LEAD'} />
-                        <button
-                          type="submit"
-                          className="rounded-md border border-border px-3 py-1 text-xs text-text-2 transition-colors hover:bg-surface-2"
-                        >
+                        <Button variant="secondary" size="sm" type="submit">
                           {isLead ? 'Revoke lead' : 'Make lead'}
-                        </button>
+                        </Button>
                       </form>
                     </li>
                   );

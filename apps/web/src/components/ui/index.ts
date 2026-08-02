@@ -1,4 +1,5 @@
 export { Badge, type BadgeTone, SeriesBadge, TONE_BG, TONE_TEXT } from './Badge';
+export { Button, ButtonLink, type ButtonSize, type ButtonVariant } from './Button';
 export { Card } from './Card';
 export { AreaLine } from './chart/AreaLine';
 export { BarChart, type BarDatum } from './chart/BarChart';
@@ -10,7 +11,9 @@ export { Sparkline } from './chart/Sparkline';
 // outside the module needs them.
 export { axisMoney, foldToSeries, seriesBg } from './chart/scale';
 export { EmptyState } from './EmptyState';
+export { Field, Input, Select } from './Field';
 export { PageHeader, SectionHeader } from './PageHeader';
+export { Segmented, SegmentedButton, SegmentedLink } from './Segmented';
 export { SkeletonBar, SkeletonCard } from './Skeleton';
 export { Stat } from './Stat';
 export { Cell, type Column, Row, Table } from './Table';

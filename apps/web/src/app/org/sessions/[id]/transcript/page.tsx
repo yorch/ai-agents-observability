@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
+import { Button } from '@/components/ui';
 import { MIN_JUSTIFICATION_LENGTH, normalizeJustification } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
 import { resolveOrgSessionAccess } from '@/lib/roles';
@@ -100,12 +101,7 @@ export default async function OrgTranscriptPage({
             placeholder="e.g. security incident #1234 — investigating leaked credential"
             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
           />
-          <button
-            type="submit"
-            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
-          >
-            View with justification
-          </button>
+          <Button type="submit">View with justification</Button>
         </form>
       </div>
     );

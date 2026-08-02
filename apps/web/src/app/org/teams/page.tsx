@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { EmptyState } from '@/components/ui';
 
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
@@ -24,9 +25,7 @@ export default async function OrgTeamsPage() {
       </div>
 
       {teams.length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center text-sm text-text-3">
-          No teams configured yet
-        </div>
+        <EmptyState>No teams configured yet</EmptyState>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {teams.map((team) => (

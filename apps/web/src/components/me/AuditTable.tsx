@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
+import { EmptyState } from '@/components/ui';
 import type { AuditRow } from '@/lib/me-queries';
 
 type AuditTableProps = {
@@ -26,11 +27,7 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
   const hasNext = currentPage < totalPages;
 
   if (rows.length === 0) {
-    return (
-      <div className="rounded-lg border border-border bg-surface p-8 text-center">
-        <p className="text-sm text-text-2">No one has accessed your data yet.</p>
-      </div>
-    );
+    return <EmptyState>No one has accessed your data yet.</EmptyState>;
   }
 
   return (

@@ -74,7 +74,7 @@ export default async function TeamSkillsPage({
                 <td className="py-2">
                   <Link
                     href={`/team/${slug}/skills/${r.kind}/${encodeURIComponent(r.name)}`}
-                    className="font-mono text-accent hover:text-accent/70"
+                    className="font-mono text-accent hover:opacity-80"
                   >
                     /{r.name}
                   </Link>

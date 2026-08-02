@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { EmptyState } from '@/components/ui';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamRoster } from '@/lib/team-queries';
@@ -52,9 +53,7 @@ export default async function TeamRosterPage({
       </div>
 
       {members.length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
-          <p className="text-text-2">No members in this team yet.</p>
-        </div>
+        <EmptyState>No members in this team yet.</EmptyState>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
           <table className="w-full text-sm">
