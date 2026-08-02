@@ -80,15 +80,19 @@ curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
 
 **Phase 1** ("My Agents" spine) — implementation complete. P1-001 through P1-028 are `done`; P1-029 (dogfood sign-off) is `ready` and requires one engineer to run the hook for five working days and record observations in `docs/phase1-*.md`.
 
-**Phase 2** (PR loop) — implementation complete. P2-001 (GitHub App registration) and P2-010 (GHES integration test) are in `review`; all other P2 tasks are `done`.
+**Phase 2** (PR loop) — implementation complete. P2-001 (GitHub App registration) is in `review`; all other P2 tasks are `done`.
 
 **Phase 3** (team views) — code complete. P3-001 through P3-007 are `done`.
 
 **Phases 4–6** — code complete. Org views, search, operations handoff, effectiveness signals, and hardening tasks are `done`; P6-005/P6-006 were deferred and superseded by Phase 8.
 
-**Phases 7–9** — task work is `done`. P7-007 completed as a no-go semantic-search spike; opencode transcript upload and SMTP email delivery remain documented follow-ups.
+**Phases 7–9** — task work is `done`. P7-007 completed as a no-go semantic-search spike; opencode transcript upload remains a documented follow-up.
 
-See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status.
+**Phase 10** (model cost optimization) — **proposed, not started**. P10-001 through P10-006 are `ready`. See [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md).
+
+**Phase 11** (correlation & Jira integration) — `done`. Shipped ahead of Phase 10 as a single vertical slice: session ↔ PR ↔ repo ↔ Jira correlation, defect attribution (`/org/quality`), and significance testing on friction-band deltas.
+
+See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status — it is the source of truth, and this summary is a convenience copy.
 
 ## Architecture
 
@@ -106,7 +110,7 @@ packages/
   auth/       IdentityProvider interface + JWT issuance
   db/         Prisma schema, migrations, Timescale DDL, typed client
   github/     Octokit wrappers (github.com + GHES)
-  redaction/  Transcript scrubber (7-class regex rules)
+  redaction/  Transcript scrubber (9-class regex rules)
   schemas/    Zod schemas for the hook→ingest contract
 infra/
   migrations-runner/       Docker image that applies all DB migrations
