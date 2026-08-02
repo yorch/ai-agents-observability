@@ -37,7 +37,7 @@ function expiringSoon(g: Grant): boolean {
 function GrantCard({ g }: { g: Grant }) {
   const st = status(g);
   return (
-    <Card className="space-y-2 text-sm">
+    <Card className="text-sm" contentClassName="space-y-2">
       <div className="flex items-center gap-2 text-xs text-text-3">
         <span className="rounded bg-surface-2 px-1.5 py-0.5 text-text-2">{st}</span>
         <span>· scope: {g.scope}</span>

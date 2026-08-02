@@ -1,13 +1,8 @@
 import { redirect } from 'next/navigation';
 import { PrStateBadge } from '@/components/me/PrStateBadge';
-import { Button, Card, EmptyState } from '@/components/ui';
+import { Button, ButtonLink, Card, EmptyState, Pagination } from '@/components/ui';
 import { fmtDate } from '@/lib/fmt';
-import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  ExternalLinkIcon,
-  WarningIcon,
-} from '../../../components/icons';
+import { ExternalLinkIcon, WarningIcon } from '../../../components/icons';
 import { JiraLink } from '../../../components/JiraLink';
 import { currentUser } from '../../../lib/auth';
 import { getJiraBase } from '../../../lib/config';
@@ -37,10 +32,6 @@ function PRsTable({
   stateFilter: string;
   jiraBase: string | null;
 }) {
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const hasPrev = currentPage > 1;
-  const hasNext = currentPage < totalPages;
-
   const stateParam = stateFilter && stateFilter !== 'all' ? `&state=${stateFilter}` : '';
 
   if (items.length === 0) {
@@ -142,32 +133,12 @@ function PRsTable({
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-text-3">
-            {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of{' '}
-            {total}
-          </p>
-          <div className="flex gap-2">
-            {hasPrev && (
-              <a
-                href={`?page=${currentPage - 1}${stateParam}`}
-                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 transition-colors"
-              >
-                <ArrowLeftIcon /> Prev
-              </a>
-            )}
-            {hasNext && (
-              <a
-                href={`?page=${currentPage + 1}${stateParam}`}
-                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 transition-colors"
-              >
-                Next <ArrowRightIcon />
-              </a>
-            )}
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={currentPage}
+        pageSize={PAGE_SIZE}
+        total={total}
+        hrefFor={(n) => `?page=${n}${stateParam}`}
+      />
     </div>
   );
 }
@@ -238,12 +209,9 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
         <Button type="submit">Filter</Button>
 
         {stateFilter !== 'all' && (
-          <a
-            href="/me/prs"
-            className="rounded-md border border-border px-4 py-1.5 text-sm hover:bg-surface-2 transition-colors"
-          >
+          <ButtonLink variant="secondary" href="/me/prs">
             Clear
-          </a>
+          </ButtonLink>
         )}
       </form>
 

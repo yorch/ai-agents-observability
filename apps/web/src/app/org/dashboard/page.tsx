@@ -188,8 +188,7 @@ export default async function OrgDashboardPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Cost by team */}
-        <Card className="space-y-3">
-          <h2 className="font-display text-sm font-semibold text-text">Cost by team (top 10)</h2>
+        <Card title="Cost by team (top 10)" contentClassName="space-y-3">
           {teamCost.length === 0 ? (
             <p className="text-sm text-text-3">No team data available.</p>
           ) : (
@@ -225,8 +224,7 @@ export default async function OrgDashboardPage({
         </Card>
 
         {/* Cost by repo */}
-        <Card className="space-y-3">
-          <h2 className="font-display text-sm font-semibold text-text">Cost by repo (top 10)</h2>
+        <Card title="Cost by repo (top 10)" contentClassName="space-y-3">
           {repoCost.length === 0 ? (
             <p className="text-sm text-text-3">No repo data available.</p>
           ) : (
@@ -256,8 +254,7 @@ export default async function OrgDashboardPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Model mix */}
-        <Card className="space-y-3">
-          <h2 className="font-display text-sm font-semibold text-text">Cost by model</h2>
+        <Card title="Cost by model" contentClassName="space-y-3">
           {modelCost.length === 0 ? (
             <p className="text-sm text-text-3">No model data available.</p>
           ) : (

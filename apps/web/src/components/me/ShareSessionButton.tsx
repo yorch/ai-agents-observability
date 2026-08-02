@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import type { ShareResult } from '@/app/me/sessions/[id]/actions';
 import { revokeShare, shareSession } from '@/app/me/sessions/[id]/actions';
 import { ArrowRightIcon } from '@/components/icons';
-import { Button } from '@/components/ui';
+import { Button } from '@/components/ui/Button';
 
 type ActiveShare = { expiresAt: Date; granteeEmail: string | null; id: string };
 
@@ -119,9 +119,13 @@ export function ShareSessionButton({
                   <form action={revokeShare}>
                     <input type="hidden" name="grantId" value={share.id} />
                     <input type="hidden" name="sessionId" value={sessionId} />
-                    <Button variant="danger" type="submit" title="Revoke access">
+                    <button
+                      type="submit"
+                      title="Revoke access"
+                      className="rounded px-1.5 py-0.5 text-[10px] text-text-3 transition-colors hover:text-crit"
+                    >
                       Revoke
-                    </Button>
+                    </button>
                   </form>
                 </div>
               ))}

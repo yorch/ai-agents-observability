@@ -53,14 +53,11 @@ export function SpendForecast({
   const level = BUDGET_LEVEL[budgetLevel(budgetRatio)];
 
   return (
-    <Card className="space-y-4">
-      <div>
-        <h2 className="font-display text-sm font-semibold text-text">Spend forecast</h2>
-        <p className="mt-0.5 text-xs text-text-3">
-          Run-rate projection from recent spend — a planning estimate, not a guarantee.
-        </p>
-      </div>
-
+    <Card
+      title="Spend forecast"
+      caption="Run-rate projection from recent spend — a planning estimate, not a guarantee."
+      contentClassName="space-y-4"
+    >
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <Stat
           label="Projected 30-day spend"

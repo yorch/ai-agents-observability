@@ -51,7 +51,7 @@ export default async function OrgKnowledgePage({
         </EmptyState>
       ) : (
         <>
-          <Card className="space-y-4">
+          <Card contentClassName="space-y-4">
             <div>
               <h2 className="font-display text-sm font-semibold text-text">
                 Topics by session reach

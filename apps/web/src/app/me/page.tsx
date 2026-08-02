@@ -1,5 +1,6 @@
 import { agentDisplayName, DEFAULT_AGENT_TYPE } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
+import { DaysSelector, parseDays } from '@/components/me/DaysSelector';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ModelMixChart } from '@/components/me/ModelMix';
 import { OversightPanel } from '@/components/me/OversightPanel';
@@ -7,21 +8,13 @@ import { RecentSessions } from '@/components/me/RecentSessions';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { SummaryCards } from '@/components/me/SummaryCards';
 import { TopTools } from '@/components/me/TopTools';
-import { ButtonLink, EmptyState, Segmented, SegmentedLink } from '@/components/ui';
+import { ButtonLink, EmptyState } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
 import { getModelMix, getRecentSessions, getTopTools, getUsageSummary } from '@/lib/me-queries';
 import { getUserOversight } from '@/lib/oversight-queries';
 
 export const dynamic = 'force-dynamic';
-
-const DAYS_OPTS = [7, 30, 90] as const;
-type Days = (typeof DAYS_OPTS)[number];
-
-function parseDays(raw: string | undefined): Days {
-  const n = Number(raw);
-  return (DAYS_OPTS as readonly number[]).includes(n) ? (n as Days) : 7;
-}
 
 export default async function MePage({
   searchParams,
@@ -63,7 +56,7 @@ export default async function MePage({
           </h1>
           <p className="mt-1 text-sm text-text-2">{user.displayName ?? user.githubLogin}</p>
         </div>
-        <DaysSelector current={days} />
+        <DaysSelector basePath="/me" current={days} />
       </div>
       {!hasData ? (
         <EmptyState
@@ -96,17 +89,5 @@ export default async function MePage({
         </>
       )}
     </div>
-  );
-}
-
-function DaysSelector({ current }: { current: Days }) {
-  return (
-    <Segmented label="Time range">
-      {DAYS_OPTS.map((d) => (
-        <SegmentedLink key={d} href={`/me?days=${d}`} selected={current === d}>
-          {d}d
-        </SegmentedLink>
-      ))}
-    </Segmented>
   );
 }

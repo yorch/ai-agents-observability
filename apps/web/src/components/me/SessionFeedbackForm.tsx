@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 import { useState, useTransition } from 'react';
 import { submitSessionFeedback } from '@/app/me/sessions/[id]/actions';
 import { ThumbsDownIcon, ThumbsUpIcon } from '@/components/icons';
-import { Button, Card } from '@/components/ui';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 
 type Sentiment = 'up' | 'down' | null;
 
@@ -60,7 +61,7 @@ export function SessionFeedbackForm({
   };
 
   return (
-    <Card className="space-y-3">
+    <Card contentClassName="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-text">Was this session's work good?</p>
         <div className="flex gap-2">

@@ -129,8 +129,7 @@ export default async function OrgRoiPage({
       </div>
 
       {/* CI outcome cost correlation */}
-      <Card className="space-y-3">
-        <h2 className="font-display text-sm font-semibold text-text">CI outcome vs cost</h2>
+      <Card title="CI outcome vs cost" contentClassName="space-y-3">
         {ci.cleanCount === 0 && ci.failedCount === 0 ? (
           <p className="text-sm text-text-3">No merged PRs with cost data in this window.</p>
         ) : (
@@ -161,7 +160,7 @@ export default async function OrgRoiPage({
       </Card>
 
       {/* Spend by Jira ticket */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Spend by Jira ticket ({range}d)
         </h2>
@@ -218,7 +217,7 @@ export default async function OrgRoiPage({
       </Card>
 
       {/* Spend by project */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Spend by Jira project ({range}d)
         </h2>
@@ -261,7 +260,7 @@ export default async function OrgRoiPage({
       </Card>
 
       {/* Spend by epic */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Spend by epic ({range}d)</h2>
         {epicSpend.length === 0 ? (
           <p className="text-sm text-text-3">
@@ -304,7 +303,7 @@ export default async function OrgRoiPage({
       </Card>
 
       {/* Cost per story point */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Cost per story point ({range}d)
         </h2>
@@ -346,7 +345,7 @@ export default async function OrgRoiPage({
           businessValue > 0 iff the proxy is configured (rate > 0) and points were
           delivered, so it stands in for the full proxy-availability check. */}
       {(hasRealValue || businessValue > 0) && (
-        <Card className="space-y-3">
+        <Card contentClassName="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">
             Business value delivered ({range}d)
           </h2>
@@ -398,7 +397,7 @@ export default async function OrgRoiPage({
       )}
 
       {/* Bug vs feature spend */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Bug vs feature spend ({range}d)
         </h2>
@@ -455,7 +454,7 @@ export default async function OrgRoiPage({
       </Card>
 
       {/* Merged-work provenance */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Merged-work provenance ({range}d)
         </h2>
@@ -478,7 +477,7 @@ export default async function OrgRoiPage({
       </Card>
 
       {/* ROI by repo */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">ROI by repo ({range}d)</h2>
         {repoRoi.length === 0 ? (
           <p className="text-sm text-text-3">No merged PR data available.</p>

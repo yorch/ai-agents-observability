@@ -2,7 +2,8 @@
 import { useState, useTransition } from 'react';
 
 import { savePrivacySettings } from '@/app/me/settings/privacy/actions';
-import { Button, Card } from '@/components/ui';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 
 type Toggle = {
   description: string;

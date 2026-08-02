@@ -102,12 +102,9 @@ export default async function AlertsAdminPage() {
                     <form action={toggleRule}>
                       <input type="hidden" name="id" value={r.id} />
                       <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
-                      <button
-                        type="submit"
-                        className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-accent-muted hover:opacity-90 text-bg' : 'border border-border hover:bg-surface-2'}`}
-                      >
+                      <Button type="submit" size="sm" variant={r.enabled ? 'primary' : 'secondary'}>
                         {r.enabled ? 'Enabled' : 'Disabled'}
-                      </button>
+                      </Button>
                     </form>
                   </div>
                 </div>

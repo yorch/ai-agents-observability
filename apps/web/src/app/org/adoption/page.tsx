@@ -75,7 +75,7 @@ export default async function OrgAdoptionPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Session frequency distribution */}
-        <Card className="space-y-3">
+        <Card contentClassName="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">
             Session frequency ({range}d)
           </h2>
@@ -111,7 +111,7 @@ export default async function OrgAdoptionPage({
         </Card>
 
         {/* Adoption by team */}
-        <Card className="space-y-3">
+        <Card contentClassName="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">
             Team adoption rate ({range}d)
           </h2>

@@ -146,7 +146,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
         (pr.totalInputTokens !== null ||
           pr.totalOutputTokens !== null ||
           pr.totalToolCalls !== null) && (
-          <Card className="space-y-2">
+          <Card contentClassName="space-y-2">
             <h2 className="text-sm font-medium text-text-2">Usage breakdown</h2>
             <div className="grid grid-cols-3 gap-4 text-sm">
               {pr.totalInputTokens !== null && (

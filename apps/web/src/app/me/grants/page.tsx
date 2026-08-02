@@ -148,7 +148,7 @@ function GrantCard({
       : null;
 
   return (
-    <Card className="space-y-2 text-sm">
+    <Card className="text-sm" contentClassName="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs">
           <span className={`rounded px-1.5 py-0.5 font-medium ${STATUS_STYLES[status]}`}>

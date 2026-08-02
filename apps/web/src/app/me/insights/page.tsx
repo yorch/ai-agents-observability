@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation';
 import { ArrowRightIcon } from '@/components/icons';
+import { DaysSelector, parseDays } from '@/components/me/DaysSelector';
 import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
-import { Card, EmptyState, Segmented, SegmentedLink, Sparkline } from '@/components/ui';
+import { Card, EmptyState, Sparkline } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserShapeTrend } from '@/lib/cohort-queries';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
@@ -38,14 +39,6 @@ import {
 import { buildRecommendations, type Recommendation } from '@/lib/recommendations';
 
 export const dynamic = 'force-dynamic';
-
-const DAYS_OPTS = [7, 30, 90] as const;
-type Days = (typeof DAYS_OPTS)[number];
-
-function parseDays(raw: string | undefined): Days {
-  const n = Number(raw);
-  return (DAYS_OPTS as readonly number[]).includes(n) ? (n as Days) : 30;
-}
 
 function fmtDuration(ms: number | null): string {
   if (ms == null) {
@@ -150,7 +143,7 @@ export default async function InsightsPage({
             Sessions · friction · shapes · MCP servers · tools · skills
           </p>
         </div>
-        <DaysSelector current={days} />
+        <DaysSelector basePath="/me/insights" current={days} />
       </div>
 
       {!hasSessionData && !hasEventData ? (
@@ -214,21 +207,9 @@ export default async function InsightsPage({
   );
 }
 
-function DaysSelector({ current }: { current: Days }) {
-  return (
-    <Segmented label="Time range">
-      {DAYS_OPTS.map((d) => (
-        <SegmentedLink key={d} href={`/me/insights?days=${d}`} selected={current === d}>
-          {d}d
-        </SegmentedLink>
-      ))}
-    </Segmented>
-  );
-}
-
 function RecommendationsSection({ recs }: { recs: Recommendation[] }) {
   return (
-    <Card className="space-y-3">
+    <Card contentClassName="space-y-3">
       <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
         Recommendations
       </h2>
@@ -372,7 +353,7 @@ function SectionShell({
   title: string;
 }) {
   return (
-    <Card className="space-y-3">
+    <Card contentClassName="space-y-3">
       <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">{title}</h2>
       {empty ? <p className="text-sm text-text-3">No data in this window.</p> : children}
     </Card>
@@ -459,7 +440,7 @@ function SkillsSection({
   const maxCalls = Math.max(...rows.map((r) => r.useCount), 1);
 
   return (
-    <Card className="space-y-4">
+    <Card contentClassName="space-y-4">
       <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Skills</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -543,7 +524,7 @@ function SkillsSection({
 function SkillSequencesSection({ rows }: { rows: SkillSequenceRow[] }) {
   const maxCount = Math.max(...rows.map((r) => r.transitionCount), 1);
   return (
-    <Card className="space-y-3">
+    <Card contentClassName="space-y-3">
       <div>
         <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
           Skill workflows
@@ -624,7 +605,7 @@ function SubagentsSection({ rows }: { rows: SubagentUsageRow[] }) {
 
 function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
   return (
-    <Card className="space-y-3">
+    <Card contentClassName="space-y-3">
       <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
         Tool performance
       </h2>

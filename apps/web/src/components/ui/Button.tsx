@@ -1,6 +1,6 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger';
 export type ButtonSize = 'sm' | 'md';
 
 const BASE =
@@ -10,7 +10,6 @@ const VARIANT: Record<ButtonVariant, string> = {
   // The accent carries `text-bg`: near-black ink on lime in dark, near-white on
   // olive in light. Both directions are legible.
   danger: 'border border-crit-line bg-crit-soft text-crit hover:opacity-90',
-  ghost: 'text-text-2 hover:bg-surface-2 hover:text-text',
   primary: 'bg-accent text-bg hover:opacity-90',
   secondary: 'border border-border text-text-2 hover:bg-surface-2 hover:text-text',
 };

@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui';
+import { Button, ButtonLink } from '@/components/ui';
 import { requireGrantRequester } from '@/lib/roles';
 import { requestGrant } from '../actions';
 
@@ -76,12 +76,9 @@ export default async function NewAccessGrantPage() {
 
         <div className="flex gap-2">
           <Button type="submit">Submit request</Button>
-          <a
-            href="/admin/access-grants"
-            className="rounded-md border border-border px-4 py-2 text-sm hover:bg-surface-2"
-          >
+          <ButtonLink variant="secondary" href="/admin/access-grants">
             Cancel
-          </a>
+          </ButtonLink>
         </div>
       </form>
     </div>

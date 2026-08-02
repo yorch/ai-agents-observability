@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-import { Segmented, SegmentedButton } from '@/components/ui';
+import { Segmented, SegmentedButton } from '@/components/ui/Segmented';
 
 export function DateRangePicker({ range }: { range: 7 | 30 | 90 }) {
   const router = useRouter();

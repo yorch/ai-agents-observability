@@ -18,7 +18,7 @@ function fmtTokens(n: number): string {
 // baseline before a second tool is adopted.
 export function AgentComparisonTable({ rows }: { rows: AgentComparisonRow[] }) {
   return (
-    <Card className="space-y-3">
+    <Card contentClassName="space-y-3">
       <div>
         <h2 className="font-display text-sm font-semibold text-text">Agent comparison</h2>
         <p className="text-xs text-text-3">

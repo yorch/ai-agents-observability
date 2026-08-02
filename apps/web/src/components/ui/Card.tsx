@@ -2,9 +2,16 @@ import type { ReactNode } from 'react';
 
 type CardProps = {
   /** Small secondary text under the title (e.g. "Trailing 30 days"). */
-  caption?: string;
+  caption?: ReactNode;
   children: ReactNode;
+  /** Layout classes for the card itself — `md:col-span-2`, `h-full`. */
   className?: string;
+  /**
+   * Classes for the content block below the heading. Spacing between a card's
+   * children belongs here, not on `className`: `space-y-*` acts on siblings,
+   * and the card's own child is the single wrapper this renders.
+   */
+  contentClassName?: string;
   /** Right-aligned hint on the title row (e.g. "hover for detail"). */
   hint?: ReactNode;
   title?: ReactNode;
@@ -14,7 +21,10 @@ type CardProps = {
  * The surface primitive. Depth comes from a hairline plus one surface step —
  * no shadows, no gradients. Every panel in the app is one of these.
  */
-export function Card({ caption, children, className, hint, title }: CardProps) {
+export function Card({ caption, children, className, contentClassName, hint, title }: CardProps) {
+  const heading = title || hint || caption;
+  const content = [heading ? 'mt-4' : '', contentClassName ?? ''].filter(Boolean).join(' ');
+
   return (
     <div
       className={`rounded-lg border border-border bg-surface p-4${className ? ` ${className}` : ''}`}
@@ -26,7 +36,9 @@ export function Card({ caption, children, className, hint, title }: CardProps) {
         </div>
       )}
       {caption && <p className="mt-0.5 text-xs text-text-3">{caption}</p>}
-      <div className={title || caption ? 'mt-4' : undefined}>{children}</div>
+      {/* No wrapper when there is nothing to offset and nothing to style — an
+          extra div would break a `space-y-*` passed on `className`. */}
+      {content ? <div className={content}>{children}</div> : children}
     </div>
   );
 }

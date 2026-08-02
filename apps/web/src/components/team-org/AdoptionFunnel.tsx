@@ -41,8 +41,7 @@ export function AdoptionFunnel({
   ];
 
   return (
-    <Card className="space-y-3">
-      <h2 className="font-display text-sm font-semibold text-text">Adoption funnel</h2>
+    <Card title="Adoption funnel" contentClassName="space-y-3">
       <div className="space-y-2">
         {rows.map(({ label, value, delta }) => (
           <div key={label} className="flex justify-between">

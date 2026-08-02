@@ -1,7 +1,7 @@
 import { PERMISSION_MODES } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
 import { SessionsTable } from '@/components/me/SessionsTable';
-import { Button } from '@/components/ui';
+import { Button, ButtonLink } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
 import { getPrisma } from '@/lib/prisma';
@@ -249,7 +249,9 @@ export default async function SessionsPage({
 
       {/* Export */}
       <div className="flex justify-end">
-        <a
+        <ButtonLink
+          variant="secondary"
+          size="sm"
           href={buildExportUrl({
             agent,
             band: frictionBand,
@@ -260,10 +262,9 @@ export default async function SessionsPage({
             status,
             to: params.to,
           })}
-          className="rounded-md border border-border px-3 py-1.5 text-xs text-text-3 hover:text-text hover:bg-surface-2 transition-colors"
         >
           Export CSV
-        </a>
+        </ButtonLink>
       </div>
 
       <SessionsTable

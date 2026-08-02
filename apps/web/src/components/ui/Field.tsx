@@ -7,10 +7,7 @@ import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react
 const CONTROL =
   'w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none disabled:opacity-50';
 
-export function Input({
-  className,
-  ...rest
-}: InputHTMLAttributes<HTMLInputElement> & { className?: string }) {
+export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={`${CONTROL}${className ? ` ${className}` : ''}`} {...rest} />;
 }
 

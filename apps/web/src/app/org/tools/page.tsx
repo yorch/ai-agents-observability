@@ -103,7 +103,7 @@ export default async function OrgToolsPage({
       )}
 
       {/* Top tools table */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Top tools ({range}d)</h2>
         {tools.length === 0 ? (
           <p className="text-sm text-text-3">No tool data available.</p>
@@ -114,8 +114,7 @@ export default async function OrgToolsPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Category breakdown */}
-        <Card className="space-y-3">
-          <h2 className="font-display text-sm font-semibold text-text">By category</h2>
+        <Card title="By category" contentClassName="space-y-3">
           {categories.length === 0 ? (
             <p className="text-sm text-text-3">No data available.</p>
           ) : (
@@ -124,8 +123,7 @@ export default async function OrgToolsPage({
         </Card>
 
         {/* MCP servers */}
-        <Card className="space-y-3">
-          <h2 className="font-display text-sm font-semibold text-text">MCP servers</h2>
+        <Card title="MCP servers" contentClassName="space-y-3">
           {mcpServers.length === 0 ? (
             <p className="text-sm text-text-3">No MCP usage in this period.</p>
           ) : (
@@ -135,8 +133,7 @@ export default async function OrgToolsPage({
       </div>
 
       {/* Skills & slash commands — always rendered so the section is visible even before data */}
-      <Card className="space-y-3">
-        <h2 className="font-display text-sm font-semibold text-text">Skills & slash commands</h2>
+      <Card title="Skills & slash commands" contentClassName="space-y-3">
         {skills.length === 0 ? (
           <p className="text-sm text-text-3">
             No skill or slash command invocations in the last {range} days. Skills are captured when
@@ -151,7 +148,7 @@ export default async function OrgToolsPage({
 
       {/* Team skill matrix */}
       {teamSkillMatrix.length > 0 && (
-        <Card className="space-y-3">
+        <Card contentClassName="space-y-3">
           <div>
             <h2 className="font-display text-sm font-semibold text-text">Skill adoption by team</h2>
             <p className="text-xs text-text-3 mt-0.5">Which skills each team uses most</p>
@@ -162,7 +159,7 @@ export default async function OrgToolsPage({
 
       {/* Skill workflows */}
       {skillSequences.length > 0 && (
-        <Card className="space-y-3">
+        <Card contentClassName="space-y-3">
           <div>
             <h2 className="font-display text-sm font-semibold text-text">Skill workflows</h2>
             <p className="text-xs text-text-3 mt-0.5">
@@ -175,7 +172,7 @@ export default async function OrgToolsPage({
 
       {/* Skill ROI */}
       {skillRoi.length > 0 && (
-        <Card className="space-y-3">
+        <Card contentClassName="space-y-3">
           <div>
             <h2 className="font-display text-sm font-semibold text-text">Skill × PR CI status</h2>
             <p className="text-xs text-text-3 mt-0.5">

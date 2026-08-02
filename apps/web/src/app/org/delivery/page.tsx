@@ -123,7 +123,7 @@ export default async function OrgDeliveryPage({
       )}
 
       {/* Review health */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Review health ({range}d)</h2>
         {reviews.reviewedPrs === 0 ? (
           <p className="text-sm text-text-3">
@@ -152,7 +152,7 @@ export default async function OrgDeliveryPage({
       </Card>
 
       {/* CI check health */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Failing CI checks ({range}d)
         </h2>
@@ -196,7 +196,7 @@ export default async function OrgDeliveryPage({
       </Card>
 
       {/* Top repos by PR activity */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Top repos by merged PRs ({range}d)
         </h2>

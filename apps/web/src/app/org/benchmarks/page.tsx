@@ -109,8 +109,7 @@ export default async function OrgBenchmarksPage({
           </p>
         </Card>
       ) : (
-        <Card className="space-y-3">
-          <h2 className="font-display text-sm font-semibold text-text">Team comparison</h2>
+        <Card title="Team comparison" contentClassName="space-y-3">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -182,7 +181,7 @@ export default async function OrgBenchmarksPage({
         </Card>
       )}
 
-      <Card className="space-y-2 text-xs text-text-3">
+      <Card className="text-xs text-text-3" contentClassName="space-y-2">
         <p className="font-semibold text-text-2">Metric definitions</p>
         <ul className="space-y-1 list-disc list-inside">
           <li>

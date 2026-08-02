@@ -14,7 +14,9 @@ const OFF = 'text-text-3 hover:bg-surface hover:text-text';
  */
 export function Segmented({ children, label }: { children: ReactNode; label: string }) {
   return (
-    // `fieldset` rather than a div with role="group" — same semantics, native.
+    // `fieldset` groups the options natively. It holds links in the
+    // SegmentedLink case rather than form controls, which is unusual but valid
+    // flow content, and keeps one grouping element across both variants.
     <fieldset className={WRAP}>
       <legend className="sr-only">{label}</legend>
       {children}

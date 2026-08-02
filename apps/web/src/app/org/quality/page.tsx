@@ -60,7 +60,7 @@ export default async function OrgQualityPage({
       />
 
       {/* Outcome rates by friction band */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           PR outcomes by session friction ({range}d)
         </h2>
@@ -140,7 +140,7 @@ export default async function OrgQualityPage({
       </Card>
 
       {/* Defect attribution */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Bugs linked to tracked work ({range}d)
         </h2>

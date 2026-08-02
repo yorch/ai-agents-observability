@@ -42,7 +42,7 @@ export default async function SettingsPrivacyPage() {
 
       <section className="space-y-3">
         <h3 className="text-sm font-medium text-text-2">Pause data collection</h3>
-        <Card className="space-y-2">
+        <Card contentClassName="space-y-2">
           <p className="text-sm text-text-2">
             Run the following command to temporarily pause telemetry from your local machine:
           </p>

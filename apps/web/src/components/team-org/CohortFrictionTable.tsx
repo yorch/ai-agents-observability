@@ -23,8 +23,7 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
   const maxFriction = Math.max(...qualifying.map((r) => r.medianFriction ?? 0), 0.01);
 
   return (
-    <Card className="space-y-3">
-      <h2 className="font-display text-sm font-semibold text-text">Cohort friction divergence</h2>
+    <Card title="Cohort friction divergence" contentClassName="space-y-3">
       <p className="text-xs text-text-2">
         Median friction by first-seen-month cohort. Diverging newer cohorts may signal an onboarding
         or enablement gap. Aggregate, ≥3 devs per cohort.

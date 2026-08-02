@@ -127,13 +127,11 @@ export default async function OrgSecurityPage({
       </div>
 
       {/* Tool-category exposure */}
-      <Card className="space-y-3">
-        <div>
-          <h2 className="font-display text-sm font-semibold text-text">Tool-category exposure</h2>
-          <p className="mt-0.5 text-xs text-text-3">
-            What kinds of powerful access the agents used, and how widely.
-          </p>
-        </div>
+      <Card
+        title="Tool-category exposure"
+        caption="What kinds of powerful access the agents used, and how widely."
+        contentClassName="space-y-3"
+      >
         {categories.length === 0 ? (
           <p className="text-sm text-text-3">No tool activity in this window.</p>
         ) : (
@@ -142,13 +140,11 @@ export default async function OrgSecurityPage({
       </Card>
 
       {/* Per-repo exposure */}
-      <Card className="space-y-3">
-        <div>
-          <h2 className="font-display text-sm font-semibold text-text">Exposure by repo</h2>
-          <p className="mt-0.5 text-xs text-text-3">
-            Repos ranked by code-execution and network egress — where a data-exposure review starts.
-          </p>
-        </div>
+      <Card
+        title="Exposure by repo"
+        caption="Repos ranked by code-execution and network egress — where a data-exposure review starts."
+        contentClassName="space-y-3"
+      >
         {repoExposure.length === 0 ? (
           <p className="text-sm text-text-3">No exec/web/write activity in this window.</p>
         ) : (
@@ -182,16 +178,11 @@ export default async function OrgSecurityPage({
       </Card>
 
       {/* External egress */}
-      <Card className="space-y-3">
-        <div>
-          <h2 className="font-display text-sm font-semibold text-text">
-            External egress (MCP servers)
-          </h2>
-          <p className="mt-0.5 text-xs text-text-3">
-            Each MCP server is an external service the agents reached — an egress inventory for
-            security review.
-          </p>
-        </div>
+      <Card
+        title="External egress (MCP servers)"
+        caption="Each MCP server is an external service the agents reached — an egress inventory for security review."
+        contentClassName="space-y-3"
+      >
         {egress.length === 0 ? (
           <p className="text-sm text-text-3">No MCP calls in this window.</p>
         ) : (
@@ -223,14 +214,11 @@ export default async function OrgSecurityPage({
       </Card>
 
       {/* Secret exposure by class */}
-      <Card className="space-y-3">
-        <div>
-          <h2 className="font-display text-sm font-semibold text-text">Secret exposure by class</h2>
-          <p className="mt-0.5 text-xs text-text-3">
-            Sessions whose shipped transcript matched a redaction class before it hit storage.
-            Forward-looking only — historical transcripts are not backfilled.
-          </p>
-        </div>
+      <Card
+        title="Secret exposure by class"
+        caption="Sessions whose shipped transcript matched a redaction class before it hit storage. Forward-looking only — historical transcripts are not backfilled."
+        contentClassName="space-y-3"
+      >
         <p className="text-xs text-text-2">
           <span className="font-mono text-text">{redaction.sessionsWithSecrets}</span> of{' '}
           <span className="font-mono text-text">{redaction.totalSessionsWithTranscript}</span>{' '}
@@ -267,14 +255,11 @@ export default async function OrgSecurityPage({
       </Card>
 
       {/* Large data movements */}
-      <Card className="space-y-3">
-        <div>
-          <h2 className="font-display text-sm font-semibold text-text">Largest data movements</h2>
-          <p className="mt-0.5 text-xs text-text-3">
-            Biggest single tool outputs on network / MCP / file-read — the rows to eyeball first.
-            Sizes only; no content is stored.
-          </p>
-        </div>
+      <Card
+        title="Largest data movements"
+        caption="Biggest single tool outputs on network / MCP / file-read — the rows to eyeball first. Sizes only; no content is stored."
+        contentClassName="space-y-3"
+      >
         {largeOutputs.length === 0 ? (
           <p className="text-sm text-text-3">No sized tool outputs in this window.</p>
         ) : (

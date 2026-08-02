@@ -136,7 +136,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
       </section>
 
       {/* Pause / uninstall */}
-      <Card className="space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="text-sm font-medium text-text-2">Other commands</h2>
         <div className="space-y-2 text-sm">
           <div>
