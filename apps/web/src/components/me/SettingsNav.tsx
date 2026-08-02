@@ -3,53 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-function IconProfile() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden={true}>
-      <circle cx="7.5" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.2" />
-      <path
-        d="M2 13c0-3 2.5-5 5.5-5s5.5 2 5.5 5"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function IconPrivacy() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden={true}>
-      <rect x="3" y="6.5" width="9" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-      <path
-        d="M5 6.5V4.5a2.5 2.5 0 0 1 5 0v2"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-      <circle cx="7.5" cy="10" r="1" fill="currentColor" />
-    </svg>
-  );
-}
-
-function IconAudit() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden={true}>
-      <rect x="2" y="2" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-      <path
-        d="M5 5.5h5M5 7.5h5M5 9.5h3"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+import { LockIcon, LogIcon, UserIcon } from '@/components/icons';
 
 const NAV_ITEMS = [
-  { href: '/me/settings/profile', icon: IconProfile, label: 'Profile' },
-  { href: '/me/settings/privacy', icon: IconPrivacy, label: 'Privacy' },
-  { href: '/me/settings/audit', icon: IconAudit, label: 'Audit log' },
+  { href: '/me/settings/profile', icon: UserIcon, label: 'Profile' },
+  { href: '/me/settings/privacy', icon: LockIcon, label: 'Privacy' },
+  { href: '/me/settings/audit', icon: LogIcon, label: 'Audit log' },
 ];
 
 export function SettingsNav() {
@@ -69,7 +28,7 @@ export function SettingsNav() {
                 : 'text-text-2 hover:text-text hover:bg-surface-2'
             }`}
           >
-            <Icon />
+            <Icon size={15} />
             {label}
           </Link>
         );
