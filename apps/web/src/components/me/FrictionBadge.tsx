@@ -1,5 +1,5 @@
-import { FRICTION_BAND_HIGH, FRICTION_BAND_LOW } from '@ai-agents-observability/schemas';
-import { FRICTION_VERSION } from '@/lib/effectiveness';
+import { Badge } from '@/components/ui';
+import { FRICTION_VERSION, frictionBadge } from '@/lib/effectiveness';
 
 export type FrictionInputsLite = {
   durationSeconds: number | null;
@@ -10,16 +10,6 @@ export type FrictionInputsLite = {
   toolErrorCount: number;
   userMessageCount: number;
 };
-
-function band(score: number): { color: string; label: string } {
-  if (score < FRICTION_BAND_LOW) {
-    return { color: 'bg-green-500/15 text-green-400', label: 'Low' };
-  }
-  if (score <= FRICTION_BAND_HIGH) {
-    return { color: 'bg-yellow-500/15 text-yellow-400', label: 'Medium' };
-  }
-  return { color: 'bg-red-500/15 text-red-400', label: 'High' };
-}
 
 function explain(score: number, i: FrictionInputsLite): string {
   if (score < 0.3) {
@@ -63,15 +53,15 @@ export function FrictionBadge({
     );
   }
 
-  const b = band(score);
+  const b = frictionBadge(score);
   return (
     <div className="flex flex-col gap-0.5">
       <div className="group relative w-fit">
-        <span
-          className={`inline-flex w-fit items-center gap-1 rounded px-2 py-1 text-xs font-mono cursor-default ${b.color}`}
-        >
-          Friction: {b.label} · {score.toFixed(2)}
-          <span className="opacity-50 text-[10px]">?</span>
+        <span className="cursor-default">
+          <Badge tone={b.tone} dot={false}>
+            Friction: {b.label} · {score.toFixed(2)}
+            <span className="opacity-50">?</span>
+          </Badge>
         </span>
         {/* CSS-only tooltip — no JS required */}
         <div className="pointer-events-none absolute left-0 top-full mt-1.5 z-50 hidden w-64 rounded-lg border border-border bg-surface p-3 shadow-lg group-hover:block">

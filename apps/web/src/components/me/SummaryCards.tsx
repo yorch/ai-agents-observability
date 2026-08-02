@@ -1,48 +1,9 @@
-import { ArrowDownIcon, ArrowUpIcon } from '@/components/icons';
+import { Stat } from '@/components/ui';
 import type { UsageSummary } from '@/lib/me-queries';
 
-function DeltaBadge({ current, previous }: { current: number; previous: number }) {
-  if (previous === 0 && current === 0) {
-    return null;
-  }
-  if (previous === 0) {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-green-400 font-mono">
-        <ArrowUpIcon size={12} /> new
-      </span>
-    );
-  }
-
-  const pct = ((current - previous) / previous) * 100;
-  if (Math.abs(pct) < 0.5) {
-    return null;
-  }
-
-  const up = pct > 0;
-  return (
-    <span
-      className={`inline-flex items-center gap-1 text-xs font-mono ${up ? 'text-green-400' : 'text-red-400'}`}
-    >
-      {up ? <ArrowUpIcon size={12} /> : <ArrowDownIcon size={12} />} {Math.abs(pct).toFixed(0)}%
-    </span>
-  );
-}
-
-type CardProps = {
-  label: string;
-  thisWeek: number;
-  lastWeek: number;
-  format: (v: number) => string;
-};
-
-function Card({ label, thisWeek, lastWeek, format }: CardProps) {
-  return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-1">
-      <p className="text-xs text-text-3 uppercase tracking-widest">{label}</p>
-      <p className="text-2xl font-mono font-semibold text-text">{format(thisWeek)}</p>
-      <DeltaBadge current={thisWeek} previous={lastWeek} />
-    </div>
-  );
+/** Fractional change, guarding the divide-by-zero when the prior period is empty. */
+function delta(current: number, previous: number): number | null {
+  return previous === 0 ? null : (current - previous) / previous;
 }
 
 export function SummaryCards({
@@ -54,29 +15,26 @@ export function SummaryCards({
 }) {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-      <Card
+      <Stat
         label="Sessions"
-        thisWeek={thisWeek.sessionCount}
-        lastWeek={lastWeek.sessionCount}
-        format={(v) => v.toString()}
+        value={thisWeek.sessionCount.toString()}
+        delta={delta(thisWeek.sessionCount, lastWeek.sessionCount)}
       />
-      <Card
+      <Stat
         label="Cost"
-        thisWeek={thisWeek.totalCostUsd}
-        lastWeek={lastWeek.totalCostUsd}
-        format={(v) => `$${v.toFixed(2)}`}
+        value={`$${thisWeek.totalCostUsd.toFixed(2)}`}
+        delta={delta(thisWeek.totalCostUsd, lastWeek.totalCostUsd)}
+        deltaInverted
       />
-      <Card
+      <Stat
         label="Hours"
-        thisWeek={thisWeek.totalHours}
-        lastWeek={lastWeek.totalHours}
-        format={(v) => v.toFixed(1)}
+        value={thisWeek.totalHours.toFixed(1)}
+        delta={delta(thisWeek.totalHours, lastWeek.totalHours)}
       />
-      <Card
+      <Stat
         label="Repos"
-        thisWeek={thisWeek.repoCount}
-        lastWeek={lastWeek.repoCount}
-        format={(v) => v.toString()}
+        value={thisWeek.repoCount.toString()}
+        delta={delta(thisWeek.repoCount, lastWeek.repoCount)}
       />
     </div>
   );

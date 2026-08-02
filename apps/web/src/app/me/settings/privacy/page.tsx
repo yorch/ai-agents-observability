@@ -17,7 +17,7 @@ export default async function SettingsPrivacyPage() {
   return (
     <div className="space-y-8 max-w-lg">
       <div>
-        <h2 className="text-lg font-semibold">Privacy</h2>
+        <h2 className="font-display text-lg font-semibold text-text">Privacy</h2>
         <p className="mt-0.5 text-sm text-text-2">
           Control what data is shared with your team and organization.
         </p>
@@ -55,8 +55,8 @@ export default async function SettingsPrivacyPage() {
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-red-400">Danger zone</h3>
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-3">
+        <h3 className="text-sm font-medium text-crit">Danger zone</h3>
+        <div className="rounded-lg border border-crit-line bg-crit-soft p-4 space-y-3">
           <p className="text-sm text-text-2">
             Request permanent deletion of all your data. This action cannot be undone. Your account,
             sessions, and transcripts will be scheduled for deletion.

@@ -1,36 +1,16 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon, ExternalLinkIcon } from '@/components/icons';
+import { PrStateBadge } from '@/components/me/PrStateBadge';
+import { Card } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
+import { fmtDate } from '@/lib/fmt';
 import { getPRDetail } from '@/lib/pr-queries';
 import { getPrisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 type PageParams = { pr: string[] };
-
-function StateBadge({ state }: { state: string }) {
-  const colors: Record<string, string> = {
-    closed: 'bg-red-500/20 text-red-400',
-    merged: 'bg-purple-500/20 text-purple-400',
-    open: 'bg-green-500/20 text-green-400',
-  };
-  const color = colors[state] ?? 'bg-white/10 text-white/50';
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{state}</span>;
-}
-
-function formatDate(d: Date | null): string {
-  if (!d) {
-    return '—';
-  }
-  return d.toLocaleDateString('en-US', {
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
 
 function formatActiveTime(seconds: number | null): string {
   if (seconds === null || seconds === 0) {
@@ -86,7 +66,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       {/* Back link */}
       <Link
         href="/me/prs"
-        className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
+        className="inline-flex items-center gap-1 text-sm text-text-2 hover:text-text"
       >
         <ArrowLeftIcon /> Pull Requests
       </Link>
@@ -94,19 +74,19 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       {/* Header */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-start gap-3">
-          <h1 className="text-xl font-semibold flex-1 min-w-0">
+          <h1 className="min-w-0 flex-1 font-display text-xl font-semibold tracking-tight text-text">
             {pr.title ?? `PR #${pr.prNumber}`}
           </h1>
-          <StateBadge state={pr.state} />
+          <PrStateBadge state={pr.state} />
         </div>
 
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/50">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-2">
           <span>
             <a
               href={githubHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 hover:text-white/80"
+              className="inline-flex items-center gap-1 hover:text-text"
             >
               {pr.repoOwner}/{pr.repoName} #{pr.prNumber} <ExternalLinkIcon size={11} />
             </a>
@@ -116,26 +96,26 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
               {pr.headBranch} <ArrowRightIcon size={11} /> {pr.baseBranch}
             </span>
           )}
-          {pr.openedAt && <span>opened: {formatDate(pr.openedAt)}</span>}
-          {pr.mergedAt && <span>merged: {formatDate(pr.mergedAt)}</span>}
+          {pr.openedAt && <span>opened: {fmtDate(pr.openedAt)}</span>}
+          {pr.mergedAt && <span>merged: {fmtDate(pr.mergedAt)}</span>}
         </div>
 
         {/* Diff stats */}
         {(pr.linesAdded !== null || pr.linesRemoved !== null || pr.filesChanged !== null) && (
           <div className="flex gap-4 text-xs">
             {pr.filesChanged !== null && (
-              <span className="text-white/40">{pr.filesChanged} files changed</span>
+              <span className="text-text-3">{pr.filesChanged} files changed</span>
             )}
-            {pr.linesAdded !== null && <span className="text-green-400">+{pr.linesAdded}</span>}
-            {pr.linesRemoved !== null && <span className="text-red-400">-{pr.linesRemoved}</span>}
+            {pr.linesAdded !== null && <span className="text-good">+{pr.linesAdded}</span>}
+            {pr.linesRemoved !== null && <span className="text-crit">-{pr.linesRemoved}</span>}
           </div>
         )}
       </div>
 
       {/* No rollup state */}
       {!hasRollup && (
-        <div className="rounded-lg border border-white/10 bg-white/5 p-6 text-center">
-          <p className="text-sm text-white/50">
+        <div className="rounded-lg border border-border bg-surface p-6 text-center">
+          <p className="text-sm text-text-2">
             Rollup computed at merge time. Check back after this PR is merged.
           </p>
         </div>
@@ -144,24 +124,24 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       {/* Summary cards */}
       {hasRollup && (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <div className="text-xs text-white/40 uppercase tracking-wide">Cost</div>
+          <Card>
+            <div className="text-xs text-text-3 uppercase tracking-wide">Cost</div>
             <div className="mt-1 text-2xl font-semibold">${pr.totalCostUsd.toFixed(2)}</div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <div className="text-xs text-white/40 uppercase tracking-wide">Sessions</div>
+          </Card>
+          <Card>
+            <div className="text-xs text-text-3 uppercase tracking-wide">Sessions</div>
             <div className="mt-1 text-2xl font-semibold">{pr.sessionCount}</div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <div className="text-xs text-white/40 uppercase tracking-wide">Contributors</div>
+          </Card>
+          <Card>
+            <div className="text-xs text-text-3 uppercase tracking-wide">Contributors</div>
             <div className="mt-1 text-2xl font-semibold">{pr.contributorCount}</div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-            <div className="text-xs text-white/40 uppercase tracking-wide">Active Time</div>
+          </Card>
+          <Card>
+            <div className="text-xs text-text-3 uppercase tracking-wide">Active Time</div>
             <div className="mt-1 text-2xl font-semibold">
               {formatActiveTime(pr.totalActiveSeconds)}
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
@@ -170,32 +150,32 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
         (pr.totalInputTokens !== null ||
           pr.totalOutputTokens !== null ||
           pr.totalToolCalls !== null) && (
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2">
-            <h2 className="text-sm font-medium text-white/70">Usage breakdown</h2>
+          <div className="rounded-lg border border-border bg-surface p-4 space-y-2">
+            <h2 className="text-sm font-medium text-text-2">Usage breakdown</h2>
             <div className="grid grid-cols-3 gap-4 text-sm">
               {pr.totalInputTokens !== null && (
                 <div>
-                  <div className="text-xs text-white/40">Input tokens</div>
-                  <div className="text-white/80">{pr.totalInputTokens.toString()}</div>
+                  <div className="text-xs text-text-3">Input tokens</div>
+                  <div className="text-text">{pr.totalInputTokens.toString()}</div>
                 </div>
               )}
               {pr.totalOutputTokens !== null && (
                 <div>
-                  <div className="text-xs text-white/40">Output tokens</div>
-                  <div className="text-white/80">{pr.totalOutputTokens.toString()}</div>
+                  <div className="text-xs text-text-3">Output tokens</div>
+                  <div className="text-text">{pr.totalOutputTokens.toString()}</div>
                 </div>
               )}
               {pr.totalToolCalls !== null && (
                 <div>
-                  <div className="text-xs text-white/40">Tool calls</div>
-                  <div className="text-white/80">{pr.totalToolCalls}</div>
+                  <div className="text-xs text-text-3">Tool calls</div>
+                  <div className="text-text">{pr.totalToolCalls}</div>
                 </div>
               )}
             </div>
             {(pr.firstSessionAt || pr.lastSessionAt) && (
-              <div className="pt-2 border-t border-white/10 text-xs text-white/40 flex gap-4">
-                {pr.firstSessionAt && <span>first session: {formatDate(pr.firstSessionAt)}</span>}
-                {pr.lastSessionAt && <span>last session: {formatDate(pr.lastSessionAt)}</span>}
+              <div className="pt-2 border-t border-border text-xs text-text-3 flex gap-4">
+                {pr.firstSessionAt && <span>first session: {fmtDate(pr.firstSessionAt)}</span>}
+                {pr.lastSessionAt && <span>last session: {fmtDate(pr.lastSessionAt)}</span>}
               </div>
             )}
           </div>
@@ -204,24 +184,24 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       {/* Contributing sessions */}
       {pr.contributingSessionIds.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-white/70">
+          <h2 className="font-display text-sm font-semibold text-text">
             Contributing Sessions ({pr.contributingSessionIds.length})
           </h2>
-          <div className="rounded-lg border border-white/10 overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden">
             {pr.contributingSessionIds.map((sessionId) => (
               <div
                 key={sessionId}
-                className="flex items-center justify-between px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors"
+                className="flex items-center justify-between px-4 py-3 border-b border-border-subtle last:border-0 hover:bg-surface-2 transition-colors"
               >
                 <Link
                   href={`/me/sessions/${sessionId}`}
-                  className="font-mono text-sm text-white/60 hover:text-white"
+                  className="font-mono text-sm text-text-2 hover:text-text"
                 >
                   {sessionId}
                 </Link>
                 <Link
                   href={`/me/sessions/${sessionId}`}
-                  className="inline-flex items-center gap-1 text-xs text-white/30 hover:text-white/60"
+                  className="inline-flex items-center gap-1 text-xs text-text-3 hover:text-text-2"
                 >
                   View <ArrowRightIcon />
                 </Link>

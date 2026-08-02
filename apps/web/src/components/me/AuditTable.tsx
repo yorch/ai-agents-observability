@@ -27,18 +27,18 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center">
-        <p className="text-sm text-white/50">No one has accessed your data yet.</p>
+      <div className="rounded-lg border border-border bg-surface p-8 text-center">
+        <p className="text-sm text-text-2">No one has accessed your data yet.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-white/10">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/10 text-white/40 text-xs">
+            <tr className="border-b border-border text-text-3 text-xs">
               <th className="text-left px-4 py-3">Timestamp</th>
               <th className="text-left px-4 py-3">Actor</th>
               <th className="text-left px-4 py-3">Action</th>
@@ -48,23 +48,26 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id.toString()} className="border-b border-white/5 hover:bg-white/5">
-                <td className="px-4 py-3 text-white/60 whitespace-nowrap">
+              <tr
+                key={row.id.toString()}
+                className="border-b border-border-subtle hover:bg-surface-2"
+              >
+                <td className="px-4 py-3 text-text-2 whitespace-nowrap">
                   {row.ts.toLocaleString()}
                 </td>
-                <td className="px-4 py-3 text-white/70">
+                <td className="px-4 py-3 text-text-2">
                   {row.actorLogin ? `@${row.actorLogin}` : '—'}
                 </td>
                 <td className="px-4 py-3">
-                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70">
+                  <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-text-2">
                     {ACTION_LABELS[row.action] ?? row.action}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-white/60 text-xs">
+                <td className="px-4 py-3 text-text-2 text-xs">
                   {row.targetSessionId ? (
                     <Link
                       href={`/me/sessions/${row.targetSessionId}`}
-                      className="font-mono hover:text-white underline"
+                      className="font-mono hover:text-text underline"
                     >
                       session:{row.targetSessionId.slice(0, 8)}…
                     </Link>
@@ -76,7 +79,7 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
                     '—'
                   )}
                 </td>
-                <td className="px-4 py-3 text-white/50 text-xs">{row.justification ?? '—'}</td>
+                <td className="px-4 py-3 text-text-2 text-xs">{row.justification ?? '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -85,7 +88,7 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">
-          <p className="text-white/40">
+          <p className="text-text-3">
             {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of{' '}
             {total}
           </p>
@@ -93,7 +96,7 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
             {hasPrev && (
               <a
                 href={`?page=${currentPage - 1}`}
-                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
+                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 transition-colors"
               >
                 <ArrowLeftIcon /> Prev
               </a>
@@ -101,7 +104,7 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
             {hasNext && (
               <a
                 href={`?page=${currentPage + 1}`}
-                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-3 py-1.5 hover:bg-white/10 transition-colors"
+                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 transition-colors"
               >
                 Next <ArrowRightIcon />
               </a>

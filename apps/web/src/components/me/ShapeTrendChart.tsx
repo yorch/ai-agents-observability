@@ -1,15 +1,5 @@
 import type { WeeklyShapeBucket } from '@/lib/cohort-queries';
-
-// Matches the segment colors in ShapeDistributionChart (not exported from
-// there) so a shape reads the same color everywhere on /me/insights.
-const SHAPE_COLOR: Record<string, string> = {
-  debugging: 'bg-orange-400',
-  exploratory: 'bg-blue-400',
-  'focused-edit': 'bg-green-400',
-  minimal: 'bg-surface-2',
-  'multi-tool': 'bg-purple-400',
-  planning: 'bg-sky-400',
-};
+import { shapeBg } from './shape';
 
 const BAR_HEIGHT_PX = 96;
 const MIN_WEEKS_WITH_DATA = 2;
@@ -61,7 +51,7 @@ export function ShapeTrendChart({ buckets }: { buckets: WeeklyShapeBucket[] }) {
                       return (
                         <div
                           key={shape}
-                          className={SHAPE_COLOR[shape] ?? 'bg-surface-2'}
+                          className={shapeBg(shape)}
                           style={{ height: `${(count / total) * 100}%` }}
                         />
                       );
@@ -75,9 +65,7 @@ export function ShapeTrendChart({ buckets }: { buckets: WeeklyShapeBucket[] }) {
           <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px]">
             {shapesPresent.map((shape) => (
               <li key={shape} className="flex items-center gap-1.5 text-text-2">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${SHAPE_COLOR[shape] ?? 'bg-surface-2'}`}
-                />
+                <span className={`inline-block h-2 w-2 rounded-full ${shapeBg(shape)}`} />
                 {shape}
               </li>
             ))}

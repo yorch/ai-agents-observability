@@ -1,15 +1,6 @@
-import { MeNav } from '@/components/me/MeNav';
-import { currentUser } from '@/lib/auth';
-import { canRequestGrants } from '@/lib/roles';
+import type { ReactNode } from 'react';
 
-export default async function MeLayout({ children }: { children: React.ReactNode }) {
-  const user = await currentUser();
-  const showGrants = user ? canRequestGrants(user.orgRole) : false;
-
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <MeNav showGrants={showGrants} />
-      {children}
-    </div>
-  );
+// "My agents" navigation lives in the rail; the root layout owns the measure.
+export default function MeLayout({ children }: { children: ReactNode }) {
+  return children;
 }

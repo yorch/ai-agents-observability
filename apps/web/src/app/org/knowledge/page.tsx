@@ -43,11 +43,9 @@ export default async function OrgKnowledgePage({
       />
 
       {totalSessions === 0 ? (
-        <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center">
-          <p className="text-sm font-medium text-white/70">
-            No indexed transcripts in this window.
-          </p>
-          <p className="mt-1 text-sm text-white/40">
+        <div className="rounded-lg border border-border bg-surface p-8 text-center">
+          <p className="text-sm font-medium text-text-2">No indexed transcripts in this window.</p>
+          <p className="mt-1 text-sm text-text-3">
             Topic clustering runs over the transcript full-text index, populated by the
             <span className="font-mono"> index-transcripts</span> ingest job. It appears here once
             transcripts have been shipped and indexed.
@@ -55,17 +53,19 @@ export default async function OrgKnowledgePage({
         </div>
       ) : (
         <>
-          <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-4">
+          <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
             <div>
-              <h2 className="text-sm font-semibold text-white/70">Topics by session reach</h2>
-              <p className="mt-0.5 text-xs text-white/40">
+              <h2 className="font-display text-sm font-semibold text-text">
+                Topics by session reach
+              </h2>
+              <p className="mt-0.5 text-xs text-text-3">
                 Share of the {totalSessions.toLocaleString()} indexed sessions whose prompts touched
                 each topic. A high-reach topic is where docs, onboarding, or tooling could cut
                 repeated questions.
               </p>
             </div>
             {visible.length === 0 ? (
-              <p className="text-sm text-white/40">
+              <p className="text-sm text-text-3">
                 No topic cleared the small-n threshold ({MIN_SESSIONS}+ sessions across {MIN_USERS}+
                 developers) in this window.
               </p>
@@ -78,7 +78,7 @@ export default async function OrgKnowledgePage({
             )}
           </section>
 
-          <p className="text-xs text-white/30">
+          <p className="text-xs text-text-3">
             Topics are matched by a fixed keyword taxonomy over user prompts — directional, not
             exact. Counts are aggregate and visibility-scoped to org-metadata sharers; topics
             touched by fewer than {MIN_SESSIONS} sessions or {MIN_USERS} developers are suppressed
@@ -97,15 +97,15 @@ function TopicBar({ topic, total }: { topic: KnowledgeTopicRow; total: number })
   return (
     <div className="space-y-1">
       <div className="flex items-baseline justify-between text-sm">
-        <span className="text-white/80">{topic.label}</span>
-        <span className="text-xs text-white/50">
+        <span className="text-text">{topic.label}</span>
+        <span className="text-xs text-text-2">
           {topic.sessionCount.toLocaleString()} sessions · {topic.userCount} devs ·{' '}
           {(share * 100).toFixed(0)}%
         </span>
       </div>
       <div className="h-2 rounded-full bg-surface-2">
         <div
-          className="h-full rounded-full bg-brand-500/70"
+          className="h-full rounded-full bg-accent/70"
           style={{ width: `${Math.max(2, share * 100)}%` }}
         />
       </div>

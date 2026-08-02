@@ -50,8 +50,8 @@ export default async function PriceTablesPage() {
         <h1 className="font-display text-xl font-semibold tracking-tight text-text">
           Price tables
         </h1>
-        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm">
-          <p className="font-medium text-yellow-400">INGEST_URL not configured</p>
+        <div className="rounded-lg border border-warn-line bg-warn-soft p-4 text-sm">
+          <p className="font-medium text-warn">INGEST_URL not configured</p>
           <p className="mt-1 text-text-2">
             Set the{' '}
             <code className="font-mono text-xs bg-surface-2 px-1 py-0.5 rounded">INGEST_URL</code>{' '}

@@ -158,3 +158,232 @@ export function SparkleIcon(props: IconProps) {
     </Icon>
   );
 }
+
+// ── Navigation ────────────────────────────────────────────────────────────
+// Used by the rail. Same 16×16 stroke grid as everything above.
+
+/** Line rising over a baseline — dashboards and overviews. */
+export function ChartIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2 12.5 5.5 8l3 2L11 5.5 14 9" />
+    </Icon>
+  );
+}
+
+/** Ascending columns — adoption, distributions. */
+export function BarsIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 13V6.5M6.5 13V3M10.5 13V8.5M14 13v-3" />
+    </Icon>
+  );
+}
+
+/** Stacked rules — session and record lists. */
+export function ListIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 4h11M2.5 8h11M2.5 12h7" />
+    </Icon>
+  );
+}
+
+/** Two figures — rosters, teams, members. */
+export function PeopleIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="6" cy="5.5" r="2.3" />
+      <path d="M2 13.2c0-2.2 1.8-3.5 4-3.5s4 1.3 4 3.5" />
+      <path d="M10.8 3.6a2.3 2.3 0 0 1 0 4.4M11.5 9.9c1.6.3 2.7 1.5 2.7 3.3" />
+    </Icon>
+  );
+}
+
+/** Angle brackets over a slash — tools and MCP servers. */
+export function CodeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4.5 5 2 8l2.5 3M11.5 5 14 8l-2.5 3M9.5 3.5l-3 9" />
+    </Icon>
+  );
+}
+
+/** Cube — models. */
+export function CubeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 2 13.5 5v6L8 14 2.5 11V5z" />
+      <path d="M2.5 5 8 8l5.5-3M8 8v6" />
+    </Icon>
+  );
+}
+
+/** Shield — security and governance. */
+export function ShieldIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 2 13 4v4c0 3.2-2.1 5.3-5 6.1C5.1 13.3 3 11.2 3 8V4z" />
+    </Icon>
+  );
+}
+
+/** Magnifier — search. */
+export function SearchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="7" cy="7" r="4.5" />
+      <path d="m10.4 10.4 3.1 3.1" />
+    </Icon>
+  );
+}
+
+/** Star — skills. */
+export function StarIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m8 2.2 1.7 4 4.3.3-3.3 2.8 1 4.2L8 11.2l-3.7 2.3 1-4.2L2 6.5l4.3-.3z" />
+    </Icon>
+  );
+}
+
+/** Rounded chassis with two eyes — agents. */
+export function AgentIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="4.5" width="11" height="8" rx="2.2" />
+      <path d="M8 4.5v-2M6 8.3h.01M10 8.3h.01" strokeWidth={1.8} />
+    </Icon>
+  );
+}
+
+/** Branch merging into a trunk — pull requests. */
+export function PullRequestIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="4.5" cy="4" r="1.8" />
+      <circle cx="4.5" cy="12" r="1.8" />
+      <circle cx="11.5" cy="12" r="1.8" />
+      <path d="M4.5 5.8v4.4M11.5 10.2V7.5a2 2 0 0 0-2-2H6.6" />
+    </Icon>
+  );
+}
+
+/** Dial with a needle — ROI, quality, benchmarks. */
+export function GaugeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 12a5.5 5.5 0 1 1 11 0" />
+      <path d="M8 12 10.8 7.8" />
+    </Icon>
+  );
+}
+
+/** Clock — delivery, jobs, retention. */
+export function ClockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="8" r="5.7" />
+      <path d="M8 4.6V8l2.3 1.7" />
+    </Icon>
+  );
+}
+
+/** Toothed wheel — settings and admin. */
+export function GearIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="8" r="2.2" />
+      <path d="M8 1.8v1.6M8 12.6v1.6M14.2 8h-1.6M3.4 8H1.8M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1M12.4 12.4l-1.1-1.1M4.7 4.7 3.6 3.6" />
+    </Icon>
+  );
+}
+
+/** Key — access grants and roles. */
+export function KeyIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="5.5" cy="10.5" r="2.8" />
+      <path d="m7.6 8.6 5.2-5.2M10.6 5.6l1.6 1.6M12.2 4l1.5 1.5" />
+    </Icon>
+  );
+}
+
+/** Stacked discs — price tables, adapters, data stores. */
+export function StackIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <ellipse cx="8" cy="4" rx="5.3" ry="2.1" />
+      <path d="M2.7 4v4c0 1.2 2.4 2.1 5.3 2.1s5.3-.9 5.3-2.1V4" />
+      <path d="M2.7 8v3.4c0 1.2 2.4 2.1 5.3 2.1s5.3-.9 5.3-2.1V8" />
+    </Icon>
+  );
+}
+
+/** Open book — knowledge. */
+export function BookIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 4.3C6.9 3.3 5.4 2.8 3.6 2.8c-.6 0-1.1.5-1.1 1.1v7.3c0 .6.5 1.1 1.1 1.1 1.8 0 3.3.5 4.4 1.5 1.1-1 2.6-1.5 4.4-1.5.6 0 1.1-.5 1.1-1.1V3.9c0-.6-.5-1.1-1.1-1.1-1.8 0-3.3.5-4.4 1.5z" />
+      <path d="M8 4.3v9.5" />
+    </Icon>
+  );
+}
+
+/** Bell — alerts. */
+export function BellIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 7a4 4 0 0 1 8 0c0 2.6.7 3.7 1.3 4.3H2.7C3.3 10.7 4 9.6 4 7z" />
+      <path d="M6.6 13.3a1.6 1.6 0 0 0 2.8 0" />
+    </Icon>
+  );
+}
+
+/** Concentric rings — benchmarks and targets. */
+export function TargetIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="8" r="5.7" />
+      <circle cx="8" cy="8" r="2.4" />
+    </Icon>
+  );
+}
+
+/** Page with a rule and a check — policy and governance. */
+export function PolicyIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3.2 2.5h6.3l3.3 3.3v7.7H3.2z" />
+      <path d="M9.3 2.6v3.3h3.3M5.6 10.2l1.5 1.5 2.8-2.8" />
+    </Icon>
+  );
+}
+
+/** Arrow leaving a doorway — sign out. */
+export function SignOutIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6.2 13.5H3.6a1.4 1.4 0 0 1-1.4-1.4V3.9a1.4 1.4 0 0 1 1.4-1.4h2.6M10.4 11.1 13.5 8l-3.1-3.1M13.5 8H6.2" />
+    </Icon>
+  );
+}
+
+/** Sun — the light theme. */
+export function SunIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="8" r="2.7" />
+      <path d="M8 1.1v1.1M8 13.8v1.1M1.1 8h1.1M13.8 8h1.1M3.25 3.25l.78.78M11.97 11.97l.78.78M11.97 4.03l.78-.78M4.03 11.97l-.78.78" />
+    </Icon>
+  );
+}
+
+/** Crescent — the dark theme. */
+export function MoonIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 1.1a6.9 6.9 0 1 0 5.3 11.35A5.3 5.3 0 0 1 6.6 4.28 6.9 6.9 0 0 1 8 1.1Z" />
+    </Icon>
+  );
+}

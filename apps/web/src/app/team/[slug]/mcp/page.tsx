@@ -1,12 +1,10 @@
-import { EmptyState } from '@/components/team-org/EmptyState';
 import { McpServerCard } from '@/components/team-org/McpServerCard';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { EmptyState, Stat } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
 import type { McpTeamDetailRow } from '@/lib/team-queries';
 import { getTeamMcpDetails, resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
-import { TeamSubNav } from '../layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,17 +85,15 @@ export default async function TeamMcpPage({
         title={teamName}
       />
 
-      <TeamSubNav slug={slug} active="mcp" />
-
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label={`MCP calls (${range}d)`} value={totalCalls.toLocaleString()} />
-        <StatCard label="Active servers" value={servers.length.toString()} />
-        <StatCard
+        <Stat label={`MCP calls (${range}d)`} value={totalCalls.toLocaleString()} />
+        <Stat label="Active servers" value={servers.length.toString()} />
+        <Stat
           label="Error / deny rate"
           value={totalCalls > 0 ? `${(overallErrorRate * 100).toFixed(1)}%` : '—'}
-          warn={overallErrorRate > 0.05}
+          accent={overallErrorRate > 0.05 ? 'warn' : undefined}
         />
-        <StatCard
+        <Stat
           label="Attributed LLM cost"
           value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
         />

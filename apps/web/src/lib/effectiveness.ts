@@ -1,5 +1,9 @@
 import type { ShapeLabel } from '@ai-agents-observability/schemas';
 
+import { FRICTION_BAND_HIGH, FRICTION_BAND_LOW } from '@ai-agents-observability/schemas';
+
+import type { Tone } from './tone';
+
 export type {
   FrictionComponents,
   FrictionInputs,
@@ -14,26 +18,36 @@ export {
   frictionScoreFromComponents,
 } from '@ai-agents-observability/schemas';
 
-/** Badge color for friction score. */
-export function frictionBadge(score: number): { color: string; label: string } {
-  if (score < 0.2) {
-    return { color: 'text-green-400', label: 'Low' };
+/**
+ * Friction is a severity scale, so it takes the status tones. Returning the
+ * tone rather than a class string keeps this module free of Tailwind classes —
+ * the caller renders a `Badge`.
+ */
+export function frictionBadge(score: number): { label: string; tone: Tone } {
+  if (score < FRICTION_BAND_LOW) {
+    return { label: 'Low', tone: 'good' };
   }
-  if (score < 0.5) {
-    return { color: 'text-yellow-400', label: 'Medium' };
+  if (score <= FRICTION_BAND_HIGH) {
+    return { label: 'Medium', tone: 'warn' };
   }
-  return { color: 'text-red-400', label: 'High' };
+  return { label: 'High', tone: 'crit' };
 }
 
-/** Badge color for shape label. */
-export function shapeBadge(label: ShapeLabel): string {
-  const map: Record<ShapeLabel, string> = {
-    debugging: 'bg-orange-500/20 text-orange-300',
-    exploratory: 'bg-blue-500/20 text-blue-300',
-    'focused-edit': 'bg-green-500/20 text-green-300',
-    minimal: 'bg-white/10 text-white/40',
-    'multi-tool': 'bg-purple-500/20 text-purple-300',
-    planning: 'bg-sky-500/20 text-sky-300',
-  };
-  return map[label] ?? 'bg-white/10 text-white/40';
+/**
+ * Session shapes are a categorical set, not a severity scale, so they take
+ * fixed series indices — a shape keeps its colour whatever else is on screen.
+ */
+// `minimal` is the absence of a shape, so it stays neutral rather than
+// claiming a series colour.
+const SHAPE_SERIES_INDEX: Record<ShapeLabel, number | null> = {
+  debugging: 1,
+  exploratory: 0,
+  'focused-edit': 2,
+  minimal: null,
+  'multi-tool': 3,
+  planning: 5,
+};
+
+export function shapeSeriesIndex(label: ShapeLabel): number | null {
+  return SHAPE_SERIES_INDEX[label] ?? null;
 }

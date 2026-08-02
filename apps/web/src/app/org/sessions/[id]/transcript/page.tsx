@@ -73,20 +73,22 @@ export default async function OrgTranscriptPage({
         <div className="flex items-center gap-3">
           <Link
             href={`/org/sessions/${id}`}
-            className="inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"
+            className="inline-flex items-center gap-1 text-sm text-text-2 hover:text-text"
           >
             <ArrowLeftIcon /> Session
           </Link>
         </div>
         <div>
-          <h1 className="text-xl font-semibold">Request transcript access</h1>
-          <p className="mt-1 text-sm text-white/50">
+          <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+            Request transcript access
+          </h1>
+          <p className="mt-1 text-sm text-text-2">
             {owner} has not shared transcripts with the org. Viewing this transcript is logged and
             visible to {owner} in their own audit feed.
           </p>
         </div>
-        <form method="GET" className="space-y-3 rounded-lg border border-white/10 bg-white/5 p-4">
-          <label htmlFor="justification" className="block text-sm text-white/70">
+        <form method="GET" className="space-y-3 rounded-lg border border-border bg-surface p-4">
+          <label htmlFor="justification" className="block text-sm text-text-2">
             Justification (min {MIN_JUSTIFICATION_LENGTH} characters)
           </label>
           <textarea
@@ -96,11 +98,11 @@ export default async function OrgTranscriptPage({
             minLength={MIN_JUSTIFICATION_LENGTH}
             rows={3}
             placeholder="e.g. security incident #1234 — investigating leaked credential"
-            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
           />
           <button
             type="submit"
-            className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-bg hover:bg-brand-600"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
           >
             View with justification
           </button>
@@ -122,7 +124,7 @@ export default async function OrgTranscriptPage({
       hasTranscript
       notice={
         justification ? (
-          <p className="mt-2 text-xs text-amber-400/80">
+          <p className="mt-2 text-xs text-warn">
             Accessed via justification — this view is recorded in {owner}&apos;s audit feed.
           </p>
         ) : undefined

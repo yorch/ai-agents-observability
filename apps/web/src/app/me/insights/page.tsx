@@ -4,6 +4,7 @@ import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
+import { EmptyState, Sparkline } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserShapeTrend } from '@/lib/cohort-queries';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
@@ -153,11 +154,9 @@ export default async function InsightsPage({
       </div>
 
       {!hasSessionData && !hasEventData ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
-          <p className="text-sm text-text-3">
-            No data for the selected window. Run some sessions to see insights here.
-          </p>
-        </div>
+        <EmptyState>
+          No data for the selected window. Run some sessions to see insights here.
+        </EmptyState>
       ) : (
         <>
           {hasSessionData && <SessionSummaryCards summary={summary} />}
@@ -236,7 +235,7 @@ function DaysSelector({ current }: { current: Days }) {
 function RecommendationsSection({ recs }: { recs: Recommendation[] }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
         Recommendations
       </h2>
       <ul className="space-y-2.5">
@@ -244,7 +243,7 @@ function RecommendationsSection({ recs }: { recs: Recommendation[] }) {
           <li key={r.id} className="flex gap-2.5">
             <span
               className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${
-                r.severity === 'warn' ? 'bg-yellow-400' : 'bg-sky-400'
+                r.severity === 'warn' ? 'bg-warn' : 'bg-series-1'
               }`}
             />
             <div className="space-y-0.5">
@@ -278,12 +277,14 @@ function SessionSummaryCards({ summary: s }: { summary: SessionSummaryRow }) {
   );
 }
 
+// Kinds are categorical. `other` is the genuine catch-all and stays neutral;
+// everything named gets its own series slot.
 const NOTIFICATION_KIND_META: Record<string, { color: string; label: string }> = {
-  auth: { color: 'bg-white/30', label: 'Auth' },
-  elicitation: { color: 'bg-purple-400', label: 'Elicitation' },
-  idle: { color: 'bg-sky-400', label: 'Idle (waiting on you)' },
-  other: { color: 'bg-white/20', label: 'Other' },
-  permission: { color: 'bg-yellow-400', label: 'Permission' },
+  auth: { color: 'bg-series-6', label: 'Auth' },
+  elicitation: { color: 'bg-series-4', label: 'Elicitation' },
+  idle: { color: 'bg-series-1', label: 'Idle (waiting on you)' },
+  other: { color: 'bg-surface-3', label: 'Other' },
+  permission: { color: 'bg-series-2', label: 'Permission' },
 };
 
 function ContinuitySection({ continuity: c }: { continuity: ContinuitySummaryRow }) {
@@ -339,7 +340,7 @@ function NotificationKindsSection({ rows }: { rows: NotificationKindRow[] }) {
       <div className="space-y-1.5">
         {rows.map((r) => {
           const meta = NOTIFICATION_KIND_META[r.kind] ?? {
-            color: 'bg-white/20',
+            color: 'bg-surface-3',
             label: r.kind,
           };
           return (
@@ -378,7 +379,7 @@ function SectionShell({
 }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">{title}</h2>
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">{title}</h2>
       {empty ? <p className="text-sm text-text-3">No data in this window.</p> : children}
     </section>
   );
@@ -424,9 +425,9 @@ function McpSection({ rows }: { rows: McpUsageRow[] }) {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  ABANDONED: 'bg-yellow-500/20 text-yellow-400',
-  COMPLETED: 'bg-emerald-500/20 text-emerald-400',
-  ERROR: 'bg-red-500/20 text-red-400',
+  ABANDONED: 'bg-warn-soft text-warn',
+  COMPLETED: 'bg-good-soft text-good',
+  ERROR: 'bg-crit-soft text-crit',
 };
 
 function SkillsSection({
@@ -465,7 +466,7 @@ function SkillsSection({
 
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">Skills</h2>
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Skills</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -533,7 +534,7 @@ function SkillsSection({
                     </div>
                   </td>
                   <td className="py-2 pl-2">
-                    <MiniSparkline values={sparkline} max={sparkMax} />
+                    <Sparkline points={sparkline} domain={[0, sparkMax]} tone="accent" />
                   </td>
                 </tr>
               );
@@ -545,33 +546,12 @@ function SkillsSection({
   );
 }
 
-function MiniSparkline({ values, max }: { max: number; values: number[] }) {
-  if (values.length === 0) {
-    return <span className="text-text-3 text-xs">—</span>;
-  }
-  return (
-    <div className="flex items-end gap-px h-6 w-16">
-      {values.map((v, i) => {
-        const h = Math.max(2, (v / max) * 24);
-        return (
-          <div
-            key={i}
-            className="flex-1 rounded-sm bg-accent/60"
-            style={{ height: `${h}px` }}
-            title={String(v)}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
 function SkillSequencesSection({ rows }: { rows: SkillSequenceRow[] }) {
   const maxCount = Math.max(...rows.map((r) => r.transitionCount), 1);
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
       <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+        <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
           Skill workflows
         </h2>
         <p className="mt-1 text-xs text-text-3">
@@ -651,7 +631,7 @@ function SubagentsSection({ rows }: { rows: SubagentUsageRow[] }) {
 function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
         Tool performance
       </h2>
       {rows.length === 0 ? (
@@ -680,14 +660,14 @@ function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
                   <td className="py-2 text-right text-text-2">{r.callCount}</td>
                   <td
                     className={`py-2 text-right text-xs ${
-                      r.errorCount > 0 ? 'text-red-400' : 'text-text-3'
+                      r.errorCount > 0 ? 'text-crit' : 'text-text-3'
                     }`}
                   >
                     {r.errorCount > 0 ? `${r.errorCount} (${pct(r.errorCount, r.callCount)})` : '—'}
                   </td>
                   <td
                     className={`py-2 text-right text-xs ${
-                      r.deniedCount > 0 ? 'text-yellow-400' : 'text-text-3'
+                      r.deniedCount > 0 ? 'text-warn' : 'text-text-3'
                     }`}
                   >
                     {r.deniedCount > 0 ? r.deniedCount : '—'}

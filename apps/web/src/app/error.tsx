@@ -10,11 +10,13 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
 
   return (
     <div className="mx-auto max-w-md space-y-4 py-16 text-center">
-      <h1 className="font-display text-xl font-semibold">Something went wrong.</h1>
+      <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+        Something went wrong.
+      </h1>
       <button
         type="button"
         onClick={reset}
-        className="rounded-md border border-white/20 px-3 py-1 text-sm hover:bg-white/10"
+        className="rounded-md border border-border-strong px-3 py-1 text-sm hover:bg-surface-2"
       >
         Try again
       </button>

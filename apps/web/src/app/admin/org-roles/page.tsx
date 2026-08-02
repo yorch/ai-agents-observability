@@ -25,27 +25,27 @@ export default async function OrgRolesAdminPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold">Org roles</h1>
-        <p className="text-sm text-white/50">
-          Assign org-level roles. <span className="text-white/70">investigator</span> grants
-          aggregate access plus the ability to request time-boxed access grants — never standing
-          access to individual sessions. Changes are audited.
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">Org roles</h1>
+        <p className="text-sm text-text-2">
+          Assign org-level roles. <span className="text-text-2">investigator</span> grants aggregate
+          access plus the ability to request time-boxed access grants — never standing access to
+          individual sessions. Changes are audited.
         </p>
       </div>
 
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-white/40 border-b border-white/10">
+          <tr className="text-left text-text-3 border-b border-border">
             <th className="pb-2 font-medium">User</th>
             <th className="pb-2 font-medium">Role</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/5">
+        <tbody className="divide-y divide-border-subtle">
           {users.map((u) => (
             <tr key={u.id}>
               <td className="py-2">
                 {u.displayName ?? u.githubLogin ?? u.id.slice(0, 8)}{' '}
-                <span className="text-white/30">{u.githubLogin}</span>
+                <span className="text-text-3">{u.githubLogin}</span>
               </td>
               <td className="py-2">
                 <form action={setOrgRole} className="inline-flex items-center gap-2">
@@ -54,7 +54,7 @@ export default async function OrgRolesAdminPage() {
                     name="role"
                     defaultValue={u.orgRole}
                     aria-label={`Org role for ${u.githubLogin ?? u.id}`}
-                    className="rounded-md border border-white/10 bg-white/5 px-2 py-1"
+                    className="rounded-md border border-border bg-surface px-2 py-1"
                   >
                     {ROLES.map((r) => (
                       <option key={r} value={r}>
@@ -64,7 +64,7 @@ export default async function OrgRolesAdminPage() {
                   </select>
                   <button
                     type="submit"
-                    className="rounded-md bg-brand-500 px-3 py-1 text-xs font-medium text-bg hover:bg-brand-600"
+                    className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-bg hover:opacity-90"
                   >
                     Save
                   </button>

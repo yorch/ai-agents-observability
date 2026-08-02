@@ -1,8 +1,7 @@
-import { EmptyState } from '@/components/team-org/EmptyState';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
-import { StatCard } from '@/components/team-org/StatCard';
+import { EmptyState, Stat } from '@/components/ui';
 import type { OrgModelDetailRow, OrgModelRoutingRow } from '@/lib/org-queries';
 import {
   getOrgModelDetail,
@@ -48,12 +47,12 @@ function fmtTokens(n: number): string {
 
 function cacheEfficiencyClass(rate: number): string {
   if (rate >= 0.4) {
-    return 'text-emerald-400';
+    return 'text-good';
   }
   if (rate >= 0.2) {
-    return 'text-yellow-300';
+    return 'text-warn';
   }
-  return 'text-red-400';
+  return 'text-crit';
 }
 
 type RoutingInsight = {
@@ -140,25 +139,22 @@ export default async function OrgModelsPage({
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
+        <Stat
           label={`LLM spend (${range}d)`}
           value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
         />
-        <StatCard
+        <Stat
           label="Cache hit rate"
           value={totalInput > 0 ? `${(orgCacheEfficiency * 100).toFixed(1)}%` : '—'}
           note="target: 40–60%"
-          accent={orgCacheEfficiency < 0.2 ? 'red' : orgCacheEfficiency < 0.4 ? 'amber' : 'green'}
+          accent={orgCacheEfficiency < 0.2 ? 'crit' : orgCacheEfficiency < 0.4 ? 'warn' : 'good'}
         />
-        <StatCard
+        <Stat
           label="Est. cache savings"
           value={estimatedCacheSavings > 0 ? `$${estimatedCacheSavings.toFixed(2)}` : '—'}
           note="vs. paying full input price"
         />
-        <StatCard
-          label="Active models"
-          value={models.length > 0 ? models.length.toString() : '—'}
-        />
+        <Stat label="Active models" value={models.length > 0 ? models.length.toString() : '—'} />
       </div>
 
       {models.length === 0 ? (
@@ -168,31 +164,31 @@ export default async function OrgModelsPage({
           {/* Routing insights */}
           {insights.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">
+              <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
                 Routing opportunities
               </h2>
               {insights.map((ins) => (
                 <div
                   key={ins.model}
-                  className="flex flex-wrap items-start gap-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4"
+                  className="flex flex-wrap items-start gap-4 rounded-lg border border-warn-line bg-warn-soft p-4"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white/90">
-                      <span className="font-mono text-amber-300">{ins.model}</span>
+                    <p className="text-sm font-medium text-text">
+                      <span className="font-mono text-warn">{ins.model}</span>
                       {' — '}
                       {(ins.cheapPct * 100).toFixed(0)}% of spend on read-only operations
                     </p>
-                    <p className="mt-1 text-xs text-white/50">
+                    <p className="mt-1 text-xs text-text-2">
                       ${ins.cheapCostUsd.toFixed(2)} of cost came from file reads, search, and web
                       lookups that a standard-tier model handles equally well.
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-xs text-white/40 uppercase tracking-wider">Est. savings</p>
-                    <p className="text-lg font-semibold font-mono text-emerald-400">
+                    <p className="text-xs text-text-3 uppercase tracking-wider">Est. savings</p>
+                    <p className="text-lg font-semibold font-mono text-good">
                       ${ins.estimatedSavingsUsd.toFixed(2)}
                     </p>
-                    <p className="text-[10px] text-white/30">if routed to Sonnet</p>
+                    <p className="text-[10px] text-text-3">if routed to Sonnet</p>
                   </div>
                 </div>
               ))}
@@ -211,13 +207,13 @@ export default async function OrgModelsPage({
 
           {/* Model breakdown table */}
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
               Spend by model
             </h2>
-            <div className="overflow-x-auto rounded-lg border border-white/10">
+            <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-white/10 text-left text-white/30">
+                  <tr className="border-b border-border text-left text-text-3">
                     <th className="px-4 py-3 font-medium">Model</th>
                     <th className="px-4 py-3 font-medium">Tier</th>
                     <th className="px-4 py-3 text-right font-medium">Sessions</th>
@@ -236,33 +232,31 @@ export default async function OrgModelsPage({
                     return (
                       <tr
                         key={m.model}
-                        className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                        className="border-b border-border-subtle hover:bg-surface-2 transition-colors"
                       >
-                        <td className="px-4 py-3 font-mono text-white/80">{m.model}</td>
+                        <td className="px-4 py-3 font-mono text-text">{m.model}</td>
                         <td className="px-4 py-3">
                           <TierBadge tier={tier} />
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-white/60">
+                        <td className="px-4 py-3 text-right font-mono text-text-2">
                           {m.sessionCount.toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-white/90 font-medium">
+                        <td className="px-4 py-3 text-right font-mono text-text font-medium">
                           ${m.totalCostUsd.toFixed(2)}
                         </td>
-                        <td className="px-4 py-3 text-right text-white/50">
-                          {costPct.toFixed(1)}%
-                        </td>
+                        <td className="px-4 py-3 text-right text-text-2">{costPct.toFixed(1)}%</td>
                         <td
                           className={`px-4 py-3 text-right font-mono font-medium ${cacheEfficiencyClass(m.cacheEfficiency)}`}
                         >
                           {(m.cacheEfficiency * 100).toFixed(1)}%
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-white/50">
+                        <td className="px-4 py-3 text-right font-mono text-text-2">
                           {fmtTokens(m.inputTokens)}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-white/50">
+                        <td className="px-4 py-3 text-right font-mono text-text-2">
                           {fmtTokens(m.cacheReadTokens)}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-white/50">
+                        <td className="px-4 py-3 text-right font-mono text-text-2">
                           {fmtTokens(m.outputTokens)}
                         </td>
                       </tr>
@@ -275,22 +269,22 @@ export default async function OrgModelsPage({
 
           {/* Cache guidance */}
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
               Cache efficiency guidance
             </h2>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <GuidanceCard
-                accent="green"
+                accent="good"
                 title="What cache hit rate means"
                 body="Claude's prompt cache reuses previous context at ~10% of the input token price. A 40–60% cache hit rate is typical for iterative coding sessions. Below 20% suggests sessions are starting fresh each time."
               />
               <GuidanceCard
-                accent="amber"
+                accent="warn"
                 title="How to improve cache efficiency"
                 body="Keep system prompts and file context stable across turns. Avoid regenerating tool outputs that haven't changed. Long-running sessions naturally accumulate cache — encourage fewer session restarts."
               />
               <GuidanceCard
-                accent="blue"
+                accent="series1"
                 title="Model routing quick wins"
                 body="File reads, grep, and web searches don't require Opus-level reasoning. Routing these to Haiku or Sonnet reduces cost 5–15× per call with no quality loss. Claude Code's model selection is controllable via the model field in API calls."
               />
@@ -305,20 +299,20 @@ export default async function OrgModelsPage({
 function TierBadge({ tier }: { tier: 'economy' | 'premium' | 'standard' }) {
   if (tier === 'premium') {
     return (
-      <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-amber-500/10 text-amber-300 border border-amber-500/20">
+      <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-warn-soft text-warn border border-warn-line">
         premium
       </span>
     );
   }
   if (tier === 'economy') {
     return (
-      <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+      <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-good-soft text-good border border-good-line">
         economy
       </span>
     );
   }
   return (
-    <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20">
+    <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-series-1/10 text-series-1 border border-series-1/30">
       standard
     </span>
   );
@@ -329,26 +323,22 @@ function GuidanceCard({
   body,
   title,
 }: {
-  accent: 'amber' | 'blue' | 'green';
+  accent: 'good' | 'series1' | 'warn';
   body: string;
   title: string;
 }) {
   const borderCls =
-    accent === 'green'
-      ? 'border-emerald-500/30'
-      : accent === 'amber'
-        ? 'border-amber-500/30'
-        : 'border-blue-500/30';
+    accent === 'good'
+      ? 'border-good-line'
+      : accent === 'warn'
+        ? 'border-warn-line'
+        : 'border-series-1/40';
   const titleCls =
-    accent === 'green'
-      ? 'text-emerald-400'
-      : accent === 'amber'
-        ? 'text-amber-300'
-        : 'text-blue-400';
+    accent === 'good' ? 'text-good' : accent === 'warn' ? 'text-warn' : 'text-series-1';
   return (
-    <div className={`rounded-lg border ${borderCls} bg-white/5 p-4 space-y-2`}>
+    <div className={`rounded-lg border ${borderCls} bg-surface p-4 space-y-2`}>
       <p className={`text-xs font-semibold ${titleCls}`}>{title}</p>
-      <p className="text-xs text-white/50 leading-relaxed">{body}</p>
+      <p className="text-xs text-text-2 leading-relaxed">{body}</p>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { Card } from '@/components/ui';
 import { FRICTION_VERSION } from '@/lib/effectiveness';
 import type { EffectivenessDistribution } from '@/lib/effectiveness-queries';
 
@@ -16,7 +17,7 @@ export function FrictionDistributionChart({
 }) {
   const header = (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">{title}</h2>
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">{title}</h2>
       <span className="text-[10px] uppercase tracking-wide text-text-3">v{FRICTION_VERSION}</span>
     </div>
   );
@@ -25,12 +26,12 @@ export function FrictionDistributionChart({
 
   if (!friction || scoredSessions < MIN_AGG_SCORED) {
     return (
-      <div className="rounded-lg border border-border bg-surface p-4">
+      <Card>
         {header}
         <p className="text-sm text-text-3">
           Not enough data — needs at least {MIN_AGG_SCORED} scored sessions in this period.
         </p>
-      </div>
+      </Card>
     );
   }
 

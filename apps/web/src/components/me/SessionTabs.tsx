@@ -24,7 +24,9 @@ export function ToolsTab({
     <div className="space-y-4">
       {tools.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="text-xs text-text-3 uppercase tracking-widest mb-3">Tools Used</h3>
+          <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
+            Tools Used
+          </h3>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-text-3 text-xs border-b border-border">
@@ -46,12 +48,12 @@ export function ToolsTab({
                   </td>
                   <td className="py-2 text-right text-text-2 font-mono">{r.callCount}</td>
                   <td
-                    className={`py-2 text-right font-mono ${r.errorCount > 0 ? 'text-red-400' : 'text-text-3'}`}
+                    className={`py-2 text-right font-mono ${r.errorCount > 0 ? 'text-crit' : 'text-text-3'}`}
                   >
                     {r.errorCount > 0 ? r.errorCount : '—'}
                   </td>
                   <td
-                    className={`py-2 text-right font-mono ${r.deniedCount > 0 ? 'text-amber-400' : 'text-text-3'}`}
+                    className={`py-2 text-right font-mono ${r.deniedCount > 0 ? 'text-warn' : 'text-text-3'}`}
                   >
                     {r.deniedCount > 0 ? r.deniedCount : '—'}
                   </td>
@@ -67,7 +69,9 @@ export function ToolsTab({
 
       {subagents.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="text-xs text-text-3 uppercase tracking-widest mb-3">Subagents Spawned</h3>
+          <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
+            Subagents Spawned
+          </h3>
           <div className="divide-y divide-border">
             {subagents.map((r) => (
               <div key={r.subagentType} className="flex items-center justify-between py-2">

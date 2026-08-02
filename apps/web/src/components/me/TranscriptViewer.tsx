@@ -344,7 +344,7 @@ export function TranscriptViewer({
     return <div className="animate-pulse h-96 bg-surface rounded-lg" />;
   }
   if (error) {
-    return <p className="text-sm text-red-400">Error: {error}</p>;
+    return <p className="text-sm text-crit">Error: {error}</p>;
   }
   if (parsedLines.length === 0) {
     return <p className="text-sm text-text-3">Transcript is empty.</p>;

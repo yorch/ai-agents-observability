@@ -24,10 +24,10 @@ function grantStatus(g: {
 }
 
 const STATUS_STYLES = {
-  active: 'bg-green-500/15 text-green-400',
+  active: 'bg-good-soft text-good',
   expired: 'bg-surface-2 text-text-3',
-  pending: 'bg-yellow-500/15 text-yellow-400',
-  revoked: 'bg-red-500/15 text-red-400',
+  pending: 'bg-warn-soft text-warn',
+  revoked: 'bg-crit-soft text-crit',
 };
 
 type Grant = {
@@ -107,7 +107,7 @@ export default async function GrantsPage() {
 
       {active.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">Active</h2>
+          <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Active</h2>
           {active.map((g) => (
             <GrantCard key={g.id} grant={g} status="active" />
           ))}
@@ -116,7 +116,7 @@ export default async function GrantsPage() {
 
       {pending.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">
+          <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
             Pending approval
           </h2>
           {pending.map((g) => (
@@ -127,7 +127,7 @@ export default async function GrantsPage() {
 
       {past.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-text-3">Past</h2>
+          <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Past</h2>
           {past.map((g) => (
             <GrantCard key={g.id} grant={g} status={grantStatus(g)} />
           ))}
@@ -188,16 +188,12 @@ function GrantCard({
           Approved {new Date(g.grantedAt).toLocaleString()}
           {g.expiresAt && ` · expires ${new Date(g.expiresAt).toLocaleString()}`}
           {status === 'active' && isGrantExpiringSoon(g.expiresAt) && (
-            <span className="ml-2 rounded bg-yellow-500/15 px-1.5 py-0.5 text-yellow-400">
-              expiring soon
-            </span>
+            <span className="ml-2 rounded bg-warn-soft px-1.5 py-0.5 text-warn">expiring soon</span>
           )}
         </div>
       )}
       {g.revokedAt && (
-        <div className="text-xs text-red-400/70">
-          Revoked {new Date(g.revokedAt).toLocaleString()}
-        </div>
+        <div className="text-xs text-crit">Revoked {new Date(g.revokedAt).toLocaleString()}</div>
       )}
     </div>
   );

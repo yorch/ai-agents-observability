@@ -28,8 +28,8 @@ export function DateRangePicker({ range }: { range: 7 | 30 | 90 }) {
           onClick={() => handleRangeChange(value)}
           className={`rounded-full px-3 py-1 text-xs transition-colors ${
             range === value
-              ? 'border border-white/20 bg-white/10 text-white'
-              : 'text-white/50 hover:bg-white/5 hover:text-white'
+              ? 'border border-border-strong bg-surface-2 text-text'
+              : 'text-text-2 hover:bg-surface-2 hover:text-text'
           }`}
         >
           {label}

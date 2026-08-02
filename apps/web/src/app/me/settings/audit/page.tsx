@@ -54,7 +54,7 @@ export default async function SettingsAuditPage({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Audit log</h2>
+        <h2 className="font-display text-lg font-semibold text-text">Audit log</h2>
         <p className="mt-0.5 text-sm text-text-2">
           Records of when your data was accessed by team or org members.
         </p>

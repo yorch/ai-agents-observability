@@ -19,25 +19,25 @@ export type RoutingByTeamProps = {
 export function RoutingByTeam({ rows }: RoutingByTeamProps) {
   return (
     <div className="space-y-3">
-      <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
         Routing accountability by team
       </h2>
-      <p className="text-xs text-white/50">
+      <p className="text-xs text-text-2">
         Observe-only — the platform never blocks a live tool call. This surfaces which teams are
         spending premium-model (Opus) budget on retrieval-only work (file reads, search) so leads
-        can follow up; pair it with the{' '}
-        <span className="font-mono text-white/70">routing_waste</span> alert for proactive notice.
+        can follow up; pair it with the <span className="font-mono text-text-2">routing_waste</span>{' '}
+        alert for proactive notice.
       </p>
 
       {rows.length === 0 ? (
-        <p className="rounded-lg border border-white/10 bg-white/5 p-4 text-xs text-white/50">
+        <p className="rounded-lg border border-border bg-surface p-4 text-xs text-text-2">
           No team has premium-model spend on retrieval-only tool categories in this window.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-white/10">
+        <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-white/10 text-left text-white/30">
+              <tr className="border-b border-border text-left text-text-3">
                 <th className="px-4 py-3 font-medium">Team</th>
                 <th className="px-4 py-3 text-right font-medium">Retrieval spend (Opus)</th>
                 <th className="px-4 py-3 text-right font-medium">Total Opus spend</th>
@@ -51,17 +51,17 @@ export function RoutingByTeam({ rows }: RoutingByTeamProps) {
                 return (
                   <tr
                     key={r.teamSlug}
-                    className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                    className="border-b border-border-subtle hover:bg-surface-2 transition-colors"
                   >
-                    <td className="px-4 py-3 text-white/80">{r.teamName}</td>
-                    <td className="px-4 py-3 text-right font-mono text-white/90 font-medium">
+                    <td className="px-4 py-3 text-text">{r.teamName}</td>
+                    <td className="px-4 py-3 text-right font-mono text-text font-medium">
                       {fmtUsd(r.premiumRetrievalUsd)}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-white/50">
+                    <td className="px-4 py-3 text-right font-mono text-text-2">
                       {fmtUsd(r.premiumTotalUsd)}
                     </td>
                     <td
-                      className={`px-4 py-3 text-right font-mono font-medium ${highShare ? 'text-amber-300' : 'text-white/50'}`}
+                      className={`px-4 py-3 text-right font-mono font-medium ${highShare ? 'text-warn' : 'text-text-2'}`}
                     >
                       {(share * 100).toFixed(0)}%
                     </td>

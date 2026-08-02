@@ -3,6 +3,19 @@
 /* ── Design tokens ────────────────────────────────────────────────────────── */
 /* Fonts are injected by next/font/google as CSS variables (--font-syne etc)   */
 /* on <html>; @theme maps them to Tailwind utility names.                      */
+/*                                                                            */
+/* Every colour in the app comes from this file. Do NOT reach for raw Tailwind */
+/* palette utilities (`bg-white/5`, `text-red-400`, `border-yellow-500/40`) —  */
+/* they are dark-only by construction and break the light theme. Use the       */
+/* semantic utilities below instead:                                           */
+/*                                                                            */
+/*   surfaces  bg-bg · bg-surface · bg-surface-2 · bg-surface-3               */
+/*   lines     border-border-subtle · border-border · border-border-strong    */
+/*   ink       text-text · text-text-2 · text-text-3                          */
+/*   signature text-accent · bg-accent (carries text-bg) · bg-accent-dim      */
+/*   status    {text,bg,border}-{good,warn,crit}[-soft|-line]                 */
+/*   domain    {text,bg,border}-merged[-soft|-line] — PR "merged" purple      */
+/*   series    text/bg/border-series-1 … -6 (charts only, fixed order)        */
 
 @theme {
   --font-display: var(--font-syne), ui-sans-serif, sans-serif;
@@ -14,50 +27,138 @@
   --color-bg: var(--c-bg);
   --color-surface: var(--c-surface);
   --color-surface-2: var(--c-surface-2);
+  --color-surface-3: var(--c-surface-3);
+
   --color-border: var(--c-border);
   --color-border-subtle: var(--c-border-subtle);
+  --color-border-strong: var(--c-border-strong);
+
   --color-text: var(--c-text);
   --color-text-2: var(--c-text-2);
   --color-text-3: var(--c-text-3);
+
+  /* Signature. Safe as ink on bg/surface in both themes, and safe as a fill
+     with `text-bg` on top: dark pairs lime with near-black ink, light pairs
+     olive with near-white ink. */
   --color-accent: var(--c-accent);
   --color-accent-dim: var(--c-accent-dim);
 
-  /* brand-500 alias keeps any untouched references working */
-  --color-brand-500: var(--c-accent);
-  --color-brand-600: var(--c-accent);
+  /* Status — reserved for state. Never used as a chart series. */
+  --color-good: var(--c-good);
+  --color-good-soft: var(--c-good-soft);
+  --color-good-line: var(--c-good-line);
+  --color-warn: var(--c-warn);
+  --color-warn-soft: var(--c-warn-soft);
+  --color-warn-line: var(--c-warn-line);
+  --color-crit: var(--c-crit);
+  --color-crit-soft: var(--c-crit-soft);
+  --color-crit-line: var(--c-crit-line);
+
+  /* Pull-request "merged" purple. A domain colour, not a chart series: it must
+     not move when the series palette is re-tuned for colour-vision deficiency. */
+  --color-merged: var(--c-merged);
+  --color-merged-soft: var(--c-merged-soft);
+  --color-merged-line: var(--c-merged-line);
+
+  /* Chart series — assigned by entity in fixed order, never cycled by rank.
+     Validated for colour-vision deficiency against both grounds: worst
+     adjacent pair ΔE 13.0 (deuteranopia), 24.2 (normal vision); all six
+     clear 3:1 contrast in dark and light. */
+  --color-series-1: #3a81d7;
+  --color-series-2: #d8732b;
+  --color-series-3: #00a88f;
+  --color-series-4: #8552c2;
+  --color-series-5: #a48700;
+  --color-series-6: #cf428c;
+
+  /* Recessive chart grid/axis lines. */
+  --color-grid: var(--c-grid);
 }
 
 /* ── Dark (default) ───────────────────────────────────────────────────────── */
 :root {
   color-scheme: dark;
-  --c-bg: #0c0c0f;
-  --c-surface: #131318;
-  --c-surface-2: #1b1b22;
-  --c-border: #252530;
-  --c-border-subtle: #1d1d26;
-  --c-text: #e2e2ec;
-  --c-text-2: #787890;
-  --c-text-3: #3c3c52;
+  --c-bg: #0a0a0e;
+  --c-surface: #131319;
+  --c-surface-2: #1c1c24;
+  --c-surface-3: #24242e;
+
+  --c-border: #26262f;
+  --c-border-subtle: #1c1c24;
+  --c-border-strong: #35354280;
+
+  /* Every ink step clears 4.5:1 against both --c-bg and --c-surface. */
+  --c-text: #e8e8f2;
+  --c-text-2: #9393a6;
+  --c-text-3: #7d7d90;
+
   --c-accent: #c8ff57;
   --c-accent-dim: rgba(200, 255, 87, 0.1);
+
+  --c-good: #3ddc97;
+  --c-good-soft: rgba(61, 220, 151, 0.12);
+  --c-good-line: rgba(61, 220, 151, 0.38);
+  --c-warn: #f0b429;
+  --c-warn-soft: rgba(240, 180, 41, 0.12);
+  --c-warn-line: rgba(240, 180, 41, 0.38);
+  --c-crit: #ff6b70;
+  --c-crit-soft: rgba(255, 107, 112, 0.12);
+  --c-crit-line: rgba(255, 107, 112, 0.38);
+
+  --c-merged: #b07cf5;
+  --c-merged-soft: rgba(176, 124, 245, 0.14);
+  --c-merged-line: rgba(176, 124, 245, 0.4);
+
+  --c-grid: rgba(232, 232, 242, 0.07);
 }
 
 /* ── Light ────────────────────────────────────────────────────────────────── */
 html.light {
   color-scheme: light;
-  --c-bg: #f4f4f0;
-  --c-surface: #ececea;
-  --c-surface-2: #e4e4e2;
-  --c-border: #d0d0ca;
-  --c-border-subtle: #dadad6;
-  --c-text: #111116;
-  --c-text-2: #54546a;
-  --c-text-3: #9898ac;
-  --c-accent: #4a8500;
-  --c-accent-dim: rgba(74, 133, 0, 0.08);
+  --c-bg: #f6f6f9;
+  --c-surface: #ffffff;
+  --c-surface-2: #f0f0f5;
+  --c-surface-3: #e7e7ee;
+
+  --c-border: #e2e2ea;
+  --c-border-subtle: #edeef3;
+  --c-border-strong: #d2d2dd;
+
+  --c-text: #14141c;
+  --c-text-2: #5f6071;
+  --c-text-3: #6e6f81;
+
+  /* The lime is 1.2:1 on white — unusable as ink, so light darkens it to an
+     olive that reads on paper and still carries `text-bg` as a fill. */
+  --c-accent: #4f7a00;
+  --c-accent-dim: rgba(107, 160, 0, 0.1);
+
+  --c-good: #07845c;
+  --c-good-soft: rgba(7, 132, 92, 0.1);
+  --c-good-line: rgba(7, 132, 92, 0.32);
+  --c-warn: #8a5a00;
+  --c-warn-soft: rgba(138, 90, 0, 0.1);
+  --c-warn-line: rgba(138, 90, 0, 0.32);
+  --c-crit: #c8353c;
+  --c-crit-soft: rgba(200, 53, 60, 0.1);
+  --c-crit-line: rgba(200, 53, 60, 0.32);
+
+  --c-merged: #7c3fbe;
+  --c-merged-soft: rgba(124, 63, 190, 0.1);
+  --c-merged-line: rgba(124, 63, 190, 0.32);
+
+  --c-grid: rgba(20, 20, 28, 0.08);
 }
 
 html {
   background-color: var(--c-bg);
   color: var(--c-text);
+}
+
+/* Digits line up in columns wherever they are set in the mono face. Kept in
+   `base` so an explicit `proportional-nums` utility still wins. */
+@layer base {
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
 }

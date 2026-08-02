@@ -5,7 +5,7 @@ import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
 import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { StatCardWithDelta } from '@/components/team-org/StatCardWithDelta';
+import { EmptyState, Stat } from '@/components/ui';
 import {
   getTeamEffectivenessDistribution,
   getTeamFrictionTrend,
@@ -19,7 +19,6 @@ import {
   resolveTeamVisibility,
 } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
-import { TeamSubNav } from './layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,39 +54,35 @@ export default async function TeamOverviewPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Team</p>
-          <h1 className="text-2xl font-semibold">{teamName}</h1>
-          <p className="mt-1 text-sm text-white/50">Trailing {range} days</p>
+          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team</p>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+            {teamName}
+          </h1>
+          <p className="mt-1 text-sm text-text-2">Trailing {range} days</p>
         </div>
         <DateRangePicker range={range} />
       </div>
 
-      <TeamSubNav slug={slug} active="overview" />
-
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-        <StatCardWithDelta
+        <Stat
           label="Sessions"
           value={summary.sessionCount.toString()}
           delta={deltas.sessionCount}
         />
-        <StatCardWithDelta
+        <Stat
           label="Cost (USD)"
           value={`$${summary.totalCostUsd.toFixed(2)}`}
           delta={deltas.totalCostUsd}
-          invertColor
+          deltaInverted
         />
-        <StatCardWithDelta
-          label="Hours"
-          value={summary.totalHours.toFixed(1)}
-          delta={deltas.totalHours}
-        />
-        <StatCardWithDelta
+        <Stat label="Hours" value={summary.totalHours.toFixed(1)} delta={deltas.totalHours} />
+        <Stat
           label="Active members"
           value={summary.activeMembers.toString()}
           delta={deltas.activeMembers}
         />
-        <StatCardWithDelta
+        <Stat
           label="Cache hit rate"
           value={`${summary.cacheHitRate.toFixed(1)}%`}
           delta={deltas.cacheHitRate}
@@ -95,7 +90,9 @@ export default async function TeamOverviewPage({
       </div>
 
       {!hasData ? (
-        <EmptyState />
+        <EmptyState title="No activity yet">
+          Sessions will appear here once team members install the hook and run Claude Code.
+        </EmptyState>
       ) : (
         <>
           <OversightPanel data={oversight} />
@@ -110,17 +107,6 @@ export default async function TeamOverviewPage({
           <CohortFrictionTrendChart points={frictionTrend} title="Team friction trend (weekly)" />
         </>
       )}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rounded-lg border border-white/10 p-8 text-center">
-      <p className="text-lg font-medium">No activity yet</p>
-      <p className="mt-2 text-sm text-white/50">
-        Sessions will appear here once team members install the hook and run Claude Code.
-      </p>
     </div>
   );
 }

@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { JiraLink } from '@/components/JiraLink';
 import { StatusBadge } from '@/components/me/StatusBadge';
-import { computeFrictionScore, frictionBadge, shapeBadge } from '@/lib/effectiveness';
+import { EmptyState, TONE_TEXT } from '@/components/ui';
+import { computeFrictionScore, frictionBadge } from '@/lib/effectiveness';
 import type { SessionRow } from '@/lib/sessions-queries';
+import { ShapeBadge } from './shape';
 
 function formatDuration(seconds: number | null): string {
   if (seconds === null) {
@@ -55,11 +57,7 @@ export function SessionsTable({
   const hasNext = currentPage < totalPages;
 
   if (sessions.length === 0) {
-    return (
-      <div className="rounded-lg border border-border bg-surface p-8 text-center">
-        <p className="text-sm text-text-3">No sessions found</p>
-      </div>
-    );
+    return <EmptyState>No sessions found</EmptyState>;
   }
 
   return (
@@ -122,15 +120,7 @@ export function SessionsTable({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {s.shapeLabel ? (
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded ${shapeBadge(s.shapeLabel as Parameters<typeof shapeBadge>[0])}`}
-                      >
-                        {s.shapeLabel}
-                      </span>
-                    ) : (
-                      <span className="text-text-3 text-xs">—</span>
-                    )}
+                    <ShapeBadge label={s.shapeLabel} />
                   </td>
                   <td className="px-4 py-3 text-right text-text-2 font-mono text-xs">
                     {formatDuration(s.durationSeconds)}
@@ -144,7 +134,7 @@ export function SessionsTable({
                   <td className="px-4 py-3 text-center">
                     {badge ? (
                       <span
-                        className={`text-xs font-medium font-mono ${badge.color}`}
+                        className={`text-xs font-medium font-mono ${TONE_TEXT[badge.tone]}`}
                         title={`${((friction ?? 0) * 100).toFixed(0)}%`}
                       >
                         {badge.label}

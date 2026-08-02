@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { frictionBadge, shapeBadge } from '@/lib/effectiveness';
+import { TONE_TEXT } from '@/components/ui';
+import { frictionBadge } from '@/lib/effectiveness';
 import type { SessionDetail, SessionEvent } from '@/lib/sessions-queries';
+import { ShapeBadge } from './shape';
 
 function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -16,8 +18,8 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
 // from GitHub webhook context; surfaced here rather than left unused).
 function reviewDecisionLabel(decision: string): ReactNode {
   const map: Record<string, { cls: string; text: string }> = {
-    APPROVED: { cls: 'text-emerald-400', text: 'approved' },
-    CHANGES_REQUESTED: { cls: 'text-amber-400', text: 'changes requested' },
+    APPROVED: { cls: 'text-good', text: 'approved' },
+    CHANGES_REQUESTED: { cls: 'text-warn', text: 'changes requested' },
     REVIEW_REQUIRED: { cls: 'text-text-3', text: 'review required' },
   };
   const m = map[decision];
@@ -60,7 +62,7 @@ function describeEvent(ev: SessionEvent): {
     };
   }
   if (ev.eventType === 'PreCompact') {
-    return { color: 'bg-amber-400/60', label: 'Context compacted' };
+    return { color: 'bg-warn/60', label: 'Context compacted' };
   }
   if (ev.eventType === 'PreToolUse' || ev.eventType === 'PostToolUse') {
     const tool = ev.toolName ?? ev.mcpTool ?? '?';
@@ -72,21 +74,21 @@ function describeEvent(ev: SessionEvent): {
       </span>
     );
     const color = denied
-      ? 'bg-red-400'
+      ? 'bg-crit'
       : ev.eventType === 'PostToolUse'
-        ? 'bg-green-500/60'
+        ? 'bg-good/60'
         : 'bg-accent/60';
     const sublabel = denied ? 'denied' : ev.mcpServer ? `via ${ev.mcpServer}` : undefined;
     return { color, label, sublabel };
   }
   if (ev.eventType === 'UserPromptSubmit') {
     return {
-      color: 'bg-sky-400',
+      color: 'bg-series-1',
       label: ev.slashCommand ? `/${ev.slashCommand}` : 'User message',
     };
   }
   if (ev.eventType === 'Notification') {
-    return { color: 'bg-purple-400/60', label: 'Notification' };
+    return { color: 'bg-series-4/60', label: 'Notification' };
   }
   return { color: 'bg-text-3', label: ev.eventType, sublabel: ev.model ?? undefined };
 }
@@ -145,7 +147,7 @@ export function Timeline({
           label="Continuity"
           value={
             session.isResume ? (
-              <span className="text-amber-400">resumed</span>
+              <span className="text-warn">resumed</span>
             ) : (
               <span className="text-text-3">fresh start</span>
             )
@@ -160,7 +162,7 @@ export function Timeline({
           label="Friction"
           value={
             frictionInfo ? (
-              <span className={frictionInfo.color}>
+              <span className={TONE_TEXT[frictionInfo.tone]}>
                 {frictionInfo.label}{' '}
                 <span className="text-text-3 text-xs">
                   ({((frictionScore ?? 0) * 100).toFixed(0)}%)
@@ -171,20 +173,7 @@ export function Timeline({
             )
           }
         />
-        <Stat
-          label="Shape"
-          value={
-            session.shapeLabel ? (
-              <span
-                className={`text-xs px-1.5 py-0.5 rounded ${shapeBadge(session.shapeLabel as Parameters<typeof shapeBadge>[0])}`}
-              >
-                {session.shapeLabel}
-              </span>
-            ) : (
-              '—'
-            )
-          }
-        />
+        <Stat label="Shape" value={<ShapeBadge label={session.shapeLabel} />} />
       </div>
 
       {/* Per-event timeline */}
@@ -198,14 +187,12 @@ export function Timeline({
               return (
                 <div key={i} className="flex gap-3 pl-8 relative items-start py-0.5">
                   <div
-                    className={`absolute left-0 top-2 h-5 w-5 rounded-full border flex items-center justify-center ${isDenied ? 'bg-red-500/15 border-red-500/40' : 'bg-surface border-border'}`}
+                    className={`absolute left-0 top-2 h-5 w-5 rounded-full border flex items-center justify-center ${isDenied ? 'bg-crit-soft border-crit-line' : 'bg-surface border-border'}`}
                   >
                     <div className={`h-2 w-2 rounded-full ${color}`} />
                   </div>
                   <div className="min-w-0">
-                    <span
-                      className={`text-sm font-mono ${isDenied ? 'text-red-400' : 'text-text-2'}`}
-                    >
+                    <span className={`text-sm font-mono ${isDenied ? 'text-crit' : 'text-text-2'}`}>
                       {label}
                     </span>
                     {sublabel && <span className="ml-2 text-xs text-text-3">{sublabel}</span>}

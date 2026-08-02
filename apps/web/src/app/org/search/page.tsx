@@ -111,15 +111,15 @@ export default async function OrgSearchPage({
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Org</p>
-        <h1 className="text-2xl font-semibold">Search</h1>
-        <p className="mt-1 text-sm text-white/50">
+        <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Org</p>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Search</h1>
+        <p className="mt-1 text-sm text-text-2">
           Faceted session search · transcript full-text search
         </p>
       </div>
 
       {!canView && (
-        <div className="rounded-lg border border-white/10 p-6 text-center text-sm text-white/50">
+        <div className="rounded-lg border border-border p-6 text-center text-sm text-text-2">
           Individual session search is not available for your role. You can view aggregate data on
           the dashboard.
         </div>
@@ -128,12 +128,12 @@ export default async function OrgSearchPage({
       {canView && (
         <>
           {/* Filters */}
-          <form method="GET" className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-4">
+          <form method="GET" className="rounded-lg border border-border bg-surface p-4 space-y-4">
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1">
                 <label
                   htmlFor="filter-team"
-                  className="text-xs text-white/50 uppercase tracking-wide"
+                  className="text-xs text-text-2 uppercase tracking-wide"
                 >
                   Team
                 </label>
@@ -141,7 +141,7 @@ export default async function OrgSearchPage({
                   id="filter-team"
                   name="team"
                   defaultValue={teamId ?? ''}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 >
                   <option value="">All teams</option>
                   {teams.map((t) => (
@@ -155,7 +155,7 @@ export default async function OrgSearchPage({
               <div className="space-y-1">
                 <label
                   htmlFor="filter-repo"
-                  className="text-xs text-white/50 uppercase tracking-wide"
+                  className="text-xs text-text-2 uppercase tracking-wide"
                 >
                   Repo
                 </label>
@@ -163,7 +163,7 @@ export default async function OrgSearchPage({
                   id="filter-repo"
                   name="repo"
                   defaultValue={repoId ?? ''}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 >
                   <option value="">All repos</option>
                   {repos.map((r) => (
@@ -177,7 +177,7 @@ export default async function OrgSearchPage({
               <div className="space-y-1">
                 <label
                   htmlFor="filter-model"
-                  className="text-xs text-white/50 uppercase tracking-wide"
+                  className="text-xs text-text-2 uppercase tracking-wide"
                 >
                   Model
                 </label>
@@ -185,7 +185,7 @@ export default async function OrgSearchPage({
                   id="filter-model"
                   name="model"
                   defaultValue={model ?? ''}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 >
                   <option value="">All models</option>
                   {models.map((m) => (
@@ -199,7 +199,7 @@ export default async function OrgSearchPage({
               <div className="space-y-1">
                 <label
                   htmlFor="filter-tool"
-                  className="text-xs text-white/50 uppercase tracking-wide"
+                  className="text-xs text-text-2 uppercase tracking-wide"
                 >
                   Tool
                 </label>
@@ -209,14 +209,14 @@ export default async function OrgSearchPage({
                   name="tool"
                   defaultValue={toolName ?? ''}
                   placeholder="e.g. Edit, Bash"
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </div>
 
               <div className="space-y-1">
                 <label
                   htmlFor="filter-jira"
-                  className="text-xs text-white/50 uppercase tracking-wide"
+                  className="text-xs text-text-2 uppercase tracking-wide"
                 >
                   Jira ticket
                 </label>
@@ -226,14 +226,14 @@ export default async function OrgSearchPage({
                   name="jira"
                   defaultValue={jiraKey ?? ''}
                   placeholder="e.g. PROJ-123"
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </div>
 
               <div className="space-y-1">
                 <label
                   htmlFor="filter-from"
-                  className="text-xs text-white/50 uppercase tracking-wide"
+                  className="text-xs text-text-2 uppercase tracking-wide"
                 >
                   From
                 </label>
@@ -242,15 +242,12 @@ export default async function OrgSearchPage({
                   type="date"
                   name="from"
                   defaultValue={dateFrom?.toISOString().split('T')[0] ?? ''}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </div>
 
               <div className="space-y-1">
-                <label
-                  htmlFor="filter-to"
-                  className="text-xs text-white/50 uppercase tracking-wide"
-                >
+                <label htmlFor="filter-to" className="text-xs text-text-2 uppercase tracking-wide">
                   To
                 </label>
                 <input
@@ -258,14 +255,14 @@ export default async function OrgSearchPage({
                   type="date"
                   name="to"
                   defaultValue={dateTo?.toISOString().split('T')[0] ?? ''}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </div>
 
               <div className="space-y-1">
                 <label
                   htmlFor="filter-shape"
-                  className="text-xs text-white/50 uppercase tracking-wide"
+                  className="text-xs text-text-2 uppercase tracking-wide"
                 >
                   Session shape
                 </label>
@@ -273,7 +270,7 @@ export default async function OrgSearchPage({
                   id="filter-shape"
                   name="shape"
                   defaultValue={shape ?? ''}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 >
                   <option value="">All shapes</option>
                   {shapeFacets.map((f) => (
@@ -287,7 +284,7 @@ export default async function OrgSearchPage({
               <div className="space-y-1">
                 <label
                   htmlFor="filter-band"
-                  className="text-xs text-white/50 uppercase tracking-wide"
+                  className="text-xs text-text-2 uppercase tracking-wide"
                 >
                   Friction band
                 </label>
@@ -295,7 +292,7 @@ export default async function OrgSearchPage({
                   id="filter-band"
                   name="band"
                   defaultValue={frictionBand ?? ''}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 >
                   <option value="">Any friction</option>
                   <option value="low">Low (&lt; 0.3)</option>
@@ -307,7 +304,7 @@ export default async function OrgSearchPage({
               <div className="space-y-1">
                 <label
                   htmlFor="filter-agent"
-                  className="text-xs text-white/50 uppercase tracking-wide"
+                  className="text-xs text-text-2 uppercase tracking-wide"
                 >
                   Agent
                 </label>
@@ -315,7 +312,7 @@ export default async function OrgSearchPage({
                   id="filter-agent"
                   name="agent"
                   defaultValue={agent ?? ''}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 >
                   <option value="">All agents</option>
                   {agentFacets.map((f) => (
@@ -328,17 +325,17 @@ export default async function OrgSearchPage({
             </div>
 
             {/* Transcript FTS */}
-            <div className="flex gap-3 pt-2 border-t border-white/10">
+            <div className="flex gap-3 pt-2 border-t border-border">
               <input
                 type="text"
                 name="q"
                 defaultValue={query}
                 placeholder="Search transcript content (users with org sharing enabled)"
-                className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm"
               />
               <button
                 type="submit"
-                className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-bg hover:bg-brand-600"
+                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
               >
                 Search
               </button>
@@ -348,11 +345,11 @@ export default async function OrgSearchPage({
           {/* Transcript results */}
           {query && (
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold text-white/70">
+              <h2 className="font-display text-sm font-semibold text-text">
                 Transcript matches for &quot;{query}&quot;
               </h2>
               {transcriptResults.length === 0 ? (
-                <p className="text-sm text-white/40">
+                <p className="text-sm text-text-3">
                   No transcript matches. (Only sessions from users who have enabled org transcript
                   sharing are searched.)
                 </p>
@@ -361,14 +358,14 @@ export default async function OrgSearchPage({
                   {transcriptResults.map((r) => (
                     <div
                       key={`${r.sessionId}-${r.messageIdx}`}
-                      className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2"
+                      className="rounded-lg border border-border bg-surface p-4 space-y-2"
                     >
-                      <div className="flex items-center gap-2 text-xs text-white/40">
-                        <span className="font-semibold text-white/60">{r.githubLogin}</span>
+                      <div className="flex items-center gap-2 text-xs text-text-3">
+                        <span className="font-semibold text-text-2">{r.githubLogin}</span>
                         <span>·</span>
                         <a
                           href={`/org/sessions/${r.sessionId}`}
-                          className="text-brand-400 hover:underline font-mono"
+                          className="text-accent hover:underline font-mono"
                         >
                           {r.sessionId.slice(0, 8)}…
                         </a>
@@ -376,7 +373,7 @@ export default async function OrgSearchPage({
                         {r.ts && <span>· {new Date(r.ts).toLocaleString()}</span>}
                       </div>
                       <p
-                        className="text-sm text-white/70 leading-relaxed"
+                        className="text-sm text-text-2 leading-relaxed"
                         dangerouslySetInnerHTML={{ __html: r.excerpt }}
                       />
                     </div>
@@ -389,7 +386,7 @@ export default async function OrgSearchPage({
           {/* Session results */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white/70">
+              <h2 className="font-display text-sm font-semibold text-text">
                 Sessions {sessionResults.total > 0 && `(${sessionResults.total})`}
               </h2>
               {totalPages > 1 && (
@@ -397,18 +394,18 @@ export default async function OrgSearchPage({
                   {page > 1 && (
                     <a
                       href={buildUrl(params, { page: page - 1 })}
-                      className="inline-flex items-center gap-1 text-brand-400 hover:underline"
+                      className="inline-flex items-center gap-1 text-accent hover:underline"
                     >
                       <ArrowLeftIcon /> Prev
                     </a>
                   )}
-                  <span className="text-white/40">
+                  <span className="text-text-3">
                     {page} / {totalPages}
                   </span>
                   {page < totalPages && (
                     <a
                       href={buildUrl(params, { page: page + 1 })}
-                      className="inline-flex items-center gap-1 text-brand-400 hover:underline"
+                      className="inline-flex items-center gap-1 text-accent hover:underline"
                     >
                       Next <ArrowRightIcon />
                     </a>
@@ -418,12 +415,12 @@ export default async function OrgSearchPage({
             </div>
 
             {sessionResults.results.length === 0 ? (
-              <p className="text-sm text-white/40">No sessions match the current filters.</p>
+              <p className="text-sm text-text-3">No sessions match the current filters.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-white/40 text-left border-b border-white/10">
+                    <tr className="text-text-3 text-left border-b border-border">
                       <th className="pb-2 font-medium">User</th>
                       <th className="pb-2 font-medium">Session</th>
                       <th className="pb-2 font-medium">Repo</th>
@@ -433,27 +430,27 @@ export default async function OrgSearchPage({
                       <th className="pb-2 font-medium text-right">Started</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody className="divide-y divide-border-subtle">
                     {sessionResults.results.map((s) => (
                       <tr key={s.sessionId}>
                         <td className="py-2">{s.githubLogin}</td>
                         <td className="py-2">
                           <a
                             href={`/org/sessions/${s.sessionId}`}
-                            className="font-mono text-xs text-brand-400 hover:underline"
+                            className="font-mono text-xs text-accent hover:underline"
                           >
                             {s.sessionId.slice(0, 8)}…
                           </a>
                         </td>
-                        <td className="py-2 text-white/60 text-xs">{s.repoName ?? '—'}</td>
+                        <td className="py-2 text-text-2 text-xs">{s.repoName ?? '—'}</td>
                         <td className="py-2">
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-white/10 text-white/60">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-surface-2 text-text-2">
                             {s.status}
                           </span>
                         </td>
-                        <td className="py-2 text-right text-white/60">{s.toolCallCount}</td>
+                        <td className="py-2 text-right text-text-2">{s.toolCallCount}</td>
                         <td className="py-2 text-right font-mono">${s.costUsd.toFixed(4)}</td>
-                        <td className="py-2 text-right text-white/50 text-xs">
+                        <td className="py-2 text-right text-text-2 text-xs">
                           {new Date(s.startedAt).toLocaleString()}
                         </td>
                       </tr>

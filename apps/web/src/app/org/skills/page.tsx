@@ -1,10 +1,7 @@
 import Link from 'next/link';
-import { DataTable } from '@/components/team-org/DataTable';
-import { EmptyState } from '@/components/team-org/EmptyState';
+import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { SectionCard } from '@/components/team-org/SectionCard';
-import { SectionHeader } from '@/components/team-org/SectionHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
 import {
   getDailySkillVolume,
   getOrgSkillSequences,
@@ -35,7 +32,6 @@ export default async function OrgSkillsPage({
 
   const totalInvocations = skills.reduce((s, r) => s + r.callCount, 0);
   const uniqueAdopters = funnel.length > 0 ? Math.max(...funnel.map((r) => r.recentUsers)) : 0;
-  const maxTrend = Math.max(...trend.map((r) => r.invocationCount), 1);
 
   return (
     <div className="space-y-6">
@@ -47,31 +43,17 @@ export default async function OrgSkillsPage({
       />
 
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Unique skills" value={skills.length.toString()} />
-        <StatCard label="Total invocations" value={totalInvocations.toLocaleString()} />
-        <StatCard label="Active adopters" value={uniqueAdopters.toString()} />
+        <Stat label="Unique skills" value={skills.length.toString()} />
+        <Stat label="Total invocations" value={totalInvocations.toLocaleString()} />
+        <Stat label="Active adopters" value={uniqueAdopters.toString()} />
       </div>
 
-      {trend.length > 0 && (
-        <SectionCard>
-          <SectionHeader>Daily invocations</SectionHeader>
-          <div className="flex h-16 items-end gap-1">
-            {trend.map((r) => (
-              <div
-                key={r.day.toISOString()}
-                className="flex-1 rounded-t bg-accent/60"
-                style={{ height: `${(r.invocationCount / maxTrend) * 100}%` }}
-                title={`${r.day.toLocaleDateString()}: ${r.invocationCount}`}
-              />
-            ))}
-          </div>
-        </SectionCard>
-      )}
+      <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />
 
       {skills.length > 0 ? (
-        <SectionCard>
+        <Card>
           <SectionHeader>All skills</SectionHeader>
-          <DataTable
+          <Table
             columns={[
               { label: 'Name' },
               { label: 'Type' },
@@ -81,7 +63,10 @@ export default async function OrgSkillsPage({
             ]}
           >
             {skills.map((r) => (
-              <tr key={`${r.kind}:${r.name}`} className="border-b border-white/5 hover:bg-white/5">
+              <tr
+                key={`${r.kind}:${r.name}`}
+                className="border-b border-border-subtle hover:bg-surface-2"
+              >
                 <td className="py-2">
                   <Link
                     href={`/org/skills/${r.kind}/${encodeURIComponent(r.name)}`}
@@ -90,26 +75,26 @@ export default async function OrgSkillsPage({
                     /{r.name}
                   </Link>
                 </td>
-                <td className="py-2 text-xs capitalize text-white/40">{r.kind}</td>
-                <td className="py-2 text-right font-mono text-white/70">
+                <td className="py-2 text-xs capitalize text-text-3">{r.kind}</td>
+                <td className="py-2 text-right font-mono text-text-2">
                   {r.callCount.toLocaleString()}
                 </td>
-                <td className="py-2 text-right font-mono text-white/60">{r.distinctUsers}</td>
-                <td className="py-2 text-right font-mono text-white/50">
+                <td className="py-2 text-right font-mono text-text-2">{r.distinctUsers}</td>
+                <td className="py-2 text-right font-mono text-text-2">
                   {r.avgSessionCostUsd != null ? `$${r.avgSessionCostUsd.toFixed(3)}` : '—'}
                 </td>
               </tr>
             ))}
-          </DataTable>
-        </SectionCard>
+          </Table>
+        </Card>
       ) : (
         <EmptyState>No skill activity in this period</EmptyState>
       )}
 
       {funnel.length > 0 && (
-        <SectionCard>
+        <Card>
           <SectionHeader>Adoption — new vs returning users</SectionHeader>
-          <DataTable
+          <Table
             columns={[
               { label: 'Skill' },
               { align: 'right', label: 'Active users', mono: true },
@@ -118,21 +103,21 @@ export default async function OrgSkillsPage({
             ]}
           >
             {funnel.map((r) => (
-              <tr key={r.name} className="border-b border-white/5">
-                <td className="py-2 font-mono text-white/80">/{r.name}</td>
-                <td className="py-2 text-right font-mono text-white/70">{r.recentUsers}</td>
-                <td className="py-2 text-right font-mono text-emerald-400">{r.newUsers}</td>
-                <td className="py-2 text-right font-mono text-white/50">{r.returningUsers}</td>
+              <tr key={r.name} className="border-b border-border-subtle">
+                <td className="py-2 font-mono text-text">/{r.name}</td>
+                <td className="py-2 text-right font-mono text-text-2">{r.recentUsers}</td>
+                <td className="py-2 text-right font-mono text-good">{r.newUsers}</td>
+                <td className="py-2 text-right font-mono text-text-2">{r.returningUsers}</td>
               </tr>
             ))}
-          </DataTable>
-        </SectionCard>
+          </Table>
+        </Card>
       )}
 
       {sequences.length > 0 && (
-        <SectionCard>
+        <Card>
           <SectionHeader>Common skill sequences</SectionHeader>
-          <DataTable
+          <Table
             columns={[
               { label: 'From' },
               { label: 'To' },
@@ -140,19 +125,19 @@ export default async function OrgSkillsPage({
             ]}
           >
             {sequences.map((r) => (
-              <tr key={`${r.fromSkill}->${r.toSkill}`} className="border-b border-white/5">
-                <td className="py-2 font-mono text-white/70">/{r.fromSkill}</td>
-                <td className="py-2 font-mono text-white/70">/{r.toSkill}</td>
-                <td className="py-2 text-right font-mono text-white/50">
+              <tr key={`${r.fromSkill}->${r.toSkill}`} className="border-b border-border-subtle">
+                <td className="py-2 font-mono text-text-2">/{r.fromSkill}</td>
+                <td className="py-2 font-mono text-text-2">/{r.toSkill}</td>
+                <td className="py-2 text-right font-mono text-text-2">
                   {r.transitionCount.toLocaleString()}
                 </td>
               </tr>
             ))}
-          </DataTable>
-          <p className="mt-3 text-xs text-white/30">
+          </Table>
+          <p className="mt-3 text-xs text-text-3">
             Most frequent skill-to-skill transitions within the same session.
           </p>
-        </SectionCard>
+        </Card>
       )}
     </div>
   );

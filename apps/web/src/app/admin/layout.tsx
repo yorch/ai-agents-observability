@@ -1,14 +1,10 @@
 import type { ReactNode } from 'react';
 
-import { AdminNav } from '@/components/AdminNav';
 import { requireOrgAdmin } from '@/lib/roles';
 
+// Admin navigation lives in the rail; the root layout owns the content measure.
+// The gate stays here — it is the only thing this layout is responsible for.
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   await requireOrgAdmin();
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <AdminNav />
-      {children}
-    </div>
-  );
+  return children;
 }

@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react';
 
 import { savePrivacySettings } from '@/app/me/settings/privacy/actions';
+import { Card } from '@/components/ui';
 
 type Toggle = {
   description: string;
@@ -18,22 +19,22 @@ function ToggleRow({
   onChange: (name: string, value: boolean) => void;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-4 border-b border-white/5 last:border-0">
+    <div className="flex items-start justify-between gap-4 py-4 border-b border-border-subtle last:border-0">
       <div className="flex-1">
         <p className="text-sm font-medium">{toggle.label}</p>
-        <p className="mt-0.5 text-xs text-white/50">{toggle.description}</p>
+        <p className="mt-0.5 text-xs text-text-2">{toggle.description}</p>
       </div>
       <button
         type="button"
         role="switch"
         aria-checked={toggle.value}
         onClick={() => onChange(toggle.name, !toggle.value)}
-        className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-transparent ${
-          toggle.value ? 'border-brand-500 bg-brand-500' : 'border-white/20 bg-white/10'
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-transparent ${
+          toggle.value ? 'border-accent bg-accent' : 'border-border-strong bg-surface-2'
         }`}
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition-transform mt-0.5 ${
+          className={`inline-block h-4 w-4 transform rounded-full bg-text shadow ring-0 transition-transform mt-0.5 ${
             toggle.value ? 'translate-x-5' : 'translate-x-0.5'
           }`}
         />
@@ -108,8 +109,8 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
   }
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-      <div className="divide-y divide-white/5">
+    <Card>
+      <div className="divide-y divide-border-subtle">
         {toggles.map((toggle) => (
           <ToggleRow key={toggle.name} toggle={toggle} onChange={handleToggle} />
         ))}
@@ -120,12 +121,12 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
           type="button"
           onClick={handleSave}
           disabled={isPending}
-          className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-bg hover:bg-brand-600 transition-colors disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90 transition-colors disabled:opacity-50"
         >
           {isPending ? 'Saving…' : 'Save settings'}
         </button>
-        {saved && <span className="text-sm text-green-400">Saved</span>}
+        {saved && <span className="text-sm text-good">Saved</span>}
       </div>
-    </div>
+    </Card>
   );
 }

@@ -1,8 +1,7 @@
 import { AgentComparisonTable } from '@/components/team-org/AgentComparisonTable';
 import { AgentsTable } from '@/components/team-org/AgentsTable';
-import { EmptyState } from '@/components/team-org/EmptyState';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { EmptyState, Stat } from '@/components/ui';
 import { getAgentTypeComparison, getOrgSubagentStats } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -38,16 +37,16 @@ export default async function OrgAgentsPage({
 
       <AgentComparisonTable rows={agentComparison} />
 
-      <h2 className="pt-2 text-sm font-semibold text-white/70">Sub-agent usage</h2>
+      <h2 className="pt-2 text-sm font-semibold text-text-2">Sub-agent usage</h2>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label={`Agent spawns (${range}d)`} value={totalSpawns.toLocaleString()} />
-        <StatCard label="Agent types" value={distinctTypes.toString()} />
-        <StatCard
+        <Stat label={`Agent spawns (${range}d)`} value={totalSpawns.toLocaleString()} />
+        <Stat label="Agent types" value={distinctTypes.toString()} />
+        <Stat
           label="Attributed cost"
           value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
         />
-        <StatCard
+        <Stat
           label="Avg cost / spawn"
           value={
             totalSpawns > 0 && totalCostUsd > 0

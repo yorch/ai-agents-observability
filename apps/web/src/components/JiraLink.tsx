@@ -5,8 +5,8 @@
 export function JiraLink({
   jiraBase,
   jiraKey,
-  className = 'text-blue-400 hover:text-blue-300',
-  plainClassName = 'text-white/80',
+  className = 'text-accent hover:opacity-80 transition-opacity',
+  plainClassName = 'text-text',
 }: {
   className?: string;
   jiraBase: string | null;

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { StatusBadge } from '@/components/me/StatusBadge';
+import { Card } from '@/components/ui';
 import type { RecentSession } from '@/lib/me-queries';
 
 function formatDuration(seconds: number | null): string {
@@ -31,16 +32,20 @@ function formatDate(d: Date): string {
 export function RecentSessions({ sessions }: { sessions: RecentSession[] }) {
   if (sessions.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-xs text-text-3 uppercase tracking-widest mb-4">Recent Sessions</h2>
+      <Card>
+        <h2 className="mb-4 font-mono text-[10px] uppercase tracking-widest text-text-3">
+          Recent Sessions
+        </h2>
         <p className="text-sm text-text-3">No sessions yet</p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-xs text-text-3 uppercase tracking-widest mb-4">Recent Sessions</h2>
+    <Card>
+      <h2 className="mb-4 font-mono text-[10px] uppercase tracking-widest text-text-3">
+        Recent Sessions
+      </h2>
       <div className="space-y-1">
         {sessions.map((s) => (
           <Link
@@ -64,6 +69,6 @@ export function RecentSessions({ sessions }: { sessions: RecentSession[] }) {
           </Link>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

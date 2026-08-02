@@ -121,7 +121,7 @@ export function ShareSessionButton({
                     <button
                       type="submit"
                       title="Revoke access"
-                      className="rounded px-1.5 py-0.5 text-[10px] text-text-3 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                      className="rounded px-1.5 py-0.5 text-[10px] text-text-3 hover:bg-crit-soft hover:text-crit transition-colors"
                     >
                       Revoke
                     </button>
@@ -134,7 +134,7 @@ export function ShareSessionButton({
           {/* Success notice */}
           {lastShared && (
             <div className="border-t border-border px-4 py-3 space-y-2">
-              <p className="text-xs text-green-400">Shared with {lastShared.email}</p>
+              <p className="text-xs text-good">Shared with {lastShared.email}</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 truncate rounded bg-surface-2 px-2 py-1 text-[10px] text-text-3">
                   /org/sessions/{sessionId}
@@ -163,7 +163,7 @@ export function ShareSessionButton({
           {/* New share form */}
           {!lastShared && (
             <div className="border-t border-border px-4 py-3">
-              {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
+              {error && <p className="mb-2 text-xs text-crit">{error}</p>}
               <form action={handleShare} className="space-y-2">
                 <input type="hidden" name="sessionId" value={sessionId} />
                 <input

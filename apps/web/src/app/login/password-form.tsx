@@ -71,7 +71,7 @@ export function PasswordForm({ next }: Props) {
           placeholder="••••••••"
         />
       </div>
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-crit">{error}</p>}
       <button
         type="submit"
         disabled={pending}

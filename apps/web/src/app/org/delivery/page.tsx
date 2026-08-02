@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { StatCard } from '@/components/team-org/StatCard';
+import { Card, Stat } from '@/components/ui';
 import {
   getOrgCheckHealth,
   getOrgPRDeliveryStats,
@@ -54,22 +54,22 @@ export default async function OrgDeliveryPage({
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
+        <Stat
           label={`PRs opened (${range}d)`}
           value={stats.totalPRs.toString()}
           sub={`${stats.mergedPRs} merged`}
         />
-        <StatCard
+        <Stat
           label="Merge rate"
           value={`${(stats.mergeRate * 100).toFixed(0)}%`}
           {...(stats.totalPRs > 0 ? { sub: `${stats.totalPRs - stats.mergedPRs} unmerged` } : {})}
         />
-        <StatCard
+        <Stat
           label="Median time-to-merge"
           value={fmtHours(stats.medianTimeToMergeHours)}
           sub="from open to merge"
         />
-        <StatCard
+        <Stat
           label="Avg cost / PR"
           value={stats.avgCostPerPR > 0 ? `$${stats.avgCostPerPR.toFixed(2)}` : '—'}
           {...(stats.medianCostPerPR != null
@@ -83,8 +83,8 @@ export default async function OrgDeliveryPage({
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${
             stats.revertRate > 0.05
-              ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300'
-              : 'border-white/10 bg-white/5 text-white/60'
+              ? 'border-warn-line bg-warn-soft text-warn'
+              : 'border-border bg-surface text-text-2'
           }`}
         >
           <span className="font-semibold">Revert rate:</span> {(stats.revertRate * 100).toFixed(1)}%
@@ -95,8 +95,8 @@ export default async function OrgDeliveryPage({
 
       {/* Weekly PR trend */}
       {weeklyTrend.length > 0 && (
-        <section className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h2 className="text-sm font-semibold text-white/70 mb-4">
+        <Card>
+          <h2 className="mb-4 font-display text-sm font-semibold text-text">
             Weekly merged PRs ({trendWeeks} weeks)
           </h2>
           <div className="flex items-end gap-1 h-24">
@@ -108,41 +108,41 @@ export default async function OrgDeliveryPage({
               });
               return (
                 <div key={w.week.toISOString()} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-white/40">{w.mergedPRs}</span>
+                  <span className="text-[10px] text-text-3">{w.mergedPRs}</span>
                   <div
-                    className="w-full rounded-t bg-brand-500/70 min-h-1"
+                    className="w-full rounded-t bg-accent/70 min-h-1"
                     style={{ height: `${height}px` }}
                     title={`${label}: ${w.mergedPRs} PRs · $${w.totalCostUsd.toFixed(2)} total`}
                   />
-                  <span className="text-[9px] text-white/30">{label}</span>
+                  <span className="text-[9px] text-text-3">{label}</span>
                 </div>
               );
             })}
           </div>
-        </section>
+        </Card>
       )}
 
       {/* Review health */}
-      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white/70">Review health ({range}d)</h2>
+      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <h2 className="font-display text-sm font-semibold text-text">Review health ({range}d)</h2>
         {reviews.reviewedPrs === 0 ? (
-          <p className="text-sm text-white/40">
+          <p className="text-sm text-text-3">
             No submitted reviews recorded in this window. Review data arrives via the
             pull_request_review webhook.
           </p>
         ) : (
           <div className="grid grid-cols-3 gap-4">
-            <StatCard
+            <Stat
               label="Median time to first review"
               value={fmtHours(reviews.medianHoursToFirstReview)}
               sub="from PR open to first submitted review"
             />
-            <StatCard
+            <Stat
               label="Reviews / PR"
               value={reviews.avgReviewsPerPr.toFixed(1)}
               sub={`${reviews.totalReviews} reviews on ${reviews.reviewedPrs} PRs`}
             />
-            <StatCard
+            <Stat
               label="Reviewed PRs"
               value={String(reviews.reviewedPrs)}
               sub="PRs with at least one submitted review"
@@ -152,32 +152,34 @@ export default async function OrgDeliveryPage({
       </section>
 
       {/* CI check health */}
-      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white/70">Failing CI checks ({range}d)</h2>
+      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <h2 className="font-display text-sm font-semibold text-text">
+          Failing CI checks ({range}d)
+        </h2>
         {checkHealth.length === 0 ? (
-          <p className="text-sm text-white/40">
+          <p className="text-sm text-text-3">
             No failing check runs recorded in this window. Per-run outcomes arrive via the check_run
             webhook.
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-white/40 text-left">
+              <tr className="text-text-3 text-left">
                 <th className="pb-2 font-medium">Check</th>
                 <th className="pb-2 font-medium text-right">Runs</th>
                 <th className="pb-2 font-medium text-right">Failures</th>
                 <th className="pb-2 font-medium text-right">Failure rate</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-border-subtle">
               {checkHealth.map((c) => (
                 <tr key={c.checkName}>
-                  <td className="py-2 font-mono text-xs text-white/80">{c.checkName}</td>
-                  <td className="py-2 text-right text-white/60">{c.totalRuns}</td>
-                  <td className="py-2 text-right text-white/60">{c.failures}</td>
+                  <td className="py-2 font-mono text-xs text-text">{c.checkName}</td>
+                  <td className="py-2 text-right text-text-2">{c.totalRuns}</td>
+                  <td className="py-2 text-right text-text-2">{c.failures}</td>
                   <td
                     className={`py-2 text-right font-mono ${
-                      c.failureRate > 0.3 ? 'text-yellow-300' : 'text-white/60'
+                      c.failureRate > 0.3 ? 'text-warn' : 'text-text-2'
                     }`}
                   >
                     {(c.failureRate * 100).toFixed(0)}%
@@ -187,35 +189,37 @@ export default async function OrgDeliveryPage({
             </tbody>
           </table>
         )}
-        <p className="text-xs text-white/30">
+        <p className="text-xs text-text-3">
           Checks that fail often on agent-linked PRs are either guarding real quality issues or
           flaky — both worth investigating.
         </p>
       </section>
 
       {/* Top repos by PR activity */}
-      <section className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white/70">Top repos by merged PRs ({range}d)</h2>
+      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <h2 className="font-display text-sm font-semibold text-text">
+          Top repos by merged PRs ({range}d)
+        </h2>
         {topRepos.length === 0 ? (
-          <p className="text-sm text-white/40">No merged PR data available.</p>
+          <p className="text-sm text-text-3">No merged PR data available.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-white/40 text-left">
+              <tr className="text-text-3 text-left">
                 <th className="pb-2 font-medium">Repo</th>
                 <th className="pb-2 font-medium text-right">Merged PRs</th>
                 <th className="pb-2 font-medium text-right">Median TTM</th>
                 <th className="pb-2 font-medium text-right">Avg cost / PR</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-border-subtle">
               {topRepos.map((r) => (
                 <tr key={`${r.repoOwner}/${r.repoName}`}>
-                  <td className="py-2 font-mono text-xs text-white/80">
+                  <td className="py-2 font-mono text-xs text-text">
                     {r.repoOwner}/{r.repoName}
                   </td>
-                  <td className="py-2 text-right text-white/60">{r.mergedPRs}</td>
-                  <td className="py-2 text-right text-white/60">
+                  <td className="py-2 text-right text-text-2">{r.mergedPRs}</td>
+                  <td className="py-2 text-right text-text-2">
                     {fmtHours(r.medianTimeToMergeHours)}
                   </td>
                   <td className="py-2 text-right font-mono">
@@ -228,7 +232,7 @@ export default async function OrgDeliveryPage({
         )}
       </section>
 
-      <p className="text-xs text-white/30 text-center pt-2">
+      <p className="text-xs text-text-3 text-center pt-2">
         PR cost reflects sessions from users who share metadata with the org. TTM = time from PR
         open to merge.
       </p>
