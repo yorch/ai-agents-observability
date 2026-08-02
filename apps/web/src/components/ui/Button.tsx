@@ -10,7 +10,9 @@ const VARIANT: Record<ButtonVariant, string> = {
   // The accent carries `text-bg`: near-black ink on lime in dark, near-white on
   // olive in light. Both directions are legible.
   danger: 'border border-crit-line bg-crit-soft text-crit hover:opacity-90',
-  primary: 'bg-accent text-bg hover:opacity-90',
+  // Transparent rather than absent: without it a primary button is 2px shorter
+  // than the secondary beside it, and than every control.
+  primary: 'border border-transparent bg-accent text-bg hover:opacity-90',
   secondary: 'border border-border text-text-2 hover:bg-surface-2 hover:text-text',
 };
 

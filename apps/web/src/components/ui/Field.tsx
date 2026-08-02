@@ -20,6 +20,11 @@ const CONTROL =
  *
  * `Field` makes its own control full-width; anywhere else, say so at the call
  * site (`className="w-full"`, `"flex-1"`).
+ *
+ * Measured: `sm` is 30px for every control and button. `md` is 38px for
+ * everything except a `<select>`, which Chromium renders at 36 — its inner box
+ * ignores the line-height, and forcing a height here would fight `Textarea`.
+ * Don't "fix" that 2px inline; it is the browser, not the scale.
  */
 const CONTROL_SIZE = {
   md: 'px-3 py-2 text-sm',
@@ -78,17 +83,24 @@ export function Textarea({
  */
 export function Field({
   children,
+  className,
   hint,
   htmlFor,
   label,
 }: {
   children: ReactNode;
+  /** The field's own width — `w-32` for a narrow numeric field in an inline row. */
+  className?: string;
   hint?: ReactNode;
   htmlFor: string;
   label: string;
 }) {
   return (
-    <div className="space-y-1.5 [&>input]:w-full [&>select]:w-full [&>textarea]:w-full">
+    <div
+      className={`space-y-1.5 [&>input]:w-full [&>select]:w-full [&>textarea]:w-full${
+        className ? ` ${className}` : ''
+      }`}
+    >
       <label htmlFor={htmlFor} className="block text-xs font-medium text-text-2">
         {label}
       </label>

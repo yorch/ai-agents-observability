@@ -2,7 +2,7 @@ import {
   BUDGET_THRESHOLD_WINDOW_DAYS,
   parseBudgetThresholdParams,
 } from '@ai-agents-observability/schemas';
-import { Button, Cell, Input, Row, Select, Table } from '@/components/ui';
+import { Button, Cell, Field, Input, Row, Select, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import {
@@ -111,29 +111,29 @@ export default async function AlertsAdminPage() {
                 {isBudget && (
                   <form action={updateBudgetThreshold} className="flex flex-wrap items-end gap-2">
                     <input type="hidden" name="id" value={r.id} />
-                    <label className="flex flex-col gap-1 text-xs text-text-2">
-                      Budget (USD)
-                      <input
+                    <Field label="Budget (USD)" htmlFor={`budget-${r.id}`} className="w-32">
+                      <Input
+                        size="sm"
+                        id={`budget-${r.id}`}
                         name="budgetUsd"
                         type="number"
                         min="1"
                         step="0.01"
                         defaultValue={budgetUsd ?? ''}
                         placeholder="e.g. 5000"
-                        className="w-32 rounded-md border border-border bg-surface px-2 py-1 text-sm"
                       />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-text-2">
-                      Window (days)
-                      <input
+                    </Field>
+                    <Field label="Window (days)" htmlFor={`window-${r.id}`} className="w-24">
+                      <Input
+                        size="sm"
+                        id={`window-${r.id}`}
                         name="windowDays"
                         type="number"
                         min="1"
                         step="1"
                         defaultValue={windowDays}
-                        className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-sm"
                       />
-                    </label>
+                    </Field>
                     <Button variant="secondary" size="sm" type="submit">
                       Save budget
                     </Button>

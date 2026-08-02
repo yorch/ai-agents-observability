@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@/components/ui/Button';
 
 export function DeleteDataButton() {
   const [pending, setPending] = useState(false);
@@ -41,14 +42,9 @@ export function DeleteDataButton() {
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={pending}
-        className="rounded-md border border-crit-line bg-crit-soft px-4 py-2 text-sm font-medium text-crit hover:bg-crit-soft transition-colors disabled:opacity-50"
-      >
+      <Button variant="danger" onClick={handleClick} disabled={pending}>
         {pending ? 'Requesting…' : 'Delete my data'}
-      </button>
+      </Button>
       {error && <p className="text-sm text-crit">{error}</p>}
     </div>
   );

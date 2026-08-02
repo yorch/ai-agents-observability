@@ -4,6 +4,9 @@ import { useState, useTransition } from 'react';
 
 import { linkSessionPR, unlinkSessionPR } from '@/app/me/sessions/[id]/actions';
 import { JiraLink } from '@/components/JiraLink';
+// Not the barrel: it would pull `Table` and every chart module into this client graph.
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Field';
 
 export type SessionPRLinkItem = {
   linkSource: string;
@@ -101,22 +104,18 @@ export function SessionPRLinks({
 
       {canLink ? (
         <div className="flex items-center gap-2">
-          <input
+          <Input
             type="number"
             min={1}
             value={prNumber}
             onChange={(e) => setPrNumber(e.target.value)}
             placeholder="PR number"
-            className="w-32 rounded-md border border-border bg-transparent px-2 py-1 text-sm"
+            aria-label="PR number"
+            className="w-32"
           />
-          <button
-            type="button"
-            onClick={add}
-            disabled={isPending || prNumber.trim() === ''}
-            className="rounded-md border border-border px-3 py-1 text-sm text-text-3 hover:text-text transition-colors disabled:opacity-50"
-          >
+          <Button variant="secondary" onClick={add} disabled={isPending || prNumber.trim() === ''}>
             Link PR
-          </button>
+          </Button>
         </div>
       ) : (
         <p className="text-xs text-text-3">
