@@ -1,6 +1,6 @@
 import { AuditAction } from '@ai-agents-observability/db';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Badge, type BadgeTone, Stat } from '@/components/ui';
+import { Badge, type BadgeTone, Card, Cell, Row, Stat, Table } from '@/components/ui';
 import { fmtBytes } from '@/lib/fmt';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
@@ -127,110 +127,98 @@ export default async function OrgSecurityPage({
       </div>
 
       {/* Tool-category exposure */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <div>
-          <h2 className="font-display text-sm font-semibold text-text">Tool-category exposure</h2>
-          <p className="mt-0.5 text-xs text-text-3">
-            What kinds of powerful access the agents used, and how widely.
-          </p>
-        </div>
+      <Card
+        title="Tool-category exposure"
+        caption="What kinds of powerful access the agents used, and how widely."
+        contentClassName="space-y-3"
+      >
         {categories.length === 0 ? (
           <p className="text-sm text-text-3">No tool activity in this window.</p>
         ) : (
           <CategoryTable rows={categories} />
         )}
-      </section>
+      </Card>
 
       {/* Per-repo exposure */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <div>
-          <h2 className="font-display text-sm font-semibold text-text">Exposure by repo</h2>
-          <p className="mt-0.5 text-xs text-text-3">
-            Repos ranked by code-execution and network egress — where a data-exposure review starts.
-          </p>
-        </div>
+      <Card
+        title="Exposure by repo"
+        caption="Repos ranked by code-execution and network egress — where a data-exposure review starts."
+        contentClassName="space-y-3"
+      >
         {repoExposure.length === 0 ? (
           <p className="text-sm text-text-3">No exec/web/write activity in this window.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Repo</th>
-                <th className="pb-2 font-medium text-right">Exec</th>
-                <th className="pb-2 font-medium text-right">Network</th>
-                <th className="pb-2 font-medium text-right">Writes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {repoExposure.map((r) => (
-                <tr key={r.repoName}>
-                  <td className="py-2 font-mono text-xs text-text">{r.repoName}</td>
-                  <td className="py-2 text-right font-mono text-crit">
-                    {r.execCalls.toLocaleString()}
-                  </td>
-                  <td className="py-2 text-right font-mono text-crit">
-                    {r.webCalls.toLocaleString()}
-                  </td>
-                  <td className="py-2 text-right font-mono text-text-2">
-                    {r.writeCalls.toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Repo' },
+              { align: 'right', label: 'Exec' },
+              { align: 'right', label: 'Network' },
+              { align: 'right', label: 'Writes' },
+            ]}
+          >
+            {repoExposure.map((r) => (
+              <Row key={r.repoName}>
+                <Cell className="text-xs text-text">{r.repoName}</Cell>
+                <Cell num className="text-crit">
+                  {r.execCalls.toLocaleString()}
+                </Cell>
+                <Cell num className="text-crit">
+                  {r.webCalls.toLocaleString()}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {r.writeCalls.toLocaleString()}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         )}
-      </section>
+      </Card>
 
       {/* External egress */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <div>
-          <h2 className="font-display text-sm font-semibold text-text">
-            External egress (MCP servers)
-          </h2>
-          <p className="mt-0.5 text-xs text-text-3">
-            Each MCP server is an external service the agents reached — an egress inventory for
-            security review.
-          </p>
-        </div>
+      <Card
+        title="External egress (MCP servers)"
+        caption="Each MCP server is an external service the agents reached — an egress inventory for security review."
+        contentClassName="space-y-3"
+      >
         {egress.length === 0 ? (
           <p className="text-sm text-text-3">No MCP calls in this window.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Server</th>
-                <th className="pb-2 font-medium text-right">Calls</th>
-                <th className="pb-2 font-medium text-right">Users</th>
-                <th className="pb-2 font-medium text-right">Repos</th>
-                <th className="pb-2 font-medium text-right">Data out</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {egress.map((e) => (
-                <tr key={e.server}>
-                  <td className="py-2 font-mono text-xs text-text">{e.server}</td>
-                  <td className="py-2 text-right text-text-2">{e.totalCalls.toLocaleString()}</td>
-                  <td className="py-2 text-right text-text-2">{e.distinctUsers}</td>
-                  <td className="py-2 text-right text-text-2">{e.distinctRepos}</td>
-                  <td className="py-2 text-right font-mono text-text-2">
-                    {fmtBytes(e.totalOutputBytes)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Server' },
+              { align: 'right', label: 'Calls' },
+              { align: 'right', label: 'Users' },
+              { align: 'right', label: 'Repos' },
+              { align: 'right', label: 'Data out' },
+            ]}
+          >
+            {egress.map((e) => (
+              <Row key={e.server}>
+                <Cell className="text-xs text-text">{e.server}</Cell>
+                <Cell num className="text-text-2">
+                  {e.totalCalls.toLocaleString()}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {e.distinctUsers}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {e.distinctRepos}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {fmtBytes(e.totalOutputBytes)}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         )}
-      </section>
+      </Card>
 
       {/* Secret exposure by class */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <div>
-          <h2 className="font-display text-sm font-semibold text-text">Secret exposure by class</h2>
-          <p className="mt-0.5 text-xs text-text-3">
-            Sessions whose shipped transcript matched a redaction class before it hit storage.
-            Forward-looking only — historical transcripts are not backfilled.
-          </p>
-        </div>
+      <Card
+        title="Secret exposure by class"
+        caption="Sessions whose shipped transcript matched a redaction class before it hit storage. Forward-looking only — historical transcripts are not backfilled."
+        contentClassName="space-y-3"
+      >
         <p className="text-xs text-text-2">
           <span className="font-mono text-text">{redaction.sessionsWithSecrets}</span> of{' '}
           <span className="font-mono text-text">{redaction.totalSessionsWithTranscript}</span>{' '}
@@ -243,68 +231,56 @@ export default async function OrgSecurityPage({
             historical transcripts are not backfilled.
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Class</th>
-                <th className="pb-2 font-medium text-right">Sessions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {redaction.classes.map((c) => (
-                <tr key={c.redactionClass}>
-                  <td className="py-2 text-text">
-                    {REDACTION_CLASS_LABELS[c.redactionClass] ?? c.redactionClass}
-                  </td>
-                  <td className="py-2 text-right font-mono text-crit">
-                    {c.sessionCount.toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table columns={[{ label: 'Class' }, { align: 'right', label: 'Sessions' }]}>
+            {redaction.classes.map((c) => (
+              <Row key={c.redactionClass}>
+                <Cell className="text-text">
+                  {REDACTION_CLASS_LABELS[c.redactionClass] ?? c.redactionClass}
+                </Cell>
+                <Cell num className="text-crit">
+                  {c.sessionCount.toLocaleString()}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         )}
-      </section>
+      </Card>
 
       {/* Large data movements */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <div>
-          <h2 className="font-display text-sm font-semibold text-text">Largest data movements</h2>
-          <p className="mt-0.5 text-xs text-text-3">
-            Biggest single tool outputs on network / MCP / file-read — the rows to eyeball first.
-            Sizes only; no content is stored.
-          </p>
-        </div>
+      <Card
+        title="Largest data movements"
+        caption="Biggest single tool outputs on network / MCP / file-read — the rows to eyeball first. Sizes only; no content is stored."
+        contentClassName="space-y-3"
+      >
         {largeOutputs.length === 0 ? (
           <p className="text-sm text-text-3">No sized tool outputs in this window.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">When</th>
-                <th className="pb-2 font-medium">Tool</th>
-                <th className="pb-2 font-medium">Repo</th>
-                <th className="pb-2 font-medium text-right">Output</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {largeOutputs.map((r, i) => (
-                <tr key={`${r.sessionId}-${i}`}>
-                  <td className="py-2 text-xs text-text-2">
-                    {r.ts.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
-                  </td>
-                  <td className="py-2 text-xs">
-                    <span className="font-mono text-text">{r.toolName ?? '—'}</span>
-                    {r.category && <span className="ml-1.5 text-text-3">{r.category}</span>}
-                  </td>
-                  <td className="py-2 font-mono text-xs text-text-2">{r.repoName ?? '—'}</td>
-                  <td className="py-2 text-right font-mono text-warn">{fmtBytes(r.outputBytes)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'When' },
+              { label: 'Tool' },
+              { label: 'Repo' },
+              { align: 'right', label: 'Output' },
+            ]}
+          >
+            {largeOutputs.map((r, i) => (
+              <Row key={`${r.sessionId}-${i}`}>
+                <Cell className="text-xs text-text-2">
+                  {r.ts.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+                </Cell>
+                <Cell className="text-xs">
+                  <span className="font-mono text-text">{r.toolName ?? '—'}</span>
+                  {r.category && <span className="ml-1.5 text-text-3">{r.category}</span>}
+                </Cell>
+                <Cell className="text-xs text-text-2">{r.repoName ?? '—'}</Cell>
+                <Cell num className="text-warn">
+                  {fmtBytes(r.outputBytes)}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         )}
-      </section>
+      </Card>
 
       <p className="text-xs text-text-3 text-center pt-2">
         Aggregate and visibility-scoped: only developers who share metadata with the org contribute,
@@ -318,43 +294,44 @@ export default async function OrgSecurityPage({
 function CategoryTable({ rows }: { rows: CategoryExposureRow[] }) {
   const maxCalls = Math.max(...rows.map((r) => r.totalCalls), 1);
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-text-3 text-left">
-          <th className="pb-2 font-medium">Category</th>
-          <th className="pb-2 font-medium">Risk</th>
-          <th className="pb-2 font-medium">Volume</th>
-          <th className="pb-2 font-medium text-right">Calls</th>
-          <th className="pb-2 font-medium text-right">Users</th>
-          <th className="pb-2 font-medium text-right">Repos</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-border-subtle">
-        {rows.map((r) => {
-          const meta = CATEGORY_META[r.category] ?? { label: r.category, risk: 'low' as const };
-          return (
-            <tr key={r.category}>
-              <td className="py-2 text-text">{meta.label}</td>
-              <td className="py-2">
-                <Badge tone={RISK_TONE[meta.risk] ?? 'neutral'}>{meta.risk}</Badge>
-              </td>
-              <td className="py-2 pr-4 w-1/3">
-                <div className="h-1.5 rounded-full bg-surface-2">
-                  <div
-                    className={`h-full rounded-full ${meta.risk === 'high' ? 'bg-crit/60' : 'bg-accent/50'}`}
-                    style={{ width: `${(r.totalCalls / maxCalls) * 100}%` }}
-                  />
-                </div>
-              </td>
-              <td className="py-2 text-right font-mono text-text-2">
-                {r.totalCalls.toLocaleString()}
-              </td>
-              <td className="py-2 text-right text-text-2">{r.distinctUsers}</td>
-              <td className="py-2 text-right text-text-2">{r.distinctRepos}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <Table
+      columns={[
+        { label: 'Category' },
+        { label: 'Risk' },
+        { label: 'Volume' },
+        { align: 'right', label: 'Calls' },
+        { align: 'right', label: 'Users' },
+        { align: 'right', label: 'Repos' },
+      ]}
+    >
+      {rows.map((r) => {
+        const meta = CATEGORY_META[r.category] ?? { label: r.category, risk: 'low' as const };
+        return (
+          <Row key={r.category}>
+            <Cell className="text-text">{meta.label}</Cell>
+            <Cell>
+              <Badge tone={RISK_TONE[meta.risk] ?? 'neutral'}>{meta.risk}</Badge>
+            </Cell>
+            <Cell className="w-1/3">
+              <div className="h-1.5 rounded-full bg-surface-2">
+                <div
+                  className={`h-full rounded-full ${meta.risk === 'high' ? 'bg-crit/60' : 'bg-accent-muted'}`}
+                  style={{ width: `${(r.totalCalls / maxCalls) * 100}%` }}
+                />
+              </div>
+            </Cell>
+            <Cell num className="text-text-2">
+              {r.totalCalls.toLocaleString()}
+            </Cell>
+            <Cell num className="text-text-2">
+              {r.distinctUsers}
+            </Cell>
+            <Cell num className="text-text-2">
+              {r.distinctRepos}
+            </Cell>
+          </Row>
+        );
+      })}
+    </Table>
   );
 }

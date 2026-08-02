@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, Stat } from '@/components/ui';
+import { Card, Cell, Row, Stat, Table } from '@/components/ui';
 import {
   getActiveUsersTrend,
   getAdoptionByTeam,
@@ -75,7 +75,7 @@ export default async function OrgAdoptionPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Session frequency distribution */}
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card contentClassName="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">
             Session frequency ({range}d)
           </h2>
@@ -99,7 +99,7 @@ export default async function OrgAdoptionPage({
                     </div>
                     <div className="h-2 rounded-full bg-surface-2">
                       <div
-                        className={`h-full rounded-full ${b.bucket === 'Inactive' ? 'bg-surface-3' : 'bg-accent/70'}`}
+                        className={`h-full rounded-full ${b.bucket === 'Inactive' ? 'bg-surface-3' : 'bg-accent-muted'}`}
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>
@@ -108,10 +108,10 @@ export default async function OrgAdoptionPage({
               })}
             </div>
           )}
-        </section>
+        </Card>
 
         {/* Adoption by team */}
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card contentClassName="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">
             Team adoption rate ({range}d)
           </h2>
@@ -121,38 +121,39 @@ export default async function OrgAdoptionPage({
           {adoptionByTeam.length === 0 ? (
             <p className="text-sm text-text-3">No team data available.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-text-3 text-left">
-                  <th className="pb-2 font-medium">Team</th>
-                  <th className="pb-2 font-medium text-right">Active</th>
-                  <th className="pb-2 font-medium text-right">Total</th>
-                  <th className="pb-2 font-medium text-right">Rate</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {adoptionByTeam.map((t) => (
-                  <tr key={t.teamSlug}>
-                    <td className="py-2">
-                      {isAdmin ? (
-                        <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
-                          {t.teamName}
-                        </a>
-                      ) : (
-                        t.teamName
-                      )}
-                    </td>
-                    <td className="py-2 text-right text-text-2">{t.activeUsers}</td>
-                    <td className="py-2 text-right text-text-2">{t.totalMembers}</td>
-                    <td className="py-2 text-right">
-                      <AdoptionBadge rate={t.adoptionRate} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Table
+              columns={[
+                { label: 'Team' },
+                { align: 'right', label: 'Active' },
+                { align: 'right', label: 'Total' },
+                { align: 'right', label: 'Rate' },
+              ]}
+            >
+              {adoptionByTeam.map((t) => (
+                <Row key={t.teamSlug}>
+                  <Cell>
+                    {isAdmin ? (
+                      <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
+                        {t.teamName}
+                      </a>
+                    ) : (
+                      t.teamName
+                    )}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {t.activeUsers}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {t.totalMembers}
+                  </Cell>
+                  <Cell num>
+                    <AdoptionBadge rate={t.adoptionRate} />
+                  </Cell>
+                </Row>
+              ))}
+            </Table>
           )}
-        </section>
+        </Card>
       </div>
 
       <p className="text-xs text-text-3 text-center pt-2">
@@ -176,7 +177,7 @@ function ActiveUsersBars({ trend }: { trend: { activeUsers: number; day: Date }[
           <div key={t.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
             <span className="text-[10px] text-text-3">{t.activeUsers}</span>
             <div
-              className="w-full rounded-t bg-accent/70 min-h-1"
+              className="w-full rounded-t bg-accent-muted min-h-1"
               style={{ height: `${height}px` }}
               title={`${label}: ${t.activeUsers} active users`}
             />

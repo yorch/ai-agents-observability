@@ -387,3 +387,34 @@ export function MoonIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Head and shoulders — the account profile. */
+export function UserIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="5.3" r="2.7" />
+      <path d="M2.6 13.7c0-3 2.4-5 5.4-5s5.4 2 5.4 5" />
+    </Icon>
+  );
+}
+
+/** Padlock — privacy settings. */
+export function LockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3.2" y="6.8" width="9.6" height="7" rx="1.6" />
+      <path d="M5.4 6.8V4.7a2.6 2.6 0 0 1 5.2 0v2.1" />
+      <path d="M8 9.6v1.6" />
+    </Icon>
+  );
+}
+
+/** Ruled page — the audit log. */
+export function LogIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="1.6" />
+      <path d="M5.2 5.8h5.6M5.2 8h5.6M5.2 10.2h3.4" />
+    </Icon>
+  );
+}

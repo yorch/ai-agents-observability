@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeftIcon, CheckIcon } from '@/components/icons';
+import { Card, Cell, Row, Table } from '@/components/ui';
 
 export default function InstallPage() {
   const targets = [
@@ -33,7 +34,7 @@ export default function InstallPage() {
       {/* Step 1 — Download */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent border border-accent/30">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             1
           </span>
           <h2 className="text-base font-medium">Download the binary</h2>
@@ -53,22 +54,14 @@ export default function InstallPage() {
         </p>
 
         <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs text-text-3">
-                <th className="text-left px-4 py-2">Platform</th>
-                <th className="text-left px-4 py-2">Binary name</th>
-              </tr>
-            </thead>
-            <tbody>
-              {targets.map((t) => (
-                <tr key={t.binary} className="border-b border-border-subtle last:border-0">
-                  <td className="px-4 py-2.5 text-text-2">{t.os}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-text-2">{t.binary}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table columns={[{ label: 'Platform' }, { label: 'Binary name' }]}>
+            {targets.map((t) => (
+              <Row key={t.binary}>
+                <Cell className="text-text-2">{t.os}</Cell>
+                <Cell className="text-xs text-text-2">{t.binary}</Cell>
+              </Row>
+            ))}
+          </Table>
         </div>
 
         <p className="text-sm text-text-2">Then make it executable:</p>
@@ -81,7 +74,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
       {/* Step 2 — Install hooks */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent border border-accent/30">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             2
           </span>
           <h2 className="text-base font-medium">Install Claude Code hooks</h2>
@@ -99,7 +92,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
       {/* Step 3 — Log in */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent border border-accent/30">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             3
           </span>
           <h2 className="text-base font-medium">Authenticate</h2>
@@ -135,7 +128,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
       </section>
 
       {/* Pause / uninstall */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="text-sm font-medium text-text-2">Other commands</h2>
         <div className="space-y-2 text-sm">
           <div>
@@ -158,7 +151,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
           </Link>{' '}
           page.
         </p>
-      </section>
+      </Card>
     </div>
   );
 }

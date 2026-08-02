@@ -1,4 +1,4 @@
-import { Card, Cell, foldToSeries, Legend, Row, seriesBg, Table } from '@/components/ui';
+import { Card, Cell, foldToSeries, Legend, Row, ShareBar, seriesBg, Table } from '@/components/ui';
 
 type ModelEntry = { costUsd: number; model: string; sessionCount: number; turns: number };
 
@@ -30,16 +30,15 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
       {/* Segmented bar, proportional to turns. Models are separate entities, so
           they take the series palette — the accent shaded three ways could not
           tell them apart. A hairline gap keeps adjacent segments distinct. */}
-      <div className="flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-surface-2">
-        {shown.map((m, i) => (
-          <span
-            key={m.model}
-            className={seriesBg(i)}
-            style={{ width: `${(m.turns / totalTurns) * 100}%` }}
-            title={`${m.model}: ${m.turns.toLocaleString()} turns`}
-          />
-        ))}
-      </div>
+      <ShareBar
+        total={totalTurns}
+        segments={shown.map((m, i) => ({
+          className: seriesBg(i),
+          key: m.model,
+          title: `${m.model}: ${m.turns.toLocaleString()} turns`,
+          value: m.turns,
+        }))}
+      />
       <Legend items={shown.map((m, index) => ({ index, label: m.model }))} />
 
       <div className="mt-4">

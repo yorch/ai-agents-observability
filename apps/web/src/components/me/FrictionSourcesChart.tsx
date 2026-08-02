@@ -1,4 +1,5 @@
 import { SparkleIcon } from '@/components/icons';
+import { Card } from '@/components/ui';
 import type { FrictionSources } from '@/lib/effectiveness-queries';
 
 // Order, label, color, and one-line meaning for each friction driver. The keys
@@ -30,7 +31,7 @@ export function FrictionSourcesChart({
   const total = DRIVERS.reduce((sum, d) => sum + sources[d.key], 0);
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <Card>
       <h2 className="mb-1 text-xs font-semibold uppercase tracking-widest text-text-3">
         Friction sources
       </h2>
@@ -74,6 +75,6 @@ export function FrictionSourcesChart({
           </ul>
         </>
       )}
-    </div>
+    </Card>
   );
 }

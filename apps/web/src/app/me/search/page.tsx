@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
+import { Button, Card, Input } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { MIN_QUERY_LENGTH, searchOwnTranscripts } from '@/lib/search-queries';
 
@@ -37,20 +38,15 @@ export default async function MeSearchPage({
       </div>
 
       <form method="GET" className="flex gap-3">
-        <input
+        <Input
           type="text"
           name="q"
           defaultValue={rawQuery}
           placeholder="Search your transcripts…"
           aria-label="Search your transcripts"
-          className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+          className="flex-1"
         />
-        <button
-          type="submit"
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
-        >
-          Search
-        </button>
+        <Button type="submit">Search</Button>
       </form>
 
       {!query && <p className="text-sm text-text-3">Enter a term to search your transcripts.</p>}
@@ -95,10 +91,7 @@ export default async function MeSearchPage({
           ) : (
             <div className="space-y-3">
               {results.sessions.map((s) => (
-                <div
-                  key={s.sessionId}
-                  className="rounded-lg border border-border bg-surface p-4 space-y-2"
-                >
+                <Card key={s.sessionId} contentClassName="space-y-2">
                   <div className="flex items-center gap-2 text-xs text-text-3">
                     <span className="text-text-2">{s.repoName ?? 'Unknown repo'}</span>
                     <span>·</span>
@@ -122,7 +115,7 @@ export default async function MeSearchPage({
                       />
                     ))}
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           )}

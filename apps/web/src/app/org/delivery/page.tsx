@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, Stat } from '@/components/ui';
+import { Card, Cell, Row, Stat, Table } from '@/components/ui';
 import {
   getOrgCheckHealth,
   getOrgPRDeliveryStats,
@@ -110,7 +110,7 @@ export default async function OrgDeliveryPage({
                 <div key={w.week.toISOString()} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-[10px] text-text-3">{w.mergedPRs}</span>
                   <div
-                    className="w-full rounded-t bg-accent/70 min-h-1"
+                    className="w-full rounded-t bg-accent-muted min-h-1"
                     style={{ height: `${height}px` }}
                     title={`${label}: ${w.mergedPRs} PRs · $${w.totalCostUsd.toFixed(2)} total`}
                   />
@@ -123,7 +123,7 @@ export default async function OrgDeliveryPage({
       )}
 
       {/* Review health */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Review health ({range}d)</h2>
         {reviews.reviewedPrs === 0 ? (
           <p className="text-sm text-text-3">
@@ -149,10 +149,10 @@ export default async function OrgDeliveryPage({
             />
           </div>
         )}
-      </section>
+      </Card>
 
       {/* CI check health */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Failing CI checks ({range}d)
         </h2>
@@ -162,75 +162,74 @@ export default async function OrgDeliveryPage({
             webhook.
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Check</th>
-                <th className="pb-2 font-medium text-right">Runs</th>
-                <th className="pb-2 font-medium text-right">Failures</th>
-                <th className="pb-2 font-medium text-right">Failure rate</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {checkHealth.map((c) => (
-                <tr key={c.checkName}>
-                  <td className="py-2 font-mono text-xs text-text">{c.checkName}</td>
-                  <td className="py-2 text-right text-text-2">{c.totalRuns}</td>
-                  <td className="py-2 text-right text-text-2">{c.failures}</td>
-                  <td
-                    className={`py-2 text-right font-mono ${
-                      c.failureRate > 0.3 ? 'text-warn' : 'text-text-2'
-                    }`}
-                  >
-                    {(c.failureRate * 100).toFixed(0)}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Check' },
+              { align: 'right', label: 'Runs' },
+              { align: 'right', label: 'Failures' },
+              { align: 'right', label: 'Failure rate' },
+            ]}
+          >
+            {checkHealth.map((c) => (
+              <Row key={c.checkName}>
+                <Cell className="text-xs text-text">{c.checkName}</Cell>
+                <Cell num className="text-text-2">
+                  {c.totalRuns}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {c.failures}
+                </Cell>
+                <Cell
+                  num
+                  className={`py-2 text-right font-mono ${
+                    c.failureRate > 0.3 ? 'text-warn' : 'text-text-2'
+                  }`}
+                >
+                  {(c.failureRate * 100).toFixed(0)}%
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         )}
         <p className="text-xs text-text-3">
           Checks that fail often on agent-linked PRs are either guarding real quality issues or
           flaky — both worth investigating.
         </p>
-      </section>
+      </Card>
 
       {/* Top repos by PR activity */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Top repos by merged PRs ({range}d)
         </h2>
         {topRepos.length === 0 ? (
           <p className="text-sm text-text-3">No merged PR data available.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Repo</th>
-                <th className="pb-2 font-medium text-right">Merged PRs</th>
-                <th className="pb-2 font-medium text-right">Median TTM</th>
-                <th className="pb-2 font-medium text-right">Avg cost / PR</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {topRepos.map((r) => (
-                <tr key={`${r.repoOwner}/${r.repoName}`}>
-                  <td className="py-2 font-mono text-xs text-text">
-                    {r.repoOwner}/{r.repoName}
-                  </td>
-                  <td className="py-2 text-right text-text-2">{r.mergedPRs}</td>
-                  <td className="py-2 text-right text-text-2">
-                    {fmtHours(r.medianTimeToMergeHours)}
-                  </td>
-                  <td className="py-2 text-right font-mono">
-                    {r.avgCostUsd > 0 ? `$${r.avgCostUsd.toFixed(2)}` : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Repo' },
+              { align: 'right', label: 'Merged PRs' },
+              { align: 'right', label: 'Median TTM' },
+              { align: 'right', label: 'Avg cost / PR' },
+            ]}
+          >
+            {topRepos.map((r) => (
+              <Row key={`${r.repoOwner}/${r.repoName}`}>
+                <Cell className="text-xs text-text">
+                  {r.repoOwner}/{r.repoName}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {r.mergedPRs}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {fmtHours(r.medianTimeToMergeHours)}
+                </Cell>
+                <Cell num>{r.avgCostUsd > 0 ? `$${r.avgCostUsd.toFixed(2)}` : '—'}</Cell>
+              </Row>
+            ))}
+          </Table>
         )}
-      </section>
+      </Card>
 
       <p className="text-xs text-text-3 text-center pt-2">
         PR cost reflects sessions from users who share metadata with the org. TTM = time from PR

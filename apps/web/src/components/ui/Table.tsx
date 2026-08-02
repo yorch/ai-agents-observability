@@ -49,14 +49,21 @@ export function Row({ children }: { children: ReactNode }) {
 export function Cell({
   children,
   className,
+  colSpan,
   num,
 }: {
-  children: ReactNode;
+  /** May be empty — a spacer or action column that renders nothing on a row. */
+  children?: ReactNode;
   className?: string;
+  /** Span several columns — an empty-state row, or a spanning sub-header. */
+  colSpan?: number;
   num?: boolean;
 }) {
   return (
-    <td className={`py-2${num ? ' text-right font-mono' : ''}${className ? ` ${className}` : ''}`}>
+    <td
+      colSpan={colSpan}
+      className={`py-2${num ? ' text-right font-mono' : ''}${className ? ` ${className}` : ''}`}
+    >
       {children}
     </td>
   );

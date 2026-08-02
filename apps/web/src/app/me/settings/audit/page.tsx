@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { AuditTable } from '@/components/me/AuditTable';
+import { Button, ButtonLink } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getAuditLog } from '@/lib/me-queries';
 import { daysAgo } from '@/lib/time';
@@ -84,19 +85,13 @@ export default async function SettingsAuditPage({
             </option>
           ))}
         </select>
-        <button
-          type="submit"
-          className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2 transition-colors"
-        >
+        <Button variant="secondary" type="submit">
           Filter
-        </button>
+        </Button>
         {(actionFilter || daysFilter) && (
-          <a
-            href="/me/settings/audit"
-            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2 transition-colors text-text-2"
-          >
+          <ButtonLink variant="secondary" href="/me/settings/audit">
             Clear
-          </a>
+          </ButtonLink>
         )}
       </form>
 

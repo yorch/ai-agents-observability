@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
+import { EmptyState } from '@/components/ui';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
 import { getSession } from '@/lib/sessions-queries';
@@ -40,11 +41,7 @@ export default async function TeamMemberTranscriptPage({
             <ArrowLeftIcon /> Session
           </Link>
         </div>
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
-          <p className="text-sm text-text-2">
-            This member has not shared transcripts with the team.
-          </p>
-        </div>
+        <EmptyState>This member has not shared transcripts with the team.</EmptyState>
       </div>
     );
   }

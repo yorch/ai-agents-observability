@@ -1,7 +1,10 @@
 'use client';
-import { useState, useTransition } from 'react';
 
+import { useState, useTransition } from 'react';
 import { saveProfile } from '@/app/me/settings/profile/actions';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Field, Input } from '@/components/ui/Field';
 
 type Props = {
   initialDisplayName: string | null;
@@ -32,7 +35,7 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-4">
+    <Card contentClassName="space-y-4">
       {githubLogin && (
         <div className="space-y-1">
           <p className="block text-xs font-medium text-text-2">GitHub login</p>
@@ -41,11 +44,8 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
         </div>
       )}
 
-      <div className="space-y-1">
-        <label htmlFor="displayName" className="block text-xs font-medium text-text-2">
-          Display name
-        </label>
-        <input
+      <Field label="Display name" htmlFor="displayName">
+        <Input
           id="displayName"
           type="text"
           value={displayName}
@@ -55,15 +55,15 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
           }}
           maxLength={120}
           placeholder="Your name"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
-      </div>
+      </Field>
 
-      <div className="space-y-1">
-        <label htmlFor="email" className="block text-xs font-medium text-text-2">
-          Email address
-        </label>
-        <input
+      <Field
+        label="Email address"
+        htmlFor="email"
+        hint="Overrides the email synced from GitHub. Leave blank to use your GitHub email."
+      >
+        <Input
           id="email"
           type="email"
           value={email}
@@ -72,28 +72,19 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
             setStatus(null);
           }}
           placeholder="you@example.com"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
-        <p className="text-xs text-text-3">
-          Overrides the email synced from GitHub. Leave blank to use your GitHub email.
-        </p>
-      </div>
+      </Field>
 
       <div className="flex items-center gap-3 pt-1">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isPending}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90 transition-colors disabled:opacity-50"
-        >
+        <Button onClick={handleSave} disabled={isPending}>
           {isPending ? 'Saving…' : 'Save profile'}
-        </button>
+        </Button>
         {status && (
           <span className={`text-sm ${status.ok ? 'text-good' : 'text-crit'}`}>
             {status.message}
           </span>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

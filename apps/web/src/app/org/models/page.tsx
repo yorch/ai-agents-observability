@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
-import { EmptyState, Stat } from '@/components/ui';
+import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
 import type { OrgModelDetailRow, OrgModelRoutingRow } from '@/lib/org-queries';
 import {
   getOrgModelDetail,
@@ -210,61 +210,56 @@ export default async function OrgModelsPage({
             <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
               Spend by model
             </h2>
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border text-left text-text-3">
-                    <th className="px-4 py-3 font-medium">Model</th>
-                    <th className="px-4 py-3 font-medium">Tier</th>
-                    <th className="px-4 py-3 text-right font-medium">Sessions</th>
-                    <th className="px-4 py-3 text-right font-medium">Cost</th>
-                    <th className="px-4 py-3 text-right font-medium">Cost %</th>
-                    <th className="px-4 py-3 text-right font-medium">Cache hit</th>
-                    <th className="px-4 py-3 text-right font-medium">Input tokens</th>
-                    <th className="px-4 py-3 text-right font-medium">Cache read</th>
-                    <th className="px-4 py-3 text-right font-medium">Output tokens</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {models.map((m) => {
-                    const tier = modelTier(m.model);
-                    const costPct = totalCostUsd > 0 ? (m.totalCostUsd / totalCostUsd) * 100 : 0;
-                    return (
-                      <tr
-                        key={m.model}
-                        className="border-b border-border-subtle hover:bg-surface-2 transition-colors"
-                      >
-                        <td className="px-4 py-3 font-mono text-text">{m.model}</td>
-                        <td className="px-4 py-3">
-                          <TierBadge tier={tier} />
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-text-2">
-                          {m.sessionCount.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-text font-medium">
-                          ${m.totalCostUsd.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-text-2">{costPct.toFixed(1)}%</td>
-                        <td
-                          className={`px-4 py-3 text-right font-mono font-medium ${cacheEfficiencyClass(m.cacheEfficiency)}`}
-                        >
-                          {(m.cacheEfficiency * 100).toFixed(1)}%
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-text-2">
-                          {fmtTokens(m.inputTokens)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-text-2">
-                          {fmtTokens(m.cacheReadTokens)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-text-2">
-                          {fmtTokens(m.outputTokens)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <Table
+              columns={[
+                { label: 'Model' },
+                { label: 'Tier' },
+                { align: 'right', label: 'Sessions' },
+                { align: 'right', label: 'Cost' },
+                { align: 'right', label: 'Cost %' },
+                { align: 'right', label: 'Cache hit' },
+                { align: 'right', label: 'Input tokens' },
+                { align: 'right', label: 'Cache read' },
+                { align: 'right', label: 'Output tokens' },
+              ]}
+            >
+              {models.map((m) => {
+                const tier = modelTier(m.model);
+                const costPct = totalCostUsd > 0 ? (m.totalCostUsd / totalCostUsd) * 100 : 0;
+                return (
+                  <Row key={m.model}>
+                    <Cell className="text-text">{m.model}</Cell>
+                    <Cell>
+                      <TierBadge tier={tier} />
+                    </Cell>
+                    <Cell num className="text-text-2">
+                      {m.sessionCount.toLocaleString()}
+                    </Cell>
+                    <Cell num className="text-text">
+                      ${m.totalCostUsd.toFixed(2)}
+                    </Cell>
+                    <Cell num className="text-text-2">
+                      {costPct.toFixed(1)}%
+                    </Cell>
+                    <Cell
+                      num
+                      className={`px-4 py-3 text-right font-mono font-medium ${cacheEfficiencyClass(m.cacheEfficiency)}`}
+                    >
+                      {(m.cacheEfficiency * 100).toFixed(1)}%
+                    </Cell>
+                    <Cell num className="text-text-2">
+                      {fmtTokens(m.inputTokens)}
+                    </Cell>
+                    <Cell num className="text-text-2">
+                      {fmtTokens(m.cacheReadTokens)}
+                    </Cell>
+                    <Cell num className="text-text-2">
+                      {fmtTokens(m.outputTokens)}
+                    </Cell>
+                  </Row>
+                );
+              })}
+            </Table>
           </div>
 
           {/* Cache guidance */}

@@ -1,6 +1,6 @@
 import { TriangleDownIcon, TriangleUpIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card } from '@/components/ui';
+import { Card, Cell, Row, Table } from '@/components/ui';
 import { getTeamBenchmarks } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -109,80 +109,78 @@ export default async function OrgBenchmarksPage({
           </p>
         </Card>
       ) : (
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <h2 className="font-display text-sm font-semibold text-text">Team comparison</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-text-3 text-left">
-                  <th className="pb-2 pr-4 font-medium">Team</th>
-                  <th className="pb-2 font-medium text-right">Sessions</th>
-                  <th className="pb-2 font-medium text-right">Users</th>
-                  <th className="pb-2 font-medium text-right">Sess/user/wk</th>
-                  <th className="pb-2 font-medium text-right">Cost/session</th>
-                  <th className="pb-2 font-medium text-right">Friction p50</th>
-                  <th className="pb-2 font-medium text-right">Tool success</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {teams.map((t) => (
-                  <tr key={t.teamSlug}>
-                    <td className="py-2 pr-4">
-                      {isAdmin ? (
-                        <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
-                          {t.teamName}
-                        </a>
-                      ) : (
-                        t.teamName
-                      )}
-                    </td>
-                    <td className="py-2 text-right text-text-2">{t.sessionCount}</td>
-                    <td className="py-2 text-right text-text-2">{t.userCount}</td>
-                    <td className="py-2 text-right">
-                      <DeltaBadge
-                        label={t.sessionsPerUserPerWeek.toFixed(1)}
-                        median={medians.sessionsPerUserPerWeek}
-                        value={t.sessionsPerUserPerWeek}
-                        lowerIsBetter={false}
-                      />
-                    </td>
-                    <td className="py-2 text-right">
-                      <DeltaBadge
-                        label={`$${t.avgCostPerSession.toFixed(3)}`}
-                        median={medians.avgCostPerSession}
-                        value={t.avgCostPerSession}
-                        lowerIsBetter={true}
-                      />
-                    </td>
-                    <td className="py-2 text-right">
-                      {t.frictionP50 != null ? (
-                        <DeltaBadge
-                          label={t.frictionP50.toFixed(2)}
-                          median={medians.frictionP50 ?? 0}
-                          value={t.frictionP50}
-                          lowerIsBetter={true}
-                        />
-                      ) : (
-                        <span className="text-text-3 text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="py-2 text-right">
-                      <DeltaBadge
-                        label={`${(t.toolSuccessRate * 100).toFixed(1)}%`}
-                        median={medians.toolSuccessRate}
-                        value={t.toolSuccessRate}
-                        lowerIsBetter={false}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <Card title="Team comparison" contentClassName="space-y-3">
+          <Table
+            columns={[
+              { label: 'Team' },
+              { align: 'right', label: 'Sessions' },
+              { align: 'right', label: 'Users' },
+              { align: 'right', label: 'Sess/user/wk' },
+              { align: 'right', label: 'Cost/session' },
+              { align: 'right', label: 'Friction p50' },
+              { align: 'right', label: 'Tool success' },
+            ]}
+          >
+            {teams.map((t) => (
+              <Row key={t.teamSlug}>
+                <Cell>
+                  {isAdmin ? (
+                    <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
+                      {t.teamName}
+                    </a>
+                  ) : (
+                    t.teamName
+                  )}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {t.sessionCount}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {t.userCount}
+                </Cell>
+                <Cell num>
+                  <DeltaBadge
+                    label={t.sessionsPerUserPerWeek.toFixed(1)}
+                    median={medians.sessionsPerUserPerWeek}
+                    value={t.sessionsPerUserPerWeek}
+                    lowerIsBetter={false}
+                  />
+                </Cell>
+                <Cell num>
+                  <DeltaBadge
+                    label={`$${t.avgCostPerSession.toFixed(3)}`}
+                    median={medians.avgCostPerSession}
+                    value={t.avgCostPerSession}
+                    lowerIsBetter={true}
+                  />
+                </Cell>
+                <Cell num>
+                  {t.frictionP50 != null ? (
+                    <DeltaBadge
+                      label={t.frictionP50.toFixed(2)}
+                      median={medians.frictionP50 ?? 0}
+                      value={t.frictionP50}
+                      lowerIsBetter={true}
+                    />
+                  ) : (
+                    <span className="text-text-3 text-xs">—</span>
+                  )}
+                </Cell>
+                <Cell num>
+                  <DeltaBadge
+                    label={`${(t.toolSuccessRate * 100).toFixed(1)}%`}
+                    median={medians.toolSuccessRate}
+                    value={t.toolSuccessRate}
+                    lowerIsBetter={false}
+                  />
+                </Cell>
+              </Row>
+            ))}
+          </Table>
+        </Card>
       )}
 
-      <div className="rounded-lg border border-border bg-surface p-4 space-y-2 text-xs text-text-3">
+      <Card className="text-xs text-text-3" contentClassName="space-y-2">
         <p className="font-semibold text-text-2">Metric definitions</p>
         <ul className="space-y-1 list-disc list-inside">
           <li>
@@ -207,7 +205,7 @@ export default async function OrgBenchmarksPage({
           Only teams with ≥5 sessions from org-sharing users in the last {weeks} weeks are shown.
           Benchmarks compare within the org, not against external baselines.
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

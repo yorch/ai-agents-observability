@@ -1,8 +1,10 @@
 'use client';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CaretRightIcon } from '@/components/icons';
 import { TranscriptStatsBar } from '@/components/me/TranscriptStatsBar';
 import { TranscriptTurnView } from '@/components/me/TranscriptTurnView';
+import { Segmented, SegmentedButton } from '@/components/ui/Segmented';
 import { computeStats, type ParsedLine, parseTranscriptLine } from '@/lib/transcript-parser';
 
 // ── Legacy types for raw mode rendering ──────────────────────────────────────
@@ -51,7 +53,7 @@ function TextBlockView({ block }: { block: TextBlock }) {
 function ToolUseBlockView({ block }: { block: ToolUseBlock }) {
   const inputJson = JSON.stringify(block.input, null, 2);
   return (
-    <details className="group rounded border border-accent/20 bg-accent/5 text-sm">
+    <details className="group rounded border border-accent-line bg-accent-dim text-sm">
       <summary className="cursor-pointer px-3 py-1.5 text-accent font-mono select-none list-none flex items-center gap-2">
         <CaretRightIcon
           size={10}
@@ -161,7 +163,7 @@ function RawLine({ line }: { line: RawLine }) {
         isUser
           ? 'bg-surface border border-border-subtle'
           : isAssistant
-            ? 'bg-accent/5 border border-accent/15'
+            ? 'bg-accent-dim border border-accent-line'
             : 'bg-surface border border-border-subtle'
       }`}
     >
@@ -374,33 +376,21 @@ export function TranscriptViewer({
             : `${modeFiltered.length} lines`}
           {loading ? ' · loading…' : ''}
         </span>
-        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              setViewMode('conversation');
-              setVisibleCount(WINDOW_STEP);
-            }}
-            className={`rounded px-2.5 py-1 text-xs transition-colors ${
-              viewMode === 'conversation'
-                ? 'bg-accent/20 text-accent'
-                : 'text-text-3 hover:text-text'
-            }`}
-          >
-            Conversation
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setViewMode('raw');
-              setVisibleCount(WINDOW_STEP);
-            }}
-            className={`rounded px-2.5 py-1 text-xs transition-colors ${
-              viewMode === 'raw' ? 'bg-accent/20 text-accent' : 'text-text-3 hover:text-text'
-            }`}
-          >
-            Raw
-          </button>
+        <div className="shrink-0">
+          <Segmented label="Transcript view">
+            {(['conversation', 'raw'] as const).map((mode) => (
+              <SegmentedButton
+                key={mode}
+                selected={viewMode === mode}
+                onClick={() => {
+                  setViewMode(mode);
+                  setVisibleCount(WINDOW_STEP);
+                }}
+              >
+                {mode === 'conversation' ? 'Conversation' : 'Raw'}
+              </SegmentedButton>
+            ))}
+          </Segmented>
         </div>
       </div>
 

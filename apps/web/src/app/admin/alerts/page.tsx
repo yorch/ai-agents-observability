@@ -2,6 +2,7 @@ import {
   BUDGET_THRESHOLD_WINDOW_DAYS,
   parseBudgetThresholdParams,
 } from '@ai-agents-observability/schemas';
+import { Button, Cell, Row, Select, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import {
@@ -75,44 +76,35 @@ export default async function AlertsAdminPage() {
                     {silenced ? (
                       <form action={unsilenceRule}>
                         <input type="hidden" name="id" value={r.id} />
-                        <button
-                          type="submit"
-                          className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-2"
-                        >
+                        <Button variant="secondary" size="sm" type="submit">
                           Unsilence
-                        </button>
+                        </Button>
                       </form>
                     ) : (
                       <form action={silenceRule} className="flex items-center gap-1">
                         <input type="hidden" name="id" value={r.id} />
-                        <select
+                        <Select
+                          size="sm"
                           name="hours"
                           defaultValue="4"
                           aria-label={`Silence ${r.name} for`}
-                          className="rounded-md border border-border bg-surface px-2 py-1 text-xs"
                         >
                           <option value="1">1h</option>
                           <option value="4">4h</option>
                           <option value="24">24h</option>
                           <option value="72">72h</option>
-                        </select>
-                        <button
-                          type="submit"
-                          className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-2"
-                        >
+                        </Select>
+                        <Button variant="secondary" size="sm" type="submit">
                           Silence
-                        </button>
+                        </Button>
                       </form>
                     )}
                     <form action={toggleRule}>
                       <input type="hidden" name="id" value={r.id} />
                       <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
-                      <button
-                        type="submit"
-                        className={`rounded-md px-3 py-1 text-xs ${r.enabled ? 'bg-accent/80 hover:opacity-90 text-bg' : 'border border-border hover:bg-surface-2'}`}
-                      >
+                      <Button type="submit" size="sm" variant={r.enabled ? 'primary' : 'secondary'}>
                         {r.enabled ? 'Enabled' : 'Disabled'}
-                      </button>
+                      </Button>
                     </form>
                   </div>
                 </div>
@@ -142,12 +134,9 @@ export default async function AlertsAdminPage() {
                         className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-sm"
                       />
                     </label>
-                    <button
-                      type="submit"
-                      className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-2"
-                    >
+                    <Button variant="secondary" size="sm" type="submit">
                       Save budget
-                    </button>
+                    </Button>
                     {budgetUsd === undefined && (
                       <span className="text-xs text-warn">Set a budget to activate this rule.</span>
                     )}
@@ -174,48 +163,34 @@ export default async function AlertsAdminPage() {
               <form action={toggleChannel}>
                 <input type="hidden" name="id" value={c.id} />
                 <input type="hidden" name="enabled" value={(!c.enabled).toString()} />
-                <button
-                  type="submit"
-                  className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-2"
-                >
+                <Button variant="secondary" size="sm" type="submit">
                   {c.enabled ? 'Disable' : 'Enable'}
-                </button>
+                </Button>
               </form>
               <form action={deleteChannel}>
                 <input type="hidden" name="id" value={c.id} />
-                <button
-                  type="submit"
-                  className="rounded-md border border-crit-line px-3 py-1 text-xs text-crit hover:bg-crit-soft"
-                >
+                <Button variant="danger" size="sm" type="submit">
                   Remove
-                </button>
+                </Button>
               </form>
             </div>
           </div>
         ))}
         <form action={addChannel} className="flex flex-wrap items-end gap-2 pt-2">
-          <select
-            name="channelType"
-            defaultValue="webhook"
-            aria-label="Channel type"
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
-          >
+          <Select size="sm" name="channelType" defaultValue="webhook" aria-label="Channel type">
             <option value="webhook">webhook</option>
             <option value="slack_webhook">slack_webhook</option>
             <option value="email">email</option>
-          </select>
+          </Select>
           <input
             name="target"
             placeholder="https://… or email@…"
             aria-label="Channel target"
             className="flex-1 min-w-64 rounded-md border border-border bg-surface px-3 py-1 text-sm"
           />
-          <button
-            type="submit"
-            className="rounded-md bg-accent px-3 py-1 text-sm font-medium text-bg hover:opacity-90"
-          >
+          <Button size="sm" type="submit">
             Add channel
-          </button>
+          </Button>
         </form>
       </section>
 
@@ -237,46 +212,40 @@ export default async function AlertsAdminPage() {
         {history.length === 0 ? (
           <p className="text-sm text-text-3">No alerts have fired.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-text-3 border-b border-border">
-                <th className="pb-2 font-medium">Rule</th>
-                <th className="pb-2 font-medium">Severity</th>
-                <th className="pb-2 font-medium">Fired</th>
-                <th className="pb-2 font-medium">Resolved</th>
-                <th className="pb-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {history.map((e) => (
-                <tr key={e.id.toString()}>
-                  <td className="py-2">{e.rule.name}</td>
-                  <td className="py-2">{e.severity}</td>
-                  <td className="py-2 text-text-2">{new Date(e.firedAt).toLocaleString()}</td>
-                  <td className="py-2 text-text-2">
-                    {e.resolvedAt ? new Date(e.resolvedAt).toLocaleString() : '—'}
-                  </td>
-                  <td className="py-2">
-                    {e.acknowledgedAt ? (
-                      <span className="text-text-3">acknowledged</span>
-                    ) : e.resolvedAt ? (
-                      <span className="text-text-3">—</span>
-                    ) : (
-                      <form action={acknowledgeAlert}>
-                        <input type="hidden" name="id" value={e.id.toString()} />
-                        <button
-                          type="submit"
-                          className="rounded-md border border-border px-3 py-1 text-xs hover:bg-surface-2"
-                        >
-                          Acknowledge
-                        </button>
-                      </form>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Rule' },
+              { label: 'Severity' },
+              { label: 'Fired' },
+              { label: 'Resolved' },
+              { label: 'Status' },
+            ]}
+          >
+            {history.map((e) => (
+              <Row key={e.id.toString()}>
+                <Cell>{e.rule.name}</Cell>
+                <Cell>{e.severity}</Cell>
+                <Cell className="text-text-2">{new Date(e.firedAt).toLocaleString()}</Cell>
+                <Cell className="text-text-2">
+                  {e.resolvedAt ? new Date(e.resolvedAt).toLocaleString() : '—'}
+                </Cell>
+                <Cell>
+                  {e.acknowledgedAt ? (
+                    <span className="text-text-3">acknowledged</span>
+                  ) : e.resolvedAt ? (
+                    <span className="text-text-3">—</span>
+                  ) : (
+                    <form action={acknowledgeAlert}>
+                      <input type="hidden" name="id" value={e.id.toString()} />
+                      <Button variant="secondary" size="sm" type="submit">
+                        Acknowledge
+                      </Button>
+                    </form>
+                  )}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         )}
       </section>
     </div>

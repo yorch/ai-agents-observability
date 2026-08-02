@@ -1,3 +1,4 @@
+import { Card } from '@/components/ui';
 import { fmtUsd } from '@/lib/fmt';
 import type { RoutingRecommendation } from '@/lib/routing-queries';
 
@@ -26,10 +27,10 @@ export function RoutingRecommendations({
       </h2>
 
       {recommendations.length === 0 ? (
-        <p className="rounded-lg border border-border bg-surface p-4 text-xs text-text-2">
+        <Card className="text-xs text-text-2">
           No premium-model spend on retrieval-only tool categories in this window — routing already
           looks efficient.
-        </p>
+        </Card>
       ) : (
         <div className="space-y-3">
           <p className="text-xs text-text-2">
@@ -41,10 +42,7 @@ export function RoutingRecommendations({
           </p>
 
           {recommendations.map((rec) => (
-            <div
-              key={rec.model}
-              className="flex flex-wrap items-start gap-4 rounded-lg border border-border bg-surface p-4"
-            >
+            <Card key={rec.model} className="flex flex-wrap items-start gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-text">
                   <span className="font-mono text-warn">{rec.model}</span>
@@ -69,7 +67,7 @@ export function RoutingRecommendations({
                   ~{Math.round(rec.savingsRatio * 100)}% cheaper if routed to Haiku
                 </p>
               </div>
-            </div>
+            </Card>
           ))}
 
           <p className="text-[11px] text-text-3">

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { TONE_TEXT } from '@/components/ui';
+import { Card, TONE_TEXT } from '@/components/ui';
 import { frictionBadge } from '@/lib/effectiveness';
 import type { SessionDetail, SessionEvent } from '@/lib/sessions-queries';
 import { ShapeBadge } from './shape';
@@ -77,7 +77,7 @@ function describeEvent(ev: SessionEvent): {
       ? 'bg-crit'
       : ev.eventType === 'PostToolUse'
         ? 'bg-good/60'
-        : 'bg-accent/60';
+        : 'bg-accent-muted';
     const sublabel = denied ? 'denied' : ev.mcpServer ? `via ${ev.mcpServer}` : undefined;
     return { color, label, sublabel };
   }
@@ -121,7 +121,7 @@ export function Timeline({
   return (
     <div className="space-y-6">
       {/* Summary stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 rounded-lg border border-border bg-surface p-4">
+      <Card className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Stat label="Duration" value={formatDuration(session.durationSeconds)} />
         <Stat label="Tool calls" value={session.toolCallCount} />
         <Stat label="Tool errors" value={session.toolErrorCount} />
@@ -174,7 +174,7 @@ export function Timeline({
           }
         />
         <Stat label="Shape" value={<ShapeBadge label={session.shapeLabel} />} />
-      </div>
+      </Card>
 
       {/* Per-event timeline */}
       {events.length > 0 ? (
@@ -215,7 +215,7 @@ export function Timeline({
           <div className="space-y-4">
             {milestones.map((event, i) => (
               <div key={i} className="flex gap-4 pl-8 relative">
-                <div className="absolute left-0 top-1.5 h-5 w-5 rounded-full bg-accent/15 border border-accent/40 flex items-center justify-center">
+                <div className="absolute left-0 top-1.5 h-5 w-5 rounded-full bg-accent-soft border border-accent-line flex items-center justify-center">
                   <div className="h-2 w-2 rounded-full bg-accent" />
                 </div>
                 <div>

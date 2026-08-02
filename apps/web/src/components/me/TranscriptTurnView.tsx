@@ -31,7 +31,7 @@ function getInputPreview(input: unknown): string {
 function ToolUseView({ block }: { block: ToolUseBlock }) {
   const preview = getInputPreview(block.input);
   return (
-    <details open className="group rounded border border-accent/20 bg-accent/5 text-sm">
+    <details open className="group rounded border border-accent-line bg-accent-dim text-sm">
       <summary className="cursor-pointer px-3 py-1.5 select-none list-none flex items-center gap-2 min-w-0">
         <CaretRightIcon
           size={10}
@@ -83,7 +83,7 @@ function AssistantBlocks({ blocks }: { blocks: ContentBlock[] }) {
             return null;
           }
           return (
-            <div key={i} className="rounded px-3 py-2 bg-accent/5 border border-accent/15">
+            <div key={i} className="rounded px-3 py-2 bg-accent-dim border border-accent-line">
               <p className="text-sm text-text-2 whitespace-pre-wrap">{text}</p>
             </div>
           );

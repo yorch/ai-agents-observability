@@ -1,4 +1,5 @@
 import { OrgRole } from '@ai-agents-observability/db';
+import { Button, Cell, Row, Select, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setOrgRole } from './actions';
@@ -33,47 +34,36 @@ export default async function OrgRolesAdminPage() {
         </p>
       </div>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-text-3 border-b border-border">
-            <th className="pb-2 font-medium">User</th>
-            <th className="pb-2 font-medium">Role</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border-subtle">
-          {users.map((u) => (
-            <tr key={u.id}>
-              <td className="py-2">
-                {u.displayName ?? u.githubLogin ?? u.id.slice(0, 8)}{' '}
-                <span className="text-text-3">{u.githubLogin}</span>
-              </td>
-              <td className="py-2">
-                <form action={setOrgRole} className="inline-flex items-center gap-2">
-                  <input type="hidden" name="userId" value={u.id} />
-                  <select
-                    name="role"
-                    defaultValue={u.orgRole}
-                    aria-label={`Org role for ${u.githubLogin ?? u.id}`}
-                    className="rounded-md border border-border bg-surface px-2 py-1"
-                  >
-                    {ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="submit"
-                    className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-bg hover:opacity-90"
-                  >
-                    Save
-                  </button>
-                </form>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Table columns={[{ label: 'User' }, { label: 'Role' }]}>
+        {users.map((u) => (
+          <Row key={u.id}>
+            <Cell>
+              {u.displayName ?? u.githubLogin ?? u.id.slice(0, 8)}{' '}
+              <span className="text-text-3">{u.githubLogin}</span>
+            </Cell>
+            <Cell>
+              <form action={setOrgRole} className="inline-flex items-center gap-2">
+                <input type="hidden" name="userId" value={u.id} />
+                <Select
+                  size="sm"
+                  name="role"
+                  defaultValue={u.orgRole}
+                  aria-label={`Org role for ${u.githubLogin ?? u.id}`}
+                >
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </Select>
+                <Button size="sm" type="submit">
+                  Save
+                </Button>
+              </form>
+            </Cell>
+          </Row>
+        ))}
+      </Table>
     </div>
   );
 }

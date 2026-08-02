@@ -1,6 +1,6 @@
 import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Stat } from '@/components/ui';
+import { Card, Cell, Row, Stat, Table } from '@/components/ui';
 import { getConfig, getJiraBase } from '@/lib/config';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
@@ -129,8 +129,7 @@ export default async function OrgRoiPage({
       </div>
 
       {/* CI outcome cost correlation */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
-        <h2 className="font-display text-sm font-semibold text-text">CI outcome vs cost</h2>
+      <Card title="CI outcome vs cost" contentClassName="space-y-3">
         {ci.cleanCount === 0 && ci.failedCount === 0 ? (
           <p className="text-sm text-text-3">No merged PRs with cost data in this window.</p>
         ) : (
@@ -158,10 +157,10 @@ export default async function OrgRoiPage({
             )}
           </>
         )}
-      </section>
+      </Card>
 
       {/* Spend by Jira ticket */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Spend by Jira ticket ({range}d)
         </h2>
@@ -171,54 +170,57 @@ export default async function OrgRoiPage({
             names, PR titles, and PR bodies.
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Ticket</th>
-                <th className="pb-2 font-medium">Status</th>
-                <th className="pb-2 font-medium text-right">PRs</th>
-                <th className="pb-2 font-medium text-right">Merged</th>
-                <th className="pb-2 font-medium text-right">Sessions</th>
-                <th className="pb-2 font-medium text-right">Session spend</th>
-                <th className="pb-2 font-medium text-right">PR spend</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {jiraSpend.map((j) => (
-                <tr key={j.jiraKey}>
-                  <td className="py-2">
-                    <span className="font-mono text-xs">
-                      <JiraLink jiraBase={jiraBase} jiraKey={j.jiraKey} />
+          <Table
+            columns={[
+              { label: 'Ticket' },
+              { label: 'Status' },
+              { align: 'right', label: 'PRs' },
+              { align: 'right', label: 'Merged' },
+              { align: 'right', label: 'Sessions' },
+              { align: 'right', label: 'Session spend' },
+              { align: 'right', label: 'PR spend' },
+            ]}
+          >
+            {jiraSpend.map((j) => (
+              <Row key={j.jiraKey}>
+                <Cell>
+                  <span className="font-mono text-xs">
+                    <JiraLink jiraBase={jiraBase} jiraKey={j.jiraKey} />
+                  </span>
+                  {j.summary && (
+                    <span className="ml-2 text-xs text-text-2">
+                      {j.summary.length > 60 ? `${j.summary.slice(0, 60)}…` : j.summary}
                     </span>
-                    {j.summary && (
-                      <span className="ml-2 text-xs text-text-2">
-                        {j.summary.length > 60 ? `${j.summary.slice(0, 60)}…` : j.summary}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 text-xs text-text-2">
-                    {j.status ?? '—'}
-                    {j.issueType ? ` · ${j.issueType}` : ''}
-                  </td>
-                  <td className="py-2 text-right text-text-2">{j.prCount}</td>
-                  <td className="py-2 text-right text-text-2">{j.mergedPrs}</td>
-                  <td className="py-2 text-right text-text-2">{j.sessionCount}</td>
-                  <td className="py-2 text-right font-mono">{fmtUsd(j.sessionCostUsd)}</td>
-                  <td className="py-2 text-right font-mono">{fmtUsd(j.totalCostUsd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )}
+                </Cell>
+                <Cell className="text-xs text-text-2">
+                  {j.status ?? '—'}
+                  {j.issueType ? ` · ${j.issueType}` : ''}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {j.prCount}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {j.mergedPrs}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {j.sessionCount}
+                </Cell>
+                <Cell num>{fmtUsd(j.sessionCostUsd)}</Cell>
+                <Cell num>{fmtUsd(j.totalCostUsd)}</Cell>
+              </Row>
+            ))}
+          </Table>
         )}
         <p className="text-xs text-text-3">
           Session spend counts every session on the ticket's branch — including work that never
           reached a PR. PR spend is the rollup of sessions linked to the ticket's PRs. Ticket
           status/summary appear once the Jira sync job is configured.
         </p>
-      </section>
+      </Card>
 
       {/* Spend by project */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Spend by Jira project ({range}d)
         </h2>
@@ -228,40 +230,41 @@ export default async function OrgRoiPage({
             prefix (PLAT-123 → PLAT).
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Project</th>
-                <th className="pb-2 font-medium text-right">Tickets</th>
-                <th className="pb-2 font-medium text-right">Merged PRs</th>
-                <th className="pb-2 font-medium text-right">Session spend</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {projectSpend.map((p) => (
-                <tr key={p.projectKey}>
-                  <td className="py-2">
-                    <span className="font-mono text-xs text-text">{p.projectKey}</span>
-                    {p.projectName && (
-                      <span className="ml-2 text-xs text-text-2">{p.projectName}</span>
-                    )}
-                  </td>
-                  <td className="py-2 text-right text-text-2">{p.ticketCount}</td>
-                  <td className="py-2 text-right text-text-2">{p.mergedPrs}</td>
-                  <td className="py-2 text-right font-mono">{fmtUsd(p.sessionCostUsd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Project' },
+              { align: 'right', label: 'Tickets' },
+              { align: 'right', label: 'Merged PRs' },
+              { align: 'right', label: 'Session spend' },
+            ]}
+          >
+            {projectSpend.map((p) => (
+              <Row key={p.projectKey}>
+                <Cell>
+                  <span className="font-mono text-xs text-text">{p.projectKey}</span>
+                  {p.projectName && (
+                    <span className="ml-2 text-xs text-text-2">{p.projectName}</span>
+                  )}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {p.ticketCount}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {p.mergedPrs}
+                </Cell>
+                <Cell num>{fmtUsd(p.sessionCostUsd)}</Cell>
+              </Row>
+            ))}
+          </Table>
         )}
         <p className="text-xs text-text-3">
           Grouped by the ticket key's project prefix — works before the Jira sync has run; project
           display names appear once issues are synced.
         </p>
-      </section>
+      </Card>
 
       {/* Spend by epic */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Spend by epic ({range}d)</h2>
         {epicSpend.length === 0 ? (
           <p className="text-sm text-text-3">
@@ -269,42 +272,41 @@ export default async function OrgRoiPage({
             have resolved ticket metadata.
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Epic</th>
-                <th className="pb-2 font-medium text-right">Tickets</th>
-                <th className="pb-2 font-medium text-right">Merged PRs</th>
-                <th className="pb-2 font-medium text-right">Session spend</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {epicSpend.map((e) => (
-                <tr key={e.epicKey}>
-                  <td className="py-2">
-                    <span className="font-mono text-xs">
-                      <JiraLink jiraBase={jiraBase} jiraKey={e.epicKey} />
+          <Table
+            columns={[
+              { label: 'Epic' },
+              { align: 'right', label: 'Tickets' },
+              { align: 'right', label: 'Merged PRs' },
+              { align: 'right', label: 'Session spend' },
+            ]}
+          >
+            {epicSpend.map((e) => (
+              <Row key={e.epicKey}>
+                <Cell>
+                  <span className="font-mono text-xs">
+                    <JiraLink jiraBase={jiraBase} jiraKey={e.epicKey} />
+                  </span>
+                  {e.epicSummary && (
+                    <span className="ml-2 text-xs text-text-2">
+                      {e.epicSummary.length > 60 ? `${e.epicSummary.slice(0, 60)}…` : e.epicSummary}
                     </span>
-                    {e.epicSummary && (
-                      <span className="ml-2 text-xs text-text-2">
-                        {e.epicSummary.length > 60
-                          ? `${e.epicSummary.slice(0, 60)}…`
-                          : e.epicSummary}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 text-right text-text-2">{e.ticketCount}</td>
-                  <td className="py-2 text-right text-text-2">{e.mergedPrs}</td>
-                  <td className="py-2 text-right font-mono">{fmtUsd(e.sessionCostUsd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {e.ticketCount}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {e.mergedPrs}
+                </Cell>
+                <Cell num>{fmtUsd(e.sessionCostUsd)}</Cell>
+              </Row>
+            ))}
+          </Table>
         )}
-      </section>
+      </Card>
 
       {/* Cost per story point */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Cost per story point ({range}d)
         </h2>
@@ -339,14 +341,14 @@ export default async function OrgRoiPage({
             </p>
           </>
         )}
-      </section>
+      </Card>
 
       {/* Business value delivered — real per-issue value (Jira value field) when
           available, else the flat story-point proxy (VALUE_PER_STORY_POINT).
           businessValue > 0 iff the proxy is configured (rate > 0) and points were
           delivered, so it stands in for the full proxy-availability check. */}
       {(hasRealValue || businessValue > 0) && (
-        <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <Card contentClassName="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">
             Business value delivered ({range}d)
           </h2>
@@ -394,11 +396,11 @@ export default async function OrgRoiPage({
               </>
             )}
           </p>
-        </section>
+        </Card>
       )}
 
       {/* Bug vs feature spend */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Bug vs feature spend ({range}d)
         </h2>
@@ -422,40 +424,39 @@ export default async function OrgRoiPage({
                 sub="of classified ticket spend"
               />
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-text-3 text-left">
-                  <th className="pb-2 font-medium">Issue type</th>
-                  <th className="pb-2 font-medium text-right">Tickets</th>
-                  <th className="pb-2 font-medium text-right">Session spend</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {issueTypes.map((t) => (
-                  <tr key={t.issueType}>
-                    <td
-                      className={`py-2 text-xs ${
-                        BUG_ISSUE_TYPES.has(t.issueType.toLowerCase()) ? 'text-warn' : 'text-text'
-                      }`}
-                    >
-                      {t.issueType}
-                    </td>
-                    <td className="py-2 text-right text-text-2">{t.ticketCount}</td>
-                    <td className="py-2 text-right font-mono">{fmtUsd(t.sessionCostUsd)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Table
+              columns={[
+                { label: 'Issue type' },
+                { align: 'right', label: 'Tickets' },
+                { align: 'right', label: 'Session spend' },
+              ]}
+            >
+              {issueTypes.map((t) => (
+                <Row key={t.issueType}>
+                  <Cell
+                    className={`py-2 text-xs ${
+                      BUG_ISSUE_TYPES.has(t.issueType.toLowerCase()) ? 'text-warn' : 'text-text'
+                    }`}
+                  >
+                    {t.issueType}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {t.ticketCount}
+                  </Cell>
+                  <Cell num>{fmtUsd(t.sessionCostUsd)}</Cell>
+                </Row>
+              ))}
+            </Table>
           </>
         )}
         <p className="text-xs text-text-3">
           This measures agent spend on bug-type tickets — a rework signal — not which PR caused
           which defect. Unclassified rows are tickets the Jira sync hasn't resolved.
         </p>
-      </section>
+      </Card>
 
       {/* Merged-work provenance */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">
           Merged-work provenance ({range}d)
         </h2>
@@ -475,50 +476,51 @@ export default async function OrgRoiPage({
           Attribution matches default-branch pushes to sessions by repo, author, and time window —
           it requires the code to have survived review, unlike lines-of-code metrics.
         </p>
-      </section>
+      </Card>
 
       {/* ROI by repo */}
-      <section className="rounded-lg border border-border bg-surface p-4 space-y-3">
+      <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">ROI by repo ({range}d)</h2>
         {repoRoi.length === 0 ? (
           <p className="text-sm text-text-3">No merged PR data available.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Repo</th>
-                <th className="pb-2 font-medium text-right">Merged</th>
-                <th className="pb-2 font-medium text-right">Spend</th>
-                <th className="pb-2 font-medium text-right">Cost / PR</th>
-                <th className="pb-2 font-medium text-right">Revert rate</th>
-                <th className="pb-2 font-medium text-right">CI-clean</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {repoRoi.map((r) => (
-                <tr key={`${r.repoOwner}/${r.repoName}`}>
-                  <td className="py-2 font-mono text-xs text-text">
-                    {r.repoOwner}/{r.repoName}
-                  </td>
-                  <td className="py-2 text-right text-text-2">{r.mergedPrs}</td>
-                  <td className="py-2 text-right font-mono">{fmtUsd(r.mergedSpendUsd)}</td>
-                  <td className="py-2 text-right font-mono">{fmtUsd(r.costPerMergedPr)}</td>
-                  <td
-                    className={`py-2 text-right font-mono ${r.revertRate > HIGH_REVERT_RATE ? 'text-warn' : 'text-text-2'}`}
-                  >
-                    {fmtPct(r.revertRate)}
-                  </td>
-                  <td
-                    className={`py-2 text-right font-mono ${r.ciCleanRate < LOW_CI_CLEAN_RATE ? 'text-warn' : 'text-text-2'}`}
-                  >
-                    {fmtPct(r.ciCleanRate)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Repo' },
+              { align: 'right', label: 'Merged' },
+              { align: 'right', label: 'Spend' },
+              { align: 'right', label: 'Cost / PR' },
+              { align: 'right', label: 'Revert rate' },
+              { align: 'right', label: 'CI-clean' },
+            ]}
+          >
+            {repoRoi.map((r) => (
+              <Row key={`${r.repoOwner}/${r.repoName}`}>
+                <Cell className="text-xs text-text">
+                  {r.repoOwner}/{r.repoName}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {r.mergedPrs}
+                </Cell>
+                <Cell num>{fmtUsd(r.mergedSpendUsd)}</Cell>
+                <Cell num>{fmtUsd(r.costPerMergedPr)}</Cell>
+                <Cell
+                  num
+                  className={`py-2 text-right font-mono ${r.revertRate > HIGH_REVERT_RATE ? 'text-warn' : 'text-text-2'}`}
+                >
+                  {fmtPct(r.revertRate)}
+                </Cell>
+                <Cell
+                  num
+                  className={`py-2 text-right font-mono ${r.ciCleanRate < LOW_CI_CLEAN_RATE ? 'text-warn' : 'text-text-2'}`}
+                >
+                  {fmtPct(r.ciCleanRate)}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         )}
-      </section>
+      </Card>
 
       <p className="text-xs text-text-3 text-center pt-2">
         Spend is the agent cost rolled up to each PR from its contributing sessions. Reverted spend

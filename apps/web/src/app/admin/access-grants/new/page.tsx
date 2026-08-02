@@ -1,3 +1,4 @@
+import { Button, ButtonLink, Input, Select } from '@/components/ui';
 import { requireGrantRequester } from '@/lib/roles';
 import { requestGrant } from '../actions';
 
@@ -24,26 +25,21 @@ export default async function NewAccessGrantPage() {
           <label htmlFor="scope" className="text-xs uppercase tracking-wide text-text-2">
             Scope
           </label>
-          <select
-            id="scope"
-            name="scope"
-            defaultValue="SINGLE_SESSION"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
-          >
+          <Select id="scope" name="scope" defaultValue="SINGLE_SESSION">
             <option value="SINGLE_SESSION">A single session</option>
             <option value="USER_SESSIONS">All sessions for one user</option>
-          </select>
+          </Select>
         </div>
 
         <div className="space-y-1">
           <label htmlFor="targetSessionId" className="text-xs uppercase tracking-wide text-text-2">
             Target session id (for single-session scope)
           </label>
-          <input
+          <Input
             id="targetSessionId"
             name="targetSessionId"
             placeholder="session UUID"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-mono"
+            className="font-mono"
           />
         </div>
 
@@ -51,11 +47,11 @@ export default async function NewAccessGrantPage() {
           <label htmlFor="targetUserId" className="text-xs uppercase tracking-wide text-text-2">
             Target user id (for user-sessions scope)
           </label>
-          <input
+          <Input
             id="targetUserId"
             name="targetUserId"
             placeholder="user UUID"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-mono"
+            className="font-mono"
           />
         </div>
 
@@ -74,18 +70,10 @@ export default async function NewAccessGrantPage() {
         </div>
 
         <div className="flex gap-2">
-          <button
-            type="submit"
-            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
-          >
-            Submit request
-          </button>
-          <a
-            href="/admin/access-grants"
-            className="rounded-md border border-border px-4 py-2 text-sm hover:bg-surface-2"
-          >
+          <Button type="submit">Submit request</Button>
+          <ButtonLink variant="secondary" href="/admin/access-grants">
             Cancel
-          </a>
+          </ButtonLink>
         </div>
       </form>
     </div>

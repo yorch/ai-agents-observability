@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
+import { Card, Cell, EmptyState, Pagination, Row, Table } from '@/components/ui';
 import type { AuditRow } from '@/lib/me-queries';
 
 type AuditTableProps = {
@@ -21,97 +21,59 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const hasPrev = currentPage > 1;
-  const hasNext = currentPage < totalPages;
-
   if (rows.length === 0) {
-    return (
-      <div className="rounded-lg border border-border bg-surface p-8 text-center">
-        <p className="text-sm text-text-2">No one has accessed your data yet.</p>
-      </div>
-    );
+    return <EmptyState>No one has accessed your data yet.</EmptyState>;
   }
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-text-3 text-xs">
-              <th className="text-left px-4 py-3">Timestamp</th>
-              <th className="text-left px-4 py-3">Actor</th>
-              <th className="text-left px-4 py-3">Action</th>
-              <th className="text-left px-4 py-3">Target</th>
-              <th className="text-left px-4 py-3">Justification</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.id.toString()}
-                className="border-b border-border-subtle hover:bg-surface-2"
-              >
-                <td className="px-4 py-3 text-text-2 whitespace-nowrap">
-                  {row.ts.toLocaleString()}
-                </td>
-                <td className="px-4 py-3 text-text-2">
-                  {row.actorLogin ? `@${row.actorLogin}` : '—'}
-                </td>
-                <td className="px-4 py-3">
-                  <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-text-2">
-                    {ACTION_LABELS[row.action] ?? row.action}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-text-2 text-xs">
-                  {row.targetSessionId ? (
-                    <Link
-                      href={`/me/sessions/${row.targetSessionId}`}
-                      className="font-mono hover:text-text underline"
-                    >
-                      session:{row.targetSessionId.slice(0, 8)}…
-                    </Link>
-                  ) : row.targetUserId ? (
-                    <span className="font-mono">user:{row.targetUserId.slice(0, 8)}…</span>
-                  ) : row.targetTeamId ? (
-                    <span className="font-mono">team:{row.targetTeamId.slice(0, 8)}…</span>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td className="px-4 py-3 text-text-2 text-xs">{row.justification ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <Table
+          columns={[
+            { label: 'Timestamp' },
+            { label: 'Actor' },
+            { label: 'Action' },
+            { label: 'Target' },
+            { label: 'Justification' },
+          ]}
+        >
+          {rows.map((row) => (
+            <Row key={row.id.toString()}>
+              <Cell className="text-text-2 whitespace-nowrap">{row.ts.toLocaleString()}</Cell>
+              <Cell className="text-text-2">{row.actorLogin ? `@${row.actorLogin}` : '—'}</Cell>
+              <Cell>
+                <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-text-2">
+                  {ACTION_LABELS[row.action] ?? row.action}
+                </span>
+              </Cell>
+              <Cell className="text-text-2 text-xs">
+                {row.targetSessionId ? (
+                  <Link
+                    href={`/me/sessions/${row.targetSessionId}`}
+                    className="font-mono hover:text-text underline"
+                  >
+                    session:{row.targetSessionId.slice(0, 8)}…
+                  </Link>
+                ) : row.targetUserId ? (
+                  <span className="font-mono">user:{row.targetUserId.slice(0, 8)}…</span>
+                ) : row.targetTeamId ? (
+                  <span className="font-mono">team:{row.targetTeamId.slice(0, 8)}…</span>
+                ) : (
+                  '—'
+                )}
+              </Cell>
+              <Cell className="text-text-2 text-xs">{row.justification ?? '—'}</Cell>
+            </Row>
+          ))}
+        </Table>
+      </Card>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-text-3">
-            {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of{' '}
-            {total}
-          </p>
-          <div className="flex gap-2">
-            {hasPrev && (
-              <a
-                href={`?page=${currentPage - 1}`}
-                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 transition-colors"
-              >
-                <ArrowLeftIcon /> Prev
-              </a>
-            )}
-            {hasNext && (
-              <a
-                href={`?page=${currentPage + 1}`}
-                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 transition-colors"
-              >
-                Next <ArrowRightIcon />
-              </a>
-            )}
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={currentPage}
+        pageSize={PAGE_SIZE}
+        total={total}
+        hrefFor={(n) => `?page=${n}`}
+      />
     </div>
   );
 }

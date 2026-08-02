@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { Button } from '@/components/ui/Button';
+import { Field, Input } from '@/components/ui/Field';
 
 type Props = { next?: string };
 
@@ -43,42 +45,30 @@ export function PasswordForm({ next }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div>
-        <label htmlFor="email" className="block text-xs font-medium text-text-2 mb-1.5">
-          Email
-        </label>
-        <input
+      <Field label="Email" htmlFor="email">
+        <Input
           id="email"
           name="email"
           type="email"
           required
           autoComplete="email"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder-text-3 transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           placeholder="you@example.com"
         />
-      </div>
-      <div>
-        <label htmlFor="password" className="block text-xs font-medium text-text-2 mb-1.5">
-          Password
-        </label>
-        <input
+      </Field>
+      <Field label="Password" htmlFor="password">
+        <Input
           id="password"
           name="password"
           type="password"
           required
           autoComplete="current-password"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder-text-3 transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           placeholder="••••••••"
         />
-      </div>
+      </Field>
       {error && <p className="text-xs text-crit">{error}</p>}
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm font-medium text-text transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
-      >
+      <Button type="submit" variant="secondary" disabled={pending} className="w-full">
         {pending ? 'Signing in…' : 'Sign in with email'}
-      </button>
+      </Button>
     </form>
   );
 }

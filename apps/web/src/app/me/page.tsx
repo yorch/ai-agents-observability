@@ -1,5 +1,6 @@
 import { agentDisplayName, DEFAULT_AGENT_TYPE } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
+import { DaysSelector, parseDays } from '@/components/me/DaysSelector';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ModelMixChart } from '@/components/me/ModelMix';
 import { OversightPanel } from '@/components/me/OversightPanel';
@@ -7,20 +8,13 @@ import { RecentSessions } from '@/components/me/RecentSessions';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { SummaryCards } from '@/components/me/SummaryCards';
 import { TopTools } from '@/components/me/TopTools';
+import { ButtonLink, EmptyState } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
 import { getModelMix, getRecentSessions, getTopTools, getUsageSummary } from '@/lib/me-queries';
 import { getUserOversight } from '@/lib/oversight-queries';
 
 export const dynamic = 'force-dynamic';
-
-const DAYS_OPTS = [7, 30, 90] as const;
-type Days = (typeof DAYS_OPTS)[number];
-
-function parseDays(raw: string | undefined): Days {
-  const n = Number(raw);
-  return (DAYS_OPTS as readonly number[]).includes(n) ? (n as Days) : 7;
-}
 
 export default async function MePage({
   searchParams,
@@ -62,10 +56,15 @@ export default async function MePage({
           </h1>
           <p className="mt-1 text-sm text-text-2">{user.displayName ?? user.githubLogin}</p>
         </div>
-        <DaysSelector current={days} />
+        <DaysSelector basePath="/me" current={days} />
       </div>
       {!hasData ? (
-        <EmptyState />
+        <EmptyState
+          title="No sessions yet"
+          action={<ButtonLink href="/install">Install instructions</ButtonLink>}
+        >
+          Install the hook to start tracking your {agentDisplayName(DEFAULT_AGENT_TYPE)} sessions.
+        </EmptyState>
       ) : (
         <>
           <SummaryCards thisWeek={thisPeriod} lastWeek={lastPeriod} />
@@ -89,41 +88,6 @@ export default async function MePage({
           <RecentSessions sessions={sessions} />
         </>
       )}
-    </div>
-  );
-}
-
-function DaysSelector({ current }: { current: Days }) {
-  return (
-    <div className="flex gap-1 rounded-lg border border-border bg-surface p-1">
-      {DAYS_OPTS.map((d) => (
-        <a
-          key={d}
-          href={`/me?days=${d}`}
-          className={`rounded-md px-3 py-1 text-xs font-medium font-mono transition-colors ${
-            current === d ? 'bg-accent text-bg' : 'text-text-3 hover:text-text hover:bg-surface-2'
-          }`}
-        >
-          {d}d
-        </a>
-      ))}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rounded-lg border border-border bg-surface p-8 text-center">
-      <p className="text-lg font-semibold text-text">No sessions yet</p>
-      <p className="mt-2 text-sm text-text-2">
-        Install the hook to start tracking your {agentDisplayName(DEFAULT_AGENT_TYPE)} sessions.
-      </p>
-      <a
-        href="/install"
-        className="mt-4 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg hover:opacity-90 transition-opacity"
-      >
-        Install instructions
-      </a>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { Card, ShareBar } from '@/components/ui';
 import { shapeBg } from './shape';
 
 const SHAPE_DESC: Record<string, string> = {
@@ -14,7 +15,7 @@ export function ShapeDistributionChart({ histogram }: { histogram: Record<string
   const total = entries.reduce((sum, [, count]) => sum + count, 0);
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <Card>
       <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-text-3">
         Session shapes
       </h2>
@@ -23,15 +24,16 @@ export function ShapeDistributionChart({ histogram }: { histogram: Record<string
         <p className="text-sm text-text-3">No classified sessions in this period.</p>
       ) : (
         <>
-          <div className="mb-4 flex h-3 w-full overflow-hidden rounded-full">
-            {entries.map(([label, count]) => (
-              <div
-                key={label}
-                className={shapeBg(label)}
-                style={{ width: `${(count / total) * 100}%` }}
-                title={`${label}: ${count}`}
-              />
-            ))}
+          <div className="mb-4">
+            <ShareBar
+              total={total}
+              segments={entries.map(([label, count]) => ({
+                className: shapeBg(label),
+                key: label,
+                title: `${label}: ${count}`,
+                value: count,
+              }))}
+            />
           </div>
           <ul className="space-y-1.5 text-xs">
             {entries.map(([label, count]) => (
@@ -47,6 +49,6 @@ export function ShapeDistributionChart({ histogram }: { histogram: Record<string
           </ul>
         </>
       )}
-    </div>
+    </Card>
   );
 }

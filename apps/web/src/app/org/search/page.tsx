@@ -1,4 +1,5 @@
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
+import { Button, Card, Cell, Input, Row, Select, Table } from '@/components/ui';
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
 import { getPrisma } from '@/lib/prisma';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
@@ -137,19 +138,14 @@ export default async function OrgSearchPage({
                 >
                   Team
                 </label>
-                <select
-                  id="filter-team"
-                  name="team"
-                  defaultValue={teamId ?? ''}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
-                >
+                <Select id="filter-team" name="team" defaultValue={teamId ?? ''}>
                   <option value="">All teams</option>
                   {teams.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div className="space-y-1">
@@ -159,19 +155,14 @@ export default async function OrgSearchPage({
                 >
                   Repo
                 </label>
-                <select
-                  id="filter-repo"
-                  name="repo"
-                  defaultValue={repoId ?? ''}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
-                >
+                <Select id="filter-repo" name="repo" defaultValue={repoId ?? ''}>
                   <option value="">All repos</option>
                   {repos.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.githubOwner}/{r.githubName}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div className="space-y-1">
@@ -181,19 +172,14 @@ export default async function OrgSearchPage({
                 >
                   Model
                 </label>
-                <select
-                  id="filter-model"
-                  name="model"
-                  defaultValue={model ?? ''}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
-                >
+                <Select id="filter-model" name="model" defaultValue={model ?? ''}>
                   <option value="">All models</option>
                   {models.map((m) => (
                     <option key={m.primaryModel ?? ''} value={m.primaryModel ?? ''}>
                       {m.primaryModel}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div className="space-y-1">
@@ -203,13 +189,12 @@ export default async function OrgSearchPage({
                 >
                   Tool
                 </label>
-                <input
+                <Input
                   id="filter-tool"
                   type="text"
                   name="tool"
                   defaultValue={toolName ?? ''}
                   placeholder="e.g. Edit, Bash"
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </div>
 
@@ -220,13 +205,12 @@ export default async function OrgSearchPage({
                 >
                   Jira ticket
                 </label>
-                <input
+                <Input
                   id="filter-jira"
                   type="text"
                   name="jira"
                   defaultValue={jiraKey ?? ''}
                   placeholder="e.g. PROJ-123"
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </div>
 
@@ -237,12 +221,11 @@ export default async function OrgSearchPage({
                 >
                   From
                 </label>
-                <input
+                <Input
                   id="filter-from"
                   type="date"
                   name="from"
                   defaultValue={dateFrom?.toISOString().split('T')[0] ?? ''}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </div>
 
@@ -250,12 +233,11 @@ export default async function OrgSearchPage({
                 <label htmlFor="filter-to" className="text-xs text-text-2 uppercase tracking-wide">
                   To
                 </label>
-                <input
+                <Input
                   id="filter-to"
                   type="date"
                   name="to"
                   defaultValue={dateTo?.toISOString().split('T')[0] ?? ''}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </div>
 
@@ -266,19 +248,14 @@ export default async function OrgSearchPage({
                 >
                   Session shape
                 </label>
-                <select
-                  id="filter-shape"
-                  name="shape"
-                  defaultValue={shape ?? ''}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
-                >
+                <Select id="filter-shape" name="shape" defaultValue={shape ?? ''}>
                   <option value="">All shapes</option>
                   {shapeFacets.map((f) => (
                     <option key={f.shapeLabel ?? ''} value={f.shapeLabel ?? ''}>
                       {f.shapeLabel} ({f._count._all})
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div className="space-y-1">
@@ -288,17 +265,12 @@ export default async function OrgSearchPage({
                 >
                   Friction band
                 </label>
-                <select
-                  id="filter-band"
-                  name="band"
-                  defaultValue={frictionBand ?? ''}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
-                >
+                <Select id="filter-band" name="band" defaultValue={frictionBand ?? ''}>
                   <option value="">Any friction</option>
                   <option value="low">Low (&lt; 0.3)</option>
                   <option value="medium">Medium (0.3–0.6)</option>
                   <option value="high">High (&gt; 0.6)</option>
-                </select>
+                </Select>
               </div>
 
               <div className="space-y-1">
@@ -308,37 +280,27 @@ export default async function OrgSearchPage({
                 >
                   Agent
                 </label>
-                <select
-                  id="filter-agent"
-                  name="agent"
-                  defaultValue={agent ?? ''}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
-                >
+                <Select id="filter-agent" name="agent" defaultValue={agent ?? ''}>
                   <option value="">All agents</option>
                   {agentFacets.map((f) => (
                     <option key={f.agentType} value={f.agentType}>
                       {f.agentType} ({f._count._all})
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
 
             {/* Transcript FTS */}
             <div className="flex gap-3 pt-2 border-t border-border">
-              <input
+              <Input
                 type="text"
                 name="q"
                 defaultValue={query}
                 placeholder="Search transcript content (users with org sharing enabled)"
-                className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+                className="flex-1"
               />
-              <button
-                type="submit"
-                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
-              >
-                Search
-              </button>
+              <Button type="submit">Search</Button>
             </div>
           </form>
 
@@ -356,10 +318,7 @@ export default async function OrgSearchPage({
               ) : (
                 <div className="space-y-3">
                   {transcriptResults.map((r) => (
-                    <div
-                      key={`${r.sessionId}-${r.messageIdx}`}
-                      className="rounded-lg border border-border bg-surface p-4 space-y-2"
-                    >
+                    <Card key={`${r.sessionId}-${r.messageIdx}`} contentClassName="space-y-2">
                       <div className="flex items-center gap-2 text-xs text-text-3">
                         <span className="font-semibold text-text-2">{r.githubLogin}</span>
                         <span>·</span>
@@ -376,7 +335,7 @@ export default async function OrgSearchPage({
                         className="text-sm text-text-2 leading-relaxed"
                         dangerouslySetInnerHTML={{ __html: r.excerpt }}
                       />
-                    </div>
+                    </Card>
                   ))}
                 </div>
               )}
@@ -417,47 +376,44 @@ export default async function OrgSearchPage({
             {sessionResults.results.length === 0 ? (
               <p className="text-sm text-text-3">No sessions match the current filters.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-text-3 text-left border-b border-border">
-                      <th className="pb-2 font-medium">User</th>
-                      <th className="pb-2 font-medium">Session</th>
-                      <th className="pb-2 font-medium">Repo</th>
-                      <th className="pb-2 font-medium">Status</th>
-                      <th className="pb-2 font-medium text-right">Tools</th>
-                      <th className="pb-2 font-medium text-right">Cost</th>
-                      <th className="pb-2 font-medium text-right">Started</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border-subtle">
-                    {sessionResults.results.map((s) => (
-                      <tr key={s.sessionId}>
-                        <td className="py-2">{s.githubLogin}</td>
-                        <td className="py-2">
-                          <a
-                            href={`/org/sessions/${s.sessionId}`}
-                            className="font-mono text-xs text-accent hover:underline"
-                          >
-                            {s.sessionId.slice(0, 8)}…
-                          </a>
-                        </td>
-                        <td className="py-2 text-text-2 text-xs">{s.repoName ?? '—'}</td>
-                        <td className="py-2">
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-surface-2 text-text-2">
-                            {s.status}
-                          </span>
-                        </td>
-                        <td className="py-2 text-right text-text-2">{s.toolCallCount}</td>
-                        <td className="py-2 text-right font-mono">${s.costUsd.toFixed(4)}</td>
-                        <td className="py-2 text-right text-text-2 text-xs">
-                          {new Date(s.startedAt).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table
+                columns={[
+                  { label: 'User' },
+                  { label: 'Session' },
+                  { label: 'Repo' },
+                  { label: 'Status' },
+                  { align: 'right', label: 'Tools' },
+                  { align: 'right', label: 'Cost' },
+                  { align: 'right', label: 'Started' },
+                ]}
+              >
+                {sessionResults.results.map((s) => (
+                  <Row key={s.sessionId}>
+                    <Cell>{s.githubLogin}</Cell>
+                    <Cell>
+                      <a
+                        href={`/org/sessions/${s.sessionId}`}
+                        className="font-mono text-xs text-accent hover:underline"
+                      >
+                        {s.sessionId.slice(0, 8)}…
+                      </a>
+                    </Cell>
+                    <Cell className="text-text-2 text-xs">{s.repoName ?? '—'}</Cell>
+                    <Cell>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-surface-2 text-text-2">
+                        {s.status}
+                      </span>
+                    </Cell>
+                    <Cell num className="text-text-2">
+                      {s.toolCallCount}
+                    </Cell>
+                    <Cell num>${s.costUsd.toFixed(4)}</Cell>
+                    <Cell num className="text-text-2 text-xs">
+                      {new Date(s.startedAt).toLocaleString()}
+                    </Cell>
+                  </Row>
+                ))}
+              </Table>
             )}
           </section>
         </>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowRightIcon } from '@/components/icons';
+import { Card, EmptyState } from '@/components/ui';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireGrantRequester } from '@/lib/roles';
@@ -96,13 +97,10 @@ export default async function GrantsPage() {
       </div>
 
       {grants.length === 0 && (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
-          <p className="text-sm text-text-2">No access grants yet.</p>
-          <p className="mt-1 text-xs text-text-3">
-            Request a grant above to gain time-boxed access to a specific user&apos;s sessions or a
-            single session.
-          </p>
-        </div>
+        <EmptyState title="No access grants yet.">
+          Request a grant above to gain time-boxed access to a specific user&apos;s sessions or a
+          single session.
+        </EmptyState>
       )}
 
       {active.length > 0 && (
@@ -150,7 +148,7 @@ function GrantCard({
       : null;
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-2 text-sm">
+    <Card className="text-sm" contentClassName="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs">
           <span className={`rounded px-1.5 py-0.5 font-medium ${STATUS_STYLES[status]}`}>
@@ -195,6 +193,6 @@ function GrantCard({
       {g.revokedAt && (
         <div className="text-xs text-crit">Revoked {new Date(g.revokedAt).toLocaleString()}</div>
       )}
-    </div>
+    </Card>
   );
 }

@@ -1,4 +1,4 @@
-import { Card, Stat } from '@/components/ui';
+import { Card, ShareBar, Stat } from '@/components/ui';
 import { fmtDurationOrDash, fmtPct } from '@/lib/fmt';
 import type { OversightSummary } from '@/lib/oversight-queries';
 
@@ -52,15 +52,16 @@ export function OversightPanel({ data }: { data: OversightSummary }) {
             {fmtPct(data.lowOversightShare)} ungated · {data.totalSessions} sessions
           </p>
         </div>
-        <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-surface-2">
-          {data.modeMix.map((m) => (
-            <div
-              key={m.mode}
-              className={MODE_COLOR[m.mode] ?? 'bg-surface-3'}
-              style={{ width: `${(m.count / data.totalSessions) * 100}%` }}
-              title={`${MODE_LABEL[m.mode] ?? m.mode}: ${m.count}`}
-            />
-          ))}
+        <div className="mt-3">
+          <ShareBar
+            total={data.totalSessions}
+            segments={data.modeMix.map((m) => ({
+              className: MODE_COLOR[m.mode] ?? 'bg-surface-3',
+              key: m.mode,
+              title: `${MODE_LABEL[m.mode] ?? m.mode}: ${m.count}`,
+              value: m.count,
+            }))}
+          />
         </div>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
           {data.modeMix.map((m) => (

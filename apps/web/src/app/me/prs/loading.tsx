@@ -1,4 +1,4 @@
-import { SkeletonBar, SkeletonCard } from '@/components/ui';
+import { Card, SkeletonBar, SkeletonCard } from '@/components/ui';
 
 export default function PRsLoading() {
   return (
@@ -16,7 +16,7 @@ export default function PRsLoading() {
         <SkeletonBar className="h-9 w-20" />
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-border bg-surface">
+      <Card flush>
         <div className="h-10 border-b border-border bg-surface-2" />
         {[...Array(8)].map((_, i) => (
           <div
@@ -28,7 +28,7 @@ export default function PRsLoading() {
             <SkeletonBar className="ml-auto h-5 w-14 rounded-full" />
           </div>
         ))}
-      </div>
+      </Card>
     </div>
   );
 }
