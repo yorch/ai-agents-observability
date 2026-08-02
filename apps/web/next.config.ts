@@ -2,6 +2,7 @@ import path from 'node:path';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  experimental: { useTypeScriptCli: true },
   output: 'standalone',
   // Prisma's generated client is gitignored and created at build time.
   // Next.js's file tracer doesn't reliably pick up generated code, so we
