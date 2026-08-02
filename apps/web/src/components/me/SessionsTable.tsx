@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { JiraLink } from '@/components/JiraLink';
 import { StatusBadge } from '@/components/me/StatusBadge';
-import { EmptyState, TONE_TEXT } from '@/components/ui';
+import { Cell, EmptyState, Row, Table, TONE_TEXT } from '@/components/ui';
 import { computeFrictionScore, frictionBadge } from '@/lib/effectiveness';
 import type { SessionRow } from '@/lib/sessions-queries';
 import { ShapeBadge } from './shape';
@@ -62,96 +62,86 @@ export function SessionsTable({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-text-3 text-xs">
-              <th className="text-left px-4 py-3">Started</th>
-              <th className="text-left px-4 py-3">Repo</th>
-              <th className="text-left px-4 py-3">Ticket</th>
-              <th className="text-left px-4 py-3">Shape</th>
-              <th className="text-right px-4 py-3">Duration</th>
-              <th className="text-right px-4 py-3">Events</th>
-              <th className="text-right px-4 py-3">Cost</th>
-              <th className="text-center px-4 py-3">Friction</th>
-              <th className="text-center px-4 py-3">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sessions.map((s) => {
-              const friction =
-                s.frictionScore ??
-                computeFrictionScore({
-                  durationSeconds: s.durationSeconds,
-                  interruptCount: 0,
-                  permissionDenyCount: 0,
-                  status: s.status,
-                  toolCallCount: s.eventCount,
-                  toolErrorCount: 0,
-                  userMessageCount: 0,
-                });
-              const badge = friction !== null ? frictionBadge(friction) : null;
-              return (
-                <tr
-                  key={s.sessionId}
-                  className="border-b border-border-subtle hover:bg-surface transition-colors"
+      <Table
+        columns={[
+          { label: 'Started' },
+          { label: 'Repo' },
+          { label: 'Ticket' },
+          { label: 'Shape' },
+          { align: 'right', label: 'Duration' },
+          { align: 'right', label: 'Events' },
+          { align: 'right', label: 'Cost' },
+          { label: 'Friction' },
+          { label: 'Status' },
+        ]}
+      >
+        {sessions.map((s) => {
+          const friction =
+            s.frictionScore ??
+            computeFrictionScore({
+              durationSeconds: s.durationSeconds,
+              interruptCount: 0,
+              permissionDenyCount: 0,
+              status: s.status,
+              toolCallCount: s.eventCount,
+              toolErrorCount: 0,
+              userMessageCount: 0,
+            });
+          const badge = friction !== null ? frictionBadge(friction) : null;
+          return (
+            <Row key={s.sessionId}>
+              <Cell className="text-text-2 text-xs">
+                <Link
+                  href={`${basePath}/${s.sessionId}`}
+                  className="hover:text-accent transition-colors"
                 >
-                  <td className="px-4 py-3 text-text-2 font-mono text-xs">
-                    <Link
-                      href={`${basePath}/${s.sessionId}`}
-                      className="hover:text-accent transition-colors"
-                    >
-                      {formatDate(s.startedAt)}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-text-2 max-w-[200px] truncate">
-                    {s.repoName ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs">
-                    {s.jiraKey ? (
-                      <JiraLink
-                        jiraBase={jiraBase}
-                        jiraKey={s.jiraKey}
-                        className="text-accent hover:opacity-80 transition-opacity"
-                        plainClassName="text-text-2"
-                      />
-                    ) : (
-                      <span className="text-text-3">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <ShapeBadge label={s.shapeLabel} />
-                  </td>
-                  <td className="px-4 py-3 text-right text-text-2 font-mono text-xs">
-                    {formatDuration(s.durationSeconds)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-text-2 font-mono text-xs">
-                    {s.eventCount}
-                  </td>
-                  <td className="px-4 py-3 text-right text-text-2 font-mono text-xs">
-                    ${s.costUsd.toFixed(3)}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {badge ? (
-                      <span
-                        className={`text-xs font-medium font-mono ${TONE_TEXT[badge.tone]}`}
-                        title={`${((friction ?? 0) * 100).toFixed(0)}%`}
-                      >
-                        {badge.label}
-                      </span>
-                    ) : (
-                      <span className="text-text-3 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <StatusBadge status={s.status} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                  {formatDate(s.startedAt)}
+                </Link>
+              </Cell>
+              <Cell className="text-text-2 max-w-[200px] truncate">{s.repoName ?? '—'}</Cell>
+              <Cell className="text-xs">
+                {s.jiraKey ? (
+                  <JiraLink
+                    jiraBase={jiraBase}
+                    jiraKey={s.jiraKey}
+                    className="text-accent hover:opacity-80 transition-opacity"
+                    plainClassName="text-text-2"
+                  />
+                ) : (
+                  <span className="text-text-3">—</span>
+                )}
+              </Cell>
+              <Cell>
+                <ShapeBadge label={s.shapeLabel} />
+              </Cell>
+              <Cell num className="text-text-2 text-xs">
+                {formatDuration(s.durationSeconds)}
+              </Cell>
+              <Cell num className="text-text-2 text-xs">
+                {s.eventCount}
+              </Cell>
+              <Cell num className="text-text-2 text-xs">
+                ${s.costUsd.toFixed(3)}
+              </Cell>
+              <Cell className="text-center">
+                {badge ? (
+                  <span
+                    className={`text-xs font-medium font-mono ${TONE_TEXT[badge.tone]}`}
+                    title={`${((friction ?? 0) * 100).toFixed(0)}%`}
+                  >
+                    {badge.label}
+                  </span>
+                ) : (
+                  <span className="text-text-3 text-xs">—</span>
+                )}
+              </Cell>
+              <Cell className="text-center">
+                <StatusBadge status={s.status} />
+              </Cell>
+            </Row>
+          );
+        })}
+      </Table>
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">

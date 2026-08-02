@@ -1,6 +1,6 @@
 import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, SeriesBadge, Stat } from '@/components/ui';
+import { Card, Cell, Row, SeriesBadge, Stat, Table } from '@/components/ui';
 import {
   type CategoryStatRow,
   type DailyToolVolumeRow,
@@ -223,60 +223,59 @@ function DailyVolumeBars({ volume }: { volume: DailyToolVolumeRow[] }) {
 function ToolsTable({ tools }: { tools: ToolStatRow[] }) {
   const maxCalls = Math.max(...tools.map((t) => t.callCount), 1);
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-text-3 text-left text-xs">
-            <th className="pb-2 font-medium w-1/3">Tool</th>
-            <th className="pb-2 font-medium">Category</th>
-            <th className="pb-2 font-medium text-right">Calls</th>
-            <th className="pb-2 font-medium text-right">Denied</th>
-            <th className="pb-2 font-medium text-right">Deny %</th>
-            <th className="pb-2 font-medium text-right">Avg ms</th>
-            <th className="pb-2 font-medium text-right">Users</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border-subtle">
-          {tools.map((t) => (
-            <tr key={t.toolName}>
-              <td className="py-2 pr-3">
-                <div className="space-y-1">
-                  <span className="font-mono text-xs text-text truncate block max-w-48">
-                    {t.toolName}
-                  </span>
-                  <div className="h-1 w-full rounded-full bg-surface">
-                    <div
-                      className="h-full rounded-full bg-accent-muted"
-                      style={{ width: `${(t.callCount / maxCalls) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </td>
-              <td className="py-2">
-                <CategoryBadge category={t.category} />
-              </td>
-              <td className="py-2 text-right font-mono text-xs">{t.callCount.toLocaleString()}</td>
-              <td className="py-2 text-right font-mono text-xs text-text-2">
-                {t.denyCount > 0 ? t.denyCount.toLocaleString() : '—'}
-              </td>
-              <td className="py-2 text-right font-mono text-xs">
-                {t.denyCount > 0 ? (
-                  <span className={t.denyRate > 0.1 ? 'text-warn' : 'text-text-2'}>
-                    {(t.denyRate * 100).toFixed(1)}%
-                  </span>
-                ) : (
-                  <span className="text-text-3">—</span>
-                )}
-              </td>
-              <td className="py-2 text-right font-mono text-xs text-text-2">
-                {t.avgDurationMs !== null ? t.avgDurationMs.toLocaleString() : '—'}
-              </td>
-              <td className="py-2 text-right text-text-2 text-xs">{t.distinctUsers}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table
+      columns={[
+        { label: 'Tool' },
+        { label: 'Category' },
+        { align: 'right', label: 'Calls' },
+        { align: 'right', label: 'Denied' },
+        { align: 'right', label: 'Deny %' },
+        { align: 'right', label: 'Avg ms' },
+        { align: 'right', label: 'Users' },
+      ]}
+    >
+      {tools.map((t) => (
+        <Row key={t.toolName}>
+          <Cell>
+            <div className="space-y-1">
+              <span className="font-mono text-xs text-text truncate block max-w-48">
+                {t.toolName}
+              </span>
+              <div className="h-1 w-full rounded-full bg-surface">
+                <div
+                  className="h-full rounded-full bg-accent-muted"
+                  style={{ width: `${(t.callCount / maxCalls) * 100}%` }}
+                />
+              </div>
+            </div>
+          </Cell>
+          <Cell>
+            <CategoryBadge category={t.category} />
+          </Cell>
+          <Cell num className="text-xs">
+            {t.callCount.toLocaleString()}
+          </Cell>
+          <Cell num className="text-xs text-text-2">
+            {t.denyCount > 0 ? t.denyCount.toLocaleString() : '—'}
+          </Cell>
+          <Cell num className="text-xs">
+            {t.denyCount > 0 ? (
+              <span className={t.denyRate > 0.1 ? 'text-warn' : 'text-text-2'}>
+                {(t.denyRate * 100).toFixed(1)}%
+              </span>
+            ) : (
+              <span className="text-text-3">—</span>
+            )}
+          </Cell>
+          <Cell num className="text-xs text-text-2">
+            {t.avgDurationMs !== null ? t.avgDurationMs.toLocaleString() : '—'}
+          </Cell>
+          <Cell num className="text-text-2 text-xs">
+            {t.distinctUsers}
+          </Cell>
+        </Row>
+      ))}
+    </Table>
   );
 }
 
@@ -358,67 +357,64 @@ function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skill
   const adoptionByName = new Map(adoption.map((a) => [a.name, a]));
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-text-3 text-xs text-left">
-            <th className="pb-2 font-medium">Name</th>
-            <th className="pb-2 font-medium">Type</th>
-            <th className="pb-2 font-medium text-right">Invocations</th>
-            <th className="pb-2 font-medium text-right">Users</th>
-            <th className="pb-2 font-medium text-right">Avg session $</th>
-            <th className="pb-2 font-medium text-right">New / Return</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border-subtle">
-          {skills.map((s) => {
-            const adp = adoptionByName.get(s.name);
-            return (
-              <tr key={`${s.kind}:${s.name}`}>
-                <td className="py-2 pr-3">
-                  <div className="space-y-1">
-                    <span className="font-mono text-xs text-text">{s.name}</span>
-                    <div className="h-1 w-full rounded-full bg-surface">
-                      <div
-                        className="h-full rounded-full bg-accent-muted"
-                        style={{ width: `${(s.callCount / maxCalls) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                </td>
-                <td className="py-2">
-                  <span
-                    className={`text-xs px-1.5 py-0.5 rounded font-mono ${
-                      s.kind === 'skill' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-2'
-                    }`}
-                  >
-                    {s.kind === 'skill' ? 'skill' : '/cmd'}
-                  </span>
-                </td>
-                <td className="py-2 text-right font-mono text-xs">
-                  {s.callCount.toLocaleString()}
-                </td>
-                <td className="py-2 text-right text-xs text-text-2">{s.distinctUsers}</td>
-                <td className="py-2 text-right font-mono text-xs text-text-2">
-                  {s.avgSessionCostUsd != null ? `$${s.avgSessionCostUsd.toFixed(2)}` : '—'}
-                </td>
-                <td className="py-2 text-right text-xs text-text-2">
-                  {adp != null ? (
-                    <span>
-                      <span className="text-good">{adp.newUsers}</span>
-                      {' / '}
-                      <span>{adp.returningUsers}</span>
-                    </span>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <Table
+      columns={[
+        { label: 'Name' },
+        { label: 'Type' },
+        { align: 'right', label: 'Invocations' },
+        { align: 'right', label: 'Users' },
+        { align: 'right', label: 'Avg session $' },
+        { align: 'right', label: 'New / Return' },
+      ]}
+    >
+      {skills.map((s) => {
+        const adp = adoptionByName.get(s.name);
+        return (
+          <Row key={`${s.kind}:${s.name}`}>
+            <Cell>
+              <div className="space-y-1">
+                <span className="font-mono text-xs text-text">{s.name}</span>
+                <div className="h-1 w-full rounded-full bg-surface">
+                  <div
+                    className="h-full rounded-full bg-accent-muted"
+                    style={{ width: `${(s.callCount / maxCalls) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </Cell>
+            <Cell>
+              <span
+                className={`text-xs px-1.5 py-0.5 rounded font-mono ${
+                  s.kind === 'skill' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-2'
+                }`}
+              >
+                {s.kind === 'skill' ? 'skill' : '/cmd'}
+              </span>
+            </Cell>
+            <Cell num className="text-xs">
+              {s.callCount.toLocaleString()}
+            </Cell>
+            <Cell num className="text-xs text-text-2">
+              {s.distinctUsers}
+            </Cell>
+            <Cell num className="text-xs text-text-2">
+              {s.avgSessionCostUsd != null ? `$${s.avgSessionCostUsd.toFixed(2)}` : '—'}
+            </Cell>
+            <Cell num className="text-xs text-text-2">
+              {adp != null ? (
+                <span>
+                  <span className="text-good">{adp.newUsers}</span>
+                  {' / '}
+                  <span>{adp.returningUsers}</span>
+                </span>
+              ) : (
+                '—'
+              )}
+            </Cell>
+          </Row>
+        );
+      })}
+    </Table>
   );
 }
 
@@ -439,48 +435,40 @@ function TeamSkillMatrix({ rows }: { rows: TeamSkillRow[] }) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-text-3 text-left">
-            <th className="pb-2 font-medium pr-4">Skill</th>
-            {allTeams.map((t) => (
-              <th key={t} className="pb-2 font-medium text-right px-2 truncate max-w-20">
-                {t}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border-subtle">
-          {[...bySkill.entries()].map(([name, { kind, teams }]) => (
-            <tr key={name}>
-              <td className="py-2 pr-4">
-                <span className="font-mono text-text">{name}</span>
-                <span
-                  className={`ml-2 text-[10px] px-1 py-0.5 rounded ${
-                    kind === 'skill' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-2'
-                  }`}
-                >
-                  {kind === 'skill' ? 's' : '/'}
-                </span>
-              </td>
-              {allTeams.map((t) => {
-                const count = teams.get(t);
-                return (
-                  <td key={t} className="py-2 text-right px-2 font-mono">
-                    {count != null ? (
-                      <span className="text-text-2">{count.toLocaleString()}</span>
-                    ) : (
-                      <span className="text-text-3">—</span>
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    // One column per team, so the column set is built rather than literal.
+    <Table
+      columns={[
+        { label: 'Skill' },
+        ...allTeams.map((t) => ({ align: 'right' as const, label: t })),
+      ]}
+    >
+      {[...bySkill.entries()].map(([name, { kind, teams }]) => (
+        <Row key={name}>
+          <Cell>
+            <span className="font-mono text-text">{name}</span>
+            <span
+              className={`ml-2 text-[10px] px-1 py-0.5 rounded ${
+                kind === 'skill' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-2'
+              }`}
+            >
+              {kind === 'skill' ? 's' : '/'}
+            </span>
+          </Cell>
+          {allTeams.map((t) => {
+            const count = teams.get(t);
+            return (
+              <Cell num key={t}>
+                {count != null ? (
+                  <span className="text-text-2">{count.toLocaleString()}</span>
+                ) : (
+                  <span className="text-text-3">—</span>
+                )}
+              </Cell>
+            );
+          })}
+        </Row>
+      ))}
+    </Table>
   );
 }
 

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { Card } from '@/components/ui';
+import { Card, Cell, Row, Table } from '@/components/ui';
 import {
   getOrgSkillCostComparison,
   getOrgSkillDailyTrend,
@@ -156,29 +156,28 @@ export default async function OrgSkillDetailPage({
           <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
             Top users
           </h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-xs border-b border-border">
-                <th className="text-left pb-2">Member</th>
-                <th className="text-right pb-2 font-mono">Invocations</th>
-                <th className="text-right pb-2 font-mono">Sessions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topUsers.map((u, i) => (
-                <tr key={u.githubLogin ?? i} className="border-b border-border-subtle">
-                  <td className="py-2">
-                    <p className="text-text">{u.displayName ?? u.githubLogin}</p>
-                    {u.displayName && <p className="text-xs text-text-3">@{u.githubLogin}</p>}
-                  </td>
-                  <td className="py-2 text-right font-mono text-text-2">
-                    {u.invocationCount.toLocaleString()}
-                  </td>
-                  <td className="py-2 text-right font-mono text-text-2">{u.sessionCount}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Member' },
+              { align: 'right', label: 'Invocations', mono: true },
+              { align: 'right', label: 'Sessions', mono: true },
+            ]}
+          >
+            {topUsers.map((u, i) => (
+              <Row key={u.githubLogin ?? i}>
+                <Cell>
+                  <p className="text-text">{u.displayName ?? u.githubLogin}</p>
+                  {u.displayName && <p className="text-xs text-text-3">@{u.githubLogin}</p>}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {u.invocationCount.toLocaleString()}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {u.sessionCount}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         </Card>
       )}
     </div>

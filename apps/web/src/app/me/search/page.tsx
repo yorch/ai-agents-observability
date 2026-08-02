@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { Button } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { MIN_QUERY_LENGTH, searchOwnTranscripts } from '@/lib/search-queries';
 
@@ -38,13 +38,13 @@ export default async function MeSearchPage({
       </div>
 
       <form method="GET" className="flex gap-3">
-        <input
+        <Input
           type="text"
           name="q"
           defaultValue={rawQuery}
           placeholder="Search your transcripts…"
           aria-label="Search your transcripts"
-          className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+          className="flex-1"
         />
         <Button type="submit">Search</Button>
       </form>

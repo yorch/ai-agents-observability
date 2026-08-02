@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui';
+import { Button, Cell, Row, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setTeamRetention } from './actions';
@@ -38,48 +38,45 @@ export default async function RetentionAdminPage() {
 
       {teams.length === 0 && <p className="text-sm text-text-3">No teams synced yet.</p>}
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-text-3 border-b border-border">
-            <th className="pb-2 font-medium">Team</th>
-            <th className="pb-2 font-medium text-right">Override (days)</th>
-            <th className="pb-2 font-medium text-right">Effective</th>
-            <th className="pb-2 font-medium" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border-subtle">
-          {teams.map((team) => (
-            <tr key={team.id}>
-              <td className="py-2">
-                {team.name} <span className="text-text-3">{team.githubSlug}</span>
-              </td>
-              <td className="py-2 text-right">
-                <form action={setTeamRetention} className="inline-flex items-center gap-2">
-                  <input type="hidden" name="teamId" value={team.id} />
-                  <input
-                    type="number"
-                    name="retentionDays"
-                    min={1}
-                    max={ORG_MAX_DAYS}
-                    defaultValue={team.retentionDays ?? ''}
-                    placeholder={`${GLOBAL_DEFAULT_DAYS}`}
-                    aria-label={`Retention override for ${team.name}`}
-                    className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-right"
-                  />
-                  <Button size="sm" type="submit">
-                    Save
-                  </Button>
-                </form>
-              </td>
-              <td className="py-2 text-right font-mono text-text-2">
-                {effectiveDays(team.retentionDays)}d
-                {team.retentionDays === null && <span className="ml-1 text-text-3">(default)</span>}
-              </td>
-              <td className="py-2" />
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Table
+        columns={[
+          { label: 'Team' },
+          { align: 'right', label: 'Override (days)' },
+          { align: 'right', label: 'Effective' },
+          { label: '' },
+        ]}
+      >
+        {teams.map((team) => (
+          <Row key={team.id}>
+            <Cell>
+              {team.name} <span className="text-text-3">{team.githubSlug}</span>
+            </Cell>
+            <Cell num>
+              <form action={setTeamRetention} className="inline-flex items-center gap-2">
+                <input type="hidden" name="teamId" value={team.id} />
+                <input
+                  type="number"
+                  name="retentionDays"
+                  min={1}
+                  max={ORG_MAX_DAYS}
+                  defaultValue={team.retentionDays ?? ''}
+                  placeholder={`${GLOBAL_DEFAULT_DAYS}`}
+                  aria-label={`Retention override for ${team.name}`}
+                  className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-right"
+                />
+                <Button size="sm" type="submit">
+                  Save
+                </Button>
+              </form>
+            </Cell>
+            <Cell num className="text-text-2">
+              {effectiveDays(team.retentionDays)}d
+              {team.retentionDays === null && <span className="ml-1 text-text-3">(default)</span>}
+            </Cell>
+            <Cell></Cell>
+          </Row>
+        ))}
+      </Table>
     </div>
   );
 }

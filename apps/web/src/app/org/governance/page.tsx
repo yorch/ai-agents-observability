@@ -2,7 +2,7 @@ import { AuditAction } from '@ai-agents-observability/db';
 import { CheckIcon } from '@/components/icons';
 import { OversightPanel } from '@/components/me/OversightPanel';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { Stat } from '@/components/ui';
+import { Cell, Row, Stat, Table } from '@/components/ui';
 import { getOrgOversight } from '@/lib/oversight-queries';
 import { getAgentPrProvenance } from '@/lib/pr-provenance-queries';
 import { getPrisma } from '@/lib/prisma';
@@ -120,44 +120,41 @@ export default async function GovernancePage({
         {provenance.rows.length === 0 ? (
           <p className="text-sm text-text-3">No agent-assisted PRs in this window.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-text-3">
-                <th className="pb-2 font-medium">PR</th>
-                <th className="pb-2 font-medium">Author</th>
-                <th className="pb-2 font-medium">State</th>
-                <th className="pb-2 font-medium">Independent review</th>
-                <th className="pb-2 font-medium">Sessions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {provenance.rows.slice(0, 30).map((r) => (
-                <tr key={`${r.repoOwner}/${r.repoName}#${r.prNumber}`}>
-                  <td className="py-2">
-                    <span className="text-text-3">
-                      {r.repoOwner}/{r.repoName}
-                    </span>{' '}
-                    #{r.prNumber}
-                    {r.reverted && <span className="ml-1 text-crit">(reverted)</span>}
-                  </td>
-                  <td className="py-2 text-text-2">{r.authorLogin}</td>
-                  <td className="py-2 text-text-2">{r.state}</td>
-                  <td className="py-2">
-                    {r.reviewedByOther ? (
-                      <span className="inline-flex items-center gap-1 text-good">
-                        <CheckIcon size={12} /> yes
-                      </span>
-                    ) : r.awaitingReview ? (
-                      <span className="text-warn">awaiting</span>
-                    ) : (
-                      <span className="text-crit">no</span>
-                    )}
-                  </td>
-                  <td className="py-2 text-text-2">{r.sessionCount}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'PR' },
+              { label: 'Author' },
+              { label: 'State' },
+              { label: 'Independent review' },
+              { label: 'Sessions' },
+            ]}
+          >
+            {provenance.rows.slice(0, 30).map((r) => (
+              <Row key={`${r.repoOwner}/${r.repoName}#${r.prNumber}`}>
+                <Cell>
+                  <span className="text-text-3">
+                    {r.repoOwner}/{r.repoName}
+                  </span>{' '}
+                  #{r.prNumber}
+                  {r.reverted && <span className="ml-1 text-crit">(reverted)</span>}
+                </Cell>
+                <Cell className="text-text-2">{r.authorLogin}</Cell>
+                <Cell className="text-text-2">{r.state}</Cell>
+                <Cell>
+                  {r.reviewedByOther ? (
+                    <span className="inline-flex items-center gap-1 text-good">
+                      <CheckIcon size={12} /> yes
+                    </span>
+                  ) : r.awaitingReview ? (
+                    <span className="text-warn">awaiting</span>
+                  ) : (
+                    <span className="text-crit">no</span>
+                  )}
+                </Cell>
+                <Cell className="text-text-2">{r.sessionCount}</Cell>
+              </Row>
+            ))}
+          </Table>
         )}
         <p className="text-xs text-text-3">
           "Independent review" = at least one reviewer other than the PR author (SOC 2 CC8.1

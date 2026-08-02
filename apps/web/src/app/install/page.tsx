@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeftIcon, CheckIcon } from '@/components/icons';
-import { Card } from '@/components/ui';
+import { Card, Cell, Row, Table } from '@/components/ui';
 
 export default function InstallPage() {
   const targets = [
@@ -54,22 +54,14 @@ export default function InstallPage() {
         </p>
 
         <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs text-text-3">
-                <th className="text-left px-4 py-2">Platform</th>
-                <th className="text-left px-4 py-2">Binary name</th>
-              </tr>
-            </thead>
-            <tbody>
-              {targets.map((t) => (
-                <tr key={t.binary} className="border-b border-border-subtle last:border-0">
-                  <td className="px-4 py-2.5 text-text-2">{t.os}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-text-2">{t.binary}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table columns={[{ label: 'Platform' }, { label: 'Binary name' }]}>
+            {targets.map((t) => (
+              <Row key={t.binary}>
+                <Cell className="text-text-2">{t.os}</Cell>
+                <Cell className="text-xs text-text-2">{t.binary}</Cell>
+              </Row>
+            ))}
+          </Table>
         </div>
 
         <p className="text-sm text-text-2">Then make it executable:</p>

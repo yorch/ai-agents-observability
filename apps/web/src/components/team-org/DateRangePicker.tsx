@@ -1,36 +1,24 @@
-'use client';
+import { Segmented, SegmentedLink } from '@/components/ui';
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+const RANGES = [7, 30, 90] as const;
+export type Range = (typeof RANGES)[number];
 
-import { Segmented, SegmentedButton } from '@/components/ui/Segmented';
-
-export function DateRangePicker({ range }: { range: 7 | 30 | 90 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  const handleRangeChange = (days: 7 | 30 | 90) => {
-    const params = new URLSearchParams(searchParams);
-    params.set('range', String(days));
-    router.replace(`${pathname}?${params.toString()}`);
-  };
-
-  const ranges = [
-    { label: '7d', value: 7 as const },
-    { label: '30d', value: 30 as const },
-    { label: '90d', value: 90 as const },
-  ];
-
+/**
+ * Trailing-window picker for the team and org dashboards.
+ *
+ * Server-rendered links, not a client component. Every route that uses it takes
+ * `range` as its only search param, so `?range=N` reproduces what the previous
+ * `useSearchParams` + `router.replace` version did — and this was the app's only
+ * `useSearchParams` caller, which forced a client-side-rendering bailout on all
+ * six of those routes for what is three links.
+ */
+export function DateRangePicker({ range }: { range: Range }) {
   return (
     <Segmented label="Date range">
-      {ranges.map(({ label, value }) => (
-        <SegmentedButton
-          key={value}
-          selected={range === value}
-          onClick={() => handleRangeChange(value)}
-        >
-          {label}
-        </SegmentedButton>
+      {RANGES.map((value) => (
+        <SegmentedLink key={value} href={`?range=${value}`} selected={range === value}>
+          {value}d
+        </SegmentedLink>
       ))}
     </Segmented>
   );

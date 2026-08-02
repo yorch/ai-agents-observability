@@ -1,3 +1,4 @@
+import { Cell, Row, Table } from '@/components/ui';
 import { fmtUsd } from '@/lib/fmt';
 import type { RoutingTeamRow } from '@/lib/org-queries';
 
@@ -34,43 +35,36 @@ export function RoutingByTeam({ rows }: RoutingByTeamProps) {
           No team has premium-model spend on retrieval-only tool categories in this window.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border text-left text-text-3">
-                <th className="px-4 py-3 font-medium">Team</th>
-                <th className="px-4 py-3 text-right font-medium">Retrieval spend (Opus)</th>
-                <th className="px-4 py-3 text-right font-medium">Total Opus spend</th>
-                <th className="px-4 py-3 text-right font-medium">Share</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const share = r.premiumTotalUsd > 0 ? r.premiumRetrievalUsd / r.premiumTotalUsd : 0;
-                const highShare = share > HIGH_SHARE_THRESHOLD;
-                return (
-                  <tr
-                    key={r.teamSlug}
-                    className="border-b border-border-subtle hover:bg-surface-2 transition-colors"
-                  >
-                    <td className="px-4 py-3 text-text">{r.teamName}</td>
-                    <td className="px-4 py-3 text-right font-mono text-text font-medium">
-                      {fmtUsd(r.premiumRetrievalUsd)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-text-2">
-                      {fmtUsd(r.premiumTotalUsd)}
-                    </td>
-                    <td
-                      className={`px-4 py-3 text-right font-mono font-medium ${highShare ? 'text-warn' : 'text-text-2'}`}
-                    >
-                      {(share * 100).toFixed(0)}%
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          columns={[
+            { label: 'Team' },
+            { align: 'right', label: 'Retrieval spend (Opus)' },
+            { align: 'right', label: 'Total Opus spend' },
+            { align: 'right', label: 'Share' },
+          ]}
+        >
+          {rows.map((r) => {
+            const share = r.premiumTotalUsd > 0 ? r.premiumRetrievalUsd / r.premiumTotalUsd : 0;
+            const highShare = share > HIGH_SHARE_THRESHOLD;
+            return (
+              <Row key={r.teamSlug}>
+                <Cell className="text-text">{r.teamName}</Cell>
+                <Cell num className="text-text">
+                  {fmtUsd(r.premiumRetrievalUsd)}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {fmtUsd(r.premiumTotalUsd)}
+                </Cell>
+                <Cell
+                  num
+                  className={`px-4 py-3 text-right font-mono font-medium ${highShare ? 'text-warn' : 'text-text-2'}`}
+                >
+                  {(share * 100).toFixed(0)}%
+                </Cell>
+              </Row>
+            );
+          })}
+        </Table>
       )}
     </div>
   );

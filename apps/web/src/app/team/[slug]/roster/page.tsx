@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { EmptyState } from '@/components/ui';
+import { Cell, EmptyState, Row, Table } from '@/components/ui';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamRoster } from '@/lib/team-queries';
@@ -56,59 +56,55 @@ export default async function TeamRosterPage({
         <EmptyState>No members in this team yet.</EmptyState>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs text-text-3">
-                <th className="px-4 py-3 text-left font-medium">Member</th>
-                <th className="px-4 py-3 text-left font-medium">Role</th>
-                <th className="px-4 py-3 text-right font-medium">Sessions ({range}d)</th>
-                <th className="px-4 py-3 text-right font-medium">Cost ({range}d)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => (
-                <tr
-                  key={m.userId}
-                  className="border-b border-border-subtle hover:bg-surface-2 transition-colors"
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div>
-                        {m.canViewStats ? (
-                          <Link
-                            href={`/team/${slug}/member/${m.githubLogin}`}
-                            className="font-medium text-text hover:text-text-2"
-                          >
-                            {m.displayName ?? m.githubLogin}
-                          </Link>
-                        ) : (
-                          <p className="font-medium text-text">{m.displayName ?? m.githubLogin}</p>
-                        )}
-                        {m.displayName && <p className="text-xs text-text-3">@{m.githubLogin}</p>}
-                      </div>
+          <Table
+            columns={[
+              { label: 'Member' },
+              { label: 'Role' },
+              { align: 'right', label: `Sessions (${range}d)` },
+              { align: 'right', label: `Cost (${range}d)` },
+            ]}
+          >
+            {members.map((m) => (
+              <Row key={m.userId}>
+                <Cell>
+                  <div className="flex items-center gap-3">
+                    <div>
+                      {m.canViewStats ? (
+                        <Link
+                          href={`/team/${slug}/member/${m.githubLogin}`}
+                          className="font-medium text-text hover:text-text-2"
+                        >
+                          {m.displayName ?? m.githubLogin}
+                        </Link>
+                      ) : (
+                        <p className="font-medium text-text">{m.displayName ?? m.githubLogin}</p>
+                      )}
+                      {m.displayName && <p className="text-xs text-text-3">@{m.githubLogin}</p>}
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 text-xs text-text-2">
-                      {ROLE_LABEL[m.role] ?? m.role}
-                    </span>
-                  </td>
-                  {m.canViewStats ? (
-                    <>
-                      <td className="px-4 py-3 text-right text-text-2">{m.sessionCount ?? 0}</td>
-                      <td className="px-4 py-3 text-right text-text-2">
-                        ${(m.totalCostUsd ?? 0).toFixed(2)}
-                      </td>
-                    </>
-                  ) : (
-                    <td colSpan={2} className="px-4 py-3 text-right text-xs text-text-3 italic">
-                      Privacy opted out
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </Cell>
+                <Cell>
+                  <span className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 text-xs text-text-2">
+                    {ROLE_LABEL[m.role] ?? m.role}
+                  </span>
+                </Cell>
+                {m.canViewStats ? (
+                  <>
+                    <Cell num className="text-text-2">
+                      {m.sessionCount ?? 0}
+                    </Cell>
+                    <Cell num className="text-text-2">
+                      ${(m.totalCostUsd ?? 0).toFixed(2)}
+                    </Cell>
+                  </>
+                ) : (
+                  <Cell colSpan={2} num className="text-xs text-text-3 italic">
+                    Privacy opted out
+                  </Cell>
+                )}
+              </Row>
+            ))}
+          </Table>
         </div>
       )}
 

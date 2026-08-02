@@ -2,7 +2,7 @@ import {
   BUDGET_THRESHOLD_WINDOW_DAYS,
   parseBudgetThresholdParams,
 } from '@ai-agents-observability/schemas';
-import { Button } from '@/components/ui';
+import { Button, Cell, Row, Select, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import {
@@ -83,17 +83,17 @@ export default async function AlertsAdminPage() {
                     ) : (
                       <form action={silenceRule} className="flex items-center gap-1">
                         <input type="hidden" name="id" value={r.id} />
-                        <select
+                        <Select
+                          size="sm"
                           name="hours"
                           defaultValue="4"
                           aria-label={`Silence ${r.name} for`}
-                          className="rounded-md border border-border bg-surface px-2 py-1 text-xs"
                         >
                           <option value="1">1h</option>
                           <option value="4">4h</option>
                           <option value="24">24h</option>
                           <option value="72">72h</option>
-                        </select>
+                        </Select>
                         <Button variant="secondary" size="sm" type="submit">
                           Silence
                         </Button>
@@ -177,16 +177,11 @@ export default async function AlertsAdminPage() {
           </div>
         ))}
         <form action={addChannel} className="flex flex-wrap items-end gap-2 pt-2">
-          <select
-            name="channelType"
-            defaultValue="webhook"
-            aria-label="Channel type"
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
-          >
+          <Select size="sm" name="channelType" defaultValue="webhook" aria-label="Channel type">
             <option value="webhook">webhook</option>
             <option value="slack_webhook">slack_webhook</option>
             <option value="email">email</option>
-          </select>
+          </Select>
           <input
             name="target"
             placeholder="https://… or email@…"
@@ -217,43 +212,40 @@ export default async function AlertsAdminPage() {
         {history.length === 0 ? (
           <p className="text-sm text-text-3">No alerts have fired.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-text-3 border-b border-border">
-                <th className="pb-2 font-medium">Rule</th>
-                <th className="pb-2 font-medium">Severity</th>
-                <th className="pb-2 font-medium">Fired</th>
-                <th className="pb-2 font-medium">Resolved</th>
-                <th className="pb-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {history.map((e) => (
-                <tr key={e.id.toString()}>
-                  <td className="py-2">{e.rule.name}</td>
-                  <td className="py-2">{e.severity}</td>
-                  <td className="py-2 text-text-2">{new Date(e.firedAt).toLocaleString()}</td>
-                  <td className="py-2 text-text-2">
-                    {e.resolvedAt ? new Date(e.resolvedAt).toLocaleString() : '—'}
-                  </td>
-                  <td className="py-2">
-                    {e.acknowledgedAt ? (
-                      <span className="text-text-3">acknowledged</span>
-                    ) : e.resolvedAt ? (
-                      <span className="text-text-3">—</span>
-                    ) : (
-                      <form action={acknowledgeAlert}>
-                        <input type="hidden" name="id" value={e.id.toString()} />
-                        <Button variant="secondary" size="sm" type="submit">
-                          Acknowledge
-                        </Button>
-                      </form>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Rule' },
+              { label: 'Severity' },
+              { label: 'Fired' },
+              { label: 'Resolved' },
+              { label: 'Status' },
+            ]}
+          >
+            {history.map((e) => (
+              <Row key={e.id.toString()}>
+                <Cell>{e.rule.name}</Cell>
+                <Cell>{e.severity}</Cell>
+                <Cell className="text-text-2">{new Date(e.firedAt).toLocaleString()}</Cell>
+                <Cell className="text-text-2">
+                  {e.resolvedAt ? new Date(e.resolvedAt).toLocaleString() : '—'}
+                </Cell>
+                <Cell>
+                  {e.acknowledgedAt ? (
+                    <span className="text-text-3">acknowledged</span>
+                  ) : e.resolvedAt ? (
+                    <span className="text-text-3">—</span>
+                  ) : (
+                    <form action={acknowledgeAlert}>
+                      <input type="hidden" name="id" value={e.id.toString()} />
+                      <Button variant="secondary" size="sm" type="submit">
+                        Acknowledge
+                      </Button>
+                    </form>
+                  )}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         )}
       </section>
     </div>

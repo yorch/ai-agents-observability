@@ -1,5 +1,5 @@
 import { agentDisplayName } from '@ai-agents-observability/schemas';
-import { Card } from '@/components/ui';
+import { Card, Cell, Row, Table } from '@/components/ui';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import type { AgentComparisonRow } from '@/lib/org-queries';
 
@@ -28,40 +28,40 @@ export function AgentComparisonTable({ rows }: { rows: AgentComparisonRow[] }) {
       {rows.length === 0 ? (
         <p className="text-sm text-text-3">No agent activity in this window.</p>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-text-3 text-left">
-              <th className="pb-2 font-medium">Agent</th>
-              <th className="pb-2 font-medium text-right">Sessions</th>
-              <th className="pb-2 font-medium text-right">Total cost</th>
-              <th className="pb-2 font-medium text-right">Avg cost / session</th>
-              <th className="pb-2 font-medium text-right">Median friction</th>
-              <th className="pb-2 font-medium text-right">Tool error rate</th>
-              <th className="pb-2 font-medium text-right">Tokens</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {rows.map((r) => (
-              <tr key={r.agentType}>
-                <td className="py-2 text-text">{agentDisplayName(r.agentType)}</td>
-                <td className="py-2 text-right text-text-2">{r.sessions.toLocaleString()}</td>
-                <td className="py-2 text-right font-mono">{fmtUsd(r.totalCostUsd)}</td>
-                <td className="py-2 text-right font-mono">{fmtUsd(r.avgCostUsd)}</td>
-                <td className="py-2 text-right font-mono text-text-2">
-                  {r.medianFriction != null ? r.medianFriction.toFixed(2) : '—'}
-                </td>
-                <td
-                  className={`py-2 text-right font-mono ${r.toolErrorRate != null && r.toolErrorRate > 0.1 ? 'text-warn' : 'text-text-2'}`}
-                >
-                  {r.toolErrorRate != null ? fmtPct(r.toolErrorRate) : '—'}
-                </td>
-                <td className="py-2 text-right font-mono text-text-2">
-                  {fmtTokens(r.totalTokens)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table
+          columns={[
+            { label: 'Agent' },
+            { align: 'right', label: 'Sessions' },
+            { align: 'right', label: 'Total cost' },
+            { align: 'right', label: 'Avg cost / session' },
+            { align: 'right', label: 'Median friction' },
+            { align: 'right', label: 'Tool error rate' },
+            { align: 'right', label: 'Tokens' },
+          ]}
+        >
+          {rows.map((r) => (
+            <Row key={r.agentType}>
+              <Cell className="text-text">{agentDisplayName(r.agentType)}</Cell>
+              <Cell num className="text-text-2">
+                {r.sessions.toLocaleString()}
+              </Cell>
+              <Cell num>{fmtUsd(r.totalCostUsd)}</Cell>
+              <Cell num>{fmtUsd(r.avgCostUsd)}</Cell>
+              <Cell num className="text-text-2">
+                {r.medianFriction != null ? r.medianFriction.toFixed(2) : '—'}
+              </Cell>
+              <Cell
+                num
+                className={`py-2 text-right font-mono ${r.toolErrorRate != null && r.toolErrorRate > 0.1 ? 'text-warn' : 'text-text-2'}`}
+              >
+                {r.toolErrorRate != null ? fmtPct(r.toolErrorRate) : '—'}
+              </Cell>
+              <Cell num className="text-text-2">
+                {fmtTokens(r.totalTokens)}
+              </Cell>
+            </Row>
+          ))}
+        </Table>
       )}
     </Card>
   );

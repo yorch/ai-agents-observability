@@ -5,19 +5,39 @@ import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react
  * signature colour is load-bearing for accessibility rather than decoration.
  */
 const CONTROL =
-  'w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none disabled:opacity-50';
+  'rounded-md border border-border bg-surface text-text placeholder:text-text-3 focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none disabled:opacity-50';
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={`${CONTROL}${className ? ` ${className}` : ''}`} {...rest} />;
+/** `md` fills its container; `sm` is the compact inline control used in filter rows. */
+const CONTROL_SIZE = {
+  md: 'w-full px-3 py-2 text-sm',
+  sm: 'px-2 py-1 text-xs',
+} as const;
+
+export type ControlSize = keyof typeof CONTROL_SIZE;
+
+function controlClass(size: ControlSize, className?: string): string {
+  return `${CONTROL} ${CONTROL_SIZE[size]}${className ? ` ${className}` : ''}`;
+}
+
+export function Input({
+  className,
+  size = 'md',
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & { size?: ControlSize }) {
+  return <input className={controlClass(size, className)} {...rest} />;
 }
 
 export function Select({
   children,
   className,
+  size = 'md',
   ...rest
-}: SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
+}: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & {
+  children: ReactNode;
+  size?: ControlSize;
+}) {
   return (
-    <select className={`${CONTROL}${className ? ` ${className}` : ''}`} {...rest}>
+    <select className={controlClass(size, className)} {...rest}>
       {children}
     </select>
   );

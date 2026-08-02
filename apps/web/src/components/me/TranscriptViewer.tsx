@@ -1,8 +1,10 @@
 'use client';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CaretRightIcon } from '@/components/icons';
 import { TranscriptStatsBar } from '@/components/me/TranscriptStatsBar';
 import { TranscriptTurnView } from '@/components/me/TranscriptTurnView';
+import { Segmented, SegmentedButton } from '@/components/ui/Segmented';
 import { computeStats, type ParsedLine, parseTranscriptLine } from '@/lib/transcript-parser';
 
 // ── Legacy types for raw mode rendering ──────────────────────────────────────
@@ -374,33 +376,21 @@ export function TranscriptViewer({
             : `${modeFiltered.length} lines`}
           {loading ? ' · loading…' : ''}
         </span>
-        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              setViewMode('conversation');
-              setVisibleCount(WINDOW_STEP);
-            }}
-            className={`rounded px-2.5 py-1 text-xs transition-colors ${
-              viewMode === 'conversation'
-                ? 'bg-accent-soft text-accent'
-                : 'text-text-3 hover:text-text'
-            }`}
-          >
-            Conversation
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setViewMode('raw');
-              setVisibleCount(WINDOW_STEP);
-            }}
-            className={`rounded px-2.5 py-1 text-xs transition-colors ${
-              viewMode === 'raw' ? 'bg-accent-soft text-accent' : 'text-text-3 hover:text-text'
-            }`}
-          >
-            Raw
-          </button>
+        <div className="shrink-0">
+          <Segmented label="Transcript view">
+            {(['conversation', 'raw'] as const).map((mode) => (
+              <SegmentedButton
+                key={mode}
+                selected={viewMode === mode}
+                onClick={() => {
+                  setViewMode(mode);
+                  setVisibleCount(WINDOW_STEP);
+                }}
+              >
+                {mode === 'conversation' ? 'Conversation' : 'Raw'}
+              </SegmentedButton>
+            ))}
+          </Segmented>
         </div>
       </div>
 

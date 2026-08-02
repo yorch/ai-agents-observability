@@ -1,4 +1,4 @@
-import { Card, TONE_BG, TONE_TEXT } from '@/components/ui';
+import { Card, Cell, Row, Table, TONE_BG, TONE_TEXT } from '@/components/ui';
 import type { CohortFrictionRow } from '@/lib/cohort-queries';
 import { frictionBadge } from '@/lib/effectiveness';
 
@@ -32,40 +32,39 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
       {qualifying.length === 0 ? (
         <p className="text-sm text-text-3">Not enough data per cohort to compare.</p>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-text-3 text-left">
-              <th className="pb-2 font-medium">Cohort</th>
-              <th className="pb-2 font-medium text-right">Devs</th>
-              <th className="pb-2 font-medium text-right">Median friction</th>
-              <th className="pb-2 font-medium" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {qualifying.map((r) => {
-              // Non-null: filtered above.
-              const median = r.medianFriction as number;
-              const badge = frictionBadge(median);
-              return (
-                <tr key={r.cohortMonth}>
-                  <td className="py-2 font-mono text-xs">{r.cohortMonth}</td>
-                  <td className="py-2 text-right text-text-2">{r.userCount}</td>
-                  <td className={`py-2 text-right font-mono ${TONE_TEXT[badge.tone]}`}>
-                    {(median * 100).toFixed(0)}%
-                  </td>
-                  <td className="py-2 pl-3">
-                    <div className="h-1.5 rounded-full bg-surface-2">
-                      <div
-                        className={`h-full rounded-full ${TONE_BG[badge.tone]}`}
-                        style={{ width: `${(median / maxFriction) * 100}%` }}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <Table
+          columns={[
+            { label: 'Cohort' },
+            { align: 'right', label: 'Devs' },
+            { align: 'right', label: 'Median friction' },
+            { label: '' },
+          ]}
+        >
+          {qualifying.map((r) => {
+            // Non-null: filtered above.
+            const median = r.medianFriction as number;
+            const badge = frictionBadge(median);
+            return (
+              <Row key={r.cohortMonth}>
+                <Cell className="text-xs">{r.cohortMonth}</Cell>
+                <Cell num className="text-text-2">
+                  {r.userCount}
+                </Cell>
+                <Cell num className={`py-2 text-right font-mono ${TONE_TEXT[badge.tone]}`}>
+                  {(median * 100).toFixed(0)}%
+                </Cell>
+                <Cell>
+                  <div className="h-1.5 rounded-full bg-surface-2">
+                    <div
+                      className={`h-full rounded-full ${TONE_BG[badge.tone]}`}
+                      style={{ width: `${(median / maxFriction) * 100}%` }}
+                    />
+                  </div>
+                </Cell>
+              </Row>
+            );
+          })}
+        </Table>
       )}
     </Card>
   );

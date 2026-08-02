@@ -7,7 +7,7 @@ import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTr
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable';
 import { SpendForecast } from '@/components/team-org/SpendForecast';
-import { axisMoney, BarChart, Card, Stat } from '@/components/ui';
+import { axisMoney, BarChart, Card, Cell, Row, Stat, Table } from '@/components/ui';
 import { getOrgCohortFriction } from '@/lib/cohort-queries';
 import {
   getActiveBudget,
@@ -192,34 +192,35 @@ export default async function OrgDashboardPage({
           {teamCost.length === 0 ? (
             <p className="text-sm text-text-3">No team data available.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-text-3 text-left">
-                  <th className="pb-2 font-medium">Team</th>
-                  <th className="pb-2 font-medium text-right">Users</th>
-                  <th className="pb-2 font-medium text-right">Sessions</th>
-                  <th className="pb-2 font-medium text-right">Cost</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {teamCost.slice(0, 10).map((t) => (
-                  <tr key={t.teamSlug}>
-                    <td className="py-2">
-                      {isAdmin ? (
-                        <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
-                          {t.teamName}
-                        </a>
-                      ) : (
-                        t.teamName
-                      )}
-                    </td>
-                    <td className="py-2 text-right text-text-2">{t.userCount}</td>
-                    <td className="py-2 text-right text-text-2">{t.sessionCount}</td>
-                    <td className="py-2 text-right font-mono">${t.costUsd.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Table
+              columns={[
+                { label: 'Team' },
+                { align: 'right', label: 'Users' },
+                { align: 'right', label: 'Sessions' },
+                { align: 'right', label: 'Cost' },
+              ]}
+            >
+              {teamCost.slice(0, 10).map((t) => (
+                <Row key={t.teamSlug}>
+                  <Cell>
+                    {isAdmin ? (
+                      <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
+                        {t.teamName}
+                      </a>
+                    ) : (
+                      t.teamName
+                    )}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {t.userCount}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {t.sessionCount}
+                  </Cell>
+                  <Cell num>${t.costUsd.toFixed(2)}</Cell>
+                </Row>
+              ))}
+            </Table>
           )}
         </Card>
 
@@ -228,26 +229,25 @@ export default async function OrgDashboardPage({
           {repoCost.length === 0 ? (
             <p className="text-sm text-text-3">No repo data available.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-text-3 text-left">
-                  <th className="pb-2 font-medium">Repo</th>
-                  <th className="pb-2 font-medium text-right">Sessions</th>
-                  <th className="pb-2 font-medium text-right">Cost</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {repoCost.slice(0, 10).map((r) => (
-                  <tr key={`${r.repoOwner}/${r.repoName}`}>
-                    <td className="py-2 font-mono text-xs">
-                      {r.repoOwner}/{r.repoName}
-                    </td>
-                    <td className="py-2 text-right text-text-2">{r.sessionCount}</td>
-                    <td className="py-2 text-right font-mono">${r.costUsd.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Table
+              columns={[
+                { label: 'Repo' },
+                { align: 'right', label: 'Sessions' },
+                { align: 'right', label: 'Cost' },
+              ]}
+            >
+              {repoCost.slice(0, 10).map((r) => (
+                <Row key={`${r.repoOwner}/${r.repoName}`}>
+                  <Cell className="text-xs">
+                    {r.repoOwner}/{r.repoName}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {r.sessionCount}
+                  </Cell>
+                  <Cell num>${r.costUsd.toFixed(2)}</Cell>
+                </Row>
+              ))}
+            </Table>
           )}
         </Card>
       </div>

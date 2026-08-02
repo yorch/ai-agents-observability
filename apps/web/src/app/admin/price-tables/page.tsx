@@ -1,3 +1,4 @@
+import { Cell, Row, Table } from '@/components/ui';
 import { getConfig } from '@/lib/config';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -102,38 +103,33 @@ export default async function PriceTablesPage() {
               No models configured (all sessions bill $0)
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-surface text-left text-xs text-text-3">
-                    <th className="px-4 py-2 font-medium">Model</th>
-                    <th className="px-4 py-2 font-medium text-right">Input /Mtok</th>
-                    <th className="px-4 py-2 font-medium text-right">Output /Mtok</th>
-                    <th className="px-4 py-2 font-medium text-right">Cache read /Mtok</th>
-                    <th className="px-4 py-2 font-medium text-right">Cache write /Mtok</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle">
-                  {Object.entries(result.prices).map(([model, p]) => (
-                    <tr key={model} className="hover:bg-surface-2 transition-colors">
-                      <td className="px-4 py-2 font-mono text-xs text-text">{model}</td>
-                      <td className="px-4 py-2 text-right font-mono text-xs text-text-2">
-                        {fmt(p.input_per_mtok)}
-                      </td>
-                      <td className="px-4 py-2 text-right font-mono text-xs text-text-2">
-                        {fmt(p.output_per_mtok)}
-                      </td>
-                      <td className="px-4 py-2 text-right font-mono text-xs text-text-3">
-                        {fmt(p.cache_read_per_mtok)}
-                      </td>
-                      <td className="px-4 py-2 text-right font-mono text-xs text-text-3">
-                        {fmt(p.cache_write_per_mtok)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table
+              columns={[
+                { label: 'Model' },
+                { align: 'right', label: 'Input /Mtok' },
+                { align: 'right', label: 'Output /Mtok' },
+                { align: 'right', label: 'Cache read /Mtok' },
+                { align: 'right', label: 'Cache write /Mtok' },
+              ]}
+            >
+              {Object.entries(result.prices).map(([model, p]) => (
+                <Row key={model}>
+                  <Cell className="text-xs text-text">{model}</Cell>
+                  <Cell num className="text-xs text-text-2">
+                    {fmt(p.input_per_mtok)}
+                  </Cell>
+                  <Cell num className="text-xs text-text-2">
+                    {fmt(p.output_per_mtok)}
+                  </Cell>
+                  <Cell num className="text-xs text-text-3">
+                    {fmt(p.cache_read_per_mtok)}
+                  </Cell>
+                  <Cell num className="text-xs text-text-3">
+                    {fmt(p.cache_write_per_mtok)}
+                  </Cell>
+                </Row>
+              ))}
+            </Table>
           )}
         </section>
       ))}

@@ -12,7 +12,7 @@ export { Sparkline } from './chart/Sparkline';
 // outside the module needs them.
 export { axisMoney, foldToSeries, seriesBg } from './chart/scale';
 export { EmptyState } from './EmptyState';
-export { Field, Input, Select } from './Field';
+export { type ControlSize, Field, Input, Select } from './Field';
 export { PageHeader, SectionHeader } from './PageHeader';
 export { Pagination } from './Pagination';
 export { Segmented, SegmentedButton, SegmentedLink } from './Segmented';

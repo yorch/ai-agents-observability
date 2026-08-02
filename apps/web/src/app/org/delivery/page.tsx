@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, Stat } from '@/components/ui';
+import { Card, Cell, Row, Stat, Table } from '@/components/ui';
 import {
   getOrgCheckHealth,
   getOrgPRDeliveryStats,
@@ -162,32 +162,34 @@ export default async function OrgDeliveryPage({
             webhook.
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Check</th>
-                <th className="pb-2 font-medium text-right">Runs</th>
-                <th className="pb-2 font-medium text-right">Failures</th>
-                <th className="pb-2 font-medium text-right">Failure rate</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {checkHealth.map((c) => (
-                <tr key={c.checkName}>
-                  <td className="py-2 font-mono text-xs text-text">{c.checkName}</td>
-                  <td className="py-2 text-right text-text-2">{c.totalRuns}</td>
-                  <td className="py-2 text-right text-text-2">{c.failures}</td>
-                  <td
-                    className={`py-2 text-right font-mono ${
-                      c.failureRate > 0.3 ? 'text-warn' : 'text-text-2'
-                    }`}
-                  >
-                    {(c.failureRate * 100).toFixed(0)}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Check' },
+              { align: 'right', label: 'Runs' },
+              { align: 'right', label: 'Failures' },
+              { align: 'right', label: 'Failure rate' },
+            ]}
+          >
+            {checkHealth.map((c) => (
+              <Row key={c.checkName}>
+                <Cell className="text-xs text-text">{c.checkName}</Cell>
+                <Cell num className="text-text-2">
+                  {c.totalRuns}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {c.failures}
+                </Cell>
+                <Cell
+                  num
+                  className={`py-2 text-right font-mono ${
+                    c.failureRate > 0.3 ? 'text-warn' : 'text-text-2'
+                  }`}
+                >
+                  {(c.failureRate * 100).toFixed(0)}%
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         )}
         <p className="text-xs text-text-3">
           Checks that fail often on agent-linked PRs are either guarding real quality issues or
@@ -203,32 +205,29 @@ export default async function OrgDeliveryPage({
         {topRepos.length === 0 ? (
           <p className="text-sm text-text-3">No merged PR data available.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-left">
-                <th className="pb-2 font-medium">Repo</th>
-                <th className="pb-2 font-medium text-right">Merged PRs</th>
-                <th className="pb-2 font-medium text-right">Median TTM</th>
-                <th className="pb-2 font-medium text-right">Avg cost / PR</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {topRepos.map((r) => (
-                <tr key={`${r.repoOwner}/${r.repoName}`}>
-                  <td className="py-2 font-mono text-xs text-text">
-                    {r.repoOwner}/{r.repoName}
-                  </td>
-                  <td className="py-2 text-right text-text-2">{r.mergedPRs}</td>
-                  <td className="py-2 text-right text-text-2">
-                    {fmtHours(r.medianTimeToMergeHours)}
-                  </td>
-                  <td className="py-2 text-right font-mono">
-                    {r.avgCostUsd > 0 ? `$${r.avgCostUsd.toFixed(2)}` : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Repo' },
+              { align: 'right', label: 'Merged PRs' },
+              { align: 'right', label: 'Median TTM' },
+              { align: 'right', label: 'Avg cost / PR' },
+            ]}
+          >
+            {topRepos.map((r) => (
+              <Row key={`${r.repoOwner}/${r.repoName}`}>
+                <Cell className="text-xs text-text">
+                  {r.repoOwner}/{r.repoName}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {r.mergedPRs}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {fmtHours(r.medianTimeToMergeHours)}
+                </Cell>
+                <Cell num>{r.avgCostUsd > 0 ? `$${r.avgCostUsd.toFixed(2)}` : '—'}</Cell>
+              </Row>
+            ))}
+          </Table>
         )}
       </Card>
 

@@ -1,5 +1,5 @@
 import { agentDisplayName } from '@ai-agents-observability/schemas';
-import { Badge } from '@/components/ui';
+import { Badge, Cell, Row, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -140,45 +140,44 @@ export default async function AdaptersPage() {
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-surface text-left text-xs text-text-3">
-              <th className="px-4 py-3 font-medium">Adapter</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Last session</th>
-              <th className="px-4 py-3 font-medium text-right">Sessions 24h</th>
-              <th className="px-4 py-3 font-medium text-right">Sessions 7d</th>
-              <th className="px-4 py-3 font-medium text-right">Crash rate 7d</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {allRows.map(({ agent, badge, crashRate, lastSeen, sessions24h, sessions7d }) => (
-              <tr key={agent} className="hover:bg-surface-2 transition-colors">
-                <td className="px-4 py-3">
-                  <span className="font-medium text-text">{agentDisplayName(agent)}</span>
-                  <span className="ml-2 font-mono text-xs text-text-3">{agent}</span>
-                </td>
-                <td className="px-4 py-3">
-                  <Badge tone={BADGE_TONE[badge]}>{badge}</Badge>
-                </td>
-                <td className="px-4 py-3 text-xs text-text-2">{fmtRelative(lastSeen)}</td>
-                <td className="px-4 py-3 text-right font-mono text-text-2">{sessions24h}</td>
-                <td className="px-4 py-3 text-right font-mono text-text-2">{sessions7d}</td>
-                <td className="px-4 py-3 text-right">
-                  {crashRate == null ? (
-                    <span className="text-text-3">—</span>
-                  ) : (
-                    <span className={crashRate > 5 ? 'text-crit' : 'text-text-3'}>
-                      {crashRate.toFixed(1)}%
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Table
+        columns={[
+          { label: 'Adapter' },
+          { label: 'Status' },
+          { label: 'Last session' },
+          { align: 'right', label: 'Sessions 24h' },
+          { align: 'right', label: 'Sessions 7d' },
+          { align: 'right', label: 'Crash rate 7d' },
+        ]}
+      >
+        {allRows.map(({ agent, badge, crashRate, lastSeen, sessions24h, sessions7d }) => (
+          <Row key={agent}>
+            <Cell>
+              <span className="font-medium text-text">{agentDisplayName(agent)}</span>
+              <span className="ml-2 font-mono text-xs text-text-3">{agent}</span>
+            </Cell>
+            <Cell>
+              <Badge tone={BADGE_TONE[badge]}>{badge}</Badge>
+            </Cell>
+            <Cell className="text-xs text-text-2">{fmtRelative(lastSeen)}</Cell>
+            <Cell num className="text-text-2">
+              {sessions24h}
+            </Cell>
+            <Cell num className="text-text-2">
+              {sessions7d}
+            </Cell>
+            <Cell num>
+              {crashRate == null ? (
+                <span className="text-text-3">—</span>
+              ) : (
+                <span className={crashRate > 5 ? 'text-crit' : 'text-text-3'}>
+                  {crashRate.toFixed(1)}%
+                </span>
+              )}
+            </Cell>
+          </Row>
+        ))}
+      </Table>
 
       <p className="text-xs text-text-3">
         Adapters ship events from developer machines via the hook CLI. This view reflects sessions

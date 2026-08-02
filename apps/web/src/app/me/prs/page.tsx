@@ -1,6 +1,15 @@
 import { redirect } from 'next/navigation';
 import { PrStateBadge } from '@/components/me/PrStateBadge';
-import { Button, ButtonLink, Card, EmptyState, Pagination } from '@/components/ui';
+import {
+  Button,
+  ButtonLink,
+  Card,
+  Cell,
+  EmptyState,
+  Pagination,
+  Row,
+  Table,
+} from '@/components/ui';
 import { fmtDate } from '@/lib/fmt';
 import { ExternalLinkIcon, WarningIcon } from '../../../components/icons';
 import { JiraLink } from '../../../components/JiraLink';
@@ -44,94 +53,84 @@ function PRsTable({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-text-3 text-xs">
-              <th className="text-left px-4 py-3">PR</th>
-              <th className="text-left px-4 py-3">Repo</th>
-              <th className="text-center px-4 py-3">State</th>
-              <th className="text-right px-4 py-3">Merged</th>
-              <th className="text-right px-4 py-3">Sessions</th>
-              <th className="text-right px-4 py-3">Cost</th>
-              <th className="text-right px-4 py-3">Cost/LOC</th>
-              <th className="text-right px-4 py-3">Checks</th>
-              <th className="text-right px-4 py-3">Jira</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((pr) => {
-              const detailHref = `/me/prs/${encodeURIComponent(pr.repoOwner)}/${encodeURIComponent(pr.repoName)}/${pr.prNumber}`;
-              const githubHref = `https://github.com/${pr.repoOwner}/${pr.repoName}/pull/${pr.prNumber}`;
-              return (
-                <tr
-                  key={`${pr.repoOwner}/${pr.repoName}#${pr.prNumber}`}
-                  className="border-b border-border-subtle hover:bg-surface-2 transition-colors"
-                >
-                  <td className="px-4 py-3 max-w-[300px]">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <a href={detailHref} className="text-text hover:text-text line-clamp-1">
-                        {pr.title ?? `#${pr.prNumber}`}
-                      </a>
-                      {pr.revertedAt && (
-                        <span className="rounded-full bg-crit-soft px-1.5 py-0.5 text-[10px] font-medium text-crit shrink-0">
-                          reverted
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-text-3 mt-0.5">
-                      <a
-                        href={githubHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 hover:text-text-2"
-                      >
-                        #{pr.prNumber} <ExternalLinkIcon size={11} />
-                      </a>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-text-2 text-xs">
-                    {pr.repoOwner}/{pr.repoName}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <PrStateBadge state={pr.state} />
-                  </td>
-                  <td className="px-4 py-3 text-right text-text-2 text-xs">
-                    {fmtDate(pr.mergedAt)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-text-2">{pr.sessionCount}</td>
-                  <td className="px-4 py-3 text-right text-text-2">
-                    ${pr.totalCostUsd.toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-text-2 text-xs font-mono">
-                    {pr.costPerLoc != null ? `$${pr.costPerLoc.toFixed(3)}` : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {pr.checkFailuresCount > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-warn text-xs font-medium">
-                        <WarningIcon size={12} /> {pr.checkFailuresCount}
-                      </span>
-                    ) : (
-                      <span className="text-text-3 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right text-xs">
-                    {pr.jiraKey ? (
-                      <JiraLink
-                        jiraBase={jiraBase}
-                        jiraKey={pr.jiraKey}
-                        plainClassName="text-text-2"
-                      />
-                    ) : (
-                      <span className="text-text-3">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Table
+        columns={[
+          { label: 'PR' },
+          { label: 'Repo' },
+          { label: 'State' },
+          { align: 'right', label: 'Merged' },
+          { align: 'right', label: 'Sessions' },
+          { align: 'right', label: 'Cost' },
+          { align: 'right', label: 'Cost/LOC' },
+          { align: 'right', label: 'Checks' },
+          { align: 'right', label: 'Jira' },
+        ]}
+      >
+        {items.map((pr) => {
+          const detailHref = `/me/prs/${encodeURIComponent(pr.repoOwner)}/${encodeURIComponent(pr.repoName)}/${pr.prNumber}`;
+          const githubHref = `https://github.com/${pr.repoOwner}/${pr.repoName}/pull/${pr.prNumber}`;
+          return (
+            <Row key={`${pr.repoOwner}/${pr.repoName}#${pr.prNumber}`}>
+              <Cell className="max-w-[300px]">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <a href={detailHref} className="text-text hover:text-text line-clamp-1">
+                    {pr.title ?? `#${pr.prNumber}`}
+                  </a>
+                  {pr.revertedAt && (
+                    <span className="rounded-full bg-crit-soft px-1.5 py-0.5 text-[10px] font-medium text-crit shrink-0">
+                      reverted
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-text-3 mt-0.5">
+                  <a
+                    href={githubHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 hover:text-text-2"
+                  >
+                    #{pr.prNumber} <ExternalLinkIcon size={11} />
+                  </a>
+                </div>
+              </Cell>
+              <Cell className="text-text-2 text-xs">
+                {pr.repoOwner}/{pr.repoName}
+              </Cell>
+              <Cell className="text-center">
+                <PrStateBadge state={pr.state} />
+              </Cell>
+              <Cell num className="text-text-2 text-xs">
+                {fmtDate(pr.mergedAt)}
+              </Cell>
+              <Cell num className="text-text-2">
+                {pr.sessionCount}
+              </Cell>
+              <Cell num className="text-text-2">
+                ${pr.totalCostUsd.toFixed(2)}
+              </Cell>
+              <Cell num className="text-text-2 text-xs">
+                {pr.costPerLoc != null ? `$${pr.costPerLoc.toFixed(3)}` : '—'}
+              </Cell>
+              <Cell num>
+                {pr.checkFailuresCount > 0 ? (
+                  <span className="inline-flex items-center gap-1 text-warn text-xs font-medium">
+                    <WarningIcon size={12} /> {pr.checkFailuresCount}
+                  </span>
+                ) : (
+                  <span className="text-text-3 text-xs">—</span>
+                )}
+              </Cell>
+              <Cell num className="text-xs">
+                {pr.jiraKey ? (
+                  <JiraLink jiraBase={jiraBase} jiraKey={pr.jiraKey} plainClassName="text-text-2" />
+                ) : (
+                  <span className="text-text-3">—</span>
+                )}
+              </Cell>
+            </Row>
+          );
+        })}
+      </Table>
 
       <Pagination
         page={currentPage}

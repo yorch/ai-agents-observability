@@ -5,7 +5,7 @@ import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
-import { Card, EmptyState, Sparkline } from '@/components/ui';
+import { Card, Cell, EmptyState, Row, Sparkline, Table } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserShapeTrend } from '@/lib/cohort-queries';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
@@ -442,81 +442,76 @@ function SkillsSection({
   return (
     <Card contentClassName="space-y-4">
       <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Skills</h2>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-text-3 border-b border-border text-xs">
-              <th className="pb-2 font-medium">Skill</th>
-              <th className="pb-2 font-medium text-right">Uses</th>
-              <th className="pb-2 font-medium text-right">Sessions</th>
-              <th className="pb-2 font-medium text-right">Avg session $</th>
-              <th className="pb-2 font-medium text-right">Avg subagents</th>
-              <th className="pb-2 font-medium">Outcomes</th>
-              <th className="pb-2 font-medium">Trend</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {rows.map((r) => {
-              const skillOutcomes = outcomesBySkill.get(r.skillName) ?? [];
-              const totalOutcomeSessions = skillOutcomes.reduce((s, o) => s + o.sessionCount, 0);
-              const sub = subagentBySkill.get(r.skillName);
-              const sparkline = trendBySkill.get(r.skillName) ?? [];
-              const sparkMax = Math.max(...sparkline, 1);
+      <Table
+        columns={[
+          { label: 'Skill' },
+          { align: 'right', label: 'Uses' },
+          { align: 'right', label: 'Sessions' },
+          { align: 'right', label: 'Avg session $' },
+          { align: 'right', label: 'Avg subagents' },
+          { label: 'Outcomes' },
+          { label: 'Trend' },
+        ]}
+      >
+        {rows.map((r) => {
+          const skillOutcomes = outcomesBySkill.get(r.skillName) ?? [];
+          const totalOutcomeSessions = skillOutcomes.reduce((s, o) => s + o.sessionCount, 0);
+          const sub = subagentBySkill.get(r.skillName);
+          const sparkline = trendBySkill.get(r.skillName) ?? [];
+          const sparkMax = Math.max(...sparkline, 1);
 
-              return (
-                <tr key={`${r.skillName}-${r.skillPath ?? ''}`}>
-                  <td className="py-2 pr-4">
-                    <div className="space-y-1">
-                      <span className="font-mono text-xs text-text">{r.skillName}</span>
-                      {r.skillPath && (
-                        <span className="block text-xs text-text-3 truncate max-w-[160px]">
-                          {r.skillPath}
-                        </span>
-                      )}
-                      <div className="h-1 w-full rounded-full bg-surface-2">
-                        <div
-                          className="h-full rounded-full bg-accent-muted"
-                          style={{ width: `${(r.useCount / maxCalls) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-2 text-right font-mono text-xs text-text">
-                    {r.useCount.toLocaleString()}
-                  </td>
-                  <td className="py-2 text-right font-mono text-xs text-text-2">
-                    {r.sessionCount.toLocaleString()}
-                  </td>
-                  <td className="py-2 text-right font-mono text-xs text-text-2">
-                    {r.avgSessionCostUsd != null ? fmtCost(r.avgSessionCostUsd) : '—'}
-                  </td>
-                  <td className="py-2 text-right font-mono text-xs text-text-2">
-                    {sub != null ? sub.avgSubagents.toFixed(1) : '—'}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex flex-wrap gap-1">
-                      {skillOutcomes.map((o) => {
-                        const cls = STATUS_COLORS[o.status] ?? 'bg-surface-2 text-text-3';
-                        return (
-                          <span
-                            key={o.status}
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${cls}`}
-                          >
-                            {o.status.slice(0, 4)} {pct(o.sessionCount, totalOutcomeSessions)}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </td>
-                  <td className="py-2 pl-2">
-                    <Sparkline points={sparkline} domain={[0, sparkMax]} tone="accent" />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+          return (
+            <Row key={`${r.skillName}-${r.skillPath ?? ''}`}>
+              <Cell>
+                <div className="space-y-1">
+                  <span className="font-mono text-xs text-text">{r.skillName}</span>
+                  {r.skillPath && (
+                    <span className="block text-xs text-text-3 truncate max-w-[160px]">
+                      {r.skillPath}
+                    </span>
+                  )}
+                  <div className="h-1 w-full rounded-full bg-surface-2">
+                    <div
+                      className="h-full rounded-full bg-accent-muted"
+                      style={{ width: `${(r.useCount / maxCalls) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </Cell>
+              <Cell num className="text-xs text-text">
+                {r.useCount.toLocaleString()}
+              </Cell>
+              <Cell num className="text-xs text-text-2">
+                {r.sessionCount.toLocaleString()}
+              </Cell>
+              <Cell num className="text-xs text-text-2">
+                {r.avgSessionCostUsd != null ? fmtCost(r.avgSessionCostUsd) : '—'}
+              </Cell>
+              <Cell num className="text-xs text-text-2">
+                {sub != null ? sub.avgSubagents.toFixed(1) : '—'}
+              </Cell>
+              <Cell>
+                <div className="flex flex-wrap gap-1">
+                  {skillOutcomes.map((o) => {
+                    const cls = STATUS_COLORS[o.status] ?? 'bg-surface-2 text-text-3';
+                    return (
+                      <span
+                        key={o.status}
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${cls}`}
+                      >
+                        {o.status.slice(0, 4)} {pct(o.sessionCount, totalOutcomeSessions)}
+                      </span>
+                    );
+                  })}
+                </div>
+              </Cell>
+              <Cell>
+                <Sparkline points={sparkline} domain={[0, sparkMax]} tone="accent" />
+              </Cell>
+            </Row>
+          );
+        })}
+      </Table>
     </Card>
   );
 }
@@ -612,58 +607,57 @@ function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
       {rows.length === 0 ? (
         <p className="text-sm text-text-3">No PostToolUse events in this window.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-text-3 border-b border-border">
-                <th className="pb-2 font-medium">Tool</th>
-                <th className="pb-2 font-medium">Category</th>
-                <th className="pb-2 font-medium text-right">Calls</th>
-                <th className="pb-2 font-medium text-right">Errors</th>
-                <th className="pb-2 font-medium text-right">Denied</th>
-                <th className="pb-2 font-medium text-right">Avg</th>
-                <th className="pb-2 font-medium text-right">p95</th>
-                <th className="pb-2 font-medium text-right">Avg in</th>
-                <th className="pb-2 font-medium text-right">Avg out</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {rows.map((r) => (
-                <tr key={r.toolName}>
-                  <td className="py-2 font-mono text-xs text-text">{r.toolName}</td>
-                  <td className="py-2 text-xs text-text-3">{r.toolCategory ?? '—'}</td>
-                  <td className="py-2 text-right text-text-2">{r.callCount}</td>
-                  <td
-                    className={`py-2 text-right text-xs ${
-                      r.errorCount > 0 ? 'text-crit' : 'text-text-3'
-                    }`}
-                  >
-                    {r.errorCount > 0 ? `${r.errorCount} (${pct(r.errorCount, r.callCount)})` : '—'}
-                  </td>
-                  <td
-                    className={`py-2 text-right text-xs ${
-                      r.deniedCount > 0 ? 'text-warn' : 'text-text-3'
-                    }`}
-                  >
-                    {r.deniedCount > 0 ? r.deniedCount : '—'}
-                  </td>
-                  <td className="py-2 text-right font-mono text-xs text-text-2">
-                    {fmtDuration(r.avgDurationMs)}
-                  </td>
-                  <td className="py-2 text-right font-mono text-xs text-text-3">
-                    {fmtDuration(r.p95DurationMs)}
-                  </td>
-                  <td className="py-2 text-right font-mono text-xs text-text-3">
-                    {fmtBytes(r.avgInputBytes)}
-                  </td>
-                  <td className="py-2 text-right font-mono text-xs text-text-3">
-                    {fmtBytes(r.avgOutputBytes)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          columns={[
+            { label: 'Tool' },
+            { label: 'Category' },
+            { align: 'right', label: 'Calls' },
+            { align: 'right', label: 'Errors' },
+            { align: 'right', label: 'Denied' },
+            { align: 'right', label: 'Avg' },
+            { align: 'right', label: 'p95' },
+            { align: 'right', label: 'Avg in' },
+            { align: 'right', label: 'Avg out' },
+          ]}
+        >
+          {rows.map((r) => (
+            <Row key={r.toolName}>
+              <Cell className="text-xs text-text">{r.toolName}</Cell>
+              <Cell className="text-xs text-text-3">{r.toolCategory ?? '—'}</Cell>
+              <Cell num className="text-text-2">
+                {r.callCount}
+              </Cell>
+              <Cell
+                num
+                className={`py-2 text-right text-xs ${
+                  r.errorCount > 0 ? 'text-crit' : 'text-text-3'
+                }`}
+              >
+                {r.errorCount > 0 ? `${r.errorCount} (${pct(r.errorCount, r.callCount)})` : '—'}
+              </Cell>
+              <Cell
+                num
+                className={`py-2 text-right text-xs ${
+                  r.deniedCount > 0 ? 'text-warn' : 'text-text-3'
+                }`}
+              >
+                {r.deniedCount > 0 ? r.deniedCount : '—'}
+              </Cell>
+              <Cell num className="text-xs text-text-2">
+                {fmtDuration(r.avgDurationMs)}
+              </Cell>
+              <Cell num className="text-xs text-text-3">
+                {fmtDuration(r.p95DurationMs)}
+              </Cell>
+              <Cell num className="text-xs text-text-3">
+                {fmtBytes(r.avgInputBytes)}
+              </Cell>
+              <Cell num className="text-xs text-text-3">
+                {fmtBytes(r.avgOutputBytes)}
+              </Cell>
+            </Row>
+          ))}
+        </Table>
       )}
     </Card>
   );

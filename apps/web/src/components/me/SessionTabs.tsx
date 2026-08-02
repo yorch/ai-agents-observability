@@ -1,4 +1,4 @@
-import { Card, EmptyState } from '@/components/ui';
+import { Card, Cell, EmptyState, Row, Table } from '@/components/ui';
 import type {
   ModelBreakdownRow,
   SessionSkillRow,
@@ -24,43 +24,44 @@ export function ToolsTab({
           <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
             Tools Used
           </h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-3 text-xs border-b border-border">
-                <th className="text-left pb-2">Tool</th>
-                <th className="text-right pb-2 font-mono">Calls</th>
-                <th className="text-right pb-2 font-mono">Errors</th>
-                <th className="text-right pb-2 font-mono">Denied</th>
-                <th className="text-right pb-2 font-mono">Avg ms</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tools.map((r) => (
-                <tr key={r.toolName} className="border-b border-border-subtle">
-                  <td className="py-2">
-                    <span className="text-text-2 font-mono">{r.toolName}</span>
-                    {r.toolCategory && (
-                      <span className="ml-2 text-xs text-text-3">{r.toolCategory}</span>
-                    )}
-                  </td>
-                  <td className="py-2 text-right text-text-2 font-mono">{r.callCount}</td>
-                  <td
-                    className={`py-2 text-right font-mono ${r.errorCount > 0 ? 'text-crit' : 'text-text-3'}`}
-                  >
-                    {r.errorCount > 0 ? r.errorCount : '—'}
-                  </td>
-                  <td
-                    className={`py-2 text-right font-mono ${r.deniedCount > 0 ? 'text-warn' : 'text-text-3'}`}
-                  >
-                    {r.deniedCount > 0 ? r.deniedCount : '—'}
-                  </td>
-                  <td className="py-2 text-right text-text-3 font-mono">
-                    {r.avgDurationMs != null ? r.avgDurationMs : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={[
+              { label: 'Tool' },
+              { align: 'right', label: 'Calls', mono: true },
+              { align: 'right', label: 'Errors', mono: true },
+              { align: 'right', label: 'Denied', mono: true },
+              { align: 'right', label: 'Avg ms', mono: true },
+            ]}
+          >
+            {tools.map((r) => (
+              <Row key={r.toolName}>
+                <Cell>
+                  <span className="text-text-2 font-mono">{r.toolName}</span>
+                  {r.toolCategory && (
+                    <span className="ml-2 text-xs text-text-3">{r.toolCategory}</span>
+                  )}
+                </Cell>
+                <Cell num className="text-text-2">
+                  {r.callCount}
+                </Cell>
+                <Cell
+                  num
+                  className={`py-2 text-right font-mono ${r.errorCount > 0 ? 'text-crit' : 'text-text-3'}`}
+                >
+                  {r.errorCount > 0 ? r.errorCount : '—'}
+                </Cell>
+                <Cell
+                  num
+                  className={`py-2 text-right font-mono ${r.deniedCount > 0 ? 'text-warn' : 'text-text-3'}`}
+                >
+                  {r.deniedCount > 0 ? r.deniedCount : '—'}
+                </Cell>
+                <Cell num className="text-text-3">
+                  {r.avgDurationMs != null ? r.avgDurationMs : '—'}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
         </Card>
       )}
 
@@ -127,38 +128,37 @@ export function ModelsTab({ costUsd, rows }: { costUsd: number; rows: ModelBreak
   return (
     <Card>
       <h3 className="text-xs text-text-3 uppercase tracking-widest mb-4">Model Breakdown</h3>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-text-3 text-xs border-b border-border">
-            <th className="text-left pb-2">Model</th>
-            <th className="text-right pb-2 font-mono">Calls</th>
-            <th className="text-right pb-2 font-mono">Input</th>
-            <th className="text-right pb-2 font-mono">Output</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={4} className="pt-4 text-center text-text-3">
-                No model data
-              </td>
-            </tr>
-          ) : (
-            rows.map((r) => (
-              <tr key={r.model} className="border-b border-border-subtle">
-                <td className="py-2 text-text-2">{r.model}</td>
-                <td className="py-2 text-right text-text-2 font-mono">{r.calls}</td>
-                <td className="py-2 text-right text-text-2 font-mono">
-                  {r.inputTokens > 0n ? r.inputTokens.toString() : '—'}
-                </td>
-                <td className="py-2 text-right text-text-2 font-mono">
-                  {r.outputTokens > 0n ? r.outputTokens.toString() : '—'}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      <Table
+        columns={[
+          { label: 'Model' },
+          { align: 'right', label: 'Calls', mono: true },
+          { align: 'right', label: 'Input', mono: true },
+          { align: 'right', label: 'Output', mono: true },
+        ]}
+      >
+        {rows.length === 0 ? (
+          <Row>
+            <Cell colSpan={4} className="pt-4 text-center text-text-3">
+              No model data
+            </Cell>
+          </Row>
+        ) : (
+          rows.map((r) => (
+            <Row key={r.model}>
+              <Cell className="text-text-2">{r.model}</Cell>
+              <Cell num className="text-text-2">
+                {r.calls}
+              </Cell>
+              <Cell num className="text-text-2">
+                {r.inputTokens > 0n ? r.inputTokens.toString() : '—'}
+              </Cell>
+              <Cell num className="text-text-2">
+                {r.outputTokens > 0n ? r.outputTokens.toString() : '—'}
+              </Cell>
+            </Row>
+          ))
+        )}
+      </Table>
       <div className="mt-4 pt-4 border-t border-border text-xs text-text-3">
         Total cost: <span className="text-text-2 font-mono">${costUsd.toFixed(4)}</span>
       </div>

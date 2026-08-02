@@ -1,3 +1,4 @@
+import { Cell, Row, Table } from '@/components/ui';
 import { fmtDuration } from '@/lib/fmt';
 
 export type McpToolRow = {
@@ -91,56 +92,49 @@ export function McpServerCard({
         />
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-border text-left text-text-3">
-              <th className="pb-2 font-medium">Tool</th>
-              <th className="pb-2 text-right font-medium">Calls</th>
-              <th className="pb-2 text-right font-medium">Errors</th>
-              <th className="pb-2 text-right font-medium">Denies</th>
-              <th className="pb-2 text-right font-medium">Avg ms</th>
-              <th className="pb-2 text-right font-medium">p95 ms</th>
-              <th className="pb-2 text-right font-medium">Users</th>
-              <th className="pb-2 text-right font-medium">Cost</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {data.tools.map((t) => (
-              <tr key={`${server}/${t.mcpTool ?? '__svr__'}`}>
-                <td className="py-1.5 pr-4">
-                  <span className="font-mono text-text-2">
-                    {t.mcpTool ?? <span className="italic text-text-3">server-level</span>}
-                  </span>
-                </td>
-                <td className="py-1.5 text-right font-mono text-text-2">
-                  {t.callCount.toLocaleString()}
-                </td>
-                <td className="py-1.5 text-right font-mono">
-                  <span className={t.errorCount > 0 ? 'text-crit' : 'text-text-3'}>
-                    {t.errorCount}
-                  </span>
-                </td>
-                <td className="py-1.5 text-right font-mono">
-                  <span className={t.denyCount > 0 ? 'text-warn' : 'text-text-3'}>
-                    {t.denyCount}
-                  </span>
-                </td>
-                <td className="py-1.5 text-right font-mono text-text-2">
-                  {t.avgDurationMs !== null ? fmtDuration(t.avgDurationMs) : '—'}
-                </td>
-                <td className="py-1.5 text-right font-mono text-text-2">
-                  {t.p95DurationMs !== null ? fmtDuration(t.p95DurationMs) : '—'}
-                </td>
-                <td className="py-1.5 text-right text-text-2">{t.distinctUsers}</td>
-                <td className="py-1.5 text-right font-mono text-text-2">
-                  {t.totalCostUsd > 0 ? `$${t.totalCostUsd.toFixed(3)}` : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Table
+        columns={[
+          { label: 'Tool' },
+          { align: 'right', label: 'Calls' },
+          { align: 'right', label: 'Errors' },
+          { align: 'right', label: 'Denies' },
+          { align: 'right', label: 'Avg ms' },
+          { align: 'right', label: 'p95 ms' },
+          { align: 'right', label: 'Users' },
+          { align: 'right', label: 'Cost' },
+        ]}
+      >
+        {data.tools.map((t) => (
+          <Row key={`${server}/${t.mcpTool ?? '__svr__'}`}>
+            <Cell>
+              <span className="font-mono text-text-2">
+                {t.mcpTool ?? <span className="italic text-text-3">server-level</span>}
+              </span>
+            </Cell>
+            <Cell num className="text-text-2">
+              {t.callCount.toLocaleString()}
+            </Cell>
+            <Cell num>
+              <span className={t.errorCount > 0 ? 'text-crit' : 'text-text-3'}>{t.errorCount}</span>
+            </Cell>
+            <Cell num>
+              <span className={t.denyCount > 0 ? 'text-warn' : 'text-text-3'}>{t.denyCount}</span>
+            </Cell>
+            <Cell num className="text-text-2">
+              {t.avgDurationMs !== null ? fmtDuration(t.avgDurationMs) : '—'}
+            </Cell>
+            <Cell num className="text-text-2">
+              {t.p95DurationMs !== null ? fmtDuration(t.p95DurationMs) : '—'}
+            </Cell>
+            <Cell num className="text-text-2">
+              {t.distinctUsers}
+            </Cell>
+            <Cell num className="text-text-2">
+              {t.totalCostUsd > 0 ? `$${t.totalCostUsd.toFixed(3)}` : '—'}
+            </Cell>
+          </Row>
+        ))}
+      </Table>
     </section>
   );
 }

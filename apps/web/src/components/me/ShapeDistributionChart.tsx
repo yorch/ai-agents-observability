@@ -1,4 +1,4 @@
-import { ShareBar } from '@/components/ui';
+import { Card, ShareBar } from '@/components/ui';
 import { shapeBg } from './shape';
 
 const SHAPE_DESC: Record<string, string> = {
@@ -15,7 +15,7 @@ export function ShapeDistributionChart({ histogram }: { histogram: Record<string
   const total = entries.reduce((sum, [, count]) => sum + count, 0);
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <Card>
       <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-text-3">
         Session shapes
       </h2>
@@ -49,6 +49,6 @@ export function ShapeDistributionChart({ histogram }: { histogram: Record<string
           </ul>
         </>
       )}
-    </div>
+    </Card>
   );
 }
