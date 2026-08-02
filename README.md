@@ -112,6 +112,7 @@ infra/
   migrations-runner/       Docker image that applies all DB migrations
 docs/
   github-app-setup.md      GitHub App registration guide
+  design/                  UI design direction ("Instrument") + its audit
 tasks/                     Agent-trackable task decomposition
 ```
 

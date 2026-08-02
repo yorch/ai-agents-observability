@@ -4,6 +4,10 @@ Read [`/PLAN.md`](../../PLAN.md) and [`/tasks/`](../../tasks/) before picking up
 
 ## Conventions
 
+> The direction these conventions come from — and the audit that motivated it — is
+> [`docs/design/ui-direction.html`](../../docs/design/ui-direction.html). That page is a
+> point-in-time pitch; this file is the living source of truth.
+
 - **Next.js 16, App Router, Turbopack default** (no `--turbo` flag needed).
 - **React 19.2** with Server Components by default. Client components only when interactive — mark them with `'use client'` and keep them small.
 - **Tailwind CSS 4** with CSS-first config. The theme lives in `src/styles/globals.css` under `@theme { … }`. **Do not create `tailwind.config.ts`.**
