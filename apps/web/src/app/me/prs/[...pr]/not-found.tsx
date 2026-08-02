@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeftIcon } from '@/components/icons';
+import { buttonClasses } from '@/components/ui';
 
 export default function PRNotFound() {
   return (
@@ -8,10 +9,7 @@ export default function PRNotFound() {
       <p className="mt-2 text-sm text-text-2">
         PR not found or you haven&apos;t contributed to it.
       </p>
-      <Link
-        href="/me/prs"
-        className="mt-6 inline-flex items-center gap-1 rounded-md border border-border px-4 py-2 text-sm hover:bg-surface-2 transition-colors"
-      >
+      <Link href="/me/prs" className={buttonClasses('secondary', 'md', 'mt-6')}>
         <ArrowLeftIcon /> Back to Pull Requests
       </Link>
     </div>

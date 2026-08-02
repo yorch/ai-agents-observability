@@ -14,6 +14,19 @@ import { requireOrgAdmin } from '@/lib/roles';
 
 import { triggerJob, updateJobConfig } from './actions';
 
+const pad = (n: number) => String(n).padStart(2, '0');
+// The same on every row — only each `Select`'s `defaultValue` differs.
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => (
+  <option key={i} value={i}>
+    {pad(i)}
+  </option>
+));
+const MINUTE_OPTIONS = [0, 15, 30, 45].map((m) => (
+  <option key={m} value={m}>
+    {pad(m)}
+  </option>
+));
+
 export const dynamic = 'force-dynamic';
 
 export default async function AdminJobsPage() {
@@ -96,11 +109,7 @@ export default async function AdminJobsPage() {
                           name="runHourUtc"
                           defaultValue={cfg.runHourUtc}
                         >
-                          {Array.from({ length: 24 }, (_, i) => (
-                            <option key={i} value={i}>
-                              {String(i).padStart(2, '0')}
-                            </option>
-                          ))}
+                          {HOUR_OPTIONS}
                         </Select>
                       </label>
 
@@ -115,11 +124,7 @@ export default async function AdminJobsPage() {
                           name="runMinuteUtc"
                           defaultValue={cfg.runMinuteUtc}
                         >
-                          {[0, 15, 30, 45].map((m) => (
-                            <option key={m} value={m}>
-                              {String(m).padStart(2, '0')}
-                            </option>
-                          ))}
+                          {MINUTE_OPTIONS}
                         </Select>
                       </label>
 

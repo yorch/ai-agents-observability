@@ -1,4 +1,4 @@
-import { Button, Card, Input } from '@/components/ui';
+import { Button, ButtonLink, Card, Input } from '@/components/ui';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -34,6 +34,21 @@ function expiringSoon(g: Grant): boolean {
   return status(g) === 'active' && isGrantExpiringSoon(g.expiresAt);
 }
 
+/** The grant-lifetime box, identical on the per-row and bulk approve forms. */
+function HoursInput({ label }: { label: string }) {
+  return (
+    <Input
+      size="sm"
+      type="number"
+      name="hours"
+      min={1}
+      placeholder="48"
+      aria-label={label}
+      className="w-20 text-right"
+    />
+  );
+}
+
 function GrantCard({ g }: { g: Grant }) {
   const st = status(g);
   return (
@@ -56,15 +71,7 @@ function GrantCard({ g }: { g: Grant }) {
         {st === 'pending' && (
           <form action={approveGrant} className="inline-flex items-center gap-2">
             <input type="hidden" name="id" value={g.id} />
-            <Input
-              size="sm"
-              type="number"
-              name="hours"
-              min={1}
-              placeholder="48"
-              aria-label="Grant lifetime (hours)"
-              className="w-20 text-right"
-            />
+            <HoursInput label="Grant lifetime (hours)" />
             <Button size="sm" type="submit">
               Approve (h)
             </Button>
@@ -106,12 +113,9 @@ export default async function AccessGrantsPage() {
             bounded window; revoke any time. The viewed user sees every grant in their audit feed.
           </p>
         </div>
-        <a
-          href="/admin/access-grants/new"
-          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:opacity-90"
-        >
+        <ButtonLink size="sm" href="/admin/access-grants/new">
           New request
-        </a>
+        </ButtonLink>
       </div>
 
       {/* Needs attention: pending requests awaiting approval (R8). */}
@@ -125,15 +129,7 @@ export default async function AccessGrantsPage() {
           </h2>
           {pending.length > 0 && (
             <form action={approveAllPending} className="inline-flex items-center gap-2">
-              <Input
-                size="sm"
-                type="number"
-                name="hours"
-                min={1}
-                placeholder="48"
-                aria-label="Bulk grant lifetime (hours)"
-                className="w-20 text-right"
-              />
+              <HoursInput label="Bulk grant lifetime (hours)" />
               {/* Secondary, not the accent: a bulk approve should not outweigh
                   the per-row approvals it stands next to. */}
               <Button variant="secondary" size="sm" type="submit">

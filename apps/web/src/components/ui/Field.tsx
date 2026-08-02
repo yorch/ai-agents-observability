@@ -4,6 +4,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
+import { cx } from './cx';
 
 /**
  * Form controls. The focus ring is the accent, which is the one place the
@@ -13,18 +14,12 @@ const CONTROL =
   'rounded-md border border-border bg-surface text-text placeholder:text-text-3 focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none disabled:opacity-50';
 
 /**
- * Scale only — width is a layout decision, not a size. `md` is the default
- * control and matches `Button` `md` height exactly (`py-2 text-sm`), so a
- * control and its submit button line up in a filter row without nudging. `sm`
- * pairs with `Button` `sm` the same way.
- *
- * `Field` makes its own control full-width; anywhere else, say so at the call
- * site (`className="w-full"`, `"flex-1"`).
- *
- * Measured: `sm` is 30px for every control and button. `md` is 38px for
- * everything except a `<select>`, which Chromium renders at 36 — its inner box
- * ignores the line-height, and forcing a height here would fight `Textarea`.
- * Don't "fix" that 2px inline; it is the browser, not the scale.
+ * Scale only — width is a layout decision, not a size, so it lives on `Field`
+ * or at the call site. Measured, each step matches the same `Button` size: `sm`
+ * is 30px and `md` 38px for every control and button. The one exception is a
+ * `<select>` at `md`, which Chromium renders at 36 because its inner box
+ * ignores the line-height; forcing a height here would fight `Textarea`, so
+ * don't "fix" that 2px — it is the browser, not the scale.
  */
 const CONTROL_SIZE = {
   md: 'px-3 py-2 text-sm',
@@ -33,8 +28,14 @@ const CONTROL_SIZE = {
 
 export type ControlSize = keyof typeof CONTROL_SIZE;
 
+/**
+ * Fills the field with whatever the control is — matched by exclusion rather
+ * than by tag, so a wrapped control or a future element still gets its width.
+ */
+const FILL_CONTROL = '[&>:not(label):not(p)]:w-full';
+
 function controlClass(size: ControlSize, className?: string): string {
-  return `${CONTROL} ${CONTROL_SIZE[size]}${className ? ` ${className}` : ''}`;
+  return cx(CONTROL, CONTROL_SIZE[size], className);
 }
 
 export function Input({
@@ -76,10 +77,8 @@ export function Textarea({
  * control's `id`. Wrapping is valid HTML but opaque to static analysis, and an
  * explicit pair survives the control being swapped for a custom component.
  *
- * This is the stacked-form layout, so it is also where full-width belongs — the
- * control fills the field, and the field is sized by the grid or column holding
- * it. Controls used inline (a filter row, a table cell) take their width from
- * the call site instead.
+ * This is the stacked-form layout, so it is also where full-width belongs: the
+ * control fills the field, and the field is sized by whatever holds it.
  */
 export function Field({
   children,
@@ -96,11 +95,7 @@ export function Field({
   label: string;
 }) {
   return (
-    <div
-      className={`space-y-1.5 [&>input]:w-full [&>select]:w-full [&>textarea]:w-full${
-        className ? ` ${className}` : ''
-      }`}
-    >
+    <div className={cx('space-y-1.5', FILL_CONTROL, className)}>
       <label htmlFor={htmlFor} className="block text-xs font-medium text-text-2">
         {label}
       </label>

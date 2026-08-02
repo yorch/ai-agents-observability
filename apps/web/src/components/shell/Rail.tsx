@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useId, useState } from 'react';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
-// Not the barrel: it would pull `Table` and every chart module into this client graph.
 import { Select } from '@/components/ui/Field';
 import {
   ADMIN_NAV,
@@ -177,7 +176,6 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
 function TeamPicker({ current, teams }: { current: string | null; teams: RailTeam[] }) {
   return (
     <div className="px-1">
-      {/* No visible label in the rail — the control names itself. */}
       <Select
         size="sm"
         className="w-full"

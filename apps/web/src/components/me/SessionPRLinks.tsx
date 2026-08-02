@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react';
 
 import { linkSessionPR, unlinkSessionPR } from '@/app/me/sessions/[id]/actions';
 import { JiraLink } from '@/components/JiraLink';
-// Not the barrel: it would pull `Table` and every chart module into this client graph.
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Field';
 

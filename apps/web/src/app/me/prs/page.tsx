@@ -3,13 +3,13 @@ import { PrStateBadge } from '@/components/me/PrStateBadge';
 import {
   Button,
   ButtonLink,
-  Card,
   Cell,
   EmptyState,
   Field,
   Pagination,
   Row,
   Select,
+  Stat,
   Table,
 } from '@/components/ui';
 import { fmtDate } from '@/lib/fmt';
@@ -174,18 +174,9 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
       {/* Summary stats */}
       {total > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          <Card>
-            <div className="text-xs text-text-3 uppercase tracking-wide">Total PRs</div>
-            <div className="mt-1 text-2xl font-semibold">{total}</div>
-          </Card>
-          <Card>
-            <div className="text-xs text-text-3 uppercase tracking-wide">Total Cost</div>
-            <div className="mt-1 text-2xl font-semibold">${totalCost.toFixed(2)}</div>
-          </Card>
-          <Card>
-            <div className="text-xs text-text-3 uppercase tracking-wide">Total Sessions</div>
-            <div className="mt-1 text-2xl font-semibold">{totalSessions}</div>
-          </Card>
+          <Stat label="Total PRs" value={String(total)} />
+          <Stat label="Total cost" value={`$${totalCost.toFixed(2)}`} />
+          <Stat label="Total sessions" value={String(totalSessions)} />
         </div>
       )}
 

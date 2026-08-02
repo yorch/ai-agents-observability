@@ -1,5 +1,5 @@
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { Button, Card, Cell, Field, Input, Row, Select, Table } from '@/components/ui';
+import { Button, Card, Cell, Field, FilterPanel, Input, Row, Select, Table } from '@/components/ui';
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
 import { getPrisma } from '@/lib/prisma';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
@@ -129,7 +129,7 @@ export default async function OrgSearchPage({
       {canView && (
         <>
           {/* Filters */}
-          <form method="GET" className="rounded-lg border border-border bg-surface p-4 space-y-4">
+          <FilterPanel label="Session filters">
             <div className="grid gap-3 md:grid-cols-3">
               <Field label="Team" htmlFor="filter-team">
                 <Select id="filter-team" name="team" defaultValue={teamId ?? ''}>
@@ -245,7 +245,7 @@ export default async function OrgSearchPage({
               />
               <Button type="submit">Search</Button>
             </div>
-          </form>
+          </FilterPanel>
 
           {/* Transcript results */}
           {query && (

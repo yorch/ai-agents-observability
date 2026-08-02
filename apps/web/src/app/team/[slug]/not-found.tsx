@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { buttonClasses } from '@/components/ui';
 
 export default function TeamNotFound() {
   return (
@@ -8,10 +9,7 @@ export default function TeamNotFound() {
       <p className="mt-1 text-sm text-text-2">
         This team doesn't exist or you don't have access to it.
       </p>
-      <Link
-        href="/me"
-        className="mt-6 rounded-md border border-border px-4 py-2 text-sm hover:bg-surface-2 transition-colors"
-      >
+      <Link href="/me" className={buttonClasses('secondary', 'md', 'mt-6')}>
         Back to My Agents
       </Link>
     </div>

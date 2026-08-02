@@ -1,7 +1,7 @@
 import { PERMISSION_MODES } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
 import { SessionsTable } from '@/components/me/SessionsTable';
-import { Button, ButtonLink, Field, Input, Select } from '@/components/ui';
+import { Button, ButtonLink, Field, FilterPanel, Input, Select } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
 import { getPrisma } from '@/lib/prisma';
@@ -102,17 +102,26 @@ export default async function SessionsPage({
   const agentTypes = agentFacets.map((f) => f.agentType);
   const shapeLabels = shapeFacets.map((f) => f.shapeLabel as string);
 
+  // One list, so the Clear button and the export URL cannot disagree about what
+  // counts as a filter.
+  const filters = {
+    agent,
+    band: frictionBand,
+    from: params.from,
+    mode,
+    repo,
+    shape,
+    status,
+    to: params.to,
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Sessions</h1>
 
-      {/* Eight filters wrap badly in a row; the same grid the org search uses
+      {/* These filters wrap badly in a row; the same grid the org search uses
           keeps the labels readable and the controls on one baseline. */}
-      <form
-        method="GET"
-        className="space-y-4 rounded-lg border border-border bg-surface p-4"
-        aria-label="Session filters"
-      >
+      <FilterPanel label="Session filters">
         <div className="grid gap-3 md:grid-cols-3">
           <Field label="Repo" htmlFor="repo-filter">
             <Select id="repo-filter" name="repo" defaultValue={repo ?? ''}>
@@ -192,37 +201,17 @@ export default async function SessionsPage({
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
           <Button type="submit">Filter</Button>
 
-          {(repo ||
-            status ||
-            params.from ||
-            params.to ||
-            shape ||
-            agent ||
-            frictionBand ||
-            mode) && (
+          {Object.values(filters).some(Boolean) && (
             <ButtonLink variant="secondary" href="/me/sessions">
               Clear
             </ButtonLink>
           )}
 
-          <ButtonLink
-            className="ml-auto"
-            variant="secondary"
-            href={buildExportUrl({
-              agent,
-              band: frictionBand,
-              from: params.from,
-              mode,
-              repo,
-              shape,
-              status,
-              to: params.to,
-            })}
-          >
+          <ButtonLink className="ml-auto" variant="secondary" href={buildExportUrl(filters)}>
             Export CSV
           </ButtonLink>
         </div>
-      </form>
+      </FilterPanel>
 
       <SessionsTable
         sessions={sessions}

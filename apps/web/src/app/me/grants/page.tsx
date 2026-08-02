@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowRightIcon } from '@/components/icons';
-import { Card, EmptyState } from '@/components/ui';
+import { buttonClasses, Card, EmptyState } from '@/components/ui';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireGrantRequester } from '@/lib/roles';
@@ -88,10 +88,7 @@ export default async function GrantsPage() {
               : ' Each grant must be approved by an org admin before it becomes active.'}
           </p>
         </div>
-        <Link
-          href="/admin/access-grants/new"
-          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:opacity-90 transition-opacity"
-        >
+        <Link href="/admin/access-grants/new" className={buttonClasses('primary', 'sm')}>
           Request grant
         </Link>
       </div>

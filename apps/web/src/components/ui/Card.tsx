@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { cx } from './cx';
 
 type CardProps = {
   /** Small secondary text under the title (e.g. "Trailing 30 days"). */
@@ -36,21 +37,23 @@ export function Card({
   title,
 }: CardProps) {
   const heading = title || hint || caption;
-  const content = [heading ? 'mt-4' : '', contentClassName ?? ''].filter(Boolean).join(' ');
+  const content = cx(heading && 'mt-4', contentClassName);
 
   return (
     <div
-      className={`rounded-lg border border-border bg-surface${flush ? ' overflow-hidden' : ' p-4'}${
-        className ? ` ${className}` : ''
-      }`}
+      className={cx(
+        'rounded-lg border border-border bg-surface',
+        flush ? 'overflow-hidden' : 'p-4',
+        className,
+      )}
     >
       {(title || hint) && (
-        <div className={`flex items-baseline justify-between gap-3${flush ? ' px-4 pt-4' : ''}`}>
+        <div className={cx('flex items-baseline justify-between gap-3', flush && 'px-4 pt-4')}>
           {title && <h2 className="font-display text-sm font-semibold text-text">{title}</h2>}
           {hint && <span className="text-xs text-text-3">{hint}</span>}
         </div>
       )}
-      {caption && <p className={`mt-0.5 text-xs text-text-3${flush ? ' px-4' : ''}`}>{caption}</p>}
+      {caption && <p className={cx('mt-0.5 text-xs text-text-3', flush && 'px-4')}>{caption}</p>}
       {/* No wrapper when there is nothing to offset and nothing to style — an
           extra div would break a `space-y-*` passed on `className`. */}
       {content ? <div className={content}>{children}</div> : children}

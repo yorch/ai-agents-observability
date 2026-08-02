@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
-import { Button, Textarea } from '@/components/ui';
+import { Button, Field, Textarea } from '@/components/ui';
 import { MIN_JUSTIFICATION_LENGTH, normalizeJustification } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
 import { resolveOrgSessionAccess } from '@/lib/roles';
@@ -89,18 +89,19 @@ export default async function OrgTranscriptPage({
           </p>
         </div>
         <form method="GET" className="space-y-3 rounded-lg border border-border bg-surface p-4">
-          <label htmlFor="justification" className="block text-sm text-text-2">
-            Justification (min {MIN_JUSTIFICATION_LENGTH} characters)
-          </label>
-          <Textarea
-            id="justification"
-            name="justification"
-            required
-            minLength={MIN_JUSTIFICATION_LENGTH}
-            rows={3}
-            placeholder="e.g. security incident #1234 — investigating leaked credential"
-            className="w-full"
-          />
+          <Field
+            label={`Justification (min ${MIN_JUSTIFICATION_LENGTH} characters)`}
+            htmlFor="justification"
+          >
+            <Textarea
+              id="justification"
+              name="justification"
+              required
+              minLength={MIN_JUSTIFICATION_LENGTH}
+              rows={3}
+              placeholder="e.g. security incident #1234 — investigating leaked credential"
+            />
+          </Field>
           <Button type="submit">View with justification</Button>
         </form>
       </div>
