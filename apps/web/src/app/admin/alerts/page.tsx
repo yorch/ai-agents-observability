@@ -2,7 +2,7 @@ import {
   BUDGET_THRESHOLD_WINDOW_DAYS,
   parseBudgetThresholdParams,
 } from '@ai-agents-observability/schemas';
-import { Button, Cell, Row, Select, Table } from '@/components/ui';
+import { Button, Cell, Input, Row, Select, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import {
@@ -182,11 +182,12 @@ export default async function AlertsAdminPage() {
             <option value="slack_webhook">slack_webhook</option>
             <option value="email">email</option>
           </Select>
-          <input
+          <Input
+            size="sm"
             name="target"
             placeholder="https://… or email@…"
             aria-label="Channel target"
-            className="flex-1 min-w-64 rounded-md border border-border bg-surface px-3 py-1 text-sm"
+            className="min-w-64 flex-1"
           />
           <Button size="sm" type="submit">
             Add channel

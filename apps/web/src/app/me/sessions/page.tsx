@@ -1,7 +1,7 @@
 import { PERMISSION_MODES } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
 import { SessionsTable } from '@/components/me/SessionsTable';
-import { Button, ButtonLink } from '@/components/ui';
+import { Button, ButtonLink, Field, Input, Select } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
 import { getPrisma } from '@/lib/prisma';
@@ -53,9 +53,6 @@ type SearchParams = {
   status?: string;
   to?: string;
 };
-
-const selectClass =
-  'rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
 
 export default async function SessionsPage({
   searchParams,
@@ -109,163 +106,123 @@ export default async function SessionsPage({
     <div className="space-y-6">
       <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Sessions</h1>
 
-      <form method="GET" className="flex flex-wrap gap-3 items-end">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="repo-filter" className="text-xs text-text-3">
-            Repo
-          </label>
-          <select id="repo-filter" name="repo" defaultValue={repo ?? ''} className={selectClass}>
-            <option value="">All repos</option>
-            {repos.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="status-filter" className="text-xs text-text-3">
-            Status
-          </label>
-          <select
-            id="status-filter"
-            name="status"
-            defaultValue={status ?? ''}
-            className={selectClass}
-          >
-            <option value="">All statuses</option>
-            {SESSION_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="from-filter" className="text-xs text-text-3">
-            From
-          </label>
-          <input
-            id="from-filter"
-            type="date"
-            name="from"
-            defaultValue={params.from ?? ''}
-            className={selectClass}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="to-filter" className="text-xs text-text-3">
-            To
-          </label>
-          <input
-            id="to-filter"
-            type="date"
-            name="to"
-            defaultValue={params.to ?? ''}
-            className={selectClass}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="shape-filter" className="text-xs text-text-3">
-            Shape
-          </label>
-          <select id="shape-filter" name="shape" defaultValue={shape ?? ''} className={selectClass}>
-            <option value="">All shapes</option>
-            {shapeLabels.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="band-filter" className="text-xs text-text-3">
-            Friction
-          </label>
-          <select
-            id="band-filter"
-            name="band"
-            defaultValue={frictionBand ?? ''}
-            className={selectClass}
-          >
-            <option value="">Any</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="mode-filter" className="text-xs text-text-3">
-            Mode
-          </label>
-          <select id="mode-filter" name="mode" defaultValue={mode ?? ''} className={selectClass}>
-            <option value="">All modes</option>
-            {PERMISSION_MODES.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {agentTypes.length > 1 && (
-          <div className="flex flex-col gap-1">
-            <label htmlFor="agent-filter" className="text-xs text-text-3">
-              Agent
-            </label>
-            <select
-              id="agent-filter"
-              name="agent"
-              defaultValue={agent ?? ''}
-              className={selectClass}
-            >
-              <option value="">All agents</option>
-              {agentTypes.map((a) => (
-                <option key={a} value={a}>
-                  {a}
+      {/* Eight filters wrap badly in a row; the same grid the org search uses
+          keeps the labels readable and the controls on one baseline. */}
+      <form
+        method="GET"
+        className="space-y-4 rounded-lg border border-border bg-surface p-4"
+        aria-label="Session filters"
+      >
+        <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Repo" htmlFor="repo-filter">
+            <Select id="repo-filter" name="repo" defaultValue={repo ?? ''}>
+              <option value="">All repos</option>
+              {repos.map((r) => (
+                <option key={r} value={r}>
+                  {r}
                 </option>
               ))}
-            </select>
-          </div>
-        )}
+            </Select>
+          </Field>
 
-        <Button type="submit">Filter</Button>
+          <Field label="Status" htmlFor="status-filter">
+            <Select id="status-filter" name="status" defaultValue={status ?? ''}>
+              <option value="">All statuses</option>
+              {SESSION_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </Field>
 
-        {(repo || status || params.from || params.to || shape || agent || frictionBand || mode) && (
-          <a
-            href="/me/sessions"
-            className="rounded-lg border border-border px-4 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
+          <Field label="Shape" htmlFor="shape-filter">
+            <Select id="shape-filter" name="shape" defaultValue={shape ?? ''}>
+              <option value="">All shapes</option>
+              {shapeLabels.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Friction" htmlFor="band-filter">
+            <Select id="band-filter" name="band" defaultValue={frictionBand ?? ''}>
+              <option value="">Any</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </Select>
+          </Field>
+
+          <Field label="Mode" htmlFor="mode-filter">
+            <Select id="mode-filter" name="mode" defaultValue={mode ?? ''}>
+              <option value="">All modes</option>
+              {PERMISSION_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          {agentTypes.length > 1 && (
+            <Field label="Agent" htmlFor="agent-filter">
+              <Select id="agent-filter" name="agent" defaultValue={agent ?? ''}>
+                <option value="">All agents</option>
+                {agentTypes.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+
+          <Field label="From" htmlFor="from-filter">
+            <Input id="from-filter" type="date" name="from" defaultValue={params.from ?? ''} />
+          </Field>
+
+          <Field label="To" htmlFor="to-filter">
+            <Input id="to-filter" type="date" name="to" defaultValue={params.to ?? ''} />
+          </Field>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <Button type="submit">Filter</Button>
+
+          {(repo ||
+            status ||
+            params.from ||
+            params.to ||
+            shape ||
+            agent ||
+            frictionBand ||
+            mode) && (
+            <ButtonLink variant="secondary" href="/me/sessions">
+              Clear
+            </ButtonLink>
+          )}
+
+          <ButtonLink
+            className="ml-auto"
+            variant="secondary"
+            href={buildExportUrl({
+              agent,
+              band: frictionBand,
+              from: params.from,
+              mode,
+              repo,
+              shape,
+              status,
+              to: params.to,
+            })}
           >
-            Clear
-          </a>
-        )}
+            Export CSV
+          </ButtonLink>
+        </div>
       </form>
-
-      {/* Export */}
-      <div className="flex justify-end">
-        <ButtonLink
-          variant="secondary"
-          size="sm"
-          href={buildExportUrl({
-            agent,
-            band: frictionBand,
-            from: params.from,
-            mode,
-            repo,
-            shape,
-            status,
-            to: params.to,
-          })}
-        >
-          Export CSV
-        </ButtonLink>
-      </div>
 
       <SessionsTable
         sessions={sessions}

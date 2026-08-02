@@ -1,4 +1,14 @@
-import { Badge, type BadgeTone, Button, Card, Cell, EmptyState, Row, Table } from '@/components/ui';
+import {
+  Badge,
+  type BadgeTone,
+  Button,
+  Card,
+  Cell,
+  EmptyState,
+  Row,
+  Select,
+  Table,
+} from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -80,18 +90,18 @@ export default async function AdminJobsPage() {
                         className="flex items-center gap-1 text-xs text-text-2"
                       >
                         Hour
-                        <select
+                        <Select
+                          size="sm"
                           id={`hour-${cfg.jobName}`}
                           name="runHourUtc"
                           defaultValue={cfg.runHourUtc}
-                          className="ml-1 rounded bg-surface-2 border border-border px-1 py-0.5 text-text text-xs"
                         >
                           {Array.from({ length: 24 }, (_, i) => (
                             <option key={i} value={i}>
                               {String(i).padStart(2, '0')}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </label>
 
                       <label
@@ -99,26 +109,23 @@ export default async function AdminJobsPage() {
                         className="flex items-center gap-1 text-xs text-text-2"
                       >
                         Min
-                        <select
+                        <Select
+                          size="sm"
                           id={`min-${cfg.jobName}`}
                           name="runMinuteUtc"
                           defaultValue={cfg.runMinuteUtc}
-                          className="ml-1 rounded bg-surface-2 border border-border px-1 py-0.5 text-text text-xs"
                         >
                           {[0, 15, 30, 45].map((m) => (
                             <option key={m} value={m}>
                               {String(m).padStart(2, '0')}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </label>
 
-                      <button
-                        type="submit"
-                        className="rounded px-2 py-1 text-xs bg-surface-2 hover:bg-surface-3 text-text"
-                      >
+                      <Button size="sm" variant="secondary" type="submit">
                         Save
-                      </button>
+                      </Button>
                     </form>
                   </Cell>
 

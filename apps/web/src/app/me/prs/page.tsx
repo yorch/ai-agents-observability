@@ -6,8 +6,10 @@ import {
   Card,
   Cell,
   EmptyState,
+  Field,
   Pagination,
   Row,
+  Select,
   Table,
 } from '@/components/ui';
 import { fmtDate } from '@/lib/fmt';
@@ -188,22 +190,14 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
       )}
 
       {/* Filter bar */}
-      <form method="GET" className="flex flex-wrap gap-3 items-end">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="state-filter" className="text-xs text-text-2">
-            State
-          </label>
-          <select
-            id="state-filter"
-            name="state"
-            defaultValue={stateFilter}
-            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
-          >
+      <form method="GET" className="flex flex-wrap items-end gap-3">
+        <Field label="State" htmlFor="state-filter">
+          <Select id="state-filter" name="state" defaultValue={stateFilter}>
             <option value="all">All states</option>
             <option value="open">Open</option>
             <option value="merged">Merged</option>
-          </select>
-        </div>
+          </Select>
+        </Field>
 
         <Button type="submit">Filter</Button>
 

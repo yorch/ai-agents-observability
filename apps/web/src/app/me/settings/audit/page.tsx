@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { AuditTable } from '@/components/me/AuditTable';
-import { Button, ButtonLink } from '@/components/ui';
+import { Button, ButtonLink, Field, Select } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getAuditLog } from '@/lib/me-queries';
 import { daysAgo } from '@/lib/time';
@@ -61,30 +61,26 @@ export default async function SettingsAuditPage({
         </p>
       </div>
 
-      <form method="GET" className="flex flex-wrap gap-3">
-        <select
-          name="action"
-          defaultValue={actionFilter ?? ''}
-          className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text-2 focus:outline-none focus:ring-1 focus:ring-accent"
-        >
-          <option value="">All actions</option>
-          {Object.entries(ACTION_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          name="days"
-          defaultValue={daysFilter?.toString() ?? ''}
-          className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text-2 focus:outline-none focus:ring-1 focus:ring-accent"
-        >
-          {DATE_OPTIONS.map((o) => (
-            <option key={o.label} value={o.days ?? ''}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+      <form method="GET" className="flex flex-wrap items-end gap-3">
+        <Field label="Action" htmlFor="action-filter">
+          <Select id="action-filter" name="action" defaultValue={actionFilter ?? ''}>
+            <option value="">All actions</option>
+            {Object.entries(ACTION_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Period" htmlFor="days-filter">
+          <Select id="days-filter" name="days" defaultValue={daysFilter?.toString() ?? ''}>
+            {DATE_OPTIONS.map((o) => (
+              <option key={o.label} value={o.days ?? ''}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
         <Button variant="secondary" type="submit">
           Filter
         </Button>

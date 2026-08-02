@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
-import { Button } from '@/components/ui';
+import { Button, Textarea } from '@/components/ui';
 import { MIN_JUSTIFICATION_LENGTH, normalizeJustification } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
 import { resolveOrgSessionAccess } from '@/lib/roles';
@@ -92,14 +92,14 @@ export default async function OrgTranscriptPage({
           <label htmlFor="justification" className="block text-sm text-text-2">
             Justification (min {MIN_JUSTIFICATION_LENGTH} characters)
           </label>
-          <textarea
+          <Textarea
             id="justification"
             name="justification"
             required
             minLength={MIN_JUSTIFICATION_LENGTH}
             rows={3}
             placeholder="e.g. security incident #1234 — investigating leaked credential"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
+            className="w-full"
           />
           <Button type="submit">View with justification</Button>
         </form>
