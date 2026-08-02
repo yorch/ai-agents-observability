@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { cx } from './cx';
 
 export type Column = {
   align?: 'left' | 'right';
@@ -21,9 +22,11 @@ export function Table({ children, columns }: { children: ReactNode; columns: Col
             {columns.map((col) => (
               <th
                 key={col.label}
-                className={`whitespace-nowrap pb-2 ${
-                  col.align === 'right' ? 'text-right' : 'text-left'
-                }${col.mono ? ' font-mono' : ''}`}
+                className={cx(
+                  'whitespace-nowrap pb-2',
+                  col.align === 'right' ? 'text-right' : 'text-left',
+                  col.mono && 'font-mono',
+                )}
               >
                 {col.label}
               </th>
@@ -60,10 +63,7 @@ export function Cell({
   num?: boolean;
 }) {
   return (
-    <td
-      colSpan={colSpan}
-      className={`py-2${num ? ' text-right font-mono' : ''}${className ? ` ${className}` : ''}`}
-    >
+    <td colSpan={colSpan} className={cx('py-2', num && 'text-right font-mono', className)}>
       {children}
     </td>
   );

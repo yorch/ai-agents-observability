@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useId, useState } from 'react';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Select } from '@/components/ui/Field';
 import {
   ADMIN_NAV,
   isActive,
@@ -174,21 +175,22 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
 
 function TeamPicker({ current, teams }: { current: string | null; teams: RailTeam[] }) {
   return (
-    <label className="px-1">
-      <span className="sr-only">Team</span>
-      <select
+    <div className="px-1">
+      <Select
+        size="sm"
+        className="w-full"
+        aria-label="Team"
         value={current ?? ''}
         onChange={(e) => {
           window.location.href = `/team/${e.target.value}`;
         }}
-        className="w-full rounded-md border border-border bg-surface-2 px-2 py-1.5 text-xs text-text focus:ring-1 focus:ring-accent focus:outline-none"
       >
         {teams.map((t) => (
           <option key={t.githubSlug} value={t.githubSlug}>
             {t.name}
           </option>
         ))}
-      </select>
-    </label>
+      </Select>
+    </div>
   );
 }

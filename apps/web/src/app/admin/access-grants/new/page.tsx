@@ -1,4 +1,4 @@
-import { Button, ButtonLink, Input, Select } from '@/components/ui';
+import { Button, ButtonLink, Field, Input, Select, Textarea } from '@/components/ui';
 import { requireGrantRequester } from '@/lib/roles';
 import { requestGrant } from '../actions';
 
@@ -21,53 +21,40 @@ export default async function NewAccessGrantPage() {
       </div>
 
       <form action={requestGrant} className="space-y-4">
-        <div className="space-y-1">
-          <label htmlFor="scope" className="text-xs uppercase tracking-wide text-text-2">
-            Scope
-          </label>
+        <Field label="Scope" htmlFor="scope">
           <Select id="scope" name="scope" defaultValue="SINGLE_SESSION">
             <option value="SINGLE_SESSION">A single session</option>
             <option value="USER_SESSIONS">All sessions for one user</option>
           </Select>
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label htmlFor="targetSessionId" className="text-xs uppercase tracking-wide text-text-2">
-            Target session id (for single-session scope)
-          </label>
+        <Field label="Target session id (for single-session scope)" htmlFor="targetSessionId">
           <Input
             id="targetSessionId"
             name="targetSessionId"
             placeholder="session UUID"
             className="font-mono"
           />
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label htmlFor="targetUserId" className="text-xs uppercase tracking-wide text-text-2">
-            Target user id (for user-sessions scope)
-          </label>
+        <Field label="Target user id (for user-sessions scope)" htmlFor="targetUserId">
           <Input
             id="targetUserId"
             name="targetUserId"
             placeholder="user UUID"
             className="font-mono"
           />
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label htmlFor="justification" className="text-xs uppercase tracking-wide text-text-2">
-            Justification (required)
-          </label>
-          <textarea
+        <Field label="Justification (required)" htmlFor="justification">
+          <Textarea
             id="justification"
             name="justification"
             required
             rows={3}
             placeholder="Why is this access needed?"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
           />
-        </div>
+        </Field>
 
         <div className="flex gap-2">
           <Button type="submit">Submit request</Button>

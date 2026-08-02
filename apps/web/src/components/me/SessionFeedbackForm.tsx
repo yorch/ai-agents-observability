@@ -6,6 +6,7 @@ import { submitSessionFeedback } from '@/app/me/sessions/[id]/actions';
 import { ThumbsDownIcon, ThumbsUpIcon } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Textarea } from '@/components/ui/Field';
 
 type Sentiment = 'up' | 'down' | null;
 
@@ -79,15 +80,16 @@ export function SessionFeedbackForm({
           )}
         </div>
       </div>
-      <textarea
+      <Textarea
+        className="w-full"
         value={note}
         onChange={(e) => {
           setNote(e.target.value);
           setSaved(false);
         }}
+        aria-label="Session note"
         placeholder="Optional note (what worked, what didn't)…"
         rows={2}
-        className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-text focus:border-accent focus:outline-none"
       />
       <div className="flex items-center gap-3">
         <Button

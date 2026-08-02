@@ -1,5 +1,5 @@
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { Button, Card, Cell, Input, Row, Select, Table } from '@/components/ui';
+import { Button, Card, Cell, Field, FilterPanel, Input, Row, Select, Table } from '@/components/ui';
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
 import { getPrisma } from '@/lib/prisma';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
@@ -129,15 +129,9 @@ export default async function OrgSearchPage({
       {canView && (
         <>
           {/* Filters */}
-          <form method="GET" className="rounded-lg border border-border bg-surface p-4 space-y-4">
+          <FilterPanel label="Session filters">
             <div className="grid gap-3 md:grid-cols-3">
-              <div className="space-y-1">
-                <label
-                  htmlFor="filter-team"
-                  className="text-xs text-text-2 uppercase tracking-wide"
-                >
-                  Team
-                </label>
+              <Field label="Team" htmlFor="filter-team">
                 <Select id="filter-team" name="team" defaultValue={teamId ?? ''}>
                   <option value="">All teams</option>
                   {teams.map((t) => (
@@ -146,15 +140,9 @@ export default async function OrgSearchPage({
                     </option>
                   ))}
                 </Select>
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label
-                  htmlFor="filter-repo"
-                  className="text-xs text-text-2 uppercase tracking-wide"
-                >
-                  Repo
-                </label>
+              <Field label="Repo" htmlFor="filter-repo">
                 <Select id="filter-repo" name="repo" defaultValue={repoId ?? ''}>
                   <option value="">All repos</option>
                   {repos.map((r) => (
@@ -163,15 +151,9 @@ export default async function OrgSearchPage({
                     </option>
                   ))}
                 </Select>
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label
-                  htmlFor="filter-model"
-                  className="text-xs text-text-2 uppercase tracking-wide"
-                >
-                  Model
-                </label>
+              <Field label="Model" htmlFor="filter-model">
                 <Select id="filter-model" name="model" defaultValue={model ?? ''}>
                   <option value="">All models</option>
                   {models.map((m) => (
@@ -180,15 +162,9 @@ export default async function OrgSearchPage({
                     </option>
                   ))}
                 </Select>
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label
-                  htmlFor="filter-tool"
-                  className="text-xs text-text-2 uppercase tracking-wide"
-                >
-                  Tool
-                </label>
+              <Field label="Tool" htmlFor="filter-tool">
                 <Input
                   id="filter-tool"
                   type="text"
@@ -196,15 +172,9 @@ export default async function OrgSearchPage({
                   defaultValue={toolName ?? ''}
                   placeholder="e.g. Edit, Bash"
                 />
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label
-                  htmlFor="filter-jira"
-                  className="text-xs text-text-2 uppercase tracking-wide"
-                >
-                  Jira ticket
-                </label>
+              <Field label="Jira ticket" htmlFor="filter-jira">
                 <Input
                   id="filter-jira"
                   type="text"
@@ -212,42 +182,27 @@ export default async function OrgSearchPage({
                   defaultValue={jiraKey ?? ''}
                   placeholder="e.g. PROJ-123"
                 />
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label
-                  htmlFor="filter-from"
-                  className="text-xs text-text-2 uppercase tracking-wide"
-                >
-                  From
-                </label>
+              <Field label="From" htmlFor="filter-from">
                 <Input
                   id="filter-from"
                   type="date"
                   name="from"
                   defaultValue={dateFrom?.toISOString().split('T')[0] ?? ''}
                 />
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label htmlFor="filter-to" className="text-xs text-text-2 uppercase tracking-wide">
-                  To
-                </label>
+              <Field label="To" htmlFor="filter-to">
                 <Input
                   id="filter-to"
                   type="date"
                   name="to"
                   defaultValue={dateTo?.toISOString().split('T')[0] ?? ''}
                 />
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label
-                  htmlFor="filter-shape"
-                  className="text-xs text-text-2 uppercase tracking-wide"
-                >
-                  Session shape
-                </label>
+              <Field label="Session shape" htmlFor="filter-shape">
                 <Select id="filter-shape" name="shape" defaultValue={shape ?? ''}>
                   <option value="">All shapes</option>
                   {shapeFacets.map((f) => (
@@ -256,30 +211,18 @@ export default async function OrgSearchPage({
                     </option>
                   ))}
                 </Select>
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label
-                  htmlFor="filter-band"
-                  className="text-xs text-text-2 uppercase tracking-wide"
-                >
-                  Friction band
-                </label>
+              <Field label="Friction band" htmlFor="filter-band">
                 <Select id="filter-band" name="band" defaultValue={frictionBand ?? ''}>
                   <option value="">Any friction</option>
                   <option value="low">Low (&lt; 0.3)</option>
                   <option value="medium">Medium (0.3–0.6)</option>
                   <option value="high">High (&gt; 0.6)</option>
                 </Select>
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label
-                  htmlFor="filter-agent"
-                  className="text-xs text-text-2 uppercase tracking-wide"
-                >
-                  Agent
-                </label>
+              <Field label="Agent" htmlFor="filter-agent">
                 <Select id="filter-agent" name="agent" defaultValue={agent ?? ''}>
                   <option value="">All agents</option>
                   {agentFacets.map((f) => (
@@ -288,7 +231,7 @@ export default async function OrgSearchPage({
                     </option>
                   ))}
                 </Select>
-              </div>
+              </Field>
             </div>
 
             {/* Transcript FTS */}
@@ -302,7 +245,7 @@ export default async function OrgSearchPage({
               />
               <Button type="submit">Search</Button>
             </div>
-          </form>
+          </FilterPanel>
 
           {/* Transcript results */}
           {query && (

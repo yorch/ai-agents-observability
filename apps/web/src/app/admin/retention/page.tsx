@@ -1,4 +1,4 @@
-import { Button, Cell, Row, Table } from '@/components/ui';
+import { Button, Cell, Input, Row, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setTeamRetention } from './actions';
@@ -54,7 +54,8 @@ export default async function RetentionAdminPage() {
             <Cell num>
               <form action={setTeamRetention} className="inline-flex items-center gap-2">
                 <input type="hidden" name="teamId" value={team.id} />
-                <input
+                <Input
+                  size="sm"
                   type="number"
                   name="retentionDays"
                   min={1}
@@ -62,7 +63,7 @@ export default async function RetentionAdminPage() {
                   defaultValue={team.retentionDays ?? ''}
                   placeholder={`${GLOBAL_DEFAULT_DAYS}`}
                   aria-label={`Retention override for ${team.name}`}
-                  className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-right"
+                  className="w-24 text-right"
                 />
                 <Button size="sm" type="submit">
                   Save

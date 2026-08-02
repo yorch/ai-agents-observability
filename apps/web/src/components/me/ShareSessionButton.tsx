@@ -5,6 +5,7 @@ import type { ShareResult } from '@/app/me/sessions/[id]/actions';
 import { revokeShare, shareSession } from '@/app/me/sessions/[id]/actions';
 import { ArrowRightIcon } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
+import { Input, Select } from '@/components/ui/Field';
 
 type ActiveShare = { expiresAt: Date; granteeEmail: string | null; id: string };
 
@@ -167,23 +168,27 @@ export function ShareSessionButton({
               {error && <p className="mb-2 text-xs text-crit">{error}</p>}
               <form action={handleShare} className="space-y-2">
                 <input type="hidden" name="sessionId" value={sessionId} />
-                <input
+                <Input
+                  size="sm"
+                  className="w-full"
                   type="email"
                   name="email"
                   required
+                  aria-label="Recipient email"
                   placeholder="colleague@example.com"
-                  className="w-full rounded border border-border bg-surface-2 px-2 py-1.5 text-xs placeholder:text-text-3 focus:border-accent focus:outline-none"
                 />
                 <div className="flex items-center gap-2">
-                  <select
+                  <Select
+                    size="sm"
+                    className="flex-1"
                     name="days"
                     defaultValue="7"
-                    className="flex-1 rounded border border-border bg-surface-2 px-2 py-1.5 text-xs text-text-2"
+                    aria-label="Expiry"
                   >
                     <option value="1">Expires in 1 day</option>
                     <option value="7">Expires in 7 days</option>
                     <option value="30">Expires in 30 days</option>
-                  </select>
+                  </Select>
                   <Button size="sm" type="submit" disabled={isPending}>
                     {isPending ? '…' : 'Share'}
                   </Button>

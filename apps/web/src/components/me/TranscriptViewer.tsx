@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CaretRightIcon } from '@/components/icons';
 import { TranscriptStatsBar } from '@/components/me/TranscriptStatsBar';
 import { TranscriptTurnView } from '@/components/me/TranscriptTurnView';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Field';
 import { Segmented, SegmentedButton } from '@/components/ui/Segmented';
 import { computeStats, type ParsedLine, parseTranscriptLine } from '@/lib/transcript-parser';
 
@@ -360,15 +362,16 @@ export function TranscriptViewer({
       {(stats.userTurns > 0 || stats.toolCalls > 0) && <TranscriptStatsBar stats={stats} />}
 
       <div className="flex items-center gap-3">
-        <input
+        <Input
           type="search"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
             setVisibleCount(WINDOW_STEP);
           }}
+          aria-label="Search in transcript"
           placeholder="Search in transcript…"
-          className="flex-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text placeholder-text-3 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          className="flex-1"
         />
         <span className="text-xs text-text-3 font-mono whitespace-nowrap">
           {query.trim()
@@ -409,13 +412,13 @@ export function TranscriptViewer({
       )}
 
       {remaining > 0 && (
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          className="w-full"
           onClick={() => setVisibleCount((c) => c + WINDOW_STEP)}
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
         >
           Show {Math.min(remaining, WINDOW_STEP)} more ({remaining} hidden)
-        </button>
+        </Button>
       )}
     </div>
   );

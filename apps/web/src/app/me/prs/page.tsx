@@ -3,11 +3,13 @@ import { PrStateBadge } from '@/components/me/PrStateBadge';
 import {
   Button,
   ButtonLink,
-  Card,
   Cell,
   EmptyState,
+  Field,
   Pagination,
   Row,
+  Select,
+  Stat,
   Table,
 } from '@/components/ui';
 import { fmtDate } from '@/lib/fmt';
@@ -172,38 +174,21 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
       {/* Summary stats */}
       {total > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          <Card>
-            <div className="text-xs text-text-3 uppercase tracking-wide">Total PRs</div>
-            <div className="mt-1 text-2xl font-semibold">{total}</div>
-          </Card>
-          <Card>
-            <div className="text-xs text-text-3 uppercase tracking-wide">Total Cost</div>
-            <div className="mt-1 text-2xl font-semibold">${totalCost.toFixed(2)}</div>
-          </Card>
-          <Card>
-            <div className="text-xs text-text-3 uppercase tracking-wide">Total Sessions</div>
-            <div className="mt-1 text-2xl font-semibold">{totalSessions}</div>
-          </Card>
+          <Stat label="Total PRs" value={String(total)} />
+          <Stat label="Total cost" value={`$${totalCost.toFixed(2)}`} />
+          <Stat label="Total sessions" value={String(totalSessions)} />
         </div>
       )}
 
       {/* Filter bar */}
-      <form method="GET" className="flex flex-wrap gap-3 items-end">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="state-filter" className="text-xs text-text-2">
-            State
-          </label>
-          <select
-            id="state-filter"
-            name="state"
-            defaultValue={stateFilter}
-            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
-          >
+      <form method="GET" className="flex flex-wrap items-end gap-3">
+        <Field label="State" htmlFor="state-filter">
+          <Select id="state-filter" name="state" defaultValue={stateFilter}>
             <option value="all">All states</option>
             <option value="open">Open</option>
             <option value="merged">Merged</option>
-          </select>
-        </div>
+          </Select>
+        </Field>
 
         <Button type="submit">Filter</Button>
 
