@@ -1,8 +1,8 @@
 # Opportunities & Additional Value from AI Agent Telemetry
 
 **Companion to:** [`DESIGN_DOC.md`](DESIGN_DOC.md)
-**Status:** Assessment — pre-roadmap
-**Last updated:** 2026-06-25
+**Status:** Assessment — partly realized. §4's table is annotated in place as items ship; the ranking itself has not been re-derived since the original assessment.
+**Last updated:** 2026-07-13
 **Audience:** Internal — dev tools team, leadership, DX researchers
 
 ---

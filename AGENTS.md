@@ -2,10 +2,10 @@
 
 This file provides guidance to AI Agents working **across the monorepo**. Per-app conventions live alongside the app:
 
-- **`apps/web/`** — see [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) (authoritative for the Next 16 SPA).
-- **Per-app `AGENTS.md`** files exist where they help; this root file covers cross-cutting concerns.
+- **`apps/web/`** — see [`apps/web/AGENTS.md`](apps/web/AGENTS.md) (authoritative for the Next 16 SPA).
+- This root file covers cross-cutting concerns only. Add a per-directory `AGENTS.md` when a workspace's conventions genuinely differ; don't restate what's here.
 
-> `CLAUDE.md` is a symlink to `AGENTS.md` — the canonical source of truth for agent guidelines. Update either file to keep them in sync.
+> **Convention:** in every directory that has both, `AGENTS.md` is the real file and `CLAUDE.md` is a symlink to it. Edit `AGENTS.md`. Claude Code reads `CLAUDE.md`; other agents read `AGENTS.md`; the symlink means one file serves both.
 
 > **Start here:** read [`DESIGN_DOC.md`](DESIGN_DOC.md) for the project's purpose (self-hosted observability for AI coding agents — Claude Code first, with OpenCode and Codex adapters implemented), then [`PLAN.md`](PLAN.md) and [`tasks/INDEX.md`](tasks/INDEX.md) for current scope.
 
@@ -56,16 +56,22 @@ bun run test         # vitest across all workspaces
 
 Run them in this order: lint → typecheck → build → test. Fix each failure before moving to the next gate. A commit that breaks any gate must not land on `main`.
 
+**CI is weaker than this gate — that is deliberate, and it is on you.** `.github/workflows/ci.yml` runs typecheck, lint, and test, but **not `bun run build`**. A build break passes CI. Run all four locally.
+
+**One idiom for workspace commands.** Use `bun run --cwd <path> <script>` (e.g. `bun run --cwd apps/web typecheck`). `bun --filter '@ai-agents-observability/web' <script>` also works and appears in `README.md`; prefer `--cwd` in new docs and scripts so there is one form to learn.
+
 ## Architecture
 
-`ai-agents-observability` ingests per-event telemetry from Claude Code on developer machines, archives full session transcripts, correlates work to GitHub PRs/teams, and exposes dashboards for three audiences: individual devs ("My Agents"), team leads, and org-level stakeholders. See [`DESIGN_DOC.md`](DESIGN_DOC.md) for the canonical scope statement.
+`ai-agents-observability` ingests per-event telemetry from AI coding agents on developer machines (Claude Code, opencode, and codex all have working adapters), archives full session transcripts, correlates work to GitHub PRs/teams, and exposes dashboards for three audiences: individual devs ("My Agents"), team leads, and org-level stakeholders. See [`DESIGN_DOC.md`](DESIGN_DOC.md) for the canonical scope statement.
+
+**Agent-neutrality is a live constraint, not an aspiration.** New capabilities branch on `agent_type`, use the `<agent>:<tool>` naming convention, and drive user-facing copy from the agent label. Don't write "Claude Code" into a user-facing string or a schema field that any agent flows through.
 
 ```text
 apps/
   web/          # Next.js 16 + React 19.2 + Tailwind 4 — dashboards & "My Agents" UI. See apps/web/CLAUDE.md.
   ingest/       # Hono + Bun.serve — receives telemetry events from the hook CLI; writes events to TimescaleDB + transcripts to S3 (MinIO locally).
   github-app/   # Hono + Bun.serve — GitHub webhook handler; enriches PRs into the schema.
-  hook/         # Bun single-binary CLI (`claude-telemetry-<os>-<arch>`) — installed on developer machines, captures Claude Code events + transcripts, ships them to ingest.
+  hook/         # Bun single-binary CLI (`claude-telemetry-<os>-<arch>`) — installed on developer machines, captures agent events + transcripts via the adapter seam, ships them to ingest.
 packages/
   auth/         # auth helpers (server-side `currentUser()`, session decode). Web imports from here — DO NOT introduce NextAuth.
   db/           # Prisma 7 client + schema + raw-SQL migrations runner. Client generated to `packages/db/src/generated/client`.
@@ -124,7 +130,7 @@ The hook is the developer-facing artifact. Built with `bun build --compile --tar
 - `claude-telemetry-linux-arm64`
 - `claude-telemetry-linux-x64`
 
-The CLI installs Claude Code hooks (`commands/install`), captures events via stdin/stdout (`hook-entry`), batches them in a background flusher (`flusher`), and ships them to the configured ingest endpoint (`shipper`).
+The CLI installs the host agent's hooks (`commands/install`), captures events via stdin/stdout (`hook-entry`), batches them in a background flusher (`flusher`), and ships them to the configured ingest endpoint (`shipper`). Per-agent capture lives behind the adapter seam in `apps/hook/src/adapters/` — `claude-code.ts`, `opencode.ts`, `codex.ts`. Adding an agent means adding an adapter, not changing the schema.
 
 ## Key conventions
 

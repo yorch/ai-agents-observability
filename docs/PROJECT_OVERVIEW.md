@@ -12,8 +12,10 @@
 > (agent guidelines), and [`tasks/`](../tasks/) (the P1–P9 task breakdown).
 >
 > **Currency:** reflects `main` as of the P6–P9 work (HITL observability,
-> alerting & governance, multi-agent adapters, insight surfaces). If you are
-> reading this much later, re-verify against `tasks/INDEX.md`.
+> alerting & governance, multi-agent adapters, insight surfaces) plus P11
+> (correlation & Jira). Phase 10 (model cost optimization) is proposed and
+> `ready`, not built. If you are reading this much later, re-verify against
+> `tasks/INDEX.md` — that file, not this one, is the source of truth for status.
 
 ---
 
@@ -162,7 +164,7 @@ HMAC-verified webhook intake (202-before-processing + idempotency). Handles
 `pull_request` (upsert with `is_draft`, `jira_key`, revert links; rollup on merge;
 opt-in bot comment) and `check_run` (CI failure counts). GHES-capable.
 
-### Web (`apps/web`, Next.js 16) — 68 routes; new capability areas in **bold**
+### Web (`apps/web`, Next.js 16) — new capability areas in **bold**
 - **My Agents (`/me/*`):** overview, sessions (list + detail with
   **owner-initiated session sharing**), **redesigned transcript viewer**
   (parse layer + conversation/raw modes, streaming, virtualized),
@@ -234,10 +236,12 @@ an autonomy rank; new `notification.ts` classifier; `alerts.ts` shared rule/seve
 constants; expanded git-context (PR CI status, review decision).
 
 ### Redaction (`packages/redaction`)
-Still **7 client-side rules** (AWS keys, GitHub tokens, JWT, Slack, `*_KEY/_TOKEN/
-_SECRET/_PASSWORD` env vars, PEM keys), run on both hook and ingest. **No dedicated
-email/PII or git-remote-URL rule yet** — a PAT in a remote URL is only incidentally
-caught by the GitHub-token pattern.
+**9 rules**, run on both hook and ingest: AWS access/secret keys, GitHub tokens, JWT,
+Slack tokens, `*_KEY/_TOKEN/_SECRET/_PASSWORD` env vars, PEM keys, plus
+`git-remote-url` (URL-embedded credentials) and `email` (PII). Order is load-bearing —
+the structural token rules run first so a known token in a URL's password position
+keeps its own class; `email` runs last. ML-grade PII (names, phone numbers) remains
+deferred (`DESIGN_DOC §9.2`).
 
 ### Auth (`packages/auth`)
 GitHub OAuth + device-code + **password (scrypt)**, all GHES-capable. Tokens:

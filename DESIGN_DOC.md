@@ -1,9 +1,9 @@
 # ai-agents-observability — Design Document
 
 **Project:** `ai-agents-observability`
-**Status:** Phases 7–9 task work is done; remaining open task statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8
+**Status:** Phases 1–9 and 11 are done; Phase 10 is proposed (`ready`). Remaining open task statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8
 **Owner:** Jorge (SentinelOne)
-**Last updated:** 2026-06-25
+**Last updated:** 2026-07-13 (see §17 — keep this in step with the last row of the history table)
 **Audience:** Internal — dev tools team, leadership stakeholders
 
 ---

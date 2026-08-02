@@ -10,7 +10,7 @@ These were agreed during planning and are the basis for every task below. If one
 
 | Area | Choice | Rationale (short) |
 |---|---|---|
-| Scope | Phases 1–9 sequenced; Phases 7–9 task work is done; remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
+| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 10 (proposed, `ready`); remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
 | Dev environment | docker-compose locally | Single `up` from a clean clone |
 | Hook binary | Bun, compiled with `bun build --compile` | Single static binary, fast cold start |
 | Object store | MinIO (local dev + homelab prod) | S3-compatible, self-hostable |
@@ -117,7 +117,7 @@ ai-agents-observability/
 - [ ] One real engineer (Jorge) runs the hook for a week; data correctness verified by spot-check.
 - [ ] `/me` page loads in <500ms p50.
 - [ ] Hook adds <10ms wall time to a measured tool call (microbench + real-session).
-- [ ] Redaction passes the seven-class test suite (§9.1) + manual review of one real transcript.
+- [ ] Redaction passes the class test suite (§9.1 — seven classes at Phase 1; nine today, after `git-remote-url` and `email` landed) + manual review of one real transcript.
 - [ ] `claude-telemetry purge-local` cleanly removes queue + transcripts.
 - [ ] `docker compose up` produces a working local stack from a clean clone.
 
@@ -163,7 +163,7 @@ Data-integrity, observability, and access-model fixes for the platform as it exi
 
 ---
 
-The next three phases were raised from a post-Phase-6 gap assessment (the platform spine is complete; these close the gap between *captured* and *surfaced*, prove the multi-agent spine, and add proactive/governed operation). They are decomposed into task files and now marked `done`; see [`tasks/INDEX.md`](./tasks/INDEX.md) for exact task status. The §8.4 governance work was reconciled with the org transcript-access routes added in parallel on `main`.
+Phases 7–9 were raised from a post-Phase-6 gap assessment (the platform spine is complete; these close the gap between *captured* and *surfaced*, prove the multi-agent spine, and add proactive/governed operation). They are decomposed into task files and now marked `done`; see [`tasks/INDEX.md`](./tasks/INDEX.md) for exact task status. The §8.4 governance work was reconciled with the org transcript-access routes added in parallel on `main`.
 
 ### Phase 7 — Insight Surfaces & Search
 
@@ -185,9 +185,25 @@ Tasks P8-001–P8-007 are `done`. opencode transcript upload remains a follow-up
 
 Turn render-time anomaly detection into a scheduled alert-evaluation job with persisted history and channel delivery (email / Slack / webhook); make privileged transcript access **time-boxed, requested, approved, and audited** (builds the §8.4 investigation path the audit actions already imply); add per-team retention overrides; and add a narrow, grant-scoped research/investigator capability for the Audience-B persona with **no standing access**. Real-time alerting was a v1 non-goal (`DESIGN_DOC.md` §2.2) now deliberately scoped for a later phase. Trust guardrails are first-class: alerts carry no individual-identifying data; every grant and view is auditable and expiring.
 
-Tasks P9-001–P9-006 are `done`. The alert engine evaluates spend-spike, error-rate, and unknown-model rules (`budget_threshold` is a reserved type, defined but not yet evaluated). Slack and generic webhook delivery are live; SMTP email delivery is a documented follow-up seam.
+Tasks P9-001–P9-006 are `done`. The alert engine evaluates spend-spike, error-rate, and unknown-model rules (`budget_threshold` is a reserved type, defined but not yet evaluated). Slack, generic webhook, and SMTP email delivery are all live — the email channel wires up only when `SMTP_HOST` and `SMTP_FROM` are configured (`apps/ingest/src/lib/notify/email.ts`).
 
 **Exit**: a spend spike fires a notification within one evaluation cycle; every privileged transcript view is the owner or a time-boxed approved grant, logged and visible to the viewed user; zero standing individual access beyond org_admin.
+
+### Phase 11 — Correlation & Jira Integration
+
+Shipped **ahead of Phase 10**, as a single vertical slice rather than a phased build: commit-SHA and open-PR link backfill, `pull_request_review` / `check_run` / `push` webhook capture, session-level Jira keys, the env-gated Jira issue sync (`JIRA_VALUE_FIELD` → `jira_issues.business_value`), and the ROI / delivery / quality surfaces built on top.
+
+Tasks P11-001–P11-004 are `done`, including defect attribution (`/org/quality`) and Fisher's-exact significance testing on friction-band deltas.
+
+**Exit**: met — a session traces to its PR, its checks, its reviews, and its Jira issue, and `/org/roi` prices delivery against real business value rather than a flat proxy.
+
+### Phase 10 — Model Cost Optimization
+
+**Proposed — not started.** Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](./OPPORTUNITIES.md) §4.
+
+Tasks P10-001–P10-006 are `ready` (all dependencies `done`). See [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md) for the full rationale.
+
+**Exit**: a routing recommendation carries a savings figure an engineer can defend from the price table, and a team can see its own routing accountability without an org admin reading anyone's sessions.
 
 ---
 
