@@ -2,28 +2,29 @@ import { PageHeader } from '@/components/team-org/PageHeader';
 import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
 import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
-import type { OrgModelDetailRow, OrgModelRoutingRow } from '@/lib/org-queries';
 import {
   getOrgModelDetail,
   getOrgModelRoutingBreakdown,
   getRoutingSpendByTeam,
 } from '@/lib/org-queries';
 import { getModelInputPrices } from '@/lib/price-client';
+import {
+  getRoutingRecommendationValidationRows,
+  type RoutingValidationRow,
+  persistRoutingRecommendationProjections,
+} from '@/lib/routing-analysis';
 import { requireOrgViewer } from '@/lib/roles';
-import { buildSavingsRatioResolver, computeRoutingRecommendations } from '@/lib/routing-queries';
+import {
+  buildSavingsRatioResolver,
+  computeRoutingRecommendations,
+  PREMIUM_PATTERN,
+} from '@/lib/routing-queries';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
 
-// Models whose names contain these substrings are considered premium-tier.
-const PREMIUM_PATTERNS = ['opus'];
-// Tool categories considered cheap / read-only work.
-const CHEAP_CATEGORIES = new Set(['fs_read', 'search', 'web']);
-// Assumed cost ratio of a standard-tier model vs premium (rough Opus→Sonnet).
-const DOWNGRADE_SAVINGS_RATE = 0.8;
-
 function modelTier(model: string): 'economy' | 'premium' | 'standard' {
   const lower = model.toLowerCase();
-  if (PREMIUM_PATTERNS.some((p) => lower.includes(p))) {
+  if (lower.includes(PREMIUM_PATTERN)) {
     return 'premium';
   }
   if (lower.includes('haiku')) {
@@ -55,42 +56,6 @@ function cacheEfficiencyClass(rate: number): string {
   return 'text-crit';
 }
 
-type RoutingInsight = {
-  cheapCostUsd: number;
-  cheapPct: number;
-  estimatedSavingsUsd: number;
-  model: string;
-};
-
-function computeRoutingInsights(
-  models: OrgModelDetailRow[],
-  routing: OrgModelRoutingRow[],
-): RoutingInsight[] {
-  const insights: RoutingInsight[] = [];
-  for (const m of models) {
-    if (modelTier(m.model) !== 'premium') {
-      continue;
-    }
-    const cheapCost = routing
-      .filter((r) => r.model === m.model && CHEAP_CATEGORIES.has(r.toolCategory))
-      .reduce((sum, r) => sum + r.totalCostUsd, 0);
-    if (cheapCost === 0 || m.totalCostUsd === 0) {
-      continue;
-    }
-    const cheapPct = cheapCost / m.totalCostUsd;
-    if (cheapPct < 0.1) {
-      continue;
-    }
-    insights.push({
-      cheapCostUsd: cheapCost,
-      cheapPct,
-      estimatedSavingsUsd: cheapCost * DOWNGRADE_SAVINGS_RATE,
-      model: m.model,
-    });
-  }
-  return insights.sort((a, b) => b.estimatedSavingsUsd - a.estimatedSavingsUsd);
-}
-
 export default async function OrgModelsPage({
   searchParams,
 }: {
@@ -100,6 +65,7 @@ export default async function OrgModelsPage({
 
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
+  const now = new Date();
   const since = daysAgo(range);
   const [models, routing, modelPrices, routingByTeam] = await Promise.all([
     getOrgModelDetail(since),
@@ -118,7 +84,6 @@ export default async function OrgModelsPage({
   const avgInputCostPerToken = totalInput > 0 ? totalCostUsd / totalInput : 0;
   const estimatedCacheSavings = totalCacheRead * 0.9 * avgInputCostPerToken;
 
-  const insights = computeRoutingInsights(models, routing);
   // Price-derived per-model savings ratio when the ingest price table is
   // reachable; falls back to the flat heuristic when INGEST_URL is unset.
   const savingsRatioFor = buildSavingsRatioResolver(modelPrices);
@@ -127,6 +92,19 @@ export default async function OrgModelsPage({
   const pricePrecise = modelPrices !== null && Object.keys(modelPrices).length > 0;
   const { estimatedMonthlySaving: estimatedMonthlyRoutingSaving, recommendations: routingRecs } =
     computeRoutingRecommendations(routing, range, savingsRatioFor);
+
+  await persistRoutingRecommendationProjections({
+    pricePrecise,
+    rangeDays: range,
+    recommendations: routingRecs,
+    windowEnd: now,
+    windowStart: since,
+  });
+
+  const validationRows = await getRoutingRecommendationValidationRows({
+    asOf: now,
+    rangeDays: range,
+  });
 
   return (
     <div className="space-y-8">
@@ -161,46 +139,14 @@ export default async function OrgModelsPage({
         <EmptyState>No model usage recorded in the last {range} days.</EmptyState>
       ) : (
         <>
-          {/* Routing insights */}
-          {insights.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
-                Routing opportunities
-              </h2>
-              {insights.map((ins) => (
-                <div
-                  key={ins.model}
-                  className="flex flex-wrap items-start gap-4 rounded-lg border border-warn-line bg-warn-soft p-4"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text">
-                      <span className="font-mono text-warn">{ins.model}</span>
-                      {' — '}
-                      {(ins.cheapPct * 100).toFixed(0)}% of spend on read-only operations
-                    </p>
-                    <p className="mt-1 text-xs text-text-2">
-                      ${ins.cheapCostUsd.toFixed(2)} of cost came from file reads, search, and web
-                      lookups that a standard-tier model handles equally well.
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-xs text-text-3 uppercase tracking-wider">Est. savings</p>
-                    <p className="text-lg font-semibold font-mono text-good">
-                      ${ins.estimatedSavingsUsd.toFixed(2)}
-                    </p>
-                    <p className="text-[10px] text-text-3">if routed to Sonnet</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* Routing recommendations */}
           <RoutingRecommendations
             estimatedMonthlySaving={estimatedMonthlyRoutingSaving}
             pricePrecise={pricePrecise}
             recommendations={routingRecs}
           />
+
+          <RoutingValidationPanel rows={validationRows} />
 
           {/* Routing accountability by team */}
           <RoutingByTeam rows={routingByTeam} />
@@ -311,6 +257,96 @@ function TierBadge({ tier }: { tier: 'economy' | 'premium' | 'standard' }) {
       standard
     </span>
   );
+}
+
+function RoutingValidationPanel({ rows }: { rows: RoutingValidationRow[] }) {
+  return (
+    <div className="space-y-3">
+      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
+        Recommendation validation loop
+      </h2>
+      {rows.length === 0 ? (
+        <EmptyState>
+          No prior recommendation windows are measurable yet for this range.
+        </EmptyState>
+      ) : (
+        <Table
+          columns={[
+            { label: 'Model' },
+            { label: 'Status' },
+            { align: 'right', label: 'Projected saving' },
+            { align: 'right', label: 'Realized saving' },
+            { align: 'right', label: 'Post-period calls' },
+            { align: 'right', label: 'Error Δ' },
+            { align: 'right', label: 'Friction Δ' },
+          ]}
+        >
+          {rows.map((r) => (
+            <Row key={r.projection.id.toString()}>
+              <Cell className="font-mono text-text">{r.projection.model}</Cell>
+              <Cell>
+                <ValidationStatus status={r.evaluation.status} />
+              </Cell>
+              <Cell num className="text-text-2">
+                ${r.evaluation.projectedPeriodSavingUsd.toFixed(2)}
+              </Cell>
+              <Cell num className="text-text-2">
+                ${r.evaluation.realizedSavingUsd.toFixed(2)}
+              </Cell>
+              <Cell num className="text-text-2">{r.evaluation.realizedCheapCalls.toLocaleString()}</Cell>
+              <Cell num className="text-text-2">
+                {fmtDeltaPct(r.evaluation.errorRateDelta)}
+              </Cell>
+              <Cell num className="text-text-2">
+                {fmtDeltaPct(r.evaluation.frictionDelta)}
+              </Cell>
+            </Row>
+          ))}
+        </Table>
+      )}
+    </div>
+  );
+}
+
+function ValidationStatus({
+  status,
+}: {
+  status: 'degraded' | 'improved' | 'mixed' | 'not_measurable';
+}) {
+  if (status === 'improved') {
+    return (
+      <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-good-soft text-good border border-good-line">
+        improved
+      </span>
+    );
+  }
+  if (status === 'degraded') {
+    return (
+      <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-crit-soft text-crit border border-crit-line">
+        degraded
+      </span>
+    );
+  }
+  if (status === 'not_measurable') {
+    return (
+      <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-surface-2 text-text-3 border border-border">
+        not measurable
+      </span>
+    );
+  }
+  return (
+    <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-warn-soft text-warn border border-warn-line">
+      mixed
+    </span>
+  );
+}
+
+function fmtDeltaPct(n: number | null): string {
+  if (n === null) {
+    return '—';
+  }
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${(n * 100).toFixed(1)}pp`;
 }
 
 function GuidanceCard({
