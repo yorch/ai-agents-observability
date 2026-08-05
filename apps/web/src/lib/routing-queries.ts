@@ -57,7 +57,9 @@ export function buildSavingsRatioResolver(
 }
 
 export type RoutingRecommendation = {
+  cheapCategoryCalls: number;
   cheapCategorySpend: number;
+  confidence: 'high' | 'medium';
   estimatedMonthlySaving: number;
   model: string;
   // The saved fraction applied (price-derived when a table was supplied, else the
@@ -65,6 +67,11 @@ export type RoutingRecommendation = {
   savingsRatio: number;
   topCategories: { callCount: number; category: string; costUsd: number }[];
 };
+
+// Recommendation evidence gates (P10): avoid seductive point estimates from a
+// tiny call/spend sample. Rows below either threshold are suppressed.
+export const MIN_ROUTING_CHEAP_CALLS = 25;
+export const MIN_ROUTING_CHEAP_SPEND_USD = 5;
 
 function isPremiumModel(model: string): boolean {
   return model.toLowerCase().includes(PREMIUM_PATTERN);
@@ -91,16 +98,24 @@ export function computeRoutingRecommendations(
   const normalizeToMonthly = rangeDays > 0 ? 30 / rangeDays : 0;
   const recommendations: RoutingRecommendation[] = [];
   for (const [model, modelRows] of cheapRowsByModel) {
+    const cheapCategoryCalls = modelRows.reduce((sum, r) => sum + r.callCount, 0);
     const cheapCategorySpend = modelRows.reduce((sum, r) => sum + r.totalCostUsd, 0);
-    if (cheapCategorySpend <= 0) {
+    if (
+      cheapCategorySpend < MIN_ROUTING_CHEAP_SPEND_USD ||
+      cheapCategoryCalls < MIN_ROUTING_CHEAP_CALLS
+    ) {
       continue;
     }
     const savingsRatio = savingsRatioFor(model);
     const topCategories = modelRows
       .map((r) => ({ callCount: r.callCount, category: r.toolCategory, costUsd: r.totalCostUsd }))
       .sort((a, b) => b.costUsd - a.costUsd);
+    const confidence: RoutingRecommendation['confidence'] =
+      cheapCategorySpend >= 20 && cheapCategoryCalls >= 100 ? 'high' : 'medium';
     recommendations.push({
+      cheapCategoryCalls,
       cheapCategorySpend,
+      confidence,
       estimatedMonthlySaving: cheapCategorySpend * savingsRatio * normalizeToMonthly,
       model,
       savingsRatio,
