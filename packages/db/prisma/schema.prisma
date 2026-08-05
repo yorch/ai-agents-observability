@@ -681,3 +681,27 @@ model AlertDeliveryLog {
   @@index([attemptedAt(sort: Desc)])
   @@map("alert_delivery_log")
 }
+
+// P10-006 projection store: recommendation snapshots emitted by /org/models,
+// later compared against realized outcomes for the following period.
+model RoutingRecommendationProjection {
+  id                        BigInt   @id @default(autoincrement())
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  windowStart               DateTime @map("window_start") @db.Timestamptz(6)
+  windowEnd                 DateTime @map("window_end") @db.Timestamptz(6)
+  rangeDays                 Int      @map("range_days")
+  model                     String
+  cheapCategories           String[] @map("cheap_categories")
+  cheapCategoryCalls        Int      @map("cheap_category_calls")
+  cheapCategorySpendUsd     Decimal  @map("cheap_category_spend_usd") @db.Decimal(12, 6)
+  savingsRatio              Decimal  @map("savings_ratio") @db.Decimal(8, 6)
+  projectedMonthlySavingUsd Decimal  @map("projected_monthly_saving_usd") @db.Decimal(12, 6)
+  projectedPeriodSavingUsd  Decimal  @map("projected_period_saving_usd") @db.Decimal(12, 6)
+  pricePrecise              Boolean  @default(false) @map("price_precise")
+
+  @@unique([windowStart, windowEnd, rangeDays, model])
+  @@index([createdAt(sort: Desc)])
+  @@index([rangeDays, windowEnd(sort: Desc)])
+  @@map("routing_recommendation_projections")
+}
