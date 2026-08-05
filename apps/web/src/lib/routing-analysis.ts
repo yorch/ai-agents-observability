@@ -1,10 +1,12 @@
 import { Prisma } from '@ai-agents-observability/db';
 import type { RoutingRecommendation } from '@/lib/routing-queries';
+import { logger } from './logger';
 import { getPrisma } from './prisma';
 
 const MIN_REALIZED_CALLS = 25;
 const DEGRADE_ERROR_DELTA = 0.05;
 const DEGRADE_FRICTION_DELTA = 0.05;
+const DEGRADE_REVERT_DELTA = 0.02;
 
 export type RoutingProjectionSnapshot = {
   cheapCategories: string[];
@@ -26,6 +28,7 @@ export type RoutingProjectionEvaluation = {
   realizedCheapCalls: number;
   realizedCheapSpendUsd: number;
   realizedSavingUsd: number;
+  revertRateDelta: number | null;
   status: 'degraded' | 'improved' | 'mixed' | 'not_measurable';
 };
 
@@ -39,10 +42,12 @@ export function evaluateRoutingProjection(
   observed: {
     baselineErrorRate: number | null;
     baselineMedianFriction: number | null;
+    baselineRevertRate: number | null;
     realizedCheapCalls: number;
     realizedCheapSpendUsd: number;
     realizedErrorRate: number | null;
     realizedMedianFriction: number | null;
+    realizedRevertRate: number | null;
   },
 ): RoutingProjectionEvaluation {
   if (observed.realizedCheapCalls < MIN_REALIZED_CALLS) {
@@ -53,11 +58,15 @@ export function evaluateRoutingProjection(
       realizedCheapCalls: observed.realizedCheapCalls,
       realizedCheapSpendUsd: observed.realizedCheapSpendUsd,
       realizedSavingUsd: 0,
+      revertRateDelta: null,
       status: 'not_measurable',
     };
   }
 
-  const realizedSavingUsd = Math.max(0, projection.cheapCategorySpendUsd - observed.realizedCheapSpendUsd);
+  const realizedSavingUsd = Math.max(
+    0,
+    projection.cheapCategorySpendUsd - observed.realizedCheapSpendUsd,
+  );
   const errorRateDelta =
     observed.realizedErrorRate !== null && observed.baselineErrorRate !== null
       ? observed.realizedErrorRate - observed.baselineErrorRate
@@ -66,10 +75,15 @@ export function evaluateRoutingProjection(
     observed.realizedMedianFriction !== null && observed.baselineMedianFriction !== null
       ? observed.realizedMedianFriction - observed.baselineMedianFriction
       : null;
+  const revertRateDelta =
+    observed.realizedRevertRate !== null && observed.baselineRevertRate !== null
+      ? observed.realizedRevertRate - observed.baselineRevertRate
+      : null;
 
   const degraded =
     (errorRateDelta !== null && errorRateDelta > DEGRADE_ERROR_DELTA) ||
-    (frictionDelta !== null && frictionDelta > DEGRADE_FRICTION_DELTA);
+    (frictionDelta !== null && frictionDelta > DEGRADE_FRICTION_DELTA) ||
+    (revertRateDelta !== null && revertRateDelta > DEGRADE_REVERT_DELTA);
 
   if (degraded) {
     return {
@@ -79,6 +93,7 @@ export function evaluateRoutingProjection(
       realizedCheapCalls: observed.realizedCheapCalls,
       realizedCheapSpendUsd: observed.realizedCheapSpendUsd,
       realizedSavingUsd,
+      revertRateDelta,
       status: 'degraded',
     };
   }
@@ -86,7 +101,8 @@ export function evaluateRoutingProjection(
   const improved =
     realizedSavingUsd > 0 &&
     (errorRateDelta === null || errorRateDelta <= 0) &&
-    (frictionDelta === null || frictionDelta <= 0);
+    (frictionDelta === null || frictionDelta <= 0) &&
+    (revertRateDelta === null || revertRateDelta <= 0);
 
   return {
     errorRateDelta,
@@ -95,6 +111,7 @@ export function evaluateRoutingProjection(
     realizedCheapCalls: observed.realizedCheapCalls,
     realizedCheapSpendUsd: observed.realizedCheapSpendUsd,
     realizedSavingUsd,
+    revertRateDelta,
     status: improved ? 'improved' : 'mixed',
   };
 }
@@ -112,8 +129,9 @@ export async function persistRoutingRecommendationProjections(params: {
   }
 
   const prisma = getPrisma();
-  const rows = recommendations.map((rec) =>
-    Prisma.sql`(
+  const rows = recommendations.map(
+    (rec) =>
+      Prisma.sql`(
       ${windowStart},
       ${windowEnd},
       ${rangeDays},
@@ -154,8 +172,9 @@ export async function persistRoutingRecommendationProjections(params: {
         price_precise = EXCLUDED.price_precise,
         updated_at = now()
     `);
-  } catch {
+  } catch (err) {
     // Keep /org/models resilient before the migration is applied.
+    logger.warn({ err }, 'routing.projections.persist_failed');
   }
 }
 
@@ -196,10 +215,12 @@ export async function getRoutingRecommendationValidationRows(params: {
       FROM routing_recommendation_projections
       WHERE range_days = ${rangeDays}
         AND window_end <= ${asOf}
+        AND window_end + make_interval(days => range_days) <= ${asOf}
       ORDER BY created_at DESC
       LIMIT ${limit}
     `);
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, 'routing.validation.query_failed');
     return [];
   }
 
@@ -267,9 +288,52 @@ export async function getRoutingRecommendationValidationRows(params: {
         AND COALESCE(vp.share_metadata_with_org, true) = true
     `);
 
+    const revertRows = await prisma.$queryRaw<
+      {
+        baseline_merged: bigint;
+        baseline_reverted: bigint;
+        realized_merged: bigint;
+        realized_reverted: bigint;
+      }[]
+    >(Prisma.sql`
+      WITH windowed_prs AS (
+        SELECT DISTINCT
+          pr.repo_id,
+          pr.pr_number,
+          CASE
+            WHEN s.started_at >= ${baselineStart} AND s.started_at < ${baselineEnd} THEN 'baseline'
+            WHEN s.started_at >= ${realizedStart} AND s.started_at < ${realizedEnd} THEN 'realized'
+            ELSE NULL
+          END AS bucket,
+          pr.merged_at,
+          pr.reverted_at
+        FROM session_pr_links spl
+        JOIN sessions s ON s.session_id = spl.session_id
+        JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+        LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+        JOIN pull_requests pr ON pr.repo_id = spl.repo_id AND pr.pr_number = spl.pr_number
+        WHERE s.primary_model = ${p.model}
+          AND s.started_at >= ${baselineStart}
+          AND s.started_at < ${realizedEnd}
+          AND COALESCE(vp.share_metadata_with_org, true) = true
+      )
+      SELECT
+        COUNT(*) FILTER (WHERE bucket = 'baseline' AND merged_at IS NOT NULL) AS baseline_merged,
+        COUNT(*) FILTER (
+          WHERE bucket = 'baseline' AND merged_at IS NOT NULL AND reverted_at IS NOT NULL
+        ) AS baseline_reverted,
+        COUNT(*) FILTER (WHERE bucket = 'realized' AND merged_at IS NOT NULL) AS realized_merged,
+        COUNT(*) FILTER (
+          WHERE bucket = 'realized' AND merged_at IS NOT NULL AND reverted_at IS NOT NULL
+        ) AS realized_reverted
+      FROM windowed_prs
+      WHERE bucket IS NOT NULL
+    `);
+
     const spend = spendRows[0];
     const friction = frictionRows[0];
-    if (!spend || !friction) {
+    const revert = revertRows[0];
+    if (!spend || !friction || !revert) {
       continue;
     }
 
@@ -294,10 +358,18 @@ export async function getRoutingRecommendationValidationRows(params: {
     const evaluation = evaluateRoutingProjection(projection, {
       baselineErrorRate: baselineCalls > 0 ? baselineErrors / baselineCalls : null,
       baselineMedianFriction: friction.baseline_friction,
+      baselineRevertRate:
+        Number(revert.baseline_merged) > 0
+          ? Number(revert.baseline_reverted) / Number(revert.baseline_merged)
+          : null,
       realizedCheapCalls: realizedCalls,
       realizedCheapSpendUsd: Number(spend.realized_spend),
       realizedErrorRate: realizedCalls > 0 ? realizedErrors / realizedCalls : null,
       realizedMedianFriction: friction.realized_friction,
+      realizedRevertRate:
+        Number(revert.realized_merged) > 0
+          ? Number(revert.realized_reverted) / Number(revert.realized_merged)
+          : null,
     });
 
     out.push({ evaluation, projection });

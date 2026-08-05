@@ -492,7 +492,10 @@ export async function getToolPerf(userId: string, since: Date): Promise<ToolPerf
   }));
 }
 
-export async function getUserModelRouting(userId: string, since: Date): Promise<UserModelRoutingRow[]> {
+export async function getUserModelRouting(
+  userId: string,
+  since: Date,
+): Promise<UserModelRoutingRow[]> {
   const rows = await getPrisma().$queryRaw<UserModelRoutingRawRow[]>(Prisma.sql`
     SELECT
       model,
@@ -517,7 +520,10 @@ export async function getUserModelRouting(userId: string, since: Date): Promise<
   }));
 }
 
-export async function getUserCacheSummary(userId: string, since: Date): Promise<UserCacheSummaryRow> {
+export async function getUserCacheSummary(
+  userId: string,
+  since: Date,
+): Promise<UserCacheSummaryRow> {
   const rows = await getPrisma().$queryRaw<UserCacheSummaryRawRow[]>(Prisma.sql`
     SELECT
       COUNT(*)                              AS session_count,

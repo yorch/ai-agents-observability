@@ -100,12 +100,12 @@ export default async function InsightsPage({
   ]);
 
   const recommendations = buildRecommendations({
+    cacheSummary,
     mcp,
     modelRouting,
     scoredSessionCount: effectiveness.scoredSessionCount,
     sources: effectiveness.sources,
     toolPerf,
-    cacheSummary,
   });
 
   const hasSessionData = summary.sessionCount > 0;

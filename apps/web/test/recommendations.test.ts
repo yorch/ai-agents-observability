@@ -168,9 +168,24 @@ describe('buildRecommendations', () => {
       cacheSummary: cacheSummary(),
       mcp: [],
       modelRouting: [
-        modelRouting({ callCount: 30, model: 'claude-opus-4-8', toolCategory: 'fs_read', totalCostUsd: 9 }),
-        modelRouting({ callCount: 20, model: 'claude-opus-4-8', toolCategory: 'search', totalCostUsd: 7 }),
-        modelRouting({ callCount: 10, model: 'claude-opus-4-8', toolCategory: 'exec', totalCostUsd: 2 }),
+        modelRouting({
+          callCount: 30,
+          model: 'claude-opus-4-8',
+          toolCategory: 'fs_read',
+          totalCostUsd: 9,
+        }),
+        modelRouting({
+          callCount: 20,
+          model: 'claude-opus-4-8',
+          toolCategory: 'search',
+          totalCostUsd: 7,
+        }),
+        modelRouting({
+          callCount: 10,
+          model: 'claude-opus-4-8',
+          toolCategory: 'exec',
+          totalCostUsd: 2,
+        }),
       ],
       scoredSessionCount: 8,
       sources: NO_FRICTION,
@@ -181,7 +196,11 @@ describe('buildRecommendations', () => {
 
   it('surfaces cache recommendation when cache reuse is low with enough evidence', () => {
     const recs = buildRecommendations({
-      cacheSummary: cacheSummary({ sessionCount: 6, totalCacheReadTokens: 5_000n, totalInputTokens: 350_000n }),
+      cacheSummary: cacheSummary({
+        sessionCount: 6,
+        totalCacheReadTokens: 5_000n,
+        totalInputTokens: 350_000n,
+      }),
       mcp: [],
       modelRouting: [],
       scoredSessionCount: 8,

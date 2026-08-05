@@ -1,10 +1,3 @@
-import {
-  CHEAP_SUITABLE_CATEGORIES,
-  HAIKU_SAVINGS_RATIO,
-  MIN_ROUTING_CHEAP_CALLS,
-  MIN_ROUTING_CHEAP_SPEND_USD,
-  PREMIUM_PATTERN,
-} from './routing-queries';
 import type { FrictionSources } from './effectiveness-queries';
 import type {
   McpUsageRow,
@@ -12,6 +5,13 @@ import type {
   UserCacheSummaryRow,
   UserModelRoutingRow,
 } from './insights-queries';
+import {
+  CHEAP_SUITABLE_CATEGORIES,
+  HAIKU_SAVINGS_RATIO,
+  MIN_ROUTING_CHEAP_CALLS,
+  MIN_ROUTING_CHEAP_SPEND_USD,
+  PREMIUM_PATTERN,
+} from './routing-queries';
 
 // Actionable, per-developer coaching surface (Feature 5). Pure derivation over the
 // friction-source decomposition and the already-fetched per-tool / MCP / routing
@@ -74,13 +74,12 @@ function buildRoutingRecommendation(rows: UserModelRoutingRow[]): Recommendation
   }
 
   const premiumRows = [...byModel.entries()]
-    .filter(([model, agg]) => {
-      return (
+    .filter(
+      ([model, agg]) =>
         model.toLowerCase().includes(PREMIUM_PATTERN) &&
         agg.cheapCalls >= MIN_ROUTING_CHEAP_CALLS &&
-        agg.cheapSpend >= MIN_ROUTING_CHEAP_SPEND_USD
-      );
-    })
+        agg.cheapSpend >= MIN_ROUTING_CHEAP_SPEND_USD,
+    )
     .map(([model, agg]) => ({
       cheapShare: agg.totalSpend > 0 ? agg.cheapSpend / agg.totalSpend : 0,
       model,

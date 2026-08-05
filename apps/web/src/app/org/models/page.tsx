@@ -9,12 +9,12 @@ import {
   getRoutingSpendByTeam,
 } from '@/lib/org-queries';
 import { getModelInputPrices } from '@/lib/price-client';
+import { requireOrgViewer } from '@/lib/roles';
 import {
   getRoutingRecommendationValidationRows,
-  type RoutingValidationRow,
   persistRoutingRecommendationProjections,
+  type RoutingValidationRow,
 } from '@/lib/routing-analysis';
-import { requireOrgViewer } from '@/lib/roles';
 import {
   buildSavingsRatioResolver,
   computeRoutingRecommendations,
@@ -22,6 +22,10 @@ import {
 } from '@/lib/routing-queries';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
+
+function startOfUtcDay(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
 
 function modelTier(model: string): 'economy' | 'premium' | 'standard' {
   const lower = model.toLowerCase();
@@ -54,6 +58,10 @@ export default async function OrgModelsPage({
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const now = new Date();
+  const projectionWindowEnd = startOfUtcDay(now);
+  const projectionWindowStart = new Date(
+    projectionWindowEnd.getTime() - range * 24 * 60 * 60 * 1000,
+  );
   const since = daysAgo(range);
   const [models, routing, modelPrices, routingByTeam] = await Promise.all([
     getOrgModelDetail(since),
@@ -85,8 +93,8 @@ export default async function OrgModelsPage({
     pricePrecise,
     rangeDays: range,
     recommendations: routingRecs,
-    windowEnd: now,
-    windowStart: since,
+    windowEnd: projectionWindowEnd,
+    windowStart: projectionWindowStart,
   });
 
   const validationRows = await getRoutingRecommendationValidationRows({
@@ -254,9 +262,7 @@ function RoutingValidationPanel({ rows }: { rows: RoutingValidationRow[] }) {
         Recommendation validation loop
       </h2>
       {rows.length === 0 ? (
-        <EmptyState>
-          No prior recommendation windows are measurable yet for this range.
-        </EmptyState>
+        <EmptyState>No prior recommendation windows are measurable yet for this range.</EmptyState>
       ) : (
         <Table
           columns={[
@@ -267,6 +273,7 @@ function RoutingValidationPanel({ rows }: { rows: RoutingValidationRow[] }) {
             { align: 'right', label: 'Post-period calls' },
             { align: 'right', label: 'Error Δ' },
             { align: 'right', label: 'Friction Δ' },
+            { align: 'right', label: 'Revert Δ' },
           ]}
         >
           {rows.map((r) => (
@@ -281,12 +288,17 @@ function RoutingValidationPanel({ rows }: { rows: RoutingValidationRow[] }) {
               <Cell num className="text-text-2">
                 ${r.evaluation.realizedSavingUsd.toFixed(2)}
               </Cell>
-              <Cell num className="text-text-2">{r.evaluation.realizedCheapCalls.toLocaleString()}</Cell>
+              <Cell num className="text-text-2">
+                {r.evaluation.realizedCheapCalls.toLocaleString()}
+              </Cell>
               <Cell num className="text-text-2">
                 {fmtDeltaPct(r.evaluation.errorRateDelta)}
               </Cell>
               <Cell num className="text-text-2">
                 {fmtDeltaPct(r.evaluation.frictionDelta)}
+              </Cell>
+              <Cell num className="text-text-2">
+                {fmtDeltaPct(r.evaluation.revertRateDelta)}
               </Cell>
             </Row>
           ))}
