@@ -185,6 +185,19 @@ export type ToolPerfRow = {
   toolName: string;
 };
 
+export type UserModelRoutingRow = {
+  callCount: number;
+  model: string;
+  toolCategory: string;
+  totalCostUsd: number;
+};
+
+export type UserCacheSummaryRow = {
+  sessionCount: number;
+  totalCacheReadTokens: bigint;
+  totalInputTokens: bigint;
+};
+
 type McpRawRow = {
   avg_duration_ms: string | null;
   call_count: bigint;
@@ -228,6 +241,19 @@ type ToolPerfRawRow = {
   p95_duration_ms: string | null;
   tool_category: string | null;
   tool_name: string;
+};
+
+type UserModelRoutingRawRow = {
+  call_count: bigint;
+  model: string;
+  tool_category: string;
+  total_cost_usd: string;
+};
+
+type UserCacheSummaryRawRow = {
+  session_count: bigint;
+  total_cache_read: bigint;
+  total_input_tokens: bigint;
 };
 
 export async function getMcpUsage(userId: string, since: Date): Promise<McpUsageRow[]> {
@@ -464,4 +490,47 @@ export async function getToolPerf(userId: string, since: Date): Promise<ToolPerf
     toolCategory: r.tool_category,
     toolName: r.tool_name,
   }));
+}
+
+export async function getUserModelRouting(userId: string, since: Date): Promise<UserModelRoutingRow[]> {
+  const rows = await getPrisma().$queryRaw<UserModelRoutingRawRow[]>(Prisma.sql`
+    SELECT
+      model,
+      tool_category,
+      COUNT(*)                    AS call_count,
+      COALESCE(SUM(cost_usd), 0)  AS total_cost_usd
+    FROM events
+    WHERE user_id = ${userId}::uuid
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND model IS NOT NULL
+      AND tool_category IS NOT NULL
+    GROUP BY model, tool_category
+    ORDER BY total_cost_usd DESC
+    LIMIT 200
+  `);
+  return rows.map((r) => ({
+    callCount: Number(r.call_count),
+    model: r.model,
+    toolCategory: r.tool_category,
+    totalCostUsd: Number(r.total_cost_usd),
+  }));
+}
+
+export async function getUserCacheSummary(userId: string, since: Date): Promise<UserCacheSummaryRow> {
+  const rows = await getPrisma().$queryRaw<UserCacheSummaryRawRow[]>(Prisma.sql`
+    SELECT
+      COUNT(*)                              AS session_count,
+      COALESCE(SUM(total_input_tokens), 0)  AS total_input_tokens,
+      COALESCE(SUM(total_cache_read), 0)    AS total_cache_read
+    FROM sessions
+    WHERE user_id = ${userId}::uuid
+      AND started_at >= ${since}
+  `);
+  const r = rows[0] ?? { session_count: 0n, total_cache_read: 0n, total_input_tokens: 0n };
+  return {
+    sessionCount: Number(r.session_count),
+    totalCacheReadTokens: r.total_cache_read,
+    totalInputTokens: r.total_input_tokens,
+  };
 }

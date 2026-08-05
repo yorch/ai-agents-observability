@@ -24,6 +24,8 @@ import {
   getSlashCommands,
   getSubagentUsage,
   getToolPerf,
+  getUserCacheSummary,
+  getUserModelRouting,
   type McpUsageRow,
   type NotificationKindRow,
   type SessionSummaryRow,
@@ -76,6 +78,8 @@ export default async function InsightsPage({
     continuity,
     notificationKinds,
     shapeTrend,
+    modelRouting,
+    cacheSummary,
   ] = await Promise.all([
     getMcpUsage(user.id, since),
     getSkillUsage(user.id, since),
@@ -91,18 +95,23 @@ export default async function InsightsPage({
     getContinuitySummary(user.id, since),
     getNotificationKinds(user.id, since),
     getUserShapeTrend(user.id, since),
+    getUserModelRouting(user.id, since),
+    getUserCacheSummary(user.id, since),
   ]);
 
   const recommendations = buildRecommendations({
     mcp,
+    modelRouting,
     scoredSessionCount: effectiveness.scoredSessionCount,
     sources: effectiveness.sources,
     toolPerf,
+    cacheSummary,
   });
 
   const hasSessionData = summary.sessionCount > 0;
   const hasEventData =
     mcp.length > 0 ||
+    modelRouting.length > 0 ||
     skills.length > 0 ||
     slashCmds.length > 0 ||
     subagents.length > 0 ||
