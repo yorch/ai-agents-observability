@@ -4,6 +4,8 @@ import {
   buildSavingsRatioResolver,
   computeRoutingRecommendations,
   HAIKU_SAVINGS_RATIO,
+  MIN_ROUTING_CHEAP_CALLS,
+  MIN_ROUTING_CHEAP_SPEND_USD,
 } from './routing-queries';
 
 describe('buildSavingsRatioResolver', () => {
@@ -59,9 +61,31 @@ describe('computeRoutingRecommendations', () => {
     expect(rec?.model).toBe('claude-opus-4-8');
     // Only fs_read + search count ($50), not exec.
     expect(rec?.cheapCategorySpend).toBe(50);
+    expect(rec?.cheapCategoryCalls).toBe(120);
     const ratio = 1 - 1 / 15;
     expect(rec?.savingsRatio).toBeCloseTo(ratio, 5);
     expect(estimatedMonthlySaving).toBeCloseTo(50 * ratio, 5);
+  });
+
+  it('suppresses low-confidence rows under min call/spend gates', () => {
+    const { recommendations } = computeRoutingRecommendations(
+      [
+        {
+          callCount: MIN_ROUTING_CHEAP_CALLS - 1,
+          model: 'claude-opus-4-8',
+          toolCategory: 'fs_read',
+          totalCostUsd: MIN_ROUTING_CHEAP_SPEND_USD + 1,
+        },
+        {
+          callCount: MIN_ROUTING_CHEAP_CALLS + 5,
+          model: 'claude-opus-4-9',
+          toolCategory: 'search',
+          totalCostUsd: MIN_ROUTING_CHEAP_SPEND_USD - 0.01,
+        },
+      ],
+      30,
+    );
+    expect(recommendations).toHaveLength(0);
   });
 
   it('returns nothing when no premium model touched a cheap category', () => {

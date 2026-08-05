@@ -49,6 +49,9 @@ export function RoutingRecommendations({
                   {' — '}
                   {fmtUsd(rec.cheapCategorySpend)} spent on retrieval-only categories this window
                 </p>
+                <p className="mt-0.5 text-xs text-text-3">
+                  {rec.cheapCategoryCalls.toLocaleString()} retrieval calls · confidence {rec.confidence}
+                </p>
                 <ul className="mt-1 space-y-0.5 text-xs text-text-2">
                   {rec.topCategories.map((c) => (
                     <li key={c.category}>
