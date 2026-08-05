@@ -19,10 +19,12 @@ describe('evaluateRoutingProjection', () => {
     const out = evaluateRoutingProjection(PROJECTION, {
       baselineErrorRate: 0.1,
       baselineMedianFriction: 0.3,
+      baselineRevertRate: 0.05,
       realizedCheapCalls: 12,
       realizedCheapSpendUsd: 30,
       realizedErrorRate: 0.05,
       realizedMedianFriction: 0.2,
+      realizedRevertRate: 0.04,
     });
     expect(out.status).toBe('not_measurable');
   });
@@ -31,10 +33,12 @@ describe('evaluateRoutingProjection', () => {
     const out = evaluateRoutingProjection(PROJECTION, {
       baselineErrorRate: 0.05,
       baselineMedianFriction: 0.2,
+      baselineRevertRate: 0.03,
       realizedCheapCalls: 100,
       realizedCheapSpendUsd: 35,
       realizedErrorRate: 0.13,
       realizedMedianFriction: 0.21,
+      realizedRevertRate: 0.06,
     });
     expect(out.status).toBe('degraded');
   });
@@ -43,10 +47,12 @@ describe('evaluateRoutingProjection', () => {
     const out = evaluateRoutingProjection(PROJECTION, {
       baselineErrorRate: 0.1,
       baselineMedianFriction: 0.3,
+      baselineRevertRate: 0.08,
       realizedCheapCalls: 150,
       realizedCheapSpendUsd: 20,
       realizedErrorRate: 0.08,
       realizedMedianFriction: 0.25,
+      realizedRevertRate: 0.05,
     });
     expect(out.status).toBe('improved');
     expect(out.realizedSavingUsd).toBe(30);

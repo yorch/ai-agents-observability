@@ -4,6 +4,7 @@ import type {
   CategoryStatRow,
   DailySkillVolumeRow,
   DailyToolVolumeRow,
+  OrgModelRoutingRow,
   SkillAdoptionRow,
   SkillCostComparisonRow,
   SkillRow,
@@ -249,6 +250,41 @@ export async function getTeamModelMix(since: Date, visibleIds: string[]): Promis
       };
     })
     .sort((a, b) => b.turns - a.turns);
+}
+
+export async function getTeamRoutingBreakdown(
+  since: Date,
+  visibleIds: string[],
+): Promise<OrgModelRoutingRow[]> {
+  if (visibleIds.length === 0) {
+    return [];
+  }
+
+  const uuids = toUuidList(visibleIds);
+  const rows = await getPrisma().$queryRaw<
+    { call_count: bigint; model: string; tool_category: string; total_cost_usd: number }[]
+  >(Prisma.sql`
+    SELECT
+      model,
+      tool_category,
+      COUNT(*)                    AS call_count,
+      COALESCE(SUM(cost_usd), 0)  AS total_cost_usd
+    FROM events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND model IS NOT NULL
+      AND tool_category IS NOT NULL
+    GROUP BY model, tool_category
+    ORDER BY total_cost_usd DESC
+  `);
+
+  return rows.map((r) => ({
+    callCount: Number(r.call_count),
+    model: r.model,
+    toolCategory: r.tool_category,
+    totalCostUsd: Number(r.total_cost_usd),
+  }));
 }
 
 export type MemberProfile = {
