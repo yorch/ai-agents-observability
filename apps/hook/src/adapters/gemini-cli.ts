@@ -4,8 +4,9 @@ import { dirname, join } from 'node:path';
 import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from '../lib/bytes';
+import { isRecord } from '../lib/fields';
 import { log } from '../lib/log';
-import { telemetryHome } from '../lib/paths';
+import { agentStateDir } from '../lib/paths';
 import { NIL_UUID, sessionUuid } from '../lib/session-id';
 import type { ConformantEvent, HookAdapter } from './index';
 import {
@@ -41,7 +42,10 @@ const GEMINI_EVENT_TYPE: Record<string, EventType> = {
   'session-start': 'SessionStart',
 };
 
-/** Registered so `hook after-model` is accepted, but it emits no event. */
+/**
+ * Installed and accepted, but absent from GEMINI_EVENT_TYPE: it emits no event.
+ * `nativeEvents` on the factory config is what keeps it installable — see there.
+ */
 const USAGE_KIND = 'after-model';
 
 const HOOK_KIND_TO_GEMINI_EVENT: Record<string, string> = {
@@ -60,10 +64,6 @@ const HOOK_KIND_TO_GEMINI_EVENT: Record<string, string> = {
 // (The alias keys — session_id, cwd, tool_*, transcript_path — are known
 // automatically; the factory unions them in.)
 const GEMINI_KNOWN_KEYS = ['mcp_context', 'original_request_name'];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 function num(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
@@ -140,8 +140,8 @@ type Usage = {
 
 const EMPTY_USAGE: Usage = { cacheRead: 0, input: 0, model: null, output: 0 };
 
-export function geminiUsageDir(): string {
-  return join(telemetryHome(), 'gemini-usage');
+function geminiUsageDir(): string {
+  return agentStateDir('gemini-cli');
 }
 
 function usagePath(sessionId: string): string {
@@ -281,20 +281,12 @@ const base = createStdinHookAdapter({
     settingsHint: 'Add to ~/.gemini/settings.json (or .gemini/settings.json in a project):',
   },
   knownKeys: GEMINI_KNOWN_KEYS,
+  nativeEvents: HOOK_KIND_TO_GEMINI_EVENT,
   transcriptKinds: ['after-agent', 'session-end'],
 });
 
 export const geminiCliAdapter: HookAdapter = {
   ...base,
-
-  installConfig() {
-    // `after-model` is a real hook we register but never turn into an event.
-    return { ...base.installConfig(), hookKinds: Object.keys(HOOK_KIND_TO_GEMINI_EVENT) };
-  },
-
-  isHookKind(value: string): boolean {
-    return value === USAGE_KIND || base.isHookKind(value);
-  },
 
   mapBatch(kind: string, raw: Record<string, unknown>): ConformantEvent[] | null {
     // AfterModel: harvest usage, emit nothing. Returning [] (not null) is what

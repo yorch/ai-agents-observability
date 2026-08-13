@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { HookAdapter } from './index';
-import { createPiFamilyAdapter, homeDir, PI_FAMILY_NATIVE_EVENTS } from './pi-family';
+import { createPiFamilyAdapter, homeDir, renderExtensionSnippet } from './pi-family';
 
 // OMP (oh-my-pi) adapter (P12-008). OMP is a fork of Pi that went the opposite
 // direction — subagents, plan mode, LSP/DAP, a Rust core with a TypeScript
@@ -37,7 +37,21 @@ const OMP_HOME_CANDIDATES = ['.omp', '.oh-omp'];
  * sessions directory itself — a natural misreading that would otherwise find
  * nothing, silently.
  */
+let rootsMemo: { key: string; roots: string[] } | null = null;
+
 function sessionRoots(): string[] {
+  // Called from both the usage fallback and transcriptTarget in one invocation;
+  // the probe is cheap but there is no reason to run it twice.
+  const key = process.env.OMP_HOME ?? '';
+  if (rootsMemo?.key === key) {
+    return rootsMemo.roots;
+  }
+  const roots = resolveSessionRoots();
+  rootsMemo = { key, roots };
+  return roots;
+}
+
+function resolveSessionRoots(): string[] {
   const override = process.env.OMP_HOME;
   const homes = override ? [override] : OMP_HOME_CANDIDATES.map((name) => join(homeDir(), name));
   const roots = homes.flatMap((home) => [join(home, 'agent', 'sessions'), home]);
@@ -45,49 +59,22 @@ function sessionRoots(): string[] {
   return existing.length > 0 ? existing : roots;
 }
 
-const SUBSCRIBED = PI_FAMILY_NATIVE_EVENTS;
-
 function renderSnippet(bin: string): string {
-  const mapEntries = Object.entries(SUBSCRIBED)
-    .map(([native, kind]) => `  ${native}: '${kind}',`)
-    .join('\n');
-  return [
-    '// ~/.omp/agent/hooks/telemetry.ts   (or ~/.oh-omp/agent/hooks/, or .omp/hooks/)',
-    'import { spawn } from "node:child_process";',
-    '',
-    'const KINDS: Record<string, string> = {',
-    mapEntries,
-    '};',
-    '',
-    'export default function (omp: any) {',
-    '  for (const [native, kind] of Object.entries(KINDS)) {',
-    '    omp.on(native, async (event: any, ctx: any) => {',
-    '      try {',
-    '        const payload = {',
-    '          ...event,',
-    '          cwd: ctx?.cwd ?? process.cwd(),',
-    '          sessionId: ctx?.session?.id ?? event?.sessionId,',
-    '          sessionFile: ctx?.session?.path ?? undefined,',
-    '        };',
-    `        const p = spawn(${JSON.stringify(bin)}, ['hook', kind, '--agent', 'omp'], {`,
-    "          stdio: ['pipe', 'ignore', 'ignore'],",
-    '          detached: true,',
-    '        });',
-    '        p.stdin.end(JSON.stringify(payload));',
-    '        p.unref();',
-    '      } catch {',
-    '        // Telemetry must never break the agent: swallow and continue.',
-    '      }',
-    '      // Observe only: never omp.sendMessage(), never block a tool call.',
-    '    });',
-    '  }',
-    '}',
-    '',
-    '// Alternative, if you already run the third-party `omp-hooks` plugin: it makes',
-    '// OMP execute Claude Code-style settings.json command hooks, so you can wire',
-    `// "${bin} hook <kind> --agent omp" there instead. We ship the native module`,
-    '// because it needs no third-party package to keep working.',
-  ].join('\n');
+  return renderExtensionSnippet({
+    agentArg: 'omp',
+    bin,
+    footer: [
+      '',
+      '// Alternative, if you already run the third-party `omp-hooks` plugin: it makes',
+      '// OMP execute Claude Code-style settings.json command hooks, so you can wire',
+      `// "${bin} hook <kind> --agent omp" there instead. We ship the native module`,
+      '// because it needs no third-party package to keep working.',
+    ],
+    header: '// ~/.omp/agent/hooks/telemetry.ts   (or ~/.oh-omp/agent/hooks/, or .omp/hooks/)',
+    paramName: 'omp',
+    sessionFileExpr: 'ctx?.session?.path ?? undefined',
+    sessionIdExpr: 'ctx?.session?.id ?? event?.sessionId',
+  });
 }
 
 export const ompAdapter: HookAdapter = createPiFamilyAdapter({

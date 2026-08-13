@@ -7,15 +7,14 @@ import {
 
 export type S3Deps = { bucket: string; client: S3Client };
 
-export async function objectExists(deps: S3Deps, key: string): Promise<boolean> {
-  return (await objectSize(deps, key)) !== null;
-}
-
-/** Stored size in bytes, or null when the object does not exist. */
-export async function objectSize(deps: S3Deps, key: string): Promise<number | null> {
+/** User metadata on the stored object, or null when it does not exist. */
+export async function objectMetadata(
+  deps: S3Deps,
+  key: string,
+): Promise<Record<string, string> | null> {
   try {
     const head = await deps.client.send(new HeadObjectCommand({ Bucket: deps.bucket, Key: key }));
-    return head.ContentLength ?? 0;
+    return head.Metadata ?? {};
   } catch (err) {
     if (
       err instanceof S3ServiceException &&
@@ -32,6 +31,7 @@ export async function putObject(
   key: string,
   body: Uint8Array,
   contentType: string,
+  metadata?: Record<string, string>,
 ): Promise<void> {
   await deps.client.send(
     new PutObjectCommand({
@@ -39,6 +39,7 @@ export async function putObject(
       Bucket: deps.bucket,
       ContentType: contentType,
       Key: key,
+      ...(metadata ? { Metadata: metadata } : {}),
     }),
   );
 }

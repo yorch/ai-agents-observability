@@ -1,11 +1,13 @@
 import {
   closeSync,
+  type Dirent,
   existsSync,
   mkdirSync,
   openSync,
   readdirSync,
   readFileSync,
   readSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
@@ -21,9 +23,10 @@ import {
 
 import { clientInfo } from '../lib/client-info';
 import { type CodexUsage, parseRolloutRecords, usageDelta } from '../lib/codex-rollout';
+import { pickString } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { log } from '../lib/log';
-import { telemetryHome } from '../lib/paths';
+import { agentStateDir } from '../lib/paths';
 import { NIL_UUID, sessionUuid } from '../lib/session-id';
 import { uuidv7 } from '../lib/uuid';
 import type { AdapterInstallConfig, ConformantEvent, HookAdapter, TranscriptTarget } from './index';
@@ -103,16 +106,6 @@ const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 function str(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
-}
-
-function firstStr(raw: Record<string, unknown>, keys: string[]): string | null {
-  for (const k of keys) {
-    const v = raw[k];
-    if (typeof v === 'string' && v.length > 0) {
-      return v;
-    }
-  }
-  return null;
 }
 
 // ── Event assembly ────────────────────────────────────────────────────────────
@@ -207,7 +200,16 @@ function codexSessionsDir(): string {
 // rather than losing the turn.
 let hooksWiredMemo: boolean | null = null;
 
-const OUR_HOOK_MARKER = /--agent\s+codex|claude-telemetry/;
+// Matches OUR HOOK INVOCATION specifically — `--agent codex` in TOML/string form
+// and `"--agent","codex"` in a hooks.json argv array — and nothing else.
+//
+// A bare `claude-telemetry` substring test would have been catastrophic here: the
+// notify install snippet this very file generates writes
+// `notify = ["~/.codex/claude-telemetry-notify.sh"]` INTO config.toml. A
+// notify-only install would then self-detect as hooks-wired, stand the notify
+// path down, and capture nothing at all — the exact blackout the narrow test
+// exists to prevent, on the default install.
+const OUR_HOOK_MARKER = /--agent["'\s,]+codex/;
 
 export function codexHooksWired(): boolean {
   if (hooksWiredMemo !== null) {
@@ -226,7 +228,17 @@ function detectHooksWired(): boolean {
   const home = codexHome();
   for (const file of ['hooks.json', 'config.toml']) {
     try {
-      if (OUR_HOOK_MARKER.test(readFileSync(join(home, file), 'utf8'))) {
+      const text = readFileSync(join(home, file), 'utf8');
+      // Comments don't wire anything. This matters for config.toml specifically:
+      // our own notify instructions are pasted there as `#` comments, and they
+      // legitimately contain the hook invocation as documentation.
+      const active = file.endsWith('.toml')
+        ? text
+            .split('\n')
+            .map((line) => stripComment(line))
+            .join('\n')
+        : text;
+      if (OUR_HOOK_MARKER.test(active)) {
         return true;
       }
     } catch {
@@ -300,24 +312,27 @@ function collectRollouts(dir: string, depth = 0): { path: string; mtime: number 
     return [];
   }
   const out: { path: string; mtime: number }[] = [];
-  let names: string[];
+  let entries: Dirent[];
   try {
-    names = readdirSync(dir);
+    entries = readdirSync(dir, { withFileTypes: true });
   } catch {
     return [];
   }
-  for (const name of names) {
-    const full = join(dir, name);
-    let st: ReturnType<typeof statSync>;
-    try {
-      st = statSync(full);
-    } catch {
+  for (const entry of entries) {
+    // Symlinks are skipped for the same reason the other walkers skip them: a
+    // link in the agent's storage must not send the scan into an arbitrary tree.
+    if (entry.isSymbolicLink()) {
       continue;
     }
-    if (st.isDirectory()) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
       out.push(...collectRollouts(full, depth + 1));
-    } else if (ROLLOUT_RE.test(name)) {
-      out.push({ mtime: st.mtimeMs, path: full });
+    } else if (ROLLOUT_RE.test(entry.name)) {
+      try {
+        out.push({ mtime: statSync(full).mtimeMs, path: full });
+      } catch {
+        // vanished between readdir and stat
+      }
     }
   }
   return out;
@@ -349,7 +364,7 @@ const SESSION_ID_KEYS = [
 ];
 
 function sessionIdFromPayload(raw: Record<string, unknown>): string | null {
-  return firstStr(raw, SESSION_ID_KEYS);
+  return pickString(raw, SESSION_ID_KEYS);
 }
 
 function cwdFromPayload(raw: Record<string, unknown>): string {
@@ -380,7 +395,7 @@ function locateRollout(raw: Record<string, unknown>): RolloutLocation | null {
 function locateRolloutUncached(raw: Record<string, unknown>): RolloutLocation | null {
   const cwd = cwdFromPayload(raw);
 
-  const explicit = firstStr(raw, [
+  const explicit = pickString(raw, [
     'rollout-path',
     'rollout_path',
     'session-file',
@@ -413,8 +428,8 @@ function locateRolloutUncached(raw: Record<string, unknown>): RolloutLocation | 
 // carried across files either skips a turn's records or re-reads them.
 type Cursor = { offset: number; path: string | null; usage: CodexUsage | null };
 
-export function codexCursorDir(): string {
-  return join(telemetryHome(), 'codex-cursors');
+function codexCursorDir(): string {
+  return agentStateDir('codex');
 }
 
 function cursorPath(sessionId: string): string {
@@ -442,9 +457,20 @@ function readCursor(sessionId: string, forPath: string): Cursor {
   return { offset: 0, path: forPath, usage: null };
 }
 
+/** Forget a session's cursor. Best-effort — a stale cursor is not worth a throw. */
+function dropCursor(sessionId: string): void {
+  try {
+    rmSync(cursorPath(sessionId), { force: true });
+  } catch {
+    // nothing to clean up
+  }
+}
+
 function writeCursor(sessionId: string, cursor: Cursor): void {
   const p = cursorPath(sessionId);
-  mkdirSync(dirname(p), { recursive: true });
+  // 0o700 like every other per-session state dir under the telemetry home: this
+  // holds session ids and token counts.
+  mkdirSync(dirname(p), { mode: 0o700, recursive: true });
   writeFileSync(p, JSON.stringify(cursor), { encoding: 'utf8', mode: 0o600 });
 }
 
@@ -505,6 +531,10 @@ const hookAdapter = createStdinHookAdapter({
   // Codex hands us the transcript path directly on every hook — no directory scan.
   transcriptKinds: ['stop', 'session-end'],
 });
+
+// `notify`'s turn-complete has no native hook event, so the hook sub-adapter's
+// installed set is the hook kinds only; the exported adapter widens isHookKind
+// back to every kind it accepts (below).
 
 function mapPayload(kind: string, raw: Record<string, unknown>): ConformantEvent {
   if (kind !== NOTIFY_KIND) {
@@ -571,6 +601,13 @@ function readUsageDelta(loc: RolloutLocation): {
 // Any failure returns null so the transport falls back to the single-event
 // mapPayload (a bare Stop) — a broken rollout never blocks the turn signal.
 function mapBatch(kind: string, raw: Record<string, unknown>): ConformantEvent[] | null {
+  if (kind === 'session-end') {
+    // The session is over, so its cursor is dead weight. Without this a heavy
+    // user accumulates one file per session forever — gemini already drains its
+    // accumulator on SessionEnd for exactly this reason.
+    dropCursor(sessionUuid('CODEX', sessionIdFromPayload(raw)));
+    return null; // fall through to the ordinary single-event mapping
+  }
   if (kind === 'stop') {
     return stopWithUsage(raw);
   }

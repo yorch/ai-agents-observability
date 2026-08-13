@@ -71,11 +71,6 @@ const COPILOT_FIELDS: Partial<FieldAliases> = {
   toolResponse: ['toolResult', 'tool_response'],
 };
 
-// The alias keys are known automatically (the factory unions them in); nothing
-// extra is captured structurally for Copilot, so `error` and `timestamp` ride
-// along in metadata.
-const COPILOT_KNOWN_KEYS: string[] = [];
-
 /** Truthy, non-empty error content — not merely a present `error` key. */
 function hasError(value: unknown): boolean {
   if (typeof value === 'string') {
@@ -142,7 +137,7 @@ export const copilotAdapter: HookAdapter = createStdinHookAdapter({
     renderSnippet,
     settingsHint: 'Write this to ~/.copilot/hooks/claude-telemetry.json:',
   },
-  knownKeys: COPILOT_KNOWN_KEYS,
+  nativeEvents: HOOK_KIND_TO_COPILOT_EVENT,
   // Copilot's documented payload carries no transcript path, so nothing to ship —
   // the opencode precedent. If a session log location turns out to be
   // discoverable, that is a follow-up, not a blocker.

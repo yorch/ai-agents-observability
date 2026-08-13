@@ -1,9 +1,8 @@
 import { existsSync, rmSync } from 'node:fs';
 
-import { codexCursorDir } from '../adapters/codex';
-import { geminiUsageDir } from '../adapters/gemini-cli';
 import { logPath } from '../lib/log';
 import {
+  agentStateRoot,
   flusherStatePath,
   identityPath,
   pausedPath,
@@ -27,7 +26,7 @@ export async function runPurge(args: string[]): Promise<number> {
         `  ship queue:     ${shipQueueDir()}`,
         `  log file:       ${logPath()}`,
         `  staged uploads: ${collatedDir()}`,
-        `  agent state:    ${geminiUsageDir()}, ${codexCursorDir()}`,
+        `  agent state:    ${agentStateRoot()}`,
         `  identity file:  ${identityPath()}`,
         `  flusher state:  ${flusherStatePath()}`,
         `  pause marker:   ${pausedPath()}`,
@@ -76,12 +75,11 @@ export async function runPurge(args: string[]): Promise<number> {
   tryRemove(identityPath());
   tryRemove(flusherStatePath());
   tryRemove(pausedPath());
-  // Per-agent working state. These hold real telemetry — staged (unredacted)
-  // transcript collations and per-session token tallies — so "all local telemetry
-  // data" has to include them.
+  // Staged (unredacted) transcript collations, and every adapter's working state
+  // — per-session cursors and token tallies. Removed by CONVENTION rather than by
+  // naming agents, so a new adapter's state cannot be forgotten here.
   tryRemove(collatedDir(), true);
-  tryRemove(geminiUsageDir(), true);
-  tryRemove(codexCursorDir(), true);
+  tryRemove(agentStateRoot(), true);
 
   for (const p of removed) {
     process.stdout.write(`removed: ${p}\n`);

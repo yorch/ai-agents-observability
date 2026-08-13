@@ -33,6 +33,11 @@ export const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 // silent-drop failure P12-002 exists to prevent, so keep the two in lockstep.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Is this string a UUID `EventSchema` would accept? The one definition. */
+export function isSessionUuid(value: string): boolean {
+  return value === NIL_UUID || UUID_RE.test(value);
+}
+
 /**
  * A valid UUID for `agentType`'s session `nativeId`.
  *
@@ -46,7 +51,7 @@ export function sessionUuid(agentType: string, nativeId: unknown): string {
   if (native === null) {
     return NIL_UUID;
   }
-  if (native === NIL_UUID || UUID_RE.test(native)) {
+  if (isSessionUuid(native)) {
     return native.toLowerCase();
   }
   return uuidv5(`${agentType}:${native}`, SESSION_NAMESPACE);

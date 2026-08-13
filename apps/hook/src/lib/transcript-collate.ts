@@ -11,6 +11,7 @@ import {
 import { dirname, join, sep } from 'node:path';
 
 import { telemetryHome } from './paths';
+import { isSessionUuid } from './session-id';
 
 // Directory-shaped transcripts → one JSONL file (P12-009).
 //
@@ -32,13 +33,11 @@ export function collatedDir(): string {
   return join(telemetryHome(), 'collated');
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function collatedPathFor(sessionId: string): string {
   // Session ids reach here already normalized (lib/session-id.ts), so anything
   // else is a bug upstream — reject rather than interpolate, since `join()` would
   // happily normalize `../../x` straight out of the staging directory.
-  if (!UUID_RE.test(sessionId)) {
+  if (!isSessionUuid(sessionId)) {
     throw new Error(`refusing to stage a collation for a non-UUID session id: ${sessionId}`);
   }
   return join(collatedDir(), `${sessionId}.jsonl`);
@@ -75,6 +74,12 @@ function collectJson(dir: string, out: string[], depth = 0): void {
  * Seconds-epoch values are scaled to milliseconds: a directory mixing the two
  * would otherwise sort every seconds-stamped record (~1.7e9) before every
  * ms-stamped one (~1.7e12), inverting the conversation.
+ *
+ * SEAM NOTE: the candidate list below is opencode's record shape, which is the
+ * only directory-shaped agent we capture. If a second one lands, do NOT lengthen
+ * this list — that turns an agent-neutral rule into a hidden per-agent switch.
+ * Have the adapter supply the ordering key instead (an optional `orderBy` on
+ * `TranscriptTarget`, or a parameter here).
  */
 function timeOf(record: unknown): number | null {
   if (typeof record !== 'object' || record === null) {

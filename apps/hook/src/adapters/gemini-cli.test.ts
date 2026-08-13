@@ -136,7 +136,7 @@ describe('gemini-cli adapter', () => {
       llm_response: { usageMetadata: { candidatesTokenCount: 10, promptTokenCount: 100 } },
       session_id: SESSION_ID,
     });
-    const dir = join(telHome, 'gemini-usage');
+    const dir = join(telHome, 'agent-state', 'gemini-cli');
     expect(readdirSync(dir).length).toBe(1);
 
     geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID });
@@ -153,7 +153,7 @@ describe('gemini-cli adapter', () => {
     const stop = geminiCliAdapter.mapBatch?.('session-end', { session_id: SESSION_ID })?.[0];
     expect(stop?.event_type).toBe('SessionEnd');
     expect(stop?.llm?.input_tokens).toBe(50);
-    expect(readdirSync(join(telHome, 'gemini-usage')).length).toBe(0);
+    expect(readdirSync(join(telHome, 'agent-state', 'gemini-cli')).length).toBe(0);
   });
 
   it('accumulates across concurrent writers without losing a call', () => {
@@ -174,7 +174,7 @@ describe('gemini-cli adapter', () => {
     geminiCliAdapter.mapBatch?.('after-model', {
       llm_response: { usageMetadata: { candidatesTokenCount: 9, promptTokenCount: 99 } },
     });
-    expect(existsSync(join(telHome, 'gemini-usage'))).toBe(false);
+    expect(existsSync(join(telHome, 'agent-state', 'gemini-cli'))).toBe(false);
     const stop = geminiCliAdapter.mapBatch?.('after-agent', {})?.[0];
     expect(stop?.llm).toBeUndefined();
   });

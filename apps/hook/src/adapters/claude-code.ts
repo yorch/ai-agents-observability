@@ -76,6 +76,3 @@ export const claudeCodeAdapter = createStdinHookAdapter({
 export function toEvent(kind: HookKind, raw: ClaudeCodeHookPayload): Event {
   return claudeCodeAdapter.mapPayload(kind, raw) as Event;
 }
-
-export { isHookKind } from '../lib/payload';
-export type { HookKind };

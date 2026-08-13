@@ -471,6 +471,45 @@ describe('codex adapter — native lifecycle hooks', () => {
     }
   });
 
+  it('does not mistake OUR OWN notify snippet in config.toml for a wired hook', () => {
+    // The notify install snippet writes
+    // `notify = ["~/.codex/claude-telemetry-notify.sh"]` into config.toml. A
+    // substring test for our binary's name matches that — so the default,
+    // documented install would stand the notify path down and capture NOTHING.
+    // What a notify install actually puts in config.toml: the notify line only.
+    // (The wrapper script, which does contain the hook invocation, lives in its
+    // own .sh file — config.toml never sees it.)
+    const bin = '/usr/local/bin/claude-telemetry';
+    resetCodexHooksCache();
+    const notifyLine = codexAdapter
+      .installConfig()
+      .renderSnippet(bin)
+      .split('\n')
+      .find((line) => line.startsWith('notify = ['));
+    expect(notifyLine).toContain('claude-telemetry');
+    writeFileSync(join(codexHome, 'config.toml'), `${notifyLine}\n`, 'utf8');
+    resetCodexHooksCache();
+    expect(codexHooksWired()).toBe(false);
+
+    // …and the notify path keeps emitting.
+    writeRollout([
+      { info: { total_token_usage: { input_tokens: 10, output_tokens: 1 } }, type: 'token_count' },
+    ]);
+    expect(
+      codexAdapter.mapBatch?.('turn-complete', { 'session-id': sessionId })?.length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('detects our hook wired via an inline [hooks] table in config.toml', () => {
+    writeFileSync(
+      join(codexHome, 'config.toml'),
+      '[hooks]\nStop = "claude-telemetry hook stop --agent codex"\n',
+      'utf8',
+    );
+    resetCodexHooksCache();
+    expect(codexHooksWired()).toBe(true);
+  });
+
   it("does not treat somebody else's hooks.json as our binary being wired", () => {
     // A user's own lint hook must not stand the notify path down — that would be
     // a total telemetry blackout for a correctly-installed notify user.

@@ -14,6 +14,7 @@ import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schema
 
 import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
+import { isPlainRecord, isRecord, pickValue } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { sessionUuid } from '../lib/session-id';
 import { uuidv7 } from '../lib/uuid';
@@ -66,25 +67,12 @@ export type PiFamilyConfig = {
   install: Omit<AdapterInstallConfig, 'hookKinds'>;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
 function str(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
 }
 
 function num(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
-}
-
-function firstOf(raw: Record<string, unknown>, keys: string[]): unknown {
-  for (const key of keys) {
-    if (raw[key] !== undefined && raw[key] !== null) {
-      return raw[key];
-    }
-  }
-  return null;
 }
 
 // NOTE: `id` is deliberately NOT a session-id alias. Pi and omp put a per-entry
@@ -115,9 +103,9 @@ const STOP_KNOWN_KEYS = new Set([...BASE_KNOWN_KEYS, ...USAGE_KEYS]);
 const OTHER_KNOWN_KEYS = new Set(BASE_KNOWN_KEYS);
 
 function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
-  const name = str(firstOf(raw, TOOL_NAME_KEYS), 'unknown');
-  const input = firstOf(raw, TOOL_INPUT_KEYS);
-  const output = firstOf(raw, TOOL_OUTPUT_KEYS);
+  const name = str(pickValue(raw, TOOL_NAME_KEYS), 'unknown');
+  const input = pickValue(raw, TOOL_INPUT_KEYS);
+  const output = pickValue(raw, TOOL_OUTPUT_KEYS);
   const isMcp = name.startsWith('mcp__') || name.includes('__');
 
   return {
@@ -153,7 +141,7 @@ function buildLlm(raw: Record<string, unknown>): Event['llm'] | undefined {
   // Try every alias, not just the first present one: a payload carrying a scalar
   // `usage` alongside a real `tokenUsage` object must not stop at the scalar.
   const usage = USAGE_KEYS.map((key) => raw[key]).find(isRecord);
-  const model = str(firstOf(raw, MODEL_KEYS), '');
+  const model = str(pickValue(raw, MODEL_KEYS), '');
   if (!usage) {
     return undefined;
   }
@@ -321,7 +309,7 @@ export function usageFromSessionFile(path: string): Record<string, unknown> | nu
     const message = isRecord(record.message) ? record.message : record;
     const usage = isRecord(message.usage) ? message.usage : null;
     if (usage) {
-      const model = firstOf(message, MODEL_KEYS) ?? firstOf(record, MODEL_KEYS);
+      const model = pickValue(message, MODEL_KEYS) ?? pickValue(record, MODEL_KEYS);
       return { model, usage };
     }
   }
@@ -342,8 +330,8 @@ export function safeJsonObject(line: string): Record<string, unknown> | null {
   for (const attempt of attempts) {
     try {
       const parsed = JSON.parse(attempt);
-      if (isRecord(parsed) && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
+      if (isPlainRecord(parsed)) {
+        return parsed;
       }
     } catch {
       // try the next attempt
@@ -356,12 +344,12 @@ export function safeJsonObject(line: string): Record<string, unknown> | null {
 
 export function createPiFamilyAdapter(config: PiFamilyConfig): HookAdapter {
   const nativeSessionId = (raw: Record<string, unknown>): string | null => {
-    const value = firstOf(raw, SESSION_ID_KEYS);
+    const value = pickValue(raw, SESSION_ID_KEYS);
     return typeof value === 'string' && value.length > 0 ? value : null;
   };
 
   const explicitTranscript = (raw: Record<string, unknown>): string | null => {
-    const value = firstOf(raw, TRANSCRIPT_KEYS);
+    const value = pickValue(raw, TRANSCRIPT_KEYS);
     return typeof value === 'string' && value.length > 0 ? value : null;
   };
 
@@ -400,7 +388,7 @@ export function createPiFamilyAdapter(config: PiFamilyConfig): HookAdapter {
       redaction_flags: [],
       schema_version: 1,
       session_context: {
-        cwd: str(firstOf(raw, CWD_KEYS), process.cwd()),
+        cwd: str(pickValue(raw, CWD_KEYS), process.cwd()),
         git: null,
         is_resume: false,
         mode: 'normal',
@@ -451,4 +439,68 @@ export function createPiFamilyAdapter(config: PiFamilyConfig): HookAdapter {
 /** `$XDG`-less home resolution shared by both adapters' default session roots. */
 export function homeDir(): string {
   return homedir();
+}
+
+export type ExtensionSnippetConfig = {
+  /** `--agent` value the spawned hook is given. */
+  agentArg: string;
+  bin: string;
+  /** Lines appended after the module (omp documents an alternative install). */
+  footer?: string[];
+  /** The `// path/to/file.ts` line that opens the snippet. */
+  header: string;
+  /** The object the extension factory receives, by the agent's own name. */
+  paramName: string;
+  /** Expression yielding the session id from the handler's `(event, ctx)`. */
+  sessionFileExpr: string;
+  sessionIdExpr: string;
+};
+
+/**
+ * The extension module both agents install. Pi and omp subscribe through the same
+ * `on(event, handler)` shape, so the module is one template with a handful of
+ * substitutions rather than two ~30-line string literals kept in step by hand.
+ *
+ * It is deliberately observe-only: `tool_call` can BLOCK in both agents' APIs and
+ * `tool_result` can rewrite a result, so the handler returns nothing and swallows
+ * its own errors. Telemetry must never change what the agent does.
+ */
+export function renderExtensionSnippet(config: ExtensionSnippetConfig): string {
+  const kinds = Object.entries(PI_FAMILY_NATIVE_EVENTS)
+    .map(([native, kind]) => `  ${native}: '${kind}',`)
+    .join('\n');
+  return [
+    config.header,
+    'import { spawn } from "node:child_process";',
+    '',
+    'const KINDS: Record<string, string> = {',
+    kinds,
+    '};',
+    '',
+    `export default function (${config.paramName}: any) {`,
+    '  for (const [native, kind] of Object.entries(KINDS)) {',
+    `    ${config.paramName}.on(native, async (event: any, ctx: any) => {`,
+    '      try {',
+    '        const payload = {',
+    '          ...event,',
+    '          cwd: ctx?.cwd ?? process.cwd(),',
+    `          sessionId: ${config.sessionIdExpr},`,
+    `          sessionFile: ${config.sessionFileExpr},`,
+    '        };',
+    `        const p = spawn(${JSON.stringify(config.bin)}, ['hook', kind, '--agent', '${config.agentArg}'], {`,
+    "          stdio: ['pipe', 'ignore', 'ignore'],",
+    '          detached: true,',
+    '        });',
+    '        p.stdin.end(JSON.stringify(payload));',
+    '        p.unref();',
+    '      } catch {',
+    '        // Telemetry must never break the agent: swallow and continue.',
+    '      }',
+    '      // Observe only: this handler never blocks a tool call and never',
+    '      // rewrites a result, even though the API allows both.',
+    '    });',
+    '  }',
+    '}',
+    ...(config.footer ?? []),
+  ].join('\n');
 }

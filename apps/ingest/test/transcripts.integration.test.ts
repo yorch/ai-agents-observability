@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { gzipSync, zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 
 import type { S3Client } from '@aws-sdk/client-s3';
@@ -196,7 +197,7 @@ describe('POST /v1/transcripts/:session_id', () => {
   // just because an object already exists at the deterministic key froze every
   // session's transcript at whatever its first turn contained — silently, with a
   // 200 and a matching "uploaded" log line on the client.
-  function uploadedSessionDeps(storedBytes: number) {
+  function uploadedSessionDeps(storedUploadSha: string | null) {
     const deps = authedDeps();
     const sessionStub = deps.db.session as unknown as {
       findUnique: ReturnType<typeof vi.fn>;
@@ -212,15 +213,17 @@ describe('POST /v1/transcripts/:session_id', () => {
     });
     sessionStub.update = vi.fn().mockResolvedValue({});
 
-    const puts: unknown[] = [];
+    const puts: { Metadata?: Record<string, string> }[] = [];
     deps.s3.client = {
       send: vi.fn(async (cmd: unknown) => {
-        const input = (cmd as { input?: { Body?: Uint8Array } }).input;
+        const input = (cmd as { input?: { Body?: Uint8Array; Metadata?: Record<string, string> } })
+          .input;
         if (input?.Body) {
           puts.push(input);
           return {};
         }
-        return { ContentLength: storedBytes };
+        // HeadObject: the stored object carries the sha of the upload that made it.
+        return { Metadata: storedUploadSha ? { 'upload-sha256': storedUploadSha } : {} };
       }),
     } as unknown as S3Client;
     return { deps, puts, sessionStub };
@@ -233,8 +236,8 @@ describe('POST /v1/transcripts/:session_id', () => {
       '',
     ].join('\n');
     const compressed = compress(payload);
-    // Stored object is a different size, i.e. an earlier, shorter transcript.
-    const { deps, puts, sessionStub } = uploadedSessionDeps(compressed.byteLength - 100);
+    // The stored object came from an EARLIER, shorter upload.
+    const { deps, puts, sessionStub } = uploadedSessionDeps('sha-of-an-earlier-shorter-upload');
 
     const app = createApp({} as unknown as Config, deps);
     const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
@@ -245,13 +248,20 @@ describe('POST /v1/transcripts/:session_id', () => {
 
     expect(res.status).toBe(201);
     expect(puts).toHaveLength(1);
+    // …and the new object records the sha of the upload that produced it, so the
+    // NEXT identical re-ship can be skipped.
+    expect(puts[0]?.Metadata?.['upload-sha256']).toBe(
+      createHash('sha256').update(compressed).digest('hex'),
+    );
     expect(sessionStub.update).toHaveBeenCalledTimes(1);
   });
 
   it('skips re-storing a byte-identical re-upload', async () => {
     const payload = ['{"role":"user","content":"hi"}', ''].join('\n');
     const compressed = compress(payload);
-    const { deps, puts, sessionStub } = uploadedSessionDeps(compressed.byteLength);
+    // The stored object came from exactly these bytes.
+    const sha = createHash('sha256').update(compressed).digest('hex');
+    const { deps, puts, sessionStub } = uploadedSessionDeps(sha);
 
     const app = createApp({} as unknown as Config, deps);
     const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {

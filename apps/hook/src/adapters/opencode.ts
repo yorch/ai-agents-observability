@@ -6,6 +6,7 @@ import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schema
 
 import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
+import { isRecord } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { sessionUuid } from '../lib/session-id';
 import { uuidv7 } from '../lib/uuid';
@@ -72,8 +73,11 @@ function findDirNamed(dir: string, name: string, depth: number): string | null {
   } catch {
     return null;
   }
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
+  // Sorted so the match is deterministic across machines, and symlinks are
+  // skipped so a link inside the agent's storage cannot send the walk (and the
+  // upload that follows it) into an arbitrary tree.
+  for (const entry of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) {
       continue;
     }
     if (entry.name === name) {
@@ -89,10 +93,6 @@ function findDirNamed(dir: string, name: string, depth: number): string | null {
 
 function str(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function num(value: unknown): number {

@@ -21,7 +21,7 @@ describe('omp adapter', () => {
     const dir = join(ompHome, 'agent', 'sessions', 'abs-proj-9f2b71');
     mkdirSync(dir, { recursive: true });
     const path = join(dir, `2026-08-13T10-00-00_${SESSION_ID}.jsonl`);
-    writeFileSync(path, preamble + lines.map((l) => JSON.stringify(l)).join('\n') + '\n', 'utf8');
+    writeFileSync(path, `${preamble + lines.map((l) => JSON.stringify(l)).join('\n')}\n`, 'utf8');
     return path;
   }
 

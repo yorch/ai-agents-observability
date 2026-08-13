@@ -1,13 +1,13 @@
 import {
   type AgentType,
   canonicalPermissionMode,
-  type Event,
   type EventType,
   type ToolInfo,
 } from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
+import { pickString, pickValue } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { sessionUuid } from '../lib/session-id';
 import { uuidv7 } from '../lib/uuid';
@@ -83,6 +83,16 @@ export type StdinHookConfig = {
   /** Metadata for the `install` command. */
   install: Omit<AdapterInstallConfig, 'hookKinds'>;
   /**
+   * Hook kind → the agent's own event name, for agents whose set of INSTALLED
+   * hooks is not exactly the set that produces events. Gemini's `AfterModel` is
+   * the case: it must be installed and accepted, but it is harvested for token
+   * usage and emits nothing, so it cannot appear in `eventMap`.
+   *
+   * When present this drives `installConfig().hookKinds` and widens
+   * `isHookKind`; `eventMap` stays the event-producing subset.
+   */
+  nativeEvents?: Record<string, string>;
+  /**
    * EXTRA payload keys captured structurally (and so NOT copied into metadata).
    * The alias keys and `hook_event_name` are always known; this adds to them, so
    * an agent cannot accidentally re-emit into metadata something the factory
@@ -93,33 +103,6 @@ export type StdinHookConfig = {
   transcriptKinds?: string[];
 };
 
-/** First non-empty string among `keys`, else null. */
-function pick(raw: Record<string, unknown>, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = raw[key];
-    if (typeof value === 'string' && value.length > 0) {
-      return value;
-    }
-  }
-  return null;
-}
-
-/**
- * First USABLE value among `keys`, else null — empty strings and null/undefined
- * are skipped rather than accepted. Taking the first merely-present value would
- * let `{ sessionId: "", session_id: "real-id" }` collapse the session to the nil
- * UUID, merging every such event into one phantom session.
- */
-function pickAny(raw: Record<string, unknown>, keys: string[]): unknown {
-  for (const key of keys) {
-    const value = raw[key];
-    if (value !== undefined && value !== null && value !== '') {
-      return value;
-    }
-  }
-  return null;
-}
-
 /**
  * Tool block from a Claude-shaped payload: name, MCP split, byte sizes. Only what
  * is knowable at capture time — duration/exit are filled downstream or defaulted.
@@ -129,9 +112,9 @@ export function buildGenericToolInfo(
   aliases: FieldAliases,
   _kind?: string,
 ): ToolInfo {
-  const name = pick(raw, aliases.toolName) ?? 'unknown';
-  const input = pickAny(raw, aliases.toolInput);
-  const output = pickAny(raw, aliases.toolResponse);
+  const name = pickString(raw, aliases.toolName) ?? 'unknown';
+  const input = pickValue(raw, aliases.toolInput);
+  const output = pickValue(raw, aliases.toolResponse);
 
   const isMcp = name.startsWith('mcp__');
   let mcpServer: string | null = null;
@@ -167,6 +150,12 @@ export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
   const aliases: FieldAliases = { ...DEFAULT_FIELD_ALIASES, ...config.fields };
   const buildTool = config.buildTool ?? buildGenericToolInfo;
   const transcriptKinds = new Set(config.transcriptKinds ?? []);
+  // Every kind we ask the agent to install. A superset of eventMap when the agent
+  // has a hook that is captured but produces no event.
+  const installedKinds = new Set([
+    ...Object.keys(config.eventMap),
+    ...Object.keys(config.nativeEvents ?? {}),
+  ]);
   // Alias keys are ALWAYS known — they are captured structurally, so re-emitting
   // them into metadata would duplicate the value under a second name. An agent's
   // own `knownKeys` adds to that set rather than replacing it.
@@ -185,7 +174,7 @@ export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
         meta[key] = value;
       }
     }
-    const transcriptPath = pick(raw, aliases.transcriptPath);
+    const transcriptPath = pickString(raw, aliases.transcriptPath);
     if (transcriptPath) {
       meta.transcript_path = transcriptPath;
     }
@@ -205,13 +194,13 @@ export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
       redaction_flags: [],
       schema_version: 1,
       session_context: {
-        cwd: pick(raw, aliases.cwd) ?? process.cwd(),
+        cwd: pickString(raw, aliases.cwd) ?? process.cwd(),
         // Enriched by the flusher / session-start cache, not per event.
         git: null,
         is_resume: false,
-        mode: canonicalPermissionMode(pickAny(raw, aliases.permissionMode)),
+        mode: canonicalPermissionMode(pickValue(raw, aliases.permissionMode)),
       },
-      session_id: sessionUuid(config.agentType, pickAny(raw, aliases.sessionId)),
+      session_id: sessionUuid(config.agentType, pickValue(raw, aliases.sessionId)),
       ...(isToolEvent ? { tool: buildTool(raw, aliases, kind) } : {}),
       ts: new Date().toISOString(),
       user_id_claim: userIdClaim(),
@@ -228,11 +217,11 @@ export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
     agentType: config.agentType,
 
     installConfig(): AdapterInstallConfig {
-      return { ...config.install, hookKinds: Object.keys(config.eventMap) };
+      return { ...config.install, hookKinds: [...installedKinds] };
     },
 
     isHookKind(value: string): boolean {
-      return value in config.eventMap;
+      return installedKinds.has(value);
     },
 
     mapPayload,
@@ -241,8 +230,8 @@ export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
       if (!transcriptKinds.has(kind)) {
         return null;
       }
-      const transcriptPath = pick(raw, aliases.transcriptPath);
-      const nativeSessionId = pickAny(raw, aliases.sessionId);
+      const transcriptPath = pickString(raw, aliases.transcriptPath);
+      const nativeSessionId = pickValue(raw, aliases.sessionId);
       if (!transcriptPath || typeof nativeSessionId !== 'string' || nativeSessionId.length === 0) {
         return null;
       }
@@ -252,6 +241,3 @@ export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
     },
   };
 }
-
-/** Re-exported for adapters that assemble events themselves but want the helpers. */
-export type { Event };
