@@ -5,7 +5,7 @@ export function ModelGovernanceTable({ rows }: { rows: TeamModelGovernanceRow[] 
   if (rows.length === 0) {
     return (
       <Card title="Model governance by team" contentClassName="space-y-3">
-        <p className="text-sm text-text-3">No data available.</p>
+        <p className="py-6 text-center text-sm text-text-3">No model usage in this period.</p>
       </Card>
     );
   }

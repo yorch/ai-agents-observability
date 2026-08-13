@@ -162,9 +162,10 @@ export default async function OrgDashboardPage({
         <Card title="Weekly cost trend" caption="Twelve weeks" hint="hover for detail">
           <BarChart
             data={trend.map((t) => ({
-              label: new Date(t.day).toLocaleDateString(undefined, {
+              label: new Date(t.day).toLocaleDateString('en-US', {
                 day: 'numeric',
                 month: 'short',
+                timeZone: 'UTC',
               }),
               values: [t.costUsd],
             }))}
@@ -190,7 +191,7 @@ export default async function OrgDashboardPage({
         {/* Cost by team */}
         <Card title="Cost by team (top 10)" contentClassName="space-y-3">
           {teamCost.length === 0 ? (
-            <p className="text-sm text-text-3">No team data available.</p>
+            <p className="py-6 text-center text-sm text-text-3">No team activity in this period.</p>
           ) : (
             <Table
               columns={[
@@ -227,7 +228,7 @@ export default async function OrgDashboardPage({
         {/* Cost by repo */}
         <Card title="Cost by repo (top 10)" contentClassName="space-y-3">
           {repoCost.length === 0 ? (
-            <p className="text-sm text-text-3">No repo data available.</p>
+            <p className="py-6 text-center text-sm text-text-3">No repo activity in this period.</p>
           ) : (
             <Table
               columns={[
@@ -256,7 +257,7 @@ export default async function OrgDashboardPage({
         {/* Model mix */}
         <Card title="Cost by model" contentClassName="space-y-3">
           {modelCost.length === 0 ? (
-            <p className="text-sm text-text-3">No model data available.</p>
+            <p className="py-6 text-center text-sm text-text-3">No model usage in this period.</p>
           ) : (
             <div className="space-y-2">
               {modelCost.map((m) => {

@@ -106,7 +106,7 @@ export default async function OrgToolsPage({
       <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Top tools ({range}d)</h2>
         {tools.length === 0 ? (
-          <p className="text-sm text-text-3">No tool data available.</p>
+          <p className="py-6 text-center text-sm text-text-3">No tool activity in this period.</p>
         ) : (
           <ToolsTable tools={tools} />
         )}
@@ -116,7 +116,7 @@ export default async function OrgToolsPage({
         {/* Category breakdown */}
         <Card title="By category" contentClassName="space-y-3">
           {categories.length === 0 ? (
-            <p className="text-sm text-text-3">No data available.</p>
+            <p className="py-6 text-center text-sm text-text-3">No tool activity in this period.</p>
           ) : (
             <CategoryBreakdown categories={categories} />
           )}
@@ -125,7 +125,7 @@ export default async function OrgToolsPage({
         {/* MCP servers */}
         <Card title="MCP servers" contentClassName="space-y-3">
           {mcpServers.length === 0 ? (
-            <p className="text-sm text-text-3">No MCP usage in this period.</p>
+            <p className="py-6 text-center text-sm text-text-3">No MCP usage in this period.</p>
           ) : (
             <McpTable servers={mcpServers} />
           )}
@@ -135,9 +135,9 @@ export default async function OrgToolsPage({
       {/* Skills & slash commands — always rendered so the section is visible even before data */}
       <Card title="Skills & slash commands" contentClassName="space-y-3">
         {skills.length === 0 ? (
-          <p className="text-sm text-text-3">
-            No skill or slash command invocations in the last {range} days. Skills are captured when
-            the <span className="font-mono text-text-2">Skill</span> tool fires (e.g.{' '}
+          <p className="py-6 text-center text-sm text-text-3">
+            No skill or slash command invocations in this period. Skills are captured when the{' '}
+            <span className="font-mono text-text-2">Skill</span> tool fires (e.g.{' '}
             <span className="font-mono text-text-2">/code-review</span>,{' '}
             <span className="font-mono text-text-2">/commit</span>).
           </p>
@@ -193,9 +193,10 @@ function DailyVolumeBars({ volume }: { volume: DailyToolVolumeRow[] }) {
       {volume.map((v) => {
         const height = Math.max(4, (v.callCount / max) * 112);
         const denyHeight = v.callCount > 0 ? (v.denyCount / v.callCount) * height : 0;
-        const label = new Date(v.day).toLocaleDateString(undefined, {
+        const label = new Date(v.day).toLocaleDateString('en-US', {
           day: 'numeric',
           month: 'short',
+          timeZone: 'UTC',
         });
         return (
           <div key={v.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
@@ -431,7 +432,7 @@ function TeamSkillMatrix({ rows }: { rows: TeamSkillRow[] }) {
   const allTeams = Array.from(new Set(rows.map((r) => r.teamName))).sort();
 
   if (allTeams.length === 0) {
-    return <p className="text-sm text-text-3">No team membership data available.</p>;
+    return <p className="py-6 text-center text-sm text-text-3">No team membership recorded yet.</p>;
   }
 
   return (

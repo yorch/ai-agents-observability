@@ -1,4 +1,5 @@
 import {
+  ActionForm,
   Badge,
   type BadgeTone,
   Button,
@@ -76,13 +77,20 @@ export default async function AdminJobsPage() {
           >
             {configs.map((cfg) => {
               const run = runByJob.get(cfg.jobName);
+              // A manual "Run now" that the scheduler hasn't picked up yet: the
+              // request is newer than the latest run (or there is no run at all).
+              const queued =
+                cfg.runRequestedAt != null && (!run || cfg.runRequestedAt > run.startedAt);
               return (
                 <Row key={cfg.jobName}>
                   <Cell className="text-xs text-text">{cfg.jobName}</Cell>
 
                   {/* Enabled + schedule form — submitted together */}
                   <Cell colSpan={2}>
-                    <form action={updateJobConfig} className="flex items-center gap-4 flex-wrap">
+                    <ActionForm
+                      action={updateJobConfig}
+                      className="flex items-center gap-4 flex-wrap"
+                    >
                       <input type="hidden" name="jobName" value={cfg.jobName} />
                       <label
                         htmlFor={`enabled-${cfg.jobName}`}
@@ -131,7 +139,7 @@ export default async function AdminJobsPage() {
                       <Button size="sm" variant="secondary" type="submit">
                         Save
                       </Button>
-                    </form>
+                    </ActionForm>
                   </Cell>
 
                   <Cell className="text-xs text-text-2">
@@ -141,7 +149,9 @@ export default async function AdminJobsPage() {
                   </Cell>
 
                   <Cell>
-                    {run ? (
+                    {queued ? (
+                      <Badge tone="neutral">queued</Badge>
+                    ) : run ? (
                       <StatusBadge status={run.status} />
                     ) : (
                       <span className="text-text-3 text-xs">—</span>
@@ -149,12 +159,12 @@ export default async function AdminJobsPage() {
                   </Cell>
 
                   <Cell>
-                    <form action={triggerJob}>
+                    <ActionForm action={triggerJob}>
                       <input type="hidden" name="jobName" value={cfg.jobName} />
                       <Button size="sm" type="submit">
                         Run now
                       </Button>
-                    </form>
+                    </ActionForm>
                   </Cell>
                 </Row>
               );

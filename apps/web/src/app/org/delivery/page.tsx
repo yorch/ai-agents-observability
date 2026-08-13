@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, Cell, Row, Stat, Table } from '@/components/ui';
+import { fmtHoursShort } from '@/lib/fmt';
 import {
   getOrgCheckHealth,
   getOrgPRDeliveryStats,
@@ -10,16 +11,6 @@ import {
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
-
-function fmtHours(hours: number | null): string {
-  if (hours == null) {
-    return '—';
-  }
-  if (hours < 24) {
-    return `${hours.toFixed(1)}h`;
-  }
-  return `${(hours / 24).toFixed(1)}d`;
-}
 
 export default async function OrgDeliveryPage({
   searchParams,
@@ -66,7 +57,7 @@ export default async function OrgDeliveryPage({
         />
         <Stat
           label="Median time-to-merge"
-          value={fmtHours(stats.medianTimeToMergeHours)}
+          value={fmtHoursShort(stats.medianTimeToMergeHours)}
           sub="from open to merge"
         />
         <Stat
@@ -102,9 +93,10 @@ export default async function OrgDeliveryPage({
           <div className="flex items-end gap-1 h-24">
             {weeklyTrend.map((w) => {
               const height = Math.max(4, (w.mergedPRs / maxPRs) * 96);
-              const label = new Date(w.week).toLocaleDateString(undefined, {
+              const label = new Date(w.week).toLocaleDateString('en-US', {
                 day: 'numeric',
                 month: 'short',
+                timeZone: 'UTC',
               });
               return (
                 <div key={w.week.toISOString()} className="flex-1 flex flex-col items-center gap-1">
@@ -126,15 +118,15 @@ export default async function OrgDeliveryPage({
       <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Review health ({range}d)</h2>
         {reviews.reviewedPrs === 0 ? (
-          <p className="text-sm text-text-3">
-            No submitted reviews recorded in this window. Review data arrives via the
+          <p className="py-6 text-center text-sm text-text-3">
+            No submitted reviews recorded in this period. Review data arrives via the
             pull_request_review webhook.
           </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-3">
             <Stat
               label="Median time to first review"
-              value={fmtHours(reviews.medianHoursToFirstReview)}
+              value={fmtHoursShort(reviews.medianHoursToFirstReview)}
               sub="from PR open to first submitted review"
             />
             <Stat
@@ -157,8 +149,8 @@ export default async function OrgDeliveryPage({
           Failing CI checks ({range}d)
         </h2>
         {checkHealth.length === 0 ? (
-          <p className="text-sm text-text-3">
-            No failing check runs recorded in this window. Per-run outcomes arrive via the check_run
+          <p className="py-6 text-center text-sm text-text-3">
+            No failing check runs recorded in this period. Per-run outcomes arrive via the check_run
             webhook.
           </p>
         ) : (
@@ -203,7 +195,7 @@ export default async function OrgDeliveryPage({
           Top repos by merged PRs ({range}d)
         </h2>
         {topRepos.length === 0 ? (
-          <p className="text-sm text-text-3">No merged PR data available.</p>
+          <p className="py-6 text-center text-sm text-text-3">No merged PRs in this period.</p>
         ) : (
           <Table
             columns={[
@@ -222,7 +214,7 @@ export default async function OrgDeliveryPage({
                   {r.mergedPRs}
                 </Cell>
                 <Cell num className="text-text-2">
-                  {fmtHours(r.medianTimeToMergeHours)}
+                  {fmtHoursShort(r.medianTimeToMergeHours)}
                 </Cell>
                 <Cell num>{r.avgCostUsd > 0 ? `$${r.avgCostUsd.toFixed(2)}` : '—'}</Cell>
               </Row>

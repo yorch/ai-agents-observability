@@ -2,7 +2,18 @@ import {
   BUDGET_THRESHOLD_WINDOW_DAYS,
   parseBudgetThresholdParams,
 } from '@ai-agents-observability/schemas';
-import { Button, Cell, ConfirmButton, Field, Input, Row, Select, Table } from '@/components/ui';
+import {
+  ActionForm,
+  Button,
+  Cell,
+  ConfirmButton,
+  Field,
+  Input,
+  Row,
+  Select,
+  Table,
+} from '@/components/ui';
+import { fmtDateTime } from '@/lib/fmt';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import {
@@ -68,20 +79,23 @@ export default async function AlertsAdminPage() {
                     {r.name} <span className="text-text-3">({r.ruleType})</span>
                     {silenced && r.silencedUntil && (
                       <span className="ml-2 text-warn">
-                        · silenced until {new Date(r.silencedUntil).toLocaleString()}
+                        · silenced until {fmtDateTime(new Date(r.silencedUntil))} UTC
                       </span>
                     )}
                   </span>
                   <div className="flex items-center gap-2">
                     {silenced ? (
-                      <form action={unsilenceRule}>
+                      <ActionForm action={unsilenceRule}>
                         <input type="hidden" name="id" value={r.id} />
                         <Button variant="secondary" size="sm" type="submit">
                           Unsilence
                         </Button>
-                      </form>
+                      </ActionForm>
                     ) : (
-                      <form action={silenceRule} className="flex items-center gap-1">
+                      <ActionForm
+                        action={silenceRule}
+                        className="flex flex-wrap items-center gap-1"
+                      >
                         <input type="hidden" name="id" value={r.id} />
                         <Select
                           size="sm"
@@ -97,19 +111,22 @@ export default async function AlertsAdminPage() {
                         <Button variant="secondary" size="sm" type="submit">
                           Silence
                         </Button>
-                      </form>
+                      </ActionForm>
                     )}
-                    <form action={toggleRule}>
+                    <ActionForm action={toggleRule}>
                       <input type="hidden" name="id" value={r.id} />
                       <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
                       <Button type="submit" size="sm" variant={r.enabled ? 'primary' : 'secondary'}>
                         {r.enabled ? 'Enabled' : 'Disabled'}
                       </Button>
-                    </form>
+                    </ActionForm>
                   </div>
                 </div>
                 {isBudget && (
-                  <form action={updateBudgetThreshold} className="flex flex-wrap items-end gap-2">
+                  <ActionForm
+                    action={updateBudgetThreshold}
+                    className="flex flex-wrap items-end gap-2"
+                  >
                     <input type="hidden" name="id" value={r.id} />
                     <Field label="Budget (USD)" htmlFor={`budget-${r.id}`} className="w-32">
                       <Input
@@ -140,7 +157,7 @@ export default async function AlertsAdminPage() {
                     {budgetUsd === undefined && (
                       <span className="text-xs text-warn">Set a budget to activate this rule.</span>
                     )}
-                  </form>
+                  </ActionForm>
                 )}
               </div>
             );
@@ -160,14 +177,14 @@ export default async function AlertsAdminPage() {
               {c.channelType} <span className="text-text-3">{c.enabled ? '' : '(disabled)'}</span>
             </span>
             <div className="flex gap-2">
-              <form action={toggleChannel}>
+              <ActionForm action={toggleChannel}>
                 <input type="hidden" name="id" value={c.id} />
                 <input type="hidden" name="enabled" value={(!c.enabled).toString()} />
                 <Button variant="secondary" size="sm" type="submit">
                   {c.enabled ? 'Disable' : 'Enable'}
                 </Button>
-              </form>
-              <form action={deleteChannel}>
+              </ActionForm>
+              <ActionForm action={deleteChannel}>
                 <input type="hidden" name="id" value={c.id} />
                 <ConfirmButton
                   size="sm"
@@ -175,11 +192,11 @@ export default async function AlertsAdminPage() {
                 >
                   Remove
                 </ConfirmButton>
-              </form>
+              </ActionForm>
             </div>
           </div>
         ))}
-        <form action={addChannel} className="flex flex-wrap items-end gap-2 pt-2">
+        <ActionForm action={addChannel} className="flex flex-wrap items-end gap-2 pt-2">
           <Select size="sm" name="channelType" defaultValue="webhook" aria-label="Channel type">
             <option value="webhook">webhook</option>
             <option value="slack_webhook">slack_webhook</option>
@@ -195,7 +212,7 @@ export default async function AlertsAdminPage() {
           <Button size="sm" type="submit">
             Add channel
           </Button>
-        </form>
+        </ActionForm>
       </section>
 
       {/* Recent delivery failures */}
@@ -204,7 +221,7 @@ export default async function AlertsAdminPage() {
           <h2 className="text-sm font-medium text-warn">Recent delivery failures</h2>
           {failures.map((f) => (
             <p key={f.id.toString()} className="text-xs text-text-2">
-              {new Date(f.attemptedAt).toLocaleString()} · {f.channelType} · {f.error}
+              {fmtDateTime(new Date(f.attemptedAt))} UTC · {f.channelType} · {f.error}
             </p>
           ))}
         </section>
@@ -229,9 +246,9 @@ export default async function AlertsAdminPage() {
               <Row key={e.id.toString()}>
                 <Cell>{e.rule.name}</Cell>
                 <Cell>{e.severity}</Cell>
-                <Cell className="text-text-2">{new Date(e.firedAt).toLocaleString()}</Cell>
+                <Cell className="text-text-2">{fmtDateTime(new Date(e.firedAt))} UTC</Cell>
                 <Cell className="text-text-2">
-                  {e.resolvedAt ? new Date(e.resolvedAt).toLocaleString() : '—'}
+                  {e.resolvedAt ? `${fmtDateTime(new Date(e.resolvedAt))} UTC` : '—'}
                 </Cell>
                 <Cell>
                   {e.acknowledgedAt ? (
@@ -239,12 +256,12 @@ export default async function AlertsAdminPage() {
                   ) : e.resolvedAt ? (
                     <span className="text-text-3">—</span>
                   ) : (
-                    <form action={acknowledgeAlert}>
+                    <ActionForm action={acknowledgeAlert}>
                       <input type="hidden" name="id" value={e.id.toString()} />
                       <Button variant="secondary" size="sm" type="submit">
                         Acknowledge
                       </Button>
-                    </form>
+                    </ActionForm>
                   )}
                 </Cell>
               </Row>

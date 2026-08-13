@@ -3,6 +3,7 @@
 import { AuditAction, type GrantScope } from '@ai-agents-observability/db';
 import { revalidatePath } from 'next/cache';
 
+import type { ActionResult } from '@/lib/action-result';
 import { writeAuditLog } from '@/lib/audit';
 import { getPrisma } from '@/lib/prisma';
 import { requireGrantRequester, requireOrgAdmin } from '@/lib/roles';
@@ -15,7 +16,7 @@ const DEFAULT_GRANT_HOURS = 48;
  * org_admins can request (P9-005 adds the research capability). The grant starts
  * UNAPPROVED (granted_at null) — it grants nothing until an org_admin approves.
  */
-export async function requestGrant(formData: FormData): Promise<void> {
+export async function requestGrant(formData: FormData): Promise<ActionResult> {
   // org_admin OR investigator (P9-005) — never viewer_aggregate. Approval still
   // requires org_admin, so an investigator can't self-approve.
   const { user } = await requireGrantRequester();
@@ -26,16 +27,16 @@ export async function requestGrant(formData: FormData): Promise<void> {
   const targetSessionId = String(formData.get('targetSessionId') ?? '').trim() || null;
 
   if (justification.length < 3) {
-    return;
+    return { error: 'Justification must be at least 3 characters.', ok: false };
   }
   if (scope === 'SINGLE_SESSION' && !targetSessionId) {
-    return;
+    return { error: 'Single-session scope requires a target session id.', ok: false };
   }
   if (scope === 'USER_SESSIONS' && !targetUserId) {
-    return;
+    return { error: 'User-sessions scope requires a target user id.', ok: false };
   }
 
-  const grant = await getPrisma().accessGrant.create({
+  await getPrisma().accessGrant.create({
     data: { granteeUserId: user.id, justification, scope, targetSessionId, targetUserId },
   });
 
@@ -48,21 +49,21 @@ export async function requestGrant(formData: FormData): Promise<void> {
   });
 
   revalidatePath('/admin/access-grants');
-  void grant;
+  return { message: 'Request submitted.', ok: true };
 }
 
 /**
  * Approve a pending grant: set granted_at + a required expiry (default 48h). Only
  * org_admins approve. Audited; the viewed user sees it in /me/audit.
  */
-export async function approveGrant(formData: FormData): Promise<void> {
+export async function approveGrant(formData: FormData): Promise<ActionResult> {
   const { user } = await requireOrgAdmin();
 
   const id = String(formData.get('id') ?? '');
   const hoursRaw = String(formData.get('hours') ?? '').trim();
   const hours = Number(hoursRaw) > 0 ? Number(hoursRaw) : DEFAULT_GRANT_HOURS;
   if (!id) {
-    return;
+    return { error: 'Missing grant id — refresh and try again.', ok: false };
   }
 
   const db = getPrisma();
@@ -72,7 +73,7 @@ export async function approveGrant(formData: FormData): Promise<void> {
   // context — a refetch after the write could race a concurrent grant deletion.
   const grant = await db.accessGrant.findFirst({ where: { grantedAt: null, id, revokedAt: null } });
   if (!grant) {
-    return;
+    return { error: 'Grant is no longer pending — refresh and try again.', ok: false };
   }
 
   // updateMany so a grant approved/revoked between the read and write is a no-op,
@@ -82,17 +83,20 @@ export async function approveGrant(formData: FormData): Promise<void> {
     where: { grantedAt: null, id, revokedAt: null },
   });
 
-  if (count > 0) {
-    await writeAuditLog({
-      action: AuditAction.GRANT_APPROVED,
-      actorUserId: user.id,
-      justification: `Approved grant, expires ${expiresAt.toISOString()}`,
-      targetSessionId: grant.targetSessionId ?? undefined,
-      targetUserId: grant.targetUserId ?? undefined,
-    });
+  if (count === 0) {
+    return { error: 'Grant is no longer pending — refresh and try again.', ok: false };
   }
 
+  await writeAuditLog({
+    action: AuditAction.GRANT_APPROVED,
+    actorUserId: user.id,
+    justification: `Approved grant, expires ${expiresAt.toISOString()}`,
+    targetSessionId: grant.targetSessionId ?? undefined,
+    targetUserId: grant.targetUserId ?? undefined,
+  });
+
   revalidatePath('/admin/access-grants');
+  return { message: 'Grant approved.', ok: true };
 }
 
 /**
@@ -100,7 +104,7 @@ export async function approveGrant(formData: FormData): Promise<void> {
  * "needs attention" queue), each with the same bounded window. Writes one audit
  * row per grant so each viewed user still sees the access in their feed.
  */
-export async function approveAllPending(formData: FormData): Promise<void> {
+export async function approveAllPending(formData: FormData): Promise<ActionResult> {
   const { user } = await requireOrgAdmin();
   const hoursRaw = String(formData.get('hours') ?? '').trim();
   const hours = Number(hoursRaw) > 0 ? Number(hoursRaw) : DEFAULT_GRANT_HOURS;
@@ -108,7 +112,7 @@ export async function approveAllPending(formData: FormData): Promise<void> {
   const db = getPrisma();
   const pending = await db.accessGrant.findMany({ where: { grantedAt: null, revokedAt: null } });
   if (pending.length === 0) {
-    return;
+    return { error: 'No pending requests — refresh and try again.', ok: false };
   }
 
   const expiresAt = new Date(Date.now() + hours * 3_600_000);
@@ -128,21 +132,22 @@ export async function approveAllPending(formData: FormData): Promise<void> {
   }
 
   revalidatePath('/admin/access-grants');
+  return { message: `Approved ${pending.length} requests.`, ok: true };
 }
 
 /** Revoke an active grant immediately (sets revoked_at). Audited. */
-export async function revokeGrant(formData: FormData): Promise<void> {
+export async function revokeGrant(formData: FormData): Promise<ActionResult> {
   const { user } = await requireOrgAdmin();
 
   const id = String(formData.get('id') ?? '');
   if (!id) {
-    return;
+    return { error: 'Missing grant id — refresh and try again.', ok: false };
   }
 
   const db = getPrisma();
   const grant = await db.accessGrant.findFirst({ where: { id, revokedAt: null } });
   if (!grant) {
-    return;
+    return { error: 'Grant already revoked or not found — refresh and try again.', ok: false };
   }
 
   const { count } = await db.accessGrant.updateMany({
@@ -150,14 +155,17 @@ export async function revokeGrant(formData: FormData): Promise<void> {
     where: { id, revokedAt: null },
   });
 
-  if (count > 0) {
-    await writeAuditLog({
-      action: AuditAction.GRANT_REVOKED,
-      actorUserId: user.id,
-      targetSessionId: grant.targetSessionId ?? undefined,
-      targetUserId: grant.targetUserId ?? undefined,
-    });
+  if (count === 0) {
+    return { error: 'Grant already revoked or not found — refresh and try again.', ok: false };
   }
 
+  await writeAuditLog({
+    action: AuditAction.GRANT_REVOKED,
+    actorUserId: user.id,
+    targetSessionId: grant.targetSessionId ?? undefined,
+    targetUserId: grant.targetUserId ?? undefined,
+  });
+
   revalidatePath('/admin/access-grants');
+  return { message: 'Grant revoked.', ok: true };
 }

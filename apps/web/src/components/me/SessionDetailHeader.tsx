@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { FrictionBadge } from '@/components/me/FrictionBadge';
 import { StatusBadge } from '@/components/me/StatusBadge';
+import { fmtDateTime, fmtUsdSession } from '@/lib/fmt';
 import type { SessionDetail } from '@/lib/sessions-queries';
 import { ShapeBadge } from './shape';
 
@@ -31,8 +32,8 @@ export function SessionDetailHeader({
           {ownerLabel && <span>{ownerLabel}</span>}
           {session.branch && <span>branch: {session.branch}</span>}
           {session.commitSha && <span>commit: {session.commitSha.slice(0, 7)}</span>}
-          <span>started: {session.startedAt.toLocaleString()}</span>
-          {session.endedAt && <span>ended: {session.endedAt.toLocaleString()}</span>}
+          <span>started: {fmtDateTime(session.startedAt)} UTC</span>
+          {session.endedAt && <span>ended: {fmtDateTime(session.endedAt)} UTC</span>}
         </div>
         <div className="flex flex-wrap items-start gap-2 pt-0.5">
           {session.shapeLabel && <ShapeBadge label={session.shapeLabel} />}
@@ -51,7 +52,7 @@ export function SessionDetailHeader({
         </div>
       </div>
       <div className="flex items-center gap-3 shrink-0">
-        <span className="text-sm font-mono text-text-2">${session.costUsd.toFixed(4)}</span>
+        <span className="text-sm font-mono text-text-2">{fmtUsdSession(session.costUsd)}</span>
         {extra}
         {transcriptHref && (
           <Link

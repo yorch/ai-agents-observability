@@ -1,5 +1,17 @@
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { Button, Card, Cell, Field, FilterPanel, Input, Row, Select, Table } from '@/components/ui';
+import {
+  Button,
+  Card,
+  Cell,
+  EmptyState,
+  Field,
+  FilterPanel,
+  Input,
+  Row,
+  Select,
+  Table,
+} from '@/components/ui';
+import { fmtDateTime, fmtUsdSession } from '@/lib/fmt';
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
 import { getPrisma } from '@/lib/prisma';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
@@ -257,10 +269,10 @@ export default async function OrgSearchPage({
                 )}
               </h2>
               {transcriptResults.length === 0 ? (
-                <p className="text-sm text-text-3">
-                  No transcript matches. (Only sessions from users who have enabled org transcript
-                  sharing are searched.)
-                </p>
+                <EmptyState>
+                  No transcript matches. Only sessions from users who have enabled org transcript
+                  sharing are searched.
+                </EmptyState>
               ) : (
                 <div className="space-y-3">
                   {transcriptResults.map((r) => (
@@ -275,7 +287,7 @@ export default async function OrgSearchPage({
                           {r.sessionId.slice(0, 8)}…
                         </a>
                         <span>· {r.role}</span>
-                        {r.ts && <span>· {new Date(r.ts).toLocaleString()}</span>}
+                        {r.ts && <span>· {fmtDateTime(new Date(r.ts))}</span>}
                       </div>
                       <p
                         className="text-sm text-text-2 leading-relaxed"
@@ -320,7 +332,7 @@ export default async function OrgSearchPage({
             </div>
 
             {sessionResults.results.length === 0 ? (
-              <p className="text-sm text-text-3">No sessions match the current filters.</p>
+              <EmptyState>No sessions match the current filters.</EmptyState>
             ) : (
               <Table
                 columns={[
@@ -353,9 +365,9 @@ export default async function OrgSearchPage({
                     <Cell num className="text-text-2">
                       {s.toolCallCount}
                     </Cell>
-                    <Cell num>${s.costUsd.toFixed(4)}</Cell>
+                    <Cell num>{fmtUsdSession(s.costUsd)}</Cell>
                     <Cell num className="text-text-2 text-xs">
-                      {new Date(s.startedAt).toLocaleString()}
+                      {fmtDateTime(new Date(s.startedAt))}
                     </Cell>
                   </Row>
                 ))}

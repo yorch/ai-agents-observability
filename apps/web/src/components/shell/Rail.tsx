@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select } from '@/components/ui/Field';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 import {
   ADMIN_NAV,
   isActive,
@@ -50,9 +51,38 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const drawerId = useId();
+  const drawerRef = useRef<HTMLElement>(null);
 
   // A navigation is the end of a drawer's usefulness.
   useEffect(() => setOpen(false), [pathname]);
+
+  // While the mobile drawer is open, keep keyboard focus inside it and let
+  // Escape close it (focus returns to the Menu button via the trap teardown).
+  // Crossing up to the desktop breakpoint drops the drawer state so the trap
+  // cannot linger on the always-visible rail.
+  useFocusTrap(drawerRef, open);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => {
+      if (mq.matches) {
+        setOpen(false);
+      }
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [open]);
 
   const scope = scopeOf(pathname);
   const activeTeam = scope === 'team' ? teamSlugOf(pathname) : (teams[0]?.githubSlug ?? null);
@@ -97,6 +127,7 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
 
       <nav
         id={drawerId}
+        ref={drawerRef}
         aria-label="Primary"
         className={`${
           open ? 'flex' : 'hidden'

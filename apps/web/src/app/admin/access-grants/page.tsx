@@ -1,4 +1,5 @@
-import { Button, ButtonLink, Card, ConfirmButton, Input } from '@/components/ui';
+import { ActionForm, Button, ButtonLink, Card, ConfirmButton, Input } from '@/components/ui';
+import { fmtDateTime } from '@/lib/fmt';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -56,7 +57,7 @@ function GrantCard({ g }: { g: Grant }) {
       <div className="flex items-center gap-2 text-xs text-text-3">
         <span className="rounded bg-surface-2 px-1.5 py-0.5 text-text-2">{st}</span>
         <span>· scope: {g.scope}</span>
-        {g.expiresAt && <span>· expires {new Date(g.expiresAt).toLocaleString()}</span>}
+        {g.expiresAt && <span>· expires {fmtDateTime(new Date(g.expiresAt))} UTC</span>}
         {expiringSoon(g) && (
           <span className="rounded bg-warn-soft px-1.5 py-0.5 text-warn">expiring soon</span>
         )}
@@ -69,16 +70,16 @@ function GrantCard({ g }: { g: Grant }) {
       </p>
       <div className="flex gap-2 pt-1">
         {st === 'pending' && (
-          <form action={approveGrant} className="inline-flex items-center gap-2">
+          <ActionForm action={approveGrant} className="inline-flex flex-wrap items-center gap-2">
             <input type="hidden" name="id" value={g.id} />
             <HoursInput label="Grant lifetime (hours)" />
             <Button size="sm" type="submit">
               Approve (h)
             </Button>
-          </form>
+          </ActionForm>
         )}
         {st === 'active' && (
-          <form action={revokeGrant}>
+          <ActionForm action={revokeGrant}>
             <input type="hidden" name="id" value={g.id} />
             <ConfirmButton
               size="sm"
@@ -86,7 +87,7 @@ function GrantCard({ g }: { g: Grant }) {
             >
               Revoke
             </ConfirmButton>
-          </form>
+          </ActionForm>
         )}
       </div>
     </Card>
@@ -131,7 +132,10 @@ export default async function AccessGrantsPage() {
             </span>
           </h2>
           {pending.length > 0 && (
-            <form action={approveAllPending} className="inline-flex items-center gap-2">
+            <ActionForm
+              action={approveAllPending}
+              className="inline-flex flex-wrap items-center gap-2"
+            >
               <HoursInput label="Bulk grant lifetime (hours)" />
               {/* Secondary, not the accent: a bulk approve should not outweigh
                   the per-row approvals it stands next to. */}
@@ -142,7 +146,7 @@ export default async function AccessGrantsPage() {
               >
                 Approve all ({pending.length})
               </ConfirmButton>
-            </form>
+            </ActionForm>
           )}
         </div>
         {pending.length === 0 ? (

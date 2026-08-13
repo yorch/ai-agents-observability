@@ -5,6 +5,7 @@ import { TranscriptPanel } from '@/components/me/TranscriptPanel';
 import { Button, Field, Textarea } from '@/components/ui';
 import { MIN_JUSTIFICATION_LENGTH, normalizeJustification } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
+import { fmtDateTime } from '@/lib/fmt';
 import { resolveOrgSessionAccess } from '@/lib/roles';
 import { getSession, getSessionOrgContext } from '@/lib/sessions-queries';
 
@@ -54,7 +55,7 @@ export default async function OrgTranscriptPage({
         backHref={`/org/sessions/${id}`}
         hasTranscript={false}
         sessionId={id}
-        subtitle={`${owner} · ${session.repoName ?? 'Unknown repo'} · ${session.startedAt.toLocaleString()}`}
+        subtitle={`${owner} · ${session.repoName ?? 'Unknown repo'} · ${fmtDateTime(session.startedAt)} UTC`}
       />
     );
   }
@@ -127,7 +128,7 @@ export default async function OrgTranscriptPage({
         ) : undefined
       }
       sessionId={id}
-      subtitle={`${owner} · ${session.repoName ?? 'Unknown repo'} · ${session.startedAt.toLocaleString()}`}
+      subtitle={`${owner} · ${session.repoName ?? 'Unknown repo'} · ${fmtDateTime(session.startedAt)} UTC`}
     />
   );
 }

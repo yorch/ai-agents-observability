@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
 import { currentUser } from '@/lib/auth';
+import { fmtDateTime } from '@/lib/fmt';
 import { getSession } from '@/lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export default async function TranscriptPage({ params }: { params: Promise<PageP
       backHref={`/me/sessions/${id}`}
       hasTranscript={Boolean(session.transcriptS3Key)}
       sessionId={id}
-      subtitle={`${session.repoName ?? 'Unknown repo'} · ${session.startedAt.toLocaleString()}`}
+      subtitle={`${session.repoName ?? 'Unknown repo'} · ${fmtDateTime(session.startedAt)} UTC`}
     />
   );
 }

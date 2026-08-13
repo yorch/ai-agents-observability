@@ -40,9 +40,83 @@ export function fmtBytes(n: number | null): string {
   return `${n}B`;
 }
 
+/* Dates pin locale AND timezone (en-US, UTC): a bare toLocaleString renders in
+   the server's zone on the SSR pass and the browser's on any client render, so
+   the same timestamp could paint two ways. UTC matches how schedules and jobs
+   are configured. */
+
 export function fmtDate(d: Date | null): string {
   if (!d) {
     return '\u2014';
   }
-  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-US', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+    year: 'numeric',
+  });
+}
+
+/** Date + time, e.g. "Jan 5, 2026, 14:32". UTC \u2014 pair with a zone hint where ambiguity matters. */
+export function fmtDateTime(d: Date | null): string {
+  if (!d) {
+    return '\u2014';
+  }
+  return d.toLocaleString('en-US', {
+    day: 'numeric',
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    month: 'short',
+    timeZone: 'UTC',
+    year: 'numeric',
+  });
+}
+
+/** Wall-clock seconds \u2192 "45s" / "5m 12s" / "1h 5m". For session and PR durations. */
+export function fmtDurationSec(seconds: number | null): string {
+  if (seconds === null) {
+    return '\u2014';
+  }
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const m = Math.floor(seconds / 60);
+  if (m < 60) {
+    return `${m}m ${seconds % 60}s`;
+  }
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+/** Hours \u2192 "18.0h" below a day, then "2.3d". For time-to-merge style stats. */
+export function fmtHoursShort(hours: number | null): string {
+  if (hours == null) {
+    return '\u2014';
+  }
+  if (hours < 24) {
+    return `${hours.toFixed(1)}h`;
+  }
+  return `${(hours / 24).toFixed(1)}d`;
+}
+
+/** Compact token count: 950 \u2192 "950", 12 400 \u2192 "12.4k", 3.4e6 \u2192 "3.4M", 1.2e9 \u2192 "1.2B". */
+export function fmtTokens(n: number | bigint): string {
+  const v = Number(n);
+  if (v >= 1_000_000_000) {
+    return `${(v / 1_000_000_000).toFixed(1)}B`;
+  }
+  if (v >= 1_000_000) {
+    return `${(v / 1_000_000).toFixed(1)}M`;
+  }
+  if (v >= 1_000) {
+    return `${(v / 1_000).toFixed(1)}k`;
+  }
+  return `${v}`;
+}
+
+/** Per-session / per-event USD, three decimals \u2014 sub-cent costs are common.
+    Aggregates use `fmtUsd` (2dp); the same quantity must not change shape
+    between the list and the detail page. */
+export function fmtUsdSession(n: number): string {
+  return `$${n.toFixed(3)}`;
 }

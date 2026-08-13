@@ -65,8 +65,8 @@ export default async function OrgQualityPage({
           PR outcomes by session friction ({range}d)
         </h2>
         {totalPrs === 0 ? (
-          <p className="text-sm text-text-3">
-            No merged PRs with friction-scored contributing sessions in this window. Friction scores
+          <p className="py-6 text-center text-sm text-text-3">
+            No merged PRs with friction-scored contributing sessions in this period. Friction scores
             are computed nightly by the compute-effectiveness job.
           </p>
         ) : (

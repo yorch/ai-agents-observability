@@ -122,7 +122,7 @@ export default async function OrgSkillDetailPage({
               )}
             </div>
           ) : (
-            <p className="text-sm text-text-3">No cost data available</p>
+            <p className="py-6 text-center text-sm text-text-3">No cost data in this period.</p>
           )}
         </Card>
 

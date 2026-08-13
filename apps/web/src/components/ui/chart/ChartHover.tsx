@@ -20,8 +20,7 @@ export function ChartHover({ children }: { children: ReactNode }) {
   // render on every one, even while the cursor sits still on the same bar.
   const current = useRef<Element | null>(null);
 
-  const onMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const mark = (e.target as Element).closest?.('[data-tip]') ?? null;
+  const showFor = useCallback((mark: Element | null) => {
     if (mark === current.current) {
       return;
     }
@@ -42,19 +41,51 @@ export function ChartHover({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const onMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      showFor((e.target as Element).closest?.('[data-tip]') ?? null);
+    },
+    [showFor],
+  );
+
   const onLeave = useCallback(() => {
     current.current = null;
     setTip(null);
   }, []);
 
+  // Keyboard parity with hover (WCAG 1.4.13 / 2.1.1): focusable marks raise
+  // the same tooltip, and Escape dismisses it without moving focus.
+  const onFocus = useCallback(
+    (e: React.FocusEvent<HTMLDivElement>) => {
+      showFor((e.target as Element).closest?.('[data-tip]') ?? null);
+    },
+    [showFor],
+  );
+
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      current.current = null;
+      setTip(null);
+    }
+  }, []);
+
   return (
-    <div ref={host} className="relative" onPointerMove={onMove} onPointerLeave={onLeave}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: pure event delegation — the focusable marks live in the server-rendered children; this wrapper only listens
+    <div
+      ref={host}
+      className="relative"
+      onPointerMove={onMove}
+      onPointerLeave={onLeave}
+      onFocus={onFocus}
+      onBlur={onLeave}
+      onKeyDown={onKeyDown}
+    >
       {children}
       {tip && (
         <div
+          aria-hidden
           className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-border bg-surface px-2.5 py-1.5 whitespace-nowrap shadow-lg"
           style={{ left: tip.x, top: tip.y - 6 }}
-          role="status"
         >
           <span className="block font-mono text-[10px] uppercase tracking-widest text-text-3">
             {tip.label}

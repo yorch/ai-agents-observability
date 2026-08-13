@@ -133,7 +133,7 @@ export default async function OrgSecurityPage({
         contentClassName="space-y-3"
       >
         {categories.length === 0 ? (
-          <p className="text-sm text-text-3">No tool activity in this window.</p>
+          <p className="py-6 text-center text-sm text-text-3">No tool activity in this period.</p>
         ) : (
           <CategoryTable rows={categories} />
         )}
@@ -146,7 +146,9 @@ export default async function OrgSecurityPage({
         contentClassName="space-y-3"
       >
         {repoExposure.length === 0 ? (
-          <p className="text-sm text-text-3">No exec/web/write activity in this window.</p>
+          <p className="py-6 text-center text-sm text-text-3">
+            No exec/web/write activity in this period.
+          </p>
         ) : (
           <Table
             columns={[
@@ -181,7 +183,7 @@ export default async function OrgSecurityPage({
         contentClassName="space-y-3"
       >
         {egress.length === 0 ? (
-          <p className="text-sm text-text-3">No MCP calls in this window.</p>
+          <p className="py-6 text-center text-sm text-text-3">No MCP calls in this period.</p>
         ) : (
           <Table
             columns={[
@@ -225,8 +227,8 @@ export default async function OrgSecurityPage({
           transcripts in this window matched a redaction class.
         </p>
         {redaction.classes.length === 0 ? (
-          <p className="text-sm text-text-3">
-            No redaction classes recorded in this window. Capture began when the{' '}
+          <p className="py-6 text-center text-sm text-text-3">
+            No redaction classes recorded in this period. Capture began when the{' '}
             <code className="font-mono text-text-2">redaction_flags</code> column was added;
             historical transcripts are not backfilled.
           </p>
@@ -253,7 +255,9 @@ export default async function OrgSecurityPage({
         contentClassName="space-y-3"
       >
         {largeOutputs.length === 0 ? (
-          <p className="text-sm text-text-3">No sized tool outputs in this window.</p>
+          <p className="py-6 text-center text-sm text-text-3">
+            No sized tool outputs in this period.
+          </p>
         ) : (
           <Table
             columns={[

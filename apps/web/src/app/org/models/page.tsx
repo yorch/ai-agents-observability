@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/team-org/PageHeader';
 import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
 import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
+import { fmtTokens } from '@/lib/fmt';
 import type { OrgModelDetailRow, OrgModelRoutingRow } from '@/lib/org-queries';
 import {
   getOrgModelDetail,
@@ -30,19 +31,6 @@ function modelTier(model: string): 'economy' | 'premium' | 'standard' {
     return 'economy';
   }
   return 'standard';
-}
-
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000_000) {
-    return `${(n / 1_000_000_000).toFixed(1)}B`;
-  }
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toFixed(1)}M`;
-  }
-  if (n >= 1_000) {
-    return `${(n / 1_000).toFixed(0)}K`;
-  }
-  return String(n);
 }
 
 function cacheEfficiencyClass(rate: number): string {

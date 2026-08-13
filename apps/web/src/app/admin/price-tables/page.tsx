@@ -1,6 +1,7 @@
 import { ADAPTER_AGENT_TYPES } from '@ai-agents-observability/schemas';
 import { Cell, Row, Table } from '@/components/ui';
 import { getConfig } from '@/lib/config';
+import { fmtDate } from '@/lib/fmt';
 import { requireOrgAdmin } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
@@ -95,7 +96,7 @@ export default async function PriceTablesPage() {
             <span className="font-mono">{agent}</span>
             {result.ok && (
               <span className="text-xs text-text-3 font-normal">
-                v{result.version} · generated {new Date(result.generated_at).toLocaleDateString()}
+                v{result.version} · generated {fmtDate(new Date(result.generated_at))}
               </span>
             )}
           </h2>

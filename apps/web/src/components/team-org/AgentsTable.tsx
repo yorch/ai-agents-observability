@@ -9,6 +9,13 @@ export function AgentsTable({
   agents: SubagentStatRow[];
   totalSpawns: number;
 }) {
+  if (agents.length === 0) {
+    return (
+      <Card>
+        <p className="py-6 text-center text-sm text-text-3">No activity in this period.</p>
+      </Card>
+    );
+  }
   const maxSpawns = Math.max(...agents.map((a) => a.spawnCount), 1);
   return (
     <Card>

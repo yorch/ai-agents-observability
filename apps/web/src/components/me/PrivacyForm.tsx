@@ -130,6 +130,40 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
         ))}
       </div>
 
+      {/* The plain-language consequence of the toggles as currently set —
+          the strongest trust signal is being able to see exactly what a team
+          lead or org admin gets before pressing save. */}
+      <div className="mt-4 rounded-md border border-border-subtle bg-surface-2 p-3">
+        <p className="text-xs font-semibold text-text-2">With these settings, right now:</p>
+        <ul className="mt-2 space-y-1 text-xs text-text-3">
+          <li>
+            Team leads {policy.shareMetadataWithTeam ? 'can see' : 'cannot see'} your session
+            metadata (cost, duration, repo, tool counts).
+          </li>
+          <li>
+            Team leads {policy.shareTranscriptsWithTeam ? 'can read' : 'cannot read'} your
+            transcripts.
+          </li>
+          <li>
+            Your sessions {policy.shareMetadataWithOrg ? 'contribute to' : 'are excluded from'}{' '}
+            org-wide aggregate dashboards.
+          </li>
+          <li>
+            Org admins{' '}
+            {policy.shareTranscriptsWithOrg
+              ? 'can read your transcripts without a per-view justification.'
+              : 'can only read a transcript with a logged justification or an approved, time-boxed grant.'}
+          </li>
+          <li>
+            Every privileged view of your data is recorded in{' '}
+            <a href="/me/settings/audit" className="underline hover:text-text-2">
+              your audit log
+            </a>
+            .
+          </li>
+        </ul>
+      </div>
+
       <div className="mt-4 flex items-center gap-3">
         <Button onClick={handleSave} disabled={isPending}>
           {isPending ? 'Saving…' : 'Save settings'}

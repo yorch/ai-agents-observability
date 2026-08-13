@@ -1,4 +1,4 @@
-import { Card } from '@/components/ui';
+import { Card, EmptyState } from '@/components/ui';
 import { fmtUsd } from '@/lib/fmt';
 import type { RoutingRecommendation } from '@/lib/routing-queries';
 
@@ -27,10 +27,10 @@ export function RoutingRecommendations({
       </h2>
 
       {recommendations.length === 0 ? (
-        <Card className="text-xs text-text-2">
-          No premium-model spend on retrieval-only tool categories in this window — routing already
+        <EmptyState>
+          No premium-model spend on retrieval-only tool categories in this period — routing already
           looks efficient.
-        </Card>
+        </EmptyState>
       ) : (
         <div className="space-y-3">
           <p className="text-xs text-text-2">

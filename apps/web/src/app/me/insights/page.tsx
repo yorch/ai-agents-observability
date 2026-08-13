@@ -9,7 +9,7 @@ import { Card, Cell, EmptyState, Row, Sparkline, Table } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserShapeTrend } from '@/lib/cohort-queries';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
-import { fmtBytes } from '@/lib/fmt';
+import { fmtBytes, fmtDurationOrDash, fmtTokens, fmtUsd } from '@/lib/fmt';
 import {
   type ContinuitySummaryRow,
   getContinuitySummary,
@@ -40,37 +40,11 @@ import { buildRecommendations, type Recommendation } from '@/lib/recommendations
 
 export const dynamic = 'force-dynamic';
 
-function fmtDuration(ms: number | null): string {
-  if (ms == null) {
-    return '—';
-  }
-  if (ms < 1000) {
-    return `${ms}ms`;
-  }
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
 function pct(num: number, den: number): string {
   if (den === 0) {
     return '—';
   }
   return `${((num / den) * 100).toFixed(1)}%`;
-}
-
-function fmtCost(usd: number): string {
-  return `$${usd.toFixed(2)}`;
-}
-
-function fmtTokens(n: bigint): string {
-  const m = Number(n) / 1_000_000;
-  if (m >= 1) {
-    return `${m.toFixed(1)}M`;
-  }
-  const k = Number(n) / 1_000;
-  if (k >= 1) {
-    return `${k.toFixed(0)}k`;
-  }
-  return String(n);
 }
 
 export default async function InsightsPage({
@@ -235,8 +209,8 @@ function RecommendationsSection({ recs }: { recs: Recommendation[] }) {
 function SessionSummaryCards({ summary: s }: { summary: SessionSummaryRow }) {
   const cards = [
     { label: 'Sessions', value: s.sessionCount.toLocaleString() },
-    { label: 'Total cost', value: fmtCost(s.totalCostUsd) },
-    { label: 'Avg cost / session', value: s.sessionCount > 0 ? fmtCost(s.avgCostUsd) : '—' },
+    { label: 'Total cost', value: fmtUsd(s.totalCostUsd) },
+    { label: 'Avg cost / session', value: s.sessionCount > 0 ? fmtUsd(s.avgCostUsd) : '—' },
     { label: 'Input tokens', value: fmtTokens(s.totalInputTokens) },
     { label: 'Output tokens', value: fmtTokens(s.totalOutputTokens) },
   ];
@@ -387,7 +361,7 @@ function McpSection({ rows }: { rows: McpUsageRow[] }) {
                   <span className="text-text-3">
                     {r.callCount}×
                     {r.avgDurationMs != null && (
-                      <span className="ml-2">{fmtDuration(r.avgDurationMs)}</span>
+                      <span className="ml-2">{fmtDurationOrDash(r.avgDurationMs)}</span>
                     )}
                   </span>
                 </div>
@@ -485,7 +459,7 @@ function SkillsSection({
                 {r.sessionCount.toLocaleString()}
               </Cell>
               <Cell num className="text-xs text-text-2">
-                {r.avgSessionCostUsd != null ? fmtCost(r.avgSessionCostUsd) : '—'}
+                {r.avgSessionCostUsd != null ? fmtUsd(r.avgSessionCostUsd) : '—'}
               </Cell>
               <Cell num className="text-xs text-text-2">
                 {sub != null ? sub.avgSubagents.toFixed(1) : '—'}
@@ -644,10 +618,10 @@ function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
                 {r.deniedCount > 0 ? r.deniedCount : '—'}
               </Cell>
               <Cell num className="text-xs text-text-2">
-                {fmtDuration(r.avgDurationMs)}
+                {fmtDurationOrDash(r.avgDurationMs)}
               </Cell>
               <Cell num className="text-xs text-text-3">
-                {fmtDuration(r.p95DurationMs)}
+                {fmtDurationOrDash(r.p95DurationMs)}
               </Cell>
               <Cell num className="text-xs text-text-3">
                 {fmtBytes(r.avgInputBytes)}

@@ -67,7 +67,7 @@ export default async function OrgAdoptionPage({
           Weekly active users (trailing {range} days)
         </h2>
         {weeklyTrend.length === 0 ? (
-          <p className="text-sm text-text-3">No data yet.</p>
+          <p className="py-6 text-center text-sm text-text-3">No active users in this period.</p>
         ) : (
           <ActiveUsersBars trend={weeklyTrend} />
         )}
@@ -83,7 +83,7 @@ export default async function OrgAdoptionPage({
             Among org-sharing users — how often are they using Claude Code?
           </p>
           {totalUsersInDist === 0 ? (
-            <p className="text-sm text-text-3">No data.</p>
+            <p className="py-6 text-center text-sm text-text-3">No sessions in this period.</p>
           ) : (
             <div className="space-y-2 pt-1">
               {frequencyDist.map((b) => {
@@ -119,7 +119,7 @@ export default async function OrgAdoptionPage({
             Active members / total team members with sessions in the window.
           </p>
           {adoptionByTeam.length === 0 ? (
-            <p className="text-sm text-text-3">No team data available.</p>
+            <p className="py-6 text-center text-sm text-text-3">No team activity in this period.</p>
           ) : (
             <Table
               columns={[
@@ -169,9 +169,10 @@ function ActiveUsersBars({ trend }: { trend: { activeUsers: number; day: Date }[
     <div className="flex items-end gap-1 h-24">
       {trend.map((t) => {
         const height = Math.max(4, (t.activeUsers / max) * 96);
-        const label = new Date(t.day).toLocaleDateString(undefined, {
+        const label = new Date(t.day).toLocaleDateString('en-US', {
           day: 'numeric',
           month: 'short',
+          timeZone: 'UTC',
         });
         return (
           <div key={t.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">

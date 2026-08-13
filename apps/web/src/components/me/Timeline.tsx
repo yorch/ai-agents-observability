@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { Card, TONE_TEXT } from '@/components/ui';
 import { frictionBadge } from '@/lib/effectiveness';
+import { fmtDateTime, fmtDurationSec } from '@/lib/fmt';
 import type { SessionDetail, SessionEvent } from '@/lib/sessions-queries';
 import { ShapeBadge } from './shape';
 
@@ -24,23 +25,6 @@ function reviewDecisionLabel(decision: string): ReactNode {
   };
   const m = map[decision];
   return m ? <span className={m.cls}>{m.text}</span> : decision;
-}
-
-function formatDuration(seconds: number | null): string {
-  if (seconds === null) {
-    return '—';
-  }
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (m < 60) {
-    return `${m}m ${s}s`;
-  }
-  const h = Math.floor(m / 60);
-  const rem = m % 60;
-  return `${h}h ${rem}m`;
 }
 
 function describeEvent(ev: SessionEvent): {
@@ -122,7 +106,7 @@ export function Timeline({
     <div className="space-y-6">
       {/* Summary stats */}
       <Card className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Duration" value={formatDuration(session.durationSeconds)} />
+        <Stat label="Duration" value={fmtDurationSec(session.durationSeconds)} />
         <Stat label="Tool calls" value={session.toolCallCount} />
         <Stat label="Tool errors" value={session.toolErrorCount} />
         <Stat label="User messages" value={session.userMessageCount} />
@@ -220,9 +204,7 @@ export function Timeline({
                 </div>
                 <div>
                   <p className="text-sm font-medium text-text">{event.label}</p>
-                  <p className="text-xs text-text-3 font-mono">
-                    {new Date(event.at).toLocaleString()}
-                  </p>
+                  <p className="text-xs text-text-3 font-mono">{fmtDateTime(new Date(event.at))}</p>
                   <p className="text-xs text-text-2 mt-0.5">{event.description}</p>
                 </div>
               </div>

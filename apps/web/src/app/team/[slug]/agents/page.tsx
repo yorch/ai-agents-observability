@@ -47,7 +47,7 @@ export default async function TeamAgentsPage({
           label="Avg cost / spawn"
           value={
             totalSpawns > 0 && totalCostUsd > 0
-              ? `$${(totalCostUsd / totalSpawns).toFixed(3)}`
+              ? `$${(totalCostUsd / totalSpawns).toFixed(2)}`
               : '—'
           }
         />

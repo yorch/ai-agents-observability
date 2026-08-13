@@ -2,7 +2,7 @@ import { AuditAction } from '@ai-agents-observability/db';
 import { CheckIcon } from '@/components/icons';
 import { OversightPanel } from '@/components/me/OversightPanel';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { Cell, Row, Stat, Table } from '@/components/ui';
+import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
 import { getOrgOversight } from '@/lib/oversight-queries';
 import { getAgentPrProvenance } from '@/lib/pr-provenance-queries';
 import { getPrisma } from '@/lib/prisma';
@@ -61,7 +61,7 @@ export default async function GovernancePage({
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-text">Autonomy posture</h2>
         {oversight.totalSessions === 0 ? (
-          <p className="text-sm text-text-3">No sessions in this window.</p>
+          <EmptyState>No sessions in this period.</EmptyState>
         ) : (
           <OversightPanel data={oversight} />
         )}
@@ -122,7 +122,7 @@ export default async function GovernancePage({
           />
         </div>
         {provenance.rows.length === 0 ? (
-          <p className="text-sm text-text-3">No agent-assisted PRs in this window.</p>
+          <EmptyState>No agent-assisted PRs in this period.</EmptyState>
         ) : (
           <Table
             columns={[

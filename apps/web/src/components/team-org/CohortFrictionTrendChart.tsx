@@ -14,7 +14,7 @@ export function CohortFrictionTrendChart({
   return (
     <Card title={title} hint={`v${FRICTION_VERSION}`}>
       {points.length === 0 ? (
-        <p className="text-sm text-text-3">
+        <p className="py-6 text-center text-sm text-text-3">
           Not enough scored sessions per week to show a trend without risking re-identification.
         </p>
       ) : (

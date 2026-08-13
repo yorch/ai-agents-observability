@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Card, Cell, EmptyState, Pagination, Row, Table } from '@/components/ui';
+import { fmtDateTime } from '@/lib/fmt';
 import type { AuditRow } from '@/lib/me-queries';
 
 type AuditTableProps = {
@@ -50,7 +51,7 @@ export function AuditTable({
         >
           {rows.map((row) => (
             <Row key={row.id.toString()}>
-              <Cell className="text-text-2 whitespace-nowrap">{row.ts.toLocaleString()}</Cell>
+              <Cell className="text-text-2 whitespace-nowrap">{fmtDateTime(row.ts)} UTC</Cell>
               <Cell className="text-text-2">{row.actorLogin ? `@${row.actorLogin}` : '—'}</Cell>
               <Cell>
                 <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-text-2">

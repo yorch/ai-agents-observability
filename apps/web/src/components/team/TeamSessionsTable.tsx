@@ -3,33 +3,8 @@ import { StatusBadge } from '@/components/me/StatusBadge';
 import { ShapeBadge } from '@/components/me/shape';
 import { Cell, EmptyState, Pagination, Row, Table, TONE_TEXT } from '@/components/ui';
 import { computeFrictionScore, frictionBadge } from '@/lib/effectiveness';
+import { fmtDateTime, fmtDurationSec, fmtUsdSession } from '@/lib/fmt';
 import { TEAM_PAGE_SIZE, type TeamSessionRow } from '@/lib/team-queries';
-
-function formatDuration(seconds: number | null): string {
-  if (seconds === null) {
-    return '—';
-  }
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (m < 60) {
-    return `${m}m ${s}s`;
-  }
-  const h = Math.floor(m / 60);
-  return `${h}h ${Math.floor(m % 60)}m`;
-}
-
-function formatDate(d: Date): string {
-  return d.toLocaleDateString('en-US', {
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
 
 export function TeamSessionsTable({
   currentPage,
@@ -95,7 +70,7 @@ export function TeamSessionsTable({
               </Cell>
               <Cell className="text-text-2 text-xs">
                 <Link href={sessionPath} className="hover:text-accent transition-colors">
-                  {formatDate(s.startedAt)}
+                  {fmtDateTime(s.startedAt)}
                 </Link>
               </Cell>
               <Cell className="text-text-2 max-w-[180px] truncate">{s.repoName ?? '—'}</Cell>
@@ -103,13 +78,13 @@ export function TeamSessionsTable({
                 <ShapeBadge label={s.shapeLabel} />
               </Cell>
               <Cell num className="text-text-2 text-xs">
-                {formatDuration(s.durationSeconds)}
+                {fmtDurationSec(s.durationSeconds)}
               </Cell>
               <Cell num className="text-text-2 text-xs">
                 {s.eventCount}
               </Cell>
               <Cell num className="text-text-2 text-xs">
-                ${s.costUsd.toFixed(3)}
+                {fmtUsdSession(s.costUsd)}
               </Cell>
               <Cell className="text-center">
                 {badge ? (

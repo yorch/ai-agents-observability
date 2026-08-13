@@ -30,7 +30,9 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
       </p>
 
       {qualifying.length === 0 ? (
-        <p className="text-sm text-text-3">Not enough data per cohort to compare.</p>
+        <p className="py-6 text-center text-sm text-text-3">
+          Not enough data per cohort to compare.
+        </p>
       ) : (
         <Table
           columns={[

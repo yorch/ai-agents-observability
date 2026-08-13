@@ -63,9 +63,9 @@ export default async function OrgKnowledgePage({
               </p>
             </div>
             {visible.length === 0 ? (
-              <p className="text-sm text-text-3">
+              <p className="py-6 text-center text-sm text-text-3">
                 No topic cleared the small-n threshold ({MIN_SESSIONS}+ sessions across {MIN_USERS}+
-                developers) in this window.
+                developers) in this period.
               </p>
             ) : (
               <div className="space-y-2.5">

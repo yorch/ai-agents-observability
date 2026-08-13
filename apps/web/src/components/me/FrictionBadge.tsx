@@ -56,15 +56,17 @@ export function FrictionBadge({
   const b = frictionBadge(score);
   return (
     <div className="flex flex-col gap-0.5">
-      <div className="group relative w-fit">
-        <span className="cursor-default">
+      {/* A native disclosure, so the formula is reachable by keyboard and
+          screen readers, not only on hover — this is the one place the metric
+          is explained. Hover still previews it for pointer users. */}
+      <details className="group relative w-fit">
+        <summary className="cursor-default list-none [&::-webkit-details-marker]:hidden">
           <Badge tone={b.tone} dot={false}>
             Friction: {b.label} · {score.toFixed(2)}
             <span className="opacity-50">?</span>
           </Badge>
-        </span>
-        {/* CSS-only tooltip — no JS required */}
-        <div className="pointer-events-none absolute left-0 top-full mt-1.5 z-50 hidden w-64 rounded-lg border border-border bg-surface p-3 shadow-lg group-hover:block">
+        </summary>
+        <div className="pointer-events-none absolute left-0 top-full mt-1.5 z-50 hidden w-64 rounded-lg border border-border bg-surface p-3 shadow-lg group-hover:block group-open:block">
           <p className="text-xs font-semibold text-text mb-2">How friction is calculated</p>
           <p className="text-[11px] text-text-3 mb-2">
             Composite score [0–1] from four signals. Higher = more friction.
@@ -86,7 +88,7 @@ export function FrictionBadge({
             Low &lt; 0.3 · Medium 0.3–0.6 · High &gt; 0.6 · v{FRICTION_VERSION}
           </div>
         </div>
-      </div>
+      </details>
       <span className="text-[10px] text-text-3">{explain(score, inputs)}</span>
     </div>
   );

@@ -1,33 +1,8 @@
 import Link from 'next/link';
 import { StatusBadge } from '@/components/me/StatusBadge';
 import { Card } from '@/components/ui';
+import { fmtDateTime, fmtDurationSec, fmtUsdSession } from '@/lib/fmt';
 import type { RecentSession } from '@/lib/me-queries';
-
-function formatDuration(seconds: number | null): string {
-  if (seconds === null) {
-    return '—';
-  }
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (m < 60) {
-    return `${m}m ${s}s`;
-  }
-  const h = Math.floor(m / 60);
-  const rem = m % 60;
-  return `${h}h ${rem}m`;
-}
-
-function formatDate(d: Date): string {
-  return d.toLocaleDateString('en-US', {
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-  });
-}
 
 export function RecentSessions({ sessions }: { sessions: RecentSession[] }) {
   if (sessions.length === 0) {
@@ -57,13 +32,13 @@ export function RecentSessions({ sessions }: { sessions: RecentSession[] }) {
               <p className="text-sm font-medium text-text truncate">
                 {s.repoName ?? 'Unknown repo'}
               </p>
-              <p className="text-xs text-text-3 font-mono">{formatDate(s.startedAt)}</p>
+              <p className="text-xs text-text-3 font-mono">{fmtDateTime(s.startedAt)}</p>
             </div>
             <div className="flex items-center gap-3 ml-4 shrink-0">
               <span className="text-xs text-text-2 font-mono">
-                {formatDuration(s.durationSeconds)}
+                {fmtDurationSec(s.durationSeconds)}
               </span>
-              <span className="text-xs text-text-2 font-mono">${s.costUsd.toFixed(3)}</span>
+              <span className="text-xs text-text-2 font-mono">{fmtUsdSession(s.costUsd)}</span>
               <StatusBadge status={s.status} />
             </div>
           </Link>

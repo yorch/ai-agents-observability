@@ -1,4 +1,5 @@
 import { Card, Cell, foldToSeries, Legend, Row, ShareBar, seriesBg, Table } from '@/components/ui';
+import { fmtUsdSession } from '@/lib/fmt';
 
 type ModelEntry = { costUsd: number; model: string; sessionCount: number; turns: number };
 
@@ -60,7 +61,7 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
               </Cell>
               <Cell num>{m.turns.toLocaleString()}</Cell>
               <Cell num>{m.sessionCount}</Cell>
-              <Cell num>${m.costUsd.toFixed(3)}</Cell>
+              <Cell num>{fmtUsdSession(m.costUsd)}</Cell>
             </Row>
           ))}
         </Table>

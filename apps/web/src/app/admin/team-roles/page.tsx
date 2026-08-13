@@ -1,4 +1,4 @@
-import { Button, Card, ConfirmButton } from '@/components/ui';
+import { ActionForm, Button, Card, ConfirmButton } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { LEAD_ROLES, requireOrgAdmin } from '@/lib/roles';
 
@@ -61,7 +61,7 @@ export default async function TeamRolesAdminPage() {
                           {m.roleInTeam}
                         </span>
                       </div>
-                      <form action={setTeamRole}>
+                      <ActionForm action={setTeamRole}>
                         <input type="hidden" name="teamId" value={team.id} />
                         <input type="hidden" name="userId" value={m.userId} />
                         <input type="hidden" name="role" value={isLead ? 'MEMBER' : 'LEAD'} />
@@ -78,7 +78,7 @@ export default async function TeamRolesAdminPage() {
                             Make lead
                           </Button>
                         )}
-                      </form>
+                      </ActionForm>
                     </li>
                   );
                 })}

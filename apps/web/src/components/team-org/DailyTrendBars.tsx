@@ -12,7 +12,12 @@ export function DailyTrendBars({
   title?: string;
 }) {
   if (points.length === 0) {
-    return null;
+    return (
+      <Card>
+        <SectionHeader>{title}</SectionHeader>
+        <p className="py-6 text-center text-sm text-text-3">No activity in this period.</p>
+      </Card>
+    );
   }
   const max = Math.max(...points.map((p) => p.count), 1);
 

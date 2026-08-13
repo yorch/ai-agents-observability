@@ -6,6 +6,7 @@ import { revokeShare, shareSession } from '@/app/me/sessions/[id]/actions';
 import { ArrowRightIcon } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Field';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 
 type ActiveShare = { expiresAt: Date; granteeEmail: string | null; id: string };
 
@@ -34,6 +35,8 @@ export function ShareSessionButton({
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
   const menuRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open);
 
   // Close on click-outside and Escape.
   useEffect(() => {
@@ -104,7 +107,9 @@ export function ShareSessionButton({
 
       {open && (
         <div
+          ref={dialogRef}
           role="dialog"
+          aria-modal="true"
           aria-label="Share session"
           className="absolute right-0 top-full mt-2 z-50 w-72 rounded-lg border border-border bg-surface shadow-xl"
         >
