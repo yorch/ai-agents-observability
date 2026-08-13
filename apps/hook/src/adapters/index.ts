@@ -2,6 +2,8 @@ import type { Event } from '@ai-agents-observability/schemas';
 
 import { claudeCodeAdapter } from './claude-code';
 import { codexAdapter } from './codex';
+import { copilotAdapter } from './copilot';
+import { geminiCliAdapter } from './gemini-cli';
 import { opencodeAdapter } from './opencode';
 
 // A hook adapter translates one agent's native hook protocol into the
@@ -56,6 +58,8 @@ export interface HookAdapter {
 const ADAPTERS: Record<string, HookAdapter> = {
   'claude-code': claudeCodeAdapter,
   codex: codexAdapter,
+  copilot: copilotAdapter,
+  'gemini-cli': geminiCliAdapter,
   opencode: opencodeAdapter,
 };
 
