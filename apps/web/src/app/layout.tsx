@@ -1,6 +1,17 @@
+import { DM_Sans, IBM_Plex_Mono, Syne } from 'next/font/google';
 import type { ReactNode } from 'react';
 
 import '../styles/globals.css';
+
+// globals.css maps --font-display/body/mono onto these variables; the weights
+// mirror the type ramp (Syne 700 display, DM Sans 400/500 UI, Plex Mono 400/500 data).
+const syne = Syne({ subsets: ['latin'], variable: '--font-syne', weight: ['700'] });
+const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans', weight: ['400', '500'] });
+const ibmMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  variable: '--font-ibm-mono',
+  weight: ['400', '500'],
+});
 
 import { Rail, type RailTeam } from '@/components/shell/Rail';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -38,7 +49,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   }
 
   return (
-    <html lang="en">
+    <html lang="en" className={`${syne.variable} ${dmSans.variable} ${ibmMono.variable}`}>
       <head>
         {/* Applies the stored theme before first paint. Without it the page
             renders dark and then snaps to light on hydration. */}

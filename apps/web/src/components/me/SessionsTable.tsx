@@ -1,10 +1,9 @@
 import Link from 'next/link';
-import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { JiraLink } from '@/components/JiraLink';
 import { StatusBadge } from '@/components/me/StatusBadge';
-import { Cell, EmptyState, Row, Table, TONE_TEXT } from '@/components/ui';
+import { Cell, EmptyState, Pagination, Row, Table, TONE_TEXT } from '@/components/ui';
 import { computeFrictionScore, frictionBadge } from '@/lib/effectiveness';
-import type { SessionRow } from '@/lib/sessions-queries';
+import { SESSIONS_PAGE_SIZE, type SessionRow } from '@/lib/sessions-queries';
 import { ShapeBadge } from './shape';
 
 function formatDuration(seconds: number | null): string {
@@ -37,25 +36,22 @@ function formatDate(d: Date): string {
 type SessionsTableProps = {
   basePath?: string;
   currentPage: number;
+  /** Builds the pager href for a page, preserving any active filters. */
+  hrefFor?: (page: number) => string;
   // Jira browse base URL (NEXT_PUBLIC_JIRA_BASE_URL); keys render as plain text when unset.
   jiraBase?: string | null;
   sessions: SessionRow[];
   total: number;
 };
 
-const PAGE_SIZE = 50;
-
 export function SessionsTable({
   sessions,
   total,
   currentPage,
   basePath = '/me/sessions',
+  hrefFor = (page) => `?page=${page}`,
   jiraBase = null,
 }: SessionsTableProps) {
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const hasPrev = currentPage > 1;
-  const hasNext = currentPage < totalPages;
-
   if (sessions.length === 0) {
     return <EmptyState>No sessions found</EmptyState>;
   }
@@ -143,32 +139,12 @@ export function SessionsTable({
         })}
       </Table>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-text-3 font-mono text-xs">
-            {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of{' '}
-            {total}
-          </p>
-          <div className="flex gap-2">
-            {hasPrev && (
-              <a
-                href={`?page=${currentPage - 1}`}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
-              >
-                <ArrowLeftIcon /> Prev
-              </a>
-            )}
-            {hasNext && (
-              <a
-                href={`?page=${currentPage + 1}`}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
-              >
-                Next <ArrowRightIcon />
-              </a>
-            )}
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={currentPage}
+        pageSize={SESSIONS_PAGE_SIZE}
+        total={total}
+        hrefFor={hrefFor}
+      />
     </div>
   );
 }

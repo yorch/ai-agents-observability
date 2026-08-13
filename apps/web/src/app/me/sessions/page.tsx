@@ -102,8 +102,8 @@ export default async function SessionsPage({
   const agentTypes = agentFacets.map((f) => f.agentType);
   const shapeLabels = shapeFacets.map((f) => f.shapeLabel as string);
 
-  // One list, so the Clear button and the export URL cannot disagree about what
-  // counts as a filter.
+  // One list, so the Clear button, the export URL, and the pager cannot
+  // disagree about what counts as a filter.
   const filters = {
     agent,
     band: frictionBand,
@@ -113,6 +113,18 @@ export default async function SessionsPage({
     shape,
     status,
     to: params.to,
+  };
+
+  // The pager must carry the active filters, or moving to page 2 clears them.
+  const hrefForPage = (n: number) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) {
+      if (v) {
+        p.set(k, v);
+      }
+    }
+    p.set('page', String(n));
+    return `?${p.toString()}`;
   };
 
   return (
@@ -217,6 +229,7 @@ export default async function SessionsPage({
         sessions={sessions}
         total={total}
         currentPage={page}
+        hrefFor={hrefForPage}
         jiraBase={getJiraBase()}
       />
     </div>

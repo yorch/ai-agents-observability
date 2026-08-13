@@ -97,7 +97,9 @@ export async function shareSession(formData: FormData): Promise<ShareResult> {
  * session (thumbs up/down + optional note). Upserted per (session, user); an
  * empty sentiment clears it. Own-session only — verified via getSession.
  */
-export async function submitSessionFeedback(formData: FormData): Promise<void> {
+export type FeedbackResult = { error: string } | { ok: true };
+
+export async function submitSessionFeedback(formData: FormData): Promise<FeedbackResult> {
   const user = await currentUser();
   if (!user) {
     redirect('/login');
@@ -107,13 +109,13 @@ export async function submitSessionFeedback(formData: FormData): Promise<void> {
   const sentiment = String(formData.get('sentiment') ?? '').trim();
   const note = String(formData.get('note') ?? '').trim();
   if (!sessionId) {
-    return;
+    return { error: 'Session not found.' };
   }
 
   // Own-session only.
   const session = await getSession(user.id, sessionId);
   if (!session) {
-    return;
+    return { error: 'Session not found.' };
   }
 
   const db = getPrisma();
@@ -122,7 +124,7 @@ export async function submitSessionFeedback(formData: FormData): Promise<void> {
     // Clearing feedback.
     await db.sessionFeedback.deleteMany({ where: { sessionId, userId: user.id } });
     revalidatePath(`/me/sessions/${sessionId}`);
-    return;
+    return { ok: true };
   }
 
   const trimmedNote = note.slice(0, 1000) || null;
@@ -133,6 +135,7 @@ export async function submitSessionFeedback(formData: FormData): Promise<void> {
   });
 
   revalidatePath(`/me/sessions/${sessionId}`);
+  return { ok: true };
 }
 
 export type PRLinkResult = { error: string } | { ok: true };

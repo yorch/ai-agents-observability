@@ -24,6 +24,7 @@ export function SessionFeedbackForm({
   const [sentiment, setSentiment] = useState<Sentiment>(initialSentiment);
   const [note, setNote] = useState(initialNote ?? '');
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function save(next: Sentiment) {
@@ -32,8 +33,19 @@ export function SessionFeedbackForm({
     fd.set('sentiment', next ?? '');
     fd.set('note', note);
     startTransition(async () => {
-      await submitSessionFeedback(fd);
-      setSaved(true);
+      try {
+        const result = await submitSessionFeedback(fd);
+        if ('error' in result) {
+          setError(result.error);
+          setSaved(false);
+        } else {
+          setError(null);
+          setSaved(true);
+        }
+      } catch {
+        setError('Could not save — try again.');
+        setSaved(false);
+      }
     });
   }
 
@@ -41,6 +53,7 @@ export function SessionFeedbackForm({
     const next = sentiment === value ? null : value;
     setSentiment(next);
     setSaved(false);
+    setError(null);
     save(next);
   }
 
@@ -100,6 +113,11 @@ export function SessionFeedbackForm({
           {isPending ? 'Saving…' : 'Save note'}
         </Button>
         {saved && !isPending && <span className="text-xs text-text-3">Saved</span>}
+        {error && !isPending && (
+          <span role="alert" className="text-xs text-crit">
+            {error}
+          </span>
+        )}
       </div>
     </Card>
   );

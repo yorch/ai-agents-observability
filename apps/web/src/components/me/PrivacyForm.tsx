@@ -54,6 +54,7 @@ type InitialPolicy = {
 export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | null }) {
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [policy, setPolicy] = useState<InitialPolicy>({
     shareMetadataWithOrg: initialPolicy?.shareMetadataWithOrg ?? true,
     shareMetadataWithTeam: initialPolicy?.shareMetadataWithTeam ?? true,
@@ -94,6 +95,7 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
   function handleToggle(name: string, value: boolean) {
     setPolicy((prev) => ({ ...prev, [name]: value }));
     setSaved(false);
+    setError(null);
   }
 
   function handleSave() {
@@ -104,8 +106,19 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
     formData.set('shareTranscriptsWithOrg', policy.shareTranscriptsWithOrg.toString());
 
     startTransition(async () => {
-      await savePrivacySettings(formData);
-      setSaved(true);
+      try {
+        const result = await savePrivacySettings(formData);
+        if ('error' in result) {
+          setError(result.error);
+          setSaved(false);
+        } else {
+          setError(null);
+          setSaved(true);
+        }
+      } catch {
+        setError('Could not save — check your connection and try again.');
+        setSaved(false);
+      }
     });
   }
 
@@ -122,6 +135,11 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
           {isPending ? 'Saving…' : 'Save settings'}
         </Button>
         {saved && <span className="text-sm text-good">Saved</span>}
+        {error && (
+          <span role="alert" className="text-sm text-crit">
+            {error}
+          </span>
+        )}
       </div>
     </Card>
   );

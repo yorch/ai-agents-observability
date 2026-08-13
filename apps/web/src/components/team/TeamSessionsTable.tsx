@@ -1,10 +1,9 @@
 import Link from 'next/link';
-import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { StatusBadge } from '@/components/me/StatusBadge';
 import { ShapeBadge } from '@/components/me/shape';
-import { Cell, EmptyState, Row, Table, TONE_TEXT } from '@/components/ui';
+import { Cell, EmptyState, Pagination, Row, Table, TONE_TEXT } from '@/components/ui';
 import { computeFrictionScore, frictionBadge } from '@/lib/effectiveness';
-import type { TeamSessionRow } from '@/lib/team-queries';
+import { TEAM_PAGE_SIZE, type TeamSessionRow } from '@/lib/team-queries';
 
 function formatDuration(seconds: number | null): string {
   if (seconds === null) {
@@ -32,21 +31,20 @@ function formatDate(d: Date): string {
   });
 }
 
-const PAGE_SIZE = 50;
-
 export function TeamSessionsTable({
   currentPage,
+  hrefFor = (page) => `?page=${page}`,
   sessions,
   slug,
   total,
 }: {
   currentPage: number;
+  /** Builds the pager href for a page, preserving any active filters. */
+  hrefFor?: (page: number) => string;
   sessions: TeamSessionRow[];
   slug: string;
   total: number;
 }) {
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-
   if (sessions.length === 0) {
     return <EmptyState>No sessions found</EmptyState>;
   }
@@ -133,32 +131,7 @@ export function TeamSessionsTable({
         })}
       </Table>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-text-3 font-mono text-xs">
-            {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of{' '}
-            {total}
-          </p>
-          <div className="flex gap-2">
-            {currentPage > 1 && (
-              <a
-                href={`?page=${currentPage - 1}`}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
-              >
-                <ArrowLeftIcon /> Prev
-              </a>
-            )}
-            {currentPage < totalPages && (
-              <a
-                href={`?page=${currentPage + 1}`}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
-              >
-                Next <ArrowRightIcon />
-              </a>
-            )}
-          </div>
-        </div>
-      )}
+      <Pagination page={currentPage} pageSize={TEAM_PAGE_SIZE} total={total} hrefFor={hrefFor} />
     </div>
   );
 }

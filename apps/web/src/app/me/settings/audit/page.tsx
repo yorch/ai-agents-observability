@@ -9,19 +9,22 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 25;
 
-const VALID_ACTIONS = new Set(['VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM']);
-
 const DATE_OPTIONS = [
   { days: 7, label: 'Last 7 days' },
   { days: 30, label: 'Last 30 days' },
   { days: null, label: 'All time' },
 ] as const;
 
+// Keys are the stored AuditAction enum values (uppercase). The option values
+// and the whitelist both derive from this map so they cannot disagree — a
+// lowercase copy here once made the filter silently never apply.
 const ACTION_LABELS: Record<string, string> = {
-  export_team: 'Team export',
-  view_session: 'Viewed session',
-  view_transcript: 'Viewed transcript',
+  EXPORT_TEAM: 'Team export',
+  VIEW_SESSION: 'Viewed session',
+  VIEW_TRANSCRIPT: 'Viewed transcript',
 };
+
+const VALID_ACTIONS = new Set(Object.keys(ACTION_LABELS));
 
 type SearchParams = { action?: string; days?: string; page?: string };
 
@@ -91,7 +94,22 @@ export default async function SettingsAuditPage({
         )}
       </form>
 
-      <AuditTable rows={rows} total={total} currentPage={page} />
+      <AuditTable
+        rows={rows}
+        total={total}
+        currentPage={page}
+        hrefFor={(n) => {
+          const p = new URLSearchParams();
+          if (actionFilter) {
+            p.set('action', actionFilter);
+          }
+          if (params.days) {
+            p.set('days', params.days);
+          }
+          p.set('page', String(n));
+          return `?${p.toString()}`;
+        }}
+      />
     </div>
   );
 }

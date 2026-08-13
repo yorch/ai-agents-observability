@@ -546,7 +546,15 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
                       }`}
                       title={`${r.ciStatus}: ${r.sessionCount} sessions`}
                     />
-                    <span className={`${cls} block text-center`}>{r.ciStatus.slice(0, 4)}</span>
+                    {/* Distinct short words, not a 4-char slice — "succ"/"fail"
+                        collide at a glance and leaned on colour to disambiguate. */}
+                    <span className={`${cls} block truncate text-center`}>
+                      {r.ciStatus === 'success'
+                        ? 'pass'
+                        : r.ciStatus === 'failure'
+                          ? 'fail'
+                          : r.ciStatus}
+                    </span>
                   </div>
                 );
               })}

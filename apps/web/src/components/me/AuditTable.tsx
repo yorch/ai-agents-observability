@@ -4,23 +4,34 @@ import type { AuditRow } from '@/lib/me-queries';
 
 type AuditTableProps = {
   currentPage: number;
+  /** Builds the pager href for a page, preserving any active filters. */
+  hrefFor?: (page: number) => string;
   rows: AuditRow[];
   total: number;
 };
 
 const PAGE_SIZE = 25;
 
+// Keys are the stored AuditAction enum values (uppercase — a lowercase copy
+// here once meant every row fell through to the raw enum text).
 const ACTION_LABELS: Record<string, string> = {
-  admin_impersonate: 'admin impersonation',
-  delete_request: 'data deletion request',
-  export_org: 'org export',
-  export_team: 'team export',
-  hook_token_issued: 'CLI token issued',
-  view_session: 'viewed session',
-  view_transcript: 'viewed transcript',
+  ADMIN_IMPERSONATE: 'admin impersonation',
+  DELETE_REQUEST: 'data deletion request',
+  EXPORT_ORG: 'org export',
+  EXPORT_TEAM: 'team export',
+  GRANT_APPROVED: 'share approved',
+  GRANT_REVOKED: 'share revoked',
+  HOOK_TOKEN_ISSUED: 'CLI token issued',
+  VIEW_SESSION: 'viewed session',
+  VIEW_TRANSCRIPT: 'viewed transcript',
 };
 
-export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
+export function AuditTable({
+  rows,
+  total,
+  currentPage,
+  hrefFor = (page) => `?page=${page}`,
+}: AuditTableProps) {
   if (rows.length === 0) {
     return <EmptyState>No one has accessed your data yet.</EmptyState>;
   }
@@ -68,12 +79,7 @@ export function AuditTable({ rows, total, currentPage }: AuditTableProps) {
         </Table>
       </Card>
 
-      <Pagination
-        page={currentPage}
-        pageSize={PAGE_SIZE}
-        total={total}
-        hrefFor={(n) => `?page=${n}`}
-      />
+      <Pagination page={currentPage} pageSize={PAGE_SIZE} total={total} hrefFor={hrefFor} />
     </div>
   );
 }

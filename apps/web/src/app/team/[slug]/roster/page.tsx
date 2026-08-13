@@ -110,7 +110,7 @@ export default async function TeamRosterPage({
 
       <p className="text-xs text-text-3">
         Members who have set their privacy to not share team metadata are shown without stats.{' '}
-        <Link href="/me/privacy" className="underline hover:text-text-2">
+        <Link href="/me/settings/privacy" className="underline hover:text-text-2">
           Manage your own privacy settings.
         </Link>
       </p>
