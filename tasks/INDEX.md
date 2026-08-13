@@ -234,3 +234,21 @@ Deepens the session↔PR↔repo↔Jira correlation spine: commit-SHA + open-PR l
 | [P11-002](./P11-002-correlation-follow-ups.md) | Correlation follow-ups (project-key allowlist, bug spend, jira facet) | done | claude | M | P11-001 |
 | [P11-003](./P11-003-defect-attribution.md) | Defect attribution & quality correlation (/org/quality) | done | claude | M | P11-002 |
 | [P11-004](./P11-004-band-significance.md) | Significance testing on friction-band deltas (Fisher's exact) | done | claude | S | P11-003 |
+
+---
+
+## Phase 12 — Agent Adapter Expansion
+
+See [`P12-roadmap.md`](./P12-roadmap.md). Takes the P8 seam from three agents to seven — Codex onto its native lifecycle hooks, plus Gemini CLI, Copilot CLI, Pi, and OMP — by extracting one stdin-hook factory instead of writing five bespoke adapters, and fixes a live session-ID bug that silently drops opencode traffic today. Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/research/2026-08-13-agent-adapter-expansion.md). **Proposed — not yet started.**
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P12-001](./P12-001-agent-registry-widening.md) | Agent registry widening (PI, OMP, GEMINI_CLI) | ready | — | S | P5-006, P8-002 |
+| [P12-002](./P12-002-session-id-normalization.md) | Session-ID normalization in the adapter seam | ready | — | S | P8-003 |
+| [P12-003](./P12-003-stdin-hook-adapter-factory.md) | Stdin hook adapter factory | ready | — | M | P8-003, P12-002 |
+| [P12-004](./P12-004-codex-native-hooks.md) | Codex native lifecycle hooks | ready | — | M | P8-007, P12-003 |
+| [P12-005](./P12-005-gemini-cli-adapter.md) | Gemini CLI adapter | ready | — | M | P12-001, P12-003 |
+| [P12-006](./P12-006-copilot-cli-adapter.md) | GitHub Copilot CLI adapter | ready | — | M | P12-002, P12-003 |
+| [P12-007](./P12-007-pi-adapter.md) | Pi adapter | ready | — | M | P12-001, P12-002 |
+| [P12-008](./P12-008-omp-adapter.md) | OMP (oh-my-pi) adapter | ready | — | M | P12-001, P12-002, P12-007 |
+| [P12-009](./P12-009-opencode-transcript-export.md) | opencode transcript export (closes the P8-004 gap) | ready | — | M | P8-004, P12-007 |
