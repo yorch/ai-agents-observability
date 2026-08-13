@@ -4,6 +4,8 @@
 **Method:** structural map of every route/primitive/chart, an evidence-based code audit (loading/empty/error states, a11y, responsive, formatting, performance UX), and external research (NN/g, W3C/WCAG 2.2, UK Gov Analysis Function, Carbon, vendor practice from Datadog/PostHog/Swarmia). All findings cite `file:line`; the flagged bugs were individually re-verified in the working tree.
 **Relationship to prior work:** the [Instrument direction](./ui-direction.html) (2026-08-01) has landed — semantic tokens, rail navigation, shared primitives, and the chart grammar are real and consistently used. This review starts where that one ended: it assesses the post-revamp state and identifies the next tier of gaps.
 
+> **Implementation status (2026-08-13, this branch):** all P0 bugs (B1–B6) are fixed. P1 and P2 are implemented in full (resilience states, focus/skip-link/mark styling, destructive-action confirms, section skeletons, responsive collapses, formatter + timezone consolidation, empty-state consolidation, `ActionResult`/`ActionForm` feedback across admin, dialog focus traps, filter chips + zero-result recovery). From P3: chart keyboard access (G3), Suspense streaming on `/me` (G1), the command palette (G10), and the effective-visibility privacy preview + always-reachable friction explanation (G9) are implemented. **Still open:** saved views (needs a per-user store), the "waiting for first event" live onboarding loop (needs a polling endpoint), table sorting with the G9 leaderboard guardrail, per-chart data-table fallbacks beyond `BarChart`, and Suspense streaming on the org pages. The new conventions are codified in `apps/web/AGENTS.md`.
+
 ---
 
 ## 1. Where the app stands

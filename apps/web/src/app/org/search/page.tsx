@@ -1,6 +1,8 @@
+import { FilterChips } from '@/components/FilterChips';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import {
   Button,
+  ButtonLink,
   Card,
   Cell,
   EmptyState,
@@ -118,6 +120,41 @@ export default async function OrgSearchPage({
 
   // Transcript FTS search (if query provided)
   const transcriptResults = query ? await searchTranscripts(query, canView) : [];
+
+  // Applied-filter chips: each links to the URL without that one facet, with
+  // ids resolved to the display names the dropdowns show.
+  const CHIP_LABELS: Record<string, string> = {
+    agent: 'Agent',
+    band: 'Friction',
+    from: 'From',
+    jira: 'Ticket',
+    model: 'Model',
+    q: 'Query',
+    repo: 'Repo',
+    shape: 'Shape',
+    team: 'Team',
+    to: 'To',
+    tool: 'Tool',
+    user: 'User',
+  };
+  const chips = Object.entries(CHIP_LABELS)
+    .map(([key, label]) => ({ key, label, value: params[key]?.trim() ?? '' }))
+    .filter((f) => f.value !== '')
+    .map(({ key, label, value }) => {
+      let display = value;
+      if (key === 'team') {
+        display = teams.find((t) => t.id === value)?.name ?? value;
+      } else if (key === 'repo') {
+        const r = repos.find((x) => x.id === value);
+        display = r ? `${r.githubOwner}/${r.githubName}` : value;
+      } else if (key === 'user') {
+        display = `${value.slice(0, 8)}…`;
+      }
+      return {
+        href: buildUrl(params, { [key]: '', page: '' }),
+        label: `${label}: ${display}`,
+      };
+    });
 
   const totalPages = Math.ceil(sessionResults.total / sessionResults.pageSize);
 
@@ -259,6 +296,8 @@ export default async function OrgSearchPage({
             </div>
           </FilterPanel>
 
+          <FilterChips chips={chips} clearHref="/org/search" />
+
           {/* Transcript results */}
           {query && (
             <section className="space-y-3">
@@ -332,7 +371,18 @@ export default async function OrgSearchPage({
             </div>
 
             {sessionResults.results.length === 0 ? (
-              <EmptyState>No sessions match the current filters.</EmptyState>
+              <EmptyState
+                title="No sessions match these filters"
+                action={
+                  chips.length > 0 ? (
+                    <ButtonLink variant="secondary" href="/org/search">
+                      Clear filters
+                    </ButtonLink>
+                  ) : undefined
+                }
+              >
+                Try removing a filter or widening the date range.
+              </EmptyState>
             ) : (
               <Table
                 columns={[
@@ -383,7 +433,11 @@ export default async function OrgSearchPage({
 function buildUrl(current: Record<string, string>, overrides: Record<string, string | number>) {
   const p = new URLSearchParams(current);
   for (const [k, v] of Object.entries(overrides)) {
-    p.set(k, String(v));
+    if (v === '') {
+      p.delete(k);
+    } else {
+      p.set(k, String(v));
+    }
   }
   return `/org/search?${p.toString()}`;
 }

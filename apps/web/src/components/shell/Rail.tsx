@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select } from '@/components/ui/Field';
 import { useFocusTrap } from '@/lib/use-focus-trap';
+import { CommandPalette } from './CommandPalette';
 import {
   ADMIN_NAV,
   isActive,
@@ -139,6 +140,13 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
         >
           Observability
         </Link>
+
+        <CommandPalette
+          canViewOrg={canViewOrg}
+          isAdmin={isAdmin}
+          showGrants={showGrants}
+          teamSlug={activeTeam}
+        />
 
         {scopes.length > 1 && (
           <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">

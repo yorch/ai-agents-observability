@@ -1,5 +1,6 @@
 import { agentDisplayName, DEFAULT_AGENT_TYPE } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { DaysSelector, parseDays } from '@/components/me/DaysSelector';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ModelMixChart } from '@/components/me/ModelMix';
@@ -8,13 +9,69 @@ import { RecentSessions } from '@/components/me/RecentSessions';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { SummaryCards } from '@/components/me/SummaryCards';
 import { TopTools } from '@/components/me/TopTools';
-import { ButtonLink, EmptyState } from '@/components/ui';
+import { ButtonLink, EmptyState, SkeletonCard } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
 import { getModelMix, getRecentSessions, getTopTools, getUsageSummary } from '@/lib/me-queries';
 import { getUserOversight } from '@/lib/oversight-queries';
 
 export const dynamic = 'force-dynamic';
+
+/* The page gates only on the summary pair (which also decides the empty
+   state); every other section streams in behind its own Suspense boundary, so
+   the header and stat row paint without waiting for the slowest query. */
+
+async function OversightSection({ periodStart, userId }: { periodStart: Date; userId: string }) {
+  const oversight = await getUserOversight(userId, periodStart);
+  return <OversightPanel data={oversight} />;
+}
+
+async function ToolsAndModels({ periodStart, userId }: { periodStart: Date; userId: string }) {
+  const [tools, models] = await Promise.all([
+    getTopTools(userId, periodStart),
+    getModelMix(userId, periodStart),
+  ]);
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <TopTools tools={tools} />
+      <ModelMixChart models={models} />
+    </div>
+  );
+}
+
+async function EffectivenessSection({ since, userId }: { since: Date; userId: string }) {
+  const effectiveness = await getUserEffectiveness(userId, { since });
+  return (
+    <div>
+      <p className="mb-3 text-xs text-text-3 uppercase tracking-widest">
+        Effectiveness · trailing 30 days
+      </p>
+      <div className="grid gap-6 md:grid-cols-2">
+        <FrictionTrendChart
+          points={effectiveness.trend}
+          scoredSessionCount={effectiveness.scoredSessionCount}
+        />
+        <ShapeDistributionChart histogram={effectiveness.shapeHistogram} />
+      </div>
+    </div>
+  );
+}
+
+async function RecentSessionsSection({ userId }: { userId: string }) {
+  const sessions = await getRecentSessions(userId);
+  return <RecentSessions sessions={sessions} />;
+}
+
+function SectionSkeleton({ split = false }: { split?: boolean }) {
+  return split ? (
+    <div className="grid animate-pulse gap-6 motion-reduce:animate-none md:grid-cols-2">
+      <SkeletonCard className="h-56" />
+      <SkeletonCard className="h-56" />
+    </div>
+  ) : (
+    <SkeletonCard className="h-44 animate-pulse motion-reduce:animate-none" />
+  );
+}
 
 export default async function MePage({
   searchParams,
@@ -34,16 +91,10 @@ export default async function MePage({
   const prevPeriodStart = new Date(now.getTime() - 2 * days * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const [thisPeriod, lastPeriod, tools, models, sessions, effectiveness, oversight] =
-    await Promise.all([
-      getUsageSummary(user.id, periodStart),
-      getUsageSummary(user.id, prevPeriodStart, periodStart),
-      getTopTools(user.id, periodStart),
-      getModelMix(user.id, periodStart),
-      getRecentSessions(user.id),
-      getUserEffectiveness(user.id, { since: thirtyDaysAgo }),
-      getUserOversight(user.id, periodStart),
-    ]);
+  const [thisPeriod, lastPeriod] = await Promise.all([
+    getUsageSummary(user.id, periodStart),
+    getUsageSummary(user.id, prevPeriodStart, periodStart),
+  ]);
 
   const hasData = thisPeriod.sessionCount > 0;
 
@@ -68,24 +119,18 @@ export default async function MePage({
       ) : (
         <>
           <SummaryCards thisWeek={thisPeriod} lastWeek={lastPeriod} />
-          <OversightPanel data={oversight} />
-          <div className="grid gap-6 md:grid-cols-2">
-            <TopTools tools={tools} />
-            <ModelMixChart models={models} />
-          </div>
-          <div>
-            <p className="mb-3 text-xs text-text-3 uppercase tracking-widest">
-              Effectiveness · trailing 30 days
-            </p>
-            <div className="grid gap-6 md:grid-cols-2">
-              <FrictionTrendChart
-                points={effectiveness.trend}
-                scoredSessionCount={effectiveness.scoredSessionCount}
-              />
-              <ShapeDistributionChart histogram={effectiveness.shapeHistogram} />
-            </div>
-          </div>
-          <RecentSessions sessions={sessions} />
+          <Suspense fallback={<SectionSkeleton />}>
+            <OversightSection userId={user.id} periodStart={periodStart} />
+          </Suspense>
+          <Suspense fallback={<SectionSkeleton split />}>
+            <ToolsAndModels userId={user.id} periodStart={periodStart} />
+          </Suspense>
+          <Suspense fallback={<SectionSkeleton split />}>
+            <EffectivenessSection userId={user.id} since={thirtyDaysAgo} />
+          </Suspense>
+          <Suspense fallback={<SectionSkeleton />}>
+            <RecentSessionsSection userId={user.id} />
+          </Suspense>
         </>
       )}
     </div>
