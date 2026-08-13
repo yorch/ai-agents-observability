@@ -6,6 +6,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -15,6 +16,7 @@ import { loadHookToken } from './lib/identity';
 import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
 import { shipQueueDir } from './lib/paths';
+import { collateDirectory, collatedPathFor, discardCollated } from './lib/transcript-collate';
 import { redactedLines } from './lib/transcript-stream';
 
 const SWEEP_INTERVAL_MS = 10 * 60 * 1_000; // 10 minutes
@@ -223,6 +225,27 @@ async function throttledUpload(
 
 // ── Shipper loop ──────────────────────────────────────────────────────────────
 
+/**
+ * The file to ship for a marker. Usually the marker's own path — but an agent
+ * whose history is a DIRECTORY (opencode) gets it collated into one JSONL here,
+ * in the shipper process, deliberately out of the hook's hot path (P12-009).
+ * Returns null when the directory holds nothing shippable.
+ */
+function resolveShippablePath(marker: ShipMarker): string | null {
+  const { session_id, transcript_path } = marker;
+  if (!statSync(transcript_path).isDirectory()) {
+    return transcript_path;
+  }
+  const dest = collatedPathFor(session_id);
+  const records = collateDirectory(transcript_path, dest);
+  if (records === 0) {
+    log('warn', 'shipper.collate_empty', { session_id, transcript_path });
+    return null;
+  }
+  log('info', 'shipper.collated', { records, session_id });
+  return dest;
+}
+
 async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
   const { session_id, transcript_path } = marker;
 
@@ -233,14 +256,31 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
     return;
   }
 
+  let sourcePath: string | null;
+  try {
+    sourcePath = resolveShippablePath(marker);
+  } catch (err) {
+    log('warn', 'shipper.collate_error', { message: (err as Error).message, session_id });
+    recordRetryableFailure(marker, 'collate_error');
+    return;
+  }
+  if (sourcePath === null) {
+    deleteMarker(session_id);
+    return;
+  }
+
   let body: Uint8Array;
   let hash: string;
   try {
-    ({ body, hash } = await buildZstdBody(transcript_path));
+    ({ body, hash } = await buildZstdBody(sourcePath));
   } catch (err) {
     log('warn', 'shipper.read_error', { message: (err as Error).message, session_id });
     recordRetryableFailure(marker, 'read_error');
     return;
+  } finally {
+    // A collation is a temp artifact: drop it whether or not the upload works.
+    // The next sweep re-collates from the agent's storage, which may have grown.
+    discardCollated(sourcePath);
   }
 
   const url = `${INGEST_BASE_URL}/v1/transcripts/${session_id}`;

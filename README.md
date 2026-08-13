@@ -86,7 +86,7 @@ curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
 
 **Phases 4–6** — code complete. Org views, search, operations handoff, effectiveness signals, and hardening tasks are `done`; P6-005/P6-006 were deferred and superseded by Phase 8.
 
-**Phases 7–9** — task work is `done`. P7-007 completed as a no-go semantic-search spike; opencode transcript upload remains a documented follow-up.
+**Phases 7–9** — task work is `done`. P7-007 completed as a no-go semantic-search spike; opencode transcript upload was the one documented follow-up, closed in P12-009.
 
 **Phase 10** (model cost optimization) — **proposed, not started**. P10-001 through P10-006 are `ready`. See [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md).
 

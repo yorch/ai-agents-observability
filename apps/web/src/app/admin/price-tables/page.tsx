@@ -1,11 +1,15 @@
+import { ADAPTER_AGENT_TYPES } from '@ai-agents-observability/schemas';
 import { Cell, Row, Table } from '@/components/ui';
 import { getConfig } from '@/lib/config';
 import { requireOrgAdmin } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
-const KNOWN_AGENTS = ['claude_code', 'codex', 'opencode'] as const;
-type AgentName = (typeof KNOWN_AGENTS)[number];
+// Derived from the agent registry (P12-001) so a new adapter's table shows up
+// here without a second list to remember. `?agent=` takes the lowercase,
+// underscored form that ingest keys its tables on.
+const KNOWN_AGENTS = ADAPTER_AGENT_TYPES.map((agent) => agent.toLowerCase());
+type AgentName = string;
 
 type ModelPrice = {
   cache_read_per_mtok: number;

@@ -3,8 +3,8 @@ id: P12-002
 title: Session-ID normalization in the adapter seam
 phase: 12
 workstream: D
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P8-003]
 blocks: [P12-003, P12-004, P12-006, P12-008]
 estimate: S
@@ -38,20 +38,20 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
 
 ## Acceptance criteria
 
-- [ ] A shared `sessionUuid(agentType, nativeId)` helper lives in the seam: returns
+- [x] A shared `sessionUuid(agentType, nativeId)` helper lives in the seam: returns
       `nativeId` unchanged when it is already a valid UUID, otherwise a `uuidv5`
       derivation namespaced by agent type.
-- [ ] The derivation is **stable** — the same `(agent, nativeId)` yields the same UUID
+- [x] The derivation is **stable** — the same `(agent, nativeId)` yields the same UUID
       across processes and runs — and **collision-safe across agents**: opencode
       `ses_abc` and omp `ses_abc` derive to different UUIDs.
-- [ ] `opencode.ts` uses it; a test feeds a realistic `ses_`-prefixed ID and asserts
+- [x] `opencode.ts` uses it; a test feeds a realistic `ses_`-prefixed ID and asserts
       the emitted event passes `EventSchema.safeParse`.
-- [ ] Every existing adapter's emitted event is asserted to pass `EventSchema` in its
+- [x] Every existing adapter's emitted event is asserted to pass `EventSchema` in its
       own test — with a realistic native ID, not a UUID-shaped fixture. This is the
       criterion that would have caught the original bug.
-- [ ] Claude Code output is unchanged: its `session_id` is already a UUID and passes
+- [x] Claude Code output is unchanged: its `session_id` is already a UUID and passes
       through untouched.
-- [ ] The nil-UUID fallback for a missing session ID keeps working (it is a valid UUID
+- [x] The nil-UUID fallback for a missing session ID keeps working (it is a valid UUID
       and must not be re-derived).
 
 ## Implementation notes

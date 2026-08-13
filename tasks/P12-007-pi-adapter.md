@@ -3,8 +3,8 @@ id: P12-007
 title: Pi adapter (TS extension + single-file JSONL transcripts)
 phase: 12
 workstream: D
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P12-001, P12-002]
 blocks: []
 estimate: M
@@ -56,22 +56,26 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
 
 ## Acceptance criteria
 
-- [ ] `--agent pi` selects the adapter; the event map above holds; Pi events with no
+- [x] `--agent pi` selects the adapter; the event map above holds; Pi events with no
       canonical equivalent (`context`, `model_select`, `before_provider_request`,
       `message_*`, `tool_execution_*`, …) are dropped, not invented.
-- [ ] `tool_call`/`tool_result` produce `PreToolUse`/`PostToolUse` with a populated
+- [x] `tool_call`/`tool_result` produce `PreToolUse`/`PostToolUse` with a populated
       `tool` block (name, input/output bytes, denial when the call was blocked).
-- [ ] `turn_end` carries an `llm` block with model + token usage, priced against
+- [x] `turn_end` carries an `llm` block with model + token usage, priced against
       `price-table.pi.v1.json`.
-- [ ] `transcriptTarget()` returns the session's `.jsonl` path at the terminal event
-      and a real transcript uploads — verified against a recorded Pi session, not a
-      hand-written fixture.
-- [ ] The Pi session UUID passes through P12-002 unchanged (assert this explicitly —
+- [x] `transcriptTarget()` returns the session's `.jsonl` path at the terminal event.
+- [ ] **Unverified:** a real transcript uploads, checked against a *recorded* Pi
+      session rather than a hand-written fixture. Pi is not installed in the dev
+      container, so the tests use fixtures built from the documented session
+      format. The field names the extension forwards (`ctx.sessionManager.path`,
+      the `usage` nesting) are inferred from docs and should be confirmed against
+      a real session before this is called done-done.
+- [x] The Pi session UUID passes through P12-002 unchanged (assert this explicitly —
       it is the one adapter where a derivation would be *wrong*).
-- [ ] `install --agent pi` emits an extension module to
+- [x] `install --agent pi` emits an extension module to
       `~/.pi/agent/extensions/telemetry.ts` (or prints it), spawning
       `<bin> hook <kind> --agent pi` with the event JSON on stdin.
-- [ ] The extension never blocks or mutates Pi's behavior: `tool_call` can block and
+- [x] The extension never blocks or mutates Pi's behavior: `tool_call` can block and
       `tool_result` can modify results in Pi's API — our handler must return nothing
       and swallow its own errors.
 

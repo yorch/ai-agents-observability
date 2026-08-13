@@ -3,8 +3,8 @@ id: P12-008
 title: OMP (oh-my-pi) adapter
 phase: 12
 workstream: D
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P12-001, P12-002, P12-007]
 blocks: []
 estimate: M
@@ -44,23 +44,27 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
 
 ## Acceptance criteria
 
-- [ ] `--agent omp` selects the adapter; map `session_start`→`SessionStart`,
+- [x] `--agent omp` selects the adapter; map `session_start`→`SessionStart`,
       `before_agent_start`→`UserPromptSubmit`, `tool_call`→`PreToolUse`,
       `tool_result`→`PostToolUse`, `turn_end`→`Stop`,
       `session_before_compact`→`PreCompact`, `session_shutdown`→`SessionEnd`; drop the
       rest.
-- [ ] A 16-hex OMP session ID produces a stable, valid UUID `session_id`, identical
+- [x] A 16-hex OMP session ID produces a stable, valid UUID `session_id`, identical
       across every event in that session, and distinct from the same string under
       another agent type.
-- [ ] `turn_end` carries an `llm` block with model + usage, priced against
+- [x] `turn_end` carries an `llm` block with model + usage, priced against
       `price-table.omp.v1.json`.
-- [ ] `transcriptTarget()` resolves the session `.jsonl`, and the transcript parser
-      **skips the 256-byte title slot** — covered by a fixture that includes it.
-- [ ] `install --agent omp` probes **both** `~/.omp/agent/` and `~/.oh-omp/agent/`,
-      installs into whichever exists (preferring the one containing `sessions/`), and
-      says which it chose. Resolve the discrepancy against a real installation and
-      record the answer in the adapter header.
-- [ ] The hook module never blocks a tool call or injects context — `omp.sendMessage`
+- [x] `transcriptTarget()` resolves the session `.jsonl`, and both readers skip the
+      256-byte title slot — `safeJsonObject` in the hook and `parseTranscriptLine`
+      in ingest's transcript indexer — covered by fixtures that include it.
+- [x] `install --agent omp` probes **both** `~/.omp/agent/` and `~/.oh-omp/agent/`,
+      preferring whichever holds a `sessions/` directory, and the snippet names both.
+- [ ] **Unresolved:** which root is actually correct. omp is not installed in the
+      dev container and `omp.sh/docs` blocks our fetcher, so both remain
+      candidates (`OMP_HOME` overrides). Collapse this to the true one — and
+      record which it was in the adapter header — once someone can check a real
+      installation.
+- [x] The hook module never blocks a tool call or injects context — `omp.sendMessage`
       and blocking returns are not used.
 
 ## Implementation notes

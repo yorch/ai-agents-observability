@@ -158,11 +158,29 @@ Requires authentication (`claude-telemetry login`) unless `--dry-run` is passed.
 
 ### `hook <kind>`
 
-Low-level entrypoint invoked directly by Claude Code. Reads a JSON payload from stdin, converts it to an event, and appends it to the local SQLite queue. Should not be invoked manually.
+Low-level entrypoint invoked directly by the coding agent. Reads a JSON payload from stdin, converts it to an event, and appends it to the local SQLite queue. Should not be invoked manually.
 
-Hook kinds: `session-start`, `pre-tool-use`, `post-tool-use`, `stop`, `user-prompt-submit`, `pre-compact`, `subagent-stop`, `notification`.
+Hook kinds (Claude Code): `session-start`, `pre-tool-use`, `post-tool-use`, `stop`, `user-prompt-submit`, `pre-compact`, `subagent-stop`, `notification`.
 
-Hook entrypoints always exit 0 to avoid disrupting Claude Code — errors go to the log file only.
+Hook entrypoints always exit 0 to avoid disrupting the agent — errors go to the log file only. This matters most for GitHub Copilot CLI, whose `preToolUse` hooks are fail-closed: a non-zero exit there denies the tool call.
+
+### Supported agents
+
+Pass `--agent <name>` to `install` (and to `hook <kind>`, which the generated snippet does for you). Each agent's hook kinds mirror its own event names; run `install --agent <name>` to print the config it needs.
+
+| `--agent` | Agent | Wiring | Transcripts |
+|---|---|---|---|
+| `claude-code` (default) | Claude Code | `~/.claude/settings.json` hooks | yes |
+| `codex` | OpenAI Codex CLI | `~/.codex/hooks.json` when `[features] hooks = true`, else the `notify` wrapper | yes |
+| `gemini-cli` | Gemini CLI | `~/.gemini/settings.json` hooks | yes |
+| `copilot` | GitHub Copilot CLI | `~/.copilot/hooks/*.json` | no (none exposed) |
+| `pi` | Pi | `~/.pi/agent/extensions/telemetry.ts` | yes |
+| `omp` | omp (oh-my-pi) | `~/.omp/agent/hooks/telemetry.ts` | yes |
+| `opencode` | opencode | `~/.config/opencode/plugin/telemetry.ts` | yes (collated from its per-message storage) |
+
+Codex's lifecycle hooks are experimental and off by default; `install --agent codex` detects whether they are enabled and prints the matching snippet either way.
+
+If you already run the third-party `omp-hooks` plugin, omp can also be wired through Claude Code-style `settings.json` command hooks instead of the native module.
 
 ### `flusher` / `shipper`
 

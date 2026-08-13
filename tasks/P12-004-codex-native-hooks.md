@@ -3,8 +3,8 @@ id: P12-004
 title: Codex native lifecycle hooks (retire most of the rollout machinery)
 phase: 12
 workstream: D
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P8-007, P12-003]
 blocks: []
 estimate: M
@@ -43,22 +43,22 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
 
 ## Acceptance criteria
 
-- [ ] Codex `PreToolUse`/`PostToolUse` hooks produce one canonical event each, with
+- [x] Codex `PreToolUse`/`PostToolUse` hooks produce one canonical event each, with
       `tool_name`/`tool_input`/`tool_response` populating the `tool` block — no
       rollout inference involved.
-- [ ] `transcript_path` from the hook payload feeds `transcriptTarget()`, replacing
+- [x] `transcript_path` from the hook payload feeds `transcriptTarget()`, replacing
       the directory scan for the rollout file.
-- [ ] `Stop` still carries an `llm` block: usage is read from the rollout, with the
+- [x] `Stop` still carries an `llm` block: usage is read from the rollout, with the
       existing running-total → per-turn **delta** treatment preserved (never summed).
-- [ ] The `notify` path still works end-to-end when hooks are off, including its
+- [x] The `notify` path still works end-to-end when hooks are off, including its
       `mapBatch` expansion. Both paths active simultaneously must not double-count a
       turn.
-- [ ] `install --agent codex` detects which path is available and prints the matching
+- [x] `install --agent codex` detects which path is available and prints the matching
       snippet (`hooks.json` when the feature flag is on, `notify` otherwise), naming
       the flag explicitly.
-- [ ] `turn_id` is preserved in `metadata` rather than discarded — it is the only
+- [x] `turn_id` is preserved in `metadata` rather than discarded — it is the only
       turn-scoped correlator Codex gives us.
-- [ ] Windows users, and users on a Codex older than the hook release, are unaffected.
+- [x] Windows users, and users on a Codex older than the hook release, are unaffected.
 
 ## Implementation notes
 

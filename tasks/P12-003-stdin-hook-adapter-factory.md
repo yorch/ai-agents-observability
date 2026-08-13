@@ -3,8 +3,8 @@ id: P12-003
 title: Stdin hook adapter factory (one implementation, N config objects)
 phase: 12
 workstream: D
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P8-003, P12-002]
 blocks: [P12-004, P12-005, P12-006]
 estimate: M
@@ -35,23 +35,23 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
 
 ## Acceptance criteria
 
-- [ ] `createStdinHookAdapter(config)` returns a `HookAdapter`; config declares at
+- [x] `createStdinHookAdapter(config)` returns a `HookAdapter`; config declares at
       minimum: `agentType`, the hook-kind → canonical `EventType` map, field aliases
       (e.g. `sessionId` ⇄ `session_id`, `toolArgs` ⇄ `tool_input`), which kinds are
       terminal for transcript shipping, and `installConfig`.
-- [ ] `claude-code.ts` is expressed through the factory and its existing tests pass
+- [x] `claude-code.ts` is expressed through the factory and its existing tests pass
       **unchanged**.
-- [ ] A golden-output test proves the refactor is behavior-preserving: the same raw
+- [x] A golden-output test proves the refactor is behavior-preserving: the same raw
       payload through old and new paths produces identical events modulo `event_id`
       and `ts`.
-- [ ] Field aliasing reads *both* spellings when an agent documents both, preferring
+- [x] Field aliasing reads *both* spellings when an agent documents both, preferring
       the agent's native spelling and falling back to the alias.
-- [ ] An agent event with no canonical `EventType` is **dropped**, never mapped to an
+- [x] An agent event with no canonical `EventType` is **dropped**, never mapped to an
       invented type — the rule opencode's adapter already documents.
-- [ ] Session IDs go through P12-002's normalization inside the factory, so no config
+- [x] Session IDs go through P12-002's normalization inside the factory, so no config
       object can forget it.
-- [ ] Emitted events pass `EventSchema.safeParse` (shared test helper from P12-002).
-- [ ] The `<10ms` hot path is unaffected: config lookup is a table read, not parsing.
+- [x] Emitted events pass `EventSchema.safeParse` (shared test helper from P12-002).
+- [x] The `<10ms` hot path is unaffected: config lookup is a table read, not parsing.
 
 ## Implementation notes
 

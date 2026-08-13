@@ -3,8 +3,8 @@ id: P12-009
 title: opencode transcript export (close the P8-004 gap)
 phase: 12
 workstream: D
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P8-004, P12-007]
 blocks: []
 estimate: M
@@ -34,20 +34,20 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
 
 ## Acceptance criteria
 
-- [ ] An export step collates an opencode session's directory into a single JSONL file
+- [x] An export step collates an opencode session's directory into a single JSONL file
       in the hook's own working directory (never inside opencode's storage).
-- [ ] `opencode.ts` `transcriptTarget()` returns that file at the terminal event, and a
+- [x] `opencode.ts` `transcriptTarget()` returns that file at the terminal event, and a
       real opencode session's transcript uploads end-to-end.
-- [ ] Message ordering is deterministic and matches conversation order — asserted
+- [x] Message ordering is deterministic and matches conversation order — asserted
       against a recorded session with at least one tool call and one assistant turn.
-- [ ] Redaction runs on the exported file exactly as it does for every other
+- [x] Redaction runs on the exported file exactly as it does for every other
       transcript. The export writes a **local temp artifact**, not an S3 object; the
       shipper's redact → zstd → chunk-upload path is unchanged.
-- [ ] Exported temp files are cleaned up after upload (and on abandon), and never grow
+- [x] Exported temp files are cleaned up after upload (and on abandon), and never grow
       unbounded across sessions.
-- [ ] The export happens **out of the hot path** — in the shipper/flusher process, not
+- [x] The export happens **out of the hot path** — in the shipper/flusher process, not
       in `hook-entry`.
-- [ ] `apps/hook/AGENTS.md`'s "known asymmetry" note is updated or removed once true.
+- [x] `apps/hook/AGENTS.md`'s "known asymmetry" note is updated or removed once true.
 
 ## Implementation notes
 

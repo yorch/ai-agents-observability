@@ -575,7 +575,7 @@ Responsibilities:
 - Periodic transcript heartbeat (every 10 min) for long-running sessions
 - Final transcript ship on `Stop` / `SessionEnd`
 - Local CLI: `install` (register hooks), `uninstall` (remove hooks), `login` (OIDC device-code flow), `status` (queue depth + connectivity), `pause` / `resume` (toggle flushing), `purge` (clear local queue + optional local transcripts), `import` (backfill historical transcripts from `~/.claude/projects/`)
-- **Hook adapter seam** (Phase 8): each agent has its own adapter (`claude-code.ts`, `opencode.ts`, `codex.ts`). The transport (batching, queue, flushing, auth) is shared; adapters handle event translation. An optional `mapBatch` lets one hook fire expand into multiple events (used by the Codex adapter to read rollout JSONL).
+- **Hook adapter seam** (Phase 8, extended in Phase 12): each agent has its own adapter — `claude-code`, `codex`, `gemini-cli`, `copilot`, `pi`, `omp`, `opencode`. The transport (batching, queue, flushing, auth) is shared; adapters handle event translation. An optional `mapBatch` lets one hook fire expand into multiple events (used by the Codex adapter to read rollout JSONL, and by Gemini to fold per-call token usage onto the turn's Stop). Agents that speak Claude Code's stdin hook shape — Codex, Gemini CLI and Copilot CLI all do — are configuration objects over a shared factory rather than separate implementations.
 
 Local queue: SQLite database at `~/.claude-telemetry/queue.db`. Survives crashes, machine reboots, and offline periods.
 

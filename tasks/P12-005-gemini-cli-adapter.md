@@ -3,8 +3,8 @@ id: P12-005
 title: Gemini CLI adapter
 phase: 12
 workstream: D
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P12-001, P12-003]
 blocks: []
 estimate: M
@@ -40,20 +40,20 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
 
 ## Acceptance criteria
 
-- [ ] `--agent gemini-cli` selects the adapter; unknown agents still fall back to
+- [x] `--agent gemini-cli` selects the adapter; unknown agents still fall back to
       claude-code.
-- [ ] The event map above holds; `BeforeModel`/`AfterModel`/`BeforeToolSelection` are
+- [x] The event map above holds; `BeforeModel`/`AfterModel`/`BeforeToolSelection` are
       dropped rather than mapped to an invented type.
-- [ ] `tool_response` (`llmContent` / `returnDisplay` / `error`) populates
+- [x] `tool_response` (`llmContent` / `returnDisplay` / `error`) populates
       `output_bytes` and `exit_status`.
-- [ ] An MCP tool call sets `tool.category = 'mcp'` with `mcp_server` and `mcp_tool`
+- [x] An MCP tool call sets `tool.category = 'mcp'` with `mcp_server` and `mcp_tool`
       populated from `mcp_context`.
-- [ ] Token usage lands in an `llm` block, priced against `price-table.gemini_cli.v1.json`.
+- [x] Token usage lands in an `llm` block, priced against `price-table.gemini_cli.v1.json`.
       Read from `AfterModel`'s `llm_response` if reliable; otherwise from the session
       transcript at `transcript_path` — document which, and why, in the adapter header.
-- [ ] `transcriptTarget()` returns the `transcript_path` at the terminal event, so
+- [x] `transcriptTarget()` returns the `transcript_path` at the terminal event, so
       Gemini transcripts upload.
-- [ ] `install --agent gemini-cli` prints the `settings.json` snippet with the right
+- [x] `install --agent gemini-cli` prints the `settings.json` snippet with the right
       hook object shape (including `timeout`).
 
 ## Implementation notes

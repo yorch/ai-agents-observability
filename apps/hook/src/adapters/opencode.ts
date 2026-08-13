@@ -1,3 +1,7 @@
+import { type Dirent, existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from '../lib/bytes';
@@ -35,6 +39,53 @@ const OPENCODE_EVENT_TYPE: Record<string, EventType> = {
   'session-start': 'SessionStart',
   'user-prompt-submit': 'UserPromptSubmit',
 };
+
+// opencode's storage root. Sessions live under
+// `<root>/storage/session/<projectId>/<sessionId>.json` with the conversation
+// itself in sibling per-message directories named after the session id, so we
+// locate BY NAME at bounded depth rather than hard-coding a layout that has
+// already changed once since P8-004.
+function opencodeStorageRoot(): string {
+  if (process.env.OPENCODE_DATA) {
+    return process.env.OPENCODE_DATA;
+  }
+  const dataHome = process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share');
+  return join(dataHome, 'opencode', 'storage');
+}
+
+/** The directory holding this session's records, or null. Never throws. */
+export function locateSessionStorage(sessionId: string): string | null {
+  const root = opencodeStorageRoot();
+  if (!existsSync(root)) {
+    return null;
+  }
+  return findDirNamed(root, sessionId, 0);
+}
+
+function findDirNamed(dir: string, name: string, depth: number): string | null {
+  if (depth > 3) {
+    return null;
+  }
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    if (entry.name === name) {
+      return join(dir, entry.name);
+    }
+    const nested = findDirNamed(join(dir, entry.name), name, depth + 1);
+    if (nested) {
+      return nested;
+    }
+  }
+  return null;
+}
 
 function str(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
@@ -169,14 +220,28 @@ export const opencodeAdapter: HookAdapter = {
 
   mapPayload,
 
-  // INTERFACE FINDING (P8-004): opencode stores conversation history as a
-  // directory of per-message JSON under ~/.local/share/opencode/storage, not a
-  // single .jsonl file like Claude Code. The shipper reads a single file, so
-  // transcript upload for opencode needs an export step — deferred (follow-up).
-  // Returning null is the interface's existing escape hatch; no interface change
-  // was required, confirming `transcriptTarget(): TranscriptTarget | null` holds
-  // for a second, differently-shaped agent.
-  transcriptTarget(_kind: string, _raw: Record<string, unknown>): TranscriptTarget | null {
-    return null;
+  // INTERFACE FINDING (P8-004), CLOSED IN P12-009: opencode stores conversation
+  // history as a directory of per-message JSON under
+  // ~/.local/share/opencode/storage, not a single .jsonl file like Claude Code.
+  // The shipper reads a single file, so this returned null for a year.
+  //
+  // The fix is not in the interface — it stays `TranscriptTarget | null` — but in
+  // the shipper, which now collates a DIRECTORY target into one JSONL before
+  // reading it (lib/transcript-collate.ts). That rule is agent-neutral, and the
+  // collation happens in the shipper process, never on the hook's hot path.
+  transcriptTarget(kind: string, raw: Record<string, unknown>): TranscriptTarget | null {
+    const eventType = OPENCODE_EVENT_TYPE[kind];
+    if (eventType !== 'Stop' && eventType !== 'SessionEnd') {
+      return null;
+    }
+    const native = raw.sessionID ?? raw.session_id;
+    if (typeof native !== 'string' || native.length === 0) {
+      return null;
+    }
+    const dir = locateSessionStorage(native);
+    if (!dir) {
+      return null;
+    }
+    return { sessionId: sessionUuid('OPENCODE', native), transcriptPath: dir };
   },
 };

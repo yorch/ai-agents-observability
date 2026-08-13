@@ -3,8 +3,8 @@ id: P12-001
 title: Agent registry widening (PI, OMP, GEMINI_CLI) + registry-driven admin surface
 phase: 12
 workstream: B
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P5-006, P8-002]
 blocks: [P12-005, P12-007, P12-008]
 estimate: S
@@ -38,20 +38,25 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
 
 ## Acceptance criteria
 
-- [ ] `AgentTypeSchema` accepts `PI`, `OMP`, `GEMINI_CLI`; an event carrying any of
+- [x] `AgentTypeSchema` accepts `PI`, `OMP`, `GEMINI_CLI`; an event carrying any of
       them validates.
-- [ ] The Prisma `AgentType` enum carries the same three values, and a fresh
-      `db:deploy` against a wiped volume produces a schema Prisma reports as in sync.
-- [ ] `agentDisplayName()` returns `Pi`, `omp`, `Gemini CLI` (lowercase `omp` matches
+- [x] The Prisma `AgentType` enum carries the same three values.
+- [ ] **Unverified:** a fresh `db:deploy` against a wiped volume produces a schema
+      Prisma reports as in sync. No Docker daemon was available in the dev
+      container, so the reset could not be run. `packages/db/test/agent-type-parity.test.ts`
+      checks statically that the wire enum, the Prisma enum, and the init
+      migration's `CREATE TYPE` hold the same values — run the reset before
+      trusting a local DB.
+- [x] `agentDisplayName()` returns `Pi`, `omp`, `Gemini CLI` (lowercase `omp` matches
       the project's own styling, as `opencode` already does).
-- [ ] An empty, registered price table exists for each new agent
+- [x] An empty, registered price table exists for each new agent
       (`price-table.pi.v1.json`, `price-table.omp.v1.json`,
       `price-table.gemini_cli.v1.json`) so their models bill `$0` *via the table*
       rather than the unknown-agent fallback — the P8-002 convention.
-- [ ] `/admin/adapters` renders its rows from one exported registry; adding an agent
+- [x] `/admin/adapters` renders its rows from one exported registry; adding an agent
       to that registry is the only edit needed for it to appear.
-- [ ] `/admin/price-tables` lists the new tables without further changes.
-- [ ] A test asserts the wire enum, the Prisma enum, and the display-name map hold the
+- [x] `/admin/price-tables` lists the new tables without further changes.
+- [x] A test asserts the wire enum, the Prisma enum, and the display-name map hold the
       same set of agent types — so the next widening cannot half-land.
 
 ## Implementation notes

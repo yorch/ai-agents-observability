@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'bun:test';
-
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { collateDirectory } from '../lib/transcript-collate';
 import { selectAdapter } from '.';
 import { conformanceErrors } from './conformance';
 import { opencodeAdapter } from './opencode';
@@ -67,7 +70,64 @@ describe('opencode adapter', () => {
     expect(start.session_id).toBe(stop.session_id);
   });
 
-  it('returns null transcriptTarget (opencode uses directory storage — documented finding)', () => {
+  it('returns null transcriptTarget when the session cannot be located', () => {
     expect(opencodeAdapter.transcriptTarget('session-idle', {})).toBeNull();
+  });
+});
+
+// P12-009: opencode's directory-shaped history no longer blocks transcript
+// upload. The adapter points at the storage DIRECTORY and the shipper collates it.
+describe('opencode transcript export', () => {
+  let dataDir: string;
+
+  beforeEach(() => {
+    dataDir = mkdtempSync(join(tmpdir(), 'opencode-data-'));
+    process.env.OPENCODE_DATA = dataDir;
+  });
+
+  afterEach(() => {
+    rmSync(dataDir, { force: true, recursive: true });
+    delete process.env.OPENCODE_DATA;
+  });
+
+  it('locates the session storage directory by name at bounded depth', () => {
+    const sessionDir = join(dataDir, 'message', SESSION_ID);
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(join(sessionDir, 'msg_1.json'), '{"id":"msg_1"}', 'utf8');
+
+    const target = opencodeAdapter.transcriptTarget('session-idle', { sessionID: SESSION_ID });
+    expect(target?.transcriptPath).toBe(sessionDir);
+    // Keyed to the same normalized session id the events carry.
+    expect(target?.sessionId).toBe(
+      opencodeAdapter.mapPayload('session-idle', { sessionID: SESSION_ID }).session_id,
+    );
+  });
+
+  it('ships nothing for non-terminal events', () => {
+    mkdirSync(join(dataDir, 'message', SESSION_ID), { recursive: true });
+    expect(opencodeAdapter.transcriptTarget('pre-tool-use', { sessionID: SESSION_ID })).toBeNull();
+  });
+
+  it('collates that directory into an ordered JSONL the shipper can read', () => {
+    const sessionDir = join(dataDir, 'message', SESSION_ID);
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(
+      join(sessionDir, 'msg_b.json'),
+      JSON.stringify({ id: 'msg_b', role: 'assistant', time: { created: 2 } }),
+      'utf8',
+    );
+    writeFileSync(
+      join(sessionDir, 'msg_a.json'),
+      JSON.stringify({ id: 'msg_a', role: 'user', time: { created: 1 } }),
+      'utf8',
+    );
+
+    const dest = join(dataDir, 'out.jsonl');
+    expect(collateDirectory(sessionDir, dest)).toBe(2);
+    const roles = readFileSync(dest, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line).role);
+    expect(roles).toEqual(['user', 'assistant']);
   });
 });

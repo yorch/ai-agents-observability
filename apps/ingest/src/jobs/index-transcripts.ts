@@ -71,13 +71,35 @@ export async function downloadAndParseTranscript(
 
   const messages: TranscriptMessage[] = [];
   for (const line of lines) {
-    try {
-      messages.push(JSON.parse(line) as TranscriptMessage);
-    } catch {
-      // skip malformed lines
+    const parsed = parseTranscriptLine(line);
+    if (parsed) {
+      messages.push(parsed);
     }
   }
   return messages;
+}
+
+/**
+ * One JSONL line → a message, tolerating a leading preamble. Most agents write
+ * plain JSONL, but omp opens a session file with a fixed-width title slot, so the
+ * first "line" can be padding followed by the session header — parsing only the
+ * padded form would silently drop that record (P12-008).
+ */
+function parseTranscriptLine(line: string): TranscriptMessage | null {
+  try {
+    return JSON.parse(line) as TranscriptMessage;
+  } catch {
+    // fall through to the preamble retry
+  }
+  const brace = line.indexOf('{');
+  if (brace <= 0) {
+    return null;
+  }
+  try {
+    return JSON.parse(line.slice(brace)) as TranscriptMessage;
+  } catch {
+    return null; // genuinely malformed — skip it
+  }
 }
 
 /**

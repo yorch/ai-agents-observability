@@ -3,8 +3,8 @@ id: P12-006
 title: GitHub Copilot CLI adapter
 phase: 12
 workstream: D
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P12-002, P12-003]
 blocks: []
 estimate: M
@@ -44,25 +44,25 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
 
 ## Acceptance criteria
 
-- [ ] `--agent copilot` selects the adapter; events map: `sessionStart`→`SessionStart`,
+- [x] `--agent copilot` selects the adapter; events map: `sessionStart`→`SessionStart`,
       `sessionEnd`→`SessionEnd`, `userPromptSubmitted`→`UserPromptSubmit`,
       `preToolUse`→`PreToolUse`, `postToolUse`→`PostToolUse`, `agentStop`→`Stop`,
       `preCompact`→`PreCompact`, `subagentStop`→`SubagentStop`,
       `notification`→`Notification`.
-- [ ] `postToolUseFailure` maps to `PostToolUse` with a non-zero `tool.exit_status` —
+- [x] `postToolUseFailure` maps to `PostToolUse` with a non-zero `tool.exit_status` —
       not to a new event type.
-- [ ] `errorOccurred`, `userPromptTransformed`, `permissionRequest`, and
+- [x] `errorOccurred`, `userPromptTransformed`, `permissionRequest`, and
       `subagentStart` are dropped (no canonical equivalent), and dropping is
       *silent-but-logged*, never a throw.
-- [ ] Both field spellings parse: a camelCase payload and its PascalCase equivalent
+- [x] Both field spellings parse: a camelCase payload and its PascalCase equivalent
       produce the same event modulo `event_id`/`ts`.
-- [ ] Numeric and ISO-8601 `timestamp` values both produce a valid ISO `ts`.
-- [ ] Session IDs go through P12-002 normalization (Copilot's `sessionId` format is
+- [x] Numeric and ISO-8601 `timestamp` values both produce a valid ISO `ts`.
+- [x] Session IDs go through P12-002 normalization (Copilot's `sessionId` format is
       unspecified and must not be assumed to be a UUID).
-- [ ] `install --agent copilot` writes/prints a `~/.copilot/hooks/` document with
+- [x] `install --agent copilot` writes/prints a `~/.copilot/hooks/` document with
       `version: 1`, using the cross-platform `command` form and an explicit
       `timeoutSec`.
-- [ ] A test asserts the emitted event validates against `EventSchema`.
+- [x] A test asserts the emitted event validates against `EventSchema`.
 
 ## Implementation notes
 
