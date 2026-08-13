@@ -92,6 +92,47 @@ describe('copilot adapter', () => {
     expect(conformanceErrors(ev)).toEqual([]);
   });
 
+  it('flags a failure from the KIND alone, with no corroborating payload field', () => {
+    // A failure payload need not restate hook_event_name, and its error can be
+    // nested. Sniffing the payload alone recorded these as successes — an agent
+    // whose every tool call fails would have reported a 0% error rate.
+    const bare = copilotAdapter.mapPayload('post-tool-use-failure', {
+      sessionId: SESSION_ID,
+      toolName: 'bash',
+    });
+    expect(bare.tool?.exit_status).toBe(1);
+
+    const nested = copilotAdapter.mapPayload('post-tool-use-failure', {
+      sessionId: SESSION_ID,
+      toolName: 'bash',
+      toolResult: { error: 'boom' },
+    });
+    expect(nested.tool?.exit_status).toBe(1);
+  });
+
+  it('does not invent a failure from a present-but-empty error field', () => {
+    // Payloads that always carry `error`, set falsy on success, are a common
+    // shape; treating mere presence as failure marks every call failed.
+    for (const error of [false, '', null]) {
+      const ev = copilotAdapter.mapPayload('post-tool-use', {
+        error,
+        sessionId: SESSION_ID,
+        toolName: 'bash',
+        toolResult: 'ok',
+      });
+      expect({ error, exit: ev.tool?.exit_status }).toEqual({ error, exit: null });
+    }
+  });
+
+  it('keeps a successful call clean', () => {
+    const ev = copilotAdapter.mapPayload('post-tool-use', {
+      sessionId: SESSION_ID,
+      toolName: 'bash',
+      toolResult: 'a\nb\n',
+    });
+    expect(ev.tool?.exit_status).toBeNull();
+  });
+
   it('normalizes the non-UUID sessionId consistently across a session', () => {
     const start = copilotAdapter.mapPayload('session-start', { sessionId: SESSION_ID });
     const stop = copilotAdapter.mapPayload('agent-stop', { sessionId: SESSION_ID });

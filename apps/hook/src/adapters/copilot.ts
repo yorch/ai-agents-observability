@@ -71,28 +71,41 @@ const COPILOT_FIELDS: Partial<FieldAliases> = {
   toolResponse: ['toolResult', 'tool_response'],
 };
 
-const COPILOT_KNOWN_KEYS = [
-  'cwd',
-  'hook_event_name',
-  'session_id',
-  'sessionId',
-  'tool_input',
-  'tool_name',
-  'tool_response',
-  'toolArgs',
-  'toolName',
-  'toolResult',
-];
+// The alias keys are known automatically (the factory unions them in); nothing
+// extra is captured structurally for Copilot, so `error` and `timestamp` ride
+// along in metadata.
+const COPILOT_KNOWN_KEYS: string[] = [];
 
-function buildCopilotToolInfo(raw: Record<string, unknown>, aliases: FieldAliases): ToolInfo {
-  const tool = buildGenericToolInfo(raw, aliases);
+/** Truthy, non-empty error content — not merely a present `error` key. */
+function hasError(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return value.length > 0;
+  }
+  if (typeof value === 'object' && value !== null) {
+    return Object.keys(value).length > 0;
+  }
+  return value === true;
+}
+
+function buildCopilotToolInfo(
+  raw: Record<string, unknown>,
+  aliases: FieldAliases,
+  kind: string,
+): ToolInfo {
+  const tool = buildGenericToolInfo(raw, aliases, kind);
   // postToolUseFailure carries the same tool fields plus an error; fold it into
   // PostToolUse with a non-zero exit rather than inventing an event type.
-  const isFailure =
-    raw.hook_event_name === 'postToolUseFailure' ||
-    raw.hook_event_name === 'PostToolUseFailure' ||
-    raw.error != null;
-  if (isFailure) {
+  //
+  // The KIND is authoritative — a failure payload need not restate
+  // `hook_event_name`, and sniffing the payload alone recorded such calls as
+  // successes. The error-content check is a secondary signal, and it tests for
+  // real content: payloads that always carry `error` (null/false/"" on success)
+  // would otherwise mark every call failed.
+  const nestedError =
+    typeof raw.toolResult === 'object' && raw.toolResult !== null
+      ? (raw.toolResult as Record<string, unknown>).error
+      : undefined;
+  if (kind === 'post-tool-use-failure' || hasError(raw.error) || hasError(nestedError)) {
     tool.exit_status = 1;
   }
   return tool;

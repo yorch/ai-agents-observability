@@ -1,4 +1,12 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import {
+  closeSync,
+  type Dirent,
+  existsSync,
+  openSync,
+  readdirSync,
+  readSync,
+  statSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -79,26 +87,32 @@ function firstOf(raw: Record<string, unknown>, keys: string[]): unknown {
   return null;
 }
 
-const SESSION_ID_KEYS = ['sessionId', 'session_id', 'sessionID', 'id'];
+// NOTE: `id` is deliberately NOT a session-id alias. Pi and omp put a per-entry
+// id (`msg_0001`) on their event payloads, so accepting it would give every event
+// of one session a different session_id — shattering the session into N
+// one-event rows and breaking transcript lookup with it.
+const SESSION_ID_KEYS = ['sessionId', 'session_id', 'sessionID'];
 const CWD_KEYS = ['cwd', 'directory', 'workingDirectory', 'working_directory'];
 const TOOL_NAME_KEYS = ['toolName', 'tool_name', 'tool', 'name'];
 const TOOL_INPUT_KEYS = ['args', 'toolArgs', 'tool_input', 'input', 'arguments'];
 const TOOL_OUTPUT_KEYS = ['result', 'toolResult', 'tool_response', 'output'];
 const MODEL_KEYS = ['model', 'modelId', 'modelID'];
 const USAGE_KEYS = ['usage', 'tokens', 'tokenUsage'];
+const TRANSCRIPT_KEYS = ['sessionFile', 'session_file', 'transcript_path'];
 
-// The structural keys; everything else on the payload rides along in metadata.
-const KNOWN_KEYS = new Set([
-  ...SESSION_ID_KEYS,
-  ...CWD_KEYS,
+// Keys captured structurally, per event kind — everything else rides along in
+// metadata. This is kind-scoped because the tool/usage keys are only *read* on
+// their own event kinds: stripping `name` or `result` from a SessionStart would
+// drop a field nothing else captures.
+const BASE_KNOWN_KEYS = [...SESSION_ID_KEYS, ...CWD_KEYS, ...TRANSCRIPT_KEYS];
+const TOOL_KNOWN_KEYS = new Set([
+  ...BASE_KNOWN_KEYS,
   ...TOOL_NAME_KEYS,
   ...TOOL_INPUT_KEYS,
   ...TOOL_OUTPUT_KEYS,
-  ...USAGE_KEYS,
-  'sessionFile',
-  'session_file',
-  'transcript_path',
 ]);
+const STOP_KNOWN_KEYS = new Set([...BASE_KNOWN_KEYS, ...USAGE_KEYS]);
+const OTHER_KNOWN_KEYS = new Set(BASE_KNOWN_KEYS);
 
 function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
   const name = str(firstOf(raw, TOOL_NAME_KEYS), 'unknown');
@@ -136,7 +150,9 @@ function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
 // from the per-agent price table (P8-002), and agent-reported cost crosses
 // P8-006's reconciliation design.
 function buildLlm(raw: Record<string, unknown>): Event['llm'] | undefined {
-  const usage = [firstOf(raw, USAGE_KEYS)].find(isRecord);
+  // Try every alias, not just the first present one: a payload carrying a scalar
+  // `usage` alongside a real `tokenUsage` object must not stop at the scalar.
+  const usage = USAGE_KEYS.map((key) => raw[key]).find(isRecord);
   const model = str(firstOf(raw, MODEL_KEYS), '');
   if (!usage) {
     return undefined;
@@ -168,15 +184,48 @@ function buildLlm(raw: Record<string, unknown>): Event['llm'] | undefined {
  * fallback. Never throws — a missing transcript is not a failed hook.
  */
 export function locateSessionFile(roots: string[], nativeSessionId: string | null): string | null {
+  if (!nativeSessionId) {
+    return null;
+  }
+  const cacheKey = `${roots.join('|')}::${nativeSessionId}`;
+  const cached = locateMemo.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const found = locateSessionFileUncached(roots, nativeSessionId);
+  locateMemo.set(cacheKey, found);
+  return found;
+}
+
+// hook-entry calls transcriptTarget AND (on Stop) the usage fallback in the same
+// process, so an unmemoized scan runs the whole directory walk twice per turn.
+const locateMemo = new Map<string, string | null>();
+
+// Bounds the scan so a developer with hundreds of project directories does not
+// pay an unbounded walk on the hot path. Exceeding it means we return whatever
+// matched so far rather than continuing.
+const MAX_SCAN_ENTRIES = 5_000;
+
+function locateSessionFileUncached(roots: string[], nativeSessionId: string): string | null {
   const explicitRoots = roots.filter((root) => existsSync(root));
-  if (explicitRoots.length === 0 || !nativeSessionId) {
+  if (explicitRoots.length === 0) {
     return null;
   }
   const candidates: { mtime: number; path: string }[] = [];
+  const budget = { scanned: 0 };
   for (const root of explicitRoots) {
-    collectJsonl(root, nativeSessionId, candidates, 0);
+    collectJsonl(root, nativeSessionId, candidates, 0, budget);
   }
-  return candidates.sort((a, b) => b.mtime - a.mtime)[0]?.path ?? null;
+  // Deterministic: newest first, then by path so equal mtimes never flip.
+  return (
+    candidates.sort((a, b) => b.mtime - a.mtime || a.path.localeCompare(b.path))[0]?.path ?? null
+  );
+}
+
+/** `<timestamp>_<sessionId>.jsonl` exactly — a substring test would match a
+ * `…_<sessionId>-branch2.jsonl` sibling and ship another session's transcript. */
+function matchesSession(name: string, sessionId: string): boolean {
+  return name.endsWith(`_${sessionId}.jsonl`) || name === `${sessionId}.jsonl`;
 }
 
 function collectJsonl(
@@ -184,44 +233,78 @@ function collectJsonl(
   sessionId: string,
   out: { mtime: number; path: string }[],
   depth: number,
+  budget: { scanned: number },
 ): void {
-  if (depth > 3) {
+  if (depth > 3 || budget.scanned >= MAX_SCAN_ENTRIES) {
     return;
   }
-  let names: string[];
+  let entries: Dirent[];
   try {
-    names = readdirSync(dir);
+    entries = readdirSync(dir, { withFileTypes: true });
   } catch {
     return;
   }
-  for (const name of names) {
-    const full = join(dir, name);
-    let st: ReturnType<typeof statSync>;
-    try {
-      st = statSync(full);
-    } catch {
+  for (const entry of entries) {
+    if (budget.scanned >= MAX_SCAN_ENTRIES) {
+      return;
+    }
+    budget.scanned += 1;
+    // Dirent (lstat semantics) rather than statSync: a symlink in the sessions
+    // root must not send the scan walking an arbitrary tree.
+    if (entry.isSymbolicLink()) {
       continue;
     }
-    if (st.isDirectory()) {
-      collectJsonl(full, sessionId, out, depth + 1);
-    } else if (name.endsWith('.jsonl') && name.includes(sessionId)) {
-      out.push({ mtime: st.mtimeMs, path: full });
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      collectJsonl(full, sessionId, out, depth + 1, budget);
+    } else if (entry.isFile() && matchesSession(entry.name, sessionId)) {
+      try {
+        out.push({ mtime: statSync(full).mtimeMs, path: full });
+      } catch {
+        // vanished between readdir and stat
+      }
     }
   }
 }
 
+/** How much of the tail to read. A turn's last assistant message lives well
+ * inside this; reading the whole file would put a multi-MB read + parse on the
+ * hot path (measured: ~88 ms for a 10 MB session). */
+const TAIL_BYTES = 256 * 1024;
+
 /**
  * Last usage recorded in a session JSONL, for turns where the extension could not
- * forward it. Reads the tail only.
+ * forward it. Reads the file's TAIL only — never the whole file.
  *
- * CAUTION: the per-entry nesting (`entry.message.usage`) is inferred from the
- * documented session format rather than from a verified sample. Unrecognized
- * shapes yield null — a Stop with no `llm` block, never a wrong number.
+ * CAUTION: two inferences here, neither verified against a real sample. The
+ * per-entry nesting (`entry.message.usage`) comes from the documented session
+ * format; and taking the LAST usage-bearing record as "this turn's usage" assumes
+ * the agent has flushed the just-finished turn. If it has not, this can re-report
+ * the previous turn's tokens. Forwarded usage from the extension is always
+ * preferred; this is the fallback. Unrecognized shapes yield null — a Stop with
+ * no `llm` block, never a wrong number.
  */
 export function usageFromSessionFile(path: string): Record<string, unknown> | null {
   let text: string;
   try {
-    text = readFileSync(path, 'utf8');
+    const size = statSync(path).size;
+    const start = Math.max(0, size - TAIL_BYTES);
+    const length = size - start;
+    if (length <= 0) {
+      return null;
+    }
+    const buf = Buffer.allocUnsafe(length);
+    const fd = openSync(path, 'r');
+    try {
+      readSync(fd, buf, 0, length, start);
+    } finally {
+      closeSync(fd);
+    }
+    text = buf.toString('utf8');
+    if (start > 0) {
+      // The first line is almost certainly cut mid-record; drop it.
+      text = text.slice(text.indexOf('\n') + 1);
+    }
   } catch {
     return null;
   }
@@ -278,7 +361,7 @@ export function createPiFamilyAdapter(config: PiFamilyConfig): HookAdapter {
   };
 
   const explicitTranscript = (raw: Record<string, unknown>): string | null => {
-    const value = firstOf(raw, ['sessionFile', 'session_file', 'transcript_path']);
+    const value = firstOf(raw, TRANSCRIPT_KEYS);
     return typeof value === 'string' && value.length > 0 ? value : null;
   };
 
@@ -286,9 +369,14 @@ export function createPiFamilyAdapter(config: PiFamilyConfig): HookAdapter {
     const eventType = PI_FAMILY_EVENT_TYPE[kind] ?? 'Notification';
     const isToolEvent = eventType === 'PreToolUse' || eventType === 'PostToolUse';
 
+    const knownKeys = isToolEvent
+      ? TOOL_KNOWN_KEYS
+      : eventType === 'Stop'
+        ? STOP_KNOWN_KEYS
+        : OTHER_KNOWN_KEYS;
     const metadata: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(raw)) {
-      if (!KNOWN_KEYS.has(key)) {
+      if (!knownKeys.has(key)) {
         metadata[key] = value;
       }
     }
@@ -346,6 +434,11 @@ export function createPiFamilyAdapter(config: PiFamilyConfig): HookAdapter {
         return null;
       }
       const native = nativeSessionId(raw);
+      // No session id means the marker would be keyed to the nil UUID, colliding
+      // with every other unknown-session transcript. Ship nothing instead.
+      if (!native) {
+        return null;
+      }
       const path = explicitTranscript(raw) ?? locateSessionFile(config.sessionRoots(), native);
       if (!path) {
         return null;

@@ -41,12 +41,13 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
 - [x] `AgentTypeSchema` accepts `PI`, `OMP`, `GEMINI_CLI`; an event carrying any of
       them validates.
 - [x] The Prisma `AgentType` enum carries the same three values.
-- [ ] **Unverified:** a fresh `db:deploy` against a wiped volume produces a schema
-      Prisma reports as in sync. No Docker daemon was available in the dev
-      container, so the reset could not be run. `packages/db/test/agent-type-parity.test.ts`
-      checks statically that the wire enum, the Prisma enum, and the init
-      migration's `CREATE TYPE` hold the same values — run the reset before
-      trusting a local DB.
+- [x] A fresh `db:deploy` against an empty database produces the widened enum, and
+      `PI` / `OMP` / `GEMINI_CLI` sessions insert. Verified against a real
+      Postgres-Timescale container: `SELECT enumlabel FROM pg_enum` returns all ten
+      values in migration order, the round-trip suite passes with `DATABASE_URL`
+      set (18/18), and one session row per new agent type inserts and reads back.
+      `packages/db/test/agent-type-parity.test.ts` guards the same invariant
+      statically, so CI catches a half-landed widening without a database.
 - [x] `agentDisplayName()` returns `Pi`, `omp`, `Gemini CLI` (lowercase `omp` matches
       the project's own styling, as `opencode` already does).
 - [x] An empty, registered price table exists for each new agent

@@ -149,7 +149,8 @@ Adapter-based capture (Claude Code / opencode / codex). Full command surface:
 (historical backfill from `~/.claude/projects`), the internal `hook <kind>`
 entrypoint, `flusher`, `shipper`. Offline-durable SQLite queue (WAL), sub-10ms
 hot path (CI-enforced), git-at-session-start capture, throttled transcript upload.
-*(opencode transcript upload is a follow-up — its history is directory-shaped.)*
+*(A directory-shaped transcript target — opencode's — is collated into one JSONL
+by the shipper before upload, out of the hot path.)*
 
 ### Ingest (`apps/ingest`)
 - `POST /v1/events` (idempotent batch), `POST /v1/transcripts/:id` (chunked,
@@ -286,7 +287,6 @@ operator-triggered `backfill-redaction` job), and **per-team routing accountabil
 | Gap / seam | Where | Architectural implication |
 |---|---|---|
 | **External business-value join beyond Jira** (Linear / revenue) | product | The Jira per-issue value join now ships (`JIRA_VALUE_FIELD`); a Linear/revenue/business-outcome source is the remaining piece for non-Jira shops. |
-| **Second-agent transcript upload** (opencode) | hook | opencode history is directory-shaped; single-file shippers don't cover it. |
 | **Model-routing *blocking* enforcement** | hook | The `routing_waste` alert + per-team routing-accountability table make waste actionable, but hook-side auto-route/block is intentionally out of scope — the platform is observe-only (`DESIGN_DOC §10.3a`: nothing intercepts a live tool call). "Enforcement" here is visibility + accountability + alert. |
 | **Cost reconciliation beyond Anthropic** | ingest `reconcile-cost` | The Anthropic vendor client now ships (`AnthropicBillingSource`, Admin Cost Report API, `ANTHROPIC_ADMIN_KEY`); other vendors (e.g. OpenAI for Codex) still have no billing source. |
 | **Semantic search prototype gated** (P7-007 no-go) | `sql/prototypes/`, `embed-transcripts` | Requires a self-hosted embedding path + a proven recall gap to revisit. |

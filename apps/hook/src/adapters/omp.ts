@@ -30,11 +30,17 @@ import { createPiFamilyAdapter, homeDir, PI_FAMILY_NATIVE_EVENTS } from './pi-fa
 
 const OMP_HOME_CANDIDATES = ['.omp', '.oh-omp'];
 
-/** Both documented config roots, the one with a `sessions/` dir first. */
+/**
+ * Every plausible sessions root. Both documented config roots are probed (the
+ * scan merges candidates and picks by mtime, so order does not matter), and an
+ * `OMP_HOME` override is accepted whether it names the config root or the
+ * sessions directory itself — a natural misreading that would otherwise find
+ * nothing, silently.
+ */
 function sessionRoots(): string[] {
   const override = process.env.OMP_HOME;
   const homes = override ? [override] : OMP_HOME_CANDIDATES.map((name) => join(homeDir(), name));
-  const roots = homes.map((home) => join(home, 'agent', 'sessions'));
+  const roots = homes.flatMap((home) => [join(home, 'agent', 'sessions'), home]);
   const existing = roots.filter((root) => existsSync(root));
   return existing.length > 0 ? existing : roots;
 }

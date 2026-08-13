@@ -239,7 +239,7 @@ Deepens the session↔PR↔repo↔Jira correlation spine: commit-SHA + open-PR l
 
 ## Phase 12 — Agent Adapter Expansion
 
-See [`P12-roadmap.md`](./P12-roadmap.md). Takes the P8 seam from three agents to seven — Codex onto its native lifecycle hooks, plus Gemini CLI, Copilot CLI, Pi, and OMP — by extracting one stdin-hook factory instead of writing five bespoke adapters, and fixes a live session-ID bug that silently drops opencode traffic today. Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/research/2026-08-13-agent-adapter-expansion.md). **Proposed — not yet started.**
+See [`P12-roadmap.md`](./P12-roadmap.md). Takes the P8 seam from three agents to seven — Codex onto its native lifecycle hooks, plus Gemini CLI, Copilot CLI, Pi, and OMP — by extracting one stdin-hook factory instead of writing five bespoke adapters, and fixes a live session-ID bug that silently drops opencode traffic today. Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/research/2026-08-13-agent-adapter-expansion.md). Code complete. Two acceptance criteria remain unverified for want of the agents themselves: a recorded Pi session (P12-007) and which of omp's two documented config roots is real (P12-008).
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|

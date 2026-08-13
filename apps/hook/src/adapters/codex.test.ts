@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { selectAdapter } from '.';
-import { codexAdapter, codexHooksEnabled, resetCodexHooksCache } from './codex';
+import {
+  codexAdapter,
+  codexHooksFeatureEnabled,
+  codexHooksWired,
+  resetCodexHooksCache,
+} from './codex';
 import { conformanceErrors } from './conformance';
 
 describe('codex adapter — selection & mapping', () => {
@@ -169,8 +174,24 @@ describe('codex adapter — native lifecycle hooks', () => {
     return path;
   }
 
+  // Codex's hook system on, AND our binary registered as a hook — the stand-down
+  // requires the second half, not just the feature flag.
   function enableHooks(): void {
     writeFileSync(join(codexHome, 'config.toml'), '[features]\nhooks = true\n', 'utf8');
+    writeFileSync(
+      join(codexHome, 'hooks.json'),
+      JSON.stringify({
+        hooks: {
+          Stop: [
+            {
+              command: ['/bin/claude-telemetry', 'hook', 'stop', '--agent', 'codex'],
+              type: 'command',
+            },
+          ],
+        },
+      }),
+      'utf8',
+    );
     resetCodexHooksCache();
   }
 
@@ -300,6 +321,93 @@ describe('codex adapter — native lifecycle hooks', () => {
     expect(codexAdapter.mapBatch?.('turn-complete', { 'session-id': sessionId })).toEqual([]);
   });
 
+  it('keeps reporting the model past the second turn', () => {
+    // The model appears once, on a turn_context record near the top of the file.
+    // Without carrying it forward in the cursor, turn 3 onward reported
+    // `model: unknown` and therefore priced at $0.
+    const path = rolloutPath();
+    const turns = [
+      { model: 'gpt-5-codex', type: 'turn_context' },
+      {
+        info: { total_token_usage: { input_tokens: 100, output_tokens: 10 } },
+        type: 'token_count',
+      },
+    ];
+    const write = () =>
+      writeFileSync(path, `${turns.map((l) => JSON.stringify(l)).join('\n')}\n`, 'utf8');
+    write();
+
+    const models: (string | undefined)[] = [];
+    for (let turn = 1; turn <= 3; turn++) {
+      const stop = codexAdapter.mapBatch?.('turn-complete', { 'session-id': sessionId })?.at(-1);
+      models.push(stop?.llm?.model);
+      turns.push({
+        info: { total_token_usage: { input_tokens: 100 * (turn + 1), output_tokens: 10 } },
+        type: 'token_count',
+      });
+      write();
+    }
+    expect(models).toEqual(['gpt-5-codex', 'gpt-5-codex', 'gpt-5-codex']);
+  });
+
+  it("does not apply one file's offset to another (cursor is per file)", () => {
+    // The hooks path trusts transcript_path; notify scans for the rollout. Both
+    // write the same session's cursor, so an offset carried across files would
+    // skip a turn's records entirely.
+    const rollout = writeRollout([
+      { model: 'gpt-5-codex', type: 'turn_context' },
+      {
+        info: { total_token_usage: { input_tokens: 900, output_tokens: 90 } },
+        type: 'token_count',
+      },
+    ]);
+    const other = join(codexHome, 'elsewhere.jsonl');
+    writeFileSync(other, `${'x'.repeat(5000)}\n`, 'utf8');
+
+    // A Stop hook pointed at a much larger, unrelated file.
+    codexAdapter.mapBatch?.('stop', { session_id: sessionId, transcript_path: other });
+    // The real rollout must still be read from the start.
+    const stop = codexAdapter
+      .mapBatch?.('stop', { session_id: sessionId, transcript_path: rollout })
+      ?.at(-1);
+    expect(stop?.llm?.input_tokens).toBe(900);
+  });
+
+  it('does not guess a rollout when the hook payload omits transcript_path', () => {
+    // The scan returns the newest rollout of ANY session: with two Codex sessions
+    // running it would bill one session's tokens to the other.
+    writeRollout([
+      {
+        info: { total_token_usage: { input_tokens: 5000, output_tokens: 900 } },
+        type: 'token_count',
+      },
+    ]);
+    const other = '0190abcd-3333-7000-8000-000000000003';
+    const events = codexAdapter.mapBatch?.('stop', { model: 'gpt-5-codex', session_id: other });
+    // No tokens are invented from the other session's rollout…
+    expect(events?.[0]?.llm?.input_tokens).toBe(0);
+    // …but the model still rides along, so the turn stays attributable.
+    expect(events?.[0]?.llm?.model).toBe('gpt-5-codex');
+  });
+
+  it('keeps capturing when somebody else owns the hooks config', () => {
+    // Standing the notify path down on a foreign hooks.json would black out a
+    // correctly-installed notify user entirely.
+    writeRollout([
+      { info: { total_token_usage: { input_tokens: 10, output_tokens: 1 } }, type: 'token_count' },
+    ]);
+    writeFileSync(
+      join(codexHome, 'hooks.json'),
+      JSON.stringify({
+        hooks: { PreToolUse: [{ command: ['/usr/bin/their-linter'], type: 'command' }] },
+      }),
+      'utf8',
+    );
+    resetCodexHooksCache();
+    const events = codexAdapter.mapBatch?.('turn-complete', { 'session-id': sessionId });
+    expect(events?.length).toBeGreaterThan(0);
+  });
+
   it('ships the hook-provided transcript_path, keyed to the event session id', () => {
     const raw = { session_id: sessionId, transcript_path: '/tmp/rollout-abc.jsonl' };
     const target = codexAdapter.transcriptTarget('stop', raw);
@@ -342,19 +450,57 @@ describe('codex adapter — native lifecycle hooks', () => {
     ]);
   });
 
-  it('detects the deprecated codex_hooks alias and ignores commented-out flags', () => {
-    writeFileSync(join(codexHome, 'config.toml'), '# hooks = true\n', 'utf8');
-    resetCodexHooksCache();
-    expect(codexHooksEnabled()).toBe(false);
-
-    writeFileSync(join(codexHome, 'config.toml'), '[features]\ncodex_hooks = true\n', 'utf8');
-    resetCodexHooksCache();
-    expect(codexHooksEnabled()).toBe(true);
+  it('reads the feature flag TOML-aware: comments, tables and the deprecated alias', () => {
+    const cases: [string, boolean][] = [
+      ['# hooks = true\n', false],
+      ['[features]\nhooks = true\n', true],
+      ['[features]\ncodex_hooks = true\n', true],
+      // Trailing comments are legal TOML and must not defeat the match.
+      ['[features]\nhooks = true # experimental\n', true],
+      // Inline tables are legal TOML too.
+      ['features = { hooks = true }\n', true],
+      // A `hooks` key under a DIFFERENT table is a different setting.
+      ['[tui]\nhooks = true\n', false],
+      ['[features]\nhooks = false\n', false],
+      ['[features]\nhooks = "true"\n', true],
+    ];
+    for (const [toml, expected] of cases) {
+      writeFileSync(join(codexHome, 'config.toml'), toml, 'utf8');
+      resetCodexHooksCache();
+      expect({ on: codexHooksFeatureEnabled(), toml }).toEqual({ on: expected, toml });
+    }
   });
 
-  it('treats a hooks.json in CODEX_HOME as hooks being enabled', () => {
-    writeFileSync(join(codexHome, 'hooks.json'), '{"hooks":{}}', 'utf8');
+  it("does not treat somebody else's hooks.json as our binary being wired", () => {
+    // A user's own lint hook must not stand the notify path down — that would be
+    // a total telemetry blackout for a correctly-installed notify user.
+    writeFileSync(
+      join(codexHome, 'hooks.json'),
+      JSON.stringify({
+        hooks: { PreToolUse: [{ command: ['/usr/bin/their-linter'], type: 'command' }] },
+      }),
+      'utf8',
+    );
     resetCodexHooksCache();
-    expect(codexHooksEnabled()).toBe(true);
+    expect(codexHooksWired()).toBe(false);
+  });
+
+  it('detects our binary in hooks.json', () => {
+    writeFileSync(
+      join(codexHome, 'hooks.json'),
+      JSON.stringify({
+        hooks: {
+          Stop: [
+            {
+              command: ['/opt/claude-telemetry', 'hook', 'stop', '--agent', 'codex'],
+              type: 'command',
+            },
+          ],
+        },
+      }),
+      'utf8',
+    );
+    resetCodexHooksCache();
+    expect(codexHooksWired()).toBe(true);
   });
 });

@@ -1,5 +1,7 @@
 import { existsSync, rmSync } from 'node:fs';
 
+import { codexCursorDir } from '../adapters/codex';
+import { geminiUsageDir } from '../adapters/gemini-cli';
 import { logPath } from '../lib/log';
 import {
   flusherStatePath,
@@ -9,6 +11,7 @@ import {
   shipQueueDir,
   telemetryHome,
 } from '../lib/paths';
+import { collatedDir } from '../lib/transcript-collate';
 
 const DEFAULT_API = 'http://localhost:3000';
 
@@ -23,6 +26,8 @@ export async function runPurge(args: string[]): Promise<number> {
         `  event queue:    ${queuePath()}`,
         `  ship queue:     ${shipQueueDir()}`,
         `  log file:       ${logPath()}`,
+        `  staged uploads: ${collatedDir()}`,
+        `  agent state:    ${geminiUsageDir()}, ${codexCursorDir()}`,
         `  identity file:  ${identityPath()}`,
         `  flusher state:  ${flusherStatePath()}`,
         `  pause marker:   ${pausedPath()}`,
@@ -71,6 +76,12 @@ export async function runPurge(args: string[]): Promise<number> {
   tryRemove(identityPath());
   tryRemove(flusherStatePath());
   tryRemove(pausedPath());
+  // Per-agent working state. These hold real telemetry — staged (unredacted)
+  // transcript collations and per-session token tallies — so "all local telemetry
+  // data" has to include them.
+  tryRemove(collatedDir(), true);
+  tryRemove(geminiUsageDir(), true);
+  tryRemove(codexCursorDir(), true);
 
   for (const p of removed) {
     process.stdout.write(`removed: ${p}\n`);

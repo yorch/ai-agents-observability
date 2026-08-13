@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
+import { NIL_UUID, sessionUuid } from '../lib/session-id';
 import { claudeCodeAdapter, toEvent } from './claude-code';
 import { conformanceErrors } from './conformance';
 import { createStdinHookAdapter } from './stdin-hook-factory';
@@ -87,7 +88,7 @@ describe('claude-code through the factory — golden output', () => {
     });
   });
 
-  it('does not leak `model` out of metadata for Claude (its known-key set is explicit)', () => {
+  it('keeps `model` in metadata for Claude (it is not a structurally captured key)', () => {
     const ev = toEvent('stop', { cwd: '/repo', model: 'claude-opus-4', session_id: SESSION_ID });
     expect(ev.metadata.model).toBe('claude-opus-4');
   });
@@ -135,14 +136,46 @@ describe('createStdinHookAdapter', () => {
       tool_name: 'read',
     });
     expect(camel.session_id).toBe(snake.session_id);
+    // …and both actually RESOLVED the id. Without this, the assertion above also
+    // passes when neither spelling is read and both collapse to the nil UUID.
+    expect(camel.session_id).toBe(sessionUuid('GEMINI_CLI', 'abc-123'));
+    expect(camel.session_id).not.toBe(NIL_UUID);
     expect(camel.tool?.input_bytes).toBe(snake.tool?.input_bytes);
     expect(camel.tool?.input_bytes).toBeGreaterThan(0);
+  });
+
+  it('skips an empty first alias instead of collapsing the session', () => {
+    // Taking the first merely-PRESENT value would give every such event the nil
+    // UUID, merging them into one phantom session.
+    const ev = adapter.mapPayload('session-start', { session_id: 'real-id', sessionId: '' });
+    expect(ev.session_id).toBe(sessionUuid('GEMINI_CLI', 'real-id'));
+    expect(ev.session_id).not.toBe(NIL_UUID);
   });
 
   it('normalizes a non-UUID session id into a conformant event', () => {
     const ev = adapter.mapPayload('session-start', { cwd: '/r', sessionId: 'not-a-uuid' });
     expect(conformanceErrors(ev)).toEqual([]);
     expect(ev.agent_type).toBe('GEMINI_CLI');
+    expect(ev.session_id).toBe(sessionUuid('GEMINI_CLI', 'not-a-uuid'));
+  });
+
+  it('keys the transcript to the SAME normalized id the events carry', () => {
+    // The regression this pins: dropping normalization in transcriptTarget was
+    // invisible to the whole suite, because every other fixture used an id that
+    // was already a UUID and normalized to itself.
+    const raw = { sessionId: 'not-a-uuid', transcript_path: '/tmp/t.jsonl' };
+    const event = adapter.mapPayload('after-tool', raw);
+    expect(adapter.transcriptTarget('after-tool', raw)?.sessionId).toBe(event.session_id);
+    expect(event.session_id).not.toBe('not-a-uuid');
+  });
+
+  it('does not duplicate a structurally-captured field into metadata', () => {
+    const ev = adapter.mapPayload('session-start', {
+      permission_mode: 'bypassPermissions',
+      sessionId: 'abc-123',
+    });
+    expect(ev.session_context.mode).toBe('bypass');
+    expect(ev.metadata.permission_mode).toBeUndefined();
   });
 
   it('falls back to Notification for an unmapped kind rather than inventing a type', () => {

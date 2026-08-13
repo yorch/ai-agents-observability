@@ -26,7 +26,12 @@ export const SESSION_NAMESPACE = '3c5f8a12-7d4e-5b96-a081-6e2c94f7b3d5';
 
 export const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Must match what `EventSchema` accepts, not merely "looks like a UUID". zod's
+// `z.uuid()` enforces RFC 9562 — version nibble 1-8 and variant nibble 8|9|a|b —
+// so a looser test here would declare a dashed-hex string "already a UUID", skip
+// derivation, and hand ingest an id it drops on the floor. That is precisely the
+// silent-drop failure P12-002 exists to prevent, so keep the two in lockstep.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * A valid UUID for `agentType`'s session `nativeId`.
@@ -37,11 +42,28 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * pre-existing "unknown session" sentinel.
  */
 export function sessionUuid(agentType: string, nativeId: unknown): string {
-  if (typeof nativeId !== 'string' || nativeId.length === 0) {
+  const native = normalizeNative(nativeId);
+  if (native === null) {
     return NIL_UUID;
   }
-  if (UUID_RE.test(nativeId)) {
-    return nativeId.toLowerCase();
+  if (native === NIL_UUID || UUID_RE.test(native)) {
+    return native.toLowerCase();
   }
-  return uuidv5(`${agentType}:${nativeId}`, SESSION_NAMESPACE);
+  return uuidv5(`${agentType}:${native}`, SESSION_NAMESPACE);
+}
+
+// A numeric or otherwise non-string id is stringified rather than collapsed to
+// the nil UUID: collapsing would merge every session of that agent into one row.
+// Only genuinely absent/empty ids fall through to the sentinel.
+function normalizeNative(nativeId: unknown): string | null {
+  if (typeof nativeId === 'string') {
+    return nativeId.length > 0 ? nativeId : null;
+  }
+  if (typeof nativeId === 'number' && Number.isFinite(nativeId)) {
+    return String(nativeId);
+  }
+  if (typeof nativeId === 'bigint') {
+    return String(nativeId);
+  }
+  return null;
 }

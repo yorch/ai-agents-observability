@@ -130,6 +130,48 @@ describe('pi adapter', () => {
     expect(piAdapter.transcriptTarget('pre-tool-use', { sessionId: SESSION_ID })).toBeNull();
   });
 
+  it('matches the session file exactly, not by substring', () => {
+    // A `…_<id>-branch2.jsonl` sibling with a NEWER mtime must not win: taking it
+    // would attach another session's usage and upload its transcript under this
+    // session's id.
+    const dir = join(piHome, 'agent', 'sessions', '--home-dev-proj--');
+    mkdirSync(dir, { recursive: true });
+    const real = join(dir, `2026-08-13T10-00-00_${SESSION_ID}.jsonl`);
+    writeFileSync(
+      real,
+      `${JSON.stringify({ message: { role: 'assistant', usage: { input: 11, output: 1 } }, type: 'message' })}\n`,
+      'utf8',
+    );
+    const decoy = join(dir, `2026-08-14T10-00-00_${SESSION_ID}-branch2.jsonl`);
+    writeFileSync(
+      decoy,
+      `${JSON.stringify({ message: { role: 'assistant', usage: { input: 999, output: 99 } }, type: 'message' })}\n`,
+      'utf8',
+    );
+
+    expect(piAdapter.transcriptTarget('stop', { sessionId: SESSION_ID })?.transcriptPath).toBe(
+      real,
+    );
+    expect(piAdapter.mapPayload('stop', { sessionId: SESSION_ID }).llm?.input_tokens).toBe(11);
+  });
+
+  it('does not mistake a per-entry `id` for the session id', () => {
+    // Pi puts a per-message id on its event payloads. Accepting it as a session
+    // id would give every event of one session a different session_id.
+    const a = piAdapter.mapPayload('pre-tool-use', { id: 'msg_0001', toolName: 'bash' });
+    const b = piAdapter.mapPayload('pre-tool-use', { id: 'msg_0002', toolName: 'bash' });
+    expect(a.session_id).toBe(b.session_id);
+  });
+
+  it('keeps unmodelled fields in metadata on non-tool events', () => {
+    const ev = piAdapter.mapPayload('session-start', { name: 'my session', sessionId: SESSION_ID });
+    expect(ev.metadata.name).toBe('my session');
+  });
+
+  it('ships nothing when the payload carries no session id', () => {
+    expect(piAdapter.transcriptTarget('stop', { sessionFile: '/tmp/x.jsonl' })).toBeNull();
+  });
+
   it('prefers an explicit session file path from the extension over scanning', () => {
     const target = piAdapter.transcriptTarget('session-end', {
       sessionFile: '/custom/path/session.jsonl',

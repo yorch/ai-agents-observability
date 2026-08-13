@@ -11,7 +11,7 @@ import type { Logger } from 'pino';
 import { z } from 'zod';
 
 import { transcriptsStoredTotal } from '../lib/metrics';
-import { objectExists, putObject, type S3Deps, transcriptKey } from '../lib/s3';
+import { objectSize, putObject, type S3Deps, transcriptKey } from '../lib/s3';
 import { processTranscript, TranscriptTooLargeError } from '../lib/transcript-pipeline';
 import type { AppEnv } from '../types';
 
@@ -190,11 +190,16 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
 
         // Idempotency: a prior upload with the same content lives at the same
         // key (key is deterministic by user_id+session_id+session.started_at).
-        // If the row already records the same key, return 200 without
-        // re-processing.
+        //
+        // The skip is gated on the stored object being the SAME SIZE as what just
+        // arrived, not merely on it existing. Agents re-ship a growing transcript
+        // every turn (Claude Code on each Stop, opencode on each session-idle);
+        // skipping on existence alone froze every session's transcript at
+        // whatever the first turn contained, silently, with a 200 and a
+        // "shipper.uploaded" log line to match.
         if (session.transcriptS3Key === key && session.transcriptUploadedAt) {
-          const present = await objectExists(deps.s3, key);
-          if (present) {
+          const storedBytes = await objectSize(deps.s3, key);
+          if (storedBytes !== null && storedBytes === compressed.byteLength) {
             return c.json(
               {
                 bytes: Number(session.transcriptBytes ?? 0),

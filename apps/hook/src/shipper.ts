@@ -16,7 +16,12 @@ import { loadHookToken } from './lib/identity';
 import { INGEST_BASE_URL } from './lib/ingest';
 import { log } from './lib/log';
 import { shipQueueDir } from './lib/paths';
-import { collateDirectory, collatedPathFor, discardCollated } from './lib/transcript-collate';
+import {
+  collateDirectory,
+  collatedPathFor,
+  discardCollated,
+  purgeCollated,
+} from './lib/transcript-collate';
 import { redactedLines } from './lib/transcript-stream';
 
 const SWEEP_INTERVAL_MS = 10 * 60 * 1_000; // 10 minutes
@@ -265,7 +270,10 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
     return;
   }
   if (sourcePath === null) {
-    deleteMarker(session_id);
+    // Nothing collatable YET — the agent may still be flushing its records.
+    // Retryable (and attempt-capped), not terminal: deleting the marker here
+    // would abandon the transcript on a single unlucky sweep.
+    recordRetryableFailure(marker, 'collate_empty');
     return;
   }
 
@@ -325,8 +333,19 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
       if (!keepOrAbandonStale(marker, 'rate_limited')) {
         log('warn', 'shipper.rate_limited', { session_id, status: res.status });
       }
+    } else if (res.status === 413) {
+      // Too large for the server's body limit. Retrying the same bytes cannot
+      // help, so the marker still goes — but this is a capacity problem, not bad
+      // data, and it is logged as its own thing so a fleet hitting the limit is
+      // visible rather than buried in "rejected".
+      try {
+        deleteMarker(session_id);
+      } catch {
+        // best-effort
+      }
+      log('error', 'shipper.too_large', { bytes: body.byteLength, session_id });
     } else if (res.status >= 400 && res.status < 500) {
-      // 4xx (non-404, non-409, non-429): bad data, server won't accept — drop.
+      // 4xx (non-404, non-409, non-413, non-429): bad data, server won't accept — drop.
       try {
         deleteMarker(session_id);
       } catch {
@@ -347,6 +366,15 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
 
 export async function runShipper(): Promise<void> {
   log('info', 'shipper.start', { ingestBaseUrl: INGEST_BASE_URL });
+
+  // A staged collation is an unredacted plaintext copy of an agent's history,
+  // normally deleted the moment its upload finishes. One that survived a kill
+  // must not outlive the process that made it.
+  try {
+    purgeCollated();
+  } catch {
+    // best-effort
+  }
 
   // eslint-disable-next-line no-constant-condition
   while (true) {

@@ -105,16 +105,24 @@ describe('omp adapter', () => {
     );
   });
 
-  it('probes both documented config roots', () => {
-    // OMP_HOME is set to a temp dir above; with it unset both ~/.omp and ~/.oh-omp
-    // are candidates, and the snippet says so.
-    delete process.env.OMP_HOME;
+  it('names both documented config roots in the install snippet', () => {
     const snippet = ompAdapter.installConfig().renderSnippet('/usr/local/bin/claude-telemetry');
     expect(snippet).toContain('.omp/agent/hooks');
     expect(snippet).toContain('.oh-omp');
-    // No session dir exists for either root here, so nothing is shipped rather
-    // than a wrong path being invented.
-    expect(ompAdapter.transcriptTarget('stop', { sessionId: SESSION_ID })).toBeNull();
+  });
+
+  it('accepts an OMP_HOME that names the sessions directory itself', () => {
+    // A natural misreading of the docs; resolving it to nothing would silently
+    // cost the transcript.
+    const path = writeSession([{ id: 'aaaa1111', type: 'session' }]);
+    process.env.OMP_HOME = join(ompHome, 'agent', 'sessions');
+    expect(ompAdapter.transcriptTarget('stop', { sessionId: SESSION_ID })?.transcriptPath).toBe(
+      path,
+    );
+  });
+
+  it('ships nothing when no session file can be found', () => {
+    expect(ompAdapter.transcriptTarget('stop', { sessionId: 'ffffffffffffffff' })).toBeNull();
   });
 
   it('documents the omp-hooks alternative without depending on it', () => {

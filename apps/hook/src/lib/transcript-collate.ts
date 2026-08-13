@@ -1,5 +1,14 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  closeSync,
+  type Dirent,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeSync,
+} from 'node:fs';
+import { dirname, join, sep } from 'node:path';
 
 import { telemetryHome } from './paths';
 
@@ -23,7 +32,15 @@ export function collatedDir(): string {
   return join(telemetryHome(), 'collated');
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function collatedPathFor(sessionId: string): string {
+  // Session ids reach here already normalized (lib/session-id.ts), so anything
+  // else is a bug upstream — reject rather than interpolate, since `join()` would
+  // happily normalize `../../x` straight out of the staging directory.
+  if (!UUID_RE.test(sessionId)) {
+    throw new Error(`refusing to stage a collation for a non-UUID session id: ${sessionId}`);
+  }
   return join(collatedDir(), `${sessionId}.jsonl`);
 }
 
@@ -31,43 +48,51 @@ function collectJson(dir: string, out: string[], depth = 0): void {
   if (depth > MAX_DEPTH) {
     return;
   }
-  let names: string[];
+  let entries: Dirent[];
   try {
-    names = readdirSync(dir);
+    entries = readdirSync(dir, { withFileTypes: true });
   } catch {
     return;
   }
-  for (const name of names.sort()) {
-    const full = join(dir, name);
-    let st: ReturnType<typeof statSync>;
-    try {
-      st = statSync(full);
-    } catch {
+  // Sorted for a deterministic transcript; symlinks skipped so a link inside the
+  // agent's storage cannot pull ~/.ssh (or any other tree) into what we ship.
+  for (const entry of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.isSymbolicLink()) {
       continue;
     }
-    if (st.isDirectory()) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
       collectJson(full, out, depth + 1);
-    } else if (name.endsWith('.json') || name.endsWith('.jsonl')) {
+    } else if (entry.name.endsWith('.json') || entry.name.endsWith('.jsonl')) {
       out.push(full);
     }
   }
 }
 
-function timeOf(record: unknown): number {
+/**
+ * A record's timestamp in milliseconds, or null when it has none.
+ *
+ * Seconds-epoch values are scaled to milliseconds: a directory mixing the two
+ * would otherwise sort every seconds-stamped record (~1.7e9) before every
+ * ms-stamped one (~1.7e12), inverting the conversation.
+ */
+function timeOf(record: unknown): number | null {
   if (typeof record !== 'object' || record === null) {
-    return 0;
+    return null;
   }
   const r = record as Record<string, unknown>;
   const time = r.time;
   const candidates = [
     typeof time === 'object' && time !== null ? (time as Record<string, unknown>).created : null,
+    typeof time === 'string' || typeof time === 'number' ? time : null,
     r.created,
     r.timestamp,
     r.createdAt,
   ];
   for (const candidate of candidates) {
     if (typeof candidate === 'number' && Number.isFinite(candidate)) {
-      return candidate;
+      // Anything below ~2001 in ms is really a seconds-epoch value.
+      return candidate < 1e11 ? candidate * 1000 : candidate;
     }
     if (typeof candidate === 'string') {
       const parsed = Date.parse(candidate);
@@ -76,7 +101,7 @@ function timeOf(record: unknown): number {
       }
     }
   }
-  return 0;
+  return null;
 }
 
 /**
@@ -96,45 +121,111 @@ export function collateDirectory(dir: string, destPath: string): number {
     return 0;
   }
 
-  const records: { order: number; path: string; text: string }[] = [];
+  // Only the ORDERING KEYS are held in memory — never the record bodies. A busy
+  // opencode session's history runs to hundreds of MB; buffering it (parsed, then
+  // re-serialized, then joined into one string) would spike the shipper's RSS to
+  // several times that and can exceed the engine's max string length outright.
+  type Ref = { file: string; line: number; order: number | null; seq: number };
+  const refs: Ref[] = [];
+  let seq = 0;
   for (const file of files) {
-    let text: string;
-    try {
-      text = readFileSync(file, 'utf8');
-    } catch {
-      continue;
-    }
-    // A .json file is one record; a .jsonl file inside the directory is many.
-    const lines = file.endsWith('.jsonl')
-      ? text.split('\n').filter((line) => line.trim().length > 0)
-      : [text];
-    for (const line of lines) {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(line);
-      } catch {
+    for (const [index, line] of readRecordLines(file).entries()) {
+      const parsed = safeParse(line);
+      if (parsed === undefined) {
         continue; // skip unparseable records rather than shipping garbage
       }
-      records.push({ order: timeOf(parsed), path: file, text: JSON.stringify(parsed) });
+      refs.push({ file, line: index, order: timeOf(parsed), seq: seq++ });
     }
   }
-  if (records.length === 0) {
+  if (refs.length === 0) {
     return 0;
   }
 
-  records.sort((a, b) => a.order - b.order || a.path.localeCompare(b.path));
-  mkdirSync(join(destPath, '..'), { recursive: true });
-  writeFileSync(destPath, `${records.map((r) => r.text).join('\n')}\n`, {
-    encoding: 'utf8',
-    mode: 0o600,
+  // Timestamped records first, in time order; untimed records keep discovery
+  // order and follow, rather than being flung to the top of the conversation by a
+  // zero sentinel. Ties break on discovery order, so the output is byte-stable.
+  refs.sort((a, b) => {
+    if (a.order !== null && b.order !== null) {
+      return a.order - b.order || a.seq - b.seq;
+    }
+    if (a.order !== null) {
+      return -1;
+    }
+    if (b.order !== null) {
+      return 1;
+    }
+    return a.seq - b.seq;
   });
-  return records.length;
+
+  mkdirSync(dirname(destPath), { mode: 0o700, recursive: true });
+  const fd = openSync(destPath, 'w', 0o600);
+  try {
+    // Group by file so each source is read at most once more, streaming out.
+    const byFile = new Map<string, Ref[]>();
+    for (const ref of refs) {
+      const list = byFile.get(ref.file) ?? [];
+      list.push(ref);
+      byFile.set(ref.file, list);
+    }
+    const linesByFile = new Map<string, string[]>();
+    for (const file of byFile.keys()) {
+      linesByFile.set(file, readRecordLines(file));
+    }
+    for (const ref of refs) {
+      const line = linesByFile.get(ref.file)?.[ref.line];
+      if (line === undefined) {
+        continue;
+      }
+      const parsed = safeParse(line);
+      if (parsed === undefined) {
+        continue;
+      }
+      writeSync(fd, `${JSON.stringify(parsed)}\n`);
+    }
+  } finally {
+    closeSync(fd);
+  }
+  return refs.length;
+}
+
+/** A `.json` file is one record; a `.jsonl` inside the directory is many. */
+function readRecordLines(file: string): string[] {
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    return [];
+  }
+  return file.endsWith('.jsonl')
+    ? text.split('\n').filter((line) => line.trim().length > 0)
+    : [text];
+}
+
+function safeParse(line: string): unknown {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Remove a staged collation. Safe to call for paths that were never staged. */
 export function discardCollated(path: string): void {
-  if (!path.startsWith(collatedDir())) {
-    return; // never delete anything outside our own staging area
+  // The separator matters: a bare prefix test also matches sibling paths like
+  // `<home>/collated-backup/x.jsonl`, which we must never delete.
+  if (!path.startsWith(`${collatedDir()}${sep}`)) {
+    return;
   }
   rmSync(path, { force: true });
+}
+
+/**
+ * Delete every staged collation. Called at shipper start and by `purge-local`:
+ * a staging file is a PLAINTEXT, UNREDACTED copy of the agent's history
+ * (redaction happens later, during the upload stream), so one left behind by a
+ * killed shipper must not linger — and "delete all local telemetry data" has to
+ * mean it.
+ */
+export function purgeCollated(): void {
+  rmSync(collatedDir(), { force: true, recursive: true });
 }

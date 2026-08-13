@@ -1,12 +1,13 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from '../lib/bytes';
+import { log } from '../lib/log';
 import { telemetryHome } from '../lib/paths';
-import { sessionUuid } from '../lib/session-id';
-import type { ConformantEvent, HookAdapter, TranscriptTarget } from './index';
+import { NIL_UUID, sessionUuid } from '../lib/session-id';
+import type { ConformantEvent, HookAdapter } from './index';
 import {
   buildGenericToolInfo,
   createStdinHookAdapter,
@@ -55,15 +56,10 @@ const HOOK_KIND_TO_GEMINI_EVENT: Record<string, string> = {
   'session-start': 'SessionStart',
 };
 
-const GEMINI_KNOWN_KEYS = [
-  'cwd',
-  'hook_event_name',
-  'session_id',
-  'tool_input',
-  'tool_name',
-  'tool_response',
-  'transcript_path',
-];
+// Captured structurally by buildGeminiToolInfo, so not duplicated into metadata.
+// (The alias keys — session_id, cwd, tool_*, transcript_path — are known
+// automatically; the factory unions them in.)
+const GEMINI_KNOWN_KEYS = ['mcp_context', 'original_request_name'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -144,8 +140,12 @@ type Usage = {
 
 const EMPTY_USAGE: Usage = { cacheRead: 0, input: 0, model: null, output: 0 };
 
+export function geminiUsageDir(): string {
+  return join(telemetryHome(), 'gemini-usage');
+}
+
 function usagePath(sessionId: string): string {
-  return join(telemetryHome(), 'gemini-usage', `${sessionId}.json`);
+  return join(geminiUsageDir(), `${sessionId}.jsonl`);
 }
 
 function extractUsage(raw: Record<string, unknown>): Usage | null {
@@ -180,41 +180,61 @@ function modelFromRequest(raw: Record<string, unknown>): string | null {
   return request && typeof request.model === 'string' ? request.model : null;
 }
 
-function readUsage(sessionId: string): Usage {
-  try {
-    const parsed = JSON.parse(readFileSync(usagePath(sessionId), 'utf8'));
-    if (isRecord(parsed)) {
-      return {
-        cacheRead: num(parsed.cacheRead),
-        input: num(parsed.input),
-        model: typeof parsed.model === 'string' ? parsed.model : null,
-        output: num(parsed.output),
-      };
-    }
-  } catch {
-    // no usage recorded for this session yet
-  }
-  return EMPTY_USAGE;
-}
-
+// APPEND-ONLY, one line per AfterModel. Hooks are separate processes and Gemini
+// can issue several model calls per turn, so a read-modify-write accumulator
+// loses tokens whenever two of them interleave (measured: ~20% under-report at 10
+// concurrent calls). A single `appendFileSync` of a short line is atomic under
+// O_APPEND on Linux and macOS, so concurrent writers interleave lines rather than
+// clobbering each other's totals.
 function addUsage(sessionId: string, usage: Usage): void {
-  const prior = readUsage(sessionId);
-  const merged: Usage = {
-    cacheRead: prior.cacheRead + usage.cacheRead,
-    input: prior.input + usage.input,
-    model: usage.model ?? prior.model,
-    output: prior.output + usage.output,
-  };
   const path = usagePath(sessionId);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(merged), { encoding: 'utf8', mode: 0o600 });
+  mkdirSync(dirname(path), { mode: 0o700, recursive: true });
+  appendFileSync(path, `${JSON.stringify(usage)}\n`, { encoding: 'utf8', mode: 0o600 });
 }
 
-/** Read and clear the turn's accumulated usage. */
-function drainUsage(sessionId: string): Usage {
+function readUsage(sessionId: string): Usage {
+  let text: string;
+  try {
+    text = readFileSync(usagePath(sessionId), 'utf8');
+  } catch {
+    return EMPTY_USAGE; // no usage recorded for this session yet
+  }
+  const total = { ...EMPTY_USAGE };
+  for (const line of text.split('\n')) {
+    if (line.trim().length === 0) {
+      continue;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue; // a torn final line (killed mid-append) costs one call, not the turn
+    }
+    if (!isRecord(parsed)) {
+      continue;
+    }
+    total.cacheRead += num(parsed.cacheRead);
+    total.input += num(parsed.input);
+    total.output += num(parsed.output);
+    total.model = typeof parsed.model === 'string' ? parsed.model : total.model;
+  }
+  return total;
+}
+
+/**
+ * Read the turn's accumulated usage, then clear it. The read comes first and the
+ * removal is best-effort: if the file cannot be removed we still return what was
+ * read, because losing the event is worse than the (visible) risk of counting the
+ * same tokens twice. Removal failure is not silent — the caller logs it.
+ */
+function drainUsage(sessionId: string): { removed: boolean; usage: Usage } {
   const usage = readUsage(sessionId);
-  rmSync(usagePath(sessionId), { force: true });
-  return usage;
+  try {
+    rmSync(usagePath(sessionId), { force: true });
+    return { removed: true, usage };
+  } catch {
+    return { removed: false, usage };
+  }
 }
 
 function llmBlock(usage: Usage): NonNullable<Event['llm']> {
@@ -279,35 +299,49 @@ export const geminiCliAdapter: HookAdapter = {
   mapBatch(kind: string, raw: Record<string, unknown>): ConformantEvent[] | null {
     // AfterModel: harvest usage, emit nothing. Returning [] (not null) is what
     // tells the transport "handled, no events" rather than falling through to
-    // mapPayload, which would invent a Notification.
+    // mapPayload, which would invent a Notification. hook-entry uses `??`, so an
+    // empty array is respected — `hook-entry.test.ts` pins that.
     if (kind === USAGE_KIND) {
       try {
+        const sessionId = sessionUuid('GEMINI_CLI', raw.session_id);
+        // Without a session id every session would accumulate into ONE nil-keyed
+        // file and drain onto whichever Stop got there first. Drop instead.
+        if (sessionId === NIL_UUID) {
+          log('warn', 'gemini.usage.no_session_id', {});
+          return [];
+        }
         const usage = extractUsage(raw);
         if (usage) {
-          addUsage(sessionUuid('GEMINI_CLI', raw.session_id), usage);
+          addUsage(sessionId, usage);
         }
-      } catch {
-        // Usage is best-effort; never fail a hook over it.
+      } catch (err) {
+        log('warn', 'gemini.usage.record_failed', { message: (err as Error).message });
       }
       return [];
     }
-    if (GEMINI_EVENT_TYPE[kind] !== 'Stop') {
+    const eventType = GEMINI_EVENT_TYPE[kind];
+    if (eventType !== 'Stop' && eventType !== 'SessionEnd') {
       return null;
     }
-    // AfterAgent: drain the turn's accumulated usage onto the Stop.
+    // AfterAgent: drain the turn's accumulated usage onto the Stop. SessionEnd
+    // drains too — without that, a session whose last turn never reaches
+    // AfterAgent (Ctrl-C, crash) leaks its accumulator file forever.
+    let event: ConformantEvent;
     try {
-      const event = base.mapPayload(kind, raw);
-      const usage = drainUsage(event.session_id);
-      if (usage.input === 0 && usage.output === 0 && usage.cacheRead === 0) {
-        return [event];
-      }
-      return [{ ...event, llm: llmBlock(usage) } as ConformantEvent];
+      event = base.mapPayload(kind, raw);
     } catch {
       return null;
     }
-  },
-
-  transcriptTarget(kind: string, raw: Record<string, unknown>): TranscriptTarget | null {
-    return base.transcriptTarget(kind, raw);
+    if (event.session_id === NIL_UUID) {
+      return [event];
+    }
+    const { removed, usage } = drainUsage(event.session_id);
+    if (!removed) {
+      log('warn', 'gemini.usage.drain_not_cleared', { session_id: event.session_id });
+    }
+    if (usage.input === 0 && usage.output === 0 && usage.cacheRead === 0) {
+      return [event];
+    }
+    return [{ ...event, llm: llmBlock(usage) } as ConformantEvent];
   },
 };

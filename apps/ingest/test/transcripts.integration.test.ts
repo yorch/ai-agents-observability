@@ -191,6 +191,80 @@ describe('POST /v1/transcripts/:session_id', () => {
     expect(sessionStub.update).toHaveBeenCalledTimes(1);
   });
 
+  // P12-009 regression. Agents re-ship a GROWING transcript every turn (Claude
+  // Code on each Stop, opencode on each session-idle). Skipping the re-upload
+  // just because an object already exists at the deterministic key froze every
+  // session's transcript at whatever its first turn contained — silently, with a
+  // 200 and a matching "uploaded" log line on the client.
+  function uploadedSessionDeps(storedBytes: number) {
+    const deps = authedDeps();
+    const sessionStub = deps.db.session as unknown as {
+      findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+    sessionStub.findUnique = vi.fn().mockResolvedValue({
+      sessionId: SESSION_ID,
+      startedAt: new Date('2026-05-21T12:00:00Z'),
+      transcriptBytes: BigInt(10),
+      transcriptS3Key: `transcripts/2026/05/21/${USER_ID}/${SESSION_ID}.jsonl.zst`,
+      transcriptUploadedAt: new Date('2026-05-21T12:05:00Z'),
+      userId: USER_ID,
+    });
+    sessionStub.update = vi.fn().mockResolvedValue({});
+
+    const puts: unknown[] = [];
+    deps.s3.client = {
+      send: vi.fn(async (cmd: unknown) => {
+        const input = (cmd as { input?: { Body?: Uint8Array } }).input;
+        if (input?.Body) {
+          puts.push(input);
+          return {};
+        }
+        return { ContentLength: storedBytes };
+      }),
+    } as unknown as S3Client;
+    return { deps, puts, sessionStub };
+  }
+
+  it('re-stores a transcript that has GROWN since the last upload', async () => {
+    const payload = [
+      '{"role":"user","content":"hi"}',
+      '{"role":"assistant","content":"…"}',
+      '',
+    ].join('\n');
+    const compressed = compress(payload);
+    // Stored object is a different size, i.e. an earlier, shorter transcript.
+    const { deps, puts, sessionStub } = uploadedSessionDeps(compressed.byteLength - 100);
+
+    const app = createApp({} as unknown as Config, deps);
+    const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
+      body: compressed,
+      headers: { Authorization: TOKEN, 'Content-Type': 'application/x-zstd' },
+      method: 'POST',
+    });
+
+    expect(res.status).toBe(201);
+    expect(puts).toHaveLength(1);
+    expect(sessionStub.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips re-storing a byte-identical re-upload', async () => {
+    const payload = ['{"role":"user","content":"hi"}', ''].join('\n');
+    const compressed = compress(payload);
+    const { deps, puts, sessionStub } = uploadedSessionDeps(compressed.byteLength);
+
+    const app = createApp({} as unknown as Config, deps);
+    const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
+      body: compressed,
+      headers: { Authorization: TOKEN, 'Content-Type': 'application/x-zstd' },
+      method: 'POST',
+    });
+
+    expect(res.status).toBe(200);
+    expect(puts).toHaveLength(0);
+    expect(sessionStub.update).not.toHaveBeenCalled();
+  });
+
   it('returns 202 with received offset for an intermediate chunk', async () => {
     const deps = authedDeps();
     const sessionStub = deps.db.session as unknown as { findUnique: ReturnType<typeof vi.fn> };

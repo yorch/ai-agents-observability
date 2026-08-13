@@ -89,10 +89,18 @@ describe('usageDelta', () => {
     expect(delta?.outputTokens).toBe(30);
   });
 
-  it('clamps to zero if the counter reset (new session reusing the cursor)', () => {
+  it('re-baselines if the counter reset (new session reusing the cursor)', () => {
+    // Clamping each field to zero instead would silently swallow every token
+    // counted since the reset — the tokens are real, only the baseline is stale.
     const delta = usageDelta(u(500, 200), u(40, 10));
-    expect(delta?.inputTokens).toBe(0);
-    expect(delta?.outputTokens).toBe(0);
+    expect(delta?.inputTokens).toBe(40);
+    expect(delta?.outputTokens).toBe(10);
+  });
+
+  it('never emits negative tokens', () => {
+    const delta = usageDelta(u(500, 200), u(40, 10));
+    expect(delta?.inputTokens).toBeGreaterThanOrEqual(0);
+    expect(delta?.outputTokens).toBeGreaterThanOrEqual(0);
   });
 
   it('returns null when there is no current usage', () => {

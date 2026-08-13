@@ -8,15 +8,20 @@ import {
 export type S3Deps = { bucket: string; client: S3Client };
 
 export async function objectExists(deps: S3Deps, key: string): Promise<boolean> {
+  return (await objectSize(deps, key)) !== null;
+}
+
+/** Stored size in bytes, or null when the object does not exist. */
+export async function objectSize(deps: S3Deps, key: string): Promise<number | null> {
   try {
-    await deps.client.send(new HeadObjectCommand({ Bucket: deps.bucket, Key: key }));
-    return true;
+    const head = await deps.client.send(new HeadObjectCommand({ Bucket: deps.bucket, Key: key }));
+    return head.ContentLength ?? 0;
   } catch (err) {
     if (
       err instanceof S3ServiceException &&
       (err.$metadata.httpStatusCode === 404 || err.name === 'NotFound')
     ) {
-      return false;
+      return null;
     }
     throw err;
   }

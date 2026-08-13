@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -124,7 +124,59 @@ describe('gemini-cli adapter', () => {
     geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID });
 
     const second = geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID })?.[0];
+    // Assert a Stop was actually emitted first — `?.llm` is also undefined when
+    // no event came back at all, which is a different (and worse) failure.
+    expect(second?.event_type).toBe('Stop');
     expect(second?.llm).toBeUndefined();
+  });
+
+  it('leaves no accumulator file behind once the turn is drained', () => {
+    geminiCliAdapter.mapBatch?.('after-model', {
+      llm_request: { model: 'gemini-3-pro' },
+      llm_response: { usageMetadata: { candidatesTokenCount: 10, promptTokenCount: 100 } },
+      session_id: SESSION_ID,
+    });
+    const dir = join(telHome, 'gemini-usage');
+    expect(readdirSync(dir).length).toBe(1);
+
+    geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID });
+    expect(readdirSync(dir).length).toBe(0);
+  });
+
+  it('drains on session-end too, so an abandoned session leaks nothing', () => {
+    // A session Ctrl-C'd mid-turn never reaches AfterAgent; without draining on
+    // SessionEnd its accumulator file would live in the user's home forever.
+    geminiCliAdapter.mapBatch?.('after-model', {
+      llm_response: { usageMetadata: { candidatesTokenCount: 5, promptTokenCount: 50 } },
+      session_id: SESSION_ID,
+    });
+    const stop = geminiCliAdapter.mapBatch?.('session-end', { session_id: SESSION_ID })?.[0];
+    expect(stop?.event_type).toBe('SessionEnd');
+    expect(stop?.llm?.input_tokens).toBe(50);
+    expect(readdirSync(join(telHome, 'gemini-usage')).length).toBe(0);
+  });
+
+  it('accumulates across concurrent writers without losing a call', () => {
+    // Each AfterModel is its own process; a read-modify-write accumulator drops
+    // tokens when two interleave. Appends do not.
+    for (let i = 0; i < 20; i++) {
+      geminiCliAdapter.mapBatch?.('after-model', {
+        llm_response: { usageMetadata: { candidatesTokenCount: 10, promptTokenCount: 100 } },
+        session_id: SESSION_ID,
+      });
+    }
+    const stop = geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID })?.[0];
+    expect(stop?.llm?.input_tokens).toBe(2000);
+    expect(stop?.llm?.output_tokens).toBe(200);
+  });
+
+  it('never accumulates under the nil session id (cross-session contamination)', () => {
+    geminiCliAdapter.mapBatch?.('after-model', {
+      llm_response: { usageMetadata: { candidatesTokenCount: 9, promptTokenCount: 99 } },
+    });
+    expect(existsSync(join(telHome, 'gemini-usage'))).toBe(false);
+    const stop = geminiCliAdapter.mapBatch?.('after-agent', {})?.[0];
+    expect(stop?.llm).toBeUndefined();
   });
 
   it('emits a usage-less Stop rather than a wrong one when the shape is unrecognized', () => {

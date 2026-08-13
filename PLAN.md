@@ -177,7 +177,7 @@ Tasks P7-001–P7-007 are `done`. P7-007 completed as a no-go semantic-search sp
 
 Build the remaining multi-agent foundation and validate it with a real second adapter. Implements the `<agent>:<tool>` collision-avoidance convention (`DESIGN_DOC.md` §2.4) that was documented but never built; per-agent + versioned price tables (the deferred P6-005); a hook adapter seam extracted from **two** real examples (the deferred P6-006), with `opencode` as the validating second agent; and agent-driven user-facing copy. Cost reconciliation against a vendor billing API is scaffolded behind a flag (gated per `DESIGN_DOC.md` §13 Q4).
 
-Tasks P8-001–P8-007 are `done`. opencode transcript upload remains a follow-up because opencode history is directory-shaped; Claude Code and Codex transcript shipping use single-file targets.
+Tasks P8-001–P8-007 are `done`. opencode transcript upload was a follow-up here — opencode history is directory-shaped, and the shipper reads a single file — closed in Phase 12 (P12-009) by collating a directory target into one JSONL before shipping.
 
 **Exit**: a second agent's sessions ingest, price correctly, render with the right labels, and never collide on tool names; the hook transport is shared between two adapters without forking.
 

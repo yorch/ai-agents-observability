@@ -18,9 +18,21 @@ const HOOK_KINDS = Object.keys(HOOK_KIND_TO_EVENT_TYPE) as HookKind[];
 
 // Maps CLI arg kind (kebab-case) to the PascalCase event name Claude Code
 // expects as a key in ~/.claude/settings.json. Identical to the canonical
-// EventType for every kind, but kept explicit: they are two different namespaces
-// that happen to agree, and a future divergence should not silently rename a hook.
-const HOOK_KIND_TO_SETTINGS_KEY: Record<HookKind, string> = HOOK_KIND_TO_EVENT_TYPE;
+// EventType for every kind today — but written out as its own literal, NOT
+// aliased to HOOK_KIND_TO_EVENT_TYPE. They are two different namespaces that
+// happen to agree: remapping a kind's canonical EventType (say `stop` →
+// SessionEnd) must not silently rewrite the settings key we ask Claude Code to
+// register, which would stop the hook firing at all.
+const HOOK_KIND_TO_SETTINGS_KEY: Record<HookKind, string> = {
+  notification: 'Notification',
+  'post-tool-use': 'PostToolUse',
+  'pre-compact': 'PreCompact',
+  'pre-tool-use': 'PreToolUse',
+  'session-start': 'SessionStart',
+  stop: 'Stop',
+  'subagent-stop': 'SubagentStop',
+  'user-prompt-submit': 'UserPromptSubmit',
+};
 
 // Exec form (command + args array) so Claude Code spawns the binary directly
 // rather than routing through `sh -c`. This avoids shell word-splitting on

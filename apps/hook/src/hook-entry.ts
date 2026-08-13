@@ -24,6 +24,26 @@ function safeParse(raw: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * The events one hook invocation produces.
+ *
+ * An adapter may expand one invocation into several events (codex reads a turn's
+ * tool calls + usage out of its rollout file), into exactly one, or into NONE —
+ * Gemini's AfterModel is harvested for token usage and deliberately emits
+ * nothing.
+ *
+ * The nullish coalescing is load-bearing: with `||`, an empty batch would fall
+ * through to `mapPayload` and fabricate an event for every such hook. Extracted
+ * so that contract can be tested without a second read of the process's stdin.
+ */
+export function eventsFor(
+  adapter: HookAdapter,
+  kind: string,
+  payload: Record<string, unknown>,
+): ReturnType<HookAdapter['mapPayload']>[] {
+  return adapter.mapBatch?.(kind, payload) ?? [adapter.mapPayload(kind, payload)];
+}
+
 // Run a single hook entrypoint. Always resolves; the caller exits 0 regardless.
 // Errors are logged and swallowed — a broken hook MUST NOT break Claude Code.
 export async function runHook(
@@ -64,9 +84,7 @@ export async function runHook(
       return;
     }
 
-    // An adapter may expand one hook invocation into several events (codex reads a
-    // turn's tool calls + usage out of its rollout file); otherwise it's one event.
-    const events = adapter.mapBatch?.(kind, payload) ?? [adapter.mapPayload(kind, payload)];
+    const events = eventsFor(adapter, kind, payload);
 
     // Snapshot git context at session-start time so the session row records the
     // branch as of when work began, not when the flusher drains. The flusher

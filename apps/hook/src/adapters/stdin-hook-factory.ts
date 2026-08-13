@@ -1,4 +1,5 @@
 import {
+  type AgentType,
   canonicalPermissionMode,
   type Event,
   type EventType,
@@ -31,12 +32,12 @@ import type { AdapterInstallConfig, ConformantEvent, HookAdapter, TranscriptTarg
 // writes its own adapter and uses the exported helpers instead. Do not grow this
 // config into a programming language.
 
-/** Payload keys the factory reads, each with the aliases agents actually use. */
+// Every field named here is READ by the factory. Do not add an alias the factory
+// does not consume: alias names are excluded from metadata (they are supposed to be
+// captured structurally), so an unread alias silently swallows that payload key.
 export type FieldAliases = {
   cwd: string[];
-  model: string[];
   permissionMode: string[];
-  prompt: string[];
   sessionId: string[];
   toolInput: string[];
   toolName: string[];
@@ -47,9 +48,7 @@ export type FieldAliases = {
 /** Claude-shaped defaults; an agent overrides only the fields it spells differently. */
 export const DEFAULT_FIELD_ALIASES: FieldAliases = {
   cwd: ['cwd'],
-  model: ['model'],
   permissionMode: ['permission_mode'],
-  prompt: ['prompt'],
   sessionId: ['session_id'],
   toolInput: ['tool_input'],
   toolName: ['tool_name'],
@@ -58,13 +57,20 @@ export const DEFAULT_FIELD_ALIASES: FieldAliases = {
 };
 
 export type StdinHookConfig = {
-  /** Canonical agent_type stamped on events (matches AgentTypeSchema). */
-  agentType: string;
+  /**
+   * Canonical agent_type stamped on events. Typed as `AgentType` rather than
+   * `string` on purpose: the assembled event needs an `as ConformantEvent` cast
+   * (event_type is dynamic), which would otherwise let a typo'd agent type
+   * compile and ship a binary whose every event ingest rejects.
+   */
+  agentType: AgentType;
   /**
    * Optional per-agent tool-block builder. Defaults to `buildGenericToolInfo`.
    * Claude Code passes its own so its long-standing behavior is untouched.
+   * Receives the hook `kind` — the authoritative signal for things a payload may
+   * not restate (Copilot's postToolUseFailure, for one).
    */
-  buildTool?: (raw: Record<string, unknown>, aliases: FieldAliases) => ToolInfo;
+  buildTool?: (raw: Record<string, unknown>, aliases: FieldAliases, kind: string) => ToolInfo;
   /**
    * Optional per-agent enrichment, applied last. Mutates the assembled event —
    * for metadata an agent derives (Claude's slash_command / notification_kind).
@@ -77,8 +83,10 @@ export type StdinHookConfig = {
   /** Metadata for the `install` command. */
   install: Omit<AdapterInstallConfig, 'hookKinds'>;
   /**
-   * Payload keys captured structurally (and so NOT copied into metadata).
-   * Defaults to every key named in the field aliases plus `hook_event_name`.
+   * EXTRA payload keys captured structurally (and so NOT copied into metadata).
+   * The alias keys and `hook_event_name` are always known; this adds to them, so
+   * an agent cannot accidentally re-emit into metadata something the factory
+   * already captured (`permission_mode` → session_context.mode, for one).
    */
   knownKeys?: string[];
   /** Hook kinds that ship a transcript. Empty/omitted = this agent ships none. */
@@ -96,11 +104,17 @@ function pick(raw: Record<string, unknown>, keys: string[]): string | null {
   return null;
 }
 
-/** First present (non-undefined) value among `keys`, else null. */
+/**
+ * First USABLE value among `keys`, else null — empty strings and null/undefined
+ * are skipped rather than accepted. Taking the first merely-present value would
+ * let `{ sessionId: "", session_id: "real-id" }` collapse the session to the nil
+ * UUID, merging every such event into one phantom session.
+ */
 function pickAny(raw: Record<string, unknown>, keys: string[]): unknown {
   for (const key of keys) {
-    if (raw[key] !== undefined) {
-      return raw[key];
+    const value = raw[key];
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
     }
   }
   return null;
@@ -113,6 +127,7 @@ function pickAny(raw: Record<string, unknown>, keys: string[]): unknown {
 export function buildGenericToolInfo(
   raw: Record<string, unknown>,
   aliases: FieldAliases,
+  _kind?: string,
 ): ToolInfo {
   const name = pick(raw, aliases.toolName) ?? 'unknown';
   const input = pickAny(raw, aliases.toolInput);
@@ -152,9 +167,14 @@ export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
   const aliases: FieldAliases = { ...DEFAULT_FIELD_ALIASES, ...config.fields };
   const buildTool = config.buildTool ?? buildGenericToolInfo;
   const transcriptKinds = new Set(config.transcriptKinds ?? []);
-  const knownKeys = new Set(
-    config.knownKeys ?? ['hook_event_name', ...Object.values(aliases).flat()],
-  );
+  // Alias keys are ALWAYS known — they are captured structurally, so re-emitting
+  // them into metadata would duplicate the value under a second name. An agent's
+  // own `knownKeys` adds to that set rather than replacing it.
+  const knownKeys = new Set([
+    'hook_event_name',
+    ...Object.values(aliases).flat(),
+    ...(config.knownKeys ?? []),
+  ]);
 
   // Everything we did not capture structurally rides along in metadata, so a
   // payload field we have not modelled yet is preserved rather than dropped.
@@ -192,7 +212,7 @@ export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
         mode: canonicalPermissionMode(pickAny(raw, aliases.permissionMode)),
       },
       session_id: sessionUuid(config.agentType, pickAny(raw, aliases.sessionId)),
-      ...(isToolEvent ? { tool: buildTool(raw, aliases) } : {}),
+      ...(isToolEvent ? { tool: buildTool(raw, aliases, kind) } : {}),
       ts: new Date().toISOString(),
       user_id_claim: userIdClaim(),
       // `event_type` is dynamic, which TypeScript cannot narrow against the
