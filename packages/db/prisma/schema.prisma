@@ -17,6 +17,9 @@ enum SessionStatus {
   ABANDONED
 }
 
+// Must hold the same values as AGENT_REGISTRY in packages/schemas
+// (agent-registry.test.ts asserts it). New values are appended, never reordered:
+// the init migration's CREATE TYPE fixes the on-disk order.
 enum AgentType {
   CLAUDE_CODE
   CURSOR
@@ -25,6 +28,9 @@ enum AgentType {
   CODEX
   WINDSURF
   OPENCODE
+  GEMINI_CLI
+  PI
+  OMP
 }
 
 enum AuditAction {

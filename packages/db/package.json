@@ -28,6 +28,7 @@
     "@prisma/client": "catalog:"
   },
   "devDependencies": {
+    "@ai-agents-observability/schemas": "workspace:*",
     "@faker-js/faker": "catalog:",
     "prisma": "catalog:",
     "typescript": "catalog:",

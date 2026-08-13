@@ -1,11 +1,35 @@
 import { describe, expect, it } from 'bun:test';
 
 import { claudeCodeAdapter } from './claude-code';
+import { conformanceErrors } from './conformance';
 
 const BIN = '/usr/local/bin/claude-telemetry';
+const SESSION_ID = '3f8c2a1e-9d47-4b6a-8c25-1e7f0a9b4d63';
 
 type HookEntry = { args: string[]; command: string; type: string };
 type HookGroup = { hooks: HookEntry[] };
+
+describe('claudeCodeAdapter', () => {
+  it('emits EventSchema-conformant events', () => {
+    const tool = claudeCodeAdapter.mapPayload('pre-tool-use', {
+      cwd: '/home/dev/proj',
+      hook_event_name: 'PreToolUse',
+      session_id: SESSION_ID,
+      tool_input: { command: 'ls' },
+      tool_name: 'Bash',
+    });
+    expect(conformanceErrors(tool)).toEqual([]);
+    // Claude Code already hands out UUIDs — normalization must not rewrite them,
+    // or the id users see in Claude Code would stop matching ours (P12-002).
+    expect(tool.session_id).toBe(SESSION_ID);
+  });
+
+  it('keys the shipped transcript to the same session_id as the events', () => {
+    const raw = { session_id: SESSION_ID, transcript_path: '/home/dev/.claude/x.jsonl' };
+    const stop = claudeCodeAdapter.mapPayload('stop', raw);
+    expect(claudeCodeAdapter.transcriptTarget('stop', raw)?.sessionId).toBe(stop.session_id);
+  });
+});
 
 describe('claudeCodeAdapter.installConfig().renderSnippet', () => {
   const raw = claudeCodeAdapter.installConfig().renderSnippet(BIN);

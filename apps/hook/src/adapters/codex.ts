@@ -18,6 +18,7 @@ import { clientInfo } from '../lib/client-info';
 import { type CodexUsage, parseRolloutRecords, usageDelta } from '../lib/codex-rollout';
 import { userIdClaim } from '../lib/identity';
 import { telemetryHome } from '../lib/paths';
+import { sessionUuid } from '../lib/session-id';
 import { uuidv7 } from '../lib/uuid';
 import type { AdapterInstallConfig, ConformantEvent, HookAdapter, TranscriptTarget } from './index';
 
@@ -46,7 +47,6 @@ const CODEX_EVENT_TYPE: Record<string, EventType> = {
   'user-prompt-submit': 'UserPromptSubmit',
 };
 
-const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 const ROLLOUT_RE = /^rollout-.*\.jsonl$/;
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
@@ -233,7 +233,7 @@ function locateRolloutUncached(raw: Record<string, unknown>): RolloutLocation | 
     'path',
   ]);
   if (explicit && existsSync(explicit)) {
-    return { cwd, path: explicit, sessionId: sessionIdFromPath(explicit) ?? NIL_UUID };
+    return { cwd, path: explicit, sessionId: sessionUuid('CODEX', sessionIdFromPath(explicit)) };
   }
 
   const files = listRollouts(codexSessionsDir());
@@ -244,7 +244,9 @@ function locateRolloutUncached(raw: Record<string, unknown>): RolloutLocation | 
 
   const id = sessionIdFromPayload(raw);
   const path = (id ? files.find((f) => f.includes(id)) : undefined) ?? newest;
-  return { cwd, path, sessionId: sessionIdFromPath(path) ?? id ?? NIL_UUID };
+  // The rollout filename carries a UUID (pass-through); the payload fallback may
+  // not, so both go through normalization (P12-002).
+  return { cwd, path, sessionId: sessionUuid('CODEX', sessionIdFromPath(path) ?? id) };
 }
 
 // ── Cursor (per-session byte offset + last cumulative usage) ────────────────────
@@ -312,7 +314,7 @@ function safeJson(line: string): unknown {
 
 function mapPayload(kind: string, raw: Record<string, unknown>): ConformantEvent {
   const eventType = CODEX_EVENT_TYPE[kind] ?? 'Notification';
-  const sessionId = sessionIdFromPayload(raw) ?? NIL_UUID;
+  const sessionId = sessionUuid('CODEX', sessionIdFromPayload(raw));
   return assemble(eventType, sessionId, cwdFromPayload(raw));
 }
 

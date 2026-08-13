@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 
 import { selectAdapter } from '.';
+import { conformanceErrors } from './conformance';
 import { opencodeAdapter } from './opencode';
+
+// Realistic opencode session id: `ses_`-prefixed, NOT a UUID (see P12-002).
+const SESSION_ID = 'ses_7bQx19aMfTk3';
 
 describe('opencode adapter', () => {
   it('is selectable by --agent opencode and falls back to claude-code otherwise', () => {
@@ -22,7 +26,7 @@ describe('opencode adapter', () => {
       args: { command: 'ls' },
       directory: '/home/dev/proj',
       result: 'a\nb\n',
-      sessionID: '01906a44-0000-7000-8000-000000000000',
+      sessionID: SESSION_ID,
       tool: 'bash',
     });
     expect(ev.agent_type).toBe('OPENCODE');
@@ -35,13 +39,32 @@ describe('opencode adapter', () => {
   it('attaches an llm block (with model) so ingest can price via the opencode table', () => {
     const ev = opencodeAdapter.mapPayload('session-idle', {
       model: 'claude-sonnet-4-5-20250929',
-      sessionID: '01906a44-0000-7000-8000-000000000000',
+      sessionID: SESSION_ID,
       tokens: { input: 1000, output: 200 },
     });
     expect(ev.event_type).toBe('Stop');
     expect(ev.llm?.model).toBe('claude-sonnet-4-5-20250929');
     expect(ev.llm?.input_tokens).toBe(1000);
     expect(ev.llm?.output_tokens).toBe(200);
+  });
+
+  // The regression test for P12-002: before normalization, a real `ses_` id failed
+  // EventSchema and ingest discarded the event.
+  it('emits an EventSchema-conformant event from a real ses_-prefixed session id', () => {
+    const ev = opencodeAdapter.mapPayload('post-tool-use', {
+      args: { filePath: '/tmp/x' },
+      directory: '/home/dev/proj',
+      sessionID: SESSION_ID,
+      tool: 'read',
+    });
+    expect(conformanceErrors(ev)).toEqual([]);
+    expect(ev.session_id).not.toBe(SESSION_ID);
+  });
+
+  it('keeps every event of one session under the same session_id', () => {
+    const start = opencodeAdapter.mapPayload('session-start', { sessionID: SESSION_ID });
+    const stop = opencodeAdapter.mapPayload('session-idle', { sessionID: SESSION_ID });
+    expect(start.session_id).toBe(stop.session_id);
   });
 
   it('returns null transcriptTarget (opencode uses directory storage — documented finding)', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { toEvent } from './payload';
+import { toEvent } from './claude-code';
 
 const base = {
   cwd: '/repo',

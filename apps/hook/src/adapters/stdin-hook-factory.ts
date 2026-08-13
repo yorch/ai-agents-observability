@@ -1,0 +1,237 @@
+import {
+  canonicalPermissionMode,
+  type Event,
+  type EventType,
+  type ToolInfo,
+} from '@ai-agents-observability/schemas';
+
+import { fieldBytes } from '../lib/bytes';
+import { clientInfo } from '../lib/client-info';
+import { userIdClaim } from '../lib/identity';
+import { sessionUuid } from '../lib/session-id';
+import { uuidv7 } from '../lib/uuid';
+import type { AdapterInstallConfig, ConformantEvent, HookAdapter, TranscriptTarget } from './index';
+
+// The stdin-hook adapter factory (P12-003).
+//
+// When P8-003 extracted the seam, Claude Code's hook protocol was Claude's alone.
+// It isn't any more: Codex, Gemini CLI, and Copilot CLI all now hand a JSON payload
+// to a command on stdin, with the same base fields —
+//
+//   session_id · transcript_path · cwd · hook_event_name
+//   tool_name · tool_input · tool_response
+//
+// — differing only in event NAMES (Gemini's `BeforeTool`, Copilot's `preToolUse`)
+// and field SPELLING (Copilot's camelCase `sessionId` / `toolArgs`). That is a
+// configuration difference, not four integrations, so this factory owns assembly
+// and each agent contributes a config object.
+//
+// Scope discipline: this is for agents that differ only in NAMING. An agent that
+// needs real logic — opencode, pi, omp (plugin-shaped), codex's rollout usage read —
+// writes its own adapter and uses the exported helpers instead. Do not grow this
+// config into a programming language.
+
+/** Payload keys the factory reads, each with the aliases agents actually use. */
+export type FieldAliases = {
+  cwd: string[];
+  model: string[];
+  permissionMode: string[];
+  prompt: string[];
+  sessionId: string[];
+  toolInput: string[];
+  toolName: string[];
+  toolResponse: string[];
+  transcriptPath: string[];
+};
+
+/** Claude-shaped defaults; an agent overrides only the fields it spells differently. */
+export const DEFAULT_FIELD_ALIASES: FieldAliases = {
+  cwd: ['cwd'],
+  model: ['model'],
+  permissionMode: ['permission_mode'],
+  prompt: ['prompt'],
+  sessionId: ['session_id'],
+  toolInput: ['tool_input'],
+  toolName: ['tool_name'],
+  toolResponse: ['tool_response'],
+  transcriptPath: ['transcript_path'],
+};
+
+export type StdinHookConfig = {
+  /** Canonical agent_type stamped on events (matches AgentTypeSchema). */
+  agentType: string;
+  /**
+   * Optional per-agent tool-block builder. Defaults to `buildGenericToolInfo`.
+   * Claude Code passes its own so its long-standing behavior is untouched.
+   */
+  buildTool?: (raw: Record<string, unknown>, aliases: FieldAliases) => ToolInfo;
+  /**
+   * Optional per-agent enrichment, applied last. Mutates the assembled event —
+   * for metadata an agent derives (Claude's slash_command / notification_kind).
+   */
+  enrich?: (event: ConformantEvent, kind: string, raw: Record<string, unknown>) => void;
+  /** Hook kind (our kebab-case CLI arg) → canonical EventType. */
+  eventMap: Record<string, EventType>;
+  /** Field spellings this agent uses; merged over DEFAULT_FIELD_ALIASES. */
+  fields?: Partial<FieldAliases>;
+  /** Metadata for the `install` command. */
+  install: Omit<AdapterInstallConfig, 'hookKinds'>;
+  /**
+   * Payload keys captured structurally (and so NOT copied into metadata).
+   * Defaults to every key named in the field aliases plus `hook_event_name`.
+   */
+  knownKeys?: string[];
+  /** Hook kinds that ship a transcript. Empty/omitted = this agent ships none. */
+  transcriptKinds?: string[];
+};
+
+/** First non-empty string among `keys`, else null. */
+function pick(raw: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = raw[key];
+    if (typeof value === 'string' && value.length > 0) {
+      return value;
+    }
+  }
+  return null;
+}
+
+/** First present (non-undefined) value among `keys`, else null. */
+function pickAny(raw: Record<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    if (raw[key] !== undefined) {
+      return raw[key];
+    }
+  }
+  return null;
+}
+
+/**
+ * Tool block from a Claude-shaped payload: name, MCP split, byte sizes. Only what
+ * is knowable at capture time — duration/exit are filled downstream or defaulted.
+ */
+export function buildGenericToolInfo(
+  raw: Record<string, unknown>,
+  aliases: FieldAliases,
+): ToolInfo {
+  const name = pick(raw, aliases.toolName) ?? 'unknown';
+  const input = pickAny(raw, aliases.toolInput);
+  const output = pickAny(raw, aliases.toolResponse);
+
+  const isMcp = name.startsWith('mcp__');
+  let mcpServer: string | null = null;
+  let mcpTool: string | null = null;
+  if (isMcp) {
+    const rest = name.slice('mcp__'.length);
+    const sep = rest.indexOf('__');
+    if (sep >= 0) {
+      mcpServer = rest.slice(0, sep);
+      mcpTool = rest.slice(sep + 2);
+    }
+  }
+
+  return {
+    category: isMcp ? 'mcp' : 'builtin',
+    duration_ms: 0,
+    exit_status: null,
+    input_bytes: fieldBytes(input),
+    input_hash: null,
+    mcp_server: mcpServer,
+    mcp_tool: mcpTool,
+    name,
+    output_bytes: fieldBytes(output),
+    skill: null,
+    slash_command: null,
+    subagent_type: null,
+    was_denied: raw.tool_denied === true || raw.was_denied === true,
+    was_interrupted: raw.was_interrupted === true,
+  };
+}
+
+export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
+  const aliases: FieldAliases = { ...DEFAULT_FIELD_ALIASES, ...config.fields };
+  const buildTool = config.buildTool ?? buildGenericToolInfo;
+  const transcriptKinds = new Set(config.transcriptKinds ?? []);
+  const knownKeys = new Set(
+    config.knownKeys ?? ['hook_event_name', ...Object.values(aliases).flat()],
+  );
+
+  // Everything we did not capture structurally rides along in metadata, so a
+  // payload field we have not modelled yet is preserved rather than dropped.
+  const buildMetadata = (raw: Record<string, unknown>): Record<string, unknown> => {
+    const meta: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(raw)) {
+      if (!knownKeys.has(key)) {
+        meta[key] = value;
+      }
+    }
+    const transcriptPath = pick(raw, aliases.transcriptPath);
+    if (transcriptPath) {
+      meta.transcript_path = transcriptPath;
+    }
+    return meta;
+  };
+
+  const mapPayload = (kind: string, raw: Record<string, unknown>): ConformantEvent => {
+    const eventType = config.eventMap[kind] ?? 'Notification';
+    const isToolEvent = eventType === 'PreToolUse' || eventType === 'PostToolUse';
+
+    const event = {
+      agent_type: config.agentType,
+      client: clientInfo(),
+      event_id: uuidv7(),
+      event_type: eventType,
+      metadata: buildMetadata(raw),
+      redaction_flags: [],
+      schema_version: 1,
+      session_context: {
+        cwd: pick(raw, aliases.cwd) ?? process.cwd(),
+        // Enriched by the flusher / session-start cache, not per event.
+        git: null,
+        is_resume: false,
+        mode: canonicalPermissionMode(pickAny(raw, aliases.permissionMode)),
+      },
+      session_id: sessionUuid(config.agentType, pickAny(raw, aliases.sessionId)),
+      ...(isToolEvent ? { tool: buildTool(raw, aliases) } : {}),
+      ts: new Date().toISOString(),
+      user_id_claim: userIdClaim(),
+      // `event_type` is dynamic, which TypeScript cannot narrow against the
+      // discriminated union without a cast. Ingest re-validates with EventSchema,
+      // and every adapter test asserts conformance (conformance.ts).
+    } as ConformantEvent;
+
+    config.enrich?.(event, kind, raw);
+    return event;
+  };
+
+  return {
+    agentType: config.agentType,
+
+    installConfig(): AdapterInstallConfig {
+      return { ...config.install, hookKinds: Object.keys(config.eventMap) };
+    },
+
+    isHookKind(value: string): boolean {
+      return value in config.eventMap;
+    },
+
+    mapPayload,
+
+    transcriptTarget(kind: string, raw: Record<string, unknown>): TranscriptTarget | null {
+      if (!transcriptKinds.has(kind)) {
+        return null;
+      }
+      const transcriptPath = pick(raw, aliases.transcriptPath);
+      const nativeSessionId = pickAny(raw, aliases.sessionId);
+      if (!transcriptPath || typeof nativeSessionId !== 'string' || nativeSessionId.length === 0) {
+        return null;
+      }
+      // Normalized exactly as the event's session_id is, so the transcript keys to
+      // the session its events landed under (P12-002).
+      return { sessionId: sessionUuid(config.agentType, nativeSessionId), transcriptPath };
+    },
+  };
+}
+
+/** Re-exported for adapters that assemble events themselves but want the helpers. */
+export type { Event };

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { selectAdapter } from '.';
 import { codexAdapter } from './codex';
+import { conformanceErrors } from './conformance';
 
 describe('codex adapter — selection & mapping', () => {
   it('is selectable by --agent codex and falls back to claude-code otherwise', () => {
@@ -28,6 +29,13 @@ describe('codex adapter — selection & mapping', () => {
     expect(ev.agent_type).toBe('CODEX');
     expect(ev.event_type).toBe('Stop');
     expect(ev.session_id).toBe('01906a44-0000-7000-8000-000000000000');
+    expect(conformanceErrors(ev)).toEqual([]);
+  });
+
+  it('normalizes a non-UUID conversation id rather than emitting a droppable event', () => {
+    const ev = codexAdapter.mapPayload('turn-complete', { 'conversation-id': 'conv_9f2b71' });
+    expect(conformanceErrors(ev)).toEqual([]);
+    expect(ev.session_id).not.toBe('conv_9f2b71');
   });
 });
 

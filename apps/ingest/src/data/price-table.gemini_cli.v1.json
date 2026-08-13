@@ -1,0 +1,6 @@
+{
+  "_comment": "Gemini CLI model pricing. Prices in USD per million tokens. Intentionally empty until verified Google rates are filled in — an empty table bills $0 via the table and counts toward unknown_model_events_total, rather than mispricing against another agent's model names (P8-002).",
+  "generated_at": "2026-08-13T00:00:00Z",
+  "prices": {},
+  "version": "gemini_cli.v1"
+}

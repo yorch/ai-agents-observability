@@ -1,16 +1,11 @@
 import { z } from 'zod';
 
+import { AGENT_TYPES } from './agent-registry';
 import { SessionContextSchema } from './session-context';
 
-export const AgentTypeSchema = z.enum([
-  'CLAUDE_CODE',
-  'CURSOR',
-  'AIDER',
-  'COPILOT',
-  'CODEX',
-  'WINDSURF',
-  'OPENCODE',
-]);
+// The value list lives in `agent-registry.ts` (P12-001) alongside each agent's
+// label and adapter status, so widening the enum is one edit rather than four.
+export const AgentTypeSchema = z.enum(AGENT_TYPES);
 export type AgentType = z.infer<typeof AgentTypeSchema>;
 
 export const EventTypeSchema = z.enum([

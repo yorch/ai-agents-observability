@@ -1,19 +1,21 @@
 import {
-  canonicalPermissionMode,
   classifyNotification,
-  type Event,
   type EventType,
   type ToolInfo,
 } from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from './bytes';
-import { clientInfo } from './client-info';
-import { userIdClaim } from './identity';
-import { uuidv7 } from './uuid';
+
+// Claude Code's payload specifics. Generic assembly (session id, cwd, metadata
+// passthrough, permission mode, transcript target) moved to the stdin-hook factory
+// in P12-003 — what stays here is what is genuinely Claude's: its hook-kind list,
+// its Task/Skill tool semantics, and its notification/slash-command enrichment.
+//
+// `adapters/claude-code.ts` wires these into the factory. Nothing else should.
 
 // Subset of fields Claude Code sends on every hook event. We pass the rest
 // through in `metadata` so the flusher can decide what to keep.
-type ClaudeCodeHookPayload = {
+export type ClaudeCodeHookPayload = {
   cwd?: unknown;
   hook_event_name?: unknown;
   message?: unknown;
@@ -31,7 +33,7 @@ type ClaudeCodeHookPayload = {
 // a known key (not duplicated into metadata). `notification_type` / `message` are
 // intentionally left out of KNOWN_KEYS so they pass through to metadata as the raw
 // record alongside the derived `notification_kind`.
-const KNOWN_KEYS = new Set([
+export const CLAUDE_KNOWN_KEYS = [
   'cwd',
   'hook_event_name',
   'permission_mode',
@@ -41,7 +43,7 @@ const KNOWN_KEYS = new Set([
   'tool_name',
   'tool_response',
   'transcript_path',
-]);
+];
 
 export type HookKind =
   | 'session-start'
@@ -53,7 +55,7 @@ export type HookKind =
   | 'subagent-stop'
   | 'notification';
 
-const HOOK_KIND_TO_EVENT_TYPE: Record<HookKind, EventType> = {
+export const HOOK_KIND_TO_EVENT_TYPE: Record<HookKind, EventType> = {
   notification: 'Notification',
   'post-tool-use': 'PostToolUse',
   'pre-compact': 'PreCompact',
@@ -66,19 +68,6 @@ const HOOK_KIND_TO_EVENT_TYPE: Record<HookKind, EventType> = {
 
 export function isHookKind(value: string): value is HookKind {
   return value in HOOK_KIND_TO_EVENT_TYPE;
-}
-
-function pickMetadata(payload: ClaudeCodeHookPayload): Record<string, unknown> {
-  const meta: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(payload)) {
-    if (!KNOWN_KEYS.has(key)) {
-      meta[key] = value;
-    }
-  }
-  if (typeof payload.transcript_path === 'string') {
-    meta.transcript_path = payload.transcript_path;
-  }
-  return meta;
 }
 
 function asString(value: unknown, fallback: string): string {
@@ -95,7 +84,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // defaults on the ingest side. Kept allocation-light to respect the hot-path
 // budget (the largest cost is stringifying tool_input, which stdin already caps
 // at ~1 MB).
-function buildToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
+export function buildClaudeToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
   const name = asString(raw.tool_name, 'unknown');
 
   const isMcp = name.startsWith('mcp__');
@@ -143,58 +132,24 @@ function buildToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
   };
 }
 
-// Translate Claude Code's hook payload into our Event shape. We deliberately
-// keep this dependency-free of zod parsing on the hot path: the flusher
-// re-validates with EventSchema before posting. Reliability > completeness.
-export function toEvent(kind: HookKind, raw: ClaudeCodeHookPayload): Event {
-  const sessionId = asString(raw.session_id, '00000000-0000-0000-0000-000000000000');
-  const cwd = asString(raw.cwd, process.cwd());
-  const eventType = HOOK_KIND_TO_EVENT_TYPE[kind];
-
-  // PreToolUse/PostToolUse require a `tool` block (EventSchema discriminated
-  // union); emit it from the raw payload so tool_name and tool-call counts are
-  // populated downstream rather than lost in metadata. The `as Event` cast is
-  // unavoidable here: `event_type` is a dynamic (non-literal) value, which
-  // TypeScript can't assign to a discriminated union without it. The safety net
-  // is ingest-side EventSchema validation plus the schema's own enforcement
-  // tests — a tool event reaching ingest without a tool block is rejected.
-  const isToolEvent = eventType === 'PreToolUse' || eventType === 'PostToolUse';
-
-  const metadata = pickMetadata(raw);
+/**
+ * Claude-derived metadata: the slash command a prompt opens with, and a normalized
+ * notification kind. The raw `notification_type` / `message` stay in metadata
+ * (passed through generically); this adds what ingest can aggregate without
+ * re-parsing.
+ */
+export function enrichClaudeMetadata(
+  metadata: Record<string, unknown>,
+  eventType: EventType,
+  raw: ClaudeCodeHookPayload,
+): void {
   if (eventType === 'UserPromptSubmit' && typeof raw.prompt === 'string') {
     const match = /^\/([a-zA-Z][\w-]*)/.exec(raw.prompt.trimStart());
     if (match) {
       metadata.slash_command = match[1];
     }
   }
-  // Classify the moment the agent stops to get the human's attention. The raw
-  // notification_type / message stay in metadata (passed through above); we add a
-  // normalized kind ingest can aggregate without re-parsing.
   if (eventType === 'Notification') {
     metadata.notification_kind = classifyNotification(raw.notification_type, raw.message);
   }
-
-  return {
-    agent_type: 'CLAUDE_CODE',
-    client: clientInfo(),
-    event_id: uuidv7(),
-    event_type: eventType,
-    metadata,
-    redaction_flags: [],
-    schema_version: 1,
-    session_context: {
-      cwd,
-      // Git context is enriched by the flusher (P1-021) or session-start cache,
-      // not on every event — keeps the hot path under budget.
-      git: null,
-      is_resume: false,
-      // Permission/autonomy mode the human granted, straight from Claude Code's
-      // hook payload. Falls back to 'normal' when absent (older agents/events).
-      mode: canonicalPermissionMode(raw.permission_mode),
-    },
-    session_id: sessionId,
-    ...(isToolEvent ? { tool: buildToolInfo(raw) } : {}),
-    ts: new Date().toISOString(),
-    user_id_claim: userIdClaim(),
-  } as Event;
 }

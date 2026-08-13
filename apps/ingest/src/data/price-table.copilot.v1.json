@@ -1,0 +1,6 @@
+{
+  "_comment": "GitHub Copilot CLI model pricing. Copilot bills seats and premium requests rather than raw tokens, so a per-mtok table is a modelling choice we have not made yet. Intentionally empty until it is — an empty table bills $0 via the table rather than mispricing against another agent's model names (P8-002).",
+  "generated_at": "2026-08-13T00:00:00Z",
+  "prices": {},
+  "version": "copilot.v1"
+}

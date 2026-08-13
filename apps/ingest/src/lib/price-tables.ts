@@ -3,7 +3,11 @@ import { PriceTableSchema } from '@ai-agents-observability/schemas';
 
 import rawClaudeCode from '../data/price-table.claude_code.v1.json' with { type: 'json' };
 import rawCodex from '../data/price-table.codex.v1.json' with { type: 'json' };
+import rawCopilot from '../data/price-table.copilot.v1.json' with { type: 'json' };
+import rawGeminiCli from '../data/price-table.gemini_cli.v1.json' with { type: 'json' };
+import rawOmp from '../data/price-table.omp.v1.json' with { type: 'json' };
 import rawOpencode from '../data/price-table.opencode.v1.json' with { type: 'json' };
+import rawPi from '../data/price-table.pi.v1.json' with { type: 'json' };
 
 // Per-agent price tables (P8-002, DESIGN_DOC §11.6). Cost is keyed on
 // (agent_type, model): each agent ships its own versioned table so a non-Anthropic
@@ -20,7 +24,11 @@ const normalize = (agentType: string): string => agentType.replaceAll('-', '_').
 const tables: Record<string, PriceTable> = {
   claude_code: PriceTableSchema.parse(rawClaudeCode),
   codex: PriceTableSchema.parse(rawCodex),
+  copilot: PriceTableSchema.parse(rawCopilot),
+  gemini_cli: PriceTableSchema.parse(rawGeminiCli),
+  omp: PriceTableSchema.parse(rawOmp),
   opencode: PriceTableSchema.parse(rawOpencode),
+  pi: PriceTableSchema.parse(rawPi),
 };
 
 // Returned for unknown agents: empty prices, so every model bills $0 and is

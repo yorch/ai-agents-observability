@@ -3,6 +3,7 @@ import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schema
 import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
 import { userIdClaim } from '../lib/identity';
+import { sessionUuid } from '../lib/session-id';
 import { uuidv7 } from '../lib/uuid';
 import type { AdapterInstallConfig, ConformantEvent, HookAdapter, TranscriptTarget } from './index';
 
@@ -34,8 +35,6 @@ const OPENCODE_EVENT_TYPE: Record<string, EventType> = {
   'session-start': 'SessionStart',
   'user-prompt-submit': 'UserPromptSubmit',
 };
-
-const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 function str(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
@@ -98,7 +97,10 @@ function buildLlm(raw: Record<string, unknown>): Event['llm'] | undefined {
 
 function mapPayload(kind: string, raw: Record<string, unknown>): ConformantEvent {
   const eventType = OPENCODE_EVENT_TYPE[kind] ?? 'Notification';
-  const sessionId = str(raw.sessionID ?? raw.session_id, NIL_UUID);
+  // opencode session ids are `ses_`-prefixed, NOT UUIDs. Passing them through
+  // meant every real opencode event failed EventSchema at ingest and was dropped
+  // (P12-002) — the adapter's own tests used UUID-shaped fixtures and never saw it.
+  const sessionId = sessionUuid('OPENCODE', raw.sessionID ?? raw.session_id);
   const cwd = str(raw.directory ?? raw.cwd, process.cwd());
   const isToolEvent = eventType === 'PreToolUse' || eventType === 'PostToolUse';
   const llm = buildLlm(raw);
