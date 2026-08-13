@@ -223,7 +223,8 @@ export const opencodeAdapter: HookAdapter = {
   // INTERFACE FINDING (P8-004), CLOSED IN P12-009: opencode stores conversation
   // history as a directory of per-message JSON under
   // ~/.local/share/opencode/storage, not a single .jsonl file like Claude Code.
-  // The shipper reads a single file, so this returned null for a year.
+  // The shipper reads a single file, so this returned null from P8-004 until
+  // P12-009.
   //
   // The fix is not in the interface — it stays `TranscriptTarget | null` — but in
   // the shipper, which now collates a DIRECTORY target into one JSONL before

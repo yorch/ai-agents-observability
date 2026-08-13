@@ -9,12 +9,12 @@
 > [`PLAN.md`](../PLAN.md) (phasing/decisions, Phases 1–9),
 > [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) (assessment of unrealized value —
 > the primary input for "what to build next"), [`AGENTS.md`](../AGENTS.md)
-> (agent guidelines), and [`tasks/`](../tasks/) (the P1–P9 task breakdown).
+> (agent guidelines), and [`tasks/`](../tasks/) (the P1–P12 task breakdown).
 >
 > **Currency:** reflects `main` as of the P6–P9 work (HITL observability,
-> alerting & governance, multi-agent adapters, insight surfaces) plus P11
-> (correlation & Jira). Phase 10 (model cost optimization) is proposed and
-> `ready`, not built. If you are reading this much later, re-verify against
+> alerting & governance, multi-agent adapters, insight surfaces), plus P11
+> (correlation & Jira) and P12 (agent adapter expansion — seven agents).
+> Phase 10 (model cost optimization) is proposed and `ready`, not built. If you are reading this much later, re-verify against
 > `tasks/INDEX.md` — that file, not this one, is the source of truth for status.
 
 ---
@@ -37,7 +37,8 @@ The scope is deliberately narrow:
 - **License:** FSL-1.1-MIT (usable for any non-competing purpose, converts to MIT
   two years after each release) — consistent with a future open-source spin-off.
 - **The name is plural on purpose:** the schema was multi-agent from day one, and
-  as of Phase 8 that bet is realized — `opencode` and `codex` adapters ship
+  as of Phase 12 that bet is realized — seven adapters ship (`claude-code`,
+  `opencode`, `codex`, `gemini-cli`, `copilot`, `pi`, `omp`)
   alongside Claude Code.
 
 ---
@@ -82,7 +83,9 @@ than standing.
 - `apps/github-app` (Hono/Bun, :4001) — GitHub webhook receiver, PR enrichment.
 - `apps/hook` (Bun single-binary CLI) — runs on dev machines, captures agent
   events + transcripts, ships them to ingest. Now built on a pluggable **adapter
-  seam** (Claude Code / opencode / codex).
+  seam** — seven agents in three shapes: stdin hooks over a shared factory
+  (Claude Code, Codex, Gemini CLI, Copilot CLI), in-process extensions (Pi, omp),
+  and opencode's own plugin event bus.
 
 **Shared packages:** `auth` (no NextAuth), `db` (Prisma 7 + raw SQL migrations),
 `github` (Octokit wrapper), `redaction` (secret/PII scrub), `schemas` (zod wire
@@ -109,7 +112,7 @@ migration path).
 ## 4. The end-to-end data flow
 
 ```
-Agent hook fires (Claude Code / opencode / codex via adapter seam)
+Agent hook fires (any of the seven agents, via the adapter seam)
   → hook CLI (hook-entry, <10ms) writes event to local SQLite queue, exits
      · SessionStart now captures real git context (branch/commit/remote/dirty)
      · permission mode canonicalized (normal→bypass autonomy ranks); Notification
@@ -143,7 +146,7 @@ Phases 1–9 are all code-complete; open items are operational sign-off / manual
 integration (see §8).
 
 ### Hook CLI (`apps/hook`)
-Adapter-based capture (Claude Code / opencode / codex). Full command surface:
+Adapter-based capture (seven agents; `--agent <name>` selects one). Full command surface:
 `login` (GitHub device-code **+ password fallback**), `install`/`uninstall`
 (launchd/systemd), `status`, `pause`/`resume`, `purge-local`, `import`
 (historical backfill from `~/.claude/projects`), the internal `hook <kind>`
@@ -230,8 +233,10 @@ opt-in bot comment) and `check_run` (CI failure counts). GHES-capable.
   `transcript_embeddings` prototype lives under `sql/prototypes/`, not applied.)*
 
 ### Telemetry & schemas (`packages/schemas`)
-9 event types. `agent_type` includes `claude-code`, `opencode`, `codex` (with
-adapters) plus `cursor`, `aider`, `copilot`, `windsurf`, `codex` schema entries.
+9 event types. `agent_type` and its labels come from one table
+(`agent-registry.ts`), which also records which agents have a shipped adapter:
+`claude-code`, `opencode`, `codex`, `gemini-cli`, `copilot`, `pi`, `omp` do;
+`cursor`, `aider`, `windsurf` are schema entries without one.
 Permission modes widened to `normal|plan|accept_edits|auto|dont_ask|bypass` with
 an autonomy rank; new `notification.ts` classifier; `alerts.ts` shared rule/severity
 constants; expanded git-context (PR CI status, review decision).
@@ -338,10 +343,12 @@ deeper effectiveness (cohort divergence + shape-shift). What remains:
    (`JIRA_VALUE_FIELD` → `jira_issues.business_value`, preferred over the flat
    per-point proxy on `/org/roi`); a Linear/revenue/outcome source remains the
    piece for non-Jira shops.
-4. **Heavier deferred items** — additional agent adapters, vendor cost
-   reconciliation, semantic search (if a gap is proven), IDE telemetry joins.
+4. **Heavier deferred items** — the remaining agent adapters (Cursor, Amp,
+   Aider, Windsurf — each deferred for a stated reason in `tasks/P12-roadmap.md`),
+   vendor cost reconciliation, semantic search (if a gap is proven), IDE telemetry
+   joins.
 
 ---
 
 *Generated from a structured investigation of the codebase, design docs, and the
-P1–P9 task breakdown.*
+P1–P12 task breakdown.*

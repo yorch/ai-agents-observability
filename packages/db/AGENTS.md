@@ -69,6 +69,12 @@ the gated pgvector spike declined in P7-007. Leave it out of the numbered sequen
 - **Enums are `UPPER_SNAKE_CASE`** (`OrgRole.ORG_ADMIN`, `AgentType.CLAUDE_CODE`).
   `packages/schemas` uses the same casing, so `agent_type` flows hook → ingest → DB
   with no translation layer. Don't add one.
+- **`AgentType` has three definitions that must agree**: `AGENT_REGISTRY` in
+  `packages/schemas`, the Prisma enum here, and the init migration's `CREATE TYPE`.
+  `test/agent-type-parity.test.ts` fails if they drift — it reads the migration as
+  TEXT on purpose, because Prisma's name-based idempotency check cannot see an
+  edited-after-applied migration (see the drift trap above). **Append** new values;
+  reordering rewrites the on-disk Postgres enum.
 - **Forward-only.** Never edit a merged migration; backfills are their own file.
 - `prisma migrate dev` needs the Prisma engine download, which is **egress-blocked in
   CI sandboxes**. Regenerate locally, commit the result.

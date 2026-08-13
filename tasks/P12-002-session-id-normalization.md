@@ -65,8 +65,13 @@ route would drop.
 
 ## Files touched
 
-- `apps/hook/src/adapters/index.ts` (or a new `apps/hook/src/adapters/session-id.ts`)
-- `apps/hook/src/adapters/opencode.ts`, `codex.ts`, `claude-code.ts`
+- `apps/hook/src/lib/session-id.ts` (new) + test — placed in `lib/` rather than
+  `adapters/` because `lib/payload.ts` needs it, and `lib/` must not import from
+  `adapters/`
+- `apps/hook/src/adapters/opencode.ts`, `codex.ts`, `claude-code.ts`, and the
+  stdin-hook factory (which applies it centrally, so no config object can forget)
+- `apps/hook/src/adapters/conformance.ts` (new) — the shared
+  `conformanceErrors()` every adapter test asserts on
 - their `.test.ts` siblings
 
 ## Out of scope

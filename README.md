@@ -1,6 +1,6 @@
 # ai-agents-observability
 
-Self-hosted observability platform for AI coding agents. Captures per-event telemetry from Claude Code, OpenCode, and Codex CLI sessions, stores events in TimescaleDB, redacts transcripts before object storage, and serves personal, team, org, and admin dashboards.
+Self-hosted observability platform for AI coding agents. Captures per-event telemetry from Claude Code, opencode, Codex CLI, Gemini CLI, GitHub Copilot CLI, Pi and omp sessions, stores events in TimescaleDB, redacts transcripts before object storage, and serves personal, team, org, and admin dashboards.
 
 ## Local development
 
@@ -91,6 +91,8 @@ curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
 **Phase 10** (model cost optimization) — **proposed, not started**. P10-001 through P10-006 are `ready`. See [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md).
 
 **Phase 11** (correlation & Jira integration) — `done`. Shipped ahead of Phase 10 as a single vertical slice: session ↔ PR ↔ repo ↔ Jira correlation, defect attribution (`/org/quality`), and significance testing on friction-band deltas.
+
+**Phase 12** (agent adapter expansion) — `done`. Seven agents now ship data end-to-end: Claude Code, opencode, Codex, Gemini CLI, GitHub Copilot CLI, Pi and omp. Three acceptance criteria are unverified for want of the agents themselves — see [`tasks/P12-roadmap.md`](./tasks/P12-roadmap.md).
 
 See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status — it is the source of truth, and this summary is a convenience copy.
 

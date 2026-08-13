@@ -37,8 +37,9 @@ Three rules the seam has accumulated, all learned the hard way:
 
 - **Normalize the session id** (`lib/session-id.ts`). `EventSchema` requires a
   UUID and ingest silently drops events that fail validation; opencode's real
-  `ses_`-prefixed ids meant every live opencode event was discarded for a year
-  while the tests stayed green on UUID-shaped fixtures (P12-002).
+  `ses_`-prefixed ids meant every live opencode event was discarded from the day
+  that adapter shipped, while the tests stayed green on UUID-shaped fixtures
+  (P12-002).
 - **Test with realistic payloads.** Every adapter test asserts
   `conformanceErrors(event)` is empty using the ids and field spellings the agent
   actually emits. That assertion is what would have caught the above.
@@ -46,6 +47,23 @@ Three rules the seam has accumulated, all learned the hard way:
   dropped (Gemini's `BeforeModel`, Copilot's `errorOccurred`, Codex's
   `PostCompact`). Fold near-misses into an existing type instead — Copilot's
   `postToolUseFailure` becomes a `PostToolUse` with a non-zero `exit_status`.
+- **Don't re-implement the payload primitives.** `lib/fields.ts` owns `isRecord`
+  and the "first usable value among these keys" readers. Both had drifted into
+  several copies with *different* answers about whether an empty string counts —
+  which silently collapses a session to the nil UUID.
+
+Two things that look like details and are not:
+
+- **`mapBatch` returning `[]` means "handled, emit nothing"** — distinct from
+  `null`, which falls back to `mapPayload`. Gemini's `after-model` is harvested for
+  token usage and emits no event, so it depends on this; `hook-entry` uses `??`
+  for exactly that reason, and `hook-entry.test.ts` pins it. Changing that to
+  `||` would fabricate a Notification per LLM call.
+- **Codex runs two capture paths** (native hooks, and the older `notify`), and
+  `notify` stands down when our binary is wired as a hook. That check must stay
+  narrow: matching a bare `claude-telemetry` substring also matches the notify
+  wrapper's own path in `config.toml`, which stands the default install down and
+  captures *nothing*.
 
 Directory-shaped history is no longer an asymmetry: a `transcriptTarget` that
 points at a **directory** is collated into one JSONL by the shipper

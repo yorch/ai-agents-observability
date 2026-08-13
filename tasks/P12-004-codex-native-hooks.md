@@ -73,7 +73,8 @@ at startup. `install` should write only one of them.
 ## Files touched
 
 - `apps/hook/src/adapters/codex.ts` (+ test), `apps/hook/src/lib/codex-rollout.ts`
-- `apps/hook/src/commands/install.ts`
+- NOT `commands/install.ts`: it prints whatever `installConfig()` returns, so the
+  hooks-vs-notify snippet choice lives in the adapter and install needed no change.
 
 ## Out of scope
 

@@ -76,7 +76,7 @@ like every other agent.
 ## Files touched
 
 - `apps/hook/src/adapters/copilot.ts` (+ test), `apps/hook/src/adapters/index.ts`
-- `apps/hook/src/commands/install.ts`
+- NOT `commands/install.ts` — it renders whatever `installConfig()` returns.
 
 ## Out of scope
 

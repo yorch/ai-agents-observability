@@ -15,7 +15,7 @@ Those files **load only when an agent touches that directory**, so detail there 
 >
 > **Nested files add, they don't override.** Claude Code concatenates this file with the per-directory one. Other agents may load only the *nearest* file ([the AGENTS.md spec says "the closest one takes precedence"](https://agents.md/) and leaves merge behaviour unspecified), so each per-directory file restates the two or three invariants that would be dangerous to lose. Never write a rule in a nested file that *contradicts* this one — that resolves differently depending on which agent is reading.
 
-> **Start here:** read [`DESIGN_DOC.md`](DESIGN_DOC.md) for the project's purpose (self-hosted observability for AI coding agents — Claude Code first, with OpenCode and Codex adapters implemented), then [`PLAN.md`](PLAN.md) and [`tasks/INDEX.md`](tasks/INDEX.md) for current scope.
+> **Start here:** read [`DESIGN_DOC.md`](DESIGN_DOC.md) for the project's purpose (self-hosted observability for AI coding agents — Claude Code first, with adapters for opencode, Codex, Gemini CLI, Copilot CLI, Pi and omp), then [`PLAN.md`](PLAN.md) and [`tasks/INDEX.md`](tasks/INDEX.md) for current scope.
 
 ## Commands
 
@@ -70,7 +70,7 @@ Run them in this order: lint → typecheck → build → test. Fix each failure 
 
 ## Architecture
 
-`ai-agents-observability` ingests per-event telemetry from AI coding agents on developer machines (Claude Code, opencode, and codex all have working adapters), archives full session transcripts, correlates work to GitHub PRs/teams, and exposes dashboards for three audiences: individual devs ("My Agents"), team leads, and org-level stakeholders. See [`DESIGN_DOC.md`](DESIGN_DOC.md) for the canonical scope statement.
+`ai-agents-observability` ingests per-event telemetry from AI coding agents on developer machines (seven have working adapters: Claude Code, opencode, Codex, Gemini CLI, Copilot CLI, Pi and omp), archives full session transcripts, correlates work to GitHub PRs/teams, and exposes dashboards for three audiences: individual devs ("My Agents"), team leads, and org-level stakeholders. See [`DESIGN_DOC.md`](DESIGN_DOC.md) for the canonical scope statement.
 
 **Agent-neutrality is a live constraint, not an aspiration.** New capabilities branch on `agent_type`, use the `<agent>:<tool>` naming convention, and drive user-facing copy from the agent label. Don't write "Claude Code" into a user-facing string or a schema field that any agent flows through.
 

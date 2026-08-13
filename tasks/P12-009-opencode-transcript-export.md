@@ -64,7 +64,7 @@ files carry fields with no parser equivalent, drop them rather than extending th
 parser — the export is a translation, not a new format.
 
 Check whether opencode's storage layout has changed since P8-004 before writing the
-collation; the finding is over a year old.
+collation; the finding dates from P8-004 (2026-06-25).
 
 ## Files touched
 

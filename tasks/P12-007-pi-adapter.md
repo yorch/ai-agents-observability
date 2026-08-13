@@ -92,9 +92,11 @@ contract for instrumenting Pi's internals, not a lifecycle event stream — wron
 
 ## Files touched
 
-- `apps/hook/src/adapters/pi.ts` (+ test), `apps/hook/src/adapters/index.ts`
-- `apps/hook/src/commands/install.ts`
-- possibly `apps/hook/src/lib/transcript-parser.ts` (tree-aware traversal)
+- `apps/hook/src/adapters/pi.ts` (+ test), `apps/hook/src/adapters/pi-family.ts`
+  (shared with omp), `apps/hook/src/adapters/index.ts`
+- NOT `commands/install.ts` — it renders whatever `installConfig()` returns.
+- NOT `lib/transcript-parser.ts`: nothing in the pipeline parses Pi transcripts
+  yet (the shipper ships bytes), so tree-aware traversal stays a follow-up.
 
 ## Out of scope
 

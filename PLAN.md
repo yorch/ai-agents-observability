@@ -205,6 +205,14 @@ Tasks P10-001–P10-006 are `ready` (all dependencies `done`). See [`tasks/P10-r
 
 **Exit**: a routing recommendation carries a savings figure an engineer can defend from the price table, and a team can see its own routing accountability without an org admin reading anyone's sessions.
 
+### Phase 12 — Agent Adapter Expansion
+
+Takes the P8 seam from three agents to **seven**. Codex moves onto its native lifecycle hooks (the rollout file is still read, but only for token usage, which the hook payload omits); Gemini CLI and GitHub Copilot CLI join as configuration objects over a shared `createStdinHookAdapter` factory, because those three agents converged on Claude Code's stdin hook shape; Pi and omp join as in-process extensions, sharing one implementation since omp is a Pi fork.
+
+Tasks P12-001–P12-009 are `done`. Along the way it fixed a silent drop of every live opencode event (their `ses_`-prefixed session ids failed `EventSchema`'s UUID requirement, and ingest drops invalid events per event), and a transcript-idempotency bug that had frozen **every** agent's transcript at its first upload. Three acceptance criteria remain unverified for want of the agents themselves — see [`tasks/P12-roadmap.md`](./tasks/P12-roadmap.md).
+
+**Exit**: met — seven agents ship data end-to-end, an agent whose session id is not a UUID ingests correctly, the four stdin-hook adapters share one implementation, and opencode's directory-shaped history uploads via an agent-neutral collation in the shipper.
+
 ---
 
 ## 4. Cross-cutting standards
@@ -242,7 +250,7 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 1. **§13 Q4** — Cost source of truth. Default: client-computed. Reconciliation cron against Anthropic admin API deferred until ≥$10k/month spend on a team.
 2. **§13 Q6** — S1's branch/PR → Jira convention. If it exists, Phase 2 rollups can ladder to feature-level for free.
 3. **§13 Q8** — CI-side Claude Code runs. Doc says out-of-scope; confirming.
-4. **Multi-agent extension** — `agent_type` is in the schema; OpenCode and Codex adapters are implemented. Cursor, Aider, Copilot, and Windsurf remain schema entries without adapters.
+4. **Multi-agent extension** — `agent_type` is in the schema; seven adapters ship (Claude Code, opencode, Codex, Gemini CLI, Copilot CLI, Pi, omp). Cursor, Aider and Windsurf remain schema entries without adapters.
 
 ---
 

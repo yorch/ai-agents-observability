@@ -70,7 +70,7 @@ blog post and an in-flight PR.
 ## Files touched
 
 - `apps/hook/src/adapters/gemini-cli.ts` (+ test), `apps/hook/src/adapters/index.ts`
-- `apps/hook/src/commands/install.ts`
+- NOT `commands/install.ts` — it renders whatever `installConfig()` returns.
 
 ## Out of scope
 

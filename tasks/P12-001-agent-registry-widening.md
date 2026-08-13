@@ -50,10 +50,10 @@ Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/resear
       statically, so CI catches a half-landed widening without a database.
 - [x] `agentDisplayName()` returns `Pi`, `omp`, `Gemini CLI` (lowercase `omp` matches
       the project's own styling, as `opencode` already does).
-- [x] An empty, registered price table exists for each new agent
-      (`price-table.pi.v1.json`, `price-table.omp.v1.json`,
-      `price-table.gemini_cli.v1.json`) so their models bill `$0` *via the table*
-      rather than the unknown-agent fallback — the P8-002 convention.
+- [x] An empty, registered price table exists for each agent gaining an adapter
+      (`pi`, `omp`, `gemini_cli`, and `copilot` — which already had an enum value but
+      no table) so their models bill `$0` *via the table* rather than the
+      unknown-agent fallback — the P8-002 convention.
 - [x] `/admin/adapters` renders its rows from one exported registry; adding an agent
       to that registry is the only edit needed for it to appear.
 - [x] `/admin/price-tables` lists the new tables without further changes.
@@ -74,8 +74,12 @@ than a restated literal.
 
 - `packages/schemas/src/event.ts`, `agent-display.ts` (+ new registry, + tests)
 - `packages/db/prisma/schema.prisma`, `prisma/migrations/20260625075457_init/migration.sql`
-- `apps/ingest/src/data/price-table.{pi,omp,gemini_cli}.v1.json`, `src/lib/price-tables.ts`
-- `apps/web/src/app/admin/adapters/page.tsx`
+- `apps/ingest/src/data/price-table.{pi,omp,gemini_cli,copilot}.v1.json`,
+  `src/lib/price-tables.ts` — copilot needed one too, since P12-006 gives it an adapter
+- `apps/web/src/app/admin/adapters/page.tsx`, `apps/web/src/app/admin/price-tables/page.tsx`
+  (both had their own hard-coded agent list; both now derive from the registry)
+- `packages/db/test/agent-type-parity.test.ts` (new) — binds the wire enum, the
+  Prisma enum and the init migration's `CREATE TYPE` together
 
 ## Out of scope
 

@@ -82,8 +82,12 @@ into the parent session.
 
 ## Files touched
 
-- `apps/hook/src/adapters/omp.ts` (+ test), `apps/hook/src/adapters/index.ts`
-- `apps/hook/src/commands/install.ts`, `apps/hook/src/lib/transcript-parser.ts`
+- `apps/hook/src/adapters/omp.ts` (+ test), `apps/hook/src/adapters/pi-family.ts`
+  (shared with Pi), `apps/hook/src/adapters/index.ts`
+- `apps/ingest/src/jobs/index-transcripts.ts` — the title-slot tolerance the
+  transcript indexer needs; the hook-side equivalent is `safeJsonObject` in
+  `pi-family.ts`, NOT `lib/transcript-parser.ts` (which only reads Claude Code's
+  format, for `import`)
 - `apps/hook/README.md` (the `omp-hooks` alternative)
 
 ## Out of scope

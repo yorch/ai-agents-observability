@@ -68,6 +68,11 @@ factory. The factory is for agents that differ only in naming.
 
 - `apps/hook/src/adapters/stdin-hook-factory.ts` (new) + test
 - `apps/hook/src/adapters/claude-code.ts`, `apps/hook/src/lib/payload.ts`
+- `apps/hook/src/lib/fields.ts` (new) — the payload-reading primitives the factory
+  and the hand-rolled adapters now share, after the /simplify pass found four
+  copies of the same loop disagreeing about empty strings
+- `apps/hook/src/hook-entry.ts` — `eventsFor()` extracted so the "empty batch means
+  handled" contract is testable without a second read of the process's stdin
 
 ## Out of scope
 

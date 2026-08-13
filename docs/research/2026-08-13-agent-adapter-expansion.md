@@ -4,8 +4,10 @@
 **Scope:** What it takes to add the next wave of coding agents to the `HookAdapter`
 seam (`apps/hook/src/adapters/`). Surveys the extension points, session storage, and
 usage/cost surfaces of eight agents against the seam's actual requirements.
-**Status:** Research + recommendation. Decomposed into
-[`tasks/P12-roadmap.md`](../../tasks/P12-roadmap.md). Nothing here is implemented yet.
+**Status:** Research + recommendation, **now implemented** — decomposed into
+[`tasks/P12-roadmap.md`](../../tasks/P12-roadmap.md) and shipped as P12-001–P12-009.
+This document is a point-in-time survey; where implementation diverged from what is
+recommended below, §7 records it, and the task files are the authority.
 
 > **Sourcing note.** Every claim about an agent's hook events, payload fields, or
 > storage layout below was read from that project's **primary documentation** (linked
@@ -379,6 +381,42 @@ Cursor, Amp, Aider, Windsurf stay out of this phase, each for a stated reason (�
 §2.7).
 
 Task decomposition: [`tasks/P12-roadmap.md`](../../tasks/P12-roadmap.md).
+
+---
+
+## 7. What actually shipped (added 2026-08-13, after implementation)
+
+The recommendation in §6 was followed in order, and the survey held up: no schema
+change was needed, and the factory absorbed three agents as configuration. Five
+things diverged from what is written above, and they are the interesting part.
+
+- **The opencode fix moved layers.** §6 (and P12-009) called for an adapter-level
+  export step. `transcriptTarget()` is called from `hook-entry` — the <10 ms hot
+  path — so collating there was untenable. The rule instead lives in the shipper
+  and is agent-neutral: *a transcript target that is a directory is collated
+  first*. The transport still names no agent.
+- **The session-ID hole was worse than §0.3 described.** The fix is not only
+  "derive when not a UUID" — the UUID test itself has to match what `z.uuid()`
+  accepts (RFC 9562 version/variant nibbles). A looser test declares a dashed-hex
+  string "already a UUID" and hands ingest an id it drops, which is the same bug
+  wearing a different hat.
+- **A worse bug sat underneath it, affecting every agent.** Ingest skipped
+  re-processing whenever an object already existed at the transcript's
+  deterministic key — but agents re-ship a *growing* transcript each turn, so
+  every session's transcript was frozen at its first turn. Unrelated to this
+  survey; found only because the new adapters made it reachable twice over.
+- **Gemini's usage needed more than a field map.** Usage arrives on `AfterModel`,
+  once per LLM call, an event with no canonical type. It is harvested into a
+  per-session accumulator that the turn's Stop drains — and that accumulator must
+  be append-only, because hooks are separate processes and a read-modify-write
+  loses tokens under concurrent model calls.
+- **Codex's two capture paths need a narrow stand-down test.** "Are Codex hooks
+  enabled" is the wrong question; "is OUR binary wired as a hook" is the right
+  one. The loose version stands the default `notify` install down and captures
+  nothing.
+
+Unchanged and worth restating: the §4 decision to *not* build an OTLP receiver,
+and the §2.6–2.7 deferrals (Cursor, Amp, Aider, Windsurf).
 
 ---
 
