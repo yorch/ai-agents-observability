@@ -10,7 +10,7 @@ wrong response to agents that now largely agree on a format.
 
 Research + sourcing: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/research/2026-08-13-agent-adapter-expansion.md).
 
-**Status**: P12-001 through P12-009 are code complete, with the migration verified against a real Postgres-Timescale container. Two acceptance criteria remain unchecked for want of the agents themselves: a recorded Pi session (P12-007) and which of omp's two documented config roots is real (P12-008).
+**Status**: P12-001 through P12-009 are code complete, with the migration verified against a real Postgres-Timescale container. Three acceptance criteria remain unchecked for want of the agents themselves: a recorded Pi session (P12-007), which of omp's two documented config roots is real (P12-008), and a recorded opencode session for the collated transcript (P12-009).
 
 ## Goal recap
 

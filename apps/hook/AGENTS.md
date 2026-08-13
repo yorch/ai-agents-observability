@@ -86,6 +86,12 @@ src/
   lib/             # queue (WAL), git, identity, payload, transcript parsing, backoff
 ```
 
+**Adapter working state goes under `agentStateDir(<agent>)`** (`lib/paths.ts`) —
+one root, so `purge-local` clears every agent's state without naming any of them.
+Codex's rollout cursors and Gemini's token accumulators live there. Putting state
+anywhere else means `purge` silently leaves it behind, which is how unredacted
+per-session data survived a "delete all local telemetry data" once already.
+
 ## Building
 
 `bun run build` compiles for the current platform; `build:all` cross-compiles all four

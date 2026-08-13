@@ -105,6 +105,8 @@ Removes all local telemetry data. Requires `--yes` to confirm.
 Removed paths:
 - `~/.claude-telemetry/queue.db` (pending events)
 - `~/.claude-telemetry/ship-queue/` (pending transcript markers)
+- `~/.claude-telemetry/collated/` (staged transcript collations — **unredacted**; redaction runs during upload, so a collation left behind by a killed shipper is plaintext history)
+- `~/.claude-telemetry/agent-state/` (per-agent working state: Codex rollout cursors, Gemini token accumulators)
 - `~/.claude-telemetry/hook.log` (local log file)
 - `~/.claude-telemetry/identity.json` (auth token)
 - `~/.claude-telemetry/flusher-state.json` (flusher state cache)
