@@ -1,4 +1,4 @@
-import { Button, ButtonLink, Card, Input } from '@/components/ui';
+import { Button, ButtonLink, Card, ConfirmButton, Input } from '@/components/ui';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -80,9 +80,12 @@ function GrantCard({ g }: { g: Grant }) {
         {st === 'active' && (
           <form action={revokeGrant}>
             <input type="hidden" name="id" value={g.id} />
-            <Button variant="danger" size="sm" type="submit">
+            <ConfirmButton
+              size="sm"
+              confirmMessage="Revoke this access grant? The grantee loses access immediately."
+            >
               Revoke
-            </Button>
+            </ConfirmButton>
           </form>
         )}
       </div>
@@ -132,9 +135,13 @@ export default async function AccessGrantsPage() {
               <HoursInput label="Bulk grant lifetime (hours)" />
               {/* Secondary, not the accent: a bulk approve should not outweigh
                   the per-row approvals it stands next to. */}
-              <Button variant="secondary" size="sm" type="submit">
+              <ConfirmButton
+                variant="secondary"
+                size="sm"
+                confirmMessage={`Approve all ${pending.length} pending grant requests? Each approval is audit-logged and visible to the affected users.`}
+              >
                 Approve all ({pending.length})
-              </Button>
+              </ConfirmButton>
             </form>
           )}
         </div>

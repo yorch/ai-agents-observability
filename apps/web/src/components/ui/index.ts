@@ -1,6 +1,7 @@
 export { Badge, type BadgeTone, SeriesBadge, TONE_BG, TONE_TEXT } from './Badge';
 export { Button, ButtonLink, buttonClasses } from './Button';
 export { Card } from './Card';
+export { ConfirmButton } from './ConfirmButton';
 export { AreaLine } from './chart/AreaLine';
 export { BarChart, type BarDatum } from './chart/BarChart';
 export { ChartHover } from './chart/ChartHover';

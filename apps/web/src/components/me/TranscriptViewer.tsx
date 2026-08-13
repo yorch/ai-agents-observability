@@ -345,7 +345,7 @@ export function TranscriptViewer({
   }, [modeFiltered, query, viewMode]);
 
   if (loading && parsedLines.length === 0) {
-    return <div className="animate-pulse h-96 bg-surface rounded-lg" />;
+    return <div className="animate-pulse motion-reduce:animate-none h-96 bg-surface rounded-lg" />;
   }
   if (error) {
     return <p className="text-sm text-crit">Error: {error}</p>;

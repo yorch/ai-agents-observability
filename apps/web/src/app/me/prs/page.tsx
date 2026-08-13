@@ -173,7 +173,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
 
       {/* Summary stats */}
       {total > 0 && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <Stat label="Total PRs" value={String(total)} />
           <Stat label="Total cost" value={`$${totalCost.toFixed(2)}`} />
           <Stat label="Total sessions" value={String(totalSessions)} />

@@ -7,7 +7,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         <h1 className="font-display text-xl font-semibold tracking-tight text-text">Settings</h1>
         <p className="mt-0.5 text-sm text-text-2">Manage your account and privacy preferences.</p>
       </div>
-      <div className="flex gap-10">
+      <div className="flex flex-col gap-6 md:flex-row md:gap-10">
         <SettingsNav />
         <div className="flex-1 min-w-0">{children}</div>
       </div>

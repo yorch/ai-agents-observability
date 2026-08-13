@@ -131,7 +131,7 @@ export default async function OrgDeliveryPage({
             pull_request_review webhook.
           </p>
         ) : (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Stat
               label="Median time to first review"
               value={fmtHours(reviews.medianHoursToFirstReview)}

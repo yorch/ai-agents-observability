@@ -1,4 +1,4 @@
-import { Button, Card } from '@/components/ui';
+import { Button, Card, ConfirmButton } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { LEAD_ROLES, requireOrgAdmin } from '@/lib/roles';
 
@@ -65,9 +65,19 @@ export default async function TeamRolesAdminPage() {
                         <input type="hidden" name="teamId" value={team.id} />
                         <input type="hidden" name="userId" value={m.userId} />
                         <input type="hidden" name="role" value={isLead ? 'MEMBER' : 'LEAD'} />
-                        <Button variant="secondary" size="sm" type="submit">
-                          {isLead ? 'Revoke lead' : 'Make lead'}
-                        </Button>
+                        {isLead ? (
+                          <ConfirmButton
+                            variant="secondary"
+                            size="sm"
+                            confirmMessage="Revoke this member's team-lead access? They immediately lose the team views."
+                          >
+                            Revoke lead
+                          </ConfirmButton>
+                        ) : (
+                          <Button variant="secondary" size="sm" type="submit">
+                            Make lead
+                          </Button>
+                        )}
                       </form>
                     </li>
                   );

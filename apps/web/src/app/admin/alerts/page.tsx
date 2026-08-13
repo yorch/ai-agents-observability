@@ -2,7 +2,7 @@ import {
   BUDGET_THRESHOLD_WINDOW_DAYS,
   parseBudgetThresholdParams,
 } from '@ai-agents-observability/schemas';
-import { Button, Cell, Field, Input, Row, Select, Table } from '@/components/ui';
+import { Button, Cell, ConfirmButton, Field, Input, Row, Select, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import {
@@ -169,9 +169,12 @@ export default async function AlertsAdminPage() {
               </form>
               <form action={deleteChannel}>
                 <input type="hidden" name="id" value={c.id} />
-                <Button variant="danger" size="sm" type="submit">
+                <ConfirmButton
+                  size="sm"
+                  confirmMessage="Remove this notification channel? Alerts will stop delivering to it."
+                >
                   Remove
-                </Button>
+                </ConfirmButton>
               </form>
             </div>
           </div>

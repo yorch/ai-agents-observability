@@ -72,9 +72,15 @@ export function ShareSessionButton({
 
   async function copyLink() {
     const url = `${window.location.origin}/org/sessions/${sessionId}`;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard can be denied (permissions, insecure context) — surface it
+      // instead of leaving the button silently inert.
+      setError('Could not copy the link — copy it from the address bar instead.');
+    }
   }
 
   const count = activeShares.length;
@@ -123,7 +129,15 @@ export function ShareSessionButton({
                     <button
                       type="submit"
                       title="Revoke access"
-                      className="rounded px-1.5 py-0.5 text-[10px] text-text-3 transition-colors hover:text-crit"
+                      aria-label={`Revoke access for ${share.granteeEmail ?? 'this user'}`}
+                      onClick={(e) => {
+                        if (
+                          !window.confirm(`Revoke access for ${share.granteeEmail ?? 'this user'}?`)
+                        ) {
+                          e.preventDefault();
+                        }
+                      }}
+                      className="rounded px-1.5 py-1 text-[10px] text-text-3 transition-colors hover:text-crit"
                     >
                       Revoke
                     </button>

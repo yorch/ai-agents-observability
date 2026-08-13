@@ -115,7 +115,11 @@ export default async function GovernancePage({
             sub="reviewer = author / none"
             accent={provenance.mergedWithoutIndependentReview > 0 ? 'crit' : 'good'}
           />
-          <Stat label="Window" value={`${range}d`} sub={`${provenance.rows.length} PRs shown`} />
+          <Stat
+            label="Window"
+            value={`${range}d`}
+            sub={`${Math.min(provenance.rows.length, 30)} of ${provenance.total} PRs shown`}
+          />
         </div>
         {provenance.rows.length === 0 ? (
           <p className="text-sm text-text-3">No agent-assisted PRs in this window.</p>

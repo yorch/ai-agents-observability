@@ -41,6 +41,7 @@ export function SessionDetailTabs({
             <a
               key={t.id}
               href={t.href}
+              aria-current={tab === t.id ? 'page' : undefined}
               className={`pb-3 border-b-2 transition-colors ${
                 tab === t.id
                   ? 'border-accent text-text'

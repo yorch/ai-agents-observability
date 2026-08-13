@@ -69,7 +69,7 @@ export default async function OrgSkillDetailPage({
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         {[
           { label: 'Invocations', value: (stat?.callCount ?? 0).toLocaleString() },
           { label: 'Distinct users', value: (stat?.distinctUsers ?? 0).toString() },

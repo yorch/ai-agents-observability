@@ -38,7 +38,7 @@ export default async function TeamAdoptionPage({
         title={teamName}
       />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Total members" value={totalCount.toString()} />
         <Stat label={`Active (${range}d)`} value={activeCount.toString()} />
         <Stat label="Adoption rate" value={`${Math.round(adoptionRate * 100)}%`} />

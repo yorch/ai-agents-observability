@@ -60,6 +60,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         />
       </head>
       <body className="bg-bg font-body text-text">
+        {/* First tab stop on every page — the rail is ~20 links deep. */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:border focus:border-accent-line focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:text-text"
+        >
+          Skip to content
+        </a>
         {user ? (
           // The rail owns navigation, so pages render straight into the canvas
           // with no section sub-nav above them.
@@ -71,7 +78,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               teams={teams}
               userLabel={user.displayName ?? user.githubLogin ?? user.email ?? 'User'}
             />
-            <main className="min-w-0 flex-1 px-5 py-7 lg:px-8">
+            <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-5 py-7 outline-none lg:px-8">
               <div className="mx-auto w-full max-w-6xl">{children}</div>
             </main>
           </div>
@@ -83,7 +90,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <div className="flex justify-end px-6 py-4">
               <ThemeToggle />
             </div>
-            <main className="flex-1 px-6 pb-8">{children}</main>
+            <main id="main" tabIndex={-1} className="flex-1 px-6 pb-8 outline-none">
+              {children}
+            </main>
           </div>
         )}
       </body>

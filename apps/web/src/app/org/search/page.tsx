@@ -252,6 +252,9 @@ export default async function OrgSearchPage({
             <section className="space-y-3">
               <h2 className="font-display text-sm font-semibold text-text">
                 Transcript matches for &quot;{query}&quot;
+                {transcriptResults.length >= 20 && (
+                  <span className="ml-2 font-body text-xs font-normal text-text-3">top 20</span>
+                )}
               </h2>
               {transcriptResults.length === 0 ? (
                 <p className="text-sm text-text-3">
