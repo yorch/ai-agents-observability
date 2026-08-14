@@ -1,0 +1,6 @@
+{
+  "_comment": "Pi model pricing. Pi is provider-agnostic (Anthropic, OpenAI, Google, Groq, OpenRouter, Ollama, …), so model names here are whatever the user routed through. Intentionally empty until real per-provider rates are filled in: an empty table bills $0 *via the table* and counts toward unknown_model_events_total, rather than mispricing against another agent's names (P8-002).",
+  "generated_at": "2026-08-13T00:00:00Z",
+  "prices": {},
+  "version": "pi.v1"
+}

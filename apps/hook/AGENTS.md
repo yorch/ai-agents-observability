@@ -18,15 +18,57 @@ agent's hook, captures events, and ships them to ingest. It is **not a server**.
 
 ## The adapter seam
 
-Per-agent capture lives in `src/adapters/` — `claude-code.ts`, `opencode.ts`,
-`codex.ts`, dispatched through `index.ts`. The seam was extracted from two real
-agents (P8-003/P8-004), not designed up front, and codex (P8-007) validated it.
+Per-agent capture lives in `src/adapters/`, dispatched through `index.ts`. The
+seam was extracted from two real agents (P8-003/P8-004), not designed up front,
+and codex (P8-007) validated it. Seven agents ship today, in three shapes:
+
+| Shape | Agents | How |
+|---|---|---|
+| **stdin hooks** | claude-code, codex, gemini-cli, copilot | `createStdinHookAdapter()` — a config object each |
+| **in-process extension** | pi, omp | `createPiFamilyAdapter()` — they share an event vocabulary; omp is a Pi fork |
+| **hand-rolled** | opencode | its own plugin event bus |
 
 **Adding an agent is a new adapter, not a schema change.** If you find yourself
 widening `packages/schemas` to fit an agent, the adapter is doing too little.
+If the agent speaks Claude Code's stdin hook shape — most now do — it is a config
+object, not a file: an event map, field aliases, an install snippet.
 
-Known asymmetry: opencode's history is *directory*-shaped, so the single-file
-transcript shipper doesn't cover it. That's a live follow-up, not an oversight.
+Three rules the seam has accumulated, all learned the hard way:
+
+- **Normalize the session id** (`lib/session-id.ts`). `EventSchema` requires a
+  UUID and ingest silently drops events that fail validation; opencode's real
+  `ses_`-prefixed ids meant every live opencode event was discarded from the day
+  that adapter shipped, while the tests stayed green on UUID-shaped fixtures
+  (P12-002).
+- **Test with realistic payloads.** Every adapter test asserts
+  `conformanceErrors(event)` is empty using the ids and field spellings the agent
+  actually emits. That assertion is what would have caught the above.
+- **Never invent an `event_type`.** An agent event with no canonical equivalent is
+  dropped (Gemini's `BeforeModel`, Copilot's `errorOccurred`, Codex's
+  `PostCompact`). Fold near-misses into an existing type instead — Copilot's
+  `postToolUseFailure` becomes a `PostToolUse` with a non-zero `exit_status`.
+- **Don't re-implement the payload primitives.** `lib/fields.ts` owns `isRecord`
+  and the "first usable value among these keys" readers. Both had drifted into
+  several copies with *different* answers about whether an empty string counts —
+  which silently collapses a session to the nil UUID.
+
+Two things that look like details and are not:
+
+- **`mapBatch` returning `[]` means "handled, emit nothing"** — distinct from
+  `null`, which falls back to `mapPayload`. Gemini's `after-model` is harvested for
+  token usage and emits no event, so it depends on this; `hook-entry` uses `??`
+  for exactly that reason, and `hook-entry.test.ts` pins it. Changing that to
+  `||` would fabricate a Notification per LLM call.
+- **Codex runs two capture paths** (native hooks, and the older `notify`), and
+  `notify` stands down when our binary is wired as a hook. That check must stay
+  narrow: matching a bare `claude-telemetry` substring also matches the notify
+  wrapper's own path in `config.toml`, which stands the default install down and
+  captures *nothing*.
+
+Directory-shaped history is no longer an asymmetry: a `transcriptTarget` that
+points at a **directory** is collated into one JSONL by the shipper
+(`lib/transcript-collate.ts`), out of the hot path. That rule is agent-neutral,
+and it closed opencode's P8-004 transcript gap in P12-009.
 
 ## Two hard invariants
 
@@ -61,6 +103,12 @@ src/
   commands/        # login install uninstall status pause resume purge import
   lib/             # queue (WAL), git, identity, payload, transcript parsing, backoff
 ```
+
+**Adapter working state goes under `agentStateDir(<agent>)`** (`lib/paths.ts`) —
+one root, so `purge-local` clears every agent's state without naming any of them.
+Codex's rollout cursors and Gemini's token accumulators live there. Putting state
+anywhere else means `purge` silently leaves it behind, which is how unredacted
+per-session data survived a "delete all local telemetry data" once already.
 
 ## Building
 

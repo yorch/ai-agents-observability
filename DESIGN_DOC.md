@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-`ai-agents-observability` is a self-hosted observability platform for AI coding agents — Claude Code first, with OpenCode and Codex CLI adapters now implemented. The data model remains designed to accommodate Cursor, Aider, and other agentic developer tools later. It ingests per-event telemetry from developer machines, archives full session transcripts, correlates work to pull requests and GitHub teams, and exposes dashboards and reporting for three audiences: individual developers, team leads, and org-level stakeholders.
+`ai-agents-observability` is a self-hosted observability platform for AI coding agents — Claude Code first, with adapters now implemented for opencode, Codex CLI, Gemini CLI, GitHub Copilot CLI, Pi and omp. The data model remains designed to accommodate Cursor, Aider, and other agentic developer tools later. It ingests per-event telemetry from developer machines, archives full session transcripts, correlates work to pull requests and GitHub teams, and exposes dashboards and reporting for three audiences: individual developers, team leads, and org-level stakeholders.
 
 The scope deliberately sits between two larger industry buckets. It is **not** model observability (inference latency, prompt eval, drift) and it is **not** generic AI observability (which sprawls across RAG quality, embeddings, fine-tuning, etc.). The narrower target is **how humans use AI coding agents to do real engineering work** — sessions, tools, skills, MCP servers, PR outcomes.
 
@@ -37,7 +37,7 @@ The primary purpose is **developer experience and effectiveness research** (audi
 - Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting — spend spikes, error-rate, unknown-model surges — is implemented in Phase 9 §12.9. `budget_threshold` rule type is reserved in the enum but not yet evaluated. SIEM-style behavioral analytics on transcript content remains out of scope.)*
 - Replacing any existing observability stack (Datadog, Splunk, etc.) — this is purpose-built for AI coding agent telemetry.
 - **Model-level observability** — inference latency, prompt evaluation, model drift, RAG quality. Out of scope by design; that's a different product.
-- Capturing telemetry from every possible coding agent. OpenCode and Codex adapters are implemented; Cursor, Aider, Copilot, and Windsurf remain future adapters.
+- Capturing telemetry from every possible coding agent. Seven adapters ship (Claude Code, opencode, Codex, Gemini CLI, Copilot CLI, Pi, omp); Cursor, Aider and Windsurf remain future adapters, each deferred for a stated reason (see `tasks/P12-roadmap.md`).
 - Computing line-of-code-generated style "AI productivity" headline numbers (explicitly avoided — see §10).
 
 ### 2.3 Explicitly Deferred
@@ -47,15 +47,15 @@ The primary purpose is **developer experience and effectiveness research** (audi
 - CI / lint / test failure correlation via GitHub Checks API. *(Update: implemented — P5-005 added the failure counter; per-run outcomes are now stored in `pr_check_runs`.)*
 - Revert detection through git history scanning. *(Update: default-branch `push` webhooks now correlate commits to sessions in `session_commit_links`; full history scanning remains deferred.)*
 - Capture from CI-side agent runs (v1 focuses on interactive developer sessions).
-- Cursor / Aider / Copilot / Windsurf adapters (deferred; data model is forward-compatible).
+- Cursor / Aider / Windsurf adapters (deferred; data model is forward-compatible).
 
 ### 2.4 Multi-Agent Extensibility
 
-The name `ai-agents-observability` is deliberately plural. Claude Code was the first agent integrated, and Phase 8 added OpenCode plus Codex adapters. Every schema decision in this document is made with the assumption that more agents will be added later.
+The name `ai-agents-observability` is deliberately plural. Claude Code was the first agent integrated, Phase 8 added opencode plus Codex, and Phase 12 added Gemini CLI, Copilot CLI, Pi and omp. Every schema decision in this document is made with the assumption that more agents will be added later.
 
 Concretely, this means:
 
-- An `agent_type` dimension exists on every event and session (defaulting to `CLAUDE_CODE` in v1). The enum as shipped: `CLAUDE_CODE`, `CURSOR`, `AIDER`, `COPILOT`, `CODEX`, `WINDSURF`, `OPENCODE`. Adapters for `OPENCODE` (Phase 8) and `CODEX` (P8-007) are implemented; the others have schema entries but no adapter yet.
+- An `agent_type` dimension exists on every event and session (defaulting to `CLAUDE_CODE` in v1). The enum as shipped: `CLAUDE_CODE`, `CURSOR`, `AIDER`, `COPILOT`, `CODEX`, `WINDSURF`, `OPENCODE`, `GEMINI_CLI`, `PI`, `OMP` — defined once in `packages/schemas/src/agent-registry.ts`, which also records which of them have a shipped adapter. Live adapters: `CLAUDE_CODE`, `OPENCODE` (P8-004), `CODEX` (P8-007, moved onto Codex's native lifecycle hooks in P12-004), `GEMINI_CLI`, `COPILOT`, `PI`, `OMP` (P12). `CURSOR`, `AIDER` and `WINDSURF` have schema entries but no adapter yet.
 - Tool naming uses a `<agent>:<tool>` convention internally to prevent collisions when other agents have similarly-named tools (e.g. `CLAUDE_CODE:Edit` vs `CURSOR:Edit`)
 - The hook contract (§6.3) is agent-agnostic — any agent that can emit equivalent lifecycle events can produce conformant payloads via its own adapter (see §6.2 for the adapter seam)
 - "My Agents" (the self-service dashboard, §8) is named for the plural case from day one
@@ -575,7 +575,7 @@ Responsibilities:
 - Periodic transcript heartbeat (every 10 min) for long-running sessions
 - Final transcript ship on `Stop` / `SessionEnd`
 - Local CLI: `install` (register hooks), `uninstall` (remove hooks), `login` (OIDC device-code flow), `status` (queue depth + connectivity), `pause` / `resume` (toggle flushing), `purge` (clear local queue + optional local transcripts), `import` (backfill historical transcripts from `~/.claude/projects/`)
-- **Hook adapter seam** (Phase 8): each agent has its own adapter (`claude-code.ts`, `opencode.ts`, `codex.ts`). The transport (batching, queue, flushing, auth) is shared; adapters handle event translation. An optional `mapBatch` lets one hook fire expand into multiple events (used by the Codex adapter to read rollout JSONL).
+- **Hook adapter seam** (Phase 8, extended in Phase 12): each agent has its own adapter — `claude-code`, `codex`, `gemini-cli`, `copilot`, `pi`, `omp`, `opencode`. The transport (batching, queue, flushing, auth) is shared; adapters handle event translation. An optional `mapBatch` lets one hook fire expand into multiple events (used by the Codex adapter to read rollout JSONL, and by Gemini to fold per-call token usage onto the turn's Stop). Agents that speak Claude Code's stdin hook shape — Codex, Gemini CLI and Copilot CLI all do — are configuration objects over a shared factory rather than separate implementations.
 
 Local queue: SQLite database at `~/.claude-telemetry/queue.db`. Survives crashes, machine reboots, and offline periods.
 
@@ -1182,7 +1182,7 @@ Beyond Phase 5, the natural extensions:
 
 | Term                      | Meaning                                                                                                                                            |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agent / agent_type**    | The AI coding agent producing the telemetry. `CLAUDE_CODE` is v1; the schema also carries `CURSOR`, `AIDER`, `COPILOT`, `CODEX`, `WINDSURF`, `OPENCODE`. Live adapters: `CLAUDE_CODE`, `OPENCODE` (P8), `CODEX` (P8-007). |
+| **Agent / agent_type**    | The AI coding agent producing the telemetry. `CLAUDE_CODE` is v1; the schema also carries `CURSOR`, `AIDER`, `COPILOT`, `CODEX`, `WINDSURF`, `OPENCODE`, `GEMINI_CLI`, `PI`, `OMP`. Live adapters: `CLAUDE_CODE`, `OPENCODE` (P8), `CODEX` (P8-007/P12-004), `GEMINI_CLI`, `COPILOT`, `PI`, `OMP` (P12). |
 | **Session**               | One contiguous agent conversation, identified by the agent's native `session_id`                                                                   |
 | **Event**                 | A single hook fire — `PreToolUse`, `PostToolUse`, `Stop`, etc.                                                                                     |
 | **Turn**                  | One user-prompt-and-response cycle within a session                                                                                                |

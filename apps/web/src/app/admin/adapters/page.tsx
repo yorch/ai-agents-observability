@@ -1,11 +1,14 @@
-import { agentDisplayName } from '@ai-agents-observability/schemas';
+import { ADAPTER_AGENT_TYPES, agentDisplayName } from '@ai-agents-observability/schemas';
 import { Badge, Card, Cell, Row, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
-const ADAPTER_AGENTS = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'] as const;
+// Agents with a shipped capture adapter get a first-class row even at zero
+// sessions (that an adapter is silent is the point of this page). Derived from the
+// registry in packages/schemas — adding an agent there is the only edit needed.
+const ADAPTER_AGENTS = ADAPTER_AGENT_TYPES;
 
 function fmtRelative(date: Date | null): string {
   if (!date) {

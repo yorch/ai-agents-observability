@@ -2,6 +2,7 @@ import { existsSync, rmSync } from 'node:fs';
 
 import { logPath } from '../lib/log';
 import {
+  agentStateRoot,
   flusherStatePath,
   identityPath,
   pausedPath,
@@ -9,6 +10,7 @@ import {
   shipQueueDir,
   telemetryHome,
 } from '../lib/paths';
+import { collatedDir } from '../lib/transcript-collate';
 
 const DEFAULT_API = 'http://localhost:3000';
 
@@ -23,6 +25,8 @@ export async function runPurge(args: string[]): Promise<number> {
         `  event queue:    ${queuePath()}`,
         `  ship queue:     ${shipQueueDir()}`,
         `  log file:       ${logPath()}`,
+        `  staged uploads: ${collatedDir()}`,
+        `  agent state:    ${agentStateRoot()}`,
         `  identity file:  ${identityPath()}`,
         `  flusher state:  ${flusherStatePath()}`,
         `  pause marker:   ${pausedPath()}`,
@@ -71,6 +75,11 @@ export async function runPurge(args: string[]): Promise<number> {
   tryRemove(identityPath());
   tryRemove(flusherStatePath());
   tryRemove(pausedPath());
+  // Staged (unredacted) transcript collations, and every adapter's working state
+  // — per-session cursors and token tallies. Removed by CONVENTION rather than by
+  // naming agents, so a new adapter's state cannot be forgotten here.
+  tryRemove(collatedDir(), true);
+  tryRemove(agentStateRoot(), true);
 
   for (const p of removed) {
     process.stdout.write(`removed: ${p}\n`);

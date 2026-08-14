@@ -4,16 +4,11 @@
 // agent_type is the uppercase, underscored value shared by the wire/event schema
 // and the Prisma/DB enum ('CLAUDE_CODE'). The key is normalized defensively so any
 // casing or hyphenation (legacy 'claude-code') resolves to the same label.
+//
+// The labels themselves live in `agent-registry.ts` (P12-001) so the enum, the
+// labels, and the adapter list cannot drift apart.
 
-const CANONICAL: Record<string, string> = {
-  AIDER: 'Aider',
-  CLAUDE_CODE: 'Claude Code',
-  CODEX: 'Codex',
-  COPILOT: 'Copilot',
-  CURSOR: 'Cursor',
-  OPENCODE: 'opencode',
-  WINDSURF: 'Windsurf',
-};
+import { AGENT_REGISTRY } from './agent-registry';
 
 /** The default agent for single-agent deployments. */
 export const DEFAULT_AGENT_TYPE = 'CLAUDE_CODE';
@@ -23,7 +18,10 @@ function normalizeKey(agentType: string): string {
 }
 
 export function agentDisplayName(agentType: string): string {
-  return CANONICAL[normalizeKey(agentType)] ?? agentType;
+  const key = normalizeKey(agentType);
+  return key in AGENT_REGISTRY
+    ? AGENT_REGISTRY[key as keyof typeof AGENT_REGISTRY].label
+    : agentType;
 }
 
 /**

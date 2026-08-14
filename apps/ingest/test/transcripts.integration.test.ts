@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { gzipSync, zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 
 import type { S3Client } from '@aws-sdk/client-s3';
@@ -189,6 +190,89 @@ describe('POST /v1/transcripts/:session_id', () => {
     const decompressed = new TextDecoder().decode(zstdDecompressSync(stored));
     expect(decompressed).toContain('"role":"user"');
     expect(sessionStub.update).toHaveBeenCalledTimes(1);
+  });
+
+  // P12-009 regression. Agents re-ship a GROWING transcript every turn (Claude
+  // Code on each Stop, opencode on each session-idle). Skipping the re-upload
+  // just because an object already exists at the deterministic key froze every
+  // session's transcript at whatever its first turn contained — silently, with a
+  // 200 and a matching "uploaded" log line on the client.
+  function uploadedSessionDeps(storedUploadSha: string | null) {
+    const deps = authedDeps();
+    const sessionStub = deps.db.session as unknown as {
+      findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+    sessionStub.findUnique = vi.fn().mockResolvedValue({
+      sessionId: SESSION_ID,
+      startedAt: new Date('2026-05-21T12:00:00Z'),
+      transcriptBytes: BigInt(10),
+      transcriptS3Key: `transcripts/2026/05/21/${USER_ID}/${SESSION_ID}.jsonl.zst`,
+      transcriptUploadedAt: new Date('2026-05-21T12:05:00Z'),
+      userId: USER_ID,
+    });
+    sessionStub.update = vi.fn().mockResolvedValue({});
+
+    const puts: { Metadata?: Record<string, string> }[] = [];
+    deps.s3.client = {
+      send: vi.fn(async (cmd: unknown) => {
+        const input = (cmd as { input?: { Body?: Uint8Array; Metadata?: Record<string, string> } })
+          .input;
+        if (input?.Body) {
+          puts.push(input);
+          return {};
+        }
+        // HeadObject: the stored object carries the sha of the upload that made it.
+        return { Metadata: storedUploadSha ? { 'upload-sha256': storedUploadSha } : {} };
+      }),
+    } as unknown as S3Client;
+    return { deps, puts, sessionStub };
+  }
+
+  it('re-stores a transcript that has GROWN since the last upload', async () => {
+    const payload = [
+      '{"role":"user","content":"hi"}',
+      '{"role":"assistant","content":"…"}',
+      '',
+    ].join('\n');
+    const compressed = compress(payload);
+    // The stored object came from an EARLIER, shorter upload.
+    const { deps, puts, sessionStub } = uploadedSessionDeps('sha-of-an-earlier-shorter-upload');
+
+    const app = createApp({} as unknown as Config, deps);
+    const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
+      body: compressed,
+      headers: { Authorization: TOKEN, 'Content-Type': 'application/x-zstd' },
+      method: 'POST',
+    });
+
+    expect(res.status).toBe(201);
+    expect(puts).toHaveLength(1);
+    // …and the new object records the sha of the upload that produced it, so the
+    // NEXT identical re-ship can be skipped.
+    expect(puts[0]?.Metadata?.['upload-sha256']).toBe(
+      createHash('sha256').update(compressed).digest('hex'),
+    );
+    expect(sessionStub.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips re-storing a byte-identical re-upload', async () => {
+    const payload = ['{"role":"user","content":"hi"}', ''].join('\n');
+    const compressed = compress(payload);
+    // The stored object came from exactly these bytes.
+    const sha = createHash('sha256').update(compressed).digest('hex');
+    const { deps, puts, sessionStub } = uploadedSessionDeps(sha);
+
+    const app = createApp({} as unknown as Config, deps);
+    const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
+      body: compressed,
+      headers: { Authorization: TOKEN, 'Content-Type': 'application/x-zstd' },
+      method: 'POST',
+    });
+
+    expect(res.status).toBe(200);
+    expect(puts).toHaveLength(0);
+    expect(sessionStub.update).not.toHaveBeenCalled();
   });
 
   it('returns 202 with received offset for an intermediate chunk', async () => {

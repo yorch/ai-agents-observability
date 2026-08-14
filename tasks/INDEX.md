@@ -65,7 +65,7 @@ Source of truth for task status. Update this in the same commit as the task file
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P1-028](./P1-028-hook-perf-benchmark.md) | Hook perf benchmark (<10ms target) | done | claude | S | P1-020 |
-| [P1-029](./P1-029-phase1-signoff.md) | Phase 1 exit-criteria sign-off | ready | — | S | all P1-* |
+| [P1-029](./P1-029-phase1-signoff.md) | Phase 1 exit-criteria sign-off | done | claude | S | all P1-* |
 
 ---
 
@@ -215,12 +215,12 @@ See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` rout
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | ready | — | M | P8-002, P4-004, P7-001 |
-| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | ready | — | M | P8-002 |
-| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | ready | — | M | P10-001, P10-002 |
-| [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | ready | — | M | P10-001 |
-| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | ready | — | M | P10-002, P9-001 |
-| [P10-006](./P10-006-recommendation-validation-loop.md) | Recommendation validation loop | ready | — | M | P10-001, P10-003 |
+| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | done | claude | M | P8-002, P4-004, P7-001 |
+| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | done | claude | M | P8-002 |
+| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | done | claude | M | P10-001, P10-002 |
+| [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | done | claude | M | P10-001 |
+| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | done | claude | M | P10-002, P9-001 |
+| [P10-006](./P10-006-recommendation-validation-loop.md) | Recommendation validation loop | done | claude | M | P10-001, P10-003 |
 
 ---
 
@@ -234,3 +234,21 @@ Deepens the session↔PR↔repo↔Jira correlation spine: commit-SHA + open-PR l
 | [P11-002](./P11-002-correlation-follow-ups.md) | Correlation follow-ups (project-key allowlist, bug spend, jira facet) | done | claude | M | P11-001 |
 | [P11-003](./P11-003-defect-attribution.md) | Defect attribution & quality correlation (/org/quality) | done | claude | M | P11-002 |
 | [P11-004](./P11-004-band-significance.md) | Significance testing on friction-band deltas (Fisher's exact) | done | claude | S | P11-003 |
+
+---
+
+## Phase 12 — Agent Adapter Expansion
+
+See [`P12-roadmap.md`](./P12-roadmap.md). Takes the P8 seam from three agents to seven — Codex onto its native lifecycle hooks, plus Gemini CLI, Copilot CLI, Pi, and OMP — by extracting one stdin-hook factory instead of writing five bespoke adapters, and fixes a live session-ID bug that silently drops opencode traffic today. Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/research/2026-08-13-agent-adapter-expansion.md). Code complete. Three acceptance criteria remain unverified for want of the agents themselves: a recorded Pi session (P12-007), which of omp's two documented config roots is real (P12-008), and a recorded opencode session for the collated transcript (P12-009).
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P12-001](./P12-001-agent-registry-widening.md) | Agent registry widening (PI, OMP, GEMINI_CLI) | done | claude | S | P5-006, P8-002 |
+| [P12-002](./P12-002-session-id-normalization.md) | Session-ID normalization in the adapter seam | done | claude | S | P8-003 |
+| [P12-003](./P12-003-stdin-hook-adapter-factory.md) | Stdin hook adapter factory | done | claude | M | P8-003, P12-002 |
+| [P12-004](./P12-004-codex-native-hooks.md) | Codex native lifecycle hooks | done | claude | M | P8-007, P12-003 |
+| [P12-005](./P12-005-gemini-cli-adapter.md) | Gemini CLI adapter | done | claude | M | P12-001, P12-003 |
+| [P12-006](./P12-006-copilot-cli-adapter.md) | GitHub Copilot CLI adapter | done | claude | M | P12-002, P12-003 |
+| [P12-007](./P12-007-pi-adapter.md) | Pi adapter | done | claude | M | P12-001, P12-002 |
+| [P12-008](./P12-008-omp-adapter.md) | OMP (oh-my-pi) adapter | done | claude | M | P12-001, P12-002, P12-007 |
+| [P12-009](./P12-009-opencode-transcript-export.md) | opencode transcript export (closes the P8-004 gap) | done | claude | M | P8-004, P12-007 |

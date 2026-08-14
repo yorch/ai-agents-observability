@@ -177,7 +177,7 @@ Tasks P7-001–P7-007 are `done`. P7-007 completed as a no-go semantic-search sp
 
 Build the remaining multi-agent foundation and validate it with a real second adapter. Implements the `<agent>:<tool>` collision-avoidance convention (`DESIGN_DOC.md` §2.4) that was documented but never built; per-agent + versioned price tables (the deferred P6-005); a hook adapter seam extracted from **two** real examples (the deferred P6-006), with `opencode` as the validating second agent; and agent-driven user-facing copy. Cost reconciliation against a vendor billing API is scaffolded behind a flag (gated per `DESIGN_DOC.md` §13 Q4).
 
-Tasks P8-001–P8-007 are `done`. opencode transcript upload remains a follow-up because opencode history is directory-shaped; Claude Code and Codex transcript shipping use single-file targets.
+Tasks P8-001–P8-007 are `done`. opencode transcript upload was a follow-up here — opencode history is directory-shaped, and the shipper reads a single file — closed in Phase 12 (P12-009) by collating a directory target into one JSONL before shipping.
 
 **Exit**: a second agent's sessions ingest, price correctly, render with the right labels, and never collide on tool names; the hook transport is shared between two adapters without forking.
 
@@ -204,6 +204,14 @@ Tasks P11-001–P11-004 are `done`, including defect attribution (`/org/quality`
 Tasks P10-001–P10-006 are `ready` (all dependencies `done`). See [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md) for the full rationale.
 
 **Exit**: a routing recommendation carries a savings figure an engineer can defend from the price table, and a team can see its own routing accountability without an org admin reading anyone's sessions.
+
+### Phase 12 — Agent Adapter Expansion
+
+Takes the P8 seam from three agents to **seven**. Codex moves onto its native lifecycle hooks (the rollout file is still read, but only for token usage, which the hook payload omits); Gemini CLI and GitHub Copilot CLI join as configuration objects over a shared `createStdinHookAdapter` factory, because those three agents converged on Claude Code's stdin hook shape; Pi and omp join as in-process extensions, sharing one implementation since omp is a Pi fork.
+
+Tasks P12-001–P12-009 are `done`. Along the way it fixed a silent drop of every live opencode event (their `ses_`-prefixed session ids failed `EventSchema`'s UUID requirement, and ingest drops invalid events per event), and a transcript-idempotency bug that had frozen **every** agent's transcript at its first upload. Three acceptance criteria remain unverified for want of the agents themselves — see [`tasks/P12-roadmap.md`](./tasks/P12-roadmap.md).
+
+**Exit**: met — seven agents ship data end-to-end, an agent whose session id is not a UUID ingests correctly, the four stdin-hook adapters share one implementation, and opencode's directory-shaped history uploads via an agent-neutral collation in the shipper.
 
 ---
 
@@ -242,7 +250,7 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 1. **§13 Q4** — Cost source of truth. Default: client-computed. Reconciliation cron against Anthropic admin API deferred until ≥$10k/month spend on a team.
 2. **§13 Q6** — S1's branch/PR → Jira convention. If it exists, Phase 2 rollups can ladder to feature-level for free.
 3. **§13 Q8** — CI-side Claude Code runs. Doc says out-of-scope; confirming.
-4. **Multi-agent extension** — `agent_type` is in the schema; OpenCode and Codex adapters are implemented. Cursor, Aider, Copilot, and Windsurf remain schema entries without adapters.
+4. **Multi-agent extension** — `agent_type` is in the schema; seven adapters ship (Claude Code, opencode, Codex, Gemini CLI, Copilot CLI, Pi, omp). Cursor, Aider and Windsurf remain schema entries without adapters.
 
 ---
 

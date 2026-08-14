@@ -1,6 +1,8 @@
 export const EVENTS_API_VERSION = '1' as const;
 
 export { agentDisplayName, DEFAULT_AGENT_TYPE, multiAgentLabels } from './agent-display';
+export type { AgentDefinition, AgentTypeKey } from './agent-registry';
+export { ADAPTER_AGENT_TYPES, AGENT_REGISTRY, AGENT_TYPES } from './agent-registry';
 export type { AlertRuleType, AlertSeverity, BudgetThresholdParams } from './alerts';
 export {
   AUTONOMY_SURGE_CRITICAL,

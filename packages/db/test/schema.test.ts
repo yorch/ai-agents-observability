@@ -96,7 +96,8 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
     const token = await prisma.authToken.create({
       data: { kind: 'HOOK', tokenHash: `sha256:${suffix}`, userId },
     });
-    expect(token.kind).toBe('hook');
+    // AuthTokenKind is UPPER_SNAKE, like every enum in this schema.
+    expect(token.kind).toBe('HOOK');
     expect(token.userId).toBe(userId);
   });
 

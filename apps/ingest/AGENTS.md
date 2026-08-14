@@ -29,6 +29,20 @@ If you add an endpoint that accepts user-pasted content, it either goes through 
 pipeline or it doesn't ship. New content shapes need their own rule in
 `packages/redaction`, not a local regex here.
 
+## Transcripts are re-shipped, and must re-store
+
+Agents ship a **growing** transcript: Claude Code on every Stop, opencode on every
+session-idle. `POST /v1/transcripts/:id` therefore receives the same session many
+times, each upload longer than the last, all at the same deterministic S3 key.
+
+Skipping on "an object already exists at that key" froze every session's transcript
+at whatever its first turn contained — silently, with a 200 and a matching
+"uploaded" log line on the client. The skip is now gated on the **upload's sha256**,
+stamped onto the object as user metadata when it was stored, so an identical
+re-ship short-circuits and a grown one replaces. Size is NOT a usable signal here:
+what we store is the server's re-redacted recompression, whose length has nothing
+to do with the client's compressed upload.
+
 ## Cost is recomputed, never trusted
 
 The hook computes cost client-side from the versioned price table so price changes

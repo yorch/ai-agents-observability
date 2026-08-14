@@ -165,8 +165,12 @@ export function parseRolloutRecords(records: unknown[]): RolloutParse {
   };
 }
 
-// Per-turn usage = current cumulative − previously-seen cumulative (clamped at 0
-// so a session restart that resets the counter can never emit negative tokens).
+// Per-turn usage = current cumulative − previously-seen cumulative.
+//
+// A counter that went BACKWARDS means the cumulative total was reset (a restarted
+// session, a rotated rollout). Re-baseline in that case — treat the current
+// reading as the whole delta — rather than clamping each field to zero, which
+// silently swallowed every token counted since the reset.
 export function usageDelta(prev: CodexUsage | null, current: CodexUsage | null): CodexUsage | null {
   if (!current) {
     return null;
@@ -174,11 +178,19 @@ export function usageDelta(prev: CodexUsage | null, current: CodexUsage | null):
   if (!prev) {
     return current;
   }
+  const wasReset =
+    current.inputTokens < prev.inputTokens ||
+    current.outputTokens < prev.outputTokens ||
+    current.cacheReadTokens < prev.cacheReadTokens ||
+    current.cacheWriteTokens < prev.cacheWriteTokens;
+  if (wasReset) {
+    return { ...current, model: current.model ?? prev.model };
+  }
   return {
-    cacheReadTokens: Math.max(0, current.cacheReadTokens - prev.cacheReadTokens),
-    cacheWriteTokens: Math.max(0, current.cacheWriteTokens - prev.cacheWriteTokens),
-    inputTokens: Math.max(0, current.inputTokens - prev.inputTokens),
+    cacheReadTokens: current.cacheReadTokens - prev.cacheReadTokens,
+    cacheWriteTokens: current.cacheWriteTokens - prev.cacheWriteTokens,
+    inputTokens: current.inputTokens - prev.inputTokens,
     model: current.model ?? prev.model,
-    outputTokens: Math.max(0, current.outputTokens - prev.outputTokens),
+    outputTokens: current.outputTokens - prev.outputTokens,
   };
 }

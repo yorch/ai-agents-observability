@@ -2,7 +2,11 @@ import type { Event } from '@ai-agents-observability/schemas';
 
 import { claudeCodeAdapter } from './claude-code';
 import { codexAdapter } from './codex';
+import { copilotAdapter } from './copilot';
+import { geminiCliAdapter } from './gemini-cli';
+import { ompAdapter } from './omp';
 import { opencodeAdapter } from './opencode';
+import { piAdapter } from './pi';
 
 // A hook adapter translates one agent's native hook protocol into the
 // agent-neutral transport (queue → flusher → ingest; ship marker → shipper).
@@ -56,7 +60,11 @@ export interface HookAdapter {
 const ADAPTERS: Record<string, HookAdapter> = {
   'claude-code': claudeCodeAdapter,
   codex: codexAdapter,
+  copilot: copilotAdapter,
+  'gemini-cli': geminiCliAdapter,
+  omp: ompAdapter,
   opencode: opencodeAdapter,
+  pi: piAdapter,
 };
 
 export const DEFAULT_ADAPTER = 'claude-code';

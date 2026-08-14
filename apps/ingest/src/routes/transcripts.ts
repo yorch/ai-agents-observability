@@ -11,7 +11,7 @@ import type { Logger } from 'pino';
 import { z } from 'zod';
 
 import { transcriptsStoredTotal } from '../lib/metrics';
-import { objectExists, putObject, type S3Deps, transcriptKey } from '../lib/s3';
+import { objectMetadata, putObject, type S3Deps, transcriptKey } from '../lib/s3';
 import { processTranscript, TranscriptTooLargeError } from '../lib/transcript-pipeline';
 import type { AppEnv } from '../types';
 
@@ -19,6 +19,11 @@ const MAX_TRANSCRIPT_BYTES = 200 * 1024 * 1024; // 200 MB compressed
 const MAX_CHUNK_BYTES = 16 * 1024 * 1024; // 16 MB per chunked PUT
 const CONTENT_TYPE_ZSTD = 'application/x-zstd';
 const CONTENT_TYPE_GZIP = 'application/gzip';
+// S3 user-metadata key holding the sha256 of the upload that produced the stored
+// object. It is what makes a re-ship idempotent WITHOUT a schema migration: the
+// alternative signals (object size, transcript_bytes) describe the server's
+// re-redacted, re-compressed output, not the client's payload.
+const UPLOAD_SHA_METADATA_KEY = 'upload-sha256';
 
 const ContentRangeSchema = z
   .string()
@@ -190,11 +195,22 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
 
         // Idempotency: a prior upload with the same content lives at the same
         // key (key is deterministic by user_id+session_id+session.started_at).
-        // If the row already records the same key, return 200 without
-        // re-processing.
+        //
+        // The skip is gated on the stored object having been built from the SAME
+        // UPLOAD BYTES, not merely on it existing. Agents re-ship a growing
+        // transcript every turn (Claude Code on each Stop, opencode on each
+        // session-idle); skipping on existence alone froze every session's
+        // transcript at whatever the first turn contained, silently, with a 200
+        // and a "shipper.uploaded" log line to match.
+        //
+        // The identity signal is the sha256 of the received payload, stamped onto
+        // the object as user metadata when it was stored. Comparing SIZES would
+        // not work: what we store is the server's recompression of the
+        // server-redacted text, so its length is unrelated to the client's
+        // compressed upload and the skip would never fire.
         if (session.transcriptS3Key === key && session.transcriptUploadedAt) {
-          const present = await objectExists(deps.s3, key);
-          if (present) {
+          const stored = await objectMetadata(deps.s3, key);
+          if (stored !== null && stored[UPLOAD_SHA_METADATA_KEY] === sha256) {
             return c.json(
               {
                 bytes: Number(session.transcriptBytes ?? 0),
@@ -218,7 +234,9 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
           throw err;
         }
         try {
-          await putObject(deps.s3, key, result.recompressed, CONTENT_TYPE_ZSTD);
+          await putObject(deps.s3, key, result.recompressed, CONTENT_TYPE_ZSTD, {
+            [UPLOAD_SHA_METADATA_KEY]: sha256,
+          });
         } catch (err) {
           if (err instanceof S3ServiceException) {
             logger.error({ err, reqId, sessionId }, 'ingest.transcript.s3_error');

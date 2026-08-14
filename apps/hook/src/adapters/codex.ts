@@ -1,67 +1,111 @@
 import {
   closeSync,
+  type Dirent,
   existsSync,
   mkdirSync,
   openSync,
   readdirSync,
   readFileSync,
   readSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schemas';
+import {
+  classifyNotification,
+  type Event,
+  type EventType,
+  type ToolInfo,
+} from '@ai-agents-observability/schemas';
 
 import { clientInfo } from '../lib/client-info';
 import { type CodexUsage, parseRolloutRecords, usageDelta } from '../lib/codex-rollout';
+import { pickString } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
-import { telemetryHome } from '../lib/paths';
+import { log } from '../lib/log';
+import { agentStateDir } from '../lib/paths';
+import { NIL_UUID, sessionUuid } from '../lib/session-id';
 import { uuidv7 } from '../lib/uuid';
 import type { AdapterInstallConfig, ConformantEvent, HookAdapter, TranscriptTarget } from './index';
+import { createStdinHookAdapter } from './stdin-hook-factory';
 
-// OpenAI Codex CLI adapter (P8-007) — the THIRD HookAdapter, and the first to
-// exercise the seam's multi-event path (`mapBatch`). Codex's only stable
-// extension point is its `notify` program, which fires once per turn
-// (agent-turn-complete) and carries no per-tool or token data. The rich record
-// lives in the per-session rollout JSONL under `~/.codex/sessions`. So a single
-// `notify` invocation legitimately yields MANY canonical events — the turn's tool
-// calls plus a usage-bearing Stop — which `mapBatch` reads out of the rollout
-// since a per-session byte cursor (no re-emitting prior turns).
+// OpenAI Codex CLI adapter — TWO capture paths, because Codex has two extension
+// points and the good one is still experimental.
+//
+// 1. NATIVE LIFECYCLE HOOKS (preferred, P12-004). Codex now ships Claude-shaped
+//    stdin hooks — SessionStart, PreToolUse, PostToolUse, UserPromptSubmit, Stop,
+//    SubagentStop, PreCompact, PermissionRequest, SessionEnd — carrying
+//    `session_id`, `transcript_path`, `cwd`, `hook_event_name`, `model`, `turn_id`,
+//    and the usual `tool_name` / `tool_input` / `tool_response`. That is the
+//    stdin-hook factory's shape exactly, so per-tool capture is configuration.
+//    They are gated behind `[features] hooks = true` in config.toml and are not
+//    available on Windows, so they cannot be the only path.
+//
+// 2. `notify` (fallback, P8-007). Codex's long-stable extension point: one
+//    invocation per turn, with no per-tool or token data. The rich record lives in
+//    the per-session rollout JSONL under `~/.codex/sessions`, so one `notify` call
+//    legitimately expands into MANY events — the turn's tool calls plus a
+//    usage-bearing Stop — via the seam's `mapBatch`, behind a per-session byte
+//    cursor so prior turns are never re-emitted.
+//
+// The rollout read survives the upgrade for ONE reason: the hook payload carries
+// `model` but no token usage. So on the hooks path the rollout is read only for
+// usage on Stop, not to infer tool calls.
 //
 // Lifecycle mapping (codex kind → canonical EventType):
-//   session-start       → SessionStart
-//   user-prompt-submit  → UserPromptSubmit
-//   turn-complete       → Stop          (codex `notify`: agent-turn-complete)
-//   session-end         → SessionEnd
-// The shipped install snippet wires only `turn-complete` (the one event `notify`
-// emits today); the rest are recognized so a richer future Codex signal can feed
-// them without an interface change.
+//   session-start       → SessionStart      (hook + notify)
+//   user-prompt-submit  → UserPromptSubmit  (hook + notify)
+//   pre-tool-use        → PreToolUse        (hook only)
+//   post-tool-use       → PostToolUse       (hook only)
+//   permission-request  → Notification      (hook only)
+//   pre-compact         → PreCompact        (hook only)
+//   subagent-stop       → SubagentStop      (hook only)
+//   stop                → Stop              (hook)
+//   turn-complete       → Stop              (notify: agent-turn-complete)
+//   session-end         → SessionEnd        (hook + notify)
+// Codex's PostCompact and SubagentStart have no canonical equivalent and are not
+// registered — we never synthesize a non-schema event_type.
 
 const CODEX_EVENT_TYPE: Record<string, EventType> = {
+  'permission-request': 'Notification',
+  'post-tool-use': 'PostToolUse',
+  'pre-compact': 'PreCompact',
+  'pre-tool-use': 'PreToolUse',
   'session-end': 'SessionEnd',
   'session-start': 'SessionStart',
+  stop: 'Stop',
+  'subagent-stop': 'SubagentStop',
   'turn-complete': 'Stop',
   'user-prompt-submit': 'UserPromptSubmit',
 };
 
-const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+/** The kind Codex's `notify` program feeds us — the only non-hook entry point. */
+const NOTIFY_KIND = 'turn-complete';
+
+// Payload keys captured structurally by the hook path. `model` and `turn_id` are
+// deliberately absent so they flow into metadata: `turn_id` is the only
+// turn-scoped correlator Codex gives us, and `model` is worth keeping even on
+// events with no usage to price.
+const CODEX_KNOWN_KEYS = [
+  'cwd',
+  'hook_event_name',
+  'permission_mode',
+  'prompt',
+  'session_id',
+  'tool_input',
+  'tool_name',
+  'tool_response',
+  'transcript_path',
+];
+
 const ROLLOUT_RE = /^rollout-.*\.jsonl$/;
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 function str(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
-}
-
-function firstStr(raw: Record<string, unknown>, keys: string[]): string | null {
-  for (const k of keys) {
-    const v = raw[k];
-    if (typeof v === 'string' && v.length > 0) {
-      return v;
-    }
-  }
-  return null;
 }
 
 // ── Event assembly ────────────────────────────────────────────────────────────
@@ -132,9 +176,132 @@ function hasUsage(usage: CodexUsage | null): usage is CodexUsage {
 
 // ── Rollout location ──────────────────────────────────────────────────────────
 
+function codexHome(): string {
+  return process.env.CODEX_HOME ?? join(homedir(), '.codex');
+}
+
 function codexSessionsDir(): string {
-  const home = process.env.CODEX_HOME ?? join(homedir(), '.codex');
-  return join(home, 'sessions');
+  return join(codexHome(), 'sessions');
+}
+
+// ── Which capture path is live ────────────────────────────────────────────────
+
+// Is OUR BINARY wired as a Codex lifecycle hook?
+//
+// This deliberately asks a narrower question than "are Codex hooks enabled". The
+// notify path stands down when this is true, so a false positive is a total
+// telemetry blackout — and "some hooks config exists" is a false positive: a user
+// can have their own `hooks.json` for an unrelated lint hook, or `hooks = true`
+// under a different table, while telemetry is still wired through `notify` alone.
+// So the test is for a hook command that names this tool.
+//
+// Memoized per process (each hook invocation is a fresh process). Never throws:
+// an unreadable config reads as "not wired", which keeps the fallback path alive
+// rather than losing the turn.
+let hooksWiredMemo: boolean | null = null;
+
+// Matches OUR HOOK INVOCATION specifically — `--agent codex` in TOML/string form
+// and `"--agent","codex"` in a hooks.json argv array — and nothing else.
+//
+// A bare `claude-telemetry` substring test would have been catastrophic here: the
+// notify install snippet this very file generates writes
+// `notify = ["~/.codex/claude-telemetry-notify.sh"]` INTO config.toml. A
+// notify-only install would then self-detect as hooks-wired, stand the notify
+// path down, and capture nothing at all — the exact blackout the narrow test
+// exists to prevent, on the default install.
+const OUR_HOOK_MARKER = /--agent["'\s,]+codex/;
+
+export function codexHooksWired(): boolean {
+  if (hooksWiredMemo !== null) {
+    return hooksWiredMemo;
+  }
+  hooksWiredMemo = detectHooksWired();
+  return hooksWiredMemo;
+}
+
+/** Test seam: forget the memoized answer. */
+export function resetCodexHooksCache(): void {
+  hooksWiredMemo = null;
+}
+
+function detectHooksWired(): boolean {
+  const home = codexHome();
+  for (const file of ['hooks.json', 'config.toml']) {
+    try {
+      const text = readFileSync(join(home, file), 'utf8');
+      // Comments don't wire anything. This matters for config.toml specifically:
+      // our own notify instructions are pasted there as `#` comments, and they
+      // legitimately contain the hook invocation as documentation.
+      const active = file.endsWith('.toml')
+        ? text
+            .split('\n')
+            .map((line) => stripComment(line))
+            .join('\n')
+        : text;
+      if (OUR_HOOK_MARKER.test(active)) {
+        return true;
+      }
+    } catch {
+      // missing or unreadable — try the next candidate
+    }
+  }
+  return false;
+}
+
+/**
+ * Is Codex's hook SYSTEM enabled (`[features] hooks = true`)? Used only to pick
+ * the install snippet, never to suppress capture — so being wrong here costs a
+ * confusing hint, not data.
+ *
+ * TOML-aware enough to avoid the obvious traps: trailing comments, the
+ * `[features]` table specifically (a `hooks = true` under `[tui]` is a different
+ * setting), the `features = { hooks = true }` inline table, and the deprecated
+ * `codex_hooks` alias.
+ */
+export function codexHooksFeatureEnabled(): boolean {
+  let config: string;
+  try {
+    config = readFileSync(join(codexHome(), 'config.toml'), 'utf8');
+  } catch {
+    return false;
+  }
+  let section = '';
+  for (const rawLine of config.split('\n')) {
+    const line = stripComment(rawLine).trim();
+    if (line.length === 0) {
+      continue;
+    }
+    const table = /^\[([^\]]+)\]$/.exec(line);
+    if (table?.[1]) {
+      section = table[1].trim();
+      continue;
+    }
+    if (/^features\s*=\s*\{.*\bhooks\s*=\s*true\b.*\}$/.test(line)) {
+      return true;
+    }
+    if (section === 'features' && /^(codex_)?hooks\s*=\s*"?true"?$/.test(line)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Drop a trailing `#` comment that is not inside a quoted string. */
+function stripComment(line: string): string {
+  let inQuote: string | null = null;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuote) {
+      if (ch === inQuote) {
+        inQuote = null;
+      }
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch;
+    } else if (ch === '#') {
+      return line.slice(0, i);
+    }
+  }
+  return line;
 }
 
 // Recursively collect rollout files (newer Codex nests them under YYYY/MM/DD/),
@@ -145,24 +312,27 @@ function collectRollouts(dir: string, depth = 0): { path: string; mtime: number 
     return [];
   }
   const out: { path: string; mtime: number }[] = [];
-  let names: string[];
+  let entries: Dirent[];
   try {
-    names = readdirSync(dir);
+    entries = readdirSync(dir, { withFileTypes: true });
   } catch {
     return [];
   }
-  for (const name of names) {
-    const full = join(dir, name);
-    let st: ReturnType<typeof statSync>;
-    try {
-      st = statSync(full);
-    } catch {
+  for (const entry of entries) {
+    // Symlinks are skipped for the same reason the other walkers skip them: a
+    // link in the agent's storage must not send the scan into an arbitrary tree.
+    if (entry.isSymbolicLink()) {
       continue;
     }
-    if (st.isDirectory()) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
       out.push(...collectRollouts(full, depth + 1));
-    } else if (ROLLOUT_RE.test(name)) {
-      out.push({ mtime: st.mtimeMs, path: full });
+    } else if (ROLLOUT_RE.test(entry.name)) {
+      try {
+        out.push({ mtime: statSync(full).mtimeMs, path: full });
+      } catch {
+        // vanished between readdir and stat
+      }
     }
   }
   return out;
@@ -194,7 +364,7 @@ const SESSION_ID_KEYS = [
 ];
 
 function sessionIdFromPayload(raw: Record<string, unknown>): string | null {
-  return firstStr(raw, SESSION_ID_KEYS);
+  return pickString(raw, SESSION_ID_KEYS);
 }
 
 function cwdFromPayload(raw: Record<string, unknown>): string {
@@ -225,7 +395,7 @@ function locateRollout(raw: Record<string, unknown>): RolloutLocation | null {
 function locateRolloutUncached(raw: Record<string, unknown>): RolloutLocation | null {
   const cwd = cwdFromPayload(raw);
 
-  const explicit = firstStr(raw, [
+  const explicit = pickString(raw, [
     'rollout-path',
     'rollout_path',
     'session-file',
@@ -233,7 +403,7 @@ function locateRolloutUncached(raw: Record<string, unknown>): RolloutLocation | 
     'path',
   ]);
   if (explicit && existsSync(explicit)) {
-    return { cwd, path: explicit, sessionId: sessionIdFromPath(explicit) ?? NIL_UUID };
+    return { cwd, path: explicit, sessionId: sessionUuid('CODEX', sessionIdFromPath(explicit)) };
   }
 
   const files = listRollouts(codexSessionsDir());
@@ -244,33 +414,63 @@ function locateRolloutUncached(raw: Record<string, unknown>): RolloutLocation | 
 
   const id = sessionIdFromPayload(raw);
   const path = (id ? files.find((f) => f.includes(id)) : undefined) ?? newest;
-  return { cwd, path, sessionId: sessionIdFromPath(path) ?? id ?? NIL_UUID };
+  // The rollout filename carries a UUID (pass-through); the payload fallback may
+  // not, so both go through normalization (P12-002).
+  return { cwd, path, sessionId: sessionUuid('CODEX', sessionIdFromPath(path) ?? id) };
 }
 
 // ── Cursor (per-session byte offset + last cumulative usage) ────────────────────
 
-type Cursor = { offset: number; usage: CodexUsage | null };
+// `path` is part of the cursor because an offset is only meaningful against the
+// file it was measured in. Both capture paths write this cursor under the same
+// session key but can resolve different files (the hooks path trusts the
+// payload's transcript_path; notify scans for the rollout), and a stale offset
+// carried across files either skips a turn's records or re-reads them.
+type Cursor = { offset: number; path: string | null; usage: CodexUsage | null };
 
-function cursorPath(sessionId: string): string {
-  return join(telemetryHome(), 'codex-cursors', `${sessionId}.json`);
+function codexCursorDir(): string {
+  return agentStateDir('codex');
 }
 
-function readCursor(sessionId: string): Cursor {
+function cursorPath(sessionId: string): string {
+  return join(codexCursorDir(), `${sessionId}.json`);
+}
+
+function readCursor(sessionId: string, forPath: string): Cursor {
   try {
     // Small JSON file — one read beats open + stat + readSync + close.
     const parsed = JSON.parse(readFileSync(cursorPath(sessionId), 'utf8'));
     if (parsed && typeof parsed.offset === 'number') {
-      return { offset: parsed.offset, usage: parsed.usage ?? null };
+      // A cursor from a different file cannot be trusted for its offset; keep the
+      // usage baseline (cumulative totals carry across a rollout rotation) but
+      // start reading from the beginning of the new file.
+      const samePath = typeof parsed.path === 'string' && parsed.path === forPath;
+      return {
+        offset: samePath ? parsed.offset : 0,
+        path: forPath,
+        usage: parsed.usage ?? null,
+      };
     }
   } catch {
     // no cursor yet
   }
-  return { offset: 0, usage: null };
+  return { offset: 0, path: forPath, usage: null };
+}
+
+/** Forget a session's cursor. Best-effort — a stale cursor is not worth a throw. */
+function dropCursor(sessionId: string): void {
+  try {
+    rmSync(cursorPath(sessionId), { force: true });
+  } catch {
+    // nothing to clean up
+  }
 }
 
 function writeCursor(sessionId: string, cursor: Cursor): void {
   const p = cursorPath(sessionId);
-  mkdirSync(dirname(p), { recursive: true });
+  // 0o700 like every other per-session state dir under the telemetry home: this
+  // holds session ids and token counts.
+  mkdirSync(dirname(p), { mode: 0o700, recursive: true });
   writeFileSync(p, JSON.stringify(cursor), { encoding: 'utf8', mode: 0o600 });
 }
 
@@ -310,34 +510,128 @@ function safeJson(line: string): unknown {
 
 // ── Adapter ─────────────────────────────────────────────────────────────────
 
+// The native-hooks path. Codex's payload is Claude-shaped, so this is pure
+// configuration — no Codex-specific mapping code beyond the event names.
+const hookAdapter = createStdinHookAdapter({
+  agentType: 'CODEX',
+  enrich: (event, _kind, raw) => {
+    // PermissionRequest lands as a Notification; classify it the same way Claude's
+    // permission prompts are, so `notification_kind` aggregates across agents.
+    if (event.event_type === 'Notification') {
+      event.metadata.notification_kind = classifyNotification('permission_request', raw.message);
+    }
+  },
+  eventMap: CODEX_EVENT_TYPE,
+  install: {
+    agentName: 'Codex CLI',
+    renderSnippet: (bin) => renderSnippet(bin),
+    settingsHint: '',
+  },
+  knownKeys: CODEX_KNOWN_KEYS,
+  // Codex hands us the transcript path directly on every hook — no directory scan.
+  transcriptKinds: ['stop', 'session-end'],
+});
+
+// `notify`'s turn-complete has no native hook event, so the hook sub-adapter's
+// installed set is the hook kinds only; the exported adapter widens isHookKind
+// back to every kind it accepts (below).
+
 function mapPayload(kind: string, raw: Record<string, unknown>): ConformantEvent {
+  if (kind !== NOTIFY_KIND) {
+    return hookAdapter.mapPayload(kind, raw);
+  }
+  // `notify` payloads spell the session id half a dozen ways and carry no
+  // hook_event_name, so they get the hand-rolled reader rather than the factory.
   const eventType = CODEX_EVENT_TYPE[kind] ?? 'Notification';
-  const sessionId = sessionIdFromPayload(raw) ?? NIL_UUID;
+  const sessionId = sessionUuid('CODEX', sessionIdFromPayload(raw));
   return assemble(eventType, sessionId, cwdFromPayload(raw));
 }
 
-// Multi-event path: on turn-complete, read the rollout records appended since the
-// last turn and emit a PostToolUse per tool call plus a usage-bearing Stop. Any
-// failure returns null so the transport falls back to the single-event mapPayload
-// (a bare Stop) — a broken rollout never blocks the turn signal.
+/**
+ * Rollout usage consumed since the last read. Returns a `commit()` the caller
+ * invokes only once the events are built — advancing the cursor eagerly would
+ * consume a turn's records and then lose them if anything downstream threw,
+ * because the next turn diffs against the already-advanced baseline.
+ *
+ * (The residual window is small but real: `hook-entry` enqueues AFTER this
+ * commits, so a queue failure still costs that turn's delta. Closing it fully
+ * needs the transport to confirm the write, which the seam does not model.)
+ */
+function readUsageDelta(loc: RolloutLocation): {
+  commit: () => void;
+  delta: CodexUsage | null;
+  toolCalls: ReturnType<typeof parseRolloutRecords>['toolCalls'];
+} {
+  const cursor = readCursor(loc.sessionId, loc.path);
+  const { lines, newOffset } = readNewLines(loc.path, cursor.offset);
+  const records = lines.map(safeJson).filter((r): r is Record<string, unknown> => r !== null);
+  const { toolCalls, cumulativeUsage } = parseRolloutRecords(records);
+  // `token_count` in the rollout is a running total, so it is diffed to a per-turn
+  // delta — never summed.
+  const delta = usageDelta(cursor.usage, cumulativeUsage);
+  // The model only appears on a turn_context/session_meta record, which shows up
+  // once near the top of the file. Carrying it forward in the cursor is what keeps
+  // turn 3 onward from reporting `model: unknown` (and therefore $0 cost).
+  const carried: CodexUsage | null = cumulativeUsage
+    ? { ...cumulativeUsage, model: cumulativeUsage.model ?? cursor.usage?.model ?? null }
+    : cursor.usage;
+  return {
+    commit: () => {
+      // A nil session id means "unknown session" — several of them would share one
+      // cursor file and apply each other's offsets. Skip the write entirely.
+      if (loc.sessionId === NIL_UUID) {
+        return;
+      }
+      writeCursor(loc.sessionId, { offset: newOffset, path: loc.path, usage: carried });
+    },
+    delta: delta ? { ...delta, model: delta.model ?? cursor.usage?.model ?? null } : delta,
+    toolCalls,
+  };
+}
+
+// Multi-event path. Two shapes, one per capture path:
+//
+//   stop (hook)      → exactly one Stop, with usage read from the rollout. Tool
+//                      calls already arrived as their own PreToolUse/PostToolUse
+//                      hooks, so expanding them here would double-count.
+//   turn-complete    → the P8-007 expansion: a PostToolUse per tool call in the
+//   (notify)           turn plus a usage-bearing Stop, all inferred from the
+//                      rollout, because `notify` carries none of it.
+//
+// Any failure returns null so the transport falls back to the single-event
+// mapPayload (a bare Stop) — a broken rollout never blocks the turn signal.
 function mapBatch(kind: string, raw: Record<string, unknown>): ConformantEvent[] | null {
-  if (CODEX_EVENT_TYPE[kind] !== 'Stop') {
+  if (kind === 'session-end') {
+    // The session is over, so its cursor is dead weight. Without this a heavy
+    // user accumulates one file per session forever — gemini already drains its
+    // accumulator on SessionEnd for exactly this reason.
+    dropCursor(sessionUuid('CODEX', sessionIdFromPayload(raw)));
+    return null; // fall through to the ordinary single-event mapping
+  }
+  if (kind === 'stop') {
+    return stopWithUsage(raw);
+  }
+  if (kind !== NOTIFY_KIND) {
     return null;
+  }
+  // Both paths wired at once would emit two Stops per turn and count every tool
+  // call twice. The hooks path is strictly richer, so notify stands down — but
+  // ONLY when our binary is actually registered as a Codex hook, because standing
+  // down wrongly means this session reports nothing at all.
+  if (codexHooksWired()) {
+    log('info', 'codex.notify.stood_down', { reason: 'hooks_wired' });
+    return [];
   }
   try {
     const loc = locateRollout(raw);
     if (!loc) {
       return null;
     }
-    const cursor = readCursor(loc.sessionId);
-    const { lines, newOffset } = readNewLines(loc.path, cursor.offset);
-    const records = lines.map(safeJson).filter((r): r is Record<string, unknown> => r !== null);
-    const { toolCalls, cumulativeUsage } = parseRolloutRecords(records);
+    const { commit, delta, toolCalls } = readUsageDelta(loc);
 
     const events: ConformantEvent[] = toolCalls.map((c) =>
       assemble('PostToolUse', loc.sessionId, loc.cwd, { tool: toolInfo(c) }),
     );
-    const delta = usageDelta(cursor.usage, cumulativeUsage);
     events.push(
       assemble(
         'Stop',
@@ -346,12 +640,84 @@ function mapBatch(kind: string, raw: Record<string, unknown>): ConformantEvent[]
         hasUsage(delta) ? { llm: llmBlock(delta) } : undefined,
       ),
     );
-
-    writeCursor(loc.sessionId, { offset: newOffset, usage: cumulativeUsage ?? cursor.usage });
+    commit();
     return events;
   } catch {
     return null;
   }
+}
+
+// The hooks path's one piece of real logic: Codex's Stop hook carries `model` but
+// no token usage, so the usage is read from the rollout and attached to the event
+// the factory built. Returning null falls back to a usage-less Stop.
+function stopWithUsage(raw: Record<string, unknown>): ConformantEvent[] | null {
+  try {
+    const event = hookAdapter.mapPayload('stop', raw);
+    const loc = rolloutForHook(raw, event.session_id);
+    if (!loc) {
+      // No rollout for this session — still emit the Stop, carrying the model the
+      // hook payload gave us so the turn is at least attributable to a model.
+      return [withModelOnly(event, raw)];
+    }
+    const { commit, delta } = readUsageDelta(loc);
+    if (!hasUsage(delta)) {
+      commit();
+      return [withModelOnly(event, raw)];
+    }
+    const model = str(raw.model, delta.model ?? 'unknown');
+    const withUsage = { ...event, llm: { ...llmBlock(delta), model } } as ConformantEvent;
+    commit();
+    return [withUsage];
+  } catch {
+    return null;
+  }
+}
+
+/** A Stop with no usage still carries `model` when the hook payload had one —
+ * model attribution is useful even at zero tokens, and losing it is why so many
+ * Codex Stops ended up unpriceable. */
+function withModelOnly(event: ConformantEvent, raw: Record<string, unknown>): ConformantEvent {
+  const model = typeof raw.model === 'string' && raw.model.length > 0 ? raw.model : null;
+  if (!model) {
+    return event;
+  }
+  return {
+    ...event,
+    llm: {
+      cache_creation_tokens: 0,
+      cache_read_tokens: 0,
+      cost_usd: 0,
+      input_tokens: 0,
+      model,
+      output_tokens: 0,
+    },
+  } as ConformantEvent;
+}
+
+/**
+ * Where a hook event's rollout lives: `transcript_path`, which Codex sends on
+ * every hook. There is deliberately NO directory-scan fallback here — the scan
+ * returns the newest rollout of ANY session, so with two Codex sessions running it
+ * would bill one session's tokens to the other, poison the other's cursor, and key
+ * the transcript to the wrong session. Returning null (no usage) beats guessing.
+ */
+function rolloutForHook(
+  raw: Record<string, unknown>,
+  normalizedSessionId: string,
+): RolloutLocation | null {
+  const transcriptPath = raw.transcript_path;
+  if (
+    typeof transcriptPath === 'string' &&
+    transcriptPath.length > 0 &&
+    existsSync(transcriptPath)
+  ) {
+    return {
+      cwd: str(raw.cwd, process.cwd()),
+      path: transcriptPath,
+      sessionId: normalizedSessionId,
+    };
+  }
+  return null;
 }
 
 function renderSnippet(bin: string): string {
@@ -364,18 +730,53 @@ function renderSnippet(bin: string): string {
     '',
     '# 2. Point Codex at the wrapper in ~/.codex/config.toml:',
     `notify = ["${home}/.codex/claude-telemetry-notify.sh"]`,
+    '',
+    '# Richer capture (per-tool events) is available via Codex lifecycle hooks.',
+    '# They are experimental and off by default; enable them in config.toml with',
+    '#   [features]',
+    '#   hooks = true',
+    '# then re-run `claude-telemetry install --agent codex` for the hooks snippet.',
+    '# (Not available on Windows.)',
   ].join('\n');
+}
+
+// The hooks snippet: one command hook per Codex lifecycle event, in the
+// `hooks.json` form. Codex merges hooks.json with inline [hooks] in config.toml
+// and warns at startup, so we write exactly one of them.
+const HOOK_KIND_TO_CODEX_EVENT: Record<string, string> = {
+  'permission-request': 'PermissionRequest',
+  'post-tool-use': 'PostToolUse',
+  'pre-compact': 'PreCompact',
+  'pre-tool-use': 'PreToolUse',
+  'session-end': 'SessionEnd',
+  'session-start': 'SessionStart',
+  stop: 'Stop',
+  'subagent-stop': 'SubagentStop',
+  'user-prompt-submit': 'UserPromptSubmit',
+};
+
+function renderHooksSnippet(bin: string): string {
+  const hooks: Record<string, { command: string[]; type: string }[]> = {};
+  for (const [kind, codexEvent] of Object.entries(HOOK_KIND_TO_CODEX_EVENT)) {
+    // Exec form (argv array), so a binary path containing spaces is not
+    // word-split and no shell metacharacter surface exists.
+    hooks[codexEvent] = [{ command: [bin, 'hook', kind, '--agent', 'codex'], type: 'command' }];
+  }
+  return JSON.stringify({ hooks }, null, 2);
 }
 
 export const codexAdapter: HookAdapter = {
   agentType: 'CODEX',
 
   installConfig(): AdapterInstallConfig {
+    const hooksOn = codexHooksFeatureEnabled();
     return {
       agentName: 'Codex CLI',
       hookKinds: Object.keys(CODEX_EVENT_TYPE),
-      renderSnippet,
-      settingsHint: 'Wire Codex `notify` to the telemetry binary:',
+      renderSnippet: hooksOn ? renderHooksSnippet : renderSnippet,
+      settingsHint: hooksOn
+        ? 'Codex lifecycle hooks are enabled ([features] hooks = true). Write this to ~/.codex/hooks.json:'
+        : 'Wire Codex `notify` to the telemetry binary:',
     };
   },
 
@@ -387,14 +788,24 @@ export const codexAdapter: HookAdapter = {
 
   mapPayload,
 
-  // Ship the rollout JSONL as the transcript. Codex emits no session-end signal,
-  // so this fires every turn-complete and the (growing) rollout is re-uploaded
-  // under the same session id — ingest keeps the latest, converging on the full
-  // conversation. The per-tool events above carry the structured counts.
   transcriptTarget(kind: string, raw: Record<string, unknown>): TranscriptTarget | null {
-    if (CODEX_EVENT_TYPE[kind] !== 'Stop') {
+    if (CODEX_EVENT_TYPE[kind] !== 'Stop' && CODEX_EVENT_TYPE[kind] !== 'SessionEnd') {
       return null;
     }
+    // Hooks path: Codex hands us `transcript_path` directly. No scan fallback —
+    // see rolloutForHook for why guessing is worse than shipping nothing.
+    if (kind !== NOTIFY_KIND) {
+      return hookAdapter.transcriptTarget(kind, raw);
+    }
+    // When the notify path has stood down, it must stand down completely: writing
+    // a ship marker here would upload a transcript keyed to the scanned rollout's
+    // session id, which need not be the id the hooks path is using.
+    if (codexHooksWired()) {
+      return null;
+    }
+    // notify path: find the rollout JSONL ourselves. Codex emits no session-end
+    // signal there, so this fires every turn-complete and the (growing) rollout is
+    // re-uploaded under the same session id, converging on the full conversation.
     const loc = locateRollout(raw);
     return loc ? { sessionId: loc.sessionId, transcriptPath: loc.path } : null;
   },

@@ -1,0 +1,6 @@
+{
+  "_comment": "omp (oh-my-pi) model pricing. Like Pi, omp drives any provider the user has credentials for, so model names vary by deployment. Intentionally empty until real per-provider rates are filled in — an empty table bills $0 via the table rather than mispricing against another agent's names (P8-002).",
+  "generated_at": "2026-08-13T00:00:00Z",
+  "prices": {},
+  "version": "omp.v1"
+}
