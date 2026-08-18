@@ -229,7 +229,7 @@ export async function getCostByTeam(since: Date): Promise<TeamCostRow[]> {
     JOIN team_members tm ON tm.team_id = t.id AND tm.left_at IS NULL
     JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    JOIN daily_cost_by_user d ON d.user_id = u.id AND d.day >= date_trunc('day', ${since})
+    JOIN daily_cost_by_user d ON d.user_id = u.id AND d.day >= date_trunc('day', ${since}::timestamptz)
     WHERE COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY t.id, t.name, t.github_slug
     ORDER BY cost_usd DESC
@@ -350,7 +350,7 @@ export async function getOrgModelDetail(since: Date): Promise<OrgModelDetailRow[
       COALESCE(SUM(total_cache_creation), 0)            AS cache_creation_tokens
     FROM daily_cost_by_model
     WHERE user_id IN (${uuids})
-      AND day >= date_trunc('day', ${since})
+      AND day >= date_trunc('day', ${since}::timestamptz)
     GROUP BY model
     ORDER BY total_cost_usd DESC
   `);
@@ -635,7 +635,7 @@ export async function getWeeklyCostTrend(weeks = 12): Promise<DailyCostRow[]> {
     FROM daily_cost_by_user d
     JOIN users u ON u.id = d.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE d.day >= date_trunc('day', ${since})
+    WHERE d.day >= date_trunc('day', ${since}::timestamptz)
       AND COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY date_trunc('week', d.day)
     ORDER BY week ASC
@@ -737,7 +737,7 @@ export async function getOrgTopTools(since: Date, limit = 10): Promise<OrgToolUs
     SELECT agent_type, tool_name, SUM(call_count) AS call_count
     FROM daily_tool_usage
     WHERE user_id IN (${uuids})
-      AND day >= date_trunc('day', ${since})
+      AND day >= date_trunc('day', ${since}::timestamptz)
       AND tool_name IS NOT NULL
     GROUP BY agent_type, tool_name
     ORDER BY call_count DESC
@@ -1748,7 +1748,7 @@ export async function getCostPerDeveloper(since: Date, limit = 20): Promise<Cost
       COALESCE(SUM(d.session_count), 0)     AS session_count,
       COALESCE(SUM(d.total_cost_usd), 0)    AS total_cost_usd
     FROM users u
-    JOIN daily_cost_by_user d ON d.user_id = u.id AND d.day >= date_trunc('day', ${since})
+    JOIN daily_cost_by_user d ON d.user_id = u.id AND d.day >= date_trunc('day', ${since}::timestamptz)
     WHERE u.deactivated_at IS NULL
     GROUP BY u.id, u.github_login
     ORDER BY total_cost_usd DESC

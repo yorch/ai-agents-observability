@@ -65,7 +65,15 @@ Source of truth for task status. Update this in the same commit as the task file
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P1-028](./P1-028-hook-perf-benchmark.md) | Hook perf benchmark (<10ms target) | done | claude | S | P1-020 |
-| [P1-029](./P1-029-phase1-signoff.md) | Phase 1 exit-criteria sign-off | done | claude | S | all P1-* |
+| [P1-029](./P1-029-phase1-signoff.md) | Phase 1 exit-criteria sign-off | ready | — | S | all P1-* |
+
+> **P1-029 was marked `done` here and is not.** Corrected 2026-08-18 against the
+> evidence: it requires `docs/phase1-dogfood.md`, `docs/phase1-redaction-review.md`,
+> `docs/phase1-cleanclone.md` and `docs/phase1-retro.md`, and **none of the four
+> exists**. Its first criterion is five working days of real dogfood, which cannot
+> have happened — no rollout has occurred and the corpus is still seed data. Every
+> other `P1-*` task is genuinely done; this is the sign-off gate on top of them, and
+> it is still open. Nothing depends on it, so this changes no other status.
 
 ---
 
@@ -213,7 +221,15 @@ See [`P9-roadmap.md`](./P9-roadmap.md). Turns passive dashboards into proactive 
 
 See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §4.
 
-> **This phase's state is self-contradictory and needs an owner call.** The rows below all read `done`, but this paragraph said "Proposed — not yet started" until 2026-08-18, every `P10-*.md` file still carries `status: ready`, and no `model_policy` table or routing-projection code exists in the repo. Something was marked done that was not built, or built and not recorded. Nothing in Phase 13 depends on the answer — see the note at the end of Phase 13 for the one place it touches (`P10-006` vs `P13-006`).
+> **This phase's state is self-contradictory and needs an owner call.** The rows below all read `done`, but this paragraph said "Proposed — not yet started" until 2026-08-18 and every `P10-*.md` file still carries `status: ready`.
+>
+> Checked against the repo on 2026-08-18, the answer differs per task rather than per phase, which is why this is not a one-line fix:
+>
+> - **Not built.** `P10-002`'s `model_policy` table, `apps/web/src/lib/model-policy.ts` and `/admin/model-policy` do not exist anywhere — not in `schema.prisma`, not in either app. `P10-005`'s `disallowed_model` alert rule does not exist in `packages/schemas`, the alert engine, or the seeds. These two are unambiguously **not** done, and `P10-005` depends on `P10-002`.
+> - **Shipped, under other names.** The substance of `P10-001`/`003`/`004` is present — `apps/web/src/lib/routing-queries.ts` (not the planned `routing-analysis.ts`), `/org/models`, `recommendations.ts`, and the per-team routing-accountability table — but it arrived through P8/P11 work rather than as these tasks, so "done" may be recording the outcome rather than the task.
+> - **Arguably superseded.** `P10-006` is what [`P13-006`](./P13-006-projection-validation-pattern.md) generalizes; see the note at the end of Phase 13.
+>
+> Nothing in Phase 13 depends on the answer. What an owner needs to decide is whether `P10-001`/`003`/`004` count as done by another route, and whether `P10-002`/`005` should be reopened or dropped.
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
@@ -272,6 +288,19 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 |---|---|---|---|---|---|
 | [P13-001](./P13-001-scores-substrate.md) | Generic versioned scores table | review | claude | M | — |
 | [P13-002](./P13-002-run-kind-dimension.md) | `run_kind` dimension (interactive / ci / eval) | review | claude | S | — |
+| [P13-012](./P13-012-run-kind-views.md) | Move the `run_kind` guard into the data layer | ready | — | M | P13-002 |
+| [P13-013](./P13-013-scores-time-dimension.md) | Time dimension on the `scores` unique key | ready | — | M | P13-001, P13-004 |
+
+> **Both are deliberate deferrals from the P13 branch, not oversights.**
+> [`P13-012`](./P13-012-run-kind-views.md) is the right end state for the `run_kind`
+> guard — four rounds of lint-strengthening on this branch each found sites the
+> previous round could not see, which is what a rule enforced at the wrong altitude
+> looks like. It was not landed in the same PR as the review that motivated it,
+> because a ~110-site refactor next to freshly-verified work destabilizes the
+> verification. [`P13-013`](./P13-013-scores-time-dimension.md) is a real gap —
+> `compute-subject-scores` cannot produce the trend its docstring claims — but it is
+> a schema change whose two consumers are written and unstarted, so it deserves a
+> decision rather than a cleanup pass.
 
 ### Workstream B — Deterministic scorers
 

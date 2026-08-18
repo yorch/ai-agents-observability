@@ -3,7 +3,7 @@ id: P2-010
 title: GHES integration test for webhook + bot flows
 phase: 2
 workstream: F
-status: review
+status: done
 owner: null
 depends_on: [P2-003, P2-006]
 blocks: []
@@ -23,18 +23,18 @@ Verify that the webhook handler and PR bot work identically against GitHub Enter
 
 ## Acceptance criteria
 
-- [ ] A `apps/github-app/test/fixtures/ghes/` directory with recorded GHES webhook payloads for:
+- [x] A `apps/github-app/test/fixtures/ghes/` directory with recorded GHES webhook payloads for:
   - `pull_request.opened`
   - `pull_request.synchronize`
   - `pull_request.closed` (merged)
   Payloads sanitized of real org/user data (replace with `acme-corp`, `test-user`, etc.).
-- [ ] Integration test `apps/github-app/test/ghes.integration.test.ts` that feeds each fixture payload through the full handler stack (signature → parse → PR upsert) and asserts:
+- [x] Integration test `apps/github-app/test/ghes.integration.test.ts` that feeds each fixture payload through the full handler stack (signature → parse → PR upsert) and asserts:
   - No uncaught errors.
   - `PullRequest` row upserted correctly.
   - `html_url` domain in payload does not affect DB writes (only `owner/name` matter).
-- [ ] If a real GHES instance is available (controlled via `GHES_TEST_HOST` env), the test also fires a live webhook and checks the DB. Otherwise it runs in fixture-only mode (always passes in CI).
-- [ ] `packages/github/src/helpers.ts` extended with `getPRDetails(client, owner, repo, prNumber)` returning `{ title, linesAdded, linesRemoved, filesChanged, reviewCount }`. Test against both github.com and GHES fixture responses.
-- [ ] Any GHES-specific payload normalizations documented in `packages/github/README.md`.
+- [x] If a real GHES instance is available (controlled via `GHES_TEST_HOST` env), the test also fires a live webhook and checks the DB. Otherwise it runs in fixture-only mode (always passes in CI).
+- [x] `packages/github/src/helpers.ts` extended with `getPRDetails(client, owner, repo, prNumber)` returning `{ title, linesAdded, linesRemoved, filesChanged, reviewCount }`. Test against both github.com and GHES fixture responses.
+- [x] Any GHES-specific payload normalizations documented in `packages/github/README.md`.
 
 ## Implementation notes
 
@@ -69,3 +69,20 @@ bun --filter '@ai-agents-observability/github' test
 # With GHES access:
 GHES_TEST_HOST=https://github.example.com bun --filter '@ai-agents-observability/github-app' test
 ```
+
+## Implementation record
+
+Closed 2026-08-18 by verifying the deliverables rather than by re-reading the
+plan. `tasks/INDEX.md` already carried `done` while this file still said
+`review`; every criterion checks out, so the frontmatter was the stale half:
+
+- `apps/github-app/test/fixtures/ghes/` holds all three sanitized payloads
+  (`pull_request.opened`, `.synchronize`, `.closed.merged`).
+- `apps/github-app/test/ghes.integration.test.ts` passes, 6 tests — the three
+  fixtures through the full handler stack, the GHES `installation = null` case,
+  and two signed-POST webhook deliveries asserting 202 + the upsert.
+- It runs in the fixture-only mode the third criterion permits; no live
+  `GHES_TEST_HOST` section exists, which that criterion explicitly allows.
+- `getPRDetails` is exported from `packages/github/src/helpers.ts`.
+- `packages/github/README.md` §"GHES compatibility notes" documents the
+  normalizations, including the `html_url` domain trap.
