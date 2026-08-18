@@ -10,7 +10,13 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schemas';
+import {
+  type Event,
+  type EventType,
+  type ToolInfo,
+  toolActionFor,
+  toolTargetHash,
+} from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
@@ -109,6 +115,8 @@ function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
   const isMcp = name.startsWith('mcp__') || name.includes('__');
 
   return {
+    // Content-free capture (P13-003) — see the note in stdin-hook-factory.ts.
+    action: toolActionFor(input),
     category: isMcp ? 'mcp' : 'builtin',
     duration_ms: num(raw.durationMs ?? raw.duration_ms),
     exit_status: typeof raw.exitStatus === 'number' ? raw.exitStatus : null,
@@ -123,6 +131,7 @@ function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
     // Both agents support subagents; the extension forwards the subagent's name
     // when the event carries one.
     subagent_type: typeof raw.subagentType === 'string' ? raw.subagentType : null,
+    target_hash: toolTargetHash(input),
     was_denied: raw.denied === true || raw.blocked === true,
     was_interrupted: raw.interrupted === true || raw.aborted === true,
   };

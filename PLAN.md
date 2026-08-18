@@ -10,7 +10,7 @@ These were agreed during planning and are the basis for every task below. If one
 
 | Area | Choice | Rationale (short) |
 |---|---|---|
-| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice), Phase 10 (proposed, `ready`) and Phase 13 (in progress); remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
+| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 12 (agent adapter expansion, done); Phase 10 proposed (`ready`); Phase 13 (scoring & evaluation) in progress; remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
 | Dev environment | docker-compose locally | Single `up` from a clean clone |
 | Hook binary | Bun, compiled with `bun build --compile` | Single static binary, fast cold start |
 | Object store | MinIO (local dev + homelab prod) | S3-compatible, self-hostable |

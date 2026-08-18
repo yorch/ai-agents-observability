@@ -70,6 +70,26 @@ semantics differ, and must not hardcode Claude Code tool names.
 - [x] Scores are stored but **not yet surfaced on any dashboard** — display is
       P13-008's decision, after P13-007 says whether they mean anything.
 
+## Post-rebase note (Phase 12 seam)
+
+Phase 12 took the adapter seam from three agents to seven and extracted
+`createStdinHookAdapter`. The capture these scorers depend on
+(`tool_target_hash`, `tool_action`) therefore lives in the **shared**
+`buildGenericToolInfo` and in the Pi/omp builder, not in Claude Code's own
+builder — otherwise the three target-keyed scorers (edit thrash, redundant
+re-read, tests-before-merge) would work for Claude Code and be silently dead for
+Gemini CLI, Copilot CLI, Codex, Pi and omp. `stdin-hook-factory.test.ts` asserts
+the derivation actually runs for a non-Claude agent rather than merely that the
+keys exist.
+
+`toolRole()` gained a shared layer of self-describing names (`read_file`,
+`run_shell_command`, `apply_patch`, …) that resolve for any agent, because
+enumerating seven-plus vocabularies by hand is not possible and guessing one is
+worse than falling through. Per-agent tables still win, so an agent that reuses a
+shared name for something else stays correct, and an unrecognised name still
+resolves to `other` — a scorer that is silent for an agent is correct; one that
+guesses is not.
+
 ## Implementation notes
 
 - Put the pure functions in `packages/schemas/src/trajectory.ts` alongside

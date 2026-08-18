@@ -105,6 +105,36 @@ const AGENT_TOOL_ROLES: Record<string, Record<string, ToolRole>> = {
   },
 };
 
+/**
+ * Self-describing tool names that mean the same thing wherever they appear.
+ *
+ * Phase 12 took the adapter seam to seven agents, and the per-agent tables above
+ * do not scale to that by enumeration — nobody has ground truth on every agent's
+ * vocabulary, and guessing one is worse than falling through. These names carry
+ * their role in the name itself (`read_file` reads a file in every agent that
+ * ships it), so they resolve for *any* agent, including ones with no table here.
+ *
+ * Consulted after the per-agent tables, so an agent that reuses one of these for
+ * something else still wins by declaring it. An unrecognised name still resolves
+ * to `other`, and the scorers keyed on a role return null rather than inventing a
+ * number — a scorer that is silent for an agent is correct; one that guesses is
+ * not.
+ */
+const COMMON_TOOL_ROLES: Record<string, ToolRole> = {
+  apply_patch: 'write',
+  create_file: 'write',
+  edit_file: 'write',
+  execute_bash: 'exec',
+  read_file: 'read',
+  replace: 'write',
+  run_command: 'exec',
+  run_shell_command: 'exec',
+  search_file_content: 'read',
+  shell: 'exec',
+  str_replace: 'write',
+  write_file: 'write',
+};
+
 const LOWER_READ = new Set([...READ_TOOLS].map((t) => t.toLowerCase()));
 const LOWER_WRITE = new Set([...WRITE_TOOLS].map((t) => t.toLowerCase()));
 const LOWER_EXEC = new Set([...EXEC_TOOLS].map((t) => t.toLowerCase()));
@@ -123,6 +153,10 @@ export function toolRole(agentType: string, toolName: string | null): ToolRole {
     return perAgent;
   }
   const lower = toolName.toLowerCase();
+  const common = COMMON_TOOL_ROLES[lower];
+  if (common !== undefined) {
+    return common;
+  }
   if (LOWER_READ.has(lower)) {
     return 'read';
   }

@@ -105,8 +105,27 @@ describe('toolRole', () => {
     expect(toolRole('CODEX', 'apply_patch')).toBe('write');
     expect(toolRole('CODEX', 'shell')).toBe('exec');
     expect(toolRole('CODEX', 'read_file')).toBe('read');
-    // The same name under an agent with no such tool falls through to 'other'.
-    expect(toolRole('CLAUDE_CODE', 'apply_patch')).toBe('other');
+  });
+
+  it('resolves self-describing names for any agent, including ones with no table', () => {
+    // Phase 12 took the seam to seven agents. Enumerating every vocabulary is not
+    // possible, so names that carry their own role resolve everywhere — otherwise
+    // the target-keyed scorers would be dead for Gemini CLI, Copilot CLI, Pi and
+    // omp while working for Claude Code. This deliberately replaces the older rule
+    // that such a name fell through to 'other' outside its declaring agent.
+    expect(toolRole('GEMINI_CLI', 'run_shell_command')).toBe('exec');
+    expect(toolRole('COPILOT', 'write_file')).toBe('write');
+    expect(toolRole('PI', 'read_file')).toBe('read');
+    expect(toolRole('OMP', 'apply_patch')).toBe('write');
+    // An agent with no table at all still resolves them.
+    expect(toolRole('SOME_FUTURE_AGENT', 'edit_file')).toBe('write');
+  });
+
+  it('lets a per-agent table win over the shared name layer', () => {
+    // The precedence that keeps the shared layer safe: an agent that reuses a
+    // shared name for something else declares it and stays correct.
+    expect(toolRole('OPENCODE', 'patch')).toBe('write');
+    expect(toolRole('OPENCODE', 'todowrite')).toBe('other');
   });
 
   it('treats unknown and missing tools as other', () => {
