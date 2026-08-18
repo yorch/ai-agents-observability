@@ -51,6 +51,13 @@ function describe(scorerName: string, label: string): string {
 }
 
 export function SessionJudgeCard({ rows }: { rows: JudgeScoreRow[] }) {
+  // Deliberately renders nothing rather than a `CardEmpty`, which is the one
+  // place in this app that is right. The judge is off by default and opt-in per
+  // developer, so on almost every session there is no evaluation and never will
+  // be: an empty state here would advertise a dormant feature on every session
+  // page in the product. The convention's "never render nothing for an empty
+  // result" is about a section the reader expects to be populated — this is a
+  // section that only exists once someone has turned it on.
   if (rows.length === 0) {
     return null;
   }

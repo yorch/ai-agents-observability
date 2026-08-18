@@ -18,9 +18,20 @@ export function fmtUsd(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-/** A 0–1 ratio as a whole-number percent, e.g. 0.8 → "80%". */
-export function fmtPct(ratio: number): string {
-  return `${(ratio * 100).toFixed(0)}%`;
+/**
+ * A 0–1 ratio as a percent, e.g. 0.8 → "80%".
+ *
+ * `digits` defaults to 0 because most call sites are shares of a whole, where a
+ * decimal is noise. Pass 1 for a quantity that lives near zero — an error rate
+ * of 0.004 is "0%" at 0dp, which reads as "none" rather than "rare".
+ */
+export function fmtPct(ratio: number, digits = 0): string {
+  return `${(ratio * 100).toFixed(digits)}%`;
+}
+
+/** `fmtPct` with the null → "—" convention, paired like `fmtDurationOrDash`. */
+export function fmtPctOrDash(ratio: number | null, digits = 0): string {
+  return ratio === null ? '—' : fmtPct(ratio, digits);
 }
 
 /** Byte count in B/kB/MB/GB, e.g. 2048 → "2.0kB". Null or non-positive → "—". */

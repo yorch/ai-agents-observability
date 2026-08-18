@@ -2,6 +2,7 @@ import { McpServerCard } from '@/components/team-org/McpServerCard';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { SubjectQualityPanel } from '@/components/team-org/SubjectQualityPanel';
 import { Card, Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
+import { fmtDurationOrDash } from '@/lib/fmt';
 import { getMcpServerDetails, type McpServerDetailRow, orgVisibleUserIds } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { getMcpFailureSplit, getMcpQuality } from '@/lib/subject-quality-queries';
@@ -139,7 +140,7 @@ export default async function OrgMcpPage({
                     {r.toolErrors.toLocaleString()}
                   </Cell>
                   <Cell num className="text-text-2">
-                    {r.p95DurationMs === null ? '—' : `${r.p95DurationMs} ms`}
+                    {fmtDurationOrDash(r.p95DurationMs)}
                   </Cell>
                 </Row>
               ))}

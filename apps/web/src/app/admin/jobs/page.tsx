@@ -10,6 +10,7 @@ import {
   Select,
   Table,
 } from '@/components/ui';
+import { fmtUsd } from '@/lib/fmt';
 import { getJudgeSpend } from '@/lib/judge-queries';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -69,7 +70,7 @@ export default async function AdminJobsPage() {
           caption="Trailing 30 days — what the judge-sessions job cost to run"
         >
           <p className="text-sm text-text-2">
-            <span className="font-mono text-text">${judgeSpend.costUsd.toFixed(2)}</span> across{' '}
+            <span className="font-mono text-text">{fmtUsd(judgeSpend.costUsd)}</span> across{' '}
             {judgeSpend.scoredSessions} scored session
             {judgeSpend.scoredSessions === 1 ? '' : 's'}. Per-session evaluation output is visible
             only to the developer whose session it is.

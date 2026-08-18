@@ -1,4 +1,5 @@
-import { Badge, Card, Cell, Row, Table } from '@/components/ui';
+import { Badge, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { fmtDate, fmtPctOrDash } from '@/lib/fmt';
 import { fmtPValue } from '@/lib/stats';
 import type { DeprecationCandidate, SubjectQualityRow } from '@/lib/subject-quality-queries';
 import {
@@ -26,10 +27,6 @@ import {
  *   ordered by invocation volume, which is a fact, not a judgement.
  */
 
-function pct(value: number | null): string {
-  return value === null ? '—' : `${(value * 100).toFixed(1)}%`;
-}
-
 function frictionCell(arm: { medianFriction: number | null; sessionCount: number }): string {
   if (arm.sessionCount < SUBJECT_MIN_SESSIONS_PER_ARM || arm.medianFriction === null) {
     return '—';
@@ -55,7 +52,11 @@ export function SubjectQualityPanel({
   title: string;
 }) {
   if (rows.length === 0) {
-    return null;
+    return (
+      <Card caption={caption} title={title}>
+        <CardEmpty>No {subjectNoun} effectiveness data in this period.</CardEmpty>
+      </Card>
+    );
   }
 
   return (
@@ -94,7 +95,7 @@ export function SubjectQualityPanel({
                     <span className="text-text-3">under {SUBJECT_MIN_CALLS} calls</span>
                   ) : (
                     <>
-                      {pct(errorRate)}
+                      {fmtPctOrDash(errorRate, 1)}
                       <span className="ml-1 text-xs text-text-3">
                         / {r.downstreamCalls.toLocaleString()}
                       </span>
@@ -117,8 +118,8 @@ export function SubjectQualityPanel({
                           key={c.outcome}
                           tone={c.pValue < SUBJECT_SIGNIFICANCE_ALPHA ? 'accent' : 'neutral'}
                         >
-                          {OUTCOME_LABEL[c.outcome]} {pct(c.rateWith)} vs {pct(c.rateWithout)} ·{' '}
-                          {fmtPValue(c.pValue)}
+                          {OUTCOME_LABEL[c.outcome]} {fmtPctOrDash(c.rateWith, 1)} vs{' '}
+                          {fmtPctOrDash(c.rateWithout, 1)} · {fmtPValue(c.pValue)}
                         </Badge>
                       ) : (
                         <Badge key={c.outcome} tone="neutral">
@@ -168,7 +169,14 @@ export function DeprecationCandidates({
   windowDays: number;
 }) {
   if (candidates.length === 0) {
-    return null;
+    return (
+      <Card
+        caption={`Used before this window, not once inside it. Reported, not acted on — whether to retire one is a human decision.`}
+        title="Deprecation candidates"
+      >
+        <CardEmpty>No deprecation candidates in this period.</CardEmpty>
+      </Card>
+    );
   }
   return (
     <Card
@@ -195,7 +203,7 @@ export function DeprecationCandidates({
                 {c.historicInvocations.toLocaleString()}
               </Cell>
               <Cell num className="text-text-2">
-                {c.lastUsedAt.toISOString().slice(0, 10)}
+                {fmtDate(c.lastUsedAt)}
               </Cell>
             </Row>
           ))}

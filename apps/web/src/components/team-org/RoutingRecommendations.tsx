@@ -1,5 +1,5 @@
 import { Card, EmptyState } from '@/components/ui';
-import { fmtUsd } from '@/lib/fmt';
+import { fmtPct, fmtUsd } from '@/lib/fmt';
 import type { RegisteredProjection } from '@/lib/projections';
 import type { RoutingRecommendation } from '@/lib/routing-queries';
 
@@ -79,7 +79,7 @@ export function RoutingRecommendations({ claims, pricePrecise }: RoutingRecommen
                   {fmtUsd(projection.projectedLow)} – {fmtUsd(projection.projectedHigh)}
                 </p>
                 <p className="text-[10px] text-text-3">
-                  up to ~{Math.round(rec.savingsRatio * 100)}% cheaper if routed to Haiku
+                  up to ~{fmtPct(rec.savingsRatio)} cheaper if routed to Haiku
                 </p>
               </div>
             </Card>

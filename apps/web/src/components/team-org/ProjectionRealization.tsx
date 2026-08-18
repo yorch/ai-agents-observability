@@ -1,7 +1,8 @@
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
+import { CardEmpty } from '@/components/ui/CardEmpty';
 import { Cell, Row, Table } from '@/components/ui/Table';
-import { fmtUsd } from '@/lib/fmt';
+import { fmtDate, fmtUsd } from '@/lib/fmt';
 import type { Realization } from '@/lib/projections';
 
 /**
@@ -51,10 +52,12 @@ export function ProjectionRealization({
 }) {
   if (realizations.length === 0) {
     return (
-      <Card title={title} caption={caption} className="text-xs text-text-2">
-        No projections have been recorded for this claim yet. Claims register themselves as they are
-        rendered, so this fills in from the next page view onward — there is deliberately no
-        backfill of claims made before the registry existed.
+      <Card title={title} caption={caption}>
+        <CardEmpty>
+          No projections recorded yet. Claims register themselves as they are rendered, so this
+          fills in from the next page view onward — there is deliberately no backfill of claims made
+          before the registry existed.
+        </CardEmpty>
       </Card>
     );
   }
@@ -76,8 +79,7 @@ export function ProjectionRealization({
           return (
             <Row key={p.id}>
               <Cell className="text-xs text-text-2">
-                {p.periodStart.toISOString().slice(0, 10)} –{' '}
-                {p.periodEnd.toISOString().slice(0, 10)}
+                {fmtDate(p.periodStart)} – {fmtDate(p.periodEnd)}
               </Cell>
               <Cell className="font-mono text-xs">{p.segment}</Cell>
               <Cell num className="text-text-2">

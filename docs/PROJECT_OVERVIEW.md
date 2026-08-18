@@ -15,7 +15,10 @@
 > alerting & governance, multi-agent adapters, insight surfaces), plus P11
 > (correlation & Jira), P12 (agent adapter expansion — seven agents) and P13
 > (scoring & evaluation — the versioned `scores` substrate, `run_kind`,
-> deterministic trajectory scorers, the opt-in judge).
+> deterministic trajectory scorers, the opt-in judge), and the post-revamp UI/UX
+> review ([`docs/design/ui-ux-review-2026-08.md`](design/ui-ux-review-2026-08.md) →
+> the `ActionResult` contract, `CardEmpty`/`EmptyState`, the `fmt.ts` monopoly,
+> `useFocusTrap`, `FilterChips`, and the nav-model-derived command palette).
 > Phase 10 (model cost optimization) is in a contradictory state — `tasks/INDEX.md`
 > marks it `done`, every `P10-*.md` file reads `ready`, and no `model_policy` table
 > exists. If you are reading this much later, re-verify against
