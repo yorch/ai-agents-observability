@@ -448,6 +448,26 @@ CREATE TABLE "alert_delivery_log" (
     CONSTRAINT "alert_delivery_log_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "routing_recommendation_projections" (
+    "id" BIGSERIAL NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "window_start" TIMESTAMPTZ(6) NOT NULL,
+    "window_end" TIMESTAMPTZ(6) NOT NULL,
+    "range_days" INTEGER NOT NULL,
+    "model" TEXT NOT NULL,
+    "cheap_categories" TEXT[],
+    "cheap_category_calls" INTEGER NOT NULL,
+    "cheap_category_spend_usd" DECIMAL(12,6) NOT NULL,
+    "savings_ratio" DECIMAL(8,6) NOT NULL,
+    "projected_monthly_saving_usd" DECIMAL(12,6) NOT NULL,
+    "projected_period_saving_usd" DECIMAL(12,6) NOT NULL,
+    "price_precise" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "routing_recommendation_projections_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "teams_github_slug_key" ON "teams"("github_slug");
 
@@ -576,6 +596,15 @@ CREATE INDEX "alert_events_rule_id_resolved_at_idx" ON "alert_events"("rule_id",
 
 -- CreateIndex
 CREATE INDEX "alert_delivery_log_attempted_at_idx" ON "alert_delivery_log"("attempted_at" DESC);
+
+-- CreateIndex
+CREATE INDEX "routing_recommendation_created_idx" ON "routing_recommendation_projections"("created_at" DESC);
+
+-- CreateIndex
+CREATE INDEX "routing_recommendation_range_window_idx" ON "routing_recommendation_projections"("range_days", "window_end" DESC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "routing_recommendation_window_model_uniq" ON "routing_recommendation_projections"("window_start", "window_end", "range_days", "model");
 
 -- AddForeignKey
 ALTER TABLE "teams" ADD CONSTRAINT "teams_parent_team_id_fkey" FOREIGN KEY ("parent_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -15,7 +15,9 @@ import {
 
 // Actionable, per-developer coaching surface (Feature 5). Pure derivation over the
 // friction-source decomposition and the already-fetched per-tool / MCP / routing
-// signals — no new queries, fully unit-testable.
+// signals — no new queries, fully unit-testable. Recommendations are suggestions,
+// never mandates: each points at a concrete, observed signal so the developer can
+// judge for itself.
 
 export type Recommendation = {
   detail: string;
@@ -33,10 +35,20 @@ export type RecommendationInputs = {
   toolPerf: ToolPerfRow[];
 };
 
+// Per-developer, per-tool coaching thresholds. Intentionally distinct from the
+// org-wide alerting constants in @ai-agents-observability/schemas (ERROR_RATE_WARN
+// 0.1 / ERROR_RATE_MIN_CALLS 100): those gate a noisy org-aggregate alert, whereas
+// here a single developer's single tool needs a much lower call floor to be worth a
+// hint, and a higher rate before it's notable for one person. A tool/server needs
+// at least this many calls before its error rate is trusted (avoids coaching off a
+// 1-of-1 fluke), and an error rate whose Wilson lower bound sits at/above this warns.
 const MIN_TOOL_CALLS = 5;
 const TOOL_ERROR_RATE_WARN = 0.2;
+// A friction driver contributing at least this much (weighted) is worth surfacing.
 const SOURCE_FLOOR = 0.05;
 
+// Evidence floors for the routing/cache/denial hints — a single denial or a
+// handful of tokens is noise, not a coaching signal.
 const MIN_PERMISSION_DENIALS = 2;
 const MIN_CACHE_SESSIONS = 3;
 const MIN_CACHE_INPUT_TOKENS = 100_000n;
@@ -129,6 +141,7 @@ function buildCacheRecommendation(cache: UserCacheSummaryRow): Recommendation[] 
 
 export function buildRecommendations(input: RecommendationInputs): Recommendation[] {
   const { cacheSummary, mcp, modelRouting, scoredSessionCount, sources, toolPerf } = input;
+  // No scored sessions → nothing trustworthy to coach on.
   if (scoredSessionCount === 0) {
     return [];
   }
@@ -136,6 +149,7 @@ export function buildRecommendations(input: RecommendationInputs): Recommendatio
   const recs: Recommendation[] = [];
   const dominant = topSource(sources);
 
+  // 1. Permission denials — pre-approving routine tools cuts interruptions.
   const denied = toolPerf
     .filter((t) => t.deniedCount > 0)
     .sort((a, b) => b.deniedCount - a.deniedCount);
@@ -152,6 +166,7 @@ export function buildRecommendations(input: RecommendationInputs): Recommendatio
     }
   }
 
+  // 2. Error-prone tools — high failure rate means retries and wasted spend.
   const errorProne = toolPerf
     .filter((t) => t.callCount >= MIN_TOOL_CALLS)
     .filter((t) => wilsonLowerBound(t.errorCount, t.callCount) >= TOOL_ERROR_RATE_WARN)
@@ -166,6 +181,7 @@ export function buildRecommendations(input: RecommendationInputs): Recommendatio
     });
   }
 
+  // 3. Flaky MCP servers — aggregate tool rows up to the server.
   const byServer = new Map<string, { calls: number; errors: number }>();
   for (const row of mcp) {
     const agg = byServer.get(row.mcpServer) ?? { calls: 0, errors: 0 };
@@ -187,9 +203,12 @@ export function buildRecommendations(input: RecommendationInputs): Recommendatio
     });
   }
 
+  // 4. Premium model doing retrieval work, and 5. poor cache reuse — the two
+  // cost-shaped hints. Both gate on their own evidence floors above.
   recs.push(...buildRoutingRecommendation(modelRouting));
   recs.push(...buildCacheRecommendation(cacheSummary));
 
+  // 6. Interrupts are the dominant driver — usually a prompt-clarity signal.
   if (dominant === 'interrupt' && sources.interrupt >= SOURCE_FLOOR) {
     recs.push({
       detail:
@@ -200,6 +219,7 @@ export function buildRecommendations(input: RecommendationInputs): Recommendatio
     });
   }
 
+  // 7. Early abandonment — sessions dropped within a minute.
   if (sources.abandonment >= SOURCE_FLOOR) {
     recs.push({
       detail:
@@ -210,5 +230,6 @@ export function buildRecommendations(input: RecommendationInputs): Recommendatio
     });
   }
 
+  // Warnings first, then info; stable within each tier (insertion order).
   return recs.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'warn' ? -1 : 1));
 }

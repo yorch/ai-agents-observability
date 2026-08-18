@@ -1,8 +1,8 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
-import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
-import { fmtTokens } from '@/lib/fmt';
+import { Badge, type BadgeTone, Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
+import { fmtTokens, fmtUsd } from '@/lib/fmt';
 import {
   getOrgModelDetail,
   getOrgModelRoutingBreakdown,
@@ -283,10 +283,10 @@ function RoutingValidationPanel({ rows }: { rows: RoutingValidationRow[] }) {
                 <ValidationStatus status={r.evaluation.status} />
               </Cell>
               <Cell num className="text-text-2">
-                ${r.evaluation.projectedPeriodSavingUsd.toFixed(2)}
+                {fmtUsd(r.evaluation.projectedPeriodSavingUsd)}
               </Cell>
               <Cell num className="text-text-2">
-                ${r.evaluation.realizedSavingUsd.toFixed(2)}
+                {fmtUsd(r.evaluation.realizedSavingUsd)}
               </Cell>
               <Cell num className="text-text-2">
                 {r.evaluation.realizedCheapCalls.toLocaleString()}
@@ -308,37 +308,17 @@ function RoutingValidationPanel({ rows }: { rows: RoutingValidationRow[] }) {
   );
 }
 
-function ValidationStatus({
-  status,
-}: {
-  status: 'degraded' | 'improved' | 'mixed' | 'not_measurable';
-}) {
-  if (status === 'improved') {
-    return (
-      <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-good-soft text-good border border-good-line">
-        improved
-      </span>
-    );
-  }
-  if (status === 'degraded') {
-    return (
-      <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-crit-soft text-crit border border-crit-line">
-        degraded
-      </span>
-    );
-  }
-  if (status === 'not_measurable') {
-    return (
-      <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-surface-2 text-text-3 border border-border">
-        not measurable
-      </span>
-    );
-  }
-  return (
-    <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-warn-soft text-warn border border-warn-line">
-      mixed
-    </span>
-  );
+// Validation outcome is state, not category, so it takes the `Badge` tones
+// rather than the series palette.
+const VALIDATION_TONE: Record<RoutingValidationRow['evaluation']['status'], BadgeTone> = {
+  degraded: 'crit',
+  improved: 'good',
+  mixed: 'warn',
+  not_measurable: 'neutral',
+};
+
+function ValidationStatus({ status }: { status: RoutingValidationRow['evaluation']['status'] }) {
+  return <Badge tone={VALIDATION_TONE[status]}>{status.replace('_', ' ')}</Badge>;
 }
 
 function fmtDeltaPct(n: number | null): string {

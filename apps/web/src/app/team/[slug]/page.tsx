@@ -5,11 +5,12 @@ import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
 import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { Card, EmptyState, Stat } from '@/components/ui';
+import { Card, CardEmpty, EmptyState, Stat } from '@/components/ui';
 import {
   getTeamEffectivenessDistribution,
   getTeamFrictionTrend,
 } from '@/lib/effectiveness-queries';
+import { fmtUsd } from '@/lib/fmt';
 import { getTeamOversight } from '@/lib/oversight-queries';
 import { requireTeamLead } from '@/lib/roles';
 import { computeRoutingRecommendations } from '@/lib/routing-queries';
@@ -114,15 +115,13 @@ export default async function TeamOverviewPage({
           <div className="grid gap-6 md:grid-cols-2">
             <Card title="Team routing opportunities" caption={`Trailing ${range} days`}>
               {routingRecs.length === 0 ? (
-                <p className="text-sm text-text-3">
-                  No high-confidence routing opportunities in this window.
-                </p>
+                <CardEmpty>No high-confidence routing opportunities in this period.</CardEmpty>
               ) : (
                 <div className="space-y-2">
                   <p className="text-xs text-text-2">
                     Estimated up to{' '}
                     <span className="font-mono text-good">
-                      ${estimatedMonthlySaving.toFixed(2)} / mo
+                      {fmtUsd(estimatedMonthlySaving)} / mo
                     </span>{' '}
                     by routing retrieval-heavy premium turns to a cheaper model.
                   </p>
@@ -132,9 +131,8 @@ export default async function TeamOverviewPage({
                       className="rounded border border-border bg-surface-2 px-3 py-2"
                     >
                       <p className="text-sm text-text">
-                        <span className="font-mono">{r.model}</span> · $
-                        {r.cheapCategorySpend.toFixed(2)}
-                        retrieval spend
+                        <span className="font-mono">{r.model}</span> ·{' '}
+                        {fmtUsd(r.cheapCategorySpend)} retrieval spend
                       </p>
                       <p className="text-xs text-text-3">
                         {r.cheapCategoryCalls.toLocaleString()} calls · confidence {r.confidence}

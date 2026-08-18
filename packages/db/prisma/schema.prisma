@@ -91,14 +91,14 @@ enum LinkSource {
 // ── Dimension tables ─────────────────────────────────────────────────────────
 
 model Team {
-  id           String   @id @default(uuid()) @db.Uuid
-  githubSlug   String   @unique @map("github_slug")
-  githubId     BigInt   @unique @map("github_id")
-  name         String
-  parentTeamId String?  @map("parent_team_id") @db.Uuid
-  syncedAt     DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  id            String   @id @default(uuid()) @db.Uuid
+  githubSlug    String   @unique @map("github_slug")
+  githubId      BigInt   @unique @map("github_id")
+  name          String
+  parentTeamId  String?  @map("parent_team_id") @db.Uuid
+  syncedAt      DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
   // Per-team transcript retention override (P9-004). null = use global default.
-  retentionDays Int?    @map("retention_days")
+  retentionDays Int?     @map("retention_days")
 
   parentTeam   Team?        @relation("TeamHierarchy", fields: [parentTeamId], references: [id])
   childTeams   Team[]       @relation("TeamHierarchy")
@@ -124,16 +124,16 @@ model User {
   lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz(6)
   deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(6)
 
-  primaryTeam       Team?             @relation("UserPrimaryTeam", fields: [primaryTeamId], references: [id])
-  teamMemberships   TeamMember[]
-  sessions          Session[]
-  authTokens        AuthToken[]
-  visibilityPolicy  VisibilityPolicy?
-  actorAuditLogs    AuditLog[]        @relation("AuditActor")
-  targetAuditLogs   AuditLog[]        @relation("AuditTarget")
-  pullRequests      PullRequest[]
-  deletionRequests  DeletionRequest[]
-  accessGrants      AccessGrant[]     @relation("GrantGrantee")
+  primaryTeam      Team?             @relation("UserPrimaryTeam", fields: [primaryTeamId], references: [id])
+  teamMemberships  TeamMember[]
+  sessions         Session[]
+  authTokens       AuthToken[]
+  visibilityPolicy VisibilityPolicy?
+  actorAuditLogs   AuditLog[]        @relation("AuditActor")
+  targetAuditLogs  AuditLog[]        @relation("AuditTarget")
+  pullRequests     PullRequest[]
+  deletionRequests DeletionRequest[]
+  accessGrants     AccessGrant[]     @relation("GrantGrantee")
 
   @@index([lastSeenAt])
   @@map("users")
@@ -193,12 +193,12 @@ model AuthToken {
 // ── Privacy & audit ───────────────────────────────────────────────────────────
 
 model VisibilityPolicy {
-  userId                    String   @id @map("user_id") @db.Uuid
-  shareMetadataWithTeam     Boolean  @default(true) @map("share_metadata_with_team")
-  shareMetadataWithOrg      Boolean  @default(true) @map("share_metadata_with_org")
-  shareTranscriptsWithTeam  Boolean  @default(false) @map("share_transcripts_with_team")
-  shareTranscriptsWithOrg   Boolean  @default(false) @map("share_transcripts_with_org")
-  updatedAt                 DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  userId                   String   @id @map("user_id") @db.Uuid
+  shareMetadataWithTeam    Boolean  @default(true) @map("share_metadata_with_team")
+  shareMetadataWithOrg     Boolean  @default(true) @map("share_metadata_with_org")
+  shareTranscriptsWithTeam Boolean  @default(false) @map("share_transcripts_with_team")
+  shareTranscriptsWithOrg  Boolean  @default(false) @map("share_transcripts_with_org")
+  updatedAt                DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -266,7 +266,7 @@ model Session {
 
   // Human-in-the-loop: representative permission/autonomy mode for the session —
   // the least-supervised (most autonomous) mode observed across its events.
-  mode                 String?       @map("mode")
+  mode String? @map("mode")
 
   totalInputTokens      BigInt  @default(0) @map("total_input_tokens")
   totalOutputTokens     BigInt  @default(0) @map("total_output_tokens")
@@ -294,14 +294,14 @@ model Session {
   // this column existed.
   redactionFlags       String[]  @default([]) @map("redaction_flags")
 
-  shapeLabel           String?   @map("shape_label")
-  frictionScore        Float?    @map("friction_score")
+  shapeLabel    String? @map("shape_label")
+  frictionScore Float?  @map("friction_score")
 
   // Human-in-the-loop response latency: total time (ms) the agent waited at
   // blocking notifications and the number of such samples, derived nightly by
   // compute-effectiveness. Mean response time = total_response_ms / sample_count.
-  totalResponseMs      BigInt    @default(0) @map("total_response_ms")
-  responseSampleCount  Int       @default(0) @map("response_sample_count")
+  totalResponseMs     BigInt @default(0) @map("total_response_ms")
+  responseSampleCount Int    @default(0) @map("response_sample_count")
 
   user        User                @relation(fields: [userId], references: [id])
   repo        Repo?               @relation(fields: [repoId], references: [id])
@@ -336,19 +336,19 @@ model PullRequest {
   linesRemoved      Int?      @map("lines_removed")
   filesChanged      Int?      @map("files_changed")
   reviewCount       Int?      @map("review_count")
-  reviewerLogins      String[]  @map("reviewer_logins")
-  labels              String[]
-  enrichedAt          DateTime  @default(now()) @map("enriched_at") @db.Timestamptz(6)
+  reviewerLogins    String[]  @map("reviewer_logins")
+  labels            String[]
+  enrichedAt        DateTime  @default(now()) @map("enriched_at") @db.Timestamptz(6)
   // P5-003: revert detection — set when a reverting PR is merged
-  revertedAt          DateTime? @map("reverted_at") @db.Timestamptz(6)
+  revertedAt        DateTime? @map("reverted_at") @db.Timestamptz(6)
   // P5-003: on the reverting PR, points back to the PR it reverts
-  revertOfPrNumber    Int?      @map("revert_of_pr_number")
+  revertOfPrNumber  Int?      @map("revert_of_pr_number")
   // P5-004: Jira issue key extracted from head branch name (e.g. PROJ-123)
-  jiraKey             String?   @map("jira_key")
-  isDraft             Boolean?  @map("is_draft")
+  jiraKey           String?   @map("jira_key")
+  isDraft           Boolean?  @map("is_draft")
 
-  repo       Repo          @relation(fields: [repoId], references: [id], onDelete: Cascade)
-  authorUser User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  repo       Repo            @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  authorUser User?           @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
   prLinks    SessionPRLink[]
   rollup     PRRollup?
   checkRuns  PRCheckRun[]
@@ -430,26 +430,26 @@ model SessionCommitLink {
 // `key` is referenced by pull_requests.jira_key / sessions.jira_key as a plain
 // string (no FK) — keys are extracted before the issue is ever synced.
 model JiraIssue {
-  key         String    @id
-  summary     String?
-  issueType   String?   @map("issue_type")
-  status      String?
-  epicKey     String?   @map("epic_key")
+  key            String    @id
+  summary        String?
+  issueType      String?   @map("issue_type")
+  status         String?
+  epicKey        String?   @map("epic_key")
   // Project: key is also the issue-key prefix (PLAT-123 → PLAT) but stored
   // explicitly for indexed grouping; name is display-only and API-sourced
   // ("Platform Engineering") — not derivable from the key.
-  projectKey  String?   @map("project_key")
-  projectName String?   @map("project_name")
-  storyPoints Float?    @map("story_points")
+  projectKey     String?   @map("project_key")
+  projectName    String?   @map("project_name")
+  storyPoints    Float?    @map("story_points")
   // Optional per-issue business value (currency units), synced from a Jira
   // custom field (JIRA_VALUE_FIELD). Enables a true external business-value
   // join on /org/roi instead of the flat VALUE_PER_STORY_POINT proxy.
-  businessValue Float?  @map("business_value")
-  assignee    String?
+  businessValue  Float?    @map("business_value")
+  assignee       String?
   // Jira's own created date — enables post-merge-defect windows.
   issueCreatedAt DateTime? @map("issue_created_at") @db.Timestamptz(6)
-  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz(6)
-  syncedAt    DateTime  @default(now()) @map("synced_at") @db.Timestamptz(6)
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(6)
+  syncedAt       DateTime  @default(now()) @map("synced_at") @db.Timestamptz(6)
 
   @@index([epicKey])
   @@index([issueType])
@@ -546,15 +546,15 @@ model DeletionRequest {
 // ── Webhook deliveries ────────────────────────────────────────────────────────
 
 model WebhookDelivery {
-  id           BigInt    @id @default(autoincrement())
-  deliveryId   String    @unique @map("delivery_id")
-  eventType    String    @map("event_type")
-  action       String?
-  repo         String?
-  receivedAt   DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
-  processedAt  DateTime? @map("processed_at") @db.Timestamptz(6)
-  status       String
-  errorText    String?   @map("error_text")
+  id          BigInt    @id @default(autoincrement())
+  deliveryId  String    @unique @map("delivery_id")
+  eventType   String    @map("event_type")
+  action      String?
+  repo        String?
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+  status      String
+  errorText   String?   @map("error_text")
 
   @@index([eventType, receivedAt(sort: Desc)])
   @@index([receivedAt(sort: Desc)])
@@ -566,8 +566,8 @@ model WebhookDelivery {
 model JobConfig {
   jobName        String    @id @map("job_name")
   enabled        Boolean   @default(true)
-  runHourUtc     Int       @map("run_hour_utc")    @db.SmallInt
-  runMinuteUtc   Int       @map("run_minute_utc")  @db.SmallInt
+  runHourUtc     Int       @map("run_hour_utc") @db.SmallInt
+  runMinuteUtc   Int       @map("run_minute_utc") @db.SmallInt
   runRequestedAt DateTime? @map("run_requested_at") @db.Timestamptz(6)
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -577,13 +577,13 @@ model JobConfig {
 // ── Alerting (P9-001) ─────────────────────────────────────────────────────────
 
 model AlertRule {
-  id             String   @id @default(uuid()) @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
   name           String
-  ruleType       String   @map("rule_type")
-  params         Json     @default("{}")
-  enabled        Boolean  @default(true)
-  cadenceMinutes Int      @default(60) @map("cadence_minutes")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  ruleType       String    @map("rule_type")
+  params         Json      @default("{}")
+  enabled        Boolean   @default(true)
+  cadenceMinutes Int       @default(60) @map("cadence_minutes")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   // R7 (HITL): when set and in the future, the rule is evaluated but suppressed —
   // it neither fires nor notifies until this time. Guards against alert fatigue.
   silencedUntil  DateTime? @map("silenced_until") @db.Timestamptz(6)
@@ -640,12 +640,12 @@ model SessionFeedback {
 }
 
 model AlertEvent {
-  id         BigInt    @id @default(autoincrement())
-  ruleId     String    @map("rule_id") @db.Uuid
-  firedAt    DateTime  @default(now()) @map("fired_at") @db.Timestamptz(6)
-  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
-  severity   String
-  details    Json      @default("{}")
+  id                   BigInt    @id @default(autoincrement())
+  ruleId               String    @map("rule_id") @db.Uuid
+  firedAt              DateTime  @default(now()) @map("fired_at") @db.Timestamptz(6)
+  resolvedAt           DateTime? @map("resolved_at") @db.Timestamptz(6)
+  severity             String
+  details              Json      @default("{}")
   // R7 (HITL): an admin acknowledged this firing ("seen it"). Distinct from
   // resolved (the condition cleared) — acknowledgement is a human action.
   acknowledgedAt       DateTime? @map("acknowledged_at") @db.Timestamptz(6)
@@ -700,8 +700,12 @@ model RoutingRecommendationProjection {
   projectedPeriodSavingUsd  Decimal  @map("projected_period_saving_usd") @db.Decimal(12, 6)
   pricePrecise              Boolean  @default(false) @map("price_precise")
 
-  @@unique([windowStart, windowEnd, rangeDays, model])
-  @@index([createdAt(sort: Desc)])
-  @@index([rangeDays, windowEnd(sort: Desc)])
+  // Constraint names are pinned rather than left to Prisma's derive-and-truncate
+  // rule: the derived names for this table would run past Postgres' 63-char
+  // identifier limit and get silently shortened, and the init migration has to
+  // match them by hand.
+  @@unique([windowStart, windowEnd, rangeDays, model], map: "routing_recommendation_window_model_uniq")
+  @@index([createdAt(sort: Desc)], map: "routing_recommendation_created_idx")
+  @@index([rangeDays, windowEnd(sort: Desc)], map: "routing_recommendation_range_window_idx")
   @@map("routing_recommendation_projections")
 }

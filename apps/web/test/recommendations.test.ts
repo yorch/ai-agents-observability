@@ -209,4 +209,71 @@ describe('buildRecommendations', () => {
     });
     expect(recs.find((r) => r.id === 'cache-efficiency')).toBeDefined();
   });
+
+  it('suppresses the routing recommendation below the call and spend floors', () => {
+    const thinCalls = buildRecommendations({
+      cacheSummary: cacheSummary(),
+      mcp: [],
+      // Spend clears the floor, call count does not.
+      modelRouting: [modelRouting({ callCount: 24, totalCostUsd: 40 })],
+      scoredSessionCount: 8,
+      sources: NO_FRICTION,
+      toolPerf: [],
+    });
+    expect(thinCalls.find((r) => r.id.startsWith('routing:'))).toBeUndefined();
+
+    const thinSpend = buildRecommendations({
+      cacheSummary: cacheSummary(),
+      mcp: [],
+      // Call count clears the floor, spend does not.
+      modelRouting: [modelRouting({ callCount: 400, totalCostUsd: 4.99 })],
+      scoredSessionCount: 8,
+      sources: NO_FRICTION,
+      toolPerf: [],
+    });
+    expect(thinSpend.find((r) => r.id.startsWith('routing:'))).toBeUndefined();
+  });
+
+  it('never recommends routing away from a non-premium model', () => {
+    const recs = buildRecommendations({
+      cacheSummary: cacheSummary(),
+      mcp: [],
+      modelRouting: [modelRouting({ callCount: 500, model: 'claude-haiku-4-5', totalCostUsd: 90 })],
+      scoredSessionCount: 8,
+      sources: NO_FRICTION,
+      toolPerf: [],
+    });
+    expect(recs.find((r) => r.id.startsWith('routing:'))).toBeUndefined();
+  });
+
+  it('suppresses the cache recommendation when reuse is healthy or evidence is thin', () => {
+    const healthy = buildRecommendations({
+      cacheSummary: cacheSummary({
+        sessionCount: 20,
+        totalCacheReadTokens: 400_000n,
+        totalInputTokens: 600_000n,
+      }),
+      mcp: [],
+      modelRouting: [],
+      scoredSessionCount: 8,
+      sources: NO_FRICTION,
+      toolPerf: [],
+    });
+    expect(healthy.find((r) => r.id === 'cache-efficiency')).toBeUndefined();
+
+    // Low reuse, but too few sessions and too few input tokens to coach on.
+    const thin = buildRecommendations({
+      cacheSummary: cacheSummary({
+        sessionCount: 2,
+        totalCacheReadTokens: 10n,
+        totalInputTokens: 90_000n,
+      }),
+      mcp: [],
+      modelRouting: [],
+      scoredSessionCount: 8,
+      sources: NO_FRICTION,
+      toolPerf: [],
+    });
+    expect(thin.find((r) => r.id === 'cache-efficiency')).toBeUndefined();
+  });
 });
