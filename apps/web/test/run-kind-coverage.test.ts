@@ -86,19 +86,43 @@ describe('human-facing queries read the filtered views, not the base tables', ()
   });
 });
 
-describe('Prisma ORM reads still carry the explicit guard', () => {
-  // Interim: until the client extension lands, an ORM read cannot be routed
-  // through a view and must still say `runKind: 'INTERACTIVE'` itself. This is
-  // the same counting check as before, kept deliberately narrow — it proves the
-  // guarded reads did not lose their guard in the SQL sweep, not that every read
-  // is guarded (many legitimately are not).
+describe('Prisma ORM reads are guarded by the client, not by call sites', () => {
+  const factory = readFileSync(join(LIB, 'prisma.ts'), 'utf8');
   const files = walk(LIB);
 
-  it('has not lost the ORM guards', () => {
-    const guards = files
-      .map((f) => readFileSync(f, 'utf8'))
-      .join('\n')
-      .match(/runKind: 'INTERACTIVE'/g);
-    expect(guards?.length ?? 0).toBeGreaterThanOrEqual(12);
+  it('applies the extension in getPrisma', () => {
+    expect(factory).toMatch(/withInteractiveOnly\(/);
+    expect(factory).toMatch(/export function getPrisma/);
+    expect(factory).toMatch(/export function getAllRunsPrisma/);
+  });
+
+  it('does not cache under the global key packages/db already owns', () => {
+    // The bug this pins was silent and total: `packages/db` publishes a
+    // module-level singleton on `globalThis._prisma` outside production, so a
+    // cache keyed the same way was pre-populated with an **unguarded** client
+    // before `getPrisma()` ever ran. Every guarded read then went through the
+    // unguarded client, and nothing failed — the extension simply never applied.
+    // Harmless while both were the same object; a missing filter the moment one
+    // of them carries a guard.
+    expect(factory).not.toMatch(/globalForPrisma\._prisma\b/);
+  });
+
+  it('makes every unguarded read argue for itself', () => {
+    // `getAllRunsPrisma` takes a reason it never uses. The reason is the point:
+    // an exemption has to be stated at the call site and shows up in a diff.
+    const offenders = files.flatMap((f) => {
+      if (f.endsWith('prisma.ts')) {
+        return [];
+      }
+      const src = readFileSync(f, 'utf8');
+      const lines = src.split('\n');
+      return [...src.matchAll(/getAllRunsPrisma\(/g)].flatMap((m) => {
+        const lineNo = src.slice(0, m.index).split('\n').length;
+        const context = lines.slice(Math.max(0, lineNo - 1 - EXEMPT_WINDOW), lineNo).join('\n');
+        return EXEMPT.test(context) ? [] : [`${f.slice(LIB.length + 1)}:${lineNo}`];
+      });
+    });
+
+    expect(offenders).toEqual([]);
   });
 });

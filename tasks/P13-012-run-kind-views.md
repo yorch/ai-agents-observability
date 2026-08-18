@@ -3,7 +3,7 @@ id: P13-012
 title: Move the run_kind guard from call sites into the data layer
 phase: 13
 workstream: A
-status: in-progress
+status: review
 owner: claude
 depends_on: [P13-002]
 blocks: []
@@ -50,7 +50,7 @@ rather than on the rule.
       in `packages/db/sql/migrations/`. *Landed as a new numbered file, then folded
       into `0001_init.sql` by the 2026-08-18 pre-deployment squash — see
       `packages/db/AGENTS.md`.*
-- [ ] **Remaining.** Prisma ORM reads are guarded by a client extension, so `prisma.session.findMany()`
+- [x] Prisma ORM reads are guarded by a client extension, so `prisma.session.findMany()`
       cannot silently include non-interactive runs. The extension is applied where
       the client is constructed, not per call site.
 - [x] The three read classes that legitimately see every run are unchanged and
@@ -136,13 +136,57 @@ never that it is bound to the right scan, which is how seven CTE-misplaced guard
 once passed. The ORM half of the lint stays as a counting check until the
 extension lands.
 
-## Remaining — part 2 of 2
+## Implementation record — part 2 of 2
 
-The Prisma client extension. It is not a mechanical follow-up, which is why it is
-not bundled here: it **inverts the default**, so every read that legitimately sees
-all runs has to opt out, and there are more of those (22) than there are guarded
-reads (13). That inversion is the right direction — a missed opt-out shows up as
-an empty drill-down page, which is loud, where a missed guard shows up as an
-inflated aggregate, which is silent — but it means correctly classifying 35 call
-sites, and getting one wrong reintroduces exactly the class of error this task
-exists to remove. It deserves its own change and its own verification pass.
+Landed 2026-08-18: the Prisma client extension. It was held back from part 1 because
+it **inverts the default** — every read that legitimately sees all runs now has to
+opt out — and that inversion had to be argued call site by call site rather than
+swept.
+
+**The extension.** `packages/db/src/run-kind-client.ts` exports
+`withInteractiveOnly(client)`, which wraps the six `session` operations that return
+a population (`findFirst`, `findFirstOrThrow`, `findMany`, `aggregate`, `count`,
+`groupBy`) and injects `runKind: 'INTERACTIVE'` when the caller has not named
+`runKind` itself. `findUnique` is deliberately **not** wrapped: it is a primary-key
+lookup, so filtering it can only turn a valid drill-down into a 404. An explicit
+`runKind` in the caller's `where` always wins, which is what keeps the CI/eval
+surfaces of `P13-002` reachable.
+
+**Two accessors, one pool.** `apps/web/src/lib/prisma.ts` now exposes `getPrisma()`
+(guarded) and `getAllRunsPrisma(reason)` (not). `$extends` wraps the existing client
+rather than opening a second one, so the exemption costs no connections. The
+required-but-unused `reason` argument is the same device `readScores` uses for
+`aggregate-only` access: it forces the exemption to appear in the diff as a claim
+rather than as an absence. Six call sites take it — two transcript routes, the
+adapter inventory, org search, the own-sessions facet counts, and two functions in
+the session-detail actions.
+
+**A global-key collision made the first version a no-op.** `packages/db` publishes
+a module-level client on `globalThis._prisma` outside production. This file cached
+under the same key, so importing the db package anywhere pre-populated the cache
+with an **unguarded** client and `getPrisma()` handed it straight back. Harmless
+while both were the same object; a silently missing filter the moment one of them
+carried a guard. Fixed by caching under `_prismaGuarded`, and pinned by an assertion
+that the factory does not read `_prisma`.
+
+**The first verification pass was vacuous, which is the part worth remembering.** A
+before/after snapshot diff across the ORM call sites reported *zero differences* —
+against an extension that was not running at all, because of the key collision
+above. Zero differences is exactly what a correct refactor and a dead code path both
+produce. Only a direct probe separated them: `getPrisma().session.count({})`
+returning **124** against `getAllRunsPrisma().session.count({})` returning **130**,
+a guarded `groupBy` yielding INTERACTIVE rows only, and an explicit
+`runKind: 'CI'` still returning its 4. The snapshot diff was then re-run against a
+proven-live extension — 9 probes, 0 differences.
+
+**The lint's ORM half changed from counting to structure.** It no longer counts
+guards; it asserts that `getPrisma` applies `withInteractiveOnly`, that the factory
+does not use the colliding global key, and that every `getAllRunsPrisma(` call
+carries a `run-kind-exempt:` marker. Both new assertions were mutation-verified.
+Thirteen web test suites that mock `@ai-agents-observability/db` gained an identity
+`withInteractiveOnly` export.
+
+**The ~19 now-redundant explicit `runKind: 'INTERACTIVE'` filters were left in
+place.** They resolve to the same value the extension injects, they document intent
+at the call site, and removing them is a diff whose only effect is to make the guard
+less visible.

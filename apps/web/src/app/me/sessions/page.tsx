@@ -5,7 +5,7 @@ import { SessionsTable } from '@/components/me/SessionsTable';
 import { Button, ButtonLink, EmptyState, Field, FilterPanel, Input, Select } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
-import { getPrisma } from '@/lib/prisma';
+import { getAllRunsPrisma } from '@/lib/prisma';
 import { type FrictionBand, listDistinctRepos, listSessions } from '@/lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
@@ -90,11 +90,15 @@ export default async function SessionsPage({
     ...(mode ? { mode } : {}),
   };
 
+  const facetDb = getAllRunsPrisma("own-data facet counts include the caller's own CI runs");
   const [{ sessions, total }, repos, agentFacets, shapeFacets] = await Promise.all([
     listSessions(user.id, sessionOpts),
     listDistinctRepos(user.id),
-    getPrisma().session.groupBy({ by: ['agentType'], where: { userId: user.id } }),
-    getPrisma().session.groupBy({
+    // run-kind-exempt: facet counts beside a developer's own session filters.
+    // They must match what the list can show — and a developer's own CI runs are
+    // theirs to see, even though they stay out of every aggregate.
+    facetDb.session.groupBy({ by: ['agentType'], where: { userId: user.id } }),
+    facetDb.session.groupBy({
       by: ['shapeLabel'],
       orderBy: { _count: { shapeLabel: 'desc' } },
       where: { shapeLabel: { not: null }, userId: user.id },

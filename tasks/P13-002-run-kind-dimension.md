@@ -54,7 +54,10 @@ This task does **not** build a harness, and adds no capability to run an agent.
       `apps/ingest/test/run-kind-fragment.test.ts` proves the ingest filter comes
       only from the shared fragment and counts the alert engine's scans against its
       guards. Both are floors: counting proves nobody forgot a read, and cannot
-      prove a filter is bound to the scan it was written for.
+      prove a filter is bound to the scan it was written for. *That floor is why
+      [`P13-012`](./P13-012-run-kind-views.md) exists — it since moved the guard into
+      filtered views and a Prisma client extension, and rewrote both lints from
+      counting guards to checking exemptions.*
       **Not** excluded, deliberately: per-session drill-downs (a query already scoped
       to one id is not a population), the mechanical jobs that operate on rows rather
       than people (retention, transcript indexing, redaction backfill), and the

@@ -62,36 +62,51 @@ Read [`/PLAN.md`](../../PLAN.md) and [`/tasks/`](../../tasks/) before picking up
   - `/api/me/*` — transcript proxy, data export, self-deletion.
   - `/api/org/*` and `/api/team/[slug]/*` — cross-user transcript endpoints (audit-logged).
 
-## Every aggregate query carries a `run_kind` guard
+## The `run_kind` guard lives in the data layer, not at call sites
 
 Sessions and events carry a `run_kind` (`INTERACTIVE` | `CI` | `EVAL`). CI and eval
 runs have no human prompts, so they are stored and trendable but must never enter a
-number a dashboard presents as developer behaviour. **Every read of `sessions` or
-`events` in `src/lib` carries a fragment from [`src/lib/run-kind.ts`](src/lib/run-kind.ts)**
-— `interactiveOnly('s')` / `interactiveEvents('e')` in raw SQL, `runKind: 'INTERACTIVE'`
-in a Prisma ORM call.
+number a dashboard presents as developer behaviour.
 
-This is not a style rule. The predicate was previously inline, drifted, and let CI
-runs into org spend: `getOrgSummary` reported 121 sessions and $547.83 against a true
-115 and $19.03 — a ~28× inflation that no test caught, because a wrong number is
-still a number.
+**You do not write the filter.** Two mechanisms apply it for you:
 
-`test/run-kind-coverage.test.ts` is what stands behind it now. It counts guards
-against table reads **per table per SQL literal**, so a multi-CTE query that scans
-`events` three times needs three of them, and it scans Prisma ORM reads too. Two ways
-to satisfy the count and still be wrong, both of which have shipped here:
+- **Raw SQL** reads the filtered views `interactive_sessions` / `interactive_events`
+  (defined in `packages/db/sql/migrations/0001_init.sql`) instead of the base tables.
+- **Prisma ORM** reads go through `getPrisma()`, whose client is extended to inject
+  `runKind: 'INTERACTIVE'` into every `session` read (`withInteractiveOnly` in
+  `packages/db`). An explicit `runKind` in your `where` still wins, so a future
+  CI-facing surface needs no escape hatch.
 
-- **Guarding the join, not the scan** — a filter on `LEFT JOIN sessions` while the
-  driving `FROM events` runs unfiltered gives a row whose counts cover everyone and
-  whose averages cover only humans. On a LEFT JOIN it also nulls rather than excludes.
-- **Guarding one sibling CTE** — two CTEs over the same table, one filtered, compares
-  different populations: a total larger than the sum of its parts.
+A read that legitimately sees every run **opts out explicitly**: name the base table
+in SQL, or call `getAllRunsPrisma(reason)`. The `reason` string is never used at
+runtime — it exists so the exemption is argued at the call site and visible in a
+diff. Pair either with a `run-kind-exempt: <why>` comment; `test/run-kind-coverage.test.ts`
+fails without one.
 
-A read that legitimately sees every run says so inline with `run-kind-exempt: <reason>`.
-The three continuous aggregates need no fragment — the filter is baked into their
-definitions in `packages/db/sql/migrations/0001_init.sql`. Per-session drill-downs are
-deliberately unguarded: a query already scoped to one id is not a population, and
-filtering it empties the session's own detail page instead of excluding it from anything.
+Three kinds of read qualify, and only these three: per-session drill-downs (a page
+scoped to one id is not a population — filtering it renders empty tabs rather than
+excluding anything), facet counts over a person's own data, and fleet inventory
+(which agents are reporting at all) where a CI-only runner must still be counted.
+
+**Why this shape.** The rule used to be a fragment you remembered at ~140 call sites,
+policed by a counting lint. That failed four times in a row, each round finding sites
+the previous mechanism could not see: the predicate drifted inline and let CI runs
+into org spend (`getOrgSummary` read 121 sessions / $547.83 against a true 115 /
+$19.03); centralizing it revealed 18 SQL and 22 ORM sites that had never adopted it;
+counting per literal then caught seven guards bound to a CTE while the driving query
+ran unfiltered; and the ingest alert engine still had two unguarded `events` reads.
+Counting can prove a filter is *present* and never that it is bound to the right scan.
+
+The inversion is chosen for the shape of its failures. A forgotten guard used to
+produce an inflated aggregate — silent, plausible, wrong. A forgotten opt-out now
+produces an empty drill-down page — loud, immediate, attributable.
+
+One trap worth knowing, because it defeated the guard completely and silently:
+`packages/db` publishes a module-level client on `globalThis._prisma` outside
+production. `src/lib/prisma.ts` therefore caches under `_prismaGuarded`, not
+`_prisma` — sharing the key meant importing the db package pre-populated the cache
+with an **unguarded** client, and `getPrisma()` handed it straight back. A test pins
+this.
 
 ## Pinning
 

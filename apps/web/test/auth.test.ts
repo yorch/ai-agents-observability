@@ -34,6 +34,10 @@ vi.mock('@ai-agents-observability/db', () => ({
     empty: { strings: [''], values: [] },
     sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
   },
+  // Identity: this suite asserts on the mock client's calls. That the real
+  // extension actually filters is proven by test/run-kind-coverage.test.ts and
+  // against a live database, not here.
+  withInteractiveOnly: <T>(c: T): T => c,
 }));
 
 vi.mock('@ai-agents-observability/auth', () => ({

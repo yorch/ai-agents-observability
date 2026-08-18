@@ -288,19 +288,18 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 |---|---|---|---|---|---|
 | [P13-001](./P13-001-scores-substrate.md) | Generic versioned scores table | review | claude | M | — |
 | [P13-002](./P13-002-run-kind-dimension.md) | `run_kind` dimension (interactive / ci / eval) | review | claude | S | — |
-| [P13-012](./P13-012-run-kind-views.md) | Move the `run_kind` guard into the data layer | in-progress | claude | M | P13-002 |
+| [P13-012](./P13-012-run-kind-views.md) | Move the `run_kind` guard into the data layer | review | claude | M | P13-002 |
 | [P13-013](./P13-013-scores-time-dimension.md) | Time dimension on the `scores` unique key | review | claude | M | P13-001, P13-004 |
 
-> **Both are deliberate deferrals from the P13 branch, not oversights.**
-> [`P13-012`](./P13-012-run-kind-views.md) is the right end state for the `run_kind`
+> **Both started as deliberate deferrals and both have since landed.**
+> [`P13-012`](./P13-012-run-kind-views.md) is the end state for the `run_kind`
 > guard — four rounds of lint-strengthening on this branch each found sites the
 > previous round could not see, which is what a rule enforced at the wrong altitude
-> looks like. It was not landed in the same PR as the review that motivated it,
-> because a ~110-site refactor next to freshly-verified work destabilizes the
-> verification. [`P13-013`](./P13-013-scores-time-dimension.md) is a real gap —
-> `compute-subject-scores` cannot produce the trend its docstring claims — but it is
-> a schema change whose two consumers are written and unstarted, so it deserves a
-> decision rather than a cleanup pass.
+> looks like. It landed in two parts, filtered views then a Prisma client extension,
+> because the second inverts the default and needed its own verification pass.
+> [`P13-013`](./P13-013-scores-time-dimension.md) closed a real gap —
+> `compute-subject-scores` could not produce the trend its docstring claimed — by
+> putting a period on the `scores` unique key.
 
 ### Workstream B — Deterministic scorers
 

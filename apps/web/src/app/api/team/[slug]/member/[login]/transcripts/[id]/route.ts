@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { withRouteLogging } from '@/lib/api-logging';
 import { currentUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
-import { getPrisma } from '@/lib/prisma';
+import { getAllRunsPrisma } from '@/lib/prisma';
 import { getRequestId } from '@/lib/request-context';
 import { getS3Client, streamTranscript } from '@/lib/s3';
 import { getMemberForTeam } from '@/lib/team-queries';
@@ -26,7 +26,10 @@ export const GET = withRouteLogging(
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const prisma = getPrisma();
+    // run-kind-exempt: a cross-user transcript fetch already scoped to one
+    // session id and gated by grant + audit. Filtering by run kind here would
+    // 404 a session the grant explicitly covers.
+    const prisma = getAllRunsPrisma('grant-scoped transcript for one session id');
 
     const team = await prisma.team.findUnique({
       select: { id: true },

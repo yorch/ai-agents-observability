@@ -27,6 +27,10 @@ vi.mock('@ai-agents-observability/db', () => ({
     sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
   },
   TeamRole: { LEAD: 'LEAD', MAINTAINER: 'MAINTAINER', MEMBER: 'MEMBER' },
+  // Identity: these suites assert on the mock client's calls. That the real
+  // extension actually filters is proven by test/run-kind-coverage.test.ts
+  // and against a live database, not here.
+  withInteractiveOnly: <T>(c: T): T => c,
 }));
 
 // ── getVisibilityPolicy ──────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ import { redirect } from 'next/navigation';
 import { withActionResult } from '@/lib/action-result';
 import { writeAuditLog } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
-import { getPrisma } from '@/lib/prisma';
+import { getAllRunsPrisma, getPrisma } from '@/lib/prisma';
 import { deleteScore, upsertScore } from '@/lib/scores';
 import { getSession } from '@/lib/sessions-queries';
 
@@ -232,7 +232,9 @@ export async function linkSessionPR(formData: FormData): Promise<PRLinkResult> {
     return { error: 'A valid PR number is required.' };
   }
 
-  const db = getPrisma();
+  // run-kind-exempt: one session by id, already ownership-checked below. A
+  // developer linking a PR to their own CI session must be able to.
+  const db = getAllRunsPrisma('own session by id, ownership checked inline');
 
   // Own-session only.
   const session = await db.session.findFirst({
@@ -279,7 +281,8 @@ export async function unlinkSessionPR(formData: FormData): Promise<PRLinkResult>
     return { error: 'A valid PR number is required.' };
   }
 
-  const db = getPrisma();
+  // run-kind-exempt: same shape as above — one session by id, owner-scoped.
+  const db = getAllRunsPrisma('own session by id, ownership checked inline');
 
   const session = await db.session.findFirst({
     select: { repoId: true },
