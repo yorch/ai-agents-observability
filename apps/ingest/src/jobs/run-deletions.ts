@@ -2,6 +2,8 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 import { DeleteObjectsCommand, type S3Client } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
+import { purgeJudgeRationales } from '../lib/judge-rationales';
+
 /**
  * Processes pending DeletionRequest rows.
  * For each request:
@@ -75,6 +77,27 @@ export async function runDeletions(
         // Remove audit log entries where user is the actor (actor_user_id FK is RESTRICT).
         // Entries where user is the target are SET NULL by FK automatically.
         await db.auditLog.deleteMany({ where: { actorUserId: req.userId } });
+
+        // Scores are keyed by a heterogeneous subject_id (session uuid, skill
+        // name, mcp server name), so there is no FK to cascade from — session
+        // scores must be deleted explicitly or a GDPR deletion would leave
+        // per-session rows behind. Chunked for the same reason as the S3 deletes.
+        const sessionIds = req.user.sessions.map((s) => s.sessionId);
+
+        // P13-009: judge rationales are derived from those transcripts and live
+        // in S3 under their own prefix, so nothing above has removed them. They
+        // must go before the score rows that point at them — once the rows are
+        // gone, the keys are unrecoverable and the objects leak forever.
+        // `clearRefs: false`: the rows are deleted on the next line.
+        await purgeJudgeRationales(db, s3, bucket, sessionIds, { clearRefs: false }, logger);
+        for (let i = 0; i < sessionIds.length; i += CHUNK_SIZE) {
+          await db.score.deleteMany({
+            where: {
+              subjectId: { in: sessionIds.slice(i, i + CHUNK_SIZE) },
+              subjectType: 'SESSION',
+            },
+          });
+        }
 
         // Cascade-delete the user (sessions, events, PRs deleted by FK CASCADE)
         await db.user.delete({ where: { id: req.userId } });

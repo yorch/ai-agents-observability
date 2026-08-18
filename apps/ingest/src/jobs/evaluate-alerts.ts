@@ -28,6 +28,7 @@ import type { Logger } from 'pino';
 import { dispatchAlert } from '../lib/notify/channel';
 import type { EmailConfig } from '../lib/notify/email';
 import { buildAlertPayload } from '../lib/notify/payload';
+import { interactiveSessions } from '../lib/run-kind';
 import { type AlertEvaluation, applyAlertTransition } from './alert-transition';
 
 type AlertsDb = Pick<
@@ -65,7 +66,8 @@ async function evalSpendSpike(db: AlertsDb): Promise<Evaluation> {
         FROM sessions s
         JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
         LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-        WHERE s.started_at >= ${windowStart}
+        WHERE ${interactiveSessions('s')}
+          AND s.started_at >= ${windowStart}
           AND COALESCE(vp.share_metadata_with_org, true) = true
       ),
       base AS (
@@ -75,7 +77,8 @@ async function evalSpendSpike(db: AlertsDb): Promise<Evaluation> {
           FROM sessions s
           JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
           LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-          WHERE s.started_at >= ${baselineStart} AND s.started_at < ${windowStart}
+          WHERE ${interactiveSessions('s')}
+            AND s.started_at >= ${baselineStart} AND s.started_at < ${windowStart}
             AND COALESCE(vp.share_metadata_with_org, true) = true
           GROUP BY date_trunc('day', s.started_at)
         ) d
@@ -110,7 +113,8 @@ async function evalHighErrorRate(db: AlertsDb): Promise<Evaluation> {
     FROM sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${windowStart}
+    WHERE ${interactiveSessions('s')}
+      AND s.started_at >= ${windowStart}
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   const calls = Number(rows[0]?.calls ?? 0);
@@ -189,7 +193,8 @@ async function evalBudgetThreshold(db: AlertsDb, params: unknown): Promise<Evalu
     FROM sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${windowStart}
+    WHERE ${interactiveSessions('s')}
+      AND s.started_at >= ${windowStart}
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   const spend = Number(rows[0]?.spend ?? 0);
@@ -252,7 +257,8 @@ async function evalAutonomySurge(db: AlertsDb, params: unknown): Promise<Evaluat
     FROM sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${windowStart}
+    WHERE ${interactiveSessions('s')}
+      AND s.started_at >= ${windowStart}
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   const total = Number(rows[0]?.total ?? 0);

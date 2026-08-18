@@ -2,6 +2,7 @@ import { Prisma } from '@ai-agents-observability/db';
 import type { FrictionComponents } from '@ai-agents-observability/schemas';
 import { frictionComponents, frictionScoreFromComponents } from './effectiveness';
 import { getPrisma } from './prisma';
+import { INTERACTIVE_ONLY } from './run-kind';
 
 // Friction-source driver keys, derived from the shared FrictionComponents type so
 // adding a component forces this list (and the typed accumulator) to be updated
@@ -72,7 +73,8 @@ export async function getTeamFrictionTrend(
              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY friction_score) AS median,
              COUNT(friction_score) AS scored
       FROM sessions
-      WHERE friction_score IS NOT NULL
+      WHERE ${INTERACTIVE_ONLY}
+        AND friction_score IS NOT NULL
         AND started_at >= ${range.since}
         ${untilFragment(range)}
         AND user_id = ANY(${userIds}::uuid[])
@@ -149,7 +151,8 @@ export async function getUserEffectiveness(
            tool_call_count, tool_error_count, permission_deny_count,
            interrupt_count, user_message_count
     FROM sessions
-    WHERE user_id = ${userId}::uuid
+    WHERE ${INTERACTIVE_ONLY}
+        AND user_id = ${userId}::uuid
       AND started_at >= ${range.since}
       ${untilFragment(range)}
     ORDER BY started_at ASC
@@ -236,7 +239,8 @@ async function effectivenessDistribution(
         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY friction_score) AS p75,
         COUNT(friction_score) AS count
       FROM sessions
-      WHERE friction_score IS NOT NULL
+      WHERE ${INTERACTIVE_ONLY}
+        AND friction_score IS NOT NULL
         AND started_at >= ${range.since}
         ${until}
         ${userFilter}
@@ -244,7 +248,8 @@ async function effectivenessDistribution(
     prisma.$queryRaw<{ count: bigint; shape_label: string }[]>(Prisma.sql`
       SELECT shape_label, COUNT(*) AS count
       FROM sessions
-      WHERE shape_label IS NOT NULL
+      WHERE ${INTERACTIVE_ONLY}
+        AND shape_label IS NOT NULL
         AND started_at >= ${range.since}
         ${until}
         ${userFilter}

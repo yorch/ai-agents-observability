@@ -35,6 +35,10 @@ const mockPrisma = {
 
 vi.mock('@ai-agents-observability/db', () => ({
   createClient: vi.fn(() => mockPrisma),
+  Prisma: {
+    empty: { strings: [''], values: [] },
+    sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+  },
 }));
 
 // ── listSessions ─────────────────────────────────────────────────────────────

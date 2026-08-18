@@ -1,7 +1,9 @@
 import { McpServerCard } from '@/components/team-org/McpServerCard';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import { SubjectQualityPanel } from '@/components/team-org/SubjectQualityPanel';
 import { EmptyState, Stat } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
+import { getMcpQuality } from '@/lib/subject-quality-queries';
 import type { McpTeamDetailRow } from '@/lib/team-queries';
 import { getTeamMcpDetails, resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
@@ -22,7 +24,10 @@ export default async function TeamMcpPage({
 
   const since = daysAgo(range);
   const { visibleIds } = await resolveTeamVisibility(teamId);
-  const details = await getTeamMcpDetails(visibleIds, since);
+  const [details, quality] = await Promise.all([
+    getTeamMcpDetails(visibleIds, since),
+    getMcpQuality(visibleIds, since),
+  ]);
 
   type ServerEntry = {
     distinctUsers: number;
@@ -98,6 +103,13 @@ export default async function TeamMcpPage({
           value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
         />
       </div>
+
+      <SubjectQualityPanel
+        caption={`How sessions that used each server compare with matched sessions that did not, over the trailing ${range} days.`}
+        rows={quality}
+        subjectNoun="MCP server"
+        title="Effectiveness"
+      />
 
       {servers.length === 0 ? (
         <EmptyState>No MCP usage recorded in the last {range} days.</EmptyState>

@@ -111,6 +111,12 @@ export async function listSessions(
       : undefined;
 
   const where: Prisma.SessionWhereInput = {
+    // The session LIST is a human surface — "sessions I had" — so it excludes CI
+    // and eval runs, matching every aggregate on the same page. The per-session
+    // drill-downs below deliberately do NOT filter (see their exempt markers):
+    // once you are looking at one session by id, the page must show that
+    // session's own data rather than render empty tabs.
+    runKind: 'INTERACTIVE',
     userId,
     ...(validatedStatus ? { status: validatedStatus } : {}),
     ...(opts.dateFrom || opts.dateTo
@@ -171,6 +177,14 @@ export async function listSessions(
   return { sessions, total };
 }
 
+/**
+ * One session's detail row, by id, for its owner.
+ *
+ * run-kind-exempt: a session detail page is scoped to a single session the caller
+ * already owns and named by id — it is not a population, so there is no population
+ * to skew. A CI or eval session is kept out of `listSessions` above, but if you
+ * hold its link it opens and shows its own numbers.
+ */
 export async function getSession(userId: string, sessionId: string): Promise<SessionDetail | null> {
   const prisma = getPrisma();
 
@@ -242,6 +256,10 @@ export async function getSessionModelBreakdown(
            COUNT(*) AS calls,
            COALESCE(SUM(input_tokens), 0) AS input_tokens,
            COALESCE(SUM(output_tokens), 0) AS output_tokens
+    -- run-kind-exempt: scoped to one session by id, for its owner. A session
+    -- detail page must show that session's own events whatever its run_kind —
+    -- filtering here rendered the model tab of a CI session empty with no
+    -- explanation, while the session itself stayed openable.
     FROM events
     WHERE session_id = ${sessionId}::uuid
       AND user_id = ${userId}::uuid
@@ -294,6 +312,8 @@ export async function getSessionEvents(userId: string, sessionId: string): Promi
            slash_command,
            subagent_type,
            model
+    -- run-kind-exempt: scoped to one session by id, for its owner (see
+    -- getSessionModelBreakdown). Per-session drill-downs are not a population.
     FROM events
     WHERE session_id = ${sessionId}::uuid
       AND user_id = ${userId}::uuid
@@ -352,6 +372,8 @@ export async function getSessionToolBreakdown(
                            AND tool_exit_status != 0)        AS error_count,
         COUNT(*) FILTER (WHERE tool_was_denied = true)       AS denied_count,
         AVG(tool_duration_ms)::text                          AS avg_duration_ms
+      -- run-kind-exempt: scoped to one session by id, for its owner (see
+      -- getSessionModelBreakdown). Per-session drill-downs are not a population.
       FROM events
       WHERE session_id = ${sessionId}::uuid
         AND user_id   = ${userId}::uuid
@@ -361,6 +383,8 @@ export async function getSessionToolBreakdown(
     `),
     prisma.$queryRaw<{ subagent_type: string; use_count: bigint }[]>(Prisma.sql`
       SELECT subagent_type, COUNT(*) AS use_count
+      -- run-kind-exempt: scoped to one session by id, for its owner (see
+      -- getSessionModelBreakdown). Per-session drill-downs are not a population.
       FROM events
       WHERE session_id  = ${sessionId}::uuid
         AND user_id    = ${userId}::uuid
@@ -407,6 +431,8 @@ export async function getSessionSkills(
     }[]
   >(Prisma.sql`
     SELECT skill_name, skill_path, slash_command, COUNT(*) AS use_count
+    -- run-kind-exempt: scoped to one session by id, for its owner (see
+    -- getSessionModelBreakdown). Per-session drill-downs are not a population.
     FROM events
     WHERE session_id = ${sessionId}::uuid
       AND user_id   = ${userId}::uuid
@@ -435,6 +461,10 @@ export type SessionOrgContext = {
  * session, WITHOUT scoping to the caller. For org-admin drill-in only — callers
  * MUST gate with `requireOrgAdmin()` and write an audit row before using the
  * result. Returns null if the session does not exist.
+ *
+ * run-kind-exempt: a single session resolved by id — an access-control and
+ * pointer lookup, not a metric. Hiding CI sessions here would only turn an
+ * audited admin drill-in into a confusing 404.
  */
 export async function getSessionOrgContext(sessionId: string): Promise<SessionOrgContext | null> {
   const s = await getPrisma().session.findUnique({
@@ -464,13 +494,17 @@ export async function getSessionOrgContext(sessionId: string): Promise<SessionOr
   };
 }
 
+/**
+ * Repo options for the session-list filter. Filtered the same way as
+ * `listSessions`, so the dropdown cannot offer a repo that selects nothing.
+ */
 export async function listDistinctRepos(userId: string): Promise<string[]> {
   const prisma = getPrisma();
 
   const sessions = await prisma.session.findMany({
     distinct: ['repoId'],
     include: { repo: { select: { githubName: true, githubOwner: true } } },
-    where: { repoId: { not: null }, userId },
+    where: { repoId: { not: null }, runKind: 'INTERACTIVE', userId },
   });
 
   return sessions

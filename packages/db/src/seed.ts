@@ -1,6 +1,12 @@
 import { promisify } from 'node:util';
 import { zstdCompress } from 'node:zlib';
 import { hashPassword } from '@ai-agents-observability/auth';
+import {
+  PRE_RUBRIC_VERSION,
+  RUBRIC_SHAPES,
+  SCORERS,
+  SESSION_RUBRIC_VERSION,
+} from '@ai-agents-observability/schemas';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { faker } from '@faker-js/faker';
 import { createClient } from './index';
@@ -62,6 +68,32 @@ function weightedDurationMs() {
     { value: faker.number.int({ max: 360, min: 120 }) * 60_000, weight: 10 },
   ]);
 }
+
+// P13-003 capture fields. The hook derives these from real tool input on a
+// developer's machine; here they are drawn from a small fixed pool per session
+// so repeats — the thing the trajectory scorers measure — actually occur. The
+// digests are opaque by design: the seed never needs them to match any real
+// hashing, only to collide with themselves.
+const SEED_TARGET_HASHES = [
+  '3f1a9c02b7d45e18',
+  '8b27de4415a0c93f',
+  'c04e7a91d2f36b58',
+  '15d9b8630ea24c77',
+  'a72c40fe19b58d63',
+  '6e83f15caa07d294',
+];
+
+// (command class, weight) for the shell tool. `other` dominates, as it does in
+// real sessions; `test` appears often enough that tests-before-merge is not
+// vacuously false across the whole seed corpus.
+const SEED_TOOL_ACTIONS = [
+  { value: 'other', weight: 40 },
+  { value: 'vcs', weight: 20 },
+  { value: 'test', weight: 18 },
+  { value: 'build', weight: 12 },
+  { value: 'lint', weight: 7 },
+  { value: 'pkg', weight: 3 },
+];
 
 const TOOL_NAMES = [
   { value: 'Bash', weight: 30 },
@@ -691,16 +723,23 @@ async function insertEvents(
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else {
+        // Only tools that act on something get a target; only the shell tool
+        // gets an action — matching what the adapters can actually derive.
+        const targetHash = faker.helpers.arrayElement(SEED_TARGET_HASHES);
+        const toolAction =
+          toolName === 'Bash' ? faker.helpers.weightedArrayElement(SEED_TOOL_ACTIONS) : null;
         await db.$executeRaw`
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_category, tool_duration_ms, tool_exit_status,
                               tool_was_denied, tool_was_interrupted, output_tokens,
-                              cache_read_tokens, cache_creation_tokens, cost_usd, turn_number, model, mode)
+                              cache_read_tokens, cache_creation_tokens, cost_usd, turn_number, model, mode,
+                              tool_target_hash, tool_action)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
                   ${toolName}, 'builtin', ${toolDurMs}, ${exitStatus},
                   ${wasDenied}, ${wasInterrupted}, ${outputToks},
-                  ${cacheRead}, ${cacheCreation}, ${costVal}, ${turnNum}, ${model}, ${evtMode})
+                  ${cacheRead}, ${cacheCreation}, ${costVal}, ${turnNum}, ${model}, ${evtMode},
+                  ${targetHash}, ${toolAction})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       }
@@ -1524,6 +1563,10 @@ async function extensiveSeed() {
   await db.alertChannelConfig.deleteMany({});
   await db.alertDeliveryLog.deleteMany({});
   await db.sessionFeedback.deleteMany({});
+  // The human labels those rows produce (P13-005) live in `scores`, which has no
+  // FK to cascade from — clear them alongside, or a reseed leaves labels pointing
+  // at feedback that no longer exists.
+  await db.score.deleteMany({ where: { source: 'HUMAN' } });
   // Reset any leftover rule silence so re-runs start from a clean state.
   await db.alertRule.updateMany({ data: { silencedUntil: null }, where: {} });
 
@@ -2844,8 +2887,16 @@ async function seedGovernance(opts: {
     });
   }
 
-  // ── Session feedback (HITL ground truth) — thumbs up/down on some sessions ──
+  // ── Session feedback (HITL ground truth) — thumbs + the P13-005 rubric ──────
+  //
+  // Two vintages on purpose. The first few rows are left as bare sentiment at
+  // `rubricVersion: 0`, standing in for the rows that existed before the rubric
+  // did — the migration must leave them valid and readable, and a seed where
+  // every row is a v1 response would never exercise that. The rest answer the
+  // rubric, spread across shapes and outcomes so the downstream calibration
+  // surfaces (P13-007) have something to be developed against.
   const feedbackSessions = sampleSessions.slice(0, 24);
+  let feedbackIndex = 0;
   for (const s of feedbackSessions) {
     if (!faker.datatype.boolean({ probability: 0.6 })) {
       continue;
@@ -2854,19 +2905,81 @@ async function seedGovernance(opts: {
       { value: 'up', weight: 70 },
       { value: 'down', weight: 30 },
     ]);
+    const preRubric = feedbackIndex < 4;
+    feedbackIndex++;
+
+    // Round-robin rather than random so every option is present in a seeded DB
+    // regardless of the draw — a shape or outcome that never appears is a
+    // surface that never gets developed.
+    const shape = preRubric
+      ? null
+      : (RUBRIC_SHAPES[feedbackIndex % RUBRIC_SHAPES.length] as string);
+    // Correlated with sentiment, but deliberately not determined by it: they are
+    // different questions ("how did it feel" vs "did it work"), and a seed that
+    // collapses them would hide exactly the disagreement P13-007 looks for.
+    const taskOutcome = preRubric
+      ? null
+      : sentiment === 'up'
+        ? faker.helpers.weightedArrayElement([
+            { value: 'yes', weight: 75 },
+            { value: 'partly', weight: 25 },
+          ])
+        : faker.helpers.weightedArrayElement([
+            { value: 'partly', weight: 45 },
+            { value: 'no', weight: 45 },
+            { value: 'yes', weight: 10 },
+          ]);
+
+    const rubricVersion = preRubric ? PRE_RUBRIC_VERSION : SESSION_RUBRIC_VERSION;
+    const data = {
+      note:
+        sentiment === 'down'
+          ? faker.helpers.arrayElement(['Went off track', 'Needed too much correction', null])
+          : faker.helpers.arrayElement(['Nailed it', 'Saved me an hour', null]),
+      rubricVersion,
+      sentiment,
+    };
     await db.sessionFeedback.upsert({
-      create: {
-        note:
-          sentiment === 'down'
-            ? faker.helpers.arrayElement(['Went off track', 'Needed too much correction', null])
-            : faker.helpers.arrayElement(['Nailed it', 'Saved me an hour', null]),
-        sentiment,
-        sessionId: s.sessionId,
-        userId: s.userId,
-      },
-      update: { sentiment },
+      create: { ...data, sessionId: s.sessionId, userId: s.userId },
+      update: data,
       where: { sessionId_userId: { sessionId: s.sessionId, userId: s.userId } },
     });
+
+    if (preRubric) {
+      continue;
+    }
+    // The answers themselves are `scores` rows (source HUMAN, rubric version as
+    // scorer_version) and live nowhere else — `session_feedback` carries the
+    // thumbs, the note, and which rubric was answered. Scorer names come from
+    // the registry — never a string literal at a call site.
+    for (const [scorerName, label] of [
+      ['human_session_shape', shape],
+      ['human_task_outcome', taskOutcome],
+    ] as const) {
+      if (!label) {
+        continue;
+      }
+      const def = SCORERS[scorerName];
+      await db.score.upsert({
+        create: {
+          label,
+          scorerName,
+          scorerVersion: def.version,
+          source: def.source,
+          subjectId: s.sessionId,
+          subjectType: def.subjectType,
+        },
+        update: { label },
+        where: {
+          subjectType_subjectId_scorerName_scorerVersion: {
+            scorerName,
+            scorerVersion: def.version,
+            subjectId: s.sessionId,
+            subjectType: def.subjectType,
+          },
+        },
+      });
+    }
   }
 }
 
@@ -2958,6 +3071,151 @@ async function finalizeTelemetry() {
   }
 }
 
+// ── Non-interactive runs (P13-002) ────────────────────────────────────────────
+
+/**
+ * CI and eval sessions, with events, on top of whichever seed ran.
+ *
+ * Until these existed the demo database was 100% `INTERACTIVE`, which meant the
+ * whole run_kind exclusion was untestable locally: every query returned the same
+ * numbers whether its filter was in the right clause, the wrong clause, or absent.
+ * Several were, and nothing looked wrong.
+ *
+ * So the shape here is chosen to be *loud* when a filter is missing rather than
+ * realistic. `NIGHTLY_FLEET` is deliberately enormous — one CI session costing
+ * more than a developer's entire month and carrying hundreds of tool calls — so a
+ * leak shows up as a visibly wrong number on a dashboard, not as a rounding
+ * difference nobody notices. It also concentrates its calls on one MCP server and
+ * one skill, so the tools/skills surfaces distort recognisably too.
+ */
+async function seedNonInteractiveRuns() {
+  console.log('  Seeding CI / eval runs (P13-002 exclusion fixtures)…');
+
+  const users = await db.user.findMany({
+    orderBy: { createdAt: 'asc' },
+    select: { githubLogin: true, id: true },
+    take: 3,
+    where: { deactivatedAt: null },
+  });
+  const repo = await db.repo.findFirst({ select: { githubName: true, id: true } });
+  if (users.length === 0 || !repo) {
+    console.warn('  ⚠ no users/repos to attach non-interactive runs to — skipping');
+    return;
+  }
+
+  const now = Date.now();
+  type NonInteractiveSpec = {
+    costUsd: number;
+    daysAgo: number;
+    label: string;
+    runKind: 'CI' | 'EVAL';
+    toolCalls: number;
+  };
+
+  const specs: NonInteractiveSpec[] = [
+    // The loud one. ~200× a typical seeded session's cost.
+    { costUsd: 412.5, daysAgo: 2, label: 'NIGHTLY_FLEET', runKind: 'CI', toolCalls: 640 },
+    { costUsd: 18.4, daysAgo: 1, label: 'pr-triage-bot', runKind: 'CI', toolCalls: 74 },
+    { costUsd: 12.1, daysAgo: 4, label: 'pr-triage-bot', runKind: 'CI', toolCalls: 51 },
+    { costUsd: 9.7, daysAgo: 9, label: 'flake-hunter', runKind: 'CI', toolCalls: 38 },
+    { costUsd: 44.9, daysAgo: 3, label: 'swebench-harness', runKind: 'EVAL', toolCalls: 210 },
+    { costUsd: 31.2, daysAgo: 11, label: 'swebench-harness', runKind: 'EVAL', toolCalls: 160 },
+  ];
+
+  const created: { runKind: 'CI' | 'EVAL'; sessionId: string }[] = [];
+
+  for (const [i, spec] of specs.entries()) {
+    const owner = users[i % users.length];
+    if (!owner) {
+      continue;
+    }
+    const startedAt = new Date(now - spec.daysAgo * 86_400_000);
+    const durationMs = faker.number.int({ max: 5_400_000, min: 600_000 });
+    const endedAt = new Date(startedAt.getTime() + durationMs);
+    const inputTokens = spec.toolCalls * 4_200;
+    const outputTokens = spec.toolCalls * 900;
+    const sessionId = faker.string.uuid();
+
+    await db.session.create({
+      data: {
+        agentType: 'CLAUDE_CODE',
+        agentVersion: '2.1.0',
+        claudeCodeVersion: '2.1.0',
+        cwd: `/runner/_work/${repo.githubName}`,
+        endedAt,
+        gitBranch: spec.runKind === 'CI' ? 'main' : `eval/${spec.label}`,
+        gitCommit: faker.git.commitSha({ length: 40 }),
+        githubLogin: owner.githubLogin,
+        lastEventAt: endedAt,
+        // Unattended by definition — nobody is at the keyboard to approve anything.
+        // This is also why counting these in the oversight views would be wrong.
+        mode: 'bypass',
+        os: 'linux',
+        permissionDenyCount: 0,
+        permissionPromptCount: 0,
+        primaryModel: 'claude-sonnet-4-6',
+        projectName: spec.label,
+        repoId: repo.id,
+        runKind: spec.runKind,
+        sessionId,
+        startedAt,
+        status: 'COMPLETED',
+        toolCallCount: spec.toolCalls,
+        toolErrorCount: Math.floor(spec.toolCalls * 0.08),
+        totalCacheCreation: BigInt(inputTokens),
+        totalCacheRead: BigInt(inputTokens * 6),
+        totalCostUsd: spec.costUsd,
+        totalInputTokens: BigInt(inputTokens),
+        totalOutputTokens: BigInt(outputTokens),
+        userId: owner.id,
+        // Zero human prompts is the definitional property of a non-interactive
+        // run, and what makes averaging these into per-developer metrics absurd.
+        userMessageCount: 0,
+      },
+    });
+    created.push({ runKind: spec.runKind, sessionId });
+
+    // Events, with run_kind matching the session — the two must never disagree
+    // (see mergeRunKind in packages/schemas and the upsert in apps/ingest).
+    const eventCount = Math.min(120, Math.max(12, Math.floor(spec.toolCalls / 4)));
+    for (let e = 0; e < eventCount; e++) {
+      const ts = new Date(startedAt.getTime() + Math.floor((e / eventCount) * durationMs));
+      const isFirst = e === 0;
+      const isLast = e === eventCount - 1;
+      const eventType = isFirst ? 'SessionStart' : isLast ? 'Stop' : 'PostToolUse';
+      const isTool = eventType === 'PostToolUse';
+      await db.$executeRaw`
+        INSERT INTO events (
+          event_id, session_id, user_id, ts, agent_type, event_type, run_kind, mode,
+          model, tool_name, tool_category, tool_duration_ms, tool_exit_status,
+          mcp_server, mcp_tool, skill_name, slash_command,
+          output_tokens, cost_usd, turn_number
+        )
+        VALUES (
+          ${faker.string.uuid()}::uuid, ${sessionId}::uuid, ${owner.id}::uuid, ${ts},
+          'CLAUDE_CODE', ${eventType}, ${spec.runKind}::"RunKind", 'bypass',
+          'claude-sonnet-4-6',
+          ${isTool ? 'Bash' : null}, ${isTool ? 'exec' : null},
+          ${isTool ? faker.number.int({ max: 4000, min: 20 }) : null}, ${isTool ? 0 : null},
+          ${isTool && e % 3 === 0 ? 'github' : null},
+          ${isTool && e % 3 === 0 ? 'create_issue' : null},
+          ${isTool && e % 5 === 0 ? 'ci-triage' : null},
+          ${isTool && e % 5 === 0 ? 'ci-triage' : null},
+          ${isTool ? faker.number.int({ max: 900, min: 20 }) : null},
+          ${isTool ? spec.costUsd / eventCount : null},
+          ${Math.ceil(e / 4)}
+        )
+        ON CONFLICT (session_id, event_id, ts) DO NOTHING
+      `;
+    }
+  }
+
+  const ci = created.filter((c) => c.runKind === 'CI').length;
+  console.log(
+    `    ${ci} CI + ${created.length - ci} EVAL sessions (excluded from every aggregate)`,
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -2966,6 +3224,7 @@ async function main() {
   } else {
     await basicSeed();
   }
+  await seedNonInteractiveRuns();
   await finalizeTelemetry();
   await db.$disconnect();
 }

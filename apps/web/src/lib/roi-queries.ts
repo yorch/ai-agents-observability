@@ -1,6 +1,7 @@
 import { Prisma } from '@ai-agents-observability/db';
 
 import { getPrisma } from './prisma';
+import { interactiveOnly } from './run-kind';
 
 // Outcome-based ROI queries (org scope). These complement org-queries' delivery
 // stats (throughput, cycle time, cost-per-PR) by joining agent SPEND to delivery
@@ -127,7 +128,8 @@ function sessionSpendByKeySql(since: Date): Prisma.Sql {
       COUNT(*)                            AS session_count,
       COALESCE(SUM(s.total_cost_usd), 0)  AS session_cost
     FROM sessions s
-    WHERE s.started_at >= ${since} AND s.jira_key IS NOT NULL
+    WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since} AND s.jira_key IS NOT NULL
     GROUP BY s.jira_key
   `;
 }

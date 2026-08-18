@@ -6,6 +6,7 @@ import { CohortFrictionTable } from '@/components/team-org/CohortFrictionTable';
 import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable';
+import { ProjectionRealization } from '@/components/team-org/ProjectionRealization';
 import { SpendForecast } from '@/components/team-org/SpendForecast';
 import { axisMoney, BarChart, Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
 import { getOrgCohortFriction } from '@/lib/cohort-queries';
@@ -26,9 +27,26 @@ import {
   getTeamSpendForecast,
   getWeeklyCostTrend,
 } from '@/lib/org-queries';
+import { getGuardMetrics, getSpendActuals } from '@/lib/projection-queries';
+import type { ProjectionInput, RegisteredProjection } from '@/lib/projections';
+import {
+  listClosedProjections,
+  rangeFrom,
+  realizeProjection,
+  recordProjections,
+  startOfUtcDay,
+} from '@/lib/projections';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
+
+/** Spells a range into the two required projection fields. */
+function rangeToProjected(r: { high: number; low: number }): {
+  projectedHigh: number;
+  projectedLow: number;
+} {
+  return { projectedHigh: r.high, projectedLow: r.low };
+}
 
 export default async function OrgDashboardPage({
   searchParams,
@@ -89,18 +107,105 @@ export default async function OrgDashboardPage({
 
   const modelTotalCost = modelCost.reduce((s, r) => s + r.costUsd, 0);
 
-  // Forecast projections (Tier 2). Trailing-7d run rate drives the 30-day and
-  // budget-window projections; month-to-date pace drives the calendar-month one.
+  // Forecast projections (Tier 2). Two independent estimators of the same
+  // quantity — a trailing-7d run rate (reacts fast) and a month-to-date pace
+  // (smooths weekend dips) — and P13-006 turns their spread into the projected
+  // range rather than picking one and printing it as a fact. Where they agree,
+  // `rangeFrom` still widens to a minimum band: a run-rate extrapolation is not
+  // precise just because two estimators of it happen to coincide.
   const dailyRunRate = forecast.last7Spend / 7;
-  const projected30d = dailyRunRate * 30;
-  const monthProjection = dayOfMonth > 0 ? (forecast.mtdSpend / dayOfMonth) * daysInMonth : 0;
-  const forecastBudget = budget
-    ? {
-        budgetUsd: budget.budgetUsd,
-        projectedSpend: dailyRunRate * budget.windowDays,
-        windowDays: budget.windowDays,
-      }
-    : null;
+  const mtdDailyRate = dayOfMonth > 0 ? forecast.mtdSpend / dayOfMonth : 0;
+  const daysLeftInMonth = Math.max(0, daysInMonth - dayOfMonth);
+  const monthRange = rangeFrom([
+    forecast.mtdSpend + mtdDailyRate * daysLeftInMonth,
+    forecast.mtdSpend + dailyRunRate * daysLeftInMonth,
+  ]);
+  const rolling30dRange = rangeFrom([dailyRunRate * 30, mtdDailyRate * 30]);
+
+  // Registration is what makes these claims checkable later; `SpendForecast`
+  // renders from the registered objects, so a forecast that reaches the screen is
+  // on the record by construction.
+  // Claim periods are UTC so the unique key is stable regardless of where the
+  // server thinks it is; the display maths above stays on the existing local
+  // calendar so no dashboard number moves.
+  const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const claimStart = startOfUtcDay(now);
+  const guardBaseline = await getGuardMetrics(daysAgo(range), now);
+
+  const claimInputs: ProjectionInput[] = [
+    {
+      baselineValue: forecast.mtdSpend,
+      baselineWindowDays: dayOfMonth,
+      claimType: 'monthly_spend',
+      guardBaseline,
+      periodEnd: monthEnd,
+      periodStart: monthStartUtc,
+      projectedHigh: monthRange.high,
+      projectedLow: monthRange.low,
+      segment: 'org',
+    },
+    {
+      baselineValue: forecast.last7Spend,
+      baselineWindowDays: 7,
+      claimType: 'rolling_30d_spend',
+      guardBaseline,
+      periodEnd: new Date(claimStart.getTime() + 30 * 86_400_000),
+      periodStart: claimStart,
+      projectedHigh: rolling30dRange.high,
+      projectedLow: rolling30dRange.low,
+      segment: 'org',
+    },
+    ...(budget
+      ? [
+          {
+            baselineValue: forecast.last7Spend,
+            baselineWindowDays: 7,
+            claimType: 'budget_window_spend' as const,
+            guardBaseline,
+            metadata: { budgetUsd: budget.budgetUsd, windowDays: budget.windowDays },
+            periodEnd: new Date(claimStart.getTime() + budget.windowDays * 86_400_000),
+            periodStart: claimStart,
+            ...rangeToProjected(rangeFrom([dailyRunRate * budget.windowDays])),
+            segment: 'org',
+          },
+        ]
+      : []),
+    // Per-team forecasts are claims too. One estimator each (trailing 7d), so
+    // their range is the minimum band — narrower would overstate what a single
+    // week of one team's spend can support.
+    ...teamForecast.map((t) => ({
+      baselineValue: t.last7Spend,
+      baselineWindowDays: 7,
+      claimType: 'rolling_30d_spend' as const,
+      guardBaseline,
+      periodEnd: new Date(claimStart.getTime() + 30 * 86_400_000),
+      periodStart: claimStart,
+      ...rangeToProjected(rangeFrom([(t.last7Spend / 7) * 30])),
+      segment: `team:${t.teamSlug}`,
+    })),
+  ];
+
+  const registered = await recordProjections(claimInputs);
+  const bySegment = (claimType: string, segment: string): RegisteredProjection | undefined =>
+    registered.find((p) => p.claimType === claimType && p.segment === segment);
+
+  const monthClaim = bySegment('monthly_spend', 'org');
+  const rolling30dClaim = bySegment('rolling_30d_spend', 'org');
+  const budgetProjection = budget ? bySegment('budget_window_spend', 'org') : undefined;
+  const teamClaims = teamForecast.flatMap((t) => {
+    const projection = bySegment('rolling_30d_spend', `team:${t.teamSlug}`);
+    return projection ? [{ projection, teamName: t.teamName, teamSlug: t.teamSlug }] : [];
+  });
+
+  // Projected-vs-actual for months that have already closed. Pure comparison;
+  // "not yet measurable" until a closed month has enough sessions behind it.
+  const closedMonths = await listClosedProjections('monthly_spend', now, 6);
+  const monthRealizations = await Promise.all(
+    closedMonths.map(async (p) =>
+      realizeProjection(p, await getSpendActuals(p.periodStart, p.periodEnd), now),
+    ),
+  );
 
   return (
     <div className="space-y-6">
@@ -172,13 +277,32 @@ export default async function OrgDashboardPage({
         </Card>
       )}
 
-      {/* Spend forecast */}
-      <SpendForecast
-        budget={forecastBudget}
-        dailyRunRate={dailyRunRate}
-        monthProjection={monthProjection}
-        projected30d={projected30d}
-        teams={teamForecast}
+      {/* Spend forecast — every forward-looking number here is a registered
+          projection (P13-006), so the card cannot show a claim that was not
+          recorded. */}
+      {monthClaim && rolling30dClaim && (
+        <SpendForecast
+          budgetClaim={
+            budget && budgetProjection
+              ? {
+                  budgetUsd: budget.budgetUsd,
+                  projection: budgetProjection,
+                  windowDays: budget.windowDays,
+                }
+              : null
+          }
+          dailyRunRate={dailyRunRate}
+          monthClaim={monthClaim}
+          rolling30dClaim={rolling30dClaim}
+          teamClaims={teamClaims}
+        />
+      )}
+
+      {/* …and how the closed months actually came out. */}
+      <ProjectionRealization
+        caption="Each month's spend projection is recorded when it is shown, then compared against what the month actually cost. Months with too few sessions behind them read as not yet measurable rather than as a delta."
+        realizations={monthRealizations}
+        title="Spend forecast vs actual"
       />
 
       {/* Adoption funnel */}

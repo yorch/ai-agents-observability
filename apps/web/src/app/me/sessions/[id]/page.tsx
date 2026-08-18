@@ -1,14 +1,18 @@
+import { parseRubricOutcome, parseRubricShape, SCORERS } from '@ai-agents-observability/schemas';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
 import { SessionFeedbackForm } from '@/components/me/SessionFeedbackForm';
+import { SessionJudgeCard } from '@/components/me/SessionJudgeCard';
 import { SessionPRLinks } from '@/components/me/SessionPRLinks';
 import { ShareSessionButton } from '@/components/me/ShareSessionButton';
 import { currentUser } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
+import { getSessionJudgeScores } from '@/lib/judge-queries';
 import { getPrisma } from '@/lib/prisma';
+import { readScores } from '@/lib/scores';
 import type {
   ModelBreakdownRow,
   SessionSkillRow,
@@ -67,13 +71,25 @@ export default async function SessionDetailPage({
     notFound();
   }
 
-  // R11: owner's existing feedback on this session, if any — plus the
-  // correlation panel's linked PRs (Jira key / repo come from `session` itself).
-  const [feedback, prLinkRows] = await Promise.all([
+  // R11 + P13-005: owner's existing feedback on this session, if any — plus the
+  // correlation panel's linked PRs (Jira key / repo come from `session` itself)
+  // and, for the owner alone, any judge labels (P13-009).
+  const [feedback, priorRubric, prLinkRows, judgeScores] = await Promise.all([
     getPrisma().sessionFeedback.findUnique({
       select: { note: true, sentiment: true },
       where: { sessionId_userId: { sessionId: id, userId: user.id } },
     }),
+    // The rubric answers themselves live in `scores` and nowhere else — see the
+    // comment on `submitSessionFeedback`. Prefilling from there rather than from
+    // a mirrored column is what makes that single-store rule true end to end.
+    readScores(
+      {
+        scorerNames: ['human_session_shape', 'human_task_outcome'],
+        subjectIds: [id],
+        subjectType: 'SESSION',
+      },
+      { kind: 'owner', ownerUserId: user.id },
+    ),
     getPrisma().sessionPRLink.findMany({
       orderBy: { prNumber: 'asc' },
       select: {
@@ -83,7 +99,16 @@ export default async function SessionDetailPage({
       },
       where: { sessionId: id },
     }),
+    getSessionJudgeScores(user.id, id),
   ]);
+
+  // Only the *current* rubric version's answer is re-shown. An answer to an
+  // older version is a historical fact about a question that is no longer being
+  // asked, and prefilling it would put it under today's wording.
+  const priorAnswer = (scorerName: 'human_session_shape' | 'human_task_outcome') =>
+    priorRubric.find(
+      (r) => r.scorerName === scorerName && r.scorerVersion === SCORERS[scorerName].version,
+    )?.label ?? null;
 
   const prLinks = prLinkRows.map((l) => ({
     linkSource: l.linkSource as string,
@@ -111,13 +136,31 @@ export default async function SessionDetailPage({
         transcriptHref={session.transcriptS3Key ? `/me/sessions/${id}/transcript` : null}
       />
 
+      {/*
+        P13-005 blinding rule: `session` is deliberately NOT passed to this
+        component. The rubric asks which shape the session was and whether it
+        worked; rendering the computed `shapeLabel` / `frictionScore` beside
+        those questions would turn the answers into a measure of agreement with
+        the scorer instead of an independent check of it. Prior answers are
+        re-shown (the developer's own words), the machine's are not. See the
+        comment block in SessionFeedbackForm.tsx.
+      */}
       <SessionFeedbackForm
         sessionId={id}
         initialSentiment={
           feedback?.sentiment === 'up' || feedback?.sentiment === 'down' ? feedback.sentiment : null
         }
         initialNote={feedback?.note ?? null}
+        initialShape={parseRubricShape(priorAnswer('human_session_shape'))}
+        initialOutcome={parseRubricOutcome(priorAnswer('human_task_outcome'))}
       />
+
+      {/*
+        P13-009: judge output is owner-visible only. This is the sole surface
+        that renders it — no team or org page reads these scorers, and
+        test/judge-owner-only.test.ts fails if one starts to.
+      */}
+      <SessionJudgeCard rows={judgeScores} />
 
       <SessionPRLinks
         canLink={session.repoId != null}

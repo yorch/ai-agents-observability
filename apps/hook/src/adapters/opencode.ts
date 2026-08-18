@@ -2,7 +2,13 @@ import { type Dirent, existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schemas';
+import {
+  type Event,
+  type EventType,
+  type ToolInfo,
+  toolActionFor,
+  toolTargetHash,
+} from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
@@ -109,6 +115,9 @@ function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
   const output = raw.result ?? raw.output ?? raw.tool_response ?? null;
 
   return {
+    // opencode's tool args carry `path` / `command` under the same names Claude
+    // Code uses, so the shared capture helpers apply unchanged (P13-003).
+    action: toolActionFor(input),
     category: 'builtin',
     duration_ms: num(raw.duration_ms),
     exit_status: typeof raw.exit_status === 'number' ? raw.exit_status : null,
@@ -121,6 +130,7 @@ function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
     skill: null,
     slash_command: null,
     subagent_type: null,
+    target_hash: toolTargetHash(input),
     was_denied: raw.denied === true || raw.was_denied === true,
     was_interrupted: raw.was_interrupted === true,
   };

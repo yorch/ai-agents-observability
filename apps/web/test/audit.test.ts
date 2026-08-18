@@ -18,6 +18,10 @@ vi.mock('@ai-agents-observability/db', () => ({
     view_transcript: 'VIEW_TRANSCRIPT',
   },
   createClient: vi.fn(() => ({})),
+  Prisma: {
+    empty: { strings: [''], values: [] },
+    sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+  },
 }));
 
 // ── next/headers ──────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { Prisma } from '@ai-agents-observability/db';
 
 import { getPrisma } from './prisma';
+import { interactiveOnly } from './run-kind';
 
 // Security & compliance queries (org scope). These surface the AI-agent data-flow
 // signals the platform already captures but never displayed: which powerful tool
@@ -40,10 +41,14 @@ export async function getCategoryExposure(since: Date): Promise<CategoryExposure
       COUNT(*)                                     AS total_calls,
       COUNT(DISTINCT e.user_id)                    AS distinct_users,
       COUNT(DISTINCT s.repo_id)                    AS distinct_repos
+    -- run-kind-exempt: the INNER JOIN to the guarded sessions scan below drops
+    -- every event whose session is not INTERACTIVE, so a second filter on the
+    -- events scan would be redundant.
     FROM events e
     ${ORG_VISIBLE}
     JOIN sessions s ON s.session_id = e.session_id
-    WHERE e.ts >= ${since}
+    WHERE ${interactiveOnly('s')}
+        AND e.ts >= ${since}
       AND e.tool_category IS NOT NULL
       AND e.event_type = 'PostToolUse'
       AND ${ORG_VISIBLE_FILTER}
@@ -82,11 +87,15 @@ export async function getRepoExposure(since: Date, limit = 15): Promise<RepoExpo
       COUNT(*) FILTER (WHERE e.tool_category = 'exec')            AS exec_calls,
       COUNT(*) FILTER (WHERE e.tool_category = 'web')             AS web_calls,
       COUNT(*) FILTER (WHERE e.tool_category = 'fs_write')        AS write_calls
+    -- run-kind-exempt: the INNER JOIN to the guarded sessions scan below drops
+    -- every event whose session is not INTERACTIVE, so a second filter on the
+    -- events scan would be redundant.
     FROM events e
     ${ORG_VISIBLE}
     JOIN sessions s ON s.session_id = e.session_id
     JOIN repos r    ON r.id = s.repo_id
-    WHERE e.ts >= ${since}
+    WHERE ${interactiveOnly('s')}
+        AND e.ts >= ${since}
       AND e.event_type = 'PostToolUse'
       AND e.tool_category IN ('exec', 'web', 'fs_write')
       AND ${ORG_VISIBLE_FILTER}
@@ -131,10 +140,14 @@ export async function getEgressServers(since: Date): Promise<EgressServerRow[]> 
       COUNT(DISTINCT e.user_id)                    AS distinct_users,
       COUNT(DISTINCT s.repo_id)                    AS distinct_repos,
       COALESCE(SUM(e.tool_output_bytes), 0)::text  AS total_output_bytes
+    -- run-kind-exempt: the INNER JOIN to the guarded sessions scan below drops
+    -- every event whose session is not INTERACTIVE, so a second filter on the
+    -- events scan would be redundant.
     FROM events e
     ${ORG_VISIBLE}
     JOIN sessions s ON s.session_id = e.session_id
-    WHERE e.ts >= ${since}
+    WHERE ${interactiveOnly('s')}
+        AND e.ts >= ${since}
       AND e.mcp_server IS NOT NULL
       AND ${ORG_VISIBLE_FILTER}
     GROUP BY e.mcp_server
@@ -187,7 +200,8 @@ export async function getRedactionExposure(since: Date): Promise<RedactionSummar
       JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
       CROSS JOIN LATERAL unnest(s.redaction_flags) AS flag
-      WHERE s.started_at >= ${since}
+      WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since}
         AND COALESCE(vp.share_metadata_with_org, true) = true
       GROUP BY flag
       ORDER BY session_count DESC
@@ -199,7 +213,8 @@ export async function getRedactionExposure(since: Date): Promise<RedactionSummar
       FROM sessions s
       JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-      WHERE s.started_at >= ${since}
+      WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since}
         AND COALESCE(vp.share_metadata_with_org, true) = true
     `),
   ]);
@@ -232,11 +247,15 @@ export async function getLargeOutputEvents(since: Date, limit = 20): Promise<Lar
       e.ts                                                        AS ts,
       CASE WHEN r.github_owner IS NOT NULL
            THEN r.github_owner || '/' || r.github_name END        AS repo_name
+    -- run-kind-exempt: the INNER JOIN to the guarded sessions scan below drops
+    -- every event whose session is not INTERACTIVE, so a second filter on the
+    -- events scan would be redundant.
     FROM events e
     ${ORG_VISIBLE}
     JOIN sessions s   ON s.session_id = e.session_id
     LEFT JOIN repos r ON r.id = s.repo_id
-    WHERE e.ts >= ${since}
+    WHERE ${interactiveOnly('s')}
+        AND e.ts >= ${since}
       AND e.tool_output_bytes IS NOT NULL
       AND e.tool_category IN ('web', 'mcp', 'fs_read')
       AND ${ORG_VISIBLE_FILTER}

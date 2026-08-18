@@ -30,6 +30,7 @@ export default async function SettingsPrivacyPage() {
           initialPolicy={
             policy
               ? {
+                  allowJudgeAnalysis: policy.allowJudgeAnalysis,
                   shareMetadataWithOrg: policy.shareMetadataWithOrg,
                   shareMetadataWithTeam: policy.shareMetadataWithTeam,
                   shareTranscriptsWithOrg: policy.shareTranscriptsWithOrg,

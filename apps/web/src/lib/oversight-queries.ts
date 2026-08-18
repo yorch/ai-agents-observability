@@ -45,8 +45,13 @@ function orderByAutonomy(mix: ModeMixEntry[]): ModeMixEntry[] {
   );
 }
 
-async function oversightForWhere(where: Prisma.SessionWhereInput): Promise<OversightSummary> {
+async function oversightForWhere(input: Prisma.SessionWhereInput): Promise<OversightSummary> {
   const prisma = getPrisma();
+  // Oversight is a claim about how much scrutiny *humans* applied. An unattended
+  // CI run has no prompts to answer and no interrupts to make, so counting it
+  // would drive lowOversightShare and the rubber-stamp signal on its own. Applied
+  // here rather than at each of the three call sites so no scope can forget it.
+  const where: Prisma.SessionWhereInput = { ...input, runKind: 'INTERACTIVE' };
   const [groups, agg, total] = await Promise.all([
     prisma.session.groupBy({ _count: { _all: true }, by: ['mode'], where }),
     prisma.session.aggregate({

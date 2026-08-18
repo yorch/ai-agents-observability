@@ -1,5 +1,10 @@
 import { Prisma } from '@ai-agents-observability/db';
-import type { Event } from '@ai-agents-observability/schemas';
+import {
+  type Event,
+  mergeRunKind,
+  type RunKindDb,
+  runKindToDbEnum,
+} from '@ai-agents-observability/schemas';
 
 import { computeCostUsd } from './cost';
 import type { PriceTableRegistry } from './price-tables';
@@ -25,6 +30,19 @@ export async function insertEventsBatch(
   const unknownModels = new Set<string>();
   if (events.length === 0) {
     return { accepted: 0, acceptedEventIds: new Set(), deduped: 0, unknownModels };
+  }
+
+  // One run_kind per session for the whole batch, by the same merge rule
+  // upsertSessions applies to the session row (packages/schemas mergeRunKind).
+  // Written per event rather than taken per event so that a batch whose
+  // SessionStart omitted the field cannot leave half its events INTERACTIVE and
+  // half CI — events.run_kind is read without a sessions join on most paths, so a
+  // within-batch split would be invisible and permanent.
+  const runKindBySession = new Map<string, RunKindDb>();
+  for (const e of events) {
+    const claimed = runKindToDbEnum(e.session_context.run_kind);
+    const seen = runKindBySession.get(e.session_id);
+    runKindBySession.set(e.session_id, seen ? mergeRunKind(seen, claimed) : claimed);
   }
 
   const rows = events.map((e) => {
@@ -54,6 +72,8 @@ export async function insertEventsBatch(
       ${e.tool?.name ?? null},
       ${e.tool?.category ?? null},
       ${e.tool?.input_hash ?? null},
+      ${e.tool?.target_hash ?? null},
+      ${e.tool?.action ?? null},
       ${e.tool?.input_bytes ?? null},
       ${e.tool?.output_bytes ?? null},
       ${e.tool?.duration_ms ?? null},
@@ -73,6 +93,7 @@ export async function insertEventsBatch(
       ${e.llm?.cache_creation_tokens ?? null},
       ${costUsd},
       ${e.session_context.mode},
+      ${runKindBySession.get(e.session_id) ?? runKindToDbEnum(e.session_context.run_kind)},
       ${typeof e.metadata.notification_kind === 'string' ? e.metadata.notification_kind : null},
       ${JSON.stringify(e.metadata)}::jsonb
     )`;
@@ -87,13 +108,14 @@ export async function insertEventsBatch(
         event_id, session_id, user_id, ts,
         agent_type, event_type, turn_number, parent_event_id,
         tool_name, tool_category, tool_input_hash,
+        tool_target_hash, tool_action,
         tool_input_bytes, tool_output_bytes, tool_duration_ms,
         tool_exit_status, tool_was_denied, tool_was_interrupted,
         mcp_server, mcp_tool, subagent_type,
         skill_name, skill_path, slash_command,
         model, input_tokens, output_tokens,
         cache_read_tokens, cache_creation_tokens, cost_usd,
-        mode, notification_kind, metadata
+        mode, run_kind, notification_kind, metadata
       ) VALUES ${Prisma.join(rows)}
       ON CONFLICT (event_id, ts) DO NOTHING
       RETURNING event_id

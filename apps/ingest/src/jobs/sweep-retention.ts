@@ -8,6 +8,8 @@ import {
 } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
+import { purgeJudgeRationales } from '../lib/judge-rationales';
+
 export { effectiveRetentionDays } from './retention-policy';
 
 /**
@@ -79,6 +81,7 @@ export async function runSweepRetention(
     }));
 
     let purged = 0;
+    const purgedSessionIds: string[] = [];
     for (const session of expired) {
       if (!session.transcriptS3Key) {
         continue;
@@ -94,10 +97,25 @@ export async function runSweepRetention(
           where: { sessionId: session.sessionId },
         });
         purged++;
+        purgedSessionIds.push(session.sessionId);
       } catch (err) {
         logger?.warn({ err, sessionId: session.sessionId }, 'Failed to purge transcript');
       }
     }
+
+    // P13-009: a judge rationale is derived from the transcript and inherits its
+    // retention. Leaving it behind would keep a model's account of a
+    // conversation past the point where the conversation itself was deleted.
+    // The score rows survive (the label is still true of a session that exists);
+    // only the now-dangling pointer is cleared.
+    const rationalesPurged = await purgeJudgeRationales(
+      db,
+      s3,
+      bucket,
+      purgedSessionIds,
+      { clearRefs: true },
+      logger,
+    );
 
     // Sweep orphaned S3 keys: list objects under transcripts/ and check for
     // sessions that no longer exist
@@ -153,7 +171,7 @@ export async function runSweepRetention(
     });
 
     logger?.info(
-      { jobName, orphans, purged, retentionDays, total: expired.length },
+      { jobName, orphans, purged, rationalesPurged, retentionDays, total: expired.length },
       'Retention sweep complete',
     );
   } catch (err) {

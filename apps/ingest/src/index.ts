@@ -1,4 +1,5 @@
 import { createClient } from '@ai-agents-observability/db';
+import { resolveJudgeRevision } from '@ai-agents-observability/schemas';
 import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
 
 import type { AppDeps } from './app';
@@ -6,6 +7,7 @@ import { createApp } from './app';
 import { loadConfig } from './config';
 import { AnthropicBillingSource } from './jobs/anthropic-billing-source';
 import { startScheduler } from './jobs/scheduler';
+import { AnthropicJudgeClient } from './lib/judge-client';
 import { createLogger } from './lib/logger';
 import { buildPriceTableRegistry } from './lib/price-tables';
 
@@ -91,6 +93,35 @@ const billingSource = config.anthropic_admin_key
     })
   : undefined;
 
+// LLM-as-judge (P13-009). Wired only when all three of an API key, an operator
+// user id, and a *registered* revision for the configured model are present.
+// A configured model with no JUDGE_REVISIONS entry is a loud refusal rather
+// than a silent fallback: scoring under a borrowed version number is exactly
+// the provenance failure the registry exists to prevent.
+const judgeRevision = resolveJudgeRevision(config.judge_model);
+if (config.judge_anthropic_api_key && config.judge_operator_user_id && !judgeRevision) {
+  logger.error(
+    { model: config.judge_model },
+    'judge: configured model has no registered revision — the judge stays disabled',
+  );
+}
+const judge =
+  config.judge_anthropic_api_key && config.judge_operator_user_id && judgeRevision
+    ? {
+        client: new AnthropicJudgeClient({
+          apiKey: config.judge_anthropic_api_key,
+          baseUrl: config.anthropic_base_url,
+        }),
+        config: {
+          highCostUsd: config.judge_high_cost_usd,
+          maxSessionsPerRun: config.judge_max_sessions_per_run,
+          operatorUserId: config.judge_operator_user_id,
+          revision: judgeRevision,
+          sampleRate: config.judge_sample_rate,
+        },
+      }
+    : undefined;
+
 startScheduler({
   billingReconciliationEnabled: config.billing_reconciliation_enabled,
   bucket: config.s3_bucket,
@@ -99,6 +130,7 @@ startScheduler({
   ...(emailConfig ? { emailConfig } : {}),
   ...(config.github_sync_token ? { githubSyncToken: config.github_sync_token } : {}),
   ...(jiraConfig ? { jiraConfig } : {}),
+  ...(judge ? { judge } : {}),
   appBaseUrl: config.app_base_url,
   logger,
   orgMaxRetentionDays: config.org_max_retention_days,

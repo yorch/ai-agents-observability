@@ -10,7 +10,7 @@ These were agreed during planning and are the basis for every task below. If one
 
 | Area | Choice | Rationale (short) |
 |---|---|---|
-| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 10 (proposed, `ready`); remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
+| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice), Phase 10 (proposed, `ready`) and Phase 13 (in progress); remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
 | Dev environment | docker-compose locally | Single `up` from a clean clone |
 | Hook binary | Bun, compiled with `bun build --compile` | Single static binary, fast cold start |
 | Object store | MinIO (local dev + homelab prod) | S3-compatible, self-hostable |
@@ -218,6 +218,16 @@ Takes the P8 seam from three agents to **seven**. Codex moves onto its native li
 Tasks P12-001–P12-012 are `done`. Along the way it fixed a silent drop of every live opencode event (their `ses_`-prefixed session ids failed `EventSchema`'s UUID requirement, and ingest drops invalid events per event), and a transcript-idempotency bug that had frozen **every** agent's transcript at its first upload. P12-010 then filled the price tables the new adapters shipped empty, corrected two stale ones (Opus 4.6/4.7 were priced at the retired 4.1 rate; Codex stopped at the GPT-4o era), and fixed the token accounting behind them — OpenAI and Google report one inclusive prompt total with the cached tokens *inside* it, so passing that through billed cached tokens twice. P12-011 then made those corrections retroactive — an operator-triggered `reprice-events` job that recomputes stored `events.cost_usd` from the token counts on each row and carries the change through session totals, PR rollups and the cost continuous aggregates — and put the models nothing prices on `/admin/price-tables` instead of only in a Prometheus counter — which immediately showed how thin the provider-agnostic tables were, so P12-012 generates those three from the models.dev catalog the agents themselves use for model IDs (34 models across 3 vendors → 243 across 20). Three acceptance criteria remain unverified for want of the agents themselves — see [`tasks/P12-roadmap.md`](./tasks/P12-roadmap.md).
 
 **Exit**: met — seven agents ship data end-to-end, an agent whose session id is not a UUID ingests correctly, the four stdin-hook adapters share one implementation, and opencode's directory-shaped history uploads via an agent-neutral collation in the shipper.
+
+### Phase 13 — Scoring & Evaluation
+
+**In progress.** Gives every computed signal provenance and a version, adds scorers that need no transcript access, captures human labels, and — once real data exists — validates the heuristics that already ship (`friction_score`, `shape_label`) against real engineering outcomes. Decomposed from [`docs/research/2026-08-12-llm-evals-assessment.md`](./docs/research/2026-08-12-llm-evals-assessment.md) after the owner scoped `DESIGN_DOC.md` §2.2's "prompt evaluation" non-goal to *model/agent benchmarking* only.
+
+Sequenced against the fact that no rollout has happened: build only what pays off regardless of whether one does, and prefer what gets more expensive with time. The analysis tasks are `blocked` on a stated data precondition (DP-1) and unblock themselves when a corpus arrives. See [`tasks/P13-roadmap.md`](./tasks/P13-roadmap.md).
+
+**Exit**: no number on a dashboard is asserted without provenance, a version, and — once measurable — a published relationship to a real outcome. No individual's score is visible to anyone but them.
+
+**Overlaps Phase 10.** P13-006 implements the projected-vs-realized check that P10-006 specifies, as a general mechanism. Phase 10 is marked `done` while `P10-006`'s own task file still reads `ready` and no routing-projection code is present, so whether P10-006 is satisfied by P13-006 or still outstanding is an owner call, not one this phase makes.
 
 ---
 

@@ -18,6 +18,7 @@ import {
 } from './effectiveness-queries';
 import { getPrisma } from './prisma';
 import { CHEAP_SUITABLE_CATEGORIES, PREMIUM_PATTERN } from './routing-queries';
+import { INTERACTIVE_EVENTS, interactiveEvents, interactiveOnly } from './run-kind';
 import { searchTranscriptMatches } from './search-queries';
 import { type FrictionBand, frictionBandWhere } from './sessions-queries';
 import { daysAgo } from './time';
@@ -73,7 +74,10 @@ export type AnomalyRow = {
 };
 
 /** Users who have opted in to org sharing and had a session in the window. */
-async function orgVisibleUserIds(since: Date): Promise<string[]> {
+// Exported so the org-scoped surfaces built on top of this module (P13-004's
+// skill/MCP quality panels) resolve visibility through the same policy check
+// rather than re-deriving it and drifting.
+export async function orgVisibleUserIds(since: Date): Promise<string[]> {
   const prisma = getPrisma();
 
   // All users with sessions in window who share with org
@@ -103,6 +107,10 @@ async function getOrgSummaryWindow(since: Date, until?: Date): Promise<OrgSummar
       _count: { sessionId: true },
       _sum: { totalCostUsd: true },
       where: {
+        // The raw queries alongside this one are all guarded; without the same
+        // filter here the org summary reports session counts, cost and active-user
+        // counts over a wider population than the hours and cache stats beside them.
+        runKind: 'INTERACTIVE',
         startedAt: { gte: since, ...untilFilter },
         user: {
           deactivatedAt: null,
@@ -115,7 +123,8 @@ async function getOrgSummaryWindow(since: Date, until?: Date): Promise<OrgSummar
       FROM sessions s
       JOIN users u ON u.id = s.user_id
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-      WHERE s.started_at >= ${since}
+      WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since}
         ${untilClause}
         AND u.deactivated_at IS NULL
         AND COALESCE(vp.share_metadata_with_org, true) = true
@@ -124,6 +133,10 @@ async function getOrgSummaryWindow(since: Date, until?: Date): Promise<OrgSummar
     prisma.session.groupBy({
       by: ['userId'],
       where: {
+        // The raw queries alongside this one are all guarded; without the same
+        // filter here the org summary reports session counts, cost and active-user
+        // counts over a wider population than the hours and cache stats beside them.
+        runKind: 'INTERACTIVE',
         startedAt: { gte: since, ...untilFilter },
         user: {
           deactivatedAt: null,
@@ -138,7 +151,8 @@ async function getOrgSummaryWindow(since: Date, until?: Date): Promise<OrgSummar
       FROM sessions s
       JOIN users u ON u.id = s.user_id
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-      WHERE s.started_at >= ${since}
+      WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since}
         ${untilClause}
         AND u.deactivated_at IS NULL
         AND COALESCE(vp.share_metadata_with_org, true) = true
@@ -246,7 +260,8 @@ export async function getCostByRepo(since: Date): Promise<RepoCostRow[]> {
     JOIN sessions s ON s.repo_id = r.id AND s.started_at >= ${since}
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE COALESCE(vp.share_metadata_with_org, true) = true
+    WHERE ${interactiveOnly('s')}
+        AND COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY r.id, r.github_owner, r.github_name
     ORDER BY cost_usd DESC
     LIMIT 20
@@ -279,7 +294,8 @@ export async function getCostByModel(since: Date): Promise<ModelCostRow[]> {
     FROM sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${since}
+    WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since}
       AND COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY COALESCE(s.primary_model, 'unknown')
     ORDER BY cost_usd DESC
@@ -382,7 +398,8 @@ export async function getOrgModelRoutingBreakdown(since: Date): Promise<OrgModel
       COUNT(*)                            AS call_count,
       COALESCE(SUM(cost_usd), 0)         AS total_cost_usd
     FROM events
-    WHERE user_id IN (${uuids})
+    WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND model IS NOT NULL
@@ -445,7 +462,8 @@ export async function getRoutingSpendByTeam(since: Date): Promise<RoutingTeamRow
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
       JOIN events e ON e.user_id = u.id AND e.ts >= ${since}
         AND e.event_type = 'PostToolUse' AND e.model ILIKE ${premiumLike}
-      WHERE COALESCE(vp.share_metadata_with_org, true) = true
+      WHERE ${interactiveEvents('e')}
+        AND COALESCE(vp.share_metadata_with_org, true) = true
       GROUP BY t.id, t.name, t.github_slug
     ) agg
     WHERE agg.premium_retrieval_usd > 0
@@ -483,7 +501,8 @@ export async function getOrgEffectiveness(since: Date): Promise<EffectivenessDis
       FROM sessions s
       JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-      WHERE s.started_at >= ${since}
+      WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since}
         AND s.friction_score IS NOT NULL
         AND COALESCE(vp.share_metadata_with_org, true) = true
     `),
@@ -492,7 +511,8 @@ export async function getOrgEffectiveness(since: Date): Promise<EffectivenessDis
       FROM sessions s
       JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-      WHERE s.started_at >= ${since}
+      WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since}
         AND s.shape_label IS NOT NULL
         AND COALESCE(vp.share_metadata_with_org, true) = true
       GROUP BY s.shape_label
@@ -554,7 +574,8 @@ export async function getAgentTypeComparison(since: Date): Promise<AgentComparis
     FROM sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${since}
+    WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since}
       AND COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY s.agent_type
     ORDER BY total_cost DESC
@@ -591,7 +612,8 @@ export async function getOrgFrictionTrend(since: Date): Promise<FrictionTrendBuc
     FROM sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${since}
+    WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since}
       AND s.friction_score IS NOT NULL
       AND COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY date_trunc('week', s.started_at)
@@ -642,7 +664,8 @@ export async function getSpendForecast(monthStart: Date, last7Start: Date): Prom
     FROM sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= LEAST(${monthStart}, ${last7Start})
+    WHERE ${interactiveOnly('s')}
+        AND s.started_at >= LEAST(${monthStart}, ${last7Start})
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   return {
@@ -673,7 +696,8 @@ export async function getTeamSpendForecast(last7Start: Date): Promise<TeamSpendF
     JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
     JOIN sessions s ON s.user_id = u.id AND s.started_at >= ${last7Start}
-    WHERE COALESCE(vp.share_metadata_with_org, true) = true
+    WHERE ${interactiveOnly('s')}
+        AND COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY t.id, t.name, t.github_slug
     HAVING COALESCE(SUM(s.total_cost_usd), 0) > 0
     ORDER BY last7_spend DESC
@@ -817,7 +841,8 @@ export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow
       AVG(tool_duration_ms)                             AS avg_duration_ms,
       COUNT(DISTINCT user_id)                           AS distinct_users
     FROM events
-    WHERE user_id IN (${uuids})
+    WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
@@ -854,7 +879,8 @@ export async function getToolCategoryBreakdown(since: Date): Promise<CategorySta
       COUNT(*)                                          AS call_count,
       COUNT(*) FILTER (WHERE tool_was_denied = true)    AS deny_count
     FROM events
-    WHERE user_id IN (${uuids})
+    WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_category != 'agent'
@@ -890,7 +916,8 @@ export async function getMcpServerUsage(since: Date): Promise<McpServerRow[]> {
       COUNT(*)                AS call_count,
       COUNT(DISTINCT user_id) AS distinct_users
     FROM events
-    WHERE user_id IN (${uuids})
+    WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND mcp_server IS NOT NULL
@@ -955,16 +982,22 @@ export async function getMcpServerDetails(since: Date): Promise<McpServerDetailR
         COUNT(DISTINCT user_id)                                                       AS distinct_users,
         COALESCE(SUM(cost_usd), 0)                                                   AS total_cost_usd
       FROM events
-      WHERE user_id IN (${uuids})
+      WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
         AND ts >= ${since}
         AND event_type = 'PostToolUse'
         AND mcp_server IS NOT NULL
       GROUP BY mcp_server, mcp_tool
     ),
     server_users AS (
+      -- Must carry the same filter as tool_stats: this count is rendered as
+      -- "N users on this server" next to the per-tool user counts it is supposed
+      -- to be an upper bound on, and an unfiltered scan here can make the server
+      -- total exceed the sum of its own tools' users.
       SELECT mcp_server, COUNT(DISTINCT user_id) AS distinct_users
       FROM events
-      WHERE user_id IN (${uuids})
+      WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
         AND ts >= ${since}
         AND event_type = 'PostToolUse'
         AND mcp_server IS NOT NULL
@@ -1024,7 +1057,8 @@ export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
         user_id,
         COUNT(*)                                                        AS invocation_count
       FROM events
-      WHERE user_id IN (${uuids})
+      WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
         AND ts >= ${since}
         AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
       GROUP BY
@@ -1039,6 +1073,10 @@ export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
       SUM(i.invocation_count)::bigint        AS call_count,
       COUNT(DISTINCT i.user_id)::bigint      AS distinct_users,
       AVG(s.total_cost_usd)::text            AS avg_session_cost_usd
+    -- run-kind-exempt: the population is fixed by the guarded invocations CTE, so
+    -- every session reachable here is already INTERACTIVE. The filter used to sit
+    -- here instead of on the events scan, which made call_count/distinct_users an
+    -- unfiltered population while avg cost covered only interactive sessions.
     FROM invocations i
     LEFT JOIN sessions s ON i.session_id = s.session_id
     GROUP BY i.name, i.kind
@@ -1081,7 +1119,8 @@ export async function getTeamSkillMatrix(since: Date): Promise<TeamSkillRow[]> {
     FROM events e
     JOIN team_members tm ON e.user_id = tm.user_id AND tm.left_at IS NULL
     JOIN teams t ON tm.team_id = t.id
-    WHERE e.user_id IN (${uuids})
+    WHERE ${interactiveEvents('e')}
+        AND e.user_id IN (${uuids})
       AND e.ts >= ${since}
       AND (e.skill_name IS NOT NULL OR e.slash_command IS NOT NULL)
     GROUP BY
@@ -1124,16 +1163,21 @@ export async function getSkillAdoptionFunnel(since: Date): Promise<SkillAdoption
         COALESCE(skill_name, slash_command) AS name,
         MIN(ts)                              AS first_ts
       FROM events
-      WHERE user_id IN (${uuids})
+      WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
         AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
       GROUP BY user_id, COALESCE(skill_name, slash_command)
     ),
     recent_users AS (
+      -- Same filter as first_use, or the funnel mixes populations: a user whose
+      -- only invocations in the window came from CI would appear in recent_users,
+      -- match a pre-window interactive first_use, and be counted as returning.
       SELECT DISTINCT
         user_id,
         COALESCE(skill_name, slash_command) AS name
       FROM events
-      WHERE user_id IN (${uuids})
+      WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
         AND ts >= ${since}
         AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
     )
@@ -1176,7 +1220,8 @@ export async function getOrgSkillSequences(since: Date): Promise<OrgSkillSequenc
           PARTITION BY session_id ORDER BY ts
         ) AS next_name
       FROM events
-      WHERE user_id IN (${uuids})
+      WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
         AND ts >= ${since}
         AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
     )
@@ -1214,6 +1259,9 @@ export async function getSkillRoi(since: Date): Promise<SkillRoiRow[]> {
       SELECT DISTINCT
         COALESCE(e.skill_name, e.slash_command) AS skill_name,
         e.session_id
+      -- run-kind-exempt: this CTE is only ever consumed through the INNER JOIN to
+      -- the guarded sessions scan below, which drops every non-interactive
+      -- session_id it could contribute. The output is per-session, not per-event.
       FROM events e
       WHERE e.user_id IN (${uuids})
         AND e.ts >= ${since}
@@ -1225,7 +1273,8 @@ export async function getSkillRoi(since: Date): Promise<SkillRoiRow[]> {
       COUNT(DISTINCT ss.session_id)::bigint AS session_count
     FROM skill_sessions ss
     JOIN sessions s ON ss.session_id = s.session_id
-    WHERE s.pr_ci_status IS NOT NULL
+    WHERE ${interactiveOnly('s')}
+        AND s.pr_ci_status IS NOT NULL
     GROUP BY ss.skill_name, s.pr_ci_status
     ORDER BY ss.skill_name, session_count DESC
   `);
@@ -1253,7 +1302,8 @@ export async function getDailyToolVolume(since: Date): Promise<DailyToolVolumeRo
       COUNT(*) FILTER (WHERE tool_was_denied = true)    AS deny_count,
       COUNT(DISTINCT user_id)                           AS distinct_users
     FROM events
-    WHERE user_id IN (${uuids})
+    WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
@@ -1285,6 +1335,10 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
     prisma.session.aggregate({
       _sum: { totalCostUsd: true },
       where: {
+        // The baseline this is compared against is a guarded raw query. Leaving
+        // the current window unguarded means a CI fleet's spend registers as an
+        // anomaly against a human-only baseline.
+        runKind: 'INTERACTIVE',
         startedAt: { gte: last7 },
         user: {
           deactivatedAt: null,
@@ -1303,7 +1357,8 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
         FROM sessions s
         JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
         LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-        WHERE s.started_at >= ${baselineStart}
+        WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${baselineStart}
           AND s.started_at < ${last7}
           AND COALESCE(vp.share_metadata_with_org, true) = true
         GROUP BY date_trunc('day', s.started_at)
@@ -1329,6 +1384,7 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
   const errorStats = await prisma.session.aggregate({
     _sum: { toolCallCount: true, toolErrorCount: true },
     where: {
+      runKind: 'INTERACTIVE',
       startedAt: { gte: errorWindowStart },
       user: {
         deactivatedAt: null,
@@ -1425,6 +1481,9 @@ export async function searchSessions(
 
   // Build Prisma where clause
   const where: Prisma.SessionWhereInput = {
+    // Same population as every other session list, and as the guarded tool-name
+    // sub-query below — which would otherwise be the only filtered leg here.
+    runKind: 'INTERACTIVE',
     userId: { in: finalUserIds },
     ...(filters.dateFrom ? { startedAt: { gte: filters.dateFrom } } : {}),
     ...(filters.dateTo
@@ -1450,9 +1509,13 @@ export async function searchSessions(
   if (filters.toolName) {
     const rows = await prisma.$queryRaw<{ session_id: string }[]>(Prisma.sql`
       SELECT DISTINCT e.session_id::text
+      -- run-kind-exempt: the INNER JOIN to the guarded sessions scan already drops
+      -- every event belonging to a non-interactive session; the projection is a
+      -- session_id list, so filtering events again would change nothing.
       FROM events e
       JOIN sessions s ON s.session_id = e.session_id
-      WHERE e.tool_name = ${filters.toolName}
+      WHERE ${interactiveOnly('s')}
+        AND e.tool_name = ${filters.toolName}
         AND e.ts >= ${since}
         AND s.user_id = ANY(${finalUserIds}::uuid[])
       LIMIT 5000
@@ -1522,7 +1585,11 @@ export async function searchTranscripts(
 
   const matches = await searchTranscriptMatches(
     query,
-    Prisma.sql`AND COALESCE(vp.share_transcripts_with_org, false) = true`,
+    {
+      // Cross-user surface: same interactive-only population as the rest of /org.
+      runKind: 'interactive-only',
+      where: Prisma.sql`AND COALESCE(vp.share_transcripts_with_org, false) = true`,
+    },
     limit,
   );
 
@@ -1559,7 +1626,8 @@ export async function getActiveUsersTrend(
     FROM sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${since}
+    WHERE ${interactiveOnly('s')}
+        AND s.started_at >= ${since}
       AND COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY ${truncExpr}
     ORDER BY bucket ASC
@@ -1593,6 +1661,7 @@ export async function getAdoptionByTeam(since: Date): Promise<AdoptionByTeamRow[
       ON s.user_id = u.id
       AND s.started_at >= ${since}
       AND COALESCE(vp.share_metadata_with_org, true) = true
+      AND ${interactiveOnly('s')}
     GROUP BY t.id, t.name, t.github_slug
     ORDER BY active_users DESC
   `);
@@ -1636,6 +1705,7 @@ export async function getSessionFrequencyDistribution(
       LEFT JOIN sessions s
         ON s.user_id = u.id
         AND s.started_at >= ${since}
+      AND ${interactiveOnly('s')}
       WHERE u.deactivated_at IS NULL
         AND COALESCE(vp.share_metadata_with_org, true) = true
       GROUP BY u.id
@@ -1891,7 +1961,8 @@ export async function getTeamBenchmarks(since: Date, weeks = 4): Promise<TeamBen
     JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
     JOIN sessions s ON s.user_id = u.id AND s.started_at >= ${since}
-    WHERE COALESCE(vp.share_metadata_with_org, true) = true
+    WHERE ${interactiveOnly('s')}
+        AND COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY t.id, t.name, t.github_slug
     HAVING COUNT(s.session_id) >= 5
     ORDER BY session_count DESC
@@ -1995,7 +2066,8 @@ export async function getOrgAdoptionFunnel(range: number): Promise<OrgAdoptionFu
         FROM users u
         JOIN sessions s ON s.user_id = u.id
         LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-        WHERE u.deactivated_at IS NULL
+        WHERE ${interactiveOnly('s')}
+        AND u.deactivated_at IS NULL
           AND COALESCE(vp.share_metadata_with_org, true) = true
       `),
       // active30d: distinct org-visible users with a session in the last 30 days
@@ -2004,7 +2076,8 @@ export async function getOrgAdoptionFunnel(range: number): Promise<OrgAdoptionFu
         FROM users u
         JOIN sessions s ON s.user_id = u.id
         LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-        WHERE u.deactivated_at IS NULL
+        WHERE ${interactiveOnly('s')}
+        AND u.deactivated_at IS NULL
           AND COALESCE(vp.share_metadata_with_org, true) = true
           AND s.started_at >= ${thirtyDaysAgo}
       `),
@@ -2014,7 +2087,8 @@ export async function getOrgAdoptionFunnel(range: number): Promise<OrgAdoptionFu
         FROM users u
         JOIN sessions s ON s.user_id = u.id
         LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-        WHERE u.deactivated_at IS NULL
+        WHERE ${interactiveOnly('s')}
+        AND u.deactivated_at IS NULL
           AND COALESCE(vp.share_metadata_with_org, true) = true
           AND s.started_at >= ${sevenDaysAgo}
       `),
@@ -2026,7 +2100,8 @@ export async function getOrgAdoptionFunnel(range: number): Promise<OrgAdoptionFu
           FROM users u
           JOIN sessions s ON s.user_id = u.id
           LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-          WHERE u.deactivated_at IS NULL
+          WHERE ${interactiveOnly('s')}
+        AND u.deactivated_at IS NULL
             AND COALESCE(vp.share_metadata_with_org, true) = true
           GROUP BY u.id
           HAVING MIN(s.started_at) >= ${currentWindowStart}
@@ -2038,7 +2113,8 @@ export async function getOrgAdoptionFunnel(range: number): Promise<OrgAdoptionFu
         FROM users u
         JOIN sessions s ON s.user_id = u.id
         LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-        WHERE u.deactivated_at IS NULL
+        WHERE ${interactiveOnly('s')}
+        AND u.deactivated_at IS NULL
           AND COALESCE(vp.share_metadata_with_org, true) = true
           AND s.started_at >= ${sixtyDaysAgo}
           AND s.started_at < ${thirtyDaysAgo}
@@ -2095,7 +2171,8 @@ export async function getDailySkillVolume(since: Date): Promise<DailySkillVolume
       COUNT(*)::bigint               AS invocation_count,
       COUNT(DISTINCT user_id)::bigint AS distinct_users
     FROM events
-    WHERE user_id IN (${uuids})
+    WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
       AND ts >= ${since}
       AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
     GROUP BY date_trunc('day', ts)
@@ -2126,7 +2203,8 @@ export async function getOrgSkillDailyTrend(
       COUNT(*)::bigint               AS invocation_count,
       COUNT(DISTINCT user_id)::bigint AS distinct_users
     FROM events
-    WHERE user_id IN (${uuids})
+    WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
       AND ts >= ${since}
       AND COALESCE(skill_name, slash_command) = ${name}
       AND CASE WHEN skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END = ${kind}
@@ -2165,7 +2243,8 @@ export async function getOrgSkillTopUsers(
       COUNT(DISTINCT e.session_id)::bigint AS session_count
     FROM events e
     JOIN users u ON e.user_id = u.id
-    WHERE e.user_id IN (${uuids})
+    WHERE ${interactiveEvents('e')}
+        AND e.user_id IN (${uuids})
       AND e.ts >= ${since}
       AND COALESCE(e.skill_name, e.slash_command) = ${name}
       AND CASE WHEN e.skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END = ${kind}
@@ -2204,13 +2283,17 @@ export async function getOrgSkillCostComparison(
         s.session_id,
         s.total_cost_usd,
         EXISTS(
+          -- run-kind-exempt: correlated to s.session_id on the guarded sessions
+          -- scan below, so only interactive sessions are ever probed. This is an
+          -- EXISTS flag on that session, not an events population of its own.
           SELECT 1 FROM events e
           WHERE e.session_id = s.session_id
             AND COALESCE(e.skill_name, e.slash_command) = ${name}
             AND CASE WHEN e.skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END = ${kind}
         ) AS has_skill
       FROM sessions s
-      WHERE s.user_id IN (${uuids})
+      WHERE ${interactiveOnly('s')}
+        AND s.user_id IN (${uuids})
         AND s.started_at >= ${since}
         AND s.total_cost_usd IS NOT NULL
     ) sub
@@ -2257,7 +2340,8 @@ export async function getTeamModelGovernance(
       JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
       JOIN sessions s ON s.user_id = u.id AND s.started_at >= ${since}
-      WHERE COALESCE(vp.share_metadata_with_org, true) = true
+      WHERE ${interactiveOnly('s')}
+        AND COALESCE(vp.share_metadata_with_org, true) = true
       GROUP BY t.id, t.name, t.github_slug, COALESCE(s.primary_model, 'unknown')
     ),
     team_total AS (
@@ -2334,7 +2418,8 @@ export async function getOrgSubagentStats(since: Date): Promise<SubagentStatRow[
       AVG(tool_duration_ms)       AS avg_duration_ms,
       SUM(cost_usd)               AS total_cost_usd
     FROM events
-    WHERE user_id IN (${uuids})
+    WHERE ${INTERACTIVE_EVENTS}
+        AND user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_category = 'agent'

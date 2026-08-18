@@ -6,6 +6,18 @@ export type JobRunDb = Pick<PrismaClient, 'jobRun'> & {
 };
 
 /**
+ * What a scorer job needs: the scaffold's own surface plus the raw write path
+ * its batched upserts go through. Three jobs had this same five-line
+ * intersection pasted verbatim, which is three places for it to drift and no
+ * signal when one of them does. A job needing more (an `auditLog`, say)
+ * intersects on top of this rather than restating it.
+ */
+export type JobRawDb = JobRunDb & {
+  $executeRaw: PrismaClient['$executeRaw'];
+  $transaction: PrismaClient['$transaction'];
+};
+
+/**
  * Standard job scaffold: pg advisory lock (skip if another instance holds it),
  * a JobRun row for observability, success/error status updates, unlock in
  * finally. New jobs should run through this instead of re-pasting the

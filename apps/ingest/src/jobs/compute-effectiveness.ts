@@ -1,14 +1,17 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import { Prisma } from '@ai-agents-observability/db';
-import { classifySessionShape, computeFrictionScore } from '@ai-agents-observability/schemas';
+import {
+  classifySessionShape,
+  computeFrictionScore,
+  SCORERS,
+} from '@ai-agents-observability/schemas';
 import type { Logger } from 'pino';
 
 import { aggregateResponseLatency } from '../lib/response-latency';
+import { scoreUpserts } from '../lib/scores';
+import { type JobRawDb, withJobRun } from './job-run';
 
-type DbWithRaw = Pick<PrismaClient, 'jobRun'> & {
-  $executeRaw: PrismaClient['$executeRaw'];
-  $queryRaw: PrismaClient['$queryRaw'];
-};
+type DbWithRaw = JobRawDb;
 
 type ToolRow = { call_count: bigint; tool_name: string };
 
@@ -120,14 +123,26 @@ async function processEffectivenessBatch(
 
       const latency = latencyMap.get(s.session_id) ?? { sampleCount: 0, totalMs: 0 };
 
-      await db.$executeRaw(Prisma.sql`
-        UPDATE sessions
-        SET friction_score        = ${frictionScore},
-            shape_label           = ${shapeLabel},
-            total_response_ms     = ${latency.totalMs},
-            response_sample_count = ${latency.sampleCount}
-        WHERE session_id = ${s.session_id}::uuid
-      `);
+      // The `sessions` columns stay the denormalized "current value" every
+      // dashboard, facet and SQL query already reads; the `scores` rows carry the
+      // provenance (which scorer, at what version) that the columns cannot. Both
+      // are written in one transaction so a scored session can never end up with
+      // a column value and no matching score row, which would make the
+      // calibration reads silently under-count.
+      await db.$transaction([
+        db.$executeRaw(Prisma.sql`
+          UPDATE sessions
+          SET friction_score        = ${frictionScore},
+              shape_label           = ${shapeLabel},
+              total_response_ms     = ${latency.totalMs},
+              response_sample_count = ${latency.sampleCount}
+          WHERE session_id = ${s.session_id}::uuid
+        `),
+        ...scoreUpserts([
+          { scorerName: 'friction', subjectId: s.session_id, value: frictionScore },
+          { label: shapeLabel, scorerName: 'session_shape', subjectId: s.session_id },
+        ]).map((sql) => db.$executeRaw(sql)),
+      ]);
 
       updated++;
     } catch (err) {
@@ -197,6 +212,75 @@ export async function runComputeEffectiveness(db: DbWithRaw, logger?: Logger): P
   } finally {
     await db.$queryRaw`SELECT pg_advisory_unlock(hashtext(${`job:${jobName}`}))`.catch(() => {});
   }
+}
+
+/**
+ * Re-score: the path that makes a scorer change cheap (P13-001).
+ *
+ * The nightly job and the historical backfill both select on `shape_label IS
+ * NULL`, which is the right idempotency marker for "never scored" but makes
+ * *re*-scoring impossible — a once-scored session never re-enters their candidate
+ * set, so every scorer change previously needed its own one-shot backfill job
+ * (the pattern already spent on `backfill-redaction` and
+ * `compute-effectiveness-backfill`).
+ *
+ * This selects on the absence of a `scores` row at the **current** scorer version
+ * instead. Bump `FRICTION_VERSION` or `SESSION_SHAPE_VERSION`, trigger this once,
+ * and every session is re-scored — with the prior version's rows left intact so a
+ * trend can show the boundary rather than silently blending two scorers.
+ *
+ * Idempotent: a session that already has rows at the current version drops out of
+ * the candidate set, so a re-run over an up-to-date dataset processes nothing.
+ * Operator-triggered; no cadence.
+ */
+export async function runRescoreEffectiveness(
+  db: DbWithRaw,
+  logger?: Logger,
+  batchSize: number = BACKFILL_BATCH_SIZE,
+): Promise<void> {
+  const jobName = 'rescore-effectiveness';
+  await withJobRun(db, jobName, logger, async () => {
+    let cursor = NIL_UUID;
+    let totalUpdated = 0;
+    let batches = 0;
+    for (;;) {
+      // A session is a candidate when it has no `session_shape` row at the
+      // current version. Shape is the marker rather than friction for the same
+      // reason the other two jobs use `shape_label`: classifySessionShape is
+      // total, whereas computeFrictionScore legitimately returns null.
+      const sessions = await db.$queryRaw<SessionEffRow[]>(Prisma.sql`
+      SELECT
+        s.session_id, s.status, s.started_at, s.ended_at,
+        s.tool_call_count, s.tool_error_count, s.permission_deny_count,
+        s.interrupt_count, s.user_message_count
+      FROM sessions s
+      WHERE s.session_id > ${cursor}::uuid
+        AND NOT EXISTS (
+          SELECT 1 FROM scores sc
+          WHERE sc.subject_type = 'SESSION'
+            AND sc.subject_id = s.session_id::text
+            AND sc.scorer_name = 'session_shape'
+            AND sc.scorer_version = ${SCORERS.session_shape.version}
+        )
+      ORDER BY s.session_id
+      LIMIT ${batchSize}
+    `);
+      if (sessions.length === 0) {
+        break;
+      }
+
+      totalUpdated += await processEffectivenessBatch(db, sessions, logger);
+      batches++;
+
+      const last = sessions[sessions.length - 1];
+      if (!last) {
+        break;
+      }
+      cursor = last.session_id;
+    }
+
+    logger?.info({ batches, jobName, updated: totalUpdated }, 'Effectiveness re-score complete');
+  });
 }
 
 /**

@@ -48,6 +48,10 @@ enum AuditAction {
   GRANT_REVOKED
   ALERT_ACKNOWLEDGED
   ALERT_SILENCED
+  // P13-009: the LLM-as-judge runner read a session transcript. A judge is a
+  // new privileged reader and is modelled as one — every read it makes lands in
+  // the subject's own audit feed, exactly like a human's would.
+  JUDGE_READ_TRANSCRIPT
 }
 
 enum GrantScope {
@@ -198,6 +202,12 @@ model VisibilityPolicy {
   shareMetadataWithOrg      Boolean  @default(true) @map("share_metadata_with_org")
   shareTranscriptsWithTeam  Boolean  @default(false) @map("share_transcripts_with_team")
   shareTranscriptsWithOrg   Boolean  @default(false) @map("share_transcripts_with_org")
+  // P13-009: consent for the LLM-as-judge runner to read this user's
+  // transcripts. Deliberately its own flag rather than a reuse of
+  // share_transcripts_with_org: "my team lead may read this" and "a model may
+  // grade this" are different questions, and conflating them would grant the
+  // second by answering the first. Off by default, like every transcript flag.
+  allowJudgeAnalysis        Boolean  @default(false) @map("allow_judge_analysis")
   updatedAt                 DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -233,6 +243,10 @@ model Session {
   userId               String        @map("user_id") @db.Uuid
   agentType            AgentType     @default(CLAUDE_CODE) @map("agent_type")
   agentVersion         String?       @map("agent_version")
+  // P13-002. Defaults to INTERACTIVE so a client that never reports it is
+  // treated as a developer session — the status quo. Only an explicit claim
+  // moves a run out of the human aggregates.
+  runKind              RunKind       @default(INTERACTIVE) @map("run_kind")
   startedAt            DateTime      @map("started_at") @db.Timestamptz(6)
   endedAt              DateTime?     @map("ended_at") @db.Timestamptz(6)
   lastEventAt          DateTime      @map("last_event_at") @db.Timestamptz(6)
@@ -314,6 +328,12 @@ model Session {
   @@index([status, lastEventAt])
   @@index([agentType, startedAt(sort: Desc)])
   @@index([jiraKey])
+  // "Sessions with recent activity", in recency order — the nightly scorer walk
+  // (compute-trajectory-scores). The existing (status, last_event_at) index
+  // cannot serve it: that walk has no status predicate, so it cannot seek on the
+  // leading column. `session_id` is here as the keyset tiebreaker, so the walk's
+  // `(last_event_at, session_id) > (…, …)` cursor is a plain index range scan.
+  @@index([lastEventAt, sessionId])
   @@map("sessions")
 }
 
@@ -629,8 +649,23 @@ model SessionFeedback {
   id        String   @id @default(uuid()) @db.Uuid
   sessionId String   @map("session_id") @db.Uuid
   userId    String   @map("user_id") @db.Uuid
-  sentiment String
+  // Nullable since P13-005: "how did this feel" and "did it work" are distinct
+  // signals, so a developer may answer the rubric without leaving a thumbs.
+  // Existing rows keep their value — nothing is rewritten.
+  sentiment String?
   note      String?
+  // P13-005 — which rubric this response answered. Defaults to 0, so every row
+  // written before the rubric existed reads as "rubric version 0" (i.e. not a
+  // rubric response at all) rather than being silently claimed by version 1.
+  //
+  // The *answers* are not here: they live in `scores` as `human_session_shape` /
+  // `human_task_outcome` rows, which is the table calibration (P13-007) reads.
+  // They were briefly duplicated onto this row as well, and a dual write to two
+  // stores is a divergence waiting for its first failed request. This column
+  // stays because no score row can express it: "answered version 1 and declined
+  // both questions" and "predates the rubric" are different facts, and an absent
+  // score row cannot tell them apart.
+  rubricVersion Int @default(0) @map("rubric_version")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -680,4 +715,129 @@ model AlertDeliveryLog {
 
   @@index([attemptedAt(sort: Desc)])
   @@map("alert_delivery_log")
+}
+
+// How a session was produced. Human-facing aggregates show INTERACTIVE only:
+// CI and EVAL runs have no human prompts and would distort every per-developer
+// metric (DESIGN_DOC §13 Q8). Stored and trendable, just not mixed in.
+enum RunKind {
+  INTERACTIVE
+  CI
+  EVAL
+}
+
+// ── Scoring substrate (P13-001) ──────────────────────────────────────────────
+
+// What a score is attached to. Mirrors ScoreSubjectType in packages/schemas.
+enum ScoreSubjectType {
+  SESSION
+  PULL_REQUEST
+  SKILL
+  MCP_SERVER
+}
+
+// Where a score came from. HUMAN labels are what HEURISTIC and JUDGE scorers get
+// calibrated against; OUTCOME is the objective fact neither can argue with.
+enum ScoreSource {
+  HEURISTIC
+  DETERMINISTIC
+  HUMAN
+  JUDGE
+  OUTCOME
+}
+
+// One row per (subject, scorer, version). Replaces the pattern of hard-wiring each
+// computed signal as its own column on `sessions` with no scorer identity, no
+// version, and nowhere for a second scorer to disagree — which is what made
+// calibration impossible and every scorer change a bespoke backfill.
+//
+// `sessions.friction_score` / `shape_label` remain as a denormalized "current
+// value" cache so existing dashboards, facets and SQL are untouched; this table is
+// the history and the provenance.
+model Score {
+  id            String           @id @default(uuid()) @db.Uuid
+  subjectType   ScoreSubjectType @map("subject_type")
+  // Not an FK: subjects are heterogeneous (session uuid, skill name, mcp server
+  // name). Session-scoped rows are cleaned up explicitly by the deletion runner
+  // and the session-delete path.
+  subjectId     String           @map("subject_id")
+  scorerName    String           @map("scorer_name")
+  scorerVersion Int              @map("scorer_version")
+  source        ScoreSource
+  // Numeric scorers write `value`; categorical ones write `label`. Kept separate
+  // because calibration treats them differently (correlation vs confusion matrix).
+  value         Float?
+  label         String?
+  // Provenance only (baseline used, sample size, judge model). Never raw content.
+  metadata      Json             @default("{}")
+  // Pointer to a rationale artifact (e.g. an S3 key) — never inline text. Judge
+  // rationales derive from redacted transcripts and inherit their sensitivity.
+  rationaleRef  String?          @map("rationale_ref")
+  // Judge/eval spend, so the platform's own eval cost lands in its own dashboards.
+  costUsd       Decimal?         @map("cost_usd") @db.Decimal(12, 6)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Re-running a scorer at the same version is idempotent; bumping the version
+  // writes a new row rather than overwriting history.
+  @@unique([subjectType, subjectId, scorerName, scorerVersion])
+  // "All scores for this subject" — the session-detail and calibration read.
+  @@index([subjectType, subjectId])
+  // "This scorer over time" — the drift and validation-surface read.
+  @@index([scorerName, scorerVersion, createdAt(sort: Desc)])
+  @@map("scores")
+}
+
+// ── Projection registry (P13-006) ────────────────────────────────────────────
+
+// Every predictive claim the product makes — "route this and save $X", "you are
+// on pace for $Y this month" — is registered here at the moment it is rendered,
+// so it can be checked later. A claim made before a store existed can never be
+// checked, which is why the registry ships ahead of the analysis that consumes it.
+//
+// Deliberately *not* a `scores` row: a projection is about a **future period**,
+// and `scores` has no target period to hang that on. Reusing it would have meant
+// smuggling `period_start`/`period_end` through `metadata`, where nothing could
+// index or constrain them.
+//
+// `claim_type` is text, not an enum, because the claim registry lives in
+// `apps/web/src/lib/projections.ts` (the code that renders the claim owns its
+// definition) and adding a claim should not require a migration.
+model Projection {
+  id        String @id @default(uuid()) @db.Uuid
+  claimType String @map("claim_type")
+  // What the claim is about: a model id, a team slug, "org". Free-form for the
+  // same reason as claimType — the registry defines the vocabulary per claim.
+  segment   String
+  // A **range**, never a point estimate. Two columns rather than a value plus a
+  // margin so a degenerate range is impossible to express by omission.
+  projectedLow  Float @map("projected_low")
+  projectedHigh Float @map("projected_high")
+  // What the numbers are in ("usd"), so realization cannot compare unlike things.
+  unit          String
+  // What the projection was measured *from*, and over how long — realization
+  // needs the baseline to say whether anything actually moved.
+  baselineValue      Float @map("baseline_value")
+  baselineWindowDays Int   @map("baseline_window_days")
+  // The period the claim is about. Realization reads actuals from this window
+  // and refuses to compare until it has closed.
+  periodStart DateTime @map("period_start") @db.Timestamptz(6)
+  periodEnd   DateTime @map("period_end") @db.Timestamptz(6)
+  // Versions active at projection time, so the comparison replays apples-to-apples
+  // rather than measuring a price-table or scorer change as a result.
+  priceTableVersion String? @map("price_table_version")
+  scorerVersions    Json    @default("{}") @map("scorer_versions")
+  // Outcome-guard baselines (friction / tool-error / revert rate for this segment
+  // when the claim was made). Without these, a "win" that degraded outcomes reads
+  // as a clean win.
+  guardBaseline Json @default("{}") @map("guard_baseline")
+  metadata      Json @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // One projection per claim, segment and target period: rendering the same
+  // surface twice in a day must not accumulate duplicate claims, and re-render
+  // refreshes the estimate rather than stacking a second one beside it.
+  @@unique([claimType, segment, periodStart])
+  // "Recent projections of this claim" — the realization panel's read.
+  @@index([claimType, periodStart(sort: Desc)])
+  @@map("projections")
 }

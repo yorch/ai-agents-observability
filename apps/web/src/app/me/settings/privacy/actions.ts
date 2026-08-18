@@ -13,6 +13,7 @@ export const savePrivacySettings = withActionResult(async (formData) => {
   }
 
   await updateVisibilityPolicy(user.id, {
+    allowJudgeAnalysis: formData.get('allowJudgeAnalysis') === 'true',
     shareMetadataWithOrg: formData.get('shareMetadataWithOrg') === 'true',
     shareMetadataWithTeam: formData.get('shareMetadataWithTeam') === 'true',
     shareTranscriptsWithOrg: formData.get('shareTranscriptsWithOrg') === 'true',

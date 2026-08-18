@@ -1,5 +1,6 @@
 import { Prisma } from '@ai-agents-observability/db';
 import { getPrisma } from './prisma';
+import { INTERACTIVE_ONLY, interactiveOnly } from './run-kind';
 
 export type WeeklyShapeBucket = { shapeCounts: Record<string, number>; weekStart: string };
 
@@ -17,7 +18,8 @@ export async function getUserShapeTrend(userId: string, since: Date): Promise<We
         shape_label,
         COUNT(*) AS count
       FROM sessions
-      WHERE user_id = ${userId}::uuid
+      WHERE ${INTERACTIVE_ONLY}
+        AND user_id = ${userId}::uuid
         AND started_at >= ${since}
         AND shape_label IS NOT NULL
       GROUP BY date_trunc('week', started_at), shape_label
@@ -65,6 +67,7 @@ export async function getOrgCohortFriction(since: Date): Promise<CohortFrictionR
     WITH first_seen AS (
       SELECT user_id, to_char(date_trunc('month', MIN(started_at)), 'YYYY-MM') AS cohort_month
       FROM sessions
+      WHERE ${INTERACTIVE_ONLY}
       GROUP BY user_id
     )
     SELECT
@@ -76,7 +79,8 @@ export async function getOrgCohortFriction(since: Date): Promise<CohortFrictionR
     JOIN first_seen fs ON fs.user_id = s.user_id
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${since}
+    WHERE ${interactiveOnly('s')}
+      AND s.started_at >= ${since}
       AND COALESCE(vp.share_metadata_with_org, true) = true
     GROUP BY fs.cohort_month
     ORDER BY fs.cohort_month ASC

@@ -120,12 +120,35 @@ channel wires up only when `SMTP_HOST` and `SMTP_FROM` are both set
 ## Scheduled jobs
 
 `src/jobs/`, dispatched by `scheduler.ts` against the `job_config` table with runs
-recorded in `job_runs`: `sync-teams`, `sync-jira`, `sweep-abandoned`,
+recorded in `job_runs`. Registered: `sync-teams`, `sync-jira`, `sweep-abandoned`,
 `sweep-scratch`, `run-deletions`, `sweep-retention`, `index-transcripts`,
-`compute-effectiveness`, `compute-effectiveness-backfill`, `evaluate-alerts`,
-`backfill-redaction`, `reconcile-cost`, and `reprice-events` /
-`reprice-events-apply`. (`alert-transition` and `anthropic-billing-source` are
-collaborators, not scheduled entries.)
+`compute-effectiveness`, `compute-effectiveness-backfill`,
+`compute-trajectory-scores`, `compute-subject-scores`, `evaluate-alerts`,
+`backfill-redaction`, `reconcile-cost`, `reprice-events` /
+`reprice-events-apply`, and `judge-sessions`. (`alert-transition` and
+`anthropic-billing-source` are collaborators, not scheduled entries.)
+
+**`judge-sessions` is the one job that reads conversation content with a model**
+(P13-009), and it is off in three independent ways: seeded `enabled = false`,
+wired only when `JUDGE_ANTHROPIC_API_KEY` **and** `JUDGE_OPERATOR_USER_ID` are
+both set, and restricted to sessions whose owner set `allow_judge_analysis`.
+The own-sessions restriction is a **code constant** (`JUDGE_OWN_SESSIONS_ONLY`),
+not an env var, so no deployment configuration can aim it at a third party —
+lifting it is [`P13-011`](../../tasks/P13-011-arm-judge-for-other-users.md).
+Both guards are re-evaluated immediately before each fetch, every read writes an
+`AuditLog` row visible to the subject, and the judge is sent no tools. If you
+touch this job, keep those properties: `test/judge-sessions.test.ts` asserts
+that removing either guard alone still blocks a third party's transcript.
+
+**Scorer jobs write `scores` rows, never `sessions` columns** — except
+`compute-effectiveness`, which predates the substrate and still maintains the
+denormalized `friction_score` / `shape_label` cache alongside its score rows.
+Their idempotency comes from the upsert on
+`(subject_type, subject_id, scorer_name, scorer_version)`, so re-running one is
+free; bumping a scorer version in `packages/schemas/src/scores.ts` and triggering
+`rescore-effectiveness` / `rescore-trajectory` re-scores history without a
+bespoke backfill job. Those two rescore entries are operator-triggered only and
+deliberately absent from `CONFIGURABLE_JOBS`.
 
 **Wrap new jobs in `withJobRun()`** (`src/jobs/job-run.ts`). It takes
 `pg_try_advisory_lock(hashtext('job:<name>'))`, skips the run with a warning if it

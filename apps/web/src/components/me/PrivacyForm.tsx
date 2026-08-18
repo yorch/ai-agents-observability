@@ -46,6 +46,7 @@ function ToggleRow({
 }
 
 type InitialPolicy = {
+  allowJudgeAnalysis: boolean;
   shareMetadataWithOrg: boolean;
   shareMetadataWithTeam: boolean;
   shareTranscriptsWithOrg: boolean;
@@ -55,6 +56,7 @@ type InitialPolicy = {
 export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | null }) {
   const { error, isPending, reset, run, saved } = useActionResult();
   const [policy, setPolicy] = useState<InitialPolicy>({
+    allowJudgeAnalysis: initialPolicy?.allowJudgeAnalysis ?? false,
     shareMetadataWithOrg: initialPolicy?.shareMetadataWithOrg ?? true,
     shareMetadataWithTeam: initialPolicy?.shareMetadataWithTeam ?? true,
     shareTranscriptsWithOrg: initialPolicy?.shareTranscriptsWithOrg ?? false,
@@ -89,6 +91,16 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
       name: 'shareTranscriptsWithOrg',
       value: policy.shareTranscriptsWithOrg,
     },
+    // P13-009. Deliberately its own consent rather than an implication of the
+    // sharing toggles above: an automated reader is a different question from a
+    // human one, and the results are visible only to you either way.
+    {
+      description:
+        'Allow an automated evaluator to read your transcripts and label your sessions. Results are visible only to you, and every read appears in your audit log.',
+      label: 'Allow automated session evaluation',
+      name: 'allowJudgeAnalysis',
+      value: policy.allowJudgeAnalysis,
+    },
   ];
 
   function handleToggle(name: string, value: boolean) {
@@ -102,6 +114,7 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
     formData.set('shareMetadataWithOrg', policy.shareMetadataWithOrg.toString());
     formData.set('shareTranscriptsWithTeam', policy.shareTranscriptsWithTeam.toString());
     formData.set('shareTranscriptsWithOrg', policy.shareTranscriptsWithOrg.toString());
+    formData.set('allowJudgeAnalysis', policy.allowJudgeAnalysis.toString());
 
     run(() => savePrivacySettings(formData));
   }

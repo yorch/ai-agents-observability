@@ -25,8 +25,15 @@ services needing the same schema state, migrate-on-boot in each would race.
 | 1. Relational | `prisma/migrations/20260625075457_init/` | `prisma migrate deploy` | Everything Prisma models |
 | 2. Custom SQL | `sql/migrations/NNNN_*.sql` | `applySqlMigrations()` (`src/sql-migrate.ts`) | Everything it can't |
 
-Layer 2 runs **after** layer 1, in filename order, and each file must be idempotent
-(`IF NOT EXISTS`, `CREATE OR REPLACE`) — it re-runs on every stack boot.
+Layer 2 runs **after** layer 1, in filename order. Each file runs **once**:
+`applySqlMigrations()` tracks applied filenames in `_db_sql_migrations` and skips
+any file already recorded there, so a file does not re-run on later boots.
+Files still use `IF NOT EXISTS` / `CREATE OR REPLACE` as belt-and-braces for a
+half-applied file (a crash mid-transaction), not because the file is expected to
+run twice — don't rely on "it'll just re-apply" reasoning when writing one, and
+never clear `_db_sql_migrations` to force a re-run: `0008`'s
+`DROP MATERIALIZED VIEW ... CASCADE` would destroy continuous-aggregate history
+a second time.
 
 ## The drift trap — read this before touching `schema.prisma`
 
@@ -60,6 +67,15 @@ Current files, as a sense of the range:
 - `0003` — `ALTER TABLE events` + partial index (hypertable, not Prisma-managed)
 - `0005` — redefines two continuous aggregates in place (DROP + CREATE, `WITH NO DATA`
   plus a policy; a cagg refresh cannot run inside the migration transaction)
+- `0007`, `0009` — more `ALTER TABLE events ADD COLUMN IF NOT EXISTS` + partial indexes
+  (`run_kind`, then `tool_target_hash`/`tool_action` for the trajectory scorers)
+- `0008` — redefines all three continuous aggregates to add a `run_kind = 'INTERACTIVE'`
+  filter, same DROP + CREATE pattern as `0005`. **Operator note:** unlike the other two
+  views, `daily_cost_by_user` is read by `apps/web/src/lib/org-queries.ts`, so the DROP
+  discards materialized cost history older than the cagg policy's 32-day window. See the
+  migration's header comment and
+  [`docs/runbooks/cagg-cost-history-gap.md`](../../docs/runbooks/cagg-cost-history-gap.md)
+  for the required post-deploy `refresh_continuous_aggregate` step.
 
 `sql/prototypes/` is **not applied by anything** — `prototype_semantic_search.sql` is
 the gated pgvector spike declined in P7-007. Leave it out of the numbered sequence.

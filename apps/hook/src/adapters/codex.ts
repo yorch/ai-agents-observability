@@ -140,6 +140,11 @@ function toolInfo(call: {
 }): ToolInfo {
   const isMcp = call.name.startsWith('mcp__');
   return {
+    // codex's rollout file records only byte counts for a tool call, not its
+    // arguments, so no target or command is derivable here (P13-003). Null is
+    // the honest answer: the trajectory scorers exclude unobservable calls
+    // rather than bucketing them together and inventing repeats.
+    action: null,
     category: isMcp ? 'mcp' : 'builtin',
     duration_ms: 0,
     exit_status: null,
@@ -152,6 +157,7 @@ function toolInfo(call: {
     skill: null,
     slash_command: null,
     subagent_type: null,
+    target_hash: null,
     was_denied: call.wasDenied,
     was_interrupted: false,
   };

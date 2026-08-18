@@ -1,8 +1,10 @@
 import { McpServerCard } from '@/components/team-org/McpServerCard';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { EmptyState, Stat } from '@/components/ui';
-import { getMcpServerDetails, type McpServerDetailRow } from '@/lib/org-queries';
+import { SubjectQualityPanel } from '@/components/team-org/SubjectQualityPanel';
+import { Card, Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
+import { getMcpServerDetails, type McpServerDetailRow, orgVisibleUserIds } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
+import { getMcpFailureSplit, getMcpQuality } from '@/lib/subject-quality-queries';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +18,12 @@ export default async function OrgMcpPage({
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
-  const details = await getMcpServerDetails(since);
+  const visibleIds = await orgVisibleUserIds(since);
+  const [details, quality, failureSplit] = await Promise.all([
+    getMcpServerDetails(since),
+    getMcpQuality(visibleIds, since),
+    getMcpFailureSplit(visibleIds, since),
+  ]);
 
   // Group rows by server, computing server-level aggregates
   type ServerEntry = {
@@ -93,6 +100,53 @@ export default async function OrgMcpPage({
           value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
         />
       </div>
+
+      <SubjectQualityPanel
+        caption={`How sessions that used each server compare with matched sessions that did not, over the trailing ${range} days.`}
+        rows={quality}
+        subjectNoun="MCP server"
+        title="Effectiveness"
+      />
+
+      {failureSplit.length > 0 && (
+        <Card
+          caption="A non-zero exit that returned no payload at all did not reach a tool — that is the server. One that returned a payload is the tool's own error. The two need different owners, so they are never summed into one rate."
+          flush
+          title="Failure attribution"
+        >
+          <div className="px-4 pb-4">
+            <Table
+              columns={[
+                { label: 'Server' },
+                { align: 'right', label: 'Calls', mono: true },
+                { align: 'right', label: 'Server unavailable', mono: true },
+                { align: 'right', label: 'Tool returned error', mono: true },
+                { align: 'right', label: 'p95 duration', mono: true },
+              ]}
+            >
+              {failureSplit.map((r) => (
+                <Row key={r.mcpServer}>
+                  <Cell>
+                    <span className="font-mono text-text">{r.mcpServer}</span>
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {r.calls.toLocaleString()}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {r.unavailable.toLocaleString()}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {r.toolErrors.toLocaleString()}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {r.p95DurationMs === null ? '—' : `${r.p95DurationMs} ms`}
+                  </Cell>
+                </Row>
+              ))}
+            </Table>
+          </div>
+        </Card>
+      )}
 
       {servers.length === 0 ? (
         <EmptyState>No MCP usage recorded in the last {range} days.</EmptyState>

@@ -30,6 +30,10 @@ vi.mock('@ai-agents-observability/db', () => ({
       }),
     },
   })),
+  Prisma: {
+    empty: { strings: [''], values: [] },
+    sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+  },
 }));
 
 vi.mock('@ai-agents-observability/auth', () => ({

@@ -20,6 +20,9 @@ const DATE_OPTIONS = [
 // lowercase copy here once made the filter silently never apply.
 const ACTION_LABELS: Record<string, string> = {
   EXPORT_TEAM: 'Team export',
+  // P13-009: the judge is a privileged reader like any other, and the subject
+  // can filter its reads out of the feed the same way.
+  JUDGE_READ_TRANSCRIPT: 'Automated evaluation',
   VIEW_SESSION: 'Viewed session',
   VIEW_TRANSCRIPT: 'Viewed transcript',
 };

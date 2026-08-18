@@ -1,8 +1,13 @@
 import Link from 'next/link';
 import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import {
+  DeprecationCandidates,
+  SubjectQualityPanel,
+} from '@/components/team-org/SubjectQualityPanel';
 import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
+import { getDeprecationCandidates, getSkillQuality } from '@/lib/subject-quality-queries';
 import {
   getTeamDailySkillVolume,
   getTeamSkillAdoptionFunnel,
@@ -28,10 +33,15 @@ export default async function TeamSkillsPage({
   const since = daysAgo(range);
 
   const { visibleIds } = await resolveTeamVisibility(teamId);
-  const [skills, funnel, trend] = await Promise.all([
+  const [skills, funnel, trend, quality, deprecation] = await Promise.all([
     getTeamSkillUsage(visibleIds, since),
     getTeamSkillAdoptionFunnel(visibleIds, since),
     getTeamDailySkillVolume(visibleIds, since),
+    // The same component as /org/skills, scoped to the team's visible members —
+    // the panel inherits its volume gates, so a small team simply reads
+    // "not yet measurable" rather than getting a noisier version of the claim.
+    getSkillQuality(visibleIds, since),
+    getDeprecationCandidates(visibleIds, since),
   ]);
 
   const totalInvocations = skills.reduce((s, r) => s + r.callCount, 0);
@@ -53,6 +63,15 @@ export default async function TeamSkillsPage({
       </div>
 
       <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />
+
+      <SubjectQualityPanel
+        caption={`How sessions that invoked each skill compare with matched sessions that did not, over the trailing ${range} days.`}
+        rows={quality}
+        subjectNoun="Skill"
+        title="Effectiveness"
+      />
+
+      <DeprecationCandidates candidates={deprecation} windowDays={range} />
 
       {skills.length > 0 ? (
         <Card>

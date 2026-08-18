@@ -4,7 +4,10 @@ import {
   type Event,
   extractJiraKeyFromSources,
   type GitContext,
+  mergeRunKind,
   type PermissionMode,
+  type RunKindDb,
+  runKindToDbEnum,
 } from '@ai-agents-observability/schemas';
 
 import { computeCostUsd } from './cost';
@@ -12,6 +15,9 @@ import type { PriceTableRegistry } from './price-tables';
 
 type RawDb = {
   $executeRaw: (query: Prisma.Sql) => Promise<number>;
+  // Only used by the run_kind escalation probe below, which runs at most once
+  // per batch and only for a batch carrying a non-interactive claim.
+  $queryRaw: <T>(query: Prisma.Sql) => Promise<T>;
 };
 
 // Builds a SQL CASE that ranks a `mode` column by autonomy, derived from
@@ -44,6 +50,9 @@ type SessionAgg = {
   jiraKey: string | null;
   lastTs: Date;
   mode: string | null;
+  // P13-002. Merged across the batch's events by `mergeRunKind`: the first
+  // explicit non-interactive claim wins and is sticky. Absent means INTERACTIVE.
+  runKind: RunKindDb;
   notificationCount: number;
   os: string | null;
   permissionDenyCount: number;
@@ -103,6 +112,7 @@ function emptyAgg(sessionId: string, userId: string, event: Event): SessionAgg {
     projectName: event.session_context.project_name ?? null,
     prReviewDecision: event.session_context.git?.pr_review_decision ?? null,
     repoId: null,
+    runKind: runKindToDbEnum(event.session_context.run_kind),
     sessionId,
     teamId: null,
     toolCallCount: 0,
@@ -149,6 +159,12 @@ function applyEvent(agg: SessionAgg, event: Event, priceTables: PriceTableRegist
       agg.primaryModel = event.llm.model;
     }
   }
+
+  // A session's run_kind is a property of the whole session, but only some of its
+  // events may carry the claim (a SessionStart emitted before CI-environment
+  // detection resolves, say). Fold every event's value in rather than trusting
+  // whichever one happened to arrive first in the batch.
+  agg.runKind = mergeRunKind(agg.runKind, runKindToDbEnum(event.session_context.run_kind));
 
   // Track the least-supervised (most autonomous) mode the session ever ran in.
   const evMode = event.session_context.mode;
@@ -286,6 +302,7 @@ export async function upsertSessions(
       ${a.projectName},
       ${a.jiraKey},
       ${a.mode},
+      ${a.runKind}::"RunKind",
       ${a.totalInputTokens},
       ${a.totalOutputTokens},
       ${a.totalCacheRead},
@@ -302,6 +319,31 @@ export async function upsertSessions(
     )`,
   );
 
+  // P13-002 reconciliation, step 1 of 2 — read *before* the upsert, because what
+  // matters is whether this batch is the moment the persisted value changes.
+  //
+  // A batch carrying a CI/EVAL claim is not itself news: for a long CI session
+  // every batch after the first carries the same claim, and the session's
+  // run_kind has been correct since that first one. Only the transition needs a
+  // fixup, so this asks which of the claimed sessions are *already* recorded as
+  // non-interactive; those are skipped below. A session with no row yet counts
+  // as a transition — this batch's own events may have been written with the
+  // wire default before the claim was merged.
+  const claiming = Array.from(bySession.values()).filter((a) => a.runKind !== 'INTERACTIVE');
+  const alreadyEscalated = new Set<string>();
+  if (claiming.length > 0) {
+    const claimedIds = Prisma.join(claiming.map((a) => Prisma.sql`${a.sessionId}::uuid`));
+    const settled = await db.$queryRaw<{ session_id: string }[]>(Prisma.sql`
+      SELECT session_id::text AS session_id
+      FROM sessions
+      WHERE session_id IN (${claimedIds})
+        AND run_kind <> 'INTERACTIVE'::"RunKind"
+    `);
+    for (const row of settled) {
+      alreadyEscalated.add(row.session_id);
+    }
+  }
+
   const affected = await db.$executeRaw(Prisma.sql`
     INSERT INTO sessions (
       session_id, user_id, agent_type,
@@ -310,7 +352,7 @@ export async function upsertSessions(
       host_hash, claude_code_version, os, cwd, repo_id,
       git_branch, git_commit, git_remote_url, git_is_dirty, pr_number,
       pr_ci_status, pr_review_decision,
-      github_login, github_team, team_id, project_name, jira_key, mode,
+      github_login, github_team, team_id, project_name, jira_key, mode, run_kind,
       total_input_tokens, total_output_tokens, total_cache_read, total_cache_creation,
       total_cost_usd, tool_call_count, tool_error_count,
       permission_prompt_count, permission_deny_count, interrupt_count,
@@ -353,8 +395,48 @@ export async function upsertSessions(
       github_team          = COALESCE(sessions.github_team, EXCLUDED.github_team),
       team_id              = COALESCE(sessions.team_id, EXCLUDED.team_id),
       project_name         = COALESCE(sessions.project_name, EXCLUDED.project_name),
-      jira_key             = COALESCE(sessions.jira_key, EXCLUDED.jira_key)
+      jira_key             = COALESCE(sessions.jira_key, EXCLUDED.jira_key),
+      -- P13-002 merge rule, mirroring mergeRunKind() in packages/schemas. run_kind
+      -- was previously in the INSERT list but absent here, so the very first batch
+      -- pinned it forever: a session whose SessionStart landed before CI detection
+      -- resolved stayed INTERACTIVE while every one of its events said CI, and it
+      -- counted toward that user's cost and session totals for good.
+      -- INTERACTIVE is the wire default, so it is the only value safe to overwrite;
+      -- an explicit CI/EVAL claim is sticky and a later defaulted INTERACTIVE must
+      -- never promote a pipeline run back into the human aggregates.
+      run_kind             = CASE
+                               WHEN sessions.run_kind = 'INTERACTIVE'::"RunKind"
+                                 THEN EXCLUDED.run_kind
+                               ELSE sessions.run_kind
+                             END
   `);
+
+  // Step 2 of 2. Keep events.run_kind (denormalized at ingest, and read without a
+  // sessions join on most paths) in step with the row above. Only the escalating
+  // case can disagree — events already written as a defaulted INTERACTIVE before
+  // the claim arrived — so this runs only for sessions that just *became*
+  // non-interactive, and touches only rows that actually differ. Bounded by the
+  // session's own time span so the hypertable can exclude chunks rather than
+  // scanning every one.
+  //
+  // Gating on the transition rather than on "this batch is non-interactive" is
+  // what keeps a long CI session cheap: the window this statement scans grows
+  // with the session, so re-running it per batch cost roughly O(n²) in the
+  // session's own event count to re-confirm rows that were already correct.
+  const escalated = claiming.filter((a) => !alreadyEscalated.has(a.sessionId));
+  if (escalated.length > 0) {
+    const ids = Prisma.join(escalated.map((a) => Prisma.sql`${a.sessionId}::uuid`));
+    await db.$executeRaw(Prisma.sql`
+      UPDATE events e
+      SET run_kind = s.run_kind
+      FROM sessions s
+      WHERE s.session_id = e.session_id
+        AND e.session_id IN (${ids})
+        AND e.ts >= s.started_at
+        AND e.ts <= s.last_event_at
+        AND e.run_kind IS DISTINCT FROM s.run_kind
+    `);
+  }
 
   return { sessionsTouched: affected };
 }

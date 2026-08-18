@@ -49,6 +49,10 @@ vi.mock('@ai-agents-observability/db', () => ({
     ORG_ADMIN: 'ORG_ADMIN',
     VIEWER_AGGREGATE: 'VIEWER_AGGREGATE',
   },
+  Prisma: {
+    empty: { strings: [''], values: [] },
+    sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+  },
   TeamRole: { LEAD: 'LEAD', MAINTAINER: 'MAINTAINER', MEMBER: 'MEMBER' },
 }));
 

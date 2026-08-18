@@ -255,3 +255,46 @@ See [`P12-roadmap.md`](./P12-roadmap.md). Takes the P8 seam from three agents to
 | [P12-010](./P12-010-price-table-refresh.md) | Price-table refresh + provider-correct token accounting | done | claude | S | P8-002, P12-001, P12-004, P12-005 |
 | [P12-011](./P12-011-reprice-history-and-unpriced-visibility.md) | Reprice historical cost + unpriced-model visibility | done | claude | M | P8-002, P8-006, P9-001, P12-010 |
 | [P12-012](./P12-012-generate-provider-agnostic-price-tables.md) | Generate the provider-agnostic price tables from models.dev | done | claude | M | P12-010, P12-011 |
+
+---
+
+## Phase 13 — Scoring & Evaluation
+
+See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance and a version, adds scorers that need no content access, captures human labels, and — once real data exists — validates the heuristics that already ship (`friction_score`, `shape_label`) against real outcomes. Decomposed from [`docs/research/2026-08-12-llm-evals-assessment.md`](../docs/research/2026-08-12-llm-evals-assessment.md) after the owner resolved its first open question: evaluating real sessions against real outcomes is a goal. **Proposed.**
+
+> **Sequenced against seed-only data.** No rollout has happened; the corpus is seed and dev data, and a real rollout is intended but unscheduled. Tasks are therefore placed by two rules: build only what pays off regardless of whether rollout happens, and prefer what gets more expensive with time. Tasks marked *blocked (DP-1)* wait on the data precondition defined once in [`P13-roadmap.md`](./P13-roadmap.md) — ≥10 real users over ≥60 days, ≥200 labelled sessions, ≥100 outcome-linked PRs. They unblock themselves when the corpus arrives; no decision is needed.
+
+### Workstream A — Substrate
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P13-001](./P13-001-scores-substrate.md) | Generic versioned scores table | review | claude | M | — |
+| [P13-002](./P13-002-run-kind-dimension.md) | `run_kind` dimension (interactive / ci / eval) | review | claude | S | — |
+
+### Workstream B — Deterministic scorers
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P13-003](./P13-003-deterministic-trajectory-scorers.md) | Deterministic trajectory scorers | review | claude | M | P13-001 |
+| [P13-004](./P13-004-skill-mcp-effectiveness.md) | Skill & MCP effectiveness scoring | review | claude | M | P13-001, P13-003 |
+
+### Workstream C — Capture & validation
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P13-005](./P13-005-session-label-capture.md) | Session label capture (versioned rubric) | review | claude | M | P13-001 |
+| [P13-006](./P13-006-projection-validation-pattern.md) | Projection registry + realization (generalizes P10-006) | review | claude | M | P13-001 |
+| [P13-007](./P13-007-scorer-calibration-analysis.md) | Scorer calibration analysis | blocked (DP-1) | — | M | P13-001, P13-005 |
+| [P13-008](./P13-008-scorer-validation-surface.md) | Scorer validation surface | blocked (DP-1) | — | M | P13-001, P13-007 |
+
+### Workstream D — Judge
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P13-009](./P13-009-judge-runner-guardrails.md) | Judge runner + guardrails (own transcripts only) | review | claude | L | P13-001 |
+| [P13-010](./P13-010-judge-calibration-drift.md) | Judge calibration + drift alerting | blocked (DP-1) | — | M | P13-005, P13-007, P13-009 |
+| [P13-011](./P13-011-arm-judge-for-other-users.md) | Arm the judge for other users' transcripts | blocked | — | S | P13-007, P13-009, P13-010 |
+
+> **Workstream D is split, not deferred.** The runner and every guardrail (consent gating, audit writes, owner-only display, versioned prompt registry, cost recording) are built now and exercised against the operator's own sessions — those are the things that never get retrofitted. The irreversible act, pointing the judge at another person's transcript, is isolated in [`P13-011`](./P13-011-arm-judge-for-other-users.md) behind a calibrated judge **and** an explicit owner decision taken with developers consulted in advance.
+>
+> **Overlap with `P10-006` — needs an owner call.** [`P13-006`](./P13-006-projection-validation-pattern.md) ships the projected-vs-realized check as a general mechanism (projection registry, pure realization function, outcome guard, volume gating) and applies it to the `/org/models` routing recommendations that [`P10-006`](./P10-006-recommendation-validation-loop.md) specifies. This branch originally marked P10-006 cancelled-as-superseded; that was written when P10 was `ready`. Phase 10 is now `done` here, so the claim is withdrawn rather than re-asserted over the trunk. Note the state is inconsistent independently of this branch: the row above says `done`, `P10-006-recommendation-validation-loop.md` still carries `status: ready`, and no `model_policy` table or routing-projection code is present. Whoever reconciles Phase 10 should decide whether P10-006 is satisfied by P13-006 or is still outstanding.
