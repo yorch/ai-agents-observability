@@ -67,12 +67,13 @@ The seed script creates 24 such rows.
       computed `shape_label`, and the outcome question must not show
       `friction_score`, or the labels become a measure of the scorer rather than an
       independent check of it. This is verified in the UI, not just intended.
-- [ ] **Not verifiable — blocked by a pre-existing seed bug.** The rubric fixtures are
-      written, but `seedGovernance()` produces nothing on a freshly seeded database:
-      `session_feedback`, `audit_log`, `access_grants` and `deletion_requests` all come
-      back empty, and the seed still exits 0. Confirmed against a virgin Postgres, and
-      the call site is untouched by this phase — it reproduces on `origin/main`. Filed
-      separately; the rubric seeding cannot be demonstrated until it is fixed.
+- [x] Seed data produces rubric-labelled sessions across shapes and outcome values so
+      the downstream surfaces can be developed against something. Verified on a virgin
+      database with `bun run db:seed:extensive`: 15 `session_feedback` rows, 11 of them
+      answering rubric v1, and 22 `HUMAN` score rows. Note the governance fixtures
+      (feedback, audit log, access grants, deletion requests) live in the **extensive**
+      seed path only — the default `bun run db:seed` does not create them, which is
+      pre-existing placement, not a defect.
 
 ## Implementation notes
 
