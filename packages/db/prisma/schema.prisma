@@ -48,6 +48,7 @@ enum AuditAction {
   GRANT_REVOKED
   ALERT_ACKNOWLEDGED
   ALERT_SILENCED
+  MODEL_POLICY_CHANGED
 }
 
 enum GrantScope {
@@ -685,27 +686,54 @@ model AlertDeliveryLog {
 // P10-006 projection store: recommendation snapshots emitted by /org/models,
 // later compared against realized outcomes for the following period.
 model RoutingRecommendationProjection {
-  id                        BigInt   @id @default(autoincrement())
-  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  windowStart               DateTime @map("window_start") @db.Timestamptz(6)
-  windowEnd                 DateTime @map("window_end") @db.Timestamptz(6)
-  rangeDays                 Int      @map("range_days")
-  model                     String
-  cheapCategories           String[] @map("cheap_categories")
-  cheapCategoryCalls        Int      @map("cheap_category_calls")
-  cheapCategorySpendUsd     Decimal  @map("cheap_category_spend_usd") @db.Decimal(12, 6)
-  savingsRatio              Decimal  @map("savings_ratio") @db.Decimal(8, 6)
-  projectedMonthlySavingUsd Decimal  @map("projected_monthly_saving_usd") @db.Decimal(12, 6)
-  projectedPeriodSavingUsd  Decimal  @map("projected_period_saving_usd") @db.Decimal(12, 6)
-  pricePrecise              Boolean  @default(false) @map("price_precise")
+  id                    BigInt   @id @default(autoincrement())
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  windowStart           DateTime @map("window_start") @db.Timestamptz(6)
+  windowEnd             DateTime @map("window_end") @db.Timestamptz(6)
+  rangeDays             Int      @map("range_days")
+  // Projections are per-agent: the same model id under two agents prices from
+  // two different tables, so they are two different projections.
+  agentType             String   @map("agent_type")
+  model                 String
+  cheapCategories       String[] @map("cheap_categories")
+  cheapCategoryCalls    Int      @map("cheap_category_calls")
+  cheapCategorySpendUsd Decimal  @map("cheap_category_spend_usd") @db.Decimal(12, 6)
+  // Savings are a RANGE, so both bounds are persisted. Storing a midpoint would
+  // discard exactly the uncertainty the range exists to express, and the
+  // validation loop could then never say "realized landed inside the range".
+  savingsRatioLow       Decimal  @map("savings_ratio_low") @db.Decimal(8, 6)
+  savingsRatioHigh      Decimal  @map("savings_ratio_high") @db.Decimal(8, 6)
+  projectedSavingLowUsd Decimal  @map("projected_saving_low_usd") @db.Decimal(12, 6)
+  projectedSavingHighUsd Decimal @map("projected_saving_high_usd") @db.Decimal(12, 6)
 
   // Constraint names are pinned rather than left to Prisma's derive-and-truncate
   // rule: the derived names for this table would run past Postgres' 63-char
   // identifier limit and get silently shortened, and the init migration has to
   // match them by hand.
-  @@unique([windowStart, windowEnd, rangeDays, model], map: "routing_recommendation_window_model_uniq")
+  @@unique([windowStart, windowEnd, rangeDays, agentType, model], map: "routing_recommendation_window_model_uniq")
   @@index([createdAt(sort: Desc)], map: "routing_recommendation_created_idx")
   @@index([rangeDays, windowEnd(sort: Desc)], map: "routing_recommendation_range_window_idx")
   @@map("routing_recommendation_projections")
+}
+
+
+// P10-002 model policy: one row per agent_type carrying the org's overrides on
+// top of the tiers derived from that agent's price table (see
+// packages/schemas/src/model-policy.ts). Both the /org/models recommendations
+// and the ingest disallowed_model alert resolve against this, so "premium" and
+// "allowed" have exactly one definition.
+model ModelPolicy {
+  agentType       AgentType @id @map("agent_type")
+  // Empty means no allow-list configured — every model is allowed. It must
+  // never read as "deny everything", or an untouched policy would alert on
+  // every session.
+  allowedModels   String[]  @map("allowed_models")
+  cheapCategories String[]  @map("cheap_categories")
+  // model id -> ModelTier. Overrides the price-derived tier for that model only.
+  tierOverrides   Json      @default("{}") @map("tier_overrides")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedByUserId String?   @map("updated_by_user_id") @db.Uuid
+
+  @@map("model_policy")
 }

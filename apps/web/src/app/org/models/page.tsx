@@ -1,25 +1,26 @@
+import {
+  type ModelPolicySnapshot,
+  type ModelTier,
+  resolveModelTier,
+} from '@ai-agents-observability/schemas';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
 import { Badge, type BadgeTone, Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
 import { fmtTokens, fmtUsd } from '@/lib/fmt';
+import { getModelPolicies } from '@/lib/model-policy';
 import {
   getOrgModelDetail,
   getOrgModelRoutingBreakdown,
   getRoutingSpendByTeam,
 } from '@/lib/org-queries';
-import { getModelInputPrices } from '@/lib/price-client';
 import { requireOrgViewer } from '@/lib/roles';
 import {
   getRoutingRecommendationValidationRows,
   persistRoutingRecommendationProjections,
   type RoutingValidationRow,
 } from '@/lib/routing-analysis';
-import {
-  buildSavingsRatioResolver,
-  computeRoutingRecommendations,
-  PREMIUM_PATTERN,
-} from '@/lib/routing-queries';
+import { computeRoutingRecommendations } from '@/lib/routing-queries';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
 
@@ -27,15 +28,24 @@ function startOfUtcDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
-function modelTier(model: string): 'economy' | 'premium' | 'standard' {
-  const lower = model.toLowerCase();
-  if (lower.includes(PREMIUM_PATTERN)) {
-    return 'premium';
+/**
+ * The spend-by-model table is not grouped by agent, so a model id could in
+ * principle be tiered differently under two agents. Report a tier only when
+ * every agent that prices it agrees; otherwise show none rather than pick one
+ * arbitrarily.
+ */
+function tierAcrossAgents(
+  policies: Map<string, ModelPolicySnapshot>,
+  model: string,
+): ModelTier | null {
+  const seen = new Set<ModelTier>();
+  for (const policy of policies.values()) {
+    const tier = resolveModelTier(policy, model);
+    if (tier) {
+      seen.add(tier);
+    }
   }
-  if (lower.includes('haiku')) {
-    return 'economy';
-  }
-  return 'standard';
+  return seen.size === 1 ? ([...seen][0] as ModelTier) : null;
 }
 
 function cacheEfficiencyClass(rate: number): string {
@@ -58,17 +68,31 @@ export default async function OrgModelsPage({
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const now = new Date();
+  // Two constraints pull against each other here, and both are satisfied by
+  // aligning the MEASUREMENT window rather than only the stamp:
+  //   1. The projection must be stamped with the window its numbers actually
+  //      came from. Stamping a day-aligned window while measuring a rolling one
+  //      made the baseline and realized windows overlap, double-counting events.
+  //   2. The upsert key is (window_start, window_end, range_days, agent, model).
+  //      Millisecond-precision bounds move on every request, so ON CONFLICT
+  //      could never fire and every page view would insert duplicate rows.
+  // A UTC-day grain gives a stable key AND a window with no overlap.
   const projectionWindowEnd = startOfUtcDay(now);
   const projectionWindowStart = new Date(
     projectionWindowEnd.getTime() - range * 24 * 60 * 60 * 1000,
   );
+  // Display-only figures keep the rolling window; only the projected routing
+  // numbers need the stable grain.
   const since = daysAgo(range);
-  const [models, routing, modelPrices, routingByTeam] = await Promise.all([
+  const [models, routing] = await Promise.all([
     getOrgModelDetail(since),
-    getOrgModelRoutingBreakdown(since),
-    getModelInputPrices(),
-    getRoutingSpendByTeam(since),
+    getOrgModelRoutingBreakdown(projectionWindowStart, projectionWindowEnd),
   ]);
+
+  // Resolve policy once per agent that actually has routing spend, then reuse it
+  // for the recommendations, the team accountability table, and tier labels.
+  const policies = await getModelPolicies(routing.map((r) => r.agentType));
+  const routingByTeam = await getRoutingSpendByTeam(since, policies);
 
   const totalCostUsd = models.reduce((s, m) => s + m.totalCostUsd, 0);
   const totalInput = models.reduce((s, m) => s + m.inputTokens + m.cacheReadTokens, 0);
@@ -80,17 +104,14 @@ export default async function OrgModelsPage({
   const avgInputCostPerToken = totalInput > 0 ? totalCostUsd / totalInput : 0;
   const estimatedCacheSavings = totalCacheRead * 0.9 * avgInputCostPerToken;
 
-  // Price-derived per-model savings ratio when the ingest price table is
-  // reachable; falls back to the flat heuristic when INGEST_URL is unset.
-  const savingsRatioFor = buildSavingsRatioResolver(modelPrices);
-  // Only claim price-precision when the table actually yielded usable rates — an
-  // empty map falls back to the flat heuristic inside buildSavingsRatioResolver.
-  const pricePrecise = modelPrices !== null && Object.keys(modelPrices).length > 0;
-  const { estimatedMonthlySaving: estimatedMonthlyRoutingSaving, recommendations: routingRecs } =
-    computeRoutingRecommendations(routing, range, savingsRatioFor);
+  const {
+    estimatedMonthlySavingHigh,
+    estimatedMonthlySavingLow,
+    recommendations: routingRecs,
+    unpricedModels,
+  } = computeRoutingRecommendations(routing, range, policies);
 
   await persistRoutingRecommendationProjections({
-    pricePrecise,
     rangeDays: range,
     recommendations: routingRecs,
     windowEnd: projectionWindowEnd,
@@ -137,9 +158,10 @@ export default async function OrgModelsPage({
         <>
           {/* Routing recommendations */}
           <RoutingRecommendations
-            estimatedMonthlySaving={estimatedMonthlyRoutingSaving}
-            pricePrecise={pricePrecise}
+            estimatedMonthlySavingHigh={estimatedMonthlySavingHigh}
+            estimatedMonthlySavingLow={estimatedMonthlySavingLow}
             recommendations={routingRecs}
+            unpricedModels={unpricedModels}
           />
 
           <RoutingValidationPanel rows={validationRows} />
@@ -166,7 +188,7 @@ export default async function OrgModelsPage({
               ]}
             >
               {models.map((m) => {
-                const tier = modelTier(m.model);
+                const tier = tierAcrossAgents(policies, m.model);
                 const costPct = totalCostUsd > 0 ? (m.totalCostUsd / totalCostUsd) * 100 : 0;
                 return (
                   <Row key={m.model}>
@@ -233,7 +255,10 @@ export default async function OrgModelsPage({
   );
 }
 
-function TierBadge({ tier }: { tier: 'economy' | 'premium' | 'standard' }) {
+function TierBadge({ tier }: { tier: ModelTier | null }) {
+  if (tier === null) {
+    return <span className="text-text-3">—</span>;
+  }
   if (tier === 'premium') {
     return (
       <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-warn-soft text-warn border border-warn-line">
@@ -283,7 +308,8 @@ function RoutingValidationPanel({ rows }: { rows: RoutingValidationRow[] }) {
                 <ValidationStatus status={r.evaluation.status} />
               </Cell>
               <Cell num className="text-text-2">
-                {fmtUsd(r.evaluation.projectedPeriodSavingUsd)}
+                {fmtUsd(r.evaluation.projectedSavingLowUsd)}–
+                {fmtUsd(r.evaluation.projectedSavingHighUsd)}
               </Cell>
               <Cell num className="text-text-2">
                 {fmtUsd(r.evaluation.realizedSavingUsd)}

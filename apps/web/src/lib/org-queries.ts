@@ -4,6 +4,9 @@ import {
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,
   ERROR_RATE_WINDOW_DAYS,
+  estimateRoutingSavings,
+  isCheapCategory,
+  type ModelPolicySnapshot,
   parseBudgetThresholdParams,
   SPEND_SPIKE_BASELINE_DAYS,
   SPEND_SPIKE_CRITICAL_SIGMA,
@@ -17,7 +20,6 @@ import {
   mapTrendRows,
 } from './effectiveness-queries';
 import { getPrisma } from './prisma';
-import { CHEAP_SUITABLE_CATEGORIES, PREMIUM_PATTERN } from './routing-queries';
 import { searchTranscriptMatches } from './search-queries';
 import { type FrictionBand, frictionBandWhere } from './sessions-queries';
 import { daysAgo } from './time';
@@ -356,13 +358,20 @@ export async function getOrgModelDetail(since: Date): Promise<OrgModelDetailRow[
 }
 
 export type OrgModelRoutingRow = {
+  // Routing policy is per-agent: the same model id can appear under several
+  // agents at independent rates, and one agent's price ratio must never be
+  // applied to another's models (P10-001).
+  agentType: string;
   callCount: number;
   model: string;
   toolCategory: string;
   totalCostUsd: number;
 };
 
-export async function getOrgModelRoutingBreakdown(since: Date): Promise<OrgModelRoutingRow[]> {
+export async function getOrgModelRoutingBreakdown(
+  since: Date,
+  until?: Date,
+): Promise<OrgModelRoutingRow[]> {
   const userIds = await orgVisibleUserIds(since);
   if (userIds.length === 0) {
     return [];
@@ -370,6 +379,7 @@ export async function getOrgModelRoutingBreakdown(since: Date): Promise<OrgModel
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<
     {
+      agent_type: string;
       call_count: bigint;
       model: string;
       tool_category: string;
@@ -377,20 +387,23 @@ export async function getOrgModelRoutingBreakdown(since: Date): Promise<OrgModel
     }[]
   >(Prisma.sql`
     SELECT
-      model,
-      tool_category,
-      COUNT(*)                            AS call_count,
-      COALESCE(SUM(cost_usd), 0)         AS total_cost_usd
-    FROM events
-    WHERE user_id IN (${uuids})
-      AND ts >= ${since}
-      AND event_type = 'PostToolUse'
-      AND model IS NOT NULL
-      AND tool_category IS NOT NULL
-    GROUP BY model, tool_category
+      e.agent_type,
+      e.model,
+      e.tool_category,
+      COUNT(*)                     AS call_count,
+      COALESCE(SUM(e.cost_usd), 0) AS total_cost_usd
+    FROM events e
+    WHERE e.user_id IN (${uuids})
+      AND e.ts >= ${since}
+      ${until ? Prisma.sql`AND e.ts < ${until}` : Prisma.empty}
+      AND e.event_type = 'PostToolUse'
+      AND e.model IS NOT NULL
+      AND e.tool_category IS NOT NULL
+    GROUP BY e.agent_type, e.model, e.tool_category
     ORDER BY total_cost_usd DESC
   `);
   return rows.map((r) => ({
+    agentType: r.agent_type,
     callCount: Number(r.call_count),
     model: r.model,
     toolCategory: r.tool_category,
@@ -399,14 +412,24 @@ export async function getOrgModelRoutingBreakdown(since: Date): Promise<OrgModel
 }
 
 export type RoutingTeamRow = {
-  premiumRetrievalUsd: number; // opus spend on fs_read/search
-  premiumTotalUsd: number; // all opus spend (context/denominator)
+  premiumRetrievalUsd: number; // downgradeable-model spend on retrieval categories
+  premiumTotalUsd: number; // all spend on those models (context/denominator)
   teamName: string;
   teamSlug: string;
 };
 
+/** One (team, agent, model, category) cell — aggregated against policy in TS. */
+type TeamRoutingCell = {
+  cost_usd: number;
+  agent_type: string;
+  model: string;
+  team_name: string;
+  team_slug: string;
+  tool_category: string;
+};
+
 /**
- * Team-level breakdown of premium-model (Opus) spend on retrieval-only tool
+ * Team-level breakdown of downgradeable-model spend on retrieval-only tool
  * categories — an accountability surface pairing the org-wide `routing_waste`
  * alert with "who". Observe-only: this never changes model selection, it only
  * surfaces spend for leads to act on (DESIGN_DOC §10.3a). Same teams →
@@ -414,51 +437,66 @@ export type RoutingTeamRow = {
  * `share_metadata_with_org` like every other org aggregate. Team-level only
  * (no per-developer rows) to keep this an aggregate accountability view rather
  * than individual exposure. Reads the raw `events` hypertable for per-event
- * model + tool_category + cost. The premium/retrieval policy is sourced from
- * PREMIUM_PATTERN / CHEAP_SUITABLE_CATEGORIES (routing-queries.ts) so it can't
- * drift from the routing recommendations; the ingest routing_waste alert
- * mirrors the same policy in its own (separate-app) SQL.
+ * model + tool_category + cost.
+ *
+ * "Premium" is no longer a SQL literal. The query returns per-(agent, model,
+ * category) cells and the caller's per-agent policy decides which models are
+ * downgradeable, so this cannot drift from the recommendations and works for
+ * every agent rather than only Anthropic's (P10-001/P10-002).
  */
-export async function getRoutingSpendByTeam(since: Date): Promise<RoutingTeamRow[]> {
-  const retrievalCategories = [...CHEAP_SUITABLE_CATEGORIES];
-  const premiumLike = `%${PREMIUM_PATTERN}%`;
-  const rows = await getPrisma().$queryRaw<
-    {
-      premium_retrieval_usd: number;
-      premium_total_usd: number;
-      team_name: string;
-      team_slug: string;
-    }[]
-  >(Prisma.sql`
-    -- Retrieval spend is computed once in the subquery and filtered on the
-    -- alias, so the category set isn't restated in a HAVING clause.
-    SELECT team_name, team_slug, premium_retrieval_usd, premium_total_usd
-    FROM (
-      SELECT
-        t.name                                                                                              AS team_name,
-        t.github_slug                                                                                       AS team_slug,
-        COALESCE(SUM(e.cost_usd) FILTER (WHERE e.tool_category = ANY(${retrievalCategories}::text[])), 0)   AS premium_retrieval_usd,
-        COALESCE(SUM(e.cost_usd), 0)                                                                        AS premium_total_usd
-      FROM teams t
-      JOIN team_members tm ON tm.team_id = t.id AND tm.left_at IS NULL
-      JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
-      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-      JOIN events e ON e.user_id = u.id AND e.ts >= ${since}
-        AND e.event_type = 'PostToolUse' AND e.model ILIKE ${premiumLike}
-      WHERE COALESCE(vp.share_metadata_with_org, true) = true
-      GROUP BY t.id, t.name, t.github_slug
-    ) agg
-    WHERE agg.premium_retrieval_usd > 0
-    ORDER BY agg.premium_retrieval_usd DESC
-    LIMIT 20
+export async function getRoutingSpendByTeam(
+  since: Date,
+  policies: Map<string, ModelPolicySnapshot>,
+): Promise<RoutingTeamRow[]> {
+  const cells = await getPrisma().$queryRaw<TeamRoutingCell[]>(Prisma.sql`
+    SELECT
+      t.name                       AS team_name,
+      t.github_slug                AS team_slug,
+      e.agent_type,
+      e.model,
+      e.tool_category,
+      COALESCE(SUM(e.cost_usd), 0) AS cost_usd
+    FROM teams t
+    JOIN team_members tm ON tm.team_id = t.id AND tm.left_at IS NULL
+    JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    JOIN events e ON e.user_id = u.id AND e.ts >= ${since}
+      AND e.event_type = 'PostToolUse'
+      AND e.model IS NOT NULL
+      AND e.tool_category IS NOT NULL
+    WHERE COALESCE(vp.share_metadata_with_org, true) = true
+    GROUP BY t.id, t.name, t.github_slug, e.agent_type, e.model, e.tool_category
   `);
 
-  return rows.map((r) => ({
-    premiumRetrievalUsd: Number(r.premium_retrieval_usd),
-    premiumTotalUsd: Number(r.premium_total_usd),
-    teamName: r.team_name,
-    teamSlug: r.team_slug,
-  }));
+  const byTeam = new Map<string, RoutingTeamRow>();
+  for (const cell of cells) {
+    const policy = policies.get(cell.agent_type);
+    if (!policy) {
+      continue;
+    }
+    // Downgradeable = this agent's policy can name a strictly cheaper tier for
+    // the model. That is the same test the recommendations use.
+    if (estimateRoutingSavings(policy, cell.model) === null) {
+      continue;
+    }
+    const row = byTeam.get(cell.team_slug) ?? {
+      premiumRetrievalUsd: 0,
+      premiumTotalUsd: 0,
+      teamName: cell.team_name,
+      teamSlug: cell.team_slug,
+    };
+    const cost = Number(cell.cost_usd);
+    row.premiumTotalUsd += cost;
+    if (isCheapCategory(policy, cell.tool_category)) {
+      row.premiumRetrievalUsd += cost;
+    }
+    byTeam.set(cell.team_slug, row);
+  }
+
+  return [...byTeam.values()]
+    .filter((r) => r.premiumRetrievalUsd > 0)
+    .sort((a, b) => b.premiumRetrievalUsd - a.premiumRetrievalUsd)
+    .slice(0, 20);
 }
 
 /**

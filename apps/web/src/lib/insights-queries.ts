@@ -186,6 +186,9 @@ export type ToolPerfRow = {
 };
 
 export type UserModelRoutingRow = {
+  // Routing policy is per-agent (see packages/schemas/src/model-policy.ts), so
+  // the agent has to travel with the row.
+  agentType: string;
   callCount: number;
   model: string;
   toolCategory: string;
@@ -244,6 +247,7 @@ type ToolPerfRawRow = {
 };
 
 type UserModelRoutingRawRow = {
+  agent_type: string;
   call_count: bigint;
   model: string;
   tool_category: string;
@@ -498,6 +502,7 @@ export async function getUserModelRouting(
 ): Promise<UserModelRoutingRow[]> {
   const rows = await getPrisma().$queryRaw<UserModelRoutingRawRow[]>(Prisma.sql`
     SELECT
+      agent_type,
       model,
       tool_category,
       COUNT(*)                    AS call_count,
@@ -508,11 +513,12 @@ export async function getUserModelRouting(
       AND event_type = 'PostToolUse'
       AND model IS NOT NULL
       AND tool_category IS NOT NULL
-    GROUP BY model, tool_category
+    GROUP BY agent_type, model, tool_category
     ORDER BY total_cost_usd DESC
     LIMIT 200
   `);
   return rows.map((r) => ({
+    agentType: r.agent_type,
     callCount: Number(r.call_count),
     model: r.model,
     toolCategory: r.tool_category,

@@ -1,3 +1,9 @@
+import {
+  estimateRoutingSavings,
+  isCheapCategory,
+  MIN_SAVINGS_RATIO,
+  type ModelPolicySnapshot,
+} from '@ai-agents-observability/schemas';
 import type { FrictionSources } from './effectiveness-queries';
 import type {
   McpUsageRow,
@@ -5,13 +11,7 @@ import type {
   UserCacheSummaryRow,
   UserModelRoutingRow,
 } from './insights-queries';
-import {
-  CHEAP_SUITABLE_CATEGORIES,
-  HAIKU_SAVINGS_RATIO,
-  MIN_ROUTING_CHEAP_CALLS,
-  MIN_ROUTING_CHEAP_SPEND_USD,
-  PREMIUM_PATTERN,
-} from './routing-queries';
+import { MIN_ROUTING_CHEAP_CALLS, MIN_ROUTING_CHEAP_SPEND_USD } from './routing-queries';
 
 // Actionable, per-developer coaching surface (Feature 5). Pure derivation over the
 // friction-source decomposition and the already-fetched per-tool / MCP / routing
@@ -30,6 +30,8 @@ export type RecommendationInputs = {
   cacheSummary: UserCacheSummaryRow;
   mcp: McpUsageRow[];
   modelRouting: UserModelRoutingRow[];
+  /** Resolved policy per agent_type — the developer's own agents only. */
+  policies: Map<string, ModelPolicySnapshot>;
   scoredSessionCount: number;
   sources: FrictionSources;
   toolPerf: ToolPerfRow[];
@@ -73,48 +75,73 @@ function wilsonLowerBound(successes: number, trials: number, z = 1.96): number {
   return Math.max(0, (center - radius) / denom);
 }
 
-function buildRoutingRecommendation(rows: UserModelRoutingRow[]): Recommendation[] {
-  const byModel = new Map<string, { cheapCalls: number; cheapSpend: number; totalSpend: number }>();
+function buildRoutingRecommendation(
+  rows: UserModelRoutingRow[],
+  policies: Map<string, ModelPolicySnapshot>,
+): Recommendation[] {
+  // Keyed by (agent, model): the same model id under two agents prices from two
+  // different tables, so they must never be summed together.
+  const byModel = new Map<
+    string,
+    { agentType: string; cheapCalls: number; cheapSpend: number; model: string; totalSpend: number }
+  >();
   for (const row of rows) {
-    const agg = byModel.get(row.model) ?? { cheapCalls: 0, cheapSpend: 0, totalSpend: 0 };
+    const policy = policies.get(row.agentType);
+    if (!policy) {
+      continue;
+    }
+    const key = `${row.agentType}:${row.model}`;
+    const agg = byModel.get(key) ?? {
+      agentType: row.agentType,
+      cheapCalls: 0,
+      cheapSpend: 0,
+      model: row.model,
+      totalSpend: 0,
+    };
     agg.totalSpend += row.totalCostUsd;
-    if (CHEAP_SUITABLE_CATEGORIES.has(row.toolCategory)) {
+    if (isCheapCategory(policy, row.toolCategory)) {
       agg.cheapCalls += row.callCount;
       agg.cheapSpend += row.totalCostUsd;
     }
-    byModel.set(row.model, agg);
+    byModel.set(key, agg);
   }
 
-  const premiumRows = [...byModel.entries()]
+  const candidates = [...byModel.values()]
     .filter(
-      ([model, agg]) =>
-        model.toLowerCase().includes(PREMIUM_PATTERN) &&
-        agg.cheapCalls >= MIN_ROUTING_CHEAP_CALLS &&
-        agg.cheapSpend >= MIN_ROUTING_CHEAP_SPEND_USD,
+      (agg) =>
+        agg.cheapCalls >= MIN_ROUTING_CHEAP_CALLS && agg.cheapSpend >= MIN_ROUTING_CHEAP_SPEND_USD,
     )
-    .map(([model, agg]) => ({
-      cheapShare: agg.totalSpend > 0 ? agg.cheapSpend / agg.totalSpend : 0,
-      model,
-      monthlySavingEstimate: agg.cheapSpend * HAIKU_SAVINGS_RATIO,
-      ...agg,
-    }))
-    .sort((a, b) => b.monthlySavingEstimate - a.monthlySavingEstimate);
+    .flatMap((agg) => {
+      const policy = policies.get(agg.agentType);
+      const savings = policy ? estimateRoutingSavings(policy, agg.model) : null;
+      // No price entry, or nothing cheaper to route to → no tip, never a
+      // fabricated number.
+      if (!savings || savings.high < MIN_SAVINGS_RATIO) {
+        return [];
+      }
+      return [
+        {
+          ...agg,
+          cheapShare: agg.totalSpend > 0 ? agg.cheapSpend / agg.totalSpend : 0,
+          savingHigh: agg.cheapSpend * savings.high,
+          savingLow: agg.cheapSpend * savings.low,
+          target: savings.bestTargetModel,
+        },
+      ];
+    })
+    .sort((a, b) => b.savingHigh - a.savingHigh);
 
-  if (premiumRows.length === 0) {
-    return [];
-  }
-
-  const top = premiumRows[0];
+  const top = candidates[0];
   if (!top) {
     return [];
   }
 
   return [
     {
-      detail: `${top.model} handled ${top.cheapCalls} retrieval calls (reads/search), about ${(top.cheapShare * 100).toFixed(0)}% of that model's spend. Routing that segment to a cheaper model would likely save about $${top.monthlySavingEstimate.toFixed(2)} per 30-day period.`,
+      detail: `${top.model} handled ${top.cheapCalls} retrieval calls (reads/search), about ${(top.cheapShare * 100).toFixed(0)}% of that model's spend. Routing that segment to a cheaper model such as ${top.target} would likely save $${top.savingLow.toFixed(2)}–$${top.savingHigh.toFixed(2)} over this period.`,
       id: `routing:${top.model}`,
       severity: top.cheapShare >= 0.6 ? 'warn' : 'info',
-      title: `Premium model used for retrieval-heavy work (${top.model})`,
+      title: `Cheaper model would likely cover this retrieval work (${top.model})`,
     },
   ];
 }
@@ -140,7 +167,8 @@ function buildCacheRecommendation(cache: UserCacheSummaryRow): Recommendation[] 
 }
 
 export function buildRecommendations(input: RecommendationInputs): Recommendation[] {
-  const { cacheSummary, mcp, modelRouting, scoredSessionCount, sources, toolPerf } = input;
+  const { cacheSummary, mcp, modelRouting, policies, scoredSessionCount, sources, toolPerf } =
+    input;
   // No scored sessions → nothing trustworthy to coach on.
   if (scoredSessionCount === 0) {
     return [];
@@ -205,7 +233,7 @@ export function buildRecommendations(input: RecommendationInputs): Recommendatio
 
   // 4. Premium model doing retrieval work, and 5. poor cache reuse — the two
   // cost-shaped hints. Both gate on their own evidence floors above.
-  recs.push(...buildRoutingRecommendation(modelRouting));
+  recs.push(...buildRoutingRecommendation(modelRouting, policies));
   recs.push(...buildCacheRecommendation(cacheSummary));
 
   // 6. Interrupts are the dominant driver — usually a prompt-clarity signal.

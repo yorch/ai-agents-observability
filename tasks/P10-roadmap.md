@@ -1,15 +1,25 @@
 # Phase 10 — Model Cost Optimization (roadmap)
 
-> **Status: partially delivered.** P10-004 and P10-006 are `done`; P10-001/P10-003 are
-> `in-progress`; P10-002 and P10-005 are `ready` — not started. The "Current state"
-> section below is the **trigger snapshot from decomposition time**, kept as written;
-> for what the tree holds today read [`INDEX.md`](./INDEX.md), which is the source of
-> truth. Two items in that snapshot are now fixed: the flat `DOWNGRADE_SAVINGS_RATE`
-> and the page-local `PREMIUM_PATTERNS`/`CHEAP_CATEGORIES` constants are gone, savings
-> come from the live price table, and low-volume rows are suppressed. Three are not:
-> savings are still point estimates rather than ranges, the tier definitions are shared
-> module constants rather than an admin-editable per-agent policy, and there is no
-> allowed-model governance alert.
+> **Status: done.** All six tasks are `done`; each task file carries an
+> **As shipped** section recording where the implementation departed from its
+> original criteria. The "Current state" section below is the **trigger snapshot
+> from decomposition time**, kept as written — for what the tree holds today read
+> [`INDEX.md`](./INDEX.md), which is the source of truth.
+>
+> Every item in that snapshot is now addressed: the flat `DOWNGRADE_SAVINGS_RATE`
+> and the page-local `PREMIUM_PATTERNS`/`CHEAP_CATEGORIES` constants are gone,
+> savings come from the live per-agent price tables as **ranges** with volume
+> gating, guidance reaches team leads and individual developers, tier and
+> allowed-model definitions live in one admin-editable policy both apps read, and
+> a `disallowed_model` alert plus a projected-vs-realized validation loop close
+> the governance and honesty gaps.
+>
+> Two limitations are documented rather than hidden, and pinned by
+> `apps/ingest/test/model-policy-golden.test.ts` so a fix shows as a visible diff:
+> the price tables retain retired models (needed for historical cost recompute),
+> so a retired model can be named as a downgrade target, and current Opus tiers as
+> `standard` because its retired `$15/$75` rows occupy the top band. Both are
+> correctable through the admin tier override.
 
 **Trigger to decompose**: [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §3.2 and §4 rank
 "Model cost optimization (routing + cache-efficiency guidance)" as the single

@@ -10,7 +10,7 @@ These were agreed during planning and are the basis for every task below. If one
 
 | Area | Choice | Rationale (short) |
 |---|---|---|
-| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 10 (proposed, `ready`); remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
+| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 10 (`done`); remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
 | Dev environment | docker-compose locally | Single `up` from a clean clone |
 | Hook binary | Bun, compiled with `bun build --compile` | Single static binary, fast cold start |
 | Object store | MinIO (local dev + homelab prod) | S3-compatible, self-hostable |
@@ -199,13 +199,17 @@ Tasks P11-001–P11-004 are `done`, including defect attribution (`/org/quality`
 
 ### Phase 10 — Model Cost Optimization
 
-**Partially delivered.** Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](./OPPORTUNITIES.md) §4.
+**Done.** Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](./OPPORTUNITIES.md) §4.
 
-The **recommendation** half shipped: `/org/models` derives its per-model saving fraction from the ingest price table, suppresses rows under a call/spend floor instead of printing a seductive point estimate off a handful of turns, and carries a per-team routing accountability table. P10-004 brought the same guidance to the two personas who can act on it — a team lead (`/team/[slug]`) and an individual dev (`/me/insights`, via `buildRecommendations()`); the same pass moved the tool/MCP error hints onto a Wilson lower bound so a 2-of-5 fluke no longer reads as a 40% error rate. P10-006 closed the loop: each recommendation is persisted as a projection and later scored against realized spend **paired with an outcome guard**, so a "saving" that raised friction, tool-error, or revert rate is reported as `degraded` rather than celebrated, and a segment under 25 realized calls is `not measurable` rather than a spurious delta.
+The whole phase now rests on one shared definition of policy. "Premium" used to be the literal substring `opus`, written twice — a constant in `apps/web` and an `ILIKE '%opus%'` in an `apps/ingest` raw query — which was wrong twice over: it silently matched nothing for the six non-Anthropic agents Phase 12 brought online, and two copies of a policy drift. [`packages/schemas/src/model-policy.ts`](./packages/schemas/src/model-policy.ts) now holds it, and both apps read it, exactly as they already share the alert thresholds.
 
-The **governance** half did not. P10-002 (one per-agent `model_policy` source) and P10-005 (`disallowed_model` alert) are `ready` — not started. Two consequences are load-bearing: tier and cheap-category definitions still live in `routing-queries.ts` constants that an org admin cannot change without a redeploy, and `PREMIUM_PATTERN = 'opus'` means the routing surface is silently inert for Codex, Gemini CLI, Copilot, Pi and omp — the six agents Phase 12 just brought online. P10-001's savings **range** (low/high, per `agent_type`) is unbuilt for the same reason; today's figures are gated point estimates.
+Tiers are **derived** by ranking distinct blended rates inside one agent's own price table, then overlaid with whatever an org admin has set at `/admin/model-policy`. Ranking rather than thresholding is what makes it survive real data: the cheapest-to-dearest spread is ~6× for `claude_code` and ~225× for `opencode`, so no single multiple could serve both, and the tables deliberately retain retired models whose rates would drag any mean.
 
-**Exit**: partly met — a routing recommendation carries a savings figure an engineer can defend from the price table, and a team sees its own routing accountability without an org admin reading anyone's sessions. Not met: the figure is not yet a range, and it is Anthropic-only.
+Savings are a **range**, never a point estimate — `high` assumes the cheapest model in the target tier, `low` the dearest — and a model the price table cannot price yields **no recommendation at all** rather than a fabricated number, surfaced instead as an explicit "unpriced" list. P10-006 then scores each projection against the following period paired with an outcome guard, so a downgrade that saved money while raising friction, tool-error or revert rate reports as `degraded`.
+
+Governance landed as `disallowed_model`, reading the same policy. It is seeded **disabled**, and an empty allow-list means *unconfigured*, never *deny everything* — a distinction enforced twice in SQL, because getting it wrong would turn every session in a fresh install into an alert.
+
+**Exit**: met. A routing recommendation carries a savings range an engineer can defend from the live price table for **any** of the seven agents, and a team sees its own routing accountability without an org admin reading anyone's sessions. Two limitations are documented and test-pinned rather than papered over: retired models can be named as downgrade targets, and current Opus tiers as `standard` because its retired rows occupy the top band.
 
 ### Phase 12 — Agent Adapter Expansion
 

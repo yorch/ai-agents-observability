@@ -5,7 +5,7 @@ CREATE TYPE "SessionStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'CRASHED', 'TIMED_OU
 CREATE TYPE "AgentType" AS ENUM ('CLAUDE_CODE', 'CURSOR', 'AIDER', 'COPILOT', 'CODEX', 'WINDSURF', 'OPENCODE', 'GEMINI_CLI', 'PI', 'OMP');
 
 -- CreateEnum
-CREATE TYPE "AuditAction" AS ENUM ('VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM', 'EXPORT_ORG', 'ADMIN_IMPERSONATE', 'DELETE_REQUEST', 'HOOK_TOKEN_ISSUED', 'ROLE_GRANT', 'RETENTION_OVERRIDE_CHANGED', 'GRANT_REQUESTED', 'GRANT_APPROVED', 'GRANT_REVOKED', 'ALERT_ACKNOWLEDGED', 'ALERT_SILENCED');
+CREATE TYPE "AuditAction" AS ENUM ('VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM', 'EXPORT_ORG', 'ADMIN_IMPERSONATE', 'DELETE_REQUEST', 'HOOK_TOKEN_ISSUED', 'ROLE_GRANT', 'RETENTION_OVERRIDE_CHANGED', 'GRANT_REQUESTED', 'GRANT_APPROVED', 'GRANT_REVOKED', 'ALERT_ACKNOWLEDGED', 'ALERT_SILENCED', 'MODEL_POLICY_CHANGED');
 
 -- CreateEnum
 CREATE TYPE "GrantScope" AS ENUM ('USER_SESSIONS', 'SINGLE_SESSION');
@@ -449,6 +449,18 @@ CREATE TABLE "alert_delivery_log" (
 );
 
 -- CreateTable
+CREATE TABLE "model_policy" (
+    "agent_type" "AgentType" NOT NULL,
+    "allowed_models" TEXT[],
+    "cheap_categories" TEXT[],
+    "tier_overrides" JSONB NOT NULL DEFAULT '{}',
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_by_user_id" UUID,
+
+    CONSTRAINT "model_policy_pkey" PRIMARY KEY ("agent_type")
+);
+
+-- CreateTable
 CREATE TABLE "routing_recommendation_projections" (
     "id" BIGSERIAL NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -456,14 +468,15 @@ CREATE TABLE "routing_recommendation_projections" (
     "window_start" TIMESTAMPTZ(6) NOT NULL,
     "window_end" TIMESTAMPTZ(6) NOT NULL,
     "range_days" INTEGER NOT NULL,
+    "agent_type" TEXT NOT NULL,
     "model" TEXT NOT NULL,
     "cheap_categories" TEXT[],
     "cheap_category_calls" INTEGER NOT NULL,
     "cheap_category_spend_usd" DECIMAL(12,6) NOT NULL,
-    "savings_ratio" DECIMAL(8,6) NOT NULL,
-    "projected_monthly_saving_usd" DECIMAL(12,6) NOT NULL,
-    "projected_period_saving_usd" DECIMAL(12,6) NOT NULL,
-    "price_precise" BOOLEAN NOT NULL DEFAULT false,
+    "savings_ratio_low" DECIMAL(8,6) NOT NULL,
+    "savings_ratio_high" DECIMAL(8,6) NOT NULL,
+    "projected_saving_low_usd" DECIMAL(12,6) NOT NULL,
+    "projected_saving_high_usd" DECIMAL(12,6) NOT NULL,
 
     CONSTRAINT "routing_recommendation_projections_pkey" PRIMARY KEY ("id")
 );
@@ -604,7 +617,7 @@ CREATE INDEX "routing_recommendation_created_idx" ON "routing_recommendation_pro
 CREATE INDEX "routing_recommendation_range_window_idx" ON "routing_recommendation_projections"("range_days", "window_end" DESC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "routing_recommendation_window_model_uniq" ON "routing_recommendation_projections"("window_start", "window_end", "range_days", "model");
+CREATE UNIQUE INDEX "routing_recommendation_window_model_uniq" ON "routing_recommendation_projections"("window_start", "window_end", "range_days", "agent_type", "model");
 
 -- AddForeignKey
 ALTER TABLE "teams" ADD CONSTRAINT "teams_parent_team_id_fkey" FOREIGN KEY ("parent_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;

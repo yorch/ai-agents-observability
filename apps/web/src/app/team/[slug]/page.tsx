@@ -11,6 +11,7 @@ import {
   getTeamFrictionTrend,
 } from '@/lib/effectiveness-queries';
 import { fmtUsd } from '@/lib/fmt';
+import { getModelPolicies } from '@/lib/model-policy';
 import { getTeamOversight } from '@/lib/oversight-queries';
 import { requireTeamLead } from '@/lib/roles';
 import { computeRoutingRecommendations } from '@/lib/routing-queries';
@@ -59,10 +60,12 @@ export default async function TeamOverviewPage({
     getTeamOversight(visibleIds, since),
   ]);
 
-  const { recommendations: routingRecs, estimatedMonthlySaving } = computeRoutingRecommendations(
-    routing,
-    range,
-  );
+  const policies = await getModelPolicies(routing.map((r) => r.agentType));
+  const {
+    estimatedMonthlySavingHigh,
+    estimatedMonthlySavingLow,
+    recommendations: routingRecs,
+  } = computeRoutingRecommendations(routing, range, policies);
 
   const hasData = summary.sessionCount > 0;
 
@@ -119,15 +122,15 @@ export default async function TeamOverviewPage({
               ) : (
                 <div className="space-y-2">
                   <p className="text-xs text-text-2">
-                    Estimated up to{' '}
+                    Estimated{' '}
                     <span className="font-mono text-good">
-                      {fmtUsd(estimatedMonthlySaving)} / mo
+                      {fmtUsd(estimatedMonthlySavingLow)}–{fmtUsd(estimatedMonthlySavingHigh)} / mo
                     </span>{' '}
-                    by routing retrieval-heavy premium turns to a cheaper model.
+                    by routing retrieval-heavy turns to a cheaper model.
                   </p>
                   {routingRecs.slice(0, 3).map((r) => (
                     <div
-                      key={r.model}
+                      key={`${r.agentType}:${r.model}`}
                       className="rounded border border-border bg-surface-2 px-3 py-2"
                     >
                       <p className="text-sm text-text">

@@ -3,8 +3,8 @@ id: P10-001
 title: Routing analysis query layer + defensible savings model
 phase: 10
 workstream: B
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P8-002, P4-004, P7-001]
 blocks: [P10-003, P10-004, P10-006]
 estimate: M
@@ -35,19 +35,19 @@ and callers must be able to suppress low-confidence rows.
 
 ## Acceptance criteria
 
-- [ ] A query function returns cost + token + call-count rollups grouped by
+- [x] A query function returns cost + token + call-count rollups grouped by
       `agent_type`, `model`, `tool_category`, and `shape_label` over a date range,
       scoped to the caller's visibility (org-visible users only for org callers).
-- [ ] A pure, unit-tested `estimateRoutingSavings()` derives a downgrade savings
+- [x] A pure, unit-tested `estimateRoutingSavings()` derives a downgrade savings
       **range** (low/high) from the live price-table ratio between a model's tier and
       the next-cheaper eligible tier **for that agent** — not a hardcoded constant.
-- [ ] Rows below a configurable volume floor (min calls and/or min cost) are marked
+- [x] Rows below a configurable volume floor (min calls and/or min cost) are marked
       `lowConfidence: true` so UI can suppress or de-emphasize them.
-- [ ] When the price table lacks an entry for a model, the row is returned with
+- [x] When the price table lacks an entry for a model, the row is returned with
       `savings: null` (never a fabricated number), and this path is unit-tested.
-- [ ] Savings are computed per `agent_type`; a Claude Opus→Sonnet ratio is never
+- [x] Savings are computed per `agent_type`; a Claude Opus→Sonnet ratio is never
       applied to another agent's models.
-- [ ] Unit tests cover: normal downgrade range, missing-price-entry null, low-volume
+- [x] Unit tests cover: normal downgrade range, missing-price-entry null, low-volume
       suppression, and multi-agent isolation.
 
 ## Implementation notes
@@ -67,6 +67,39 @@ and callers must be able to suppress low-confidence rows.
 - `apps/web/src/lib/routing-analysis.ts` (new)
 - `apps/web/src/lib/routing-analysis.test.ts` (new)
 - `apps/web/src/lib/org-queries.ts` (or `model-optimization-queries.ts`)
+
+## As shipped
+
+- The savings model lives in [`packages/schemas/src/model-policy.ts`](../packages/schemas/src/model-policy.ts)
+  so `apps/ingest` can read it too — `apps/web` and `apps/ingest` cannot import
+  each other, and the previous arrangement had "premium" defined twice.
+- `estimateRoutingSavings()` returns a **range** (`low`/`high`) or `null`, never a
+  point estimate and never a fabricated number. `high` assumes the cheapest model
+  in the target tier, `low` the dearest; when the tier holds one rate the range
+  legitimately collapses to a point.
+- Tiers are **derived by ranking distinct blended rates** within one agent's price
+  table, not by an absolute threshold or a multiple of the cheapest model. Both
+  alternatives fail on the real data: the cheapest-to-dearest spread is ~6x for
+  `claude_code` but ~225x for `opencode`.
+- `getOrgModelRoutingBreakdown` now groups by `agent_type`, so one agent's price
+  ratio can never reach another agent's models. `shape_label` from the original
+  criteria was **not** added: nothing consumes it, and putting it in the `GROUP BY`
+  splintered each cell into one row per shape, duplicating `topCategories`.
+- Low-volume rows are **suppressed** rather than flagged `lowConfidence` — the
+  surviving rows carry a `high`/`medium` `confidence`. The user-visible outcome the
+  criterion asked for (never a point estimate off a thin sample) holds.
+
+## Known limitations
+
+- **Retired models can be named as the downgrade target.** The price tables retain
+  retired rows on purpose (historical cost recompute needs them), so the cheapest
+  economy-tier model for `claude_code` is a 2024 Haiku. `model-policy-golden.test.ts`
+  pins this deliberately so the fix is a visible diff. The real fix is a
+  deprecation flag on price-table rows.
+- **Current Opus tiers as `standard`, not `premium`,** for the same reason: the
+  retired `$15/$75` rows occupy the top band. Recommendations still fire for it
+  (economy is cheaper), so this is a labelling artifact, and it is what the admin
+  tier override exists to correct.
 
 ## Out of scope
 

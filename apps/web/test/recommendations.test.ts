@@ -1,5 +1,5 @@
+import { deriveModelTiers, type ModelPolicySnapshot } from '@ai-agents-observability/schemas';
 import { describe, expect, it } from 'vitest';
-
 import type { FrictionSources } from '../src/lib/effectiveness-queries.ts';
 import type {
   McpUsageRow,
@@ -46,6 +46,7 @@ function cacheSummary(overrides: Partial<UserCacheSummaryRow> = {}): UserCacheSu
 
 function modelRouting(overrides: Partial<UserModelRoutingRow> = {}): UserModelRoutingRow {
   return {
+    agentType: 'CLAUDE_CODE',
     callCount: 40,
     model: 'claude-opus-4-8',
     toolCategory: 'fs_read',
@@ -54,12 +55,41 @@ function modelRouting(overrides: Partial<UserModelRoutingRow> = {}): UserModelRo
   };
 }
 
+function rate(input: number, output: number) {
+  return {
+    cache_read_per_mtok: input / 10,
+    cache_write_per_mtok: input * 1.25,
+    input_per_mtok: input,
+    output_per_mtok: output,
+  };
+}
+
+// One agent's resolved policy, derived from real-shaped rates.
+const PRICES = {
+  'claude-haiku-4-5': rate(1, 5),
+  'claude-opus-4-8': rate(15, 75),
+  'claude-sonnet-5': rate(2, 10),
+};
+const POLICIES = new Map<string, ModelPolicySnapshot>([
+  [
+    'CLAUDE_CODE',
+    {
+      agentType: 'CLAUDE_CODE',
+      allowedModels: [],
+      cheapCategories: ['fs_read', 'search'],
+      inputRates: Object.fromEntries(Object.entries(PRICES).map(([m, p]) => [m, p.input_per_mtok])),
+      tiers: deriveModelTiers(PRICES),
+    },
+  ],
+]);
+
 describe('buildRecommendations', () => {
   it('returns nothing when there are no scored sessions', () => {
     const recs = buildRecommendations({
       cacheSummary: cacheSummary(),
       mcp: [mcp({ errorCount: 9 })],
       modelRouting: [modelRouting()],
+      policies: POLICIES,
       scoredSessionCount: 0,
       sources: { ...NO_FRICTION, error: 0.2 },
       toolPerf: [toolPerf({ deniedCount: 5 })],
@@ -72,6 +102,7 @@ describe('buildRecommendations', () => {
       cacheSummary: cacheSummary(),
       mcp: [],
       modelRouting: [],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: { ...NO_FRICTION, denial: 0.2, error: 0.05 },
       toolPerf: [toolPerf({ deniedCount: 4, toolName: 'Bash' })],
@@ -88,6 +119,7 @@ describe('buildRecommendations', () => {
       cacheSummary: cacheSummary(),
       mcp: [],
       modelRouting: [],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: { ...NO_FRICTION, denial: 0.02, error: 0.25 },
       toolPerf: [toolPerf({ callCount: 4, deniedCount: 2, errorCount: 0 })],
@@ -100,6 +132,7 @@ describe('buildRecommendations', () => {
       cacheSummary: cacheSummary(),
       mcp: [],
       modelRouting: [],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,
       toolPerf: [
@@ -122,6 +155,7 @@ describe('buildRecommendations', () => {
         mcp({ callCount: 4, errorCount: 2, mcpServer: 'github', mcpTool: 'list_prs' }),
       ],
       modelRouting: [],
+      policies: POLICIES,
       scoredSessionCount: 5,
       sources: NO_FRICTION,
       toolPerf: [],
@@ -137,6 +171,7 @@ describe('buildRecommendations', () => {
       cacheSummary: cacheSummary(),
       mcp: [],
       modelRouting: [],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: { ...NO_FRICTION, error: 0.05, interrupt: 0.12 },
       toolPerf: [],
@@ -149,6 +184,7 @@ describe('buildRecommendations', () => {
       cacheSummary: cacheSummary(),
       mcp: [],
       modelRouting: [],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: { ...NO_FRICTION, abandonment: 0.1, denial: 0.02 },
       toolPerf: [
@@ -187,6 +223,7 @@ describe('buildRecommendations', () => {
           totalCostUsd: 2,
         }),
       ],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,
       toolPerf: [],
@@ -203,6 +240,7 @@ describe('buildRecommendations', () => {
       }),
       mcp: [],
       modelRouting: [],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,
       toolPerf: [],
@@ -216,6 +254,7 @@ describe('buildRecommendations', () => {
       mcp: [],
       // Spend clears the floor, call count does not.
       modelRouting: [modelRouting({ callCount: 24, totalCostUsd: 40 })],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,
       toolPerf: [],
@@ -227,6 +266,7 @@ describe('buildRecommendations', () => {
       mcp: [],
       // Call count clears the floor, spend does not.
       modelRouting: [modelRouting({ callCount: 400, totalCostUsd: 4.99 })],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,
       toolPerf: [],
@@ -239,6 +279,7 @@ describe('buildRecommendations', () => {
       cacheSummary: cacheSummary(),
       mcp: [],
       modelRouting: [modelRouting({ callCount: 500, model: 'claude-haiku-4-5', totalCostUsd: 90 })],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,
       toolPerf: [],
@@ -255,6 +296,7 @@ describe('buildRecommendations', () => {
       }),
       mcp: [],
       modelRouting: [],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,
       toolPerf: [],
@@ -270,10 +312,44 @@ describe('buildRecommendations', () => {
       }),
       mcp: [],
       modelRouting: [],
+      policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,
       toolPerf: [],
     });
     expect(thin.find((r) => r.id === 'cache-efficiency')).toBeUndefined();
+  });
+
+  it('suppresses a single permission denial — the floor, not just the sort', () => {
+    // The pre-existing test for this case was bumped from 1 denial to 2 when
+    // MIN_PERMISSION_DENIALS landed, which consumed the coverage rather than
+    // adding to it. This is the mirror that pins the floor itself.
+    const recs = buildRecommendations({
+      cacheSummary: cacheSummary(),
+      mcp: [],
+      modelRouting: [],
+      policies: POLICIES,
+      scoredSessionCount: 8,
+      sources: { ...NO_FRICTION, denial: 0.2 },
+      toolPerf: [toolPerf({ callCount: 4, deniedCount: 1, errorCount: 0 })],
+    });
+    expect(recs.find((r) => r.id === 'permission-denials')).toBeUndefined();
+  });
+
+  it('gates tool errors on the Wilson lower bound, not the raw ratio', () => {
+    // 1 of 5 is a raw 20% — exactly TOOL_ERROR_RATE_WARN — but its Wilson lower
+    // bound is ~3.6%, far under. Under the old raw-ratio rule this WOULD be
+    // flagged, so this case is what discriminates the two implementations.
+    const recs = buildRecommendations({
+      cacheSummary: cacheSummary(),
+      mcp: [mcp({ callCount: 5, errorCount: 1, mcpServer: 'flakey' })],
+      modelRouting: [],
+      policies: POLICIES,
+      scoredSessionCount: 8,
+      sources: NO_FRICTION,
+      toolPerf: [toolPerf({ callCount: 5, errorCount: 1, toolName: 'Grep' })],
+    });
+    expect(recs.find((r) => r.id === 'tool-errors:Grep')).toBeUndefined();
+    expect(recs.find((r) => r.id === 'mcp-errors:flakey')).toBeUndefined();
   });
 });

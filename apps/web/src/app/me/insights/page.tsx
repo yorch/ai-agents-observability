@@ -38,6 +38,7 @@ import {
   type SubagentUsageRow,
   type ToolPerfRow,
 } from '@/lib/insights-queries';
+import { getModelPolicies } from '@/lib/model-policy';
 import { buildRecommendations, type Recommendation } from '@/lib/recommendations';
 
 export const dynamic = 'force-dynamic';
@@ -99,10 +100,12 @@ export default async function InsightsPage({
     getUserCacheSummary(user.id, since),
   ]);
 
+  const policies = await getModelPolicies(modelRouting.map((r) => r.agentType));
   const recommendations = buildRecommendations({
     cacheSummary,
     mcp,
     modelRouting,
+    policies,
     scoredSessionCount: effectiveness.scoredSessionCount,
     sources: effectiveness.sources,
     toolPerf,

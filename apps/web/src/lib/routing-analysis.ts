@@ -9,14 +9,15 @@ const DEGRADE_FRICTION_DELTA = 0.05;
 const DEGRADE_REVERT_DELTA = 0.02;
 
 export type RoutingProjectionSnapshot = {
+  agentType: string;
   cheapCategories: string[];
   cheapCategoryCalls: number;
   cheapCategorySpendUsd: number;
   id: bigint;
   model: string;
-  projectedPeriodSavingUsd: number;
+  projectedSavingHighUsd: number;
+  projectedSavingLowUsd: number;
   projectedWindowDays: number;
-  savingsRatio: number;
   windowEnd: Date;
   windowStart: Date;
 };
@@ -24,7 +25,10 @@ export type RoutingProjectionSnapshot = {
 export type RoutingProjectionEvaluation = {
   errorRateDelta: number | null;
   frictionDelta: number | null;
-  projectedPeriodSavingUsd: number;
+  /** True when the realized saving landed inside the projected range. */
+  landedInRange: boolean;
+  projectedSavingHighUsd: number;
+  projectedSavingLowUsd: number;
   realizedCheapCalls: number;
   realizedCheapSpendUsd: number;
   realizedSavingUsd: number;
@@ -40,6 +44,8 @@ export type RoutingValidationRow = {
 export function evaluateRoutingProjection(
   projection: RoutingProjectionSnapshot,
   observed: {
+    /** Cheap-category spend across all of the agent's models, baseline window. */
+    baselineCheapSpendUsd: number;
     baselineErrorRate: number | null;
     baselineMedianFriction: number | null;
     baselineRevertRate: number | null;
@@ -54,7 +60,9 @@ export function evaluateRoutingProjection(
     return {
       errorRateDelta: null,
       frictionDelta: null,
-      projectedPeriodSavingUsd: projection.projectedPeriodSavingUsd,
+      landedInRange: false,
+      projectedSavingHighUsd: projection.projectedSavingHighUsd,
+      projectedSavingLowUsd: projection.projectedSavingLowUsd,
       realizedCheapCalls: observed.realizedCheapCalls,
       realizedCheapSpendUsd: observed.realizedCheapSpendUsd,
       realizedSavingUsd: 0,
@@ -63,10 +71,19 @@ export function evaluateRoutingProjection(
     };
   }
 
+  // Measured baseline vs measured realized, both across every model. Using the
+  // projection's stored single-model spend as the baseline would compare one
+  // model against all models and manufacture a saving whenever work simply moved.
   const realizedSavingUsd = Math.max(
     0,
-    projection.cheapCategorySpendUsd - observed.realizedCheapSpendUsd,
+    observed.baselineCheapSpendUsd - observed.realizedCheapSpendUsd,
   );
+  // The projection was a range, so "was it right?" is a containment test, not
+  // an equality one. A realized saving above the range is still a win, but it
+  // is not the range being accurate — callers can tell the two apart.
+  const landedInRange =
+    realizedSavingUsd >= projection.projectedSavingLowUsd &&
+    realizedSavingUsd <= projection.projectedSavingHighUsd;
   const errorRateDelta =
     observed.realizedErrorRate !== null && observed.baselineErrorRate !== null
       ? observed.realizedErrorRate - observed.baselineErrorRate
@@ -89,7 +106,9 @@ export function evaluateRoutingProjection(
     return {
       errorRateDelta,
       frictionDelta,
-      projectedPeriodSavingUsd: projection.projectedPeriodSavingUsd,
+      landedInRange,
+      projectedSavingHighUsd: projection.projectedSavingHighUsd,
+      projectedSavingLowUsd: projection.projectedSavingLowUsd,
       realizedCheapCalls: observed.realizedCheapCalls,
       realizedCheapSpendUsd: observed.realizedCheapSpendUsd,
       realizedSavingUsd,
@@ -107,7 +126,9 @@ export function evaluateRoutingProjection(
   return {
     errorRateDelta,
     frictionDelta,
-    projectedPeriodSavingUsd: projection.projectedPeriodSavingUsd,
+    landedInRange,
+    projectedSavingHighUsd: projection.projectedSavingHighUsd,
+    projectedSavingLowUsd: projection.projectedSavingLowUsd,
     realizedCheapCalls: observed.realizedCheapCalls,
     realizedCheapSpendUsd: observed.realizedCheapSpendUsd,
     realizedSavingUsd,
@@ -117,13 +138,12 @@ export function evaluateRoutingProjection(
 }
 
 export async function persistRoutingRecommendationProjections(params: {
-  pricePrecise: boolean;
   rangeDays: number;
   recommendations: RoutingRecommendation[];
   windowEnd: Date;
   windowStart: Date;
 }): Promise<void> {
-  const { pricePrecise, rangeDays, recommendations, windowEnd, windowStart } = params;
+  const { rangeDays, recommendations, windowEnd, windowStart } = params;
   if (recommendations.length === 0) {
     return;
   }
@@ -135,14 +155,15 @@ export async function persistRoutingRecommendationProjections(params: {
       ${windowStart},
       ${windowEnd},
       ${rangeDays},
+      ${rec.agentType},
       ${rec.model},
       ${rec.topCategories.map((c) => c.category)},
       ${rec.cheapCategoryCalls},
       ${rec.cheapCategorySpend},
-      ${rec.savingsRatio},
-      ${rec.estimatedMonthlySaving},
-      ${rec.estimatedMonthlySaving * (rangeDays / 30)},
-      ${pricePrecise}
+      ${rec.cheapCategorySpend > 0 ? (rec.monthlySavingLow * (rangeDays / 30)) / rec.cheapCategorySpend : 0},
+      ${rec.cheapCategorySpend > 0 ? (rec.monthlySavingHigh * (rangeDays / 30)) / rec.cheapCategorySpend : 0},
+      ${rec.monthlySavingLow * (rangeDays / 30)},
+      ${rec.monthlySavingHigh * (rangeDays / 30)}
     )`,
   );
 
@@ -152,24 +173,25 @@ export async function persistRoutingRecommendationProjections(params: {
         window_start,
         window_end,
         range_days,
+        agent_type,
         model,
         cheap_categories,
         cheap_category_calls,
         cheap_category_spend_usd,
-        savings_ratio,
-        projected_monthly_saving_usd,
-        projected_period_saving_usd,
-        price_precise
+        savings_ratio_low,
+        savings_ratio_high,
+        projected_saving_low_usd,
+        projected_saving_high_usd
       ) VALUES ${Prisma.join(rows)}
-      ON CONFLICT (window_start, window_end, range_days, model)
+      ON CONFLICT (window_start, window_end, range_days, agent_type, model)
       DO UPDATE SET
         cheap_categories = EXCLUDED.cheap_categories,
         cheap_category_calls = EXCLUDED.cheap_category_calls,
         cheap_category_spend_usd = EXCLUDED.cheap_category_spend_usd,
-        savings_ratio = EXCLUDED.savings_ratio,
-        projected_monthly_saving_usd = EXCLUDED.projected_monthly_saving_usd,
-        projected_period_saving_usd = EXCLUDED.projected_period_saving_usd,
-        price_precise = EXCLUDED.price_precise,
+        savings_ratio_low = EXCLUDED.savings_ratio_low,
+        savings_ratio_high = EXCLUDED.savings_ratio_high,
+        projected_saving_low_usd = EXCLUDED.projected_saving_low_usd,
+        projected_saving_high_usd = EXCLUDED.projected_saving_high_usd,
         updated_at = now()
     `);
   } catch (err) {
@@ -187,14 +209,15 @@ export async function getRoutingRecommendationValidationRows(params: {
   const { asOf, limit = 12, rangeDays } = params;
 
   let projections: {
+    agent_type: string;
     cheap_categories: string[];
     cheap_category_calls: number;
     cheap_category_spend_usd: string;
     id: bigint;
     model: string;
-    projected_period_saving_usd: string;
+    projected_saving_high_usd: string;
+    projected_saving_low_usd: string;
     range_days: number;
-    savings_ratio: string;
     window_end: Date;
     window_start: Date;
   }[] = [];
@@ -206,12 +229,13 @@ export async function getRoutingRecommendationValidationRows(params: {
         window_start,
         window_end,
         range_days,
+        agent_type,
         model,
         cheap_categories,
         cheap_category_calls,
         cheap_category_spend_usd::text,
-        savings_ratio::text,
-        projected_period_saving_usd::text
+        projected_saving_low_usd::text,
+        projected_saving_high_usd::text
       FROM routing_recommendation_projections
       WHERE range_days = ${rangeDays}
         AND window_end <= ${asOf}
@@ -231,16 +255,24 @@ export async function getRoutingRecommendationValidationRows(params: {
     const realizedStart = baselineEnd;
     const realizedEnd = new Date(baselineEnd.getTime() + p.range_days * 24 * 60 * 60 * 1000);
 
+    // Both windows measure cheap-category spend across EVERY model for this
+    // agent, not just the model the projection named. Filtering the realized
+    // window on the expensive model made the loop structurally unable to see a
+    // success: if a team actually adopts the recommendation, calls on that model
+    // fall to ~0, the row drops under MIN_REALIZED_CALLS, and the panel reports
+    // "not measurable" — reporting nothing precisely when it worked.
     const spendRows = await prisma.$queryRaw<
       {
         baseline_calls: bigint;
         baseline_errors: bigint;
+        baseline_spend: string;
         realized_calls: bigint;
         realized_errors: bigint;
         realized_spend: string;
       }[]
     >(Prisma.sql`
       SELECT
+        COALESCE(SUM(e.cost_usd) FILTER (WHERE e.ts >= ${baselineStart} AND e.ts < ${baselineEnd}), 0)::text AS baseline_spend,
         COUNT(*) FILTER (WHERE e.ts >= ${baselineStart} AND e.ts < ${baselineEnd}) AS baseline_calls,
         COUNT(*) FILTER (
           WHERE e.ts >= ${baselineStart}
@@ -260,7 +292,7 @@ export async function getRoutingRecommendationValidationRows(params: {
       JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
       WHERE e.event_type = 'PostToolUse'
-        AND e.model = ${p.model}
+        AND e.agent_type = ${p.agent_type}
         AND e.tool_category = ANY(${p.cheap_categories}::text[])
         AND e.ts >= ${baselineStart}
         AND e.ts < ${realizedEnd}
@@ -281,7 +313,8 @@ export async function getRoutingRecommendationValidationRows(params: {
       FROM sessions s
       JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-      WHERE s.primary_model = ${p.model}
+      WHERE s.agent_type::text = ${p.agent_type}
+        AND s.primary_model = ${p.model}
         AND s.started_at >= ${baselineStart}
         AND s.started_at < ${realizedEnd}
         AND s.friction_score IS NOT NULL
@@ -312,7 +345,8 @@ export async function getRoutingRecommendationValidationRows(params: {
         JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
         LEFT JOIN visibility_policies vp ON vp.user_id = u.id
         JOIN pull_requests pr ON pr.repo_id = spl.repo_id AND pr.pr_number = spl.pr_number
-        WHERE s.primary_model = ${p.model}
+        WHERE s.agent_type::text = ${p.agent_type}
+          AND s.primary_model = ${p.model}
           AND s.started_at >= ${baselineStart}
           AND s.started_at < ${realizedEnd}
           AND COALESCE(vp.share_metadata_with_org, true) = true
@@ -343,19 +377,21 @@ export async function getRoutingRecommendationValidationRows(params: {
     const realizedErrors = Number(spend.realized_errors);
 
     const projection: RoutingProjectionSnapshot = {
+      agentType: p.agent_type,
       cheapCategories: p.cheap_categories,
       cheapCategoryCalls: p.cheap_category_calls,
       cheapCategorySpendUsd: Number(p.cheap_category_spend_usd),
       id: p.id,
       model: p.model,
-      projectedPeriodSavingUsd: Number(p.projected_period_saving_usd),
+      projectedSavingHighUsd: Number(p.projected_saving_high_usd),
+      projectedSavingLowUsd: Number(p.projected_saving_low_usd),
       projectedWindowDays: p.range_days,
-      savingsRatio: Number(p.savings_ratio),
       windowEnd: p.window_end,
       windowStart: p.window_start,
     };
 
     const evaluation = evaluateRoutingProjection(projection, {
+      baselineCheapSpendUsd: Number(spend.baseline_spend),
       baselineErrorRate: baselineCalls > 0 ? baselineErrors / baselineCalls : null,
       baselineMedianFriction: friction.baseline_friction,
       baselineRevertRate:

@@ -7,6 +7,9 @@ import {
   AUTONOMY_SURGE_WINDOW_DAYS,
   BUDGET_THRESHOLD_CRITICAL_RATIO,
   BUDGET_THRESHOLD_WARN_RATIO,
+  DISALLOWED_MODEL_CRITICAL_MULTIPLE,
+  DISALLOWED_MODEL_DEFAULT_USD,
+  DISALLOWED_MODEL_WINDOW_DAYS,
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,
@@ -25,6 +28,11 @@ import {
 } from '@ai-agents-observability/schemas';
 import type { Logger } from 'pino';
 
+import {
+  downgradeableTriples,
+  loadPolicyOverrides,
+  resolveIngestModelPolicies,
+} from '../lib/model-policy';
 import { dispatchAlert } from '../lib/notify/channel';
 import type { EmailConfig } from '../lib/notify/email';
 import { buildAlertPayload } from '../lib/notify/payload';
@@ -32,7 +40,14 @@ import { type AlertEvaluation, applyAlertTransition } from './alert-transition';
 
 type AlertsDb = Pick<
   PrismaClient,
-  'jobRun' | 'alertRule' | 'alertEvent' | 'alertChannelConfig' | 'alertDeliveryLog'
+  | 'jobRun'
+  | 'alertRule'
+  | 'alertEvent'
+  | 'alertChannelConfig'
+  | 'alertDeliveryLog'
+  // routing_waste and disallowed_model both resolve the shared model policy,
+  // which lives in a Prisma-managed table rather than the events hypertable.
+  | 'modelPolicy'
 > & {
   $queryRaw: PrismaClient['$queryRaw'];
 };
@@ -214,15 +229,27 @@ async function evalRoutingWaste(db: AlertsDb, params: unknown): Promise<Evaluati
     return null;
   }
   const windowStart = new Date(Date.now() - ROUTING_WASTE_WINDOW_DAYS * 86_400_000);
+  // "Expensive" and "retrieval" are resolved per agent from the price tables and
+  // the org's model policy — never a literal model substring. The previous
+  // `ILIKE '%opus%'` silently matched nothing for the six non-Anthropic agents,
+  // so this alert could not fire for most of the fleet.
+  const policies = resolveIngestModelPolicies(await loadPolicyOverrides(db));
+  const triples = downgradeableTriples(policies);
+  if (triples.length === 0) {
+    return null;
+  }
+  const values = triples.map((t) => Prisma.sql`(${t.agentType}, ${t.model}, ${t.toolCategory})`);
   const rows = await db.$queryRaw<{ waste: number }[]>(Prisma.sql`
     SELECT COALESCE(SUM(e.cost_usd), 0) AS waste
     FROM events e
     JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    JOIN (VALUES ${Prisma.join(values)}) AS dm(agent_type, model, tool_category)
+      ON dm.agent_type = e.agent_type
+     AND dm.model = e.model
+     AND dm.tool_category = e.tool_category
     WHERE e.ts >= ${windowStart}
       AND e.event_type = 'PostToolUse'
-      AND e.model ILIKE '%opus%'
-      AND e.tool_category IN ('fs_read', 'search')
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   const waste = Number(rows[0]?.waste ?? 0);
@@ -236,6 +263,69 @@ async function evalRoutingWaste(db: AlertsDb, params: unknown): Promise<Evaluati
       windowDays: ROUTING_WASTE_WINDOW_DAYS,
     },
     severity: waste >= threshold * ROUTING_WASTE_CRITICAL_MULTIPLE ? 'critical' : 'warn',
+  };
+}
+
+// Disallowed model (P10-005): spend in the recent window that went to models
+// outside the org's allow-list for their agent_type. The allow-list is the
+// P10-002 `model_policy` table — the same one apps/web edits and
+// isModelAllowed() reads — so there is no second definition of "allowed".
+//
+// Done entirely in SQL (an INNER JOIN against model_policy) rather than reading
+// the policy through the Prisma client, which keeps `AlertsDb` from widening to
+// include `modelPolicy`.
+//
+// "Unconfigured means allowed" is enforced twice, both in the query:
+//   1. the INNER JOIN drops every event whose agent_type has no model_policy row;
+//   2. `array_length(mp.allowed_models, 1) > 0` drops an agent whose row exists
+//      but carries an empty allow-list (array_length returns NULL, not 0, for an
+//      empty array — hence the COALESCE).
+// Without both, enabling this rule on a fresh install would flag every session.
+//
+// `details` is deliberately numbers-only: dollars, counts, and the window. A
+// model name is not individual-identifying, but the existing payload
+// sanitization guarantee is easiest to keep honest if `details` never carries a
+// string at all, so we report only how MANY distinct models were disallowed.
+//
+// Exported (unlike its sibling evaluators) so the governance suite can drive it
+// directly with canned rows — see test/disallowed-model.test.ts.
+export async function evalDisallowedModel(db: AlertsDb, params: unknown): Promise<Evaluation> {
+  const threshold = Number(paramsObject(params).thresholdUsd ?? DISALLOWED_MODEL_DEFAULT_USD);
+  if (!(threshold > 0)) {
+    return null;
+  }
+  const windowStart = new Date(Date.now() - DISALLOWED_MODEL_WINDOW_DAYS * 86_400_000);
+  const rows = await db.$queryRaw<
+    { distinct_models: number; event_count: number; session_count: number; spend: number }[]
+  >(Prisma.sql`
+    SELECT COALESCE(SUM(e.cost_usd), 0) AS spend,
+           COUNT(*) AS event_count,
+           COUNT(DISTINCT e.session_id) AS session_count,
+           COUNT(DISTINCT e.model) AS distinct_models
+    FROM events e
+    JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    JOIN model_policy mp ON mp.agent_type::text = e.agent_type
+    WHERE e.ts >= ${windowStart}
+      AND e.model IS NOT NULL
+      AND COALESCE(array_length(mp.allowed_models, 1), 0) > 0
+      AND NOT (e.model = ANY(mp.allowed_models))
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+  `);
+  const spend = Number(rows[0]?.spend ?? 0);
+  if (spend < threshold) {
+    return null;
+  }
+  return {
+    details: {
+      distinctModels: Number(rows[0]?.distinct_models ?? 0),
+      eventCount: Number(rows[0]?.event_count ?? 0),
+      sessionCount: Number(rows[0]?.session_count ?? 0),
+      spendUsd: spend,
+      thresholdUsd: threshold,
+      windowDays: DISALLOWED_MODEL_WINDOW_DAYS,
+    },
+    severity: spend >= threshold * DISALLOWED_MODEL_CRITICAL_MULTIPLE ? 'critical' : 'warn',
   };
 }
 
@@ -289,6 +379,8 @@ async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
       return evalRoutingWaste(db, rule.params);
     case 'autonomy_surge':
       return evalAutonomySurge(db, rule.params);
+    case 'disallowed_model':
+      return evalDisallowedModel(db, rule.params);
     default:
       // Any future types: unimplemented evaluators never fire rather than throwing,
       // so one bad rule can't fail the whole sweep.

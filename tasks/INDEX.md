@@ -211,18 +211,18 @@ See [`P9-roadmap.md`](./P9-roadmap.md). Turns passive dashboards into proactive 
 
 ## Phase 10 — Model Cost Optimization
 
-See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §4. **Partially delivered** — the recommendation and validation surfaces ship; the policy store and governance alert do not.
+See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §4. **Done.**
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | in-progress | claude | M | P8-002, P4-004, P7-001 |
-| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | ready | — | M | P8-002 |
-| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | in-progress | claude | M | P10-001, P10-002 |
+| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | done | claude | M | P8-002, P4-004, P7-001 |
+| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | done | claude | M | P8-002 |
+| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | done | claude | M | P10-001, P10-002 |
 | [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | done | claude | M | P10-001 |
-| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | ready | — | M | P10-002, P9-001 |
+| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | done | claude | M | P10-002, P9-001 |
 | [P10-006](./P10-006-recommendation-validation-loop.md) | Recommendation validation loop | done | claude | M | P10-001, P10-003 |
 
-**What "in-progress" means for P10-001/003**, verified against the tree rather than the changelog: `/org/models` renders price-table-derived recommendations, a per-team routing accountability table, volume/confidence gating, and the validation panel, and the page no longer holds `DOWNGRADE_SAVINGS_RATE` / `PREMIUM_PATTERNS` / `CHEAP_CATEGORIES`. Still open: savings are gated **point estimates, not low/high ranges**; a missing price entry falls back to the flat `HAIKU_SAVINGS_RATIO` instead of returning `savings: null`; and the premium test is a literal `PREMIUM_PATTERN = 'opus'`, so no recommendation fires for the six non-Anthropic agents — which `P12-001`/`P12-010` made a live gap, not a theoretical one. P10-002 and P10-005 have **no implementation at all** (no `model_policy` table, no `/admin/model-policy`, no `disallowed_model` alert type); they were flipped to `done` in a bulk sweep during #111 and are corrected back here.
+Each task file carries an **As shipped** section recording where the implementation departed from its original criteria — notably P10-002, which derives tiers from the live price table on read rather than seeding rows, and P10-001, whose known limitations (retired models surfacing as downgrade targets; current Opus tiering as `standard`) are pinned by `apps/ingest/test/model-policy-golden.test.ts` so a fix shows up as a visible diff.
 
 ---
 

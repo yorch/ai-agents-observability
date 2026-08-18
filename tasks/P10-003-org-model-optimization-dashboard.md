@@ -3,8 +3,8 @@ id: P10-003
 title: Org model optimization dashboard
 phase: 10
 workstream: E
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P10-001, P10-002]
 blocks: [P10-006]
 estimate: M
@@ -30,19 +30,19 @@ and low-volume segments are suppressed, not shown with false precision.
 
 ## Acceptance criteria
 
-- [ ] `/org/models` shows routing recommendations grouped by `tool_category` (task
+- [x] `/org/models` shows routing recommendations grouped by `tool_category` (task
       type) **and** a per-team breakdown, each with a savings **range** (low/high) and
       the underlying monthly spend it's derived from.
-- [ ] All figures come from `P10-001` (price-table-derived) and `P10-002` (policy).
+- [x] All figures come from `P10-001` (price-table-derived) and `P10-002` (policy).
       Grepping the page for `DOWNGRADE_SAVINGS_RATE`, `PREMIUM_PATTERNS`, or
       `CHEAP_CATEGORIES` returns nothing — the constants are gone.
-- [ ] Segments below the volume floor are suppressed or shown as "insufficient data,"
+- [x] Segments below the volume floor are suppressed or shown as "insufficient data,"
       never as a point estimate.
-- [ ] A cache-efficiency opportunities section flags teams/models whose cache-read
+- [x] A cache-efficiency opportunities section flags teams/models whose cache-read
       ratio is well below the target band, with the estimated cost of the gap.
-- [ ] Each recommendation renders the outcome caveat (a $40 session that unblocks work
+- [x] Each recommendation renders the outcome caveat (a $40 session that unblocks work
       can beat a $5 reverted one) — enforced as a shared component, not ad-hoc copy.
-- [ ] Respects the time-range picker (`?range=`) and `viewer_aggregate` scoping (no
+- [x] Respects the time-range picker (`?range=`) and `viewer_aggregate` scoping (no
       individual sessions surfaced).
 
 ## Implementation notes
@@ -59,6 +59,20 @@ and low-volume segments are suppressed, not shown with false precision.
 - `apps/web/src/app/org/models/page.tsx`
 - `apps/web/src/components/team-org/` (recommendation + caveat components)
 - `apps/web/src/lib/routing-analysis.ts` (consume; extend if needed)
+
+## As shipped
+
+- The page's local constants are gone — grepping for `DOWNGRADE_SAVINGS_RATE`,
+  `PREMIUM_PATTERNS` or `CHEAP_CATEGORIES` returns nothing. Tier, cheap-category
+  and savings all resolve through the `P10-002` policy.
+- Savings render as a **range** with the spread explained in the copy ("the spread
+  is which model you route to, not uncertainty about the rates"), never a point
+  estimate. Segments under the call/spend floor are suppressed entirely.
+- Material retrieval spend on a model the price table cannot price is surfaced in
+  its own "Unpriced models" card rather than silently dropped, so an empty
+  recommendations list means "efficient", never "we could not tell".
+- The outcome caveat is carried by the shared `RoutingRecommendations` component
+  and the validation panel below it, not restated per call site.
 
 ## Out of scope
 

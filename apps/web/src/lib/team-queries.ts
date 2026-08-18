@@ -262,24 +262,32 @@ export async function getTeamRoutingBreakdown(
 
   const uuids = toUuidList(visibleIds);
   const rows = await getPrisma().$queryRaw<
-    { call_count: bigint; model: string; tool_category: string; total_cost_usd: number }[]
+    {
+      agent_type: string;
+      call_count: bigint;
+      model: string;
+      tool_category: string;
+      total_cost_usd: number;
+    }[]
   >(Prisma.sql`
     SELECT
-      model,
-      tool_category,
-      COUNT(*)                    AS call_count,
-      COALESCE(SUM(cost_usd), 0)  AS total_cost_usd
-    FROM events
-    WHERE user_id IN (${uuids})
-      AND ts >= ${since}
-      AND event_type = 'PostToolUse'
-      AND model IS NOT NULL
-      AND tool_category IS NOT NULL
-    GROUP BY model, tool_category
+      e.agent_type,
+      e.model,
+      e.tool_category,
+      COUNT(*)                     AS call_count,
+      COALESCE(SUM(e.cost_usd), 0) AS total_cost_usd
+    FROM events e
+    WHERE e.user_id IN (${uuids})
+      AND e.ts >= ${since}
+      AND e.event_type = 'PostToolUse'
+      AND e.model IS NOT NULL
+      AND e.tool_category IS NOT NULL
+    GROUP BY e.agent_type, e.model, e.tool_category
     ORDER BY total_cost_usd DESC
   `);
 
   return rows.map((r) => ({
+    agentType: r.agent_type,
     callCount: Number(r.call_count),
     model: r.model,
     toolCategory: r.tool_category,

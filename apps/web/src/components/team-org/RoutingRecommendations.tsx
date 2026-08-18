@@ -1,24 +1,27 @@
+import { agentDisplayName } from '@ai-agents-observability/schemas';
 import { Card, EmptyState } from '@/components/ui';
 import { fmtUsd } from '@/lib/fmt';
 import type { RoutingRecommendation } from '@/lib/routing-queries';
 
-// Presentational only — the page computes recommendations via
-// computeRoutingRecommendations (routing-queries.ts) and passes them in.
-// Copy here is deliberately hedged: this is a directional estimate, not a
-// guarantee (DESIGN_DOC §10.6 effectiveness-estimate discipline).
+// Presentational only — the page resolves each agent's policy and computes
+// recommendations via computeRoutingRecommendations (routing-queries.ts), then
+// passes them in. Copy here is deliberately hedged: savings are a range derived
+// from the live price table, not a guarantee (DESIGN_DOC §10.6
+// effectiveness-estimate discipline).
 
 export type RoutingRecommendationsProps = {
-  estimatedMonthlySaving: number;
-  // True when the saving fraction came from the ingest price table (per-model),
-  // false when it fell back to the flat heuristic (INGEST_URL unset / fetch failed).
-  pricePrecise: boolean;
+  estimatedMonthlySavingHigh: number;
+  estimatedMonthlySavingLow: number;
   recommendations: RoutingRecommendation[];
+  /** Material retrieval spend on models the price table could not price. */
+  unpricedModels: { agentType: string; model: string }[];
 };
 
 export function RoutingRecommendations({
-  estimatedMonthlySaving,
-  pricePrecise,
+  estimatedMonthlySavingHigh,
+  estimatedMonthlySavingLow,
   recommendations,
+  unpricedModels,
 }: RoutingRecommendationsProps) {
   return (
     <div className="space-y-3">
@@ -28,21 +31,25 @@ export function RoutingRecommendations({
 
       {recommendations.length === 0 ? (
         <EmptyState>
-          No premium-model spend on retrieval-only tool categories in this period — routing already
-          looks efficient.
+          No downgradeable model spend on retrieval-only tool categories in this period — routing
+          already looks efficient.
         </EmptyState>
       ) : (
         <div className="space-y-3">
           <p className="text-xs text-text-2">
-            Estimated up to{' '}
+            Estimated{' '}
             <span className="font-mono font-semibold text-good">
-              {fmtUsd(estimatedMonthlySaving)} / mo
+              {fmtUsd(estimatedMonthlySavingLow)}–{fmtUsd(estimatedMonthlySavingHigh)} / mo
             </span>{' '}
-            by routing retrieval-only turns to a cheaper model.
+            by routing retrieval-only turns to a cheaper model. The spread is which model you route
+            to, not uncertainty about the rates.
           </p>
 
           {recommendations.map((rec) => (
-            <Card key={rec.model} className="flex flex-wrap items-start gap-4">
+            <Card
+              key={`${rec.agentType}:${rec.model}`}
+              className="flex flex-wrap items-start gap-4"
+            >
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-text">
                   <span className="font-mono text-warn">{rec.model}</span>
@@ -50,6 +57,7 @@ export function RoutingRecommendations({
                   {fmtUsd(rec.cheapCategorySpend)} spent on retrieval-only categories this window
                 </p>
                 <p className="mt-0.5 text-xs text-text-3">
+                  {agentDisplayName(rec.agentType)} · {rec.tier} tier ·{' '}
                   {rec.cheapCategoryCalls.toLocaleString()} retrieval calls · confidence{' '}
                   {rec.confidence}
                 </p>
@@ -65,21 +73,39 @@ export function RoutingRecommendations({
               <div className="flex-shrink-0 text-right">
                 <p className="text-xs uppercase tracking-wider text-text-3">Est. monthly saving</p>
                 <p className="text-lg font-semibold font-mono text-good">
-                  {fmtUsd(rec.estimatedMonthlySaving)}
+                  {fmtUsd(rec.monthlySavingLow)}–{fmtUsd(rec.monthlySavingHigh)}
                 </p>
                 <p className="text-[10px] text-text-3">
-                  ~{Math.round(rec.savingsRatio * 100)}% cheaper if routed to Haiku
+                  routed to the {rec.targetTier} tier, e.g.{' '}
+                  <span className="font-mono">{rec.exampleTargetModel}</span>
                 </p>
               </div>
             </Card>
           ))}
 
           <p className="text-[11px] text-text-3">
-            {pricePrecise
-              ? 'Saving fractions are derived per-model from the current ingest price table (retrieval turns priced at the cheapest Haiku-class input rate). Still directional — real savings depend on the routed model handling the task.'
-              : 'INGEST_URL is not set, so this uses a flat ~90%-cheaper heuristic. Point the web app at ingest to derive per-model savings from the live price table.'}
+            Ranges are derived per-agent from the current ingest price table: the low end assumes
+            the dearest model in the target tier, the high end the cheapest. Still directional —
+            real savings depend on the routed model handling the task, so pair this with the
+            validation panel below rather than banking it.
           </p>
         </div>
+      )}
+
+      {unpricedModels.length > 0 && (
+        <Card
+          title="Unpriced models"
+          caption="Material retrieval spend we could not price, so no recommendation was made"
+        >
+          <ul className="space-y-0.5 text-xs text-text-2">
+            {unpricedModels.map((u) => (
+              <li key={`${u.agentType}:${u.model}`}>
+                <span className="font-mono">{u.model}</span>{' '}
+                <span className="text-text-3">({agentDisplayName(u.agentType)})</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
     </div>
   );

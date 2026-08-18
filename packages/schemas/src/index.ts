@@ -13,6 +13,9 @@ export {
   BUDGET_THRESHOLD_WARN_RATIO,
   BUDGET_THRESHOLD_WINDOW_DAYS,
   BudgetThresholdParamsSchema,
+  DISALLOWED_MODEL_CRITICAL_MULTIPLE,
+  DISALLOWED_MODEL_DEFAULT_USD,
+  DISALLOWED_MODEL_WINDOW_DAYS,
   ERROR_RATE_CRITICAL,
   ERROR_RATE_MIN_CALLS,
   ERROR_RATE_WARN,
@@ -65,6 +68,28 @@ export {
 } from './event';
 export { extractJiraKey, extractJiraKeyFromSources } from './jira';
 export { BUG_ISSUE_TYPE_LIST, BUG_ISSUE_TYPES } from './jira-domain';
+export type {
+  ModelPolicyOverrides,
+  ModelPolicySnapshot,
+  ModelTier,
+  SavingsRange,
+} from './model-policy';
+export {
+  blendedRate,
+  DEFAULT_CHEAP_CATEGORIES,
+  deriveModelTiers,
+  estimateRoutingSavings,
+  isCheapCategory,
+  isModelAllowed,
+  MAX_SAVINGS_RATIO,
+  MIN_SAVINGS_RATIO,
+  MODEL_TIERS,
+  parseTierOverrides,
+  resolveModelPolicySnapshot,
+  resolveModelTier,
+  TIER_INPUT_WEIGHT,
+  TIER_OUTPUT_WEIGHT,
+} from './model-policy';
 export type { NotificationKind } from './notification';
 export {
   BLOCKING_NOTIFICATION_KINDS,
