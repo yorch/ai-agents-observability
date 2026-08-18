@@ -65,3 +65,8 @@ infra/.minio-data/
 .claude/
 # Temporary scripts / scratch files
 /tmp/
+
+# Local docker-build verification inside the Claude sandbox: a copy of the
+# TLS-intercepting proxy CA, injected into locally patched Dockerfiles only.
+# Never commit or reference it from a real Dockerfile.
+/.agentproxy-ca.crt
