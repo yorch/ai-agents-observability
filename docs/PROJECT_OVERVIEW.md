@@ -258,7 +258,7 @@ GHES-capable.
   answers are **not** columns here — they are `HUMAN` rows in `scores`, so calibration
   reads one table.
 - **`scores`** (P13-001) — the scoring substrate. One row per
-  `(subject_type, subject_id, scorer_name, scorer_version)`: a value or a label, its
+  `(subject_type, subject_id, scorer_name, scorer_version, period_start)`: a value or a label, its
   source (`HEURISTIC` | `DETERMINISTIC` | `HUMAN` | `JUDGE` | `OUTCOME`), optional
   `cost_usd` for judge spend, and a `rationale_ref` pointer — never inline content.
   Subjects are heterogeneous (session, PR, skill, MCP server), so there is no FK and

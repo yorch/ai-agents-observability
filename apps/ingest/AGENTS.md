@@ -145,8 +145,9 @@ that removing either guard alone still blocks a third party's transcript.
 `compute-effectiveness`, which predates the substrate and still maintains the
 denormalized `friction_score` / `shape_label` cache alongside its score rows.
 Their idempotency comes from the upsert on
-`(subject_type, subject_id, scorer_name, scorer_version)`, so re-running one is
-free; bumping a scorer version in `packages/schemas/src/scores.ts` and triggering
+`(subject_type, subject_id, scorer_name, scorer_version, period_start)` — declared
+`NULLS NOT DISTINCT`, so a session score's NULL period still conflicts with itself
+rather than appending (P13-013) — so re-running one is free; bumping a scorer version in `packages/schemas/src/scores.ts` and triggering
 `rescore-effectiveness` / `rescore-trajectory` re-scores history without a
 bespoke backfill job. Those two rescore entries are operator-triggered only and
 deliberately absent from `CONFIGURABLE_JOBS`.
