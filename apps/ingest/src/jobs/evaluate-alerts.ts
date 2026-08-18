@@ -28,7 +28,6 @@ import type { Logger } from 'pino';
 import { dispatchAlert } from '../lib/notify/channel';
 import type { EmailConfig } from '../lib/notify/email';
 import { buildAlertPayload } from '../lib/notify/payload';
-import { interactiveEvents, interactiveSessions } from '../lib/run-kind';
 import { type AlertEvaluation, applyAlertTransition } from './alert-transition';
 
 type AlertsDb = Pick<
@@ -63,22 +62,20 @@ async function evalSpendSpike(db: AlertsDb): Promise<Evaluation> {
     Prisma.sql`
       WITH cur AS (
         SELECT COALESCE(SUM(s.total_cost_usd), 0) AS current
-        FROM sessions s
+        FROM interactive_sessions s
         JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
         LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-        WHERE ${interactiveSessions('s')}
-          AND s.started_at >= ${windowStart}
+        WHERE s.started_at >= ${windowStart}
           AND COALESCE(vp.share_metadata_with_org, true) = true
       ),
       base AS (
         SELECT AVG(daily) AS avg_cost, STDDEV(daily) AS stddev_cost
         FROM (
           SELECT date_trunc('day', s.started_at) AS day, SUM(s.total_cost_usd) AS daily
-          FROM sessions s
+          FROM interactive_sessions s
           JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
           LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-          WHERE ${interactiveSessions('s')}
-            AND s.started_at >= ${baselineStart} AND s.started_at < ${windowStart}
+          WHERE s.started_at >= ${baselineStart} AND s.started_at < ${windowStart}
             AND COALESCE(vp.share_metadata_with_org, true) = true
           GROUP BY date_trunc('day', s.started_at)
         ) d
@@ -110,11 +107,10 @@ async function evalHighErrorRate(db: AlertsDb): Promise<Evaluation> {
   const rows = await db.$queryRaw<{ calls: number; errors: number }[]>(Prisma.sql`
     SELECT COALESCE(SUM(s.tool_call_count), 0) AS calls,
            COALESCE(SUM(s.tool_error_count), 0) AS errors
-    FROM sessions s
+    FROM interactive_sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE ${interactiveSessions('s')}
-      AND s.started_at >= ${windowStart}
+    WHERE s.started_at >= ${windowStart}
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   const calls = Number(rows[0]?.calls ?? 0);
@@ -144,11 +140,10 @@ async function evalUnknownModelSurge(db: AlertsDb, params: unknown): Promise<Eva
   // aggregate-only guarantee alerts are held to.
   const rows = await db.$queryRaw<{ agent_type: string; c: number; model: string }[]>(Prisma.sql`
     SELECT e.agent_type, e.model, COUNT(*) AS c
-    FROM events e
+    FROM interactive_events e
     JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE ${interactiveEvents('e')}
-      AND e.ts >= ${windowStart}
+    WHERE e.ts >= ${windowStart}
       AND e.model IS NOT NULL
       AND e.cost_usd = 0
       AND e.input_tokens > 0
@@ -191,11 +186,10 @@ async function evalBudgetThreshold(db: AlertsDb, params: unknown): Promise<Evalu
   // metadata sharing don't contribute to this org-aggregate spend signal.
   const rows = await db.$queryRaw<{ spend: number }[]>(Prisma.sql`
     SELECT COALESCE(SUM(s.total_cost_usd), 0) AS spend
-    FROM sessions s
+    FROM interactive_sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE ${interactiveSessions('s')}
-      AND s.started_at >= ${windowStart}
+    WHERE s.started_at >= ${windowStart}
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   const spend = Number(rows[0]?.spend ?? 0);
@@ -222,11 +216,10 @@ async function evalRoutingWaste(db: AlertsDb, params: unknown): Promise<Evaluati
   const windowStart = new Date(Date.now() - ROUTING_WASTE_WINDOW_DAYS * 86_400_000);
   const rows = await db.$queryRaw<{ waste: number }[]>(Prisma.sql`
     SELECT COALESCE(SUM(e.cost_usd), 0) AS waste
-    FROM events e
+    FROM interactive_events e
     JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE ${interactiveEvents('e')}
-      AND e.ts >= ${windowStart}
+    WHERE e.ts >= ${windowStart}
       AND e.event_type = 'PostToolUse'
       AND e.model ILIKE '%opus%'
       AND e.tool_category IN ('fs_read', 'search')
@@ -256,11 +249,10 @@ async function evalAutonomySurge(db: AlertsDb, params: unknown): Promise<Evaluat
   const rows = await db.$queryRaw<{ low_oversight: number; total: number }[]>(Prisma.sql`
     SELECT COUNT(*) AS total,
            COUNT(*) FILTER (WHERE s.mode = ANY(${[...LOW_OVERSIGHT_MODES]}::text[])) AS low_oversight
-    FROM sessions s
+    FROM interactive_sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE ${interactiveSessions('s')}
-      AND s.started_at >= ${windowStart}
+    WHERE s.started_at >= ${windowStart}
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   const total = Number(rows[0]?.total ?? 0);

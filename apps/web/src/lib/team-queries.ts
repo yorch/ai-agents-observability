@@ -12,12 +12,6 @@ import type {
   ToolStatRow,
 } from './org-queries';
 import { getPrisma } from './prisma';
-import {
-  INTERACTIVE_EVENTS,
-  INTERACTIVE_ONLY,
-  interactiveEvents,
-  interactiveOnly,
-} from './run-kind';
 import type { SessionRow } from './sessions-queries';
 import { daysAgo } from './time';
 import { labelToolRows } from './tool-usage';
@@ -143,9 +137,8 @@ async function getTeamSummaryWindow(
         COALESCE(EXTRACT(EPOCH FROM SUM(ended_at - started_at)), 0) AS total_seconds,
         COALESCE(SUM(total_cache_read), 0)                          AS cache_read,
         COALESCE(SUM(total_input_tokens), 0)                        AS input_tokens
-      FROM sessions
-      WHERE ${INTERACTIVE_ONLY}
-        AND user_id IN (${uuids})
+      FROM interactive_sessions
+      WHERE user_id IN (${uuids})
         AND started_at >= ${since}
         ${untilClause}
         AND ended_at IS NOT NULL
@@ -160,9 +153,8 @@ async function getTeamSummaryWindow(
     SELECT
       COALESCE(SUM(total_cache_read), 0)    AS cache_read,
       COALESCE(SUM(total_input_tokens), 0)  AS input_tokens
-    FROM sessions
-    WHERE ${INTERACTIVE_ONLY}
-        AND user_id IN (${uuids})
+    FROM interactive_sessions
+    WHERE user_id IN (${uuids})
       AND started_at >= ${since}
       ${untilClauseEnded}
   `);
@@ -203,9 +195,8 @@ export async function getTeamTopTools(
     { agent_type: string; call_count: bigint; tool_name: string }[]
   >(Prisma.sql`
     SELECT agent_type, tool_name, COUNT(*) AS call_count
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
@@ -232,18 +223,16 @@ export async function getTeamModelMix(since: Date, visibleIds: string[]): Promis
           primary_model,
           COUNT(*)                          AS session_count,
           COALESCE(SUM(total_cost_usd), 0) AS cost_usd
-        FROM sessions
-        WHERE ${INTERACTIVE_ONLY}
-        AND user_id IN (${uuids})
+        FROM interactive_sessions
+        WHERE user_id IN (${uuids})
           AND started_at >= ${since}
         GROUP BY primary_model
       `,
     ),
     prisma.$queryRaw<{ model: string; turns: bigint }[]>(Prisma.sql`
       SELECT model, COUNT(*) AS turns
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+      FROM interactive_events
+      WHERE user_id IN (${uuids})
         AND ts >= ${since}
         AND model IS NOT NULL
       GROUP BY model
@@ -412,16 +401,14 @@ export async function getTeamSummaryWithDelta(
     const [curActiveRow, priorActiveRow] = await Promise.all([
       getPrisma().$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
         SELECT COUNT(DISTINCT user_id) AS cnt
-        FROM sessions
-        WHERE ${INTERACTIVE_ONLY}
-        AND user_id IN (${uuids})
+        FROM interactive_sessions
+        WHERE user_id IN (${uuids})
           AND started_at >= ${currentStart}
       `),
       getPrisma().$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
         SELECT COUNT(DISTINCT user_id) AS cnt
-        FROM sessions
-        WHERE ${INTERACTIVE_ONLY}
-        AND user_id IN (${uuids})
+        FROM interactive_sessions
+        WHERE user_id IN (${uuids})
           AND started_at >= ${priorStart}
           AND started_at < ${priorEnd}
       `),
@@ -499,10 +486,9 @@ export async function getTeamPrRollups(
     JOIN repos r ON r.id = p.repo_id
     LEFT JOIN pr_rollups pr ON pr.repo_id = p.repo_id AND pr.pr_number = p.pr_number
     JOIN session_pr_links spl ON spl.repo_id = p.repo_id AND spl.pr_number = p.pr_number
-    JOIN sessions s ON s.session_id = spl.session_id
+    JOIN interactive_sessions s ON s.session_id = spl.session_id
     JOIN users u ON u.id = s.user_id
-    WHERE ${interactiveOnly('s')}
-        AND p.state = 'MERGED'
+    WHERE p.state = 'MERGED'
       AND p.merged_at >= ${since}
       AND p.merged_at IS NOT NULL
       AND u.id IN (${uuids})
@@ -620,9 +606,8 @@ export async function getTeamToolStats(
       COUNT(*) FILTER (WHERE tool_was_denied = true)   AS deny_count,
       AVG(tool_duration_ms)                            AS avg_duration_ms,
       COUNT(DISTINCT user_id)                          AS distinct_users
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
@@ -659,9 +644,8 @@ export async function getTeamToolCategoryBreakdown(
       COALESCE(tool_category, 'other')                 AS category,
       COUNT(*)                                         AS call_count,
       COUNT(*) FILTER (WHERE tool_was_denied = true)   AS deny_count
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_category != 'agent'
@@ -691,9 +675,8 @@ export async function getTeamDailyToolVolume(
       COUNT(*)                                         AS call_count,
       COUNT(*) FILTER (WHERE tool_was_denied = true)   AS deny_count,
       COUNT(DISTINCT user_id)                          AS distinct_users
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
@@ -729,9 +712,8 @@ export async function getTeamSkillUsage(visibleIds: string[], since: Date): Prom
         session_id,
         user_id,
         COUNT(*)                                                        AS invocation_count
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+      FROM interactive_events
+      WHERE user_id IN (${uuids})
         AND ts >= ${since}
         AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
       GROUP BY
@@ -751,7 +733,7 @@ export async function getTeamSkillUsage(visibleIds: string[], since: Date): Prom
     -- here instead of on the events scan, which made call_count/distinct_users an
     -- unfiltered population while avg cost covered only interactive sessions.
     FROM invocations i
-    LEFT JOIN sessions s ON i.session_id = s.session_id
+    LEFT JOIN interactive_sessions s ON i.session_id = s.session_id
     GROUP BY i.name, i.kind
     ORDER BY call_count DESC
     LIMIT 20
@@ -815,9 +797,8 @@ export async function getTeamPRDeliveryStats(
       FROM pull_requests p
       LEFT JOIN pr_rollups pr ON pr.repo_id = p.repo_id AND pr.pr_number = p.pr_number
       JOIN session_pr_links spl ON spl.repo_id = p.repo_id AND spl.pr_number = p.pr_number
-      JOIN sessions s ON s.session_id = spl.session_id
-      WHERE ${interactiveOnly('s')}
-        AND p.opened_at >= ${since}
+      JOIN interactive_sessions s ON s.session_id = spl.session_id
+      WHERE p.opened_at >= ${since}
         AND s.user_id IN (${uuids})
     )
     SELECT
@@ -873,10 +854,9 @@ export async function getTeamSessionFrequencyDistribution(
         u.id,
         COUNT(s.session_id) AS session_count
       FROM users u
-      LEFT JOIN sessions s
+      LEFT JOIN interactive_sessions s
         ON s.user_id = u.id
         AND s.started_at >= ${since}
-      AND ${interactiveOnly('s')}
       WHERE u.id IN (${uuids})
       GROUP BY u.id
     )
@@ -914,9 +894,8 @@ export async function getTeamSkillAdoptionFunnel(
         user_id,
         COALESCE(skill_name, slash_command) AS name,
         MIN(ts)                              AS first_ts
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+      FROM interactive_events
+      WHERE user_id IN (${uuids})
         AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
       GROUP BY user_id, COALESCE(skill_name, slash_command)
     ),
@@ -927,9 +906,8 @@ export async function getTeamSkillAdoptionFunnel(
       SELECT DISTINCT
         user_id,
         COALESCE(skill_name, slash_command) AS name
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+      FROM interactive_events
+      WHERE user_id IN (${uuids})
         AND ts >= ${since}
         AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
     )
@@ -967,9 +945,8 @@ export async function getTeamDailySkillVolume(
       date_trunc('day', ts)           AS day,
       COUNT(*)::bigint                AS invocation_count,
       COUNT(DISTINCT user_id)::bigint AS distinct_users
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
     GROUP BY date_trunc('day', ts)
@@ -999,9 +976,8 @@ export async function getTeamSkillDailyTrend(
       date_trunc('day', ts)           AS day,
       COUNT(*)::bigint                AS invocation_count,
       COUNT(DISTINCT user_id)::bigint AS distinct_users
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND COALESCE(skill_name, slash_command) = ${name}
       AND CASE WHEN skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END = ${kind}
@@ -1038,10 +1014,9 @@ export async function getTeamSkillTopUsers(
       u.display_name,
       COUNT(*)::bigint                     AS invocation_count,
       COUNT(DISTINCT e.session_id)::bigint AS session_count
-    FROM events e
+    FROM interactive_events e
     JOIN users u ON e.user_id = u.id
-    WHERE ${interactiveEvents('e')}
-        AND e.user_id IN (${uuids})
+    WHERE e.user_id IN (${uuids})
       AND e.ts >= ${since}
       AND COALESCE(e.skill_name, e.slash_command) = ${name}
       AND CASE WHEN e.skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END = ${kind}
@@ -1083,14 +1058,13 @@ export async function getTeamSkillCostComparison(
           -- run-kind-exempt: correlated to s.session_id on the guarded sessions
           -- scan below, so only interactive sessions are ever probed. This is an
           -- EXISTS flag on that session, not an events population of its own.
-          SELECT 1 FROM events e
+          SELECT 1 FROM interactive_events e
           WHERE e.session_id = s.session_id
             AND COALESCE(e.skill_name, e.slash_command) = ${name}
             AND CASE WHEN e.skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END = ${kind}
         ) AS has_skill
-      FROM sessions s
-      WHERE ${interactiveOnly('s')}
-        AND s.user_id IN (${uuids})
+      FROM interactive_sessions s
+      WHERE s.user_id IN (${uuids})
         AND s.started_at >= ${since}
         AND s.total_cost_usd IS NOT NULL
     ) sub
@@ -1153,9 +1127,8 @@ export async function getTeamMcpDetails(
         PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tool_duration_ms)               AS p95_duration_ms,
         COUNT(DISTINCT user_id)                                                       AS distinct_users,
         COALESCE(SUM(cost_usd), 0)                                                   AS total_cost_usd
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+      FROM interactive_events
+      WHERE user_id IN (${uuids})
         AND ts >= ${since}
         AND event_type = 'PostToolUse'
         AND mcp_server IS NOT NULL
@@ -1167,9 +1140,8 @@ export async function getTeamMcpDetails(
       -- to be an upper bound on, and an unfiltered scan here can make the server
       -- total exceed the sum of its own tools' users.
       SELECT mcp_server, COUNT(DISTINCT user_id) AS distinct_users
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+      FROM interactive_events
+      WHERE user_id IN (${uuids})
         AND ts >= ${since}
         AND event_type = 'PostToolUse'
         AND mcp_server IS NOT NULL
@@ -1220,9 +1192,8 @@ export async function getTeamSubagentStats(
       COUNT(DISTINCT user_id)     AS distinct_users,
       AVG(tool_duration_ms)       AS avg_duration_ms,
       SUM(cost_usd)               AS total_cost_usd
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id IN (${uuids})
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_category = 'agent'

@@ -1,7 +1,6 @@
 import { Prisma } from '@ai-agents-observability/db';
 
 import { getPrisma } from './prisma';
-import { interactiveOnly } from './run-kind';
 
 // Aggregate transcript topic clustering (Tier 2 — knowledge-gap detection).
 //
@@ -109,11 +108,10 @@ export async function getKnowledgeTopics(since: Date): Promise<KnowledgeResult> 
       COUNT(DISTINCT ti.session_id) AS total_sessions,
       ${Prisma.join(cols, ', ')}
     FROM transcript_index ti
-    JOIN sessions s ON s.session_id = ti.session_id AND s.started_at >= ${since}
+    JOIN interactive_sessions s ON s.session_id = ti.session_id AND s.started_at >= ${since}
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE ${interactiveOnly('s')}
-        AND ti.role = 'user'
+    WHERE ti.role = 'user'
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
 

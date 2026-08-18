@@ -49,6 +49,11 @@ describe('run_kind filtering goes through the shared fragment', () => {
 });
 
 /**
+ * Since P13-012 the alert engine reads `interactive_sessions` / `interactive_events`
+ * rather than filtering the base tables, so this counting check is a floor kept for
+ * one reason: it proves the SQL sweep did not quietly drop a guard while rewriting
+ * the table names. The structural check is the one below it.
+ *
  * The alert engine is the one ingest job that is *entirely* a human aggregate —
  * every evaluator answers "is this org's people-driven usage going wrong?", so
  * unlike the sweeps and scorers there is no read in it that should see CI or eval
@@ -66,15 +71,18 @@ describe('the alert engine guards every table it scans', () => {
   const source = readFileSync(join(SRC, 'jobs/evaluate-alerts.ts'), 'utf8');
   const count = (re: RegExp) => source.match(re)?.length ?? 0;
 
-  it('has one interactiveSessions guard per sessions scan', () => {
-    const scans = count(/\bFROM sessions s\b/g);
-    expect(scans).toBeGreaterThan(0);
-    expect(count(/interactiveSessions\('s'\)/g)).toBe(scans);
+  it('reads only the filtered views', () => {
+    // Every evaluator here answers "is this org's people-driven usage going
+    // wrong?", so there is no read in this file that should see a CI or eval run.
+    expect(count(/\bFROM sessions\b(?!_)/g)).toBe(0);
+    expect(count(/\bFROM events\b(?!_)/g)).toBe(0);
+    expect(count(/\bFROM interactive_sessions\b/g)).toBeGreaterThan(0);
+    expect(count(/\bFROM interactive_events\b/g)).toBeGreaterThan(0);
   });
 
-  it('has one interactiveEvents guard per events scan', () => {
-    const scans = count(/\bFROM events e\b/g);
-    expect(scans).toBeGreaterThan(0);
-    expect(count(/interactiveEvents\('e'\)/g)).toBe(scans);
+  it('no longer needs the fragment at all', () => {
+    // The guard is in the view. A fragment reappearing here would mean someone
+    // reverted a table name back to the base table and patched around it.
+    expect(count(/interactiveSessions\('s'\)|interactiveEvents\('e'\)/g)).toBe(0);
   });
 });

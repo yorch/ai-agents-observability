@@ -16,7 +16,6 @@ import type { Logger } from 'pino';
 
 import type { JudgeModelClient } from '../lib/judge-client';
 import { putJudgeRationale } from '../lib/judge-rationales';
-import { interactiveSessions } from '../lib/run-kind';
 import { scoreUpserts } from '../lib/scores';
 import { downloadAndParseTranscript, extractTextContent } from './index-transcripts';
 import { type JobRawDb, withJobRun } from './job-run';
@@ -130,10 +129,9 @@ export async function selectJudgeCandidates(
 
   return db.$queryRaw<CandidateRow[]>(Prisma.sql`
     SELECT s.session_id::text AS session_id, s.agent_type, s.transcript_s3_key
-    FROM sessions s
+    FROM interactive_sessions s
     JOIN visibility_policies vp ON vp.user_id = s.user_id
     WHERE s.transcript_s3_key IS NOT NULL
-      AND ${interactiveSessions('s')}
       AND s.status <> 'ACTIVE'
       AND s.last_event_at >= NOW() - (${CANDIDATE_WINDOW_DAYS} * INTERVAL '1 day')
       -- GUARD 1: explicit per-user consent for judge analysis.

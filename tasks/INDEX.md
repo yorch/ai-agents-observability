@@ -288,7 +288,7 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 |---|---|---|---|---|---|
 | [P13-001](./P13-001-scores-substrate.md) | Generic versioned scores table | review | claude | M | — |
 | [P13-002](./P13-002-run-kind-dimension.md) | `run_kind` dimension (interactive / ci / eval) | review | claude | S | — |
-| [P13-012](./P13-012-run-kind-views.md) | Move the `run_kind` guard into the data layer | ready | — | M | P13-002 |
+| [P13-012](./P13-012-run-kind-views.md) | Move the `run_kind` guard into the data layer | in-progress | claude | M | P13-002 |
 | [P13-013](./P13-013-scores-time-dimension.md) | Time dimension on the `scores` unique key | review | claude | M | P13-001, P13-004 |
 
 > **Both are deliberate deferrals from the P13 branch, not oversights.**

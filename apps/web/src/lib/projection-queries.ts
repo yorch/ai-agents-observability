@@ -3,7 +3,6 @@ import { cache } from 'react';
 import { getPrisma } from './prisma';
 import type { GuardMetrics, PostPeriodActuals } from './projections';
 import { CHEAP_SUITABLE_CATEGORIES } from './routing-queries';
-import { INTERACTIVE_EVENTS, interactiveOnly } from './run-kind';
 
 /**
  * The actuals side of the projection registry (P13-006).
@@ -42,11 +41,10 @@ async function computeGuardMetrics(from: Date, to: Date): Promise<GuardMetrics> 
           AVG(s.friction_score)                   AS friction_mean,
           COALESCE(SUM(s.tool_call_count), 0)     AS tool_calls,
           COALESCE(SUM(s.tool_error_count), 0)    AS tool_errors
-        FROM sessions s
+        FROM interactive_sessions s
         JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
         LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-        WHERE ${interactiveOnly('s')}
-          AND s.started_at >= ${from}
+        WHERE s.started_at >= ${from}
           AND s.started_at < ${to}
           AND ${ORG_VISIBLE}
       `,
@@ -133,12 +131,11 @@ export async function getSpendActuals(
       SELECT
         COALESCE(SUM(s.total_cost_usd), 0) AS total_cost,
         COUNT(*)                           AS session_count
-      FROM sessions s
+      FROM interactive_sessions s
       JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
       ${teamJoin}
-      WHERE ${interactiveOnly('s')}
-        AND s.started_at >= ${from}
+      WHERE s.started_at >= ${from}
         AND s.started_at < ${to}
         AND ${ORG_VISIBLE}
     `,
@@ -172,9 +169,8 @@ export async function getRoutingActuals(
       SELECT
         COALESCE(SUM(cost_usd), 0) AS cheap_cost,
         COUNT(*)                   AS call_count
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND ts >= ${from}
+      FROM interactive_events
+      WHERE ts >= ${from}
         AND ts < ${to}
         AND event_type = 'PostToolUse'
         AND model = ${model}

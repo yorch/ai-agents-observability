@@ -12,7 +12,6 @@ import {
   testCommandRun,
 } from '@ai-agents-observability/schemas';
 import type { Logger } from 'pino';
-import { INTERACTIVE_SESSIONS } from '../lib/run-kind';
 import { scoreUpserts } from '../lib/scores';
 import { type JobRawDb, withJobRun } from './job-run';
 
@@ -112,9 +111,8 @@ export async function loadStepBaselines(
       shape_label,
       COUNT(*)                                                        AS session_count,
       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tool_call_count)    AS median_tool_calls
-    FROM sessions
-    WHERE ${INTERACTIVE_SESSIONS}
-      AND shape_label IS NOT NULL
+    FROM interactive_sessions
+    WHERE shape_label IS NOT NULL
       AND tool_call_count >= ${TRAJECTORY_MIN_TOOL_CALLS}
       AND last_event_at >= NOW() - (${BASELINE_WINDOW_DAYS} * INTERVAL '1 day')
     GROUP BY shape_label

@@ -141,7 +141,10 @@ function makeMockDb(sessions: SessionFixture[], hooks: { onSelect?: () => void }
 
       // Candidate selection. Guard emulation: apply exactly the predicates the
       // emitted SQL actually contains.
-      if (text.includes('FROM sessions s') && text.includes('JOIN visibility_policies')) {
+      if (
+        text.includes('FROM interactive_sessions s') &&
+        text.includes('JOIN visibility_policies')
+      ) {
         ops.push('select');
         const consentGuard = text.includes('vp.allow_judge_analysis = TRUE');
         const ownerGuard = text.includes('s.user_id =') && values.includes(OPERATOR);
@@ -299,7 +302,11 @@ describe('judge candidate selection', () => {
     const db = makeMockDb(fixtures());
     await selectJudgeCandidates(db as unknown as Pick<PrismaClient, '$queryRaw'>, makeConfig());
     const { text } = introspect(db.$queryRaw.mock.calls[0]?.[0]);
-    expect(text).toContain("s.run_kind = 'INTERACTIVE'");
+    // Since P13-012 the filter is the relation, not a predicate: reading
+    // `interactive_sessions` is what excludes CI and eval runs. A revert to the
+    // base table would reintroduce them silently, so assert on the table name.
+    expect(text).toContain('FROM interactive_sessions s');
+    expect(text).not.toMatch(/FROM sessions\b/);
     expect(text).toContain('s.transcript_s3_key IS NOT NULL');
   });
 });

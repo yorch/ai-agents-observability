@@ -1,7 +1,6 @@
 import { Prisma } from '@ai-agents-observability/db';
 
 import { getPrisma } from './prisma';
-import { interactiveOnly } from './run-kind';
 
 // Security & compliance queries (org scope). These surface the AI-agent data-flow
 // signals the platform already captures but never displayed: which powerful tool
@@ -44,11 +43,10 @@ export async function getCategoryExposure(since: Date): Promise<CategoryExposure
     -- run-kind-exempt: the INNER JOIN to the guarded sessions scan below drops
     -- every event whose session is not INTERACTIVE, so a second filter on the
     -- events scan would be redundant.
-    FROM events e
+    FROM interactive_events e
     ${ORG_VISIBLE}
-    JOIN sessions s ON s.session_id = e.session_id
-    WHERE ${interactiveOnly('s')}
-        AND e.ts >= ${since}
+    JOIN interactive_sessions s ON s.session_id = e.session_id
+    WHERE e.ts >= ${since}
       AND e.tool_category IS NOT NULL
       AND e.event_type = 'PostToolUse'
       AND ${ORG_VISIBLE_FILTER}
@@ -90,12 +88,11 @@ export async function getRepoExposure(since: Date, limit = 15): Promise<RepoExpo
     -- run-kind-exempt: the INNER JOIN to the guarded sessions scan below drops
     -- every event whose session is not INTERACTIVE, so a second filter on the
     -- events scan would be redundant.
-    FROM events e
+    FROM interactive_events e
     ${ORG_VISIBLE}
-    JOIN sessions s ON s.session_id = e.session_id
+    JOIN interactive_sessions s ON s.session_id = e.session_id
     JOIN repos r    ON r.id = s.repo_id
-    WHERE ${interactiveOnly('s')}
-        AND e.ts >= ${since}
+    WHERE e.ts >= ${since}
       AND e.event_type = 'PostToolUse'
       AND e.tool_category IN ('exec', 'web', 'fs_write')
       AND ${ORG_VISIBLE_FILTER}
@@ -143,11 +140,10 @@ export async function getEgressServers(since: Date): Promise<EgressServerRow[]> 
     -- run-kind-exempt: the INNER JOIN to the guarded sessions scan below drops
     -- every event whose session is not INTERACTIVE, so a second filter on the
     -- events scan would be redundant.
-    FROM events e
+    FROM interactive_events e
     ${ORG_VISIBLE}
-    JOIN sessions s ON s.session_id = e.session_id
-    WHERE ${interactiveOnly('s')}
-        AND e.ts >= ${since}
+    JOIN interactive_sessions s ON s.session_id = e.session_id
+    WHERE e.ts >= ${since}
       AND e.mcp_server IS NOT NULL
       AND ${ORG_VISIBLE_FILTER}
     GROUP BY e.mcp_server
@@ -196,12 +192,11 @@ export async function getRedactionExposure(since: Date): Promise<RedactionSummar
   const [classRows, totals] = await Promise.all([
     prisma.$queryRaw<{ redaction_class: string; session_count: bigint }[]>(Prisma.sql`
       SELECT flag AS redaction_class, COUNT(DISTINCT s.session_id) AS session_count
-      FROM sessions s
+      FROM interactive_sessions s
       JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
       CROSS JOIN LATERAL unnest(s.redaction_flags) AS flag
-      WHERE ${interactiveOnly('s')}
-        AND s.started_at >= ${since}
+      WHERE s.started_at >= ${since}
         AND COALESCE(vp.share_metadata_with_org, true) = true
       GROUP BY flag
       ORDER BY session_count DESC
@@ -210,11 +205,10 @@ export async function getRedactionExposure(since: Date): Promise<RedactionSummar
       SELECT
         COUNT(*) FILTER (WHERE array_length(s.redaction_flags, 1) > 0)   AS sessions_with_secrets,
         COUNT(*) FILTER (WHERE s.transcript_s3_key IS NOT NULL)          AS total_with_transcript
-      FROM sessions s
+      FROM interactive_sessions s
       JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
       LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-      WHERE ${interactiveOnly('s')}
-        AND s.started_at >= ${since}
+      WHERE s.started_at >= ${since}
         AND COALESCE(vp.share_metadata_with_org, true) = true
     `),
   ]);
@@ -250,12 +244,11 @@ export async function getLargeOutputEvents(since: Date, limit = 20): Promise<Lar
     -- run-kind-exempt: the INNER JOIN to the guarded sessions scan below drops
     -- every event whose session is not INTERACTIVE, so a second filter on the
     -- events scan would be redundant.
-    FROM events e
+    FROM interactive_events e
     ${ORG_VISIBLE}
-    JOIN sessions s   ON s.session_id = e.session_id
+    JOIN interactive_sessions s   ON s.session_id = e.session_id
     LEFT JOIN repos r ON r.id = s.repo_id
-    WHERE ${interactiveOnly('s')}
-        AND e.ts >= ${since}
+    WHERE e.ts >= ${since}
       AND e.tool_output_bytes IS NOT NULL
       AND e.tool_category IN ('web', 'mcp', 'fs_read')
       AND ${ORG_VISIBLE_FILTER}

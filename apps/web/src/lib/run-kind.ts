@@ -1,54 +1,62 @@
 import { Prisma } from '@ai-agents-observability/db';
 
 /**
- * The single definition of "sessions a human actually had" (P13-002).
+ * What is left of the `run_kind` guard after P13-012 moved it into the database.
  *
- * CI and eval runs have no human prompts, so mixing them into per-developer
- * metrics distorts every one of them — the concern `DESIGN_DOC.md` §13 Q8 raises
- * about CI-side runs. They are stored and trendable; they are just never part of a
- * human aggregate.
+ * The rule is unchanged: CI and eval runs are stored and trendable, but never
+ * enter a number a dashboard presents as developer behaviour. What changed is
+ * where the rule lives. Human-facing SQL now reads the **filtered views**
+ * `interactive_sessions` and `interactive_events` (`packages/db/sql/migrations/
+ * 0003_run_kind_views.sql`) instead of filtering the base tables at ~130 call
+ * sites. A query either names a filtered relation or it names a base table, and
+ * naming a base table is a visible, greppable exception rather than an omission
+ * nobody can see.
  *
- * Every read of `sessions` or `events` in a user-facing surface must carry one of
- * these fragments. That is enforced by `run-kind-coverage.test.ts`, which scans
- * this directory rather than trusting review — a missed site would silently let
- * non-interactive runs into an aggregate, and nothing would fail. It counts
- * guards against table reads *per SQL literal*, so a multi-CTE query that scans
- * `events` three times needs three of them; it also scans Prisma ORM reads of
- * `session`/`event`, which carry `runKind: 'INTERACTIVE'` instead of a fragment.
- * A read that legitimately sees every run says so with a `run-kind-exempt:
- * <reason>` marker next to it.
+ * Why that was worth doing, in one paragraph, because the history is the
+ * argument. The predicate started inline and drifted, letting CI runs into org
+ * spend — `getOrgSummary` reported 121 sessions and $547.83 against a true 115
+ * and $19.03. Centralizing it here found 18 SQL and 22 ORM sites that had never
+ * adopted it. Strengthening the lint to count per table per SQL literal then
+ * found seven guards bound to a CTE while the driving query ran unfiltered. And
+ * a later documentation audit still found two unguarded `events` reads in the
+ * ingest alert engine, because that app had no counting lint at all. Four rounds,
+ * each finding sites the previous round's mechanism could not see — the signature
+ * of a rule enforced at the wrong altitude. Counting can prove a filter is
+ * present; it cannot prove it is bound to the scan it was written for.
  *
- * Placement is on you, though. Counting proves nobody forgot to think about a
- * read; it cannot prove a filter is bound to the read it was meant for. The two
- * mistakes worth naming, because both have shipped here:
+ * The exemptions are unchanged and are now stated by *which relation a query
+ * names*, marked with `run-kind-exempt: <reason>` beside the read:
  *
- * - **Guarding the join instead of the scan.** Putting the filter on a
- *   `LEFT JOIN sessions` while the driving `FROM events` runs unfiltered yields a
- *   row whose counts cover everyone and whose averages cover only humans. On a
- *   LEFT JOIN the filter also nulls rather than excludes, which is worse still
- *   when the column is typed non-nullable downstream.
- * - **Guarding one sibling CTE.** Two CTEs over the same table, one filtered,
- *   produce a comparison between different populations — a "users on this server"
- *   total larger than the sum of its parts, or a CI-only user counted as a
- *   returning human.
+ * - **Per-session drill-downs.** A query already scoped to one `session_id` is
+ *   not a population; filtering it renders a session's own detail page empty
+ *   instead of excluding it from anything.
+ * - **Mechanical jobs** that operate on rows rather than people — retention
+ *   sweeps, transcript indexing, redaction backfill, and the per-session scorers,
+ *   which must score every session they are asked about.
+ * - **Own-data transcript search**, which lets a developer find their own CI and
+ *   eval transcripts. That one read picks its relation from a caller-supplied
+ *   scope (`search-queries.ts`), rather than always filtering.
  *
- * Deliberately *not* applied to per-session drill-downs. A query already scoped to
- * one `session_id` is not a population, and filtering it renders a session's own
- * detail page empty instead of excluding it from anything.
+ * The three continuous aggregates need nothing: the filter is baked into their
+ * definitions, so an aggregate named `daily_cost_by_user` cannot contain a
+ * non-human run in the first place.
  *
- * Deliberately *not* applied to mechanical jobs that must see every session
- * (retention sweeps, transcript indexing, redaction backfill, effectiveness
- * scoring): those operate on rows, not on people.
+ * `apps/web/test/run-kind-coverage.test.ts` now asks the smaller, fully decidable
+ * question — does any query in `src/lib` name a base table without a marker? —
+ * instead of counting fragments.
  *
- * The three continuous aggregates need no fragment at all — the filter is baked
- * into their definitions (`packages/db/sql/migrations/0001_init.sql`), because an aggregate
- * named `daily_cost_by_user` that feeds a developer dashboard should not be able
- * to contain non-human runs in the first place.
+ * ── What remains here, and why ───────────────────────────────────────────────
  *
- * **Aliases are a closed union rather than a string.** Every fragment below is a
- * fully-literal `Prisma.sql`, so no identifier is ever interpolated into SQL and
- * there is no `Prisma.raw` anywhere in this module. Adding an alias means adding a
- * case here, which is the point: the set stays small and visible.
+ * Prisma ORM reads cannot be routed through a view without a model mapped to it,
+ * so they still carry `runKind: 'INTERACTIVE'` in their `where`. Making that
+ * structural is a client extension, which is a separate change with its own risk:
+ * it inverts the default, so every read that legitimately sees all runs must opt
+ * out, and there are more of those than there are guarded reads. Tracked as the
+ * remaining half of `tasks/P13-012-run-kind-views.md`.
+ *
+ * The SQL fragments below are kept for the same reason — one caller
+ * (`search-queries.ts`) still needs a relation chosen at run time, and deleting
+ * these would leave nothing to point a future exemption at.
  */
 
 /** Table aliases used for `sessions` across the query layer. */

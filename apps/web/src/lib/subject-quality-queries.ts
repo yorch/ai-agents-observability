@@ -6,7 +6,6 @@ import {
 } from '@ai-agents-observability/schemas';
 
 import { getPrisma } from './prisma';
-import { interactiveEvents, interactiveOnly } from './run-kind';
 import { fisherExactTwoTailed } from './stats';
 
 /**
@@ -156,9 +155,8 @@ function userFilter(visibleIds: string[]): Prisma.Sql {
 function scopedSessions(visibleIds: string[], since: Date): Prisma.Sql {
   return Prisma.sql`
     SELECT s.session_id, s.shape_label, s.friction_score, s.pr_ci_status
-    FROM sessions s
-    WHERE ${interactiveOnly('s')}
-      AND s.user_id IN (${userFilter(visibleIds)})
+    FROM interactive_sessions s
+    WHERE s.user_id IN (${userFilter(visibleIds)})
       AND s.started_at >= ${since}
       AND s.shape_label IS NOT NULL
   `;
@@ -189,9 +187,8 @@ function skillInvocations(visibleIds: string[], since: Date): Prisma.Sql {
            e.session_id, e.user_id,
            MIN(e.ts)                                                          AS first_ts,
            COUNT(*)                                                           AS invocations
-    FROM events e
-    WHERE ${interactiveEvents('e')}
-      AND e.user_id IN (${userFilter(visibleIds)})
+    FROM interactive_events e
+    WHERE e.user_id IN (${userFilter(visibleIds)})
       AND e.ts >= ${since}
       AND (e.skill_name IS NOT NULL OR e.slash_command IS NOT NULL)
     GROUP BY 1, 2, 3, 4
@@ -206,9 +203,8 @@ function mcpInvocations(visibleIds: string[], since: Date): Prisma.Sql {
            e.session_id, e.user_id,
            MIN(e.ts)                   AS first_ts,
            COUNT(*)                    AS invocations
-    FROM events e
-    WHERE ${interactiveEvents('e')}
-      AND e.user_id IN (${userFilter(visibleIds)})
+    FROM interactive_events e
+    WHERE e.user_id IN (${userFilter(visibleIds)})
       AND e.ts >= ${since}
       AND e.event_type = 'PostToolUse'
       AND e.mcp_server IS NOT NULL
@@ -290,9 +286,8 @@ async function subjectQuality(
              )::bigint AS errors
       FROM invocation i
       JOIN scoped sc ON sc.session_id = i.session_id
-      JOIN events e ON e.session_id = i.session_id AND e.ts >= i.first_ts
-      WHERE ${interactiveEvents('e')}
-        AND e.event_type = 'PostToolUse'
+      JOIN interactive_events e ON e.session_id = i.session_id AND e.ts >= i.first_ts
+      WHERE e.event_type = 'PostToolUse'
         AND e.tool_name IS NOT NULL
       GROUP BY 1, 2
     )
@@ -443,9 +438,8 @@ export async function getMcpFailureSplit(
           AND COALESCE(e.tool_output_bytes, 0) > 0
       )::bigint AS tool_errors,
       PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY e.tool_duration_ms) AS p95_duration_ms
-    FROM events e
-    WHERE ${interactiveEvents('e')}
-      AND e.user_id IN (${userFilter(visibleIds)})
+    FROM interactive_events e
+    WHERE e.user_id IN (${userFilter(visibleIds)})
       AND e.ts >= ${since}
       AND e.event_type = 'PostToolUse'
       AND e.mcp_server IS NOT NULL
@@ -495,18 +489,16 @@ export async function getDeprecationCandidates(
              CASE WHEN e.skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END  AS kind,
              COUNT(*)::bigint AS invocations,
              MAX(e.ts)        AS last_used_at
-      FROM events e
-      WHERE ${interactiveEvents('e')}
-        AND e.user_id IN (${users})
+      FROM interactive_events e
+      WHERE e.user_id IN (${users})
         AND e.ts >= NOW() - (${DEPRECATION_LOOKBACK_DAYS} * INTERVAL '1 day')
         AND e.ts < ${since}
         AND (e.skill_name IS NOT NULL OR e.slash_command IS NOT NULL)
       GROUP BY 1, 2
       UNION ALL
       SELECT e.mcp_server, 'mcp_server', COUNT(*)::bigint, MAX(e.ts)
-      FROM events e
-      WHERE ${interactiveEvents('e')}
-        AND e.user_id IN (${users})
+      FROM interactive_events e
+      WHERE e.user_id IN (${users})
         AND e.ts >= NOW() - (${DEPRECATION_LOOKBACK_DAYS} * INTERVAL '1 day')
         AND e.ts < ${since}
         AND e.event_type = 'PostToolUse'
@@ -516,16 +508,14 @@ export async function getDeprecationCandidates(
     recent AS (
       SELECT DISTINCT COALESCE(e.skill_name, e.slash_command)                  AS name,
              CASE WHEN e.skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END  AS kind
-      FROM events e
-      WHERE ${interactiveEvents('e')}
-        AND e.user_id IN (${users})
+      FROM interactive_events e
+      WHERE e.user_id IN (${users})
         AND e.ts >= ${since}
         AND (e.skill_name IS NOT NULL OR e.slash_command IS NOT NULL)
       UNION
       SELECT DISTINCT e.mcp_server, 'mcp_server'
-      FROM events e
-      WHERE ${interactiveEvents('e')}
-        AND e.user_id IN (${users})
+      FROM interactive_events e
+      WHERE e.user_id IN (${users})
         AND e.ts >= ${since}
         AND e.event_type = 'PostToolUse'
         AND e.mcp_server IS NOT NULL

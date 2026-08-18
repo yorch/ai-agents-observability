@@ -1,11 +1,5 @@
 import { Prisma } from '@ai-agents-observability/db';
 import { getPrisma } from './prisma';
-import {
-  INTERACTIVE_EVENTS,
-  INTERACTIVE_ONLY,
-  interactiveEvents,
-  interactiveOnly,
-} from './run-kind';
 
 export type SessionSummaryRow = {
   avgCostUsd: number;
@@ -31,9 +25,8 @@ export async function getSessionSummary(userId: string, since: Date): Promise<Se
       AVG(NULLIF(total_cost_usd, 0))::text                     AS avg_cost_usd,
       COALESCE(SUM(total_input_tokens), 0)::bigint             AS total_input_tokens,
       COALESCE(SUM(total_output_tokens), 0)::bigint            AS total_output_tokens
-    FROM sessions
-    WHERE ${INTERACTIVE_ONLY}
-        AND user_id    = ${userId}::uuid
+    FROM interactive_sessions
+    WHERE user_id    = ${userId}::uuid
       AND started_at >= ${since}
   `);
   const r = rows[0] ?? {
@@ -84,9 +77,8 @@ export async function getContinuitySummary(
       COUNT(*) FILTER (WHERE compaction_count > 0 OR clear_count > 0)   AS sessions_with_reset,
       COALESCE(SUM(compaction_count), 0)::bigint                        AS total_compactions,
       COALESCE(SUM(clear_count), 0)::bigint                             AS total_clears
-    FROM sessions
-    WHERE ${INTERACTIVE_ONLY}
-        AND user_id    = ${userId}::uuid
+    FROM interactive_sessions
+    WHERE user_id    = ${userId}::uuid
       AND started_at >= ${since}
   `);
   const r = rows[0] ?? {
@@ -120,9 +112,8 @@ export async function getNotificationKinds(
 ): Promise<NotificationKindRow[]> {
   const rows = await getPrisma().$queryRaw<{ count: bigint; kind: string }[]>(Prisma.sql`
     SELECT notification_kind AS kind, COUNT(*) AS count
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id = ${userId}::uuid
+    FROM interactive_events
+    WHERE user_id = ${userId}::uuid
       AND ts     >= ${since}
       AND notification_kind IS NOT NULL
     GROUP BY notification_kind
@@ -248,9 +239,8 @@ export async function getMcpUsage(userId: string, since: Date): Promise<McpUsage
       COUNT(*) FILTER (WHERE tool_exit_status IS NOT NULL
                          AND tool_exit_status != 0)                          AS error_count,
       AVG(tool_duration_ms)::text                                            AS avg_duration_ms
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id = ${userId}::uuid
+    FROM interactive_events
+    WHERE user_id = ${userId}::uuid
       AND ts       >= ${since}
       AND mcp_server IS NOT NULL
     GROUP BY mcp_server, mcp_tool
@@ -271,9 +261,8 @@ export async function getSkillUsage(userId: string, since: Date): Promise<SkillU
   const rows = await getPrisma().$queryRaw<SkillUsageRawRow[]>(Prisma.sql`
     WITH invocations AS (
       SELECT skill_name, skill_path, session_id, COUNT(*) AS invocation_count
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id = ${userId}::uuid
+      FROM interactive_events
+      WHERE user_id = ${userId}::uuid
         AND ts       >= ${since}
         AND skill_name IS NOT NULL
       GROUP BY skill_name, skill_path, session_id
@@ -290,7 +279,7 @@ export async function getSkillUsage(userId: string, since: Date): Promise<SkillU
     -- row NULL (and so silently drop it from the cost average) if sessions.run_kind
     -- ever disagreed with events.run_kind.
     FROM invocations i
-    LEFT JOIN sessions s ON i.session_id = s.session_id
+    LEFT JOIN interactive_sessions s ON i.session_id = s.session_id
     GROUP BY i.skill_name, i.skill_path
     ORDER BY use_count DESC
     LIMIT 50
@@ -315,10 +304,9 @@ export async function getSkillOutcomes(userId: string, since: Date): Promise<Ski
     -- distribution entirely. Under a LEFT JOIN the guard only nulls s.status, and
     -- SkillOutcomeRawRow types that column as a non-nullable string, so the null
     -- would flow into the UI typed as a status and render as an extra outcome band.
-    FROM events e
-    JOIN sessions s ON e.session_id = s.session_id
-    WHERE ${interactiveEvents('e')}
-      AND ${interactiveOnly('s')}
+    FROM interactive_events e
+    JOIN interactive_sessions s ON e.session_id = s.session_id
+    
       AND e.user_id = ${userId}::uuid
       AND e.ts       >= ${since}
       AND e.skill_name IS NOT NULL
@@ -339,9 +327,8 @@ export async function getSkillTrend(userId: string, since: Date): Promise<SkillT
       date_trunc('day', ts)   AS day,
       skill_name,
       COUNT(*)::bigint         AS use_count
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id    = ${userId}::uuid
+    FROM interactive_events
+    WHERE user_id    = ${userId}::uuid
       AND ts         >= ${since}
       AND skill_name IS NOT NULL
     GROUP BY date_trunc('day', ts), skill_name
@@ -359,17 +346,15 @@ export async function getSkillSubagents(userId: string, since: Date): Promise<Sk
   const rows = await getPrisma().$queryRaw<SkillSubagentRawRow[]>(Prisma.sql`
     WITH sessions_with_skill AS (
       SELECT DISTINCT skill_name, session_id
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id    = ${userId}::uuid
+      FROM interactive_events
+      WHERE user_id    = ${userId}::uuid
         AND ts         >= ${since}
         AND skill_name IS NOT NULL
     ),
     subagent_counts AS (
       SELECT session_id, COUNT(*) AS subagent_count
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id    = ${userId}::uuid
+      FROM interactive_events
+      WHERE user_id    = ${userId}::uuid
         AND ts         >= ${since}
         AND event_type = 'SubagentStop'
       GROUP BY session_id
@@ -400,9 +385,8 @@ export async function getSkillSequences(userId: string, since: Date): Promise<Sk
         session_id,
         skill_name,
         LEAD(skill_name) OVER (PARTITION BY session_id ORDER BY ts) AS next_skill
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id    = ${userId}::uuid
+      FROM interactive_events
+      WHERE user_id    = ${userId}::uuid
         AND ts         >= ${since}
         AND skill_name IS NOT NULL
     )
@@ -427,9 +411,8 @@ export async function getSkillSequences(userId: string, since: Date): Promise<Sk
 export async function getSlashCommands(userId: string, since: Date): Promise<SlashCommandRow[]> {
   const rows = await getPrisma().$queryRaw<SlashCommandRawRow[]>(Prisma.sql`
     SELECT slash_command, COUNT(*) AS use_count
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id = ${userId}::uuid
+    FROM interactive_events
+    WHERE user_id = ${userId}::uuid
       AND ts       >= ${since}
       AND slash_command IS NOT NULL
     GROUP BY slash_command
@@ -445,9 +428,8 @@ export async function getSlashCommands(userId: string, since: Date): Promise<Sla
 export async function getSubagentUsage(userId: string, since: Date): Promise<SubagentUsageRow[]> {
   const rows = await getPrisma().$queryRaw<SubagentRawRow[]>(Prisma.sql`
     SELECT subagent_type, COUNT(*) AS use_count
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id = ${userId}::uuid
+    FROM interactive_events
+    WHERE user_id = ${userId}::uuid
       AND ts       >= ${since}
       AND subagent_type IS NOT NULL
     GROUP BY subagent_type
@@ -472,9 +454,8 @@ export async function getToolPerf(userId: string, since: Date): Promise<ToolPerf
       PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tool_duration_ms)::text  AS p95_duration_ms,
       AVG(tool_input_bytes)::text                                           AS avg_input_bytes,
       AVG(tool_output_bytes)::text                                          AS avg_output_bytes
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id = ${userId}::uuid
+    FROM interactive_events
+    WHERE user_id = ${userId}::uuid
       AND ts       >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name  IS NOT NULL

@@ -1,6 +1,5 @@
 import { Prisma } from '@ai-agents-observability/db';
 import { getPrisma } from './prisma';
-import { interactiveOnly } from './run-kind';
 
 // Shortest query we'll run — guards against pathological full-index scans and
 // gives a clean user-facing message instead of a Postgres error.
@@ -76,8 +75,13 @@ export async function searchTranscriptMatches(
   limit = 20,
 ): Promise<TranscriptMatch[]> {
   const prisma = getPrisma();
-  const runKindFilter =
-    scope.runKind === 'interactive-only' ? Prisma.sql`AND ${interactiveOnly('s')}` : Prisma.sql``;
+  // The one read whose run-kind scope is chosen by the caller, so it switches
+  // the *relation* rather than adding a predicate (P13-012). Both branches are
+  // fully-literal `Prisma.sql`, so no identifier is interpolated into SQL.
+  const sessionRelation =
+    scope.runKind === 'interactive-only'
+      ? Prisma.sql`interactive_sessions s`
+      : Prisma.sql`sessions s`;
   const rows = await prisma.$queryRaw<
     {
       content_text: string;
@@ -103,18 +107,17 @@ export async function searchTranscriptMatches(
       ts_headline('english', ti.content_text,
         plainto_tsquery('english', ${query}), ${HEADLINE_OPTS}
       )                            AS content_text
-    -- run-kind-exempt: the filter is chosen by the caller and interpolated as the
-    -- runKindFilter fragment below — see TranscriptSearchScope. Org search passes
-    -- 'interactive-only'; own-data search passes 'every-run' so a developer can
-    -- still find their own CI and eval transcripts.
+    -- run-kind-exempt: the relation is chosen by the caller — see
+    -- TranscriptSearchScope. Org search joins interactive_sessions; own-data
+    -- search joins the base sessions table so a developer can still find their
+    -- own CI and eval transcripts.
     FROM transcript_index ti
-    JOIN sessions s ON s.session_id = ti.session_id
+    JOIN ${sessionRelation} ON s.session_id = ti.session_id
     JOIN users u ON u.id = s.user_id
     LEFT JOIN repos r ON r.id = s.repo_id
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
     WHERE ti.content_tsv @@ plainto_tsquery('english', ${query})
       AND u.deactivated_at IS NULL
-      ${runKindFilter}
       ${scope.where}
     ORDER BY ts_rank(ti.content_tsv, plainto_tsquery('english', ${query})) DESC
     LIMIT ${limit}

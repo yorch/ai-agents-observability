@@ -1,6 +1,5 @@
 import { Prisma } from '@ai-agents-observability/db';
 import { getPrisma } from './prisma';
-import { INTERACTIVE_EVENTS, INTERACTIVE_ONLY } from './run-kind';
 import { labelToolRows } from './tool-usage';
 
 export type UsageSummary = {
@@ -95,9 +94,8 @@ export async function getTopTools(userId: string, since: Date, limit = 5): Promi
     { agent_type: string; call_count: bigint; tool_name: string }[]
   >(Prisma.sql`
     SELECT agent_type, tool_name, COUNT(*) AS call_count
-    FROM events
-    WHERE ${INTERACTIVE_EVENTS}
-        AND user_id = ${userId}::uuid
+    FROM interactive_events
+    WHERE user_id = ${userId}::uuid
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
@@ -128,17 +126,15 @@ export async function getModelMix(userId: string, since: Date): Promise<ModelMix
         COALESCE(SUM(total_cost_usd), 0)      AS cost_usd,
         COALESCE(SUM(total_input_tokens), 0)  AS input_tokens,
         COALESCE(SUM(total_output_tokens), 0) AS output_tokens
-      FROM sessions
-      WHERE ${INTERACTIVE_ONLY}
-        AND user_id = ${userId}::uuid
+      FROM interactive_sessions
+      WHERE user_id = ${userId}::uuid
         AND started_at >= ${since}
       GROUP BY primary_model
     `),
     prisma.$queryRaw<{ model: string; turns: bigint }[]>(Prisma.sql`
       SELECT model, COUNT(*) AS turns
-      FROM events
-      WHERE ${INTERACTIVE_EVENTS}
-        AND user_id = ${userId}::uuid
+      FROM interactive_events
+      WHERE user_id = ${userId}::uuid
         AND ts >= ${since}
         AND model IS NOT NULL
       GROUP BY model

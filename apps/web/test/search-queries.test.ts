@@ -134,6 +134,8 @@ describe('transcript search run_kind scope', () => {
     });
 
     const sql = renderSql(mockPrisma.$queryRaw.mock.calls[0]?.[0]);
-    expect(sql).toContain("s.run_kind = 'INTERACTIVE'");
+    // Since P13-012 the scope picks the relation rather than adding a predicate,
+    // so the filter being present *is* the table name.
+    expect(sql).toContain('JOIN interactive_sessions s');
   });
 });

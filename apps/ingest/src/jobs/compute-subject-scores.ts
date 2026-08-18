@@ -1,7 +1,6 @@
 import { Prisma } from '@ai-agents-observability/db';
 import { type ScoreInput, skillSubjectId, trailingWindow } from '@ai-agents-observability/schemas';
 import type { Logger } from 'pino';
-import { interactiveEvents } from '../lib/run-kind';
 import { scoreUpserts } from '../lib/scores';
 import { type JobRawDb, withJobRun } from './job-run';
 
@@ -71,9 +70,8 @@ async function skillProfiles(db: Pick<DbWithRaw, '$queryRaw'>): Promise<SkillRow
              e.session_id, e.user_id,
              MIN(e.ts)  AS first_ts,
              COUNT(*)   AS invocations
-      FROM events e
-      WHERE ${interactiveEvents('e')}
-        AND e.ts >= NOW() - (${WINDOW_DAYS} * INTERVAL '1 day')
+      FROM interactive_events e
+      WHERE e.ts >= NOW() - (${WINDOW_DAYS} * INTERVAL '1 day')
         AND (e.skill_name IS NOT NULL OR e.slash_command IS NOT NULL)
       GROUP BY 1, 2, 3, 4
     ),
@@ -86,9 +84,8 @@ async function skillProfiles(db: Pick<DbWithRaw, '$queryRaw'>): Promise<SkillRow
                  AND e.tool_was_denied IS DISTINCT FROM true
              )::bigint AS errors
       FROM invocation i
-      JOIN events e ON e.session_id = i.session_id AND e.ts >= i.first_ts
-      WHERE ${interactiveEvents('e')}
-        AND e.event_type = 'PostToolUse'
+      JOIN interactive_events e ON e.session_id = i.session_id AND e.ts >= i.first_ts
+      WHERE e.event_type = 'PostToolUse'
         AND e.tool_name IS NOT NULL
       GROUP BY 1, 2
     )
@@ -126,9 +123,8 @@ async function mcpProfiles(db: Pick<DbWithRaw, '$queryRaw'>): Promise<McpRow[]> 
                AND e.tool_was_denied IS DISTINCT FROM true
                AND COALESCE(e.tool_output_bytes, 0) > 0
            )::bigint AS tool_errors
-    FROM events e
-    WHERE ${interactiveEvents('e')}
-      AND e.ts >= NOW() - (${WINDOW_DAYS} * INTERVAL '1 day')
+    FROM interactive_events e
+    WHERE e.ts >= NOW() - (${WINDOW_DAYS} * INTERVAL '1 day')
       AND e.event_type = 'PostToolUse'
       AND e.mcp_server IS NOT NULL
     GROUP BY e.mcp_server
