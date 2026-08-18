@@ -6,7 +6,9 @@ import {
   isEmptyScore,
   SCORER_NAMES,
   SCORERS,
+  type ScorerDefinition,
   SESSION_SHAPE_VERSION,
+  trailingWindow,
 } from './scores';
 
 describe('scorer registry', () => {
@@ -101,5 +103,73 @@ describe('isEmptyScore', () => {
   it('ignores the wrong-kind column when judging emptiness', () => {
     // A numeric scorer carrying a stray label is still empty without a value.
     expect(isEmptyScore({ label: 'oops', scorerName: 'friction', subjectId: 'a' })).toBe(true);
+  });
+});
+
+describe('periodic scorers (P13-013)', () => {
+  const period = { end: new Date('2026-08-18T00:00:00Z'), start: new Date('2026-07-19T00:00:00Z') };
+
+  it('rejects a periodic scorer with no period', () => {
+    // Silent otherwise: the row would be written with a NULL period, every
+    // nightly run would overwrite it, and the trend would never accumulate.
+    expect(() =>
+      buildScoreRow({ scorerName: 'skill_effectiveness', subjectId: 'skill:x', value: 0.1 }),
+    ).toThrow(/periodic and needs a period/);
+  });
+
+  it('rejects a one-shot scorer that supplies a period', () => {
+    // Also silent otherwise: a session's single score would split into one row
+    // per run instead of being corrected in place.
+    expect(() =>
+      buildScoreRow({ period, scorerName: 'friction', subjectId: 'abc', value: 0.4 }),
+    ).toThrow(/not periodic/);
+  });
+
+  it('carries the period through for a periodic scorer', () => {
+    const row = buildScoreRow({
+      period,
+      scorerName: 'mcp_effectiveness',
+      subjectId: 'linear',
+      value: 0.05,
+    });
+    expect(row.periodStart).toEqual(period.start);
+    expect(row.periodEnd).toEqual(period.end);
+  });
+
+  it('leaves the period null for everything else', () => {
+    const row = buildScoreRow({ scorerName: 'friction', subjectId: 'abc', value: 0.4 });
+    expect(row.periodStart).toBeNull();
+    expect(row.periodEnd).toBeNull();
+  });
+
+  it('marks exactly the subject-scoped scorers periodic', () => {
+    // A periodic scorer whose subject is a SESSION would be a contradiction:
+    // sessions do not recur, so there would be nothing for a second period to
+    // describe.
+    for (const name of SCORER_NAMES) {
+      const def: ScorerDefinition = SCORERS[name];
+      if (def.periodic) {
+        expect(['SKILL', 'MCP_SERVER']).toContain(def.subjectType);
+      }
+    }
+  });
+});
+
+describe('trailingWindow', () => {
+  it('truncates to the day so two runs the same night agree', () => {
+    const a = trailingWindow(30, new Date('2026-08-18T00:00:01Z'));
+    const b = trailingWindow(30, new Date('2026-08-18T23:59:59Z'));
+    expect(a).toEqual(b);
+  });
+
+  it('spans exactly the requested number of days', () => {
+    const { end, start } = trailingWindow(30, new Date('2026-08-18T12:00:00Z'));
+    expect((end.getTime() - start.getTime()) / 86_400_000).toBe(30);
+  });
+
+  it('moves to a new bucket the next day', () => {
+    const today = trailingWindow(30, new Date('2026-08-18T12:00:00Z'));
+    const tomorrow = trailingWindow(30, new Date('2026-08-19T12:00:00Z'));
+    expect(tomorrow.start.getTime() - today.start.getTime()).toBe(86_400_000);
   });
 });

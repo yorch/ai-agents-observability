@@ -13,7 +13,7 @@ import {
   orgVisibleUserIds,
 } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
-import { getSkillQuality } from '@/lib/subject-quality-queries';
+import { getSkillQuality, getSubjectScoreSeries } from '@/lib/subject-quality-queries';
 import { daysAgo } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
@@ -59,6 +59,10 @@ export default async function OrgSkillDetailPage({
   const ciRows = roiRows.filter((r) => r.skillName === name && r.ciStatus != null);
   const ciTotal = ciRows.reduce((s, r) => s + r.sessionCount, 0);
 
+  // The stored series behind the error-rate column (P13-013). Keyed the same
+  // way `scores.subject_id` is, so the panel needs no id-shaping of its own.
+  const qualitySeries = await getSubjectScoreSeries('SKILL', subjectQuality);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -98,6 +102,7 @@ export default async function OrgSkillDetailPage({
       <SubjectQualityPanel
         caption={`Sessions that invoked /${name} against matched sessions that did not, over the trailing ${range} days.`}
         rows={subjectQuality}
+        series={qualitySeries}
         subjectNoun="Skill"
         title="Effectiveness"
       />

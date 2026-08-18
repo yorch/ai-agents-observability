@@ -1,5 +1,5 @@
 import { Prisma } from '@ai-agents-observability/db';
-import { type ScoreInput, skillSubjectId } from '@ai-agents-observability/schemas';
+import { type ScoreInput, skillSubjectId, trailingWindow } from '@ai-agents-observability/schemas';
 import type { Logger } from 'pino';
 import { interactiveEvents } from '../lib/run-kind';
 import { scoreUpserts } from '../lib/scores';
@@ -135,9 +135,21 @@ async function mcpProfiles(db: Pick<DbWithRaw, '$queryRaw'>): Promise<McpRow[]> 
   `);
 }
 
-/** Builds the score inputs for both subject kinds. Pure given the query rows. */
-export function buildSubjectScoreInputs(skills: SkillRow[], mcp: McpRow[]): ScoreInput[] {
+/**
+ * Builds the score inputs for both subject kinds. Pure given the query rows and
+ * the clock, so the period bucketing is testable without a database.
+ *
+ * `asOf` exists because the period is the row's *identity* (P13-013): every row
+ * this call produces must carry the same day-truncated window, or two subjects
+ * scored either side of midnight would land in different series.
+ */
+export function buildSubjectScoreInputs(
+  skills: SkillRow[],
+  mcp: McpRow[],
+  asOf: Date,
+): ScoreInput[] {
   const inputs: ScoreInput[] = [];
+  const period = trailingWindow(WINDOW_DAYS, asOf);
 
   for (const s of skills) {
     const calls = Number(s.downstream_calls);
@@ -151,6 +163,7 @@ export function buildSubjectScoreInputs(skills: SkillRow[], mcp: McpRow[]): Scor
         sessionCount: Number(s.session_count),
         windowDays: WINDOW_DAYS,
       },
+      period,
       scorerName: 'skill_effectiveness',
       subjectId: skillSubjectId(s.kind === 'skill' ? 'skill' : 'slash', s.name),
       // Null below the floor — `scoreUpserts` drops the row entirely, so the
@@ -172,6 +185,7 @@ export function buildSubjectScoreInputs(skills: SkillRow[], mcp: McpRow[]): Scor
         unavailable,
         windowDays: WINDOW_DAYS,
       },
+      period,
       scorerName: 'mcp_effectiveness',
       subjectId: m.mcp_server,
       value: calls < MIN_CALLS ? null : (unavailable + toolErrors) / calls,
@@ -185,9 +199,13 @@ export function buildSubjectScoreInputs(skills: SkillRow[], mcp: McpRow[]): Scor
  * Nightly: refresh the skill and MCP-server score rows.
  *
  * Idempotent through the `scores` upsert on `(subject_type, subject_id,
- * scorer_name, scorer_version)` — a re-run on the same day rewrites the same
- * rows. Bumping `SKILL_EFFECTIVENESS_VERSION` / `MCP_EFFECTIVENESS_VERSION`
- * starts a fresh series beside the old one rather than rewriting history.
+ * scorer_name, scorer_version, period_start)` — a re-run on the same day
+ * rewrites the same rows, because `trailingWindow` truncates to the day and a
+ * second run that night resolves to the same `period_start`. The *next* night
+ * resolves to a new one, which is what makes this a series rather than a single
+ * overwritten figure (P13-013). Bumping `SKILL_EFFECTIVENESS_VERSION` /
+ * `MCP_EFFECTIVENESS_VERSION` starts a fresh series beside the old one rather
+ * than rewriting history.
  *
  * Subject counts are bounded by how many skills and servers an org actually has
  * (tens, not millions), so this needs no keyset walk.
@@ -195,7 +213,7 @@ export function buildSubjectScoreInputs(skills: SkillRow[], mcp: McpRow[]): Scor
 export async function runComputeSubjectScores(db: DbWithRaw, logger?: Logger): Promise<void> {
   await withJobRun(db, 'compute-subject-scores', logger, async () => {
     const [skills, mcp] = await Promise.all([skillProfiles(db), mcpProfiles(db)]);
-    const statements = scoreUpserts(buildSubjectScoreInputs(skills, mcp));
+    const statements = scoreUpserts(buildSubjectScoreInputs(skills, mcp, new Date()));
     if (statements.length > 0) {
       await db.$transaction(statements.map((sql) => db.$executeRaw(sql)));
     }

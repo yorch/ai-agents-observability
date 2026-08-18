@@ -147,6 +147,7 @@ export {
   STEP_EFFICIENCY_VERSION,
   skillSubjectId,
   TESTS_BEFORE_MERGE_VERSION,
+  trailingWindow,
 } from './scores';
 export type {
   GitContext,

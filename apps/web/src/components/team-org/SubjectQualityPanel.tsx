@@ -1,4 +1,7 @@
+import { skillSubjectId } from '@ai-agents-observability/schemas';
+import type { ReactNode } from 'react';
 import { Badge, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { Sparkline } from '@/components/ui/chart/Sparkline';
 import { fmtDate, fmtPctOrDash } from '@/lib/fmt';
 import { fmtPValue } from '@/lib/stats';
 import type { DeprecationCandidate, SubjectQualityRow } from '@/lib/subject-quality-queries';
@@ -7,6 +10,8 @@ import {
   SUBJECT_MIN_CALLS,
   SUBJECT_MIN_SESSIONS_PER_ARM,
   SUBJECT_SIGNIFICANCE_ALPHA,
+  SUBJECT_TREND_MIN_POINTS,
+  type SubjectSeriesPoint,
   subjectErrorRate,
 } from '@/lib/subject-quality-queries';
 
@@ -27,6 +32,51 @@ import {
  *   ordered by invocation volume, which is a fact, not a judgement.
  */
 
+/**
+ * The stored error-rate series for one subject (P13-013).
+ *
+ * Renders nothing but a word below `SUBJECT_TREND_MIN_POINTS`. Two points make
+ * a line, not a trend, and a two-point sparkline reads as a direction the data
+ * does not support — the same reason the outcome comparison says "not yet
+ * measurable" rather than greying out a number.
+ *
+ * Each line scales to its own range deliberately: these are error rates for
+ * unrelated subjects, so a shared domain would flatten every well-behaved
+ * subject into a straight line at the bottom and say nothing about its shape.
+ * The accompanying "Downstream errors" cell carries the magnitude.
+ */
+function trendCell(
+  series: Map<string, SubjectSeriesPoint[]> | undefined,
+  row: { kind: string; name: string },
+): ReactNode {
+  if (!series) {
+    return null;
+  }
+  const id =
+    row.kind === 'mcp_server' ? row.name : skillSubjectId(row.kind as 'skill' | 'slash', row.name);
+  const points = series.get(id) ?? [];
+  if (points.length < SUBJECT_TREND_MIN_POINTS) {
+    return (
+      <span className="text-xs text-text-3">
+        {points.length === 0
+          ? 'no history yet'
+          : `${points.length} of ${SUBJECT_TREND_MIN_POINTS} days`}
+      </span>
+    );
+  }
+  const last = points[points.length - 1]?.value ?? 0;
+  const first = points[0]?.value ?? 0;
+  return (
+    <span
+      className="inline-flex items-center"
+      role="img"
+      aria-label={`Error rate over ${points.length} days, ${fmtPctOrDash(first, 1)} to ${fmtPctOrDash(last, 1)}`}
+    >
+      <Sparkline points={points.map((p) => p.value)} tone={last > first ? 'warn' : 'neutral'} />
+    </span>
+  );
+}
+
 function frictionCell(arm: { medianFriction: number | null; sessionCount: number }): string {
   if (arm.sessionCount < SUBJECT_MIN_SESSIONS_PER_ARM || arm.medianFriction === null) {
     return '—';
@@ -42,11 +92,18 @@ const OUTCOME_LABEL: Record<'reverted' | 'ciFailed', string> = {
 export function SubjectQualityPanel({
   caption,
   rows,
+  series,
   subjectNoun,
   title,
 }: {
   caption: string;
   rows: SubjectQualityRow[];
+  /**
+   * The stored error-rate series per subject id (P13-013), keyed the same way
+   * `scores.subject_id` is. Optional: a caller that has not loaded it renders
+   * the panel exactly as before rather than an empty column.
+   */
+  series?: Map<string, SubjectSeriesPoint[]>;
   /** "skill" or "MCP server" — drives the copy, never a hardcoded agent name. */
   subjectNoun: string;
   title: string;
@@ -68,6 +125,7 @@ export function SubjectQualityPanel({
             { align: 'right', label: 'Invocations', mono: true },
             { align: 'right', label: 'Users', mono: true },
             { align: 'right', label: 'Downstream errors', mono: true },
+            { label: 'Error-rate trend' },
             { align: 'right', label: 'Median friction (with)', mono: true },
             { align: 'right', label: 'Median friction (matched)', mono: true },
             { label: 'Outcome comparison' },
@@ -102,6 +160,7 @@ export function SubjectQualityPanel({
                     </>
                   )}
                 </Cell>
+                <Cell className="text-text-2">{trendCell(series, r)}</Cell>
                 <Cell num className="text-text-2">
                   {frictionCell(r.with)}
                   <span className="ml-1 text-xs text-text-3">n={r.with.sessionCount}</span>

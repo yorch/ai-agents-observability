@@ -1,4 +1,9 @@
 import { Prisma } from '@ai-agents-observability/db';
+import {
+  MCP_EFFECTIVENESS_VERSION,
+  SKILL_EFFECTIVENESS_VERSION,
+  skillSubjectId,
+} from '@ai-agents-observability/schemas';
 
 import { getPrisma } from './prisma';
 import { interactiveEvents, interactiveOnly } from './run-kind';
@@ -539,4 +544,69 @@ export async function getDeprecationCandidates(
     lastUsedAt: r.last_used_at,
     name: r.name,
   }));
+}
+
+/**
+ * The stored series behind a subject's error rate (P13-013).
+ *
+ * The panels above compute their comparisons **on read**, because the window is
+ * a URL parameter and the matched arms depend on it. That is the right shape for
+ * a comparison and the wrong shape for a trend: a rate computed on read exists
+ * only while the page is open.
+ *
+ * `compute-subject-scores` writes one `scores` row per subject per day-bucketed
+ * window, so this reads a real series rather than recomputing one. Until
+ * P13-013 the job overwrote a single row every night and there was no series to
+ * read — which is why this function could not have existed before.
+ *
+ * run-kind-exempt: reads `scores`, not `sessions` or `events`. The rows were
+ * written by a job that already applied the filter.
+ */
+export type SubjectSeriesPoint = { periodStart: Date; value: number };
+
+/** Points below this render no sparkline. Two points is a line, not a trend. */
+export const SUBJECT_TREND_MIN_POINTS = 3;
+
+export async function getSubjectScoreSeries(
+  subjectType: 'SKILL' | 'MCP_SERVER',
+  // Takes the panel's own rows rather than pre-shaped ids: `subject_id` is
+  // `kind:name` for skills and a bare name for MCP servers, and five call sites
+  // each doing that conversion is five chances to get it subtly wrong.
+  rows: readonly { kind: string; name: string }[],
+): Promise<Map<string, SubjectSeriesPoint[]>> {
+  const series = new Map<string, SubjectSeriesPoint[]>();
+  const subjectIds = rows.map((r) =>
+    r.kind === 'mcp_server'
+      ? r.name
+      : skillSubjectId(r.kind === 'skill' ? 'skill' : 'slash', r.name),
+  );
+  if (subjectIds.length === 0) {
+    return series;
+  }
+
+  const scoreRows = await getPrisma().score.findMany({
+    orderBy: { periodStart: 'asc' },
+    select: { periodStart: true, subjectId: true, value: true },
+    where: {
+      // Only the current version: a series that silently spans a scorer change
+      // is two different measurements drawn as one line, which is exactly what
+      // versioning the scorer was meant to prevent.
+      scorerName: subjectType === 'SKILL' ? 'skill_effectiveness' : 'mcp_effectiveness',
+      scorerVersion:
+        subjectType === 'SKILL' ? SKILL_EFFECTIVENESS_VERSION : MCP_EFFECTIVENESS_VERSION,
+      subjectId: { in: [...subjectIds] },
+      subjectType,
+      value: { not: null },
+    },
+  });
+
+  for (const r of scoreRows) {
+    if (r.periodStart === null || r.value === null) {
+      continue;
+    }
+    const points = series.get(r.subjectId) ?? [];
+    points.push({ periodStart: r.periodStart, value: r.value });
+    series.set(r.subjectId, points);
+  }
+  return series;
 }

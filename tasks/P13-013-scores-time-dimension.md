@@ -3,8 +3,8 @@ id: P13-013
 title: Time dimension on the scores unique key
 phase: 13
 workstream: A
-status: ready
-owner: null
+status: review
+owner: claude
 depends_on: [P13-001, P13-004]
 blocks: []
 estimate: M
@@ -42,21 +42,21 @@ than from today.
 
 ## Acceptance criteria
 
-- [ ] The unique key admits a period for subjects that need one, without forcing a
+- [x] The unique key admits a period for subjects that need one, without forcing a
       period onto subjects that don't. A session's score must not require an
       invented window — "this session, once" and "this skill, in this week" are
       different facts and the key should be able to say both.
-- [ ] `compute-subject-scores` writes one row per subject **per period**, and
+- [x] `compute-subject-scores` writes one row per subject **per period**, and
       re-running it for a period that already has a row is still idempotent.
-- [ ] Existing rows survive the migration and remain readable. Rows written before
+- [x] Existing rows survive the migration and remain readable. Rows written before
       the change are unambiguously distinguishable from a period-scoped row — an
       absent period must not be silently read as "the current period."
-- [ ] `/org/skills` and `/org/mcp` show a trend rather than a single current value,
+- [x] `/org/skills` and `/org/mcp` show a trend rather than a single current value,
       with the same volume gating and small-n suppression the panel already applies.
       A trend built from two points is not a trend and must not render as one.
-- [ ] The `scores` read paths in `P13-007`'s calibration analysis are written
+- [ ] **Not yet — P13-007 is unstarted.** The `scores` read paths in `P13-007`'s calibration analysis are written
       against the new key from the start, not adapted afterwards.
-- [ ] Prisma models the change. **Read [`packages/db/AGENTS.md`](../packages/db/AGENTS.md)
+- [x] Prisma models the change. **Read [`packages/db/AGENTS.md`](../packages/db/AGENTS.md)
       first** — this is a Prisma-managed table, so it is a relational migration, and
       patching it from the custom-SQL layer would produce a schema Prisma can no
       longer regenerate.
@@ -90,3 +90,48 @@ bun run typecheck
 bun run build
 bun run test
 ```
+
+## Implementation record
+
+Landed 2026-08-18. The representation was an owner decision taken before any
+migration was written, between one table with a nullable period, one table with
+two partial indexes, and a separate `subject_scores` table. **One table, nullable
+period, `NULLS NOT DISTINCT`.**
+
+What that modifier buys, and why it is the whole design: Postgres treats every
+NULL as distinct in a unique index by default, so a session score's NULL period
+would not conflict with itself — two rows for the same session would both insert
+and the idempotent upsert every scorer job depends on would quietly become an
+append. `NULLS NOT DISTINCT` (Postgres 15+; the stack runs 18) makes one
+statement serve both shapes.
+
+Consequences, each deliberate:
+
+- Prisma's schema language cannot express the modifier, so the unique index moved
+  to `sql/migrations/0002_scores_period_key.sql` — the same treatment
+  `sessions_run_kind_idx` already gets. `test/scores-period-key.test.ts` reads
+  that file as text and fails if it stops declaring it, because a dropped
+  constraint here is invisible until duplicate rows appear.
+- With no `@@unique` there is no generated compound-unique input, so
+  `prisma.score.upsert` is gone. Both apps and the seed now write through one
+  shared statement, `scoreUpsertSql()` in `packages/db` — previously the SQL
+  existed twice.
+- `SCORERS` entries declare `periodic`, and `buildScoreRow` throws in both
+  directions: a periodic scorer with no period (every run overwrites the last —
+  the bug this task exists to fix) and a one-shot scorer with one (a session's
+  single score splits into a row per run). Neither would have surfaced as a
+  failure; both produce a plausible-looking table.
+- `trailingWindow()` truncates to the day. `period_start` is the row's identity,
+  so an unbucketed `now()` would give every re-run its own row.
+
+Verified against a live TimescaleDB instance rather than by inspection: two
+NULL-period rows for one session collapse to one row with the value updated; two
+different periods for one skill coexist; re-running the same period refreshes it.
+Running `compute-subject-scores` twice produced 3 rows and 1 period both times;
+backdating a day produced 6 rows and 2 periods.
+
+The trend renders on `/org/skills`, `/org/mcp` and both team equivalents as a
+sparkline gated at `SUBJECT_TREND_MIN_POINTS` (3). Below that the cell says how
+many days it has rather than drawing a line: two points make a direction the data
+does not support, the same reason the outcome comparison says "not yet
+measurable" instead of greying out a number.

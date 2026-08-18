@@ -316,6 +316,9 @@ describe('loadStepBaselines', () => {
 });
 
 describe('buildSubjectScoreInputs', () => {
+  // A fixed clock, because the period is the row's identity (P13-013) and a
+  // test that took `new Date()` would assert against a moving target.
+  const asOf = new Date('2026-08-18T09:41:00Z');
   const skill = {
     distinct_users: 4n,
     downstream_calls: 100n,
@@ -335,13 +338,13 @@ describe('buildSubjectScoreInputs', () => {
   };
 
   it('keys skills by kind so a slash command and a skill of one name stay distinct', () => {
-    const inputs = buildSubjectScoreInputs([skill, { ...skill, kind: 'slash' }], []);
+    const inputs = buildSubjectScoreInputs([skill, { ...skill, kind: 'slash' }], [], asOf);
     expect(inputs.map((i) => i.subjectId)).toEqual(['skill:deep-research', 'slash:deep-research']);
     expect(inputs.every((i) => i.scorerName === 'skill_effectiveness')).toBe(true);
   });
 
   it('emits the downstream error rate with its volumes in metadata', () => {
-    const [row] = buildSubjectScoreInputs([skill], []);
+    const [row] = buildSubjectScoreInputs([skill], [], asOf);
     expect(row?.value).toBeCloseTo(0.07, 6);
     expect(row?.metadata).toMatchObject({ downstreamCalls: 100, downstreamErrors: 7 });
   });
@@ -350,15 +353,41 @@ describe('buildSubjectScoreInputs', () => {
     const [row] = buildSubjectScoreInputs(
       [{ ...skill, downstream_calls: 5n, downstream_errors: 1n }],
       [],
+      asOf,
     );
     expect(row?.value).toBeNull();
   });
 
   it('sums both MCP failure kinds into the rate but keeps them separable', () => {
-    const [row] = buildSubjectScoreInputs([], [server]);
+    const [row] = buildSubjectScoreInputs([], [server], asOf);
     expect(row?.scorerName).toBe('mcp_effectiveness');
     expect(row?.subjectId).toBe('linear');
     expect(row?.value).toBeCloseTo(10 / 200, 6);
     expect(row?.metadata).toMatchObject({ toolErrors: 8, unavailable: 2 });
+  });
+
+  it('buckets the period to the day, so two runs the same night are one row', () => {
+    // The whole point of P13-013: `period_start` is the row's identity, so an
+    // unbucketed `now()` would give every re-run its own row and turn the
+    // idempotent upsert into an append.
+    const morning = buildSubjectScoreInputs([skill], [], new Date('2026-08-18T02:03:04Z'));
+    const evening = buildSubjectScoreInputs([skill], [], new Date('2026-08-18T23:59:59Z'));
+    expect(morning[0]?.period?.start).toEqual(evening[0]?.period?.start);
+    expect(morning[0]?.period?.end).toEqual(new Date('2026-08-18T00:00:00Z'));
+    expect(morning[0]?.period?.start).toEqual(new Date('2026-07-19T00:00:00Z'));
+  });
+
+  it('starts a new row the next day, which is what makes it a series', () => {
+    const today = buildSubjectScoreInputs([skill], [], new Date('2026-08-18T09:00:00Z'));
+    const tomorrow = buildSubjectScoreInputs([skill], [], new Date('2026-08-19T09:00:00Z'));
+    expect(today[0]?.period?.start).not.toEqual(tomorrow[0]?.period?.start);
+  });
+
+  it('gives every subject in one run the same period', () => {
+    // Two subjects scored either side of midnight would otherwise land in
+    // different series for the same nightly run.
+    const inputs = buildSubjectScoreInputs([skill], [server], asOf);
+    const starts = new Set(inputs.map((i) => i.period?.start?.toISOString()));
+    expect(starts.size).toBe(1);
   });
 });

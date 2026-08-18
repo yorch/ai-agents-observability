@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '@ai-agents-observability/db';
+import { scoreUpsertSql } from '@ai-agents-observability/db';
 import {
   buildScoreRow,
   isEmptyScore,
@@ -15,7 +16,7 @@ import { getPrisma } from './prisma';
  * `$transaction` client and have a label and the row that records which rubric
  * it answered land together or not at all.
  */
-export type ScoreWriteClient = Pick<PrismaClient, 'score'>;
+export type ScoreWriteClient = Pick<PrismaClient, 'score' | '$executeRaw'>;
 
 /**
  * Writing `scores` rows from the web app (P13-001 substrate, P13-005 consumer).
@@ -23,16 +24,20 @@ export type ScoreWriteClient = Pick<PrismaClient, 'score'>;
  * Scores are normally written by the ingest scheduler, but a *human* label is
  * produced by a person clicking something in the dashboard, so the write happens
  * here. Same substrate, same idempotency: upsert on
- * `(subject_type, subject_id, scorer_name, scorer_version)`, so re-answering the
- * rubric corrects the label in place while a rubric **version** bump writes a new
- * row and leaves the old answer intact as history.
+ * `(subject_type, subject_id, scorer_name, scorer_version, period_start)`, so
+ * re-answering the rubric corrects the label in place while a rubric **version**
+ * bump writes a new row and leaves the old answer intact as history. A rubric
+ * answer is about one session, so its `period_start` is always NULL.
  *
  * The scorer name, source, subject type and version all come from the registry in
  * `packages/schemas` — never spelled out at a call site — so a rubric version bump
  * lands everywhere at once and cannot be half-applied.
  *
- * Prisma's model API rather than raw SQL: ingest builds `Prisma.Sql` because it
- * batches hundreds of upserts into one transaction, which nothing here needs.
+ * Raw SQL rather than `prisma.score.upsert`, since P13-013: the unique key is
+ * declared `NULLS NOT DISTINCT` so a non-periodic score's NULL period still
+ * conflicts, and Prisma's schema language cannot express that — so there is no
+ * generated compound-unique input to upsert through. The statement is shared
+ * with ingest (`scoreUpsertSql` in `packages/db`) rather than written twice.
  */
 export async function upsertScore(
   input: ScoreInput,
@@ -43,37 +48,7 @@ export async function upsertScore(
     // misrepresent "not answered" as "answered".
     return;
   }
-  const row = buildScoreRow(input);
-  await client.score.upsert({
-    create: {
-      costUsd: row.costUsd,
-      label: row.label,
-      metadata: row.metadata as Prisma.InputJsonValue,
-      rationaleRef: row.rationaleRef,
-      scorerName: row.scorerName,
-      scorerVersion: row.scorerVersion,
-      source: row.source,
-      subjectId: row.subjectId,
-      subjectType: row.subjectType,
-      value: row.value,
-    },
-    update: {
-      costUsd: row.costUsd,
-      createdAt: new Date(),
-      label: row.label,
-      metadata: row.metadata as Prisma.InputJsonValue,
-      rationaleRef: row.rationaleRef,
-      value: row.value,
-    },
-    where: {
-      subjectType_subjectId_scorerName_scorerVersion: {
-        scorerName: row.scorerName,
-        scorerVersion: row.scorerVersion,
-        subjectId: row.subjectId,
-        subjectType: row.subjectType,
-      },
-    },
-  });
+  await client.$executeRaw(scoreUpsertSql(buildScoreRow(input)));
 }
 
 /**

@@ -2,14 +2,15 @@ import { promisify } from 'node:util';
 import { zstdCompress } from 'node:zlib';
 import { hashPassword } from '@ai-agents-observability/auth';
 import {
+  buildScoreRow,
   PRE_RUBRIC_VERSION,
   RUBRIC_SHAPES,
-  SCORERS,
   SESSION_RUBRIC_VERSION,
 } from '@ai-agents-observability/schemas';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { faker } from '@faker-js/faker';
 import { createClient } from './index';
+import { scoreUpsertSql } from './score-upsert';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -2959,26 +2960,12 @@ async function seedGovernance(opts: {
       if (!label) {
         continue;
       }
-      const def = SCORERS[scorerName];
-      await db.score.upsert({
-        create: {
-          label,
-          scorerName,
-          scorerVersion: def.version,
-          source: def.source,
-          subjectId: s.sessionId,
-          subjectType: def.subjectType,
-        },
-        update: { label },
-        where: {
-          subjectType_subjectId_scorerName_scorerVersion: {
-            scorerName,
-            scorerVersion: def.version,
-            subjectId: s.sessionId,
-            subjectType: def.subjectType,
-          },
-        },
-      });
+      // Through the shared statement rather than `prisma.score.upsert`: since
+      // P13-013 the unique key carries `period_start` and is NULLS NOT DISTINCT,
+      // which Prisma cannot express, so there is no compound-unique input.
+      await db.$executeRaw(
+        scoreUpsertSql(buildScoreRow({ label, scorerName, subjectId: s.sessionId })),
+      );
     }
   }
 }

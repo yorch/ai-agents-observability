@@ -55,6 +55,20 @@ export type ScorerDefinition = {
   /** Human-readable purpose; kept next to the definition so it stays true. */
   readonly description: string;
   readonly kind: ScoreKind;
+  /**
+   * Whether this scorer's subject persists, so a score is about a *window*
+   * rather than about a thing that happened once (P13-013).
+   *
+   * A session is scored once and that score is true forever; a skill or an MCP
+   * server is scored over a trailing window, and next week's figure is a new
+   * row, not a correction of this week's. Declaring it here rather than leaving
+   * each job to remember is what lets `buildScoreRow` reject the two mistakes
+   * that would silently corrupt a series: a periodic scorer writing without a
+   * period (every night overwrites the last, which is the bug this task exists
+   * to fix), and a one-shot scorer writing *with* one (an invented window that
+   * splits a session's single score into duplicates).
+   */
+  readonly periodic?: true;
   readonly source: ScoreSource;
   readonly subjectType: ScoreSubjectType;
   /**
@@ -163,6 +177,7 @@ export const SCORERS = {
     description:
       'MCP server health over a window: call error rate, association with session friction. Value is the error rate in [0, 1].',
     kind: 'NUMERIC',
+    periodic: true,
     source: 'DETERMINISTIC',
     subjectType: 'MCP_SERVER',
     version: MCP_EFFECTIVENESS_VERSION,
@@ -178,6 +193,7 @@ export const SCORERS = {
     description:
       'Skill/slash-command profile over a window: downstream tool-error rate, association with session friction and PR outcome. Value is the downstream tool-error rate in [0, 1].',
     kind: 'NUMERIC',
+    periodic: true,
     source: 'DETERMINISTIC',
     subjectType: 'SKILL',
     version: SKILL_EFFECTIVENESS_VERSION,
@@ -242,6 +258,15 @@ export type ScoreInput = {
   /** Free-form provenance (baseline used, model, sample size). Never raw content. */
   metadata?: Record<string, unknown>;
   /**
+   * The window this score describes. Required for a `periodic` scorer, rejected
+   * for every other one — see `buildScoreRow`.
+   *
+   * `periodStart` must be bucketed, not a raw `now()`. It is the row's identity:
+   * two runs on the same night must produce the same `periodStart` or the upsert
+   * becomes an append and one night grows a row per run.
+   */
+  period?: { end: Date; start: Date };
+  /**
    * Pointer to a rationale artifact (e.g. an S3 key) — never inline text. Judge
    * rationales derive from redacted transcripts and inherit their sensitivity, so
    * they live under the same retention and deletion paths as the transcript.
@@ -264,11 +289,19 @@ export type ScoreInput = {
  * Resolves a scorer name to the full row shape, filling subject type, source, and
  * the *current* version from the registry. Call sites never spell these out, so a
  * version bump lands everywhere at once and cannot be half-applied.
+ *
+ * Throws on a period that contradicts the registry, in both directions. Neither
+ * mistake would surface as a failure otherwise — a periodic scorer that forgets
+ * its period writes one row and overwrites it forever (the trend silently never
+ * accumulates), and a one-shot scorer that supplies one splits a session's single
+ * score into a row per run. Both produce a plausible-looking table.
  */
 export function buildScoreRow(input: ScoreInput): {
   costUsd: number | null;
   label: string | null;
   metadata: Record<string, unknown>;
+  periodEnd: Date | null;
+  periodStart: Date | null;
   rationaleRef: string | null;
   scorerName: ScorerName;
   scorerVersion: number;
@@ -277,11 +310,23 @@ export function buildScoreRow(input: ScoreInput): {
   subjectType: ScoreSubjectType;
   value: number | null;
 } {
-  const def = SCORERS[input.scorerName];
+  const def: ScorerDefinition = SCORERS[input.scorerName];
+  if (def.periodic && !input.period) {
+    throw new Error(
+      `Scorer "${input.scorerName}" is periodic and needs a period: without one every run overwrites the last and no trend ever accumulates.`,
+    );
+  }
+  if (!def.periodic && input.period) {
+    throw new Error(
+      `Scorer "${input.scorerName}" is not periodic: its subject is scored once, so a period would split one score into a row per run.`,
+    );
+  }
   return {
     costUsd: input.costUsd ?? null,
     label: input.label ?? null,
     metadata: input.metadata ?? {},
+    periodEnd: input.period?.end ?? null,
+    periodStart: input.period?.start ?? null,
     rationaleRef: input.rationaleRef ?? null,
     scorerName: input.scorerName,
     scorerVersion: input.scorerVersion ?? def.version,
@@ -290,6 +335,23 @@ export function buildScoreRow(input: ScoreInput): {
     subjectType: def.subjectType,
     value: input.value ?? null,
   };
+}
+
+/**
+ * The bucketed window a nightly periodic scorer should write.
+ *
+ * Day-truncated on purpose. The job describes "the trailing N days as of now",
+ * and `now()` differs by minutes between runs — so an unbucketed period would
+ * give every re-run its own row and turn the idempotent upsert into an append.
+ * Truncating to the day makes the row's identity the *date it describes*, which
+ * is what a reader means by a point on a trend line.
+ */
+export function trailingWindow(windowDays: number, asOf: Date): { end: Date; start: Date } {
+  const end = new Date(
+    Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 0, 0, 0, 0),
+  );
+  const start = new Date(end.getTime() - windowDays * 86_400_000);
+  return { end, start };
 }
 
 /**

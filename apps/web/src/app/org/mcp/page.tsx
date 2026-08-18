@@ -5,7 +5,11 @@ import { Card, Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
 import { fmtDurationOrDash } from '@/lib/fmt';
 import { getMcpServerDetails, type McpServerDetailRow, orgVisibleUserIds } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
-import { getMcpFailureSplit, getMcpQuality } from '@/lib/subject-quality-queries';
+import {
+  getMcpFailureSplit,
+  getMcpQuality,
+  getSubjectScoreSeries,
+} from '@/lib/subject-quality-queries';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +83,10 @@ export default async function OrgMcpPage({
   const overallErrorRate = totalCalls > 0 ? totalUnhealthy / totalCalls : 0;
   const totalCostUsd = servers.reduce((s, [, v]) => s + v.totalCostUsd, 0);
 
+  // The stored series behind the error-rate column (P13-013). Keyed the same
+  // way `scores.subject_id` is, so the panel needs no id-shaping of its own.
+  const qualitySeries = await getSubjectScoreSeries('MCP_SERVER', quality);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -105,6 +113,7 @@ export default async function OrgMcpPage({
       <SubjectQualityPanel
         caption={`How sessions that used each server compare with matched sessions that did not, over the trailing ${range} days.`}
         rows={quality}
+        series={qualitySeries}
         subjectNoun="MCP server"
         title="Effectiveness"
       />

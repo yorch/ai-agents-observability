@@ -1,4 +1,4 @@
-import { Prisma } from '@ai-agents-observability/db';
+import { type Prisma, scoreUpsertSql } from '@ai-agents-observability/db';
 import { buildScoreRow, isEmptyScore, type ScoreInput } from '@ai-agents-observability/schemas';
 
 /**
@@ -10,6 +10,11 @@ import { buildScoreRow, isEmptyScore, type ScoreInput } from '@ai-agents-observa
  * Bumping `scorer_version` writes a *new* row instead of overwriting, so history
  * survives a scorer change and a trend can show the version boundary.
  *
+ * The statement itself lives in `packages/db` (`scoreUpsertSql`) because the web
+ * app writes human labels through the same conflict target and two hand-written
+ * copies of an `ON CONFLICT` clause drift. What stays here is the *policy*: skip
+ * the row entirely when the scorer had nothing to say.
+ *
  * Returns `null` when the scorer produced nothing — scorers legitimately return
  * null below a minimum-volume threshold, and an empty row would misrepresent
  * "not enough data" as "scored".
@@ -18,36 +23,7 @@ export function scoreUpsert(input: ScoreInput): Prisma.Sql | null {
   if (isEmptyScore(input)) {
     return null;
   }
-
-  const row = buildScoreRow(input);
-
-  return Prisma.sql`
-    INSERT INTO scores (
-      id, subject_type, subject_id, scorer_name, scorer_version,
-      source, value, label, metadata, rationale_ref, cost_usd
-    )
-    VALUES (
-      gen_random_uuid(),
-      ${row.subjectType}::"ScoreSubjectType",
-      ${row.subjectId},
-      ${row.scorerName},
-      ${row.scorerVersion},
-      ${row.source}::"ScoreSource",
-      ${row.value},
-      ${row.label},
-      ${JSON.stringify(row.metadata)}::jsonb,
-      ${row.rationaleRef},
-      ${row.costUsd}
-    )
-    ON CONFLICT (subject_type, subject_id, scorer_name, scorer_version)
-    DO UPDATE SET
-      value         = EXCLUDED.value,
-      label         = EXCLUDED.label,
-      metadata      = EXCLUDED.metadata,
-      rationale_ref = EXCLUDED.rationale_ref,
-      cost_usd      = EXCLUDED.cost_usd,
-      created_at    = now()
-  `;
+  return scoreUpsertSql(buildScoreRow(input));
 }
 
 /** Convenience: the non-null upserts for a batch of scores. */

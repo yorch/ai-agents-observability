@@ -6,6 +6,7 @@ export type * from './generated/client/client';
 export * from './generated/client/enums';
 export { getJiraProjectAllowlist, resetJiraProjectAllowlistCache } from './jira-projects';
 export { computePRRollup, type RollupResult } from './pr-rollup';
+export { type ScoreUpsertRow, scoreUpsertSql } from './score-upsert';
 export { applySqlMigrations } from './sql-migrate';
 export { Prisma, PrismaClient };
 

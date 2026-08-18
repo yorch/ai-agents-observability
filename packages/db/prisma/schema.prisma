@@ -775,15 +775,45 @@ model Score {
   rationaleRef  String?          @map("rationale_ref")
   // Judge/eval spend, so the platform's own eval cost lands in its own dashboards.
   costUsd       Decimal?         @map("cost_usd") @db.Decimal(12, 6)
+  // The window this score describes, for subjects that persist (P13-013).
+  //
+  // NULL means "not periodic", and that is a real distinction rather than a
+  // missing value: a session happened once, so its friction score is a fact
+  // about that session forever. A skill or an MCP server is scored *over a
+  // window*, and a new window is a new row rather than an overwrite — which is
+  // what makes "this server's error rate has been climbing for three weeks" a
+  // query instead of a memory.
+  //
+  // Both columns move together. `periodStart` is the one in the unique key;
+  // `periodEnd` is carried so a reader never has to know the window length a
+  // job happened to use on the night it ran.
+  periodStart   DateTime?        @map("period_start") @db.Timestamptz(6)
+  periodEnd     DateTime?        @map("period_end") @db.Timestamptz(6)
   createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  // Re-running a scorer at the same version is idempotent; bumping the version
-  // writes a new row rather than overwriting history.
-  @@unique([subjectType, subjectId, scorerName, scorerVersion])
+  // NOTE: the uniqueness rule is NOT here, and that is deliberate.
+  //
+  // It is `(subject_type, subject_id, scorer_name, scorer_version, period_start)`
+  // declared **NULLS NOT DISTINCT**, which Prisma's schema language cannot
+  // express. Without that modifier Postgres treats every NULL as distinct, so
+  // two non-periodic rows for the same session would both insert instead of
+  // conflicting — silently turning the idempotent upsert every scorer job
+  // depends on into an append.
+  //
+  // It therefore lives in `sql/migrations/0002_scores_period_key.sql`, the same
+  // way the partial `sessions_run_kind_idx` does. `test/scores-period-key.test.ts`
+  // fails if that file stops declaring it.
+  //
+  // Consequence for writers: there is no generated compound-unique input, so
+  // both apps upsert through `scoreUpsertSql()` in this package rather than
+  // through `prisma.score.upsert`.
+
   // "All scores for this subject" — the session-detail and calibration read.
   @@index([subjectType, subjectId])
   // "This scorer over time" — the drift and validation-surface read.
   @@index([scorerName, scorerVersion, createdAt(sort: Desc)])
+  // "This subject's series" — the trend read on /org/skills and /org/mcp.
+  @@index([subjectType, subjectId, scorerName, periodStart(sort: Desc)])
   @@map("scores")
 }
 
