@@ -3,11 +3,13 @@ import type { S3Client } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
 import type { EmailConfig } from '../lib/notify/email';
+import type { PriceTableRegistry } from '../lib/price-tables';
 import { runBackfillRedaction } from './backfill-redaction';
 import { runComputeEffectiveness, runComputeEffectivenessBackfill } from './compute-effectiveness';
 import { runEvaluateAlerts } from './evaluate-alerts';
 import { runIndexTranscripts } from './index-transcripts';
 import { type BillingSource, NullBillingSource, runReconcileCost } from './reconcile-cost';
+import { runRepriceEvents } from './reprice-events';
 import { runDeletions } from './run-deletions';
 import { runSweepAbandoned } from './sweep-abandoned';
 import { runSweepRetention } from './sweep-retention';
@@ -33,6 +35,9 @@ export type SchedulerDeps = {
   jiraConfig?: JiraSyncConfig;
   logger?: Logger;
   orgMaxRetentionDays: number;
+  // Price tables for reprice-events. Undefined → the reprice jobs no-op with a
+  // warning rather than rewriting cost against a table that was never wired.
+  priceTables?: PriceTableRegistry;
   s3: S3Client;
   transcriptRetentionDays: number;
 };
@@ -50,6 +55,11 @@ const CONFIGURABLE_JOBS = [
 // it no-ops with a warning when Jira is not configured. backfill-redaction is
 // included so an operator can drain the pre-column redaction_flags backlog
 // after deploy (one trigger drains the whole backlog — see backfill-redaction.ts).
+//
+// The two reprice-events names are one job behind a safety interlock: the bare
+// name only reports, `-apply` writes. The trigger endpoint takes no body, so a
+// flag would have had nowhere to live — and repricing history by default is not
+// a mistake worth making available.
 const ALL_KNOWN_JOBS = new Set<string>([
   'sync-teams',
   'sync-jira',
@@ -57,6 +67,8 @@ const ALL_KNOWN_JOBS = new Set<string>([
   'sweep-scratch',
   'run-deletions',
   'backfill-redaction',
+  'reprice-events',
+  'reprice-events-apply',
   ...CONFIGURABLE_JOBS,
 ]);
 
@@ -82,6 +94,7 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
     jiraConfig,
     logger,
     orgMaxRetentionDays,
+    priceTables,
     s3,
     transcriptRetentionDays,
   } = deps;
@@ -160,6 +173,21 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
           logger,
         },
       );
+      break;
+    // Operator-triggered reprice of historical cost against the *current* price
+    // tables (P12-011). Two names, one job: the bare name reports what would
+    // change, `-apply` writes it. See reprice-events.ts for why history does not
+    // self-correct when a price table is fixed.
+    case 'reprice-events':
+    case 'reprice-events-apply':
+      if (!priceTables) {
+        logger?.warn({ jobName }, 'reprice-events: skipped, no price-table registry wired');
+        break;
+      }
+      await runRepriceEvents(db as Parameters<typeof runRepriceEvents>[0], priceTables, {
+        apply: jobName === 'reprice-events-apply',
+        logger,
+      });
       break;
     default:
       logger?.warn({ jobName }, 'triggerJob: unknown job name');

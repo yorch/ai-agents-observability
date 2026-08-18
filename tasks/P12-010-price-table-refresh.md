@@ -111,6 +111,8 @@ update: bump `generated_at`, keep `version`, keep the filename. The "keep old
   models bill `$0` and land in `unknown_model_events_total`, as designed.
 - Backfilling `events.cost_usd` for already-ingested rows. The `reconcile-cost` job
   is the existing surface for that decision; this task only fixes forward.
+  *(P12-011 did it — and found that `reconcile-cost` was the wrong surface: it
+  compares against a vendor bill and has no write path. It needed its own job.)*
 
 ## Verification
 

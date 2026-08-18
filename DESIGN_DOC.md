@@ -676,6 +676,7 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 | `reconcile-cost` | daily when `BILLING_RECONCILIATION_ENABLED=true` | Gated cost reconciliation: compares client-computed `SUM(events.cost_usd)` against the vendor-billed cost for the previous calendar month, per `agent_type`, emitting delta/drift gauges. Vendor cost comes from `AnthropicBillingSource` (Admin **Cost Report API**, `GET /v1/organizations/cost_report`) when `ANTHROPIC_ADMIN_KEY` is set — only `CLAUDE_CODE` has an Anthropic bill; other agents record no drift. Falls back to a null source (no comparison) when the key is unset |
 | `compute-effectiveness-backfill` | operator-triggered only | One-shot historical effectiveness backfill, intentionally not exposed through `/admin/jobs` |
 | `backfill-redaction` | operator-triggered via `/admin/jobs` | Backfills `sessions.redaction_flags` for transcripts archived before the column existed, by scanning stored (already-redacted) transcript text for `[REDACTED:<class>]` markers; drains the whole backlog in one run via a keyset walk (memory-bounded per page) |
+| `reprice-events` / `reprice-events-apply` | operator-triggered via `/admin/jobs` | Recomputes historical `events.cost_usd` from the stored token counts against the **current** price tables, then the `sessions` / `pr_rollups` totals and the two cost continuous aggregates that derive from it. Two names, one job: the bare name only reports what would change, `-apply` writes. Repricing is all-or-nothing — a windowed run would leave sessions straddling the boundary summed from a mix of old and new rates |
 
 ### 6.6 Identity Trust Model
 
@@ -687,7 +688,9 @@ Cost is computed from token counts × a **versioned, per-agent price table**, ke
 
 The provider decides what the four rates mean. Anthropic reports four disjoint token counts; OpenAI and Google report one inclusive prompt total with the cached tokens *inside* it. The adapter normalizes to disjoint counts before emitting, because that is where the provider's semantics are known and ingest's cost function stays agent-neutral — otherwise the cached tokens bill twice, once at the cache rate and again at full input.
 
-A model absent from its agent's table bills `$0` and increments `unknown_model_events_total`; that metric, not a guess, is the signal to extend the table.
+A model absent from its agent's table bills `$0` and increments `unknown_model_events_total`; the `unknown_model_surge` alert names the offending models, and `/admin/price-tables` lists them with their traffic — that, not a guess, is the signal to extend the table.
+
+Correcting a table only affects events ingested *after* the fix; `cost_usd` is written once. The operator-triggered `reprice-events` job recomputes history from the stored token counts (§6.5), and is the only supported way to do so — hand-written UPDATEs leave the session totals, PR rollups and continuous aggregates disagreeing with the events they summarize.
 
 (Alternative considered: pull billed amounts from Anthropic's admin API. Adds a dependency; scaffolded behind a flag in P8, see §13 Q4.)
 

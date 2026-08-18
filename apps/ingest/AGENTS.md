@@ -64,10 +64,19 @@ miss, so `anthropic/claude-opus-5` from an OpenRouter-style agent prices as
 differently by listing it verbatim.
 
 A model with no row bills `$0` and is recorded in `unknown_model_events_total`,
-namespaced `<agent>:<model>`. That metric is the signal to extend a table — watch it
-rather than assuming silence means correctness. **Copilot's table is empty on
-purpose**: Copilot bills premium requests against a seat allowance, not tokens, so
-there is no honest per-mtok row to write.
+namespaced `<agent>:<model>`. The `unknown_model_surge` alert names the models
+(a bare count leaves the operator grepping these logs), and `/admin/price-tables`
+lists them with their traffic. Watch those rather than assuming silence means
+correctness.
+
+**Correcting a table does not correct history.** `events.cost_usd` is written once,
+at ingest. `reprice-events` (below) is what fixes already-stored rows, and it has
+to move `sessions.total_cost_usd`, `pr_rollups.total_cost_usd` and the two cost
+continuous aggregates with it — the session total is *accumulated* at ingest, never
+recomputed, so it will not drift back into agreement on its own.
+
+**Copilot's table is empty on purpose**: Copilot bills premium requests against a
+seat allowance, not tokens, so there is no honest per-mtok row to write.
 
 ## Boot fails loud
 
@@ -86,11 +95,12 @@ channel wires up only when `SMTP_HOST` and `SMTP_FROM` are both set
 ## Scheduled jobs
 
 `src/jobs/`, dispatched by `scheduler.ts` against the `job_config` table with runs
-recorded in `job_runs`. Twelve are registered: `sync-teams`, `sync-jira`,
-`sweep-abandoned`, `sweep-scratch`, `run-deletions`, `sweep-retention`,
-`index-transcripts`, `compute-effectiveness`, `compute-effectiveness-backfill`,
-`evaluate-alerts`, `backfill-redaction`, `reconcile-cost`. (`alert-transition` and
-`anthropic-billing-source` are collaborators, not scheduled entries.)
+recorded in `job_runs`: `sync-teams`, `sync-jira`, `sweep-abandoned`,
+`sweep-scratch`, `run-deletions`, `sweep-retention`, `index-transcripts`,
+`compute-effectiveness`, `compute-effectiveness-backfill`, `evaluate-alerts`,
+`backfill-redaction`, `reconcile-cost`, and `reprice-events` /
+`reprice-events-apply`. (`alert-transition` and `anthropic-billing-source` are
+collaborators, not scheduled entries.)
 
 **Wrap new jobs in `withJobRun()`** (`src/jobs/job-run.ts`). It takes
 `pg_try_advisory_lock(hashtext('job:<name>'))`, skips the run with a warning if it
@@ -102,3 +112,11 @@ Leave it that way unless the semantic-search decision is revisited.
 
 Any job can be triggered manually via `POST /admin/jobs/:name/run` — that's the
 supported way to exercise one, rather than shortening its schedule.
+
+**`reprice-events` is two job names on purpose.** The bare name reports what
+repricing would change; `reprice-events-apply` writes it. The trigger endpoint
+takes no request body, so a `dryRun` flag had nowhere to live — and rewriting
+historical cost by default is not a mistake worth making available. Each name
+takes its own advisory lock (`withJobRun` derives it from the job name), so two
+applies cannot overlap — but a report started mid-apply will describe a partly
+repriced table. Read the report, then apply; not the other way round.

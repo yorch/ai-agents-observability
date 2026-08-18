@@ -20,6 +20,43 @@ describe('buildAlertPayload (trust guardrail — aggregate only)', () => {
     expect(p.url).toBe('https://obs.example/org/dashboard');
   });
 
+  it('names the unpriced models in an unknown_model_surge description', () => {
+    const p = buildAlertPayload(
+      { name: 'Unknown-model surge', ruleType: 'unknown_model_surge' },
+      {
+        details: {
+          count: 73,
+          models: [
+            { agentType: 'GEMINI_CLI', count: 60, model: 'gemini-3-pro-preview' },
+            { agentType: 'PI', count: 13, model: 'groq/llama-4' },
+          ],
+          threshold: 10,
+          windowHours: 24,
+        },
+        firedAt: new Date('2026-06-24T12:00:00Z'),
+        severity: 'warn',
+      },
+    );
+    // A count alone leaves the operator grepping logs for what to add.
+    expect(p.description).toContain('73 events');
+    expect(p.description).toContain('gemini_cli:gemini-3-pro-preview (60)');
+    expect(p.description).toContain('pi:groq/llama-4 (13)');
+  });
+
+  it('still renders unknown_model_surge for a details blob written before `models`', () => {
+    // alert_events rows persisted by an older build replay through this.
+    const p = buildAlertPayload(
+      { name: 'Unknown-model surge', ruleType: 'unknown_model_surge' },
+      {
+        details: { count: 5, threshold: 1, windowHours: 24 },
+        firedAt: new Date('2026-06-24T12:00:00Z'),
+        severity: 'warn',
+      },
+    );
+    expect(p.description).toContain('5 events');
+    expect(p.description).not.toContain('Unpriced:');
+  });
+
   it('renders an aggregate-only budget_threshold description', () => {
     const p = buildAlertPayload(
       { name: 'Org budget threshold', ruleType: 'budget_threshold' },

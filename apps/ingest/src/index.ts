@@ -7,6 +7,7 @@ import { loadConfig } from './config';
 import { AnthropicBillingSource } from './jobs/anthropic-billing-source';
 import { startScheduler } from './jobs/scheduler';
 import { createLogger } from './lib/logger';
+import { buildPriceTableRegistry } from './lib/price-tables';
 
 const config = loadConfig();
 
@@ -101,6 +102,7 @@ startScheduler({
   appBaseUrl: config.app_base_url,
   logger,
   orgMaxRetentionDays: config.org_max_retention_days,
+  priceTables: buildPriceTableRegistry(),
   s3,
   transcriptRetentionDays: config.transcript_retention_days,
 });

@@ -10,7 +10,7 @@ wrong response to agents that now largely agree on a format.
 
 Research + sourcing: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/research/2026-08-13-agent-adapter-expansion.md).
 
-**Status**: P12-001 through P12-010 are code complete, with the migration verified against a real Postgres-Timescale container. Three acceptance criteria remain unchecked for want of the agents themselves: a recorded Pi session (P12-007), which of omp's two documented config roots is real (P12-008), and a recorded opencode session for the collated transcript (P12-009).
+**Status**: P12-001 through P12-011 are code complete, with the migration verified against a real Postgres-Timescale container. Three acceptance criteria remain unchecked for want of the agents themselves: a recorded Pi session (P12-007), which of omp's two documented config roots is real (P12-008), and a recorded opencode session for the collated transcript (P12-009).
 
 ## Goal recap
 
@@ -60,6 +60,11 @@ Go from three agents to seven, while *reducing* per-adapter code:
   gone stale, and fixes the token accounting they rest on: OpenAI and Google
   report one inclusive prompt total with the cached tokens inside it, which the
   four-rate cost model billed twice.
+- **P12-011 reprice history + unpriced visibility** (WS B, M) — the two things
+  P12-010 left: an operator-triggered `reprice-events` job that carries a table
+  correction back through stored events, session totals, PR rollups and the cost
+  continuous aggregates; and naming the models nothing prices, on
+  `/admin/price-tables` and in the `unknown_model_surge` alert.
 
 Explicitly **not** in this phase, each for a stated reason (research §2.6–2.7):
 **Cursor** (the CLI reportedly emits only shell events — no session lifecycle, no
