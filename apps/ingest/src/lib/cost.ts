@@ -6,7 +6,7 @@ import type { ModelPrice, PriceTable } from '@ai-agents-observability/schemas';
 // so a table can still price a prefixed name differently by listing it verbatim;
 // only on a miss strip one leading segment. Anything still unmatched stays
 // unknown and bills $0, which is the P8-002 signal to extend the table.
-function resolvePrice(model: string, priceTable: PriceTable): ModelPrice | undefined {
+export function resolveModelPrice(model: string, priceTable: PriceTable): ModelPrice | undefined {
   const exact = priceTable.prices[model];
   if (exact) {
     return exact;
@@ -35,7 +35,7 @@ export function computeCostUsd(
   // same model name under two agents doesn't dedup into one entry.
   agentType?: string,
 ): number {
-  const price = resolvePrice(model, priceTable);
+  const price = resolveModelPrice(model, priceTable);
   if (!price) {
     unknownModels?.add(agentType ? `${agentType}:${model}` : model);
     return 0;

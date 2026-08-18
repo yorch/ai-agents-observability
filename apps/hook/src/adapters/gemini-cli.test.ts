@@ -86,7 +86,7 @@ describe('gemini-cli adapter', () => {
 
   it('accumulates AfterModel usage and drains it onto the turn Stop', () => {
     const harvested = geminiCliAdapter.mapBatch?.('after-model', {
-      llm_request: { model: 'gemini-3-pro' },
+      llm_request: { model: 'gemini-3.1-pro-preview' },
       llm_response: {
         usageMetadata: {
           cachedContentTokenCount: 400,
@@ -101,7 +101,7 @@ describe('gemini-cli adapter', () => {
 
     // A second model call in the same turn adds to the first.
     geminiCliAdapter.mapBatch?.('after-model', {
-      llm_request: { model: 'gemini-3-pro' },
+      llm_request: { model: 'gemini-3.1-pro-preview' },
       llm_response: { usageMetadata: { candidatesTokenCount: 80, promptTokenCount: 500 } },
       session_id: SESSION_ID,
     });
@@ -114,7 +114,7 @@ describe('gemini-cli adapter', () => {
     expect(stop?.llm?.input_tokens).toBe(1600);
     expect(stop?.llm?.output_tokens).toBe(300);
     expect(stop?.llm?.cache_read_tokens).toBe(400);
-    expect(stop?.llm?.model).toBe('gemini-3-pro');
+    expect(stop?.llm?.model).toBe('gemini-3.1-pro-preview');
     expect(conformanceErrors(stop)).toEqual([]);
   });
 
@@ -140,7 +140,7 @@ describe('gemini-cli adapter', () => {
 
   it('resets the accumulator per turn so the next Stop is not double-counted', () => {
     geminiCliAdapter.mapBatch?.('after-model', {
-      llm_request: { model: 'gemini-3-pro' },
+      llm_request: { model: 'gemini-3.1-pro-preview' },
       llm_response: { usageMetadata: { candidatesTokenCount: 10, promptTokenCount: 100 } },
       session_id: SESSION_ID,
     });
@@ -155,7 +155,7 @@ describe('gemini-cli adapter', () => {
 
   it('leaves no accumulator file behind once the turn is drained', () => {
     geminiCliAdapter.mapBatch?.('after-model', {
-      llm_request: { model: 'gemini-3-pro' },
+      llm_request: { model: 'gemini-3.1-pro-preview' },
       llm_response: { usageMetadata: { candidatesTokenCount: 10, promptTokenCount: 100 } },
       session_id: SESSION_ID,
     });

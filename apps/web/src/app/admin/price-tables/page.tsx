@@ -1,8 +1,9 @@
 import { ADAPTER_AGENT_TYPES } from '@ai-agents-observability/schemas';
-import { CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { getConfig } from '@/lib/config';
 import { fmtDate } from '@/lib/fmt';
 import { requireOrgAdmin } from '@/lib/roles';
+import { getUnpricedModels, UNPRICED_WINDOW_DAYS } from '@/lib/unpriced-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,71 @@ async function fetchTable(ingestUrl: string, agent: AgentName): Promise<PriceTab
 
 function fmt(n: number): string {
   return `$${n.toFixed(4)}`;
+}
+
+/**
+ * Models producing billable tokens that no table prices — every one of those
+ * events cost $0. The `unknown_model_surge` alert counts them; this names them,
+ * which is the part an operator needs to act.
+ *
+ * `notTokenBilled` carries the agents whose table is empty *by design* — Copilot
+ * bills premium requests against a seat allowance, not tokens, so its models will
+ * sit here forever and adding a per-mtok rate would invent a number nobody is
+ * charged. Derived from the fetched tables rather than a hard-coded name, so a
+ * second request-billed agent needs no edit here.
+ */
+async function UnpricedModels({ notTokenBilled }: { notTokenBilled: Set<string> }) {
+  const rows = await getUnpricedModels();
+
+  return (
+    <Card
+      title="Unpriced models"
+      caption={`Models seen in the last ${UNPRICED_WINDOW_DAYS} days that carried tokens but resolved to no price row — those events were costed at $0. Add the actionable ones to the agent's table below.`}
+      flush={rows.length > 0}
+    >
+      {rows.length === 0 ? (
+        <CardEmpty>Every model seen recently resolves to a price.</CardEmpty>
+      ) : (
+        <Table
+          columns={[
+            { label: 'Agent' },
+            { label: 'Model' },
+            { align: 'right', label: 'Events' },
+            { align: 'right', label: 'Input tokens' },
+            { align: 'right', label: 'Output tokens' },
+            { label: 'Last seen' },
+          ]}
+        >
+          {rows.map((row) => {
+            const agent = row.agentType.toLowerCase();
+            return (
+              <Row key={`${row.agentType}:${row.model}`}>
+                <Cell className="text-xs text-text-2 font-mono">{agent}</Cell>
+                <Cell className="text-xs text-text font-mono">
+                  {row.model}
+                  {notTokenBilled.has(agent) && (
+                    <span className="ml-2 font-sans text-text-3">
+                      — billed per request, not per token
+                    </span>
+                  )}
+                </Cell>
+                <Cell num className="text-xs text-text-2">
+                  {row.events.toLocaleString()}
+                </Cell>
+                <Cell num className="text-xs text-text-3">
+                  {row.inputTokens.toLocaleString()}
+                </Cell>
+                <Cell num className="text-xs text-text-3">
+                  {row.outputTokens.toLocaleString()}
+                </Cell>
+                <Cell className="text-xs text-text-3">{fmtDate(row.lastSeen)}</Cell>
+              </Row>
+            );
+          })}
+        </Table>
+      )}
+    </Card>
+  );
 }
 
 export default async function PriceTablesPage() {
@@ -89,6 +155,16 @@ export default async function PriceTablesPage() {
           pricing.
         </p>
       </div>
+
+      <UnpricedModels
+        notTokenBilled={
+          new Set(
+            results
+              .filter(({ result }) => result.ok && Object.keys(result.prices).length === 0)
+              .map(({ agent }) => agent),
+          )
+        }
+      />
 
       {results.map(({ agent, result }) => (
         <section key={agent} className="space-y-3">

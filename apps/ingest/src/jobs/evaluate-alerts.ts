@@ -124,13 +124,22 @@ async function evalHighErrorRate(db: AlertsDb): Promise<Evaluation> {
   };
 }
 
+// How many model names an unknown-model alert names before deferring to
+// /admin/price-tables for the rest. Enough to act on, short enough for a Slack
+// line or an email subject's first paragraph.
+const UNKNOWN_MODEL_NAMES_IN_ALERT = 5;
+
 async function evalUnknownModelSurge(db: AlertsDb, params: unknown): Promise<Evaluation> {
   const threshold = Number(paramsObject(params).threshold ?? UNKNOWN_MODEL_SURGE_DEFAULT);
   const windowStart = new Date(Date.now() - UNKNOWN_MODEL_WINDOW_HOURS * 3_600_000);
   // Visibility-scoped like the other evaluators: events from users who opted out
   // of org metadata sharing don't contribute to this org-aggregate signal.
-  const rows = await db.$queryRaw<{ c: number }[]>(Prisma.sql`
-    SELECT COUNT(*) AS c
+  // Grouped by model, not just counted: "73 events were unpriced" leaves the
+  // operator grepping ingest logs for which model to add to the table. The
+  // model name is not individual-identifying, so naming it keeps the
+  // aggregate-only guarantee alerts are held to.
+  const rows = await db.$queryRaw<{ agent_type: string; c: number; model: string }[]>(Prisma.sql`
+    SELECT e.agent_type, e.model, COUNT(*) AS c
     FROM events e
     JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
@@ -139,13 +148,26 @@ async function evalUnknownModelSurge(db: AlertsDb, params: unknown): Promise<Eva
       AND e.cost_usd = 0
       AND e.input_tokens > 0
       AND COALESCE(vp.share_metadata_with_org, true) = true
+    GROUP BY e.agent_type, e.model
+    ORDER BY COUNT(*) DESC
   `);
-  const count = Number(rows[0]?.c ?? 0);
+  const count = rows.reduce((sum, r) => sum + Number(r.c), 0);
   if (count <= threshold) {
     return null;
   }
   return {
-    details: { count, threshold, windowHours: UNKNOWN_MODEL_WINDOW_HOURS },
+    details: {
+      count,
+      // Capped: the notification is a pointer to /admin/price-tables, which
+      // carries the full list, not a replacement for it.
+      models: rows.slice(0, UNKNOWN_MODEL_NAMES_IN_ALERT).map((r) => ({
+        agentType: r.agent_type,
+        count: Number(r.c),
+        model: r.model,
+      })),
+      threshold,
+      windowHours: UNKNOWN_MODEL_WINDOW_HOURS,
+    },
     severity: 'warn',
   };
 }

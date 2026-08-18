@@ -29,6 +29,23 @@ export function severityLabel(severity: AlertSeverity): string {
   return severity === 'critical' ? 'CRITICAL' : 'WARN';
 }
 
+// Names the models an unknown-model alert found, so the notification says what
+// to add rather than only that something is missing. Tolerates a details blob
+// written before `models` existed (older alert_events rows replay through here).
+function unknownModelList(details: Record<string, unknown>): string {
+  const models = details.models;
+  if (!Array.isArray(models) || models.length === 0) {
+    return '';
+  }
+  const named = models
+    .filter(
+      (m): m is { agentType: string; count: number; model: string } =>
+        typeof m === 'object' && m !== null && typeof (m as { model?: unknown }).model === 'string',
+    )
+    .map((m) => `${m.agentType?.toLowerCase() ?? '?'}:${m.model} (${m.count})`);
+  return named.length > 0 ? ` Unpriced: ${named.join(', ')}.` : '';
+}
+
 // Human-readable, aggregate-only description per rule type.
 function describe(ruleType: string, details: Record<string, unknown>): string {
   switch (ruleType) {
@@ -37,7 +54,7 @@ function describe(ruleType: string, details: Record<string, unknown>): string {
     case 'high_error_rate':
       return `Tool error rate is ${(num(details, 'errorRate') * 100).toFixed(1)}% (${num(details, 'errors')} errors / ${num(details, 'calls')} calls).`;
     case 'unknown_model_surge':
-      return `${num(details, 'count')} events priced at $0 (unknown model) in the last ${num(details, 'windowHours')}h — above the ${num(details, 'threshold')} threshold.`;
+      return `${num(details, 'count')} events priced at $0 (unknown model) in the last ${num(details, 'windowHours')}h — above the ${num(details, 'threshold')} threshold.${unknownModelList(details)}`;
     case 'budget_threshold':
       return `Org spend reached ${(num(details, 'ratio') * 100).toFixed(0)}% of the $${num(details, 'budgetUsd').toFixed(2)} budget ($${num(details, 'spend').toFixed(2)} over the last ${num(details, 'windowDays')} days).`;
     case 'autonomy_surge':

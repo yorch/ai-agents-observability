@@ -64,10 +64,44 @@ miss, so `anthropic/claude-opus-5` from an OpenRouter-style agent prices as
 differently by listing it verbatim.
 
 A model with no row bills `$0` and is recorded in `unknown_model_events_total`,
-namespaced `<agent>:<model>`. That metric is the signal to extend a table — watch it
-rather than assuming silence means correctness. **Copilot's table is empty on
-purpose**: Copilot bills premium requests against a seat allowance, not tokens, so
-there is no honest per-mtok row to write.
+namespaced `<agent>:<model>`. The `unknown_model_surge` alert names the models
+(a bare count leaves the operator grepping these logs), and `/admin/price-tables`
+lists them with their traffic. Watch those rather than assuming silence means
+correctness.
+
+**Correcting a table does not correct history.** `events.cost_usd` is written once,
+at ingest. `reprice-events` (below) is what fixes already-stored rows, and it has
+to move `sessions.total_cost_usd`, `pr_rollups.total_cost_usd` and the two cost
+continuous aggregates with it — the session total is *accumulated* at ingest, never
+recomputed, so it will not drift back into agreement on its own.
+
+**Copilot's table is empty on purpose**: Copilot bills premium requests against a
+seat allowance, not tokens, so there is no honest per-mtok row to write.
+
+## Two kinds of price table
+
+**Hand-maintained, from one vendor's own pricing page** — `claude_code`, `codex`,
+`gemini_cli`. Single vendor, single source, and the page carries what a catalog
+flattens away: promotional windows with expiry dates, per-tier rates, cache-write
+multipliers. Edit these by hand and cite the page and retrieval date in `_comment`.
+
+**Generated from models.dev** — `pi`, `omp`, `opencode`. These three drive whatever
+provider the user holds credentials for, so their tables are a *union* across
+twenty vendors, and a union hand-maintained from twenty pages goes stale the week
+it lands. models.dev is the catalog opencode itself builds its model list from, so
+the keys are by construction the names the adapter reports — a correct rate filed
+under a name the agent never emits prices nothing. Refresh with:
+
+```bash
+bun run gen:price-tables            # or --from ./api.json for a pinned snapshot
+```
+
+Do not hand-edit those three; the next regeneration overwrites you. The one
+sanctioned override lives in `scripts/gen-price-tables.ts` (`VENDOR_OVERRIDES`) and
+exists for exactly one thing a catalog cannot carry: a promotional rate with an
+expiry date. A test asserts the generated tables agree with the hand-maintained
+ones on every shared model, so an unlisted disagreement fails the suite rather
+than pricing the same model two ways depending on which agent ran it.
 
 ## Boot fails loud
 
@@ -86,11 +120,12 @@ channel wires up only when `SMTP_HOST` and `SMTP_FROM` are both set
 ## Scheduled jobs
 
 `src/jobs/`, dispatched by `scheduler.ts` against the `job_config` table with runs
-recorded in `job_runs`. Twelve are registered: `sync-teams`, `sync-jira`,
-`sweep-abandoned`, `sweep-scratch`, `run-deletions`, `sweep-retention`,
-`index-transcripts`, `compute-effectiveness`, `compute-effectiveness-backfill`,
-`evaluate-alerts`, `backfill-redaction`, `reconcile-cost`. (`alert-transition` and
-`anthropic-billing-source` are collaborators, not scheduled entries.)
+recorded in `job_runs`: `sync-teams`, `sync-jira`, `sweep-abandoned`,
+`sweep-scratch`, `run-deletions`, `sweep-retention`, `index-transcripts`,
+`compute-effectiveness`, `compute-effectiveness-backfill`, `evaluate-alerts`,
+`backfill-redaction`, `reconcile-cost`, and `reprice-events` /
+`reprice-events-apply`. (`alert-transition` and `anthropic-billing-source` are
+collaborators, not scheduled entries.)
 
 **Wrap new jobs in `withJobRun()`** (`src/jobs/job-run.ts`). It takes
 `pg_try_advisory_lock(hashtext('job:<name>'))`, skips the run with a warning if it
@@ -102,3 +137,11 @@ Leave it that way unless the semantic-search decision is revisited.
 
 Any job can be triggered manually via `POST /admin/jobs/:name/run` — that's the
 supported way to exercise one, rather than shortening its schedule.
+
+**`reprice-events` is two job names on purpose.** The bare name reports what
+repricing would change; `reprice-events-apply` writes it. The trigger endpoint
+takes no request body, so a `dryRun` flag had nowhere to live — and rewriting
+historical cost by default is not a mistake worth making available. Each name
+takes its own advisory lock (`withJobRun` derives it from the job name), so two
+applies cannot overlap — but a report started mid-apply will describe a partly
+repriced table. Read the report, then apply; not the other way round.

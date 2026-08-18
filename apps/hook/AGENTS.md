@@ -33,7 +33,7 @@ widening `packages/schemas` to fit an agent, the adapter is doing too little.
 If the agent speaks Claude Code's stdin hook shape — most now do — it is a config
 object, not a file: an event map, field aliases, an install snippet.
 
-Three rules the seam has accumulated, all learned the hard way:
+Rules the seam has accumulated, every one of them learned the hard way:
 
 - **Normalize the session id** (`lib/session-id.ts`). `EventSchema` requires a
   UUID and ingest silently drops events that fail validation; opencode's real
@@ -42,7 +42,13 @@ Three rules the seam has accumulated, all learned the hard way:
   (P12-002).
 - **Test with realistic payloads.** Every adapter test asserts
   `conformanceErrors(event)` is empty using the ids and field spellings the agent
-  actually emits. That assertion is what would have caught the above.
+  actually emits. That assertion is what would have caught the above. **Model
+  names count.** Fixtures had drifted onto `gemini-3-pro`, `gpt-5.2-codex` and
+  `claude-opus-4` — three plausible-looking strings, none of which any vendor has
+  ever shipped, so nothing prices them. The tests were green on input that bills
+  `$0` in production. Nothing here can enforce that (the price tables live in
+  `apps/ingest` and this app must not depend on it), so when you write a fixture,
+  copy a model id out of `apps/ingest/src/data/price-table.<agent>.v1.json`.
 - **Never invent an `event_type`.** An agent event with no canonical equivalent is
   dropped (Gemini's `BeforeModel`, Copilot's `errorOccurred`, Codex's
   `PostCompact`). Fold near-misses into an existing type instead — Copilot's

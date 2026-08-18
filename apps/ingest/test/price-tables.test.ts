@@ -48,16 +48,42 @@ describe('price-table registry', () => {
     expect(rawCopilot._comment).toMatch(/premium request/i);
   });
 
-  it.each(TOKEN_BILLED)('%s prices are internally consistent', (agent) => {
+  // The three hand-maintained tables, each transcribed from one vendor's own
+  // pricing page — so their cache semantics are known and can be asserted tightly.
+  const HAND_MAINTAINED = ['claude_code', 'codex', 'gemini_cli'] as const;
+  // Generated from the models.dev catalog by `bun run gen:price-tables`, spanning
+  // twenty vendors whose cache conventions differ.
+  const GENERATED = ['omp', 'opencode', 'pi'] as const;
+
+  it.each(TOKEN_BILLED)('%s prices every model it lists', (agent) => {
     for (const [model, price] of Object.entries(registry.resolve(agent).prices)) {
+      // A zero row is indistinguishable from an unpriced model on
+      // /admin/price-tables, so it must not be how a real rate is recorded.
       expect(price.input_per_mtok, model).toBeGreaterThan(0);
       expect(price.output_per_mtok, model).toBeGreaterThan(0);
-      // A cache hit is a discount on input at every provider we list, and a
-      // cache write is never cheaper than the input it stores. Both have been
-      // inverted by a copy-paste before.
-      expect(price.cache_read_per_mtok, model).toBeLessThan(price.input_per_mtok);
+      expect(price.cache_read_per_mtok, model).toBeGreaterThanOrEqual(0);
+      expect(price.cache_write_per_mtok, model).toBeGreaterThanOrEqual(0);
+      // A cache *hit* is never dearer than reading the same tokens uncached —
+      // true at every vendor, and the direction a copy-paste inverts.
+      expect(price.cache_read_per_mtok, model).toBeLessThanOrEqual(price.input_per_mtok);
+    }
+  });
+
+  it.each(HAND_MAINTAINED)('%s charges at least the input rate to write cache', (agent) => {
+    // Anthropic charges a 1.25x premium; OpenAI (pre-5.6) and Google charge
+    // nothing extra, so the tokens still cost their ordinary input rate. Neither
+    // vendor makes a cache write *cheaper* than the input it stores.
+    for (const [model, price] of Object.entries(registry.resolve(agent).prices)) {
       expect(price.cache_write_per_mtok, model).toBeGreaterThanOrEqual(price.input_per_mtok);
     }
+  });
+
+  it.each(GENERATED)('%s is broad enough to be worth generating', (agent) => {
+    // The point of generating these from the agents' own model catalog is
+    // coverage: the hand-written versions carried ~30 models across 3 vendors and
+    // left everything else billing $0. A regeneration that collapses back to a
+    // handful means the catalog shape changed and the generator needs looking at.
+    expect(Object.keys(registry.resolve(agent).prices).length).toBeGreaterThan(150);
   });
 
   // Guards the 2026-08-18 refresh: these were wrong in the shipped tables
@@ -90,12 +116,41 @@ describe('price-table registry', () => {
     expect(p['gemini-2.5-pro']).toMatchObject({ input_per_mtok: 1.25, output_per_mtok: 10 });
   });
 
-  it('gives the provider-agnostic agents all three providers', () => {
+  it('gives the provider-agnostic agents every vendor they can route to', () => {
+    // The hand-written versions covered Anthropic, OpenAI and Google only, so a
+    // Pi user on Groq or DeepSeek — the whole point of a provider-agnostic agent
+    // — billed $0. Spot-check one model per vendor family beyond the big three.
     for (const agent of ['pi', 'omp', 'opencode']) {
       const p = registry.resolve(agent).prices;
-      expect(p['claude-opus-5'], agent).toBeDefined();
-      expect(p['gpt-5.4'], agent).toBeDefined();
-      expect(p['gemini-3.7-flash'], agent).toBeDefined();
+      for (const model of [
+        'claude-opus-5',
+        'gpt-5.4',
+        'gemini-3.7-flash',
+        'deepseek-chat',
+        'kimi-k2-thinking',
+        'glm-4.7',
+        'grok-4.6',
+      ]) {
+        expect(p[model], `${agent}:${model}`).toBeDefined();
+      }
+    }
+  });
+
+  it('agrees with the hand-maintained tables on models they share', () => {
+    // The generated tables come from models.dev, the hand-maintained ones from
+    // each vendor's own pricing page. Where both name the same model they must
+    // land on the same number, or one of the two sources has drifted and the
+    // same session costs different amounts depending on which agent ran it.
+    const generated = registry.resolve('pi').prices;
+    for (const agent of ['claude_code', 'codex', 'gemini_cli']) {
+      for (const [model, price] of Object.entries(registry.resolve(agent).prices)) {
+        const other = generated[model];
+        if (!other) {
+          continue; // legacy snapshot the catalog has dropped — fine
+        }
+        expect(other.input_per_mtok, `${agent}:${model} input`).toBe(price.input_per_mtok);
+        expect(other.output_per_mtok, `${agent}:${model} output`).toBe(price.output_per_mtok);
+      }
     }
   });
 

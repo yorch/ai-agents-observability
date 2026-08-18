@@ -23,6 +23,7 @@
     "lint:fix": "bun run check --write .",
     "format": "biome format --write .",
     "gen:keys": "bun run --cwd packages/auth gen:keys",
+    "gen:price-tables": "bun run scripts/gen-price-tables.ts",
     "db:generate": "bun run --cwd packages/db db:generate",
     "postinstall": "bun run db:generate",
     "db:deploy": "bun run --cwd packages/db db:deploy",

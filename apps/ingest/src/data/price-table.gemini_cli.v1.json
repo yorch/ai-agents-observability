@@ -1,5 +1,5 @@
 {
-  "_comment": "Gemini CLI model rates, USD per million tokens, Google AI paid tier. Source: https://ai.google.dev/gemini-api/docs/pricing (retrieved 2026-08-18). Three caveats. (1) Tiered models (gemini-3.1-pro-preview, gemini-2.5-pro) charge more above a 200k-token prompt; this schema holds one rate per model, so the <=200k tier is used and long-context turns under-report. (2) Google bills no cache-write premium, so cache_write == input. (3) gemini-3.7-flash and gemini-3.6-flash carry promotional rates through 2026-12-31, after which both double — refresh this table then.",
+  "_comment": "Gemini CLI model rates, USD per million tokens, Google AI paid tier. Source: https://ai.google.dev/gemini-api/docs/pricing (retrieved 2026-08-18). Hand-maintained from the vendor page rather than generated, because that page carries what a catalog flattens away: promotional windows with expiry dates, per-tier rates, and which rows share a price. Four caveats. (1) Tiered models (gemini-3.1-pro-preview and its -customtools twin, gemini-2.5-pro) charge more above a 200k-token prompt; this schema holds one rate per model, so the <=200k tier is used and long-context turns under-report. (2) Google bills no cache-write premium, so cache_write == input. (3) gemini-3.7-flash and gemini-3.6-flash carry promotional rates through 2026-12-31, after which both double — refresh this table then. (4) The `-latest` alias tags (gemini-flash-latest, gemini-flash-lite-latest) are deliberately absent: an alias is repointed at a new model without its name changing, so a rate pinned to one would silently misprice from the day it moves. They bill $0 and report themselves via unknown_model_events_total (P8-002), which is the honest failure.",
   "generated_at": "2026-08-18T00:00:00Z",
   "prices": {
     "gemini-2.0-flash": {
@@ -39,6 +39,12 @@
       "output_per_mtok": 1.5
     },
     "gemini-3.1-pro-preview": {
+      "cache_read_per_mtok": 0.2,
+      "cache_write_per_mtok": 2.0,
+      "input_per_mtok": 2.0,
+      "output_per_mtok": 12.0
+    },
+    "gemini-3.1-pro-preview-customtools": {
       "cache_read_per_mtok": 0.2,
       "cache_write_per_mtok": 2.0,
       "input_per_mtok": 2.0,
