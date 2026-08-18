@@ -76,6 +76,7 @@ blog post and an in-flight PR.
 
 - OTLP ingestion of any kind.
 - Real Gemini price data (empty table from P12-001 is correct for now).
+  *(Populated in P12-010.)*
 
 ## Verification
 

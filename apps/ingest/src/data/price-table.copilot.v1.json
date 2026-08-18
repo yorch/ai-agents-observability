@@ -1,6 +1,6 @@
 {
-  "_comment": "GitHub Copilot CLI model pricing. Copilot bills seats and premium requests rather than raw tokens, so a per-mtok table is a modelling choice we have not made yet. Intentionally empty until it is — an empty table bills $0 via the table rather than mispricing against another agent's model names (P8-002).",
-  "generated_at": "2026-08-13T00:00:00Z",
+  "_comment": "GitHub Copilot CLI. INTENTIONALLY EMPTY, and not for want of research: Copilot does not bill tokens at all. A seat carries a monthly premium-request allowance (Pro 300, Pro+ 1500); each interaction spends allowance equal to the model's multiplier, and overage is $0.04 per premium request. Source: https://docs.github.com/en/copilot/concepts/billing/copilot-requests (retrieved 2026-08-18). Filling this with the underlying vendors' per-token rates would invent a number no Copilot user is ever charged. Pricing Copilot honestly needs a request-denominated cost model this schema cannot express; until that exists, every Copilot model bills $0 via the table and is counted in unknown_model_events_total (P8-002).",
+  "generated_at": "2026-08-18T00:00:00Z",
   "prices": {},
   "version": "copilot.v1"
 }

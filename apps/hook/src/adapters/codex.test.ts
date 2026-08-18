@@ -97,6 +97,49 @@ describe('codex adapter — rollout-backed mapBatch', () => {
     expect(stops[0]?.llm?.output_tokens).toBe(200);
   });
 
+  it('subtracts the cached tokens OpenAI counts inside input_tokens', () => {
+    // OpenAI's input_tokens is the whole prompt: 1000 total = 600 cache reads +
+    // 100 cache writes + 300 genuinely new. Emitting 1000 alongside the two cache
+    // counts makes ingest bill the cached 700 twice.
+    writeRollout([
+      { model: 'gpt-5.3-codex', type: 'turn_context' },
+      {
+        info: {
+          total_token_usage: {
+            cache_creation_tokens: 100,
+            cached_input_tokens: 600,
+            input_tokens: 1000,
+            output_tokens: 200,
+          },
+        },
+        type: 'token_count',
+      },
+    ]);
+
+    const stop = codexAdapter
+      .mapBatch?.('turn-complete', { 'session-id': sessionId })
+      ?.find((e) => e.event_type === 'Stop');
+    expect(stop?.llm?.input_tokens).toBe(300);
+    expect(stop?.llm?.cache_read_tokens).toBe(600);
+    expect(stop?.llm?.cache_creation_tokens).toBe(100);
+  });
+
+  it('clamps input to zero rather than emitting a negative count', () => {
+    // A rollout we do not control could report cache counts exceeding the total.
+    writeRollout([
+      { model: 'gpt-5.3-codex', type: 'turn_context' },
+      {
+        info: { total_token_usage: { cached_input_tokens: 900, input_tokens: 500 } },
+        type: 'token_count',
+      },
+    ]);
+
+    const stop = codexAdapter
+      .mapBatch?.('turn-complete', { 'session-id': sessionId })
+      ?.find((e) => e.event_type === 'Stop');
+    expect(stop?.llm?.input_tokens).toBe(0);
+  });
+
   it('advances the cursor so a second turn only emits the new turn (delta usage)', () => {
     const path = writeRollout([
       { arguments: '{}', call_id: 'c1', name: 'shell', type: 'function_call' },

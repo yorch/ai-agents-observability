@@ -47,6 +47,14 @@ Three rules the seam has accumulated, all learned the hard way:
   dropped (Gemini's `BeforeModel`, Copilot's `errorOccurred`, Codex's
   `PostCompact`). Fold near-misses into an existing type instead — Copilot's
   `postToolUseFailure` becomes a `PostToolUse` with a non-zero `exit_status`.
+- **Emit *disjoint* token counts.** Ingest's `computeCostUsd` bills `input`,
+  `output`, `cache_read` and `cache_creation` each at its own rate and sums, which
+  is Anthropic's shape — its `input_tokens` excludes both cache counters. OpenAI
+  and Google report the opposite: one inclusive prompt total with the cached
+  tokens *inside* it. Subtract in the adapter (`codex.ts`, `gemini-cli.ts` both
+  do); passing the provider's number straight through bills the cached tokens
+  twice. Same trap in the other direction: Gemini's thinking tokens bill as output
+  but sit *outside* `candidatesTokenCount`, so they have to be added in.
 - **Don't re-implement the payload primitives.** `lib/fields.ts` owns `isRecord`
   and the "first usable value among these keys" readers. Both had drifted into
   several copies with *different* answers about whether an empty string counts —

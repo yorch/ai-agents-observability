@@ -1,40 +1,112 @@
 {
-  "_comment": "Codex (OpenAI) model pricing. Prices in USD per million tokens. Source: https://openai.com/api/pricing",
-  "generated_at": "2025-05-17T00:00:00Z",
+  "_comment": "Codex (OpenAI) model rates, USD per million tokens. Source: https://developers.openai.com/api/docs/pricing (retrieved 2026-08-18). OpenAI reports ONE inclusive input_tokens that already contains the cached-read and cache-write tokens; the codex adapter subtracts both before emitting, so these rates apply to disjoint counts here. cache_write is free before GPT-5.6 (those tokens bill at the standard input rate, hence write == input) and 1.25x input from GPT-5.6 on. A Codex model absent here bills $0 via the table and is counted in unknown_model_events_total (P8-002) — add it rather than guessing.",
+  "generated_at": "2026-08-18T00:00:00Z",
   "prices": {
+    "codex-mini-latest": {
+      "cache_read_per_mtok": 0.375,
+      "cache_write_per_mtok": 1.5,
+      "input_per_mtok": 1.5,
+      "output_per_mtok": 6.0
+    },
+    "gpt-4.1": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 2.0,
+      "input_per_mtok": 2.0,
+      "output_per_mtok": 8.0
+    },
     "gpt-4o": {
       "cache_read_per_mtok": 1.25,
-      "cache_write_per_mtok": 0.0,
+      "cache_write_per_mtok": 2.5,
       "input_per_mtok": 2.5,
       "output_per_mtok": 10.0
     },
-    "gpt-4o-mini": {
-      "cache_read_per_mtok": 0.075,
-      "cache_write_per_mtok": 0.0,
-      "input_per_mtok": 0.15,
-      "output_per_mtok": 0.6
+    "gpt-5": {
+      "cache_read_per_mtok": 0.125,
+      "cache_write_per_mtok": 1.25,
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 10.0
     },
-    "o1": {
-      "cache_read_per_mtok": 7.5,
-      "cache_write_per_mtok": 0.0,
-      "input_per_mtok": 15.0,
-      "output_per_mtok": 60.0
+    "gpt-5-codex": {
+      "cache_read_per_mtok": 0.125,
+      "cache_write_per_mtok": 1.25,
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 10.0
+    },
+    "gpt-5-mini": {
+      "cache_read_per_mtok": 0.025,
+      "cache_write_per_mtok": 0.25,
+      "input_per_mtok": 0.25,
+      "output_per_mtok": 2.0
+    },
+    "gpt-5-nano": {
+      "cache_read_per_mtok": 0.005,
+      "cache_write_per_mtok": 0.05,
+      "input_per_mtok": 0.05,
+      "output_per_mtok": 0.4
+    },
+    "gpt-5.1": {
+      "cache_read_per_mtok": 0.125,
+      "cache_write_per_mtok": 1.25,
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 10.0
+    },
+    "gpt-5.2": {
+      "cache_read_per_mtok": 0.175,
+      "cache_write_per_mtok": 1.75,
+      "input_per_mtok": 1.75,
+      "output_per_mtok": 14.0
+    },
+    "gpt-5.3-codex": {
+      "cache_read_per_mtok": 0.175,
+      "cache_write_per_mtok": 1.75,
+      "input_per_mtok": 1.75,
+      "output_per_mtok": 14.0
+    },
+    "gpt-5.4": {
+      "cache_read_per_mtok": 0.25,
+      "cache_write_per_mtok": 2.5,
+      "input_per_mtok": 2.5,
+      "output_per_mtok": 15.0
+    },
+    "gpt-5.4-mini": {
+      "cache_read_per_mtok": 0.075,
+      "cache_write_per_mtok": 0.75,
+      "input_per_mtok": 0.75,
+      "output_per_mtok": 4.5
+    },
+    "gpt-5.5": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 5.0,
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 30.0
+    },
+    "gpt-5.6-luna": {
+      "cache_read_per_mtok": 0.02,
+      "cache_write_per_mtok": 0.25,
+      "input_per_mtok": 0.2,
+      "output_per_mtok": 1.2
+    },
+    "gpt-5.6-sol": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 6.25,
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 30.0
+    },
+    "gpt-5.6-terra": {
+      "cache_read_per_mtok": 0.2,
+      "cache_write_per_mtok": 2.5,
+      "input_per_mtok": 2.0,
+      "output_per_mtok": 12.0
     },
     "o3": {
-      "cache_read_per_mtok": 5.0,
-      "cache_write_per_mtok": 0.0,
-      "input_per_mtok": 10.0,
-      "output_per_mtok": 40.0
-    },
-    "o3-mini": {
-      "cache_read_per_mtok": 0.55,
-      "cache_write_per_mtok": 0.0,
-      "input_per_mtok": 1.1,
-      "output_per_mtok": 4.4
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 2.0,
+      "input_per_mtok": 2.0,
+      "output_per_mtok": 8.0
     },
     "o4-mini": {
       "cache_read_per_mtok": 0.275,
-      "cache_write_per_mtok": 0.0,
+      "cache_write_per_mtok": 1.1,
       "input_per_mtok": 1.1,
       "output_per_mtok": 4.4
     }

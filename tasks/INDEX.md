@@ -239,7 +239,7 @@ Deepens the session↔PR↔repo↔Jira correlation spine: commit-SHA + open-PR l
 
 ## Phase 12 — Agent Adapter Expansion
 
-See [`P12-roadmap.md`](./P12-roadmap.md). Takes the P8 seam from three agents to seven — Codex onto its native lifecycle hooks, plus Gemini CLI, Copilot CLI, Pi, and OMP — by extracting one stdin-hook factory instead of writing five bespoke adapters, and fixes a live session-ID bug that silently drops opencode traffic today. Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/research/2026-08-13-agent-adapter-expansion.md). Code complete. Three acceptance criteria remain unverified for want of the agents themselves: a recorded Pi session (P12-007), which of omp's two documented config roots is real (P12-008), and a recorded opencode session for the collated transcript (P12-009).
+See [`P12-roadmap.md`](./P12-roadmap.md). Takes the P8 seam from three agents to seven — Codex onto its native lifecycle hooks, plus Gemini CLI, Copilot CLI, Pi, and OMP — by extracting one stdin-hook factory instead of writing five bespoke adapters, and fixes a live session-ID bug that silently drops opencode traffic today. Research: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/research/2026-08-13-agent-adapter-expansion.md). Code complete. P12-010 then filled the price tables the adapters shipped empty and corrected the two providers whose token counters are inclusive rather than disjoint. Three acceptance criteria remain unverified for want of the agents themselves: a recorded Pi session (P12-007), which of omp's two documented config roots is real (P12-008), and a recorded opencode session for the collated transcript (P12-009).
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
@@ -252,3 +252,4 @@ See [`P12-roadmap.md`](./P12-roadmap.md). Takes the P8 seam from three agents to
 | [P12-007](./P12-007-pi-adapter.md) | Pi adapter | done | claude | M | P12-001, P12-002 |
 | [P12-008](./P12-008-omp-adapter.md) | OMP (oh-my-pi) adapter | done | claude | M | P12-001, P12-002, P12-007 |
 | [P12-009](./P12-009-opencode-transcript-export.md) | opencode transcript export (closes the P8-004 gap) | done | claude | M | P8-004, P12-007 |
+| [P12-010](./P12-010-price-table-refresh.md) | Price-table refresh + provider-correct token accounting | done | claude | S | P8-002, P12-001, P12-004, P12-005 |

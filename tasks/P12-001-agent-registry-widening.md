@@ -84,6 +84,8 @@ than a restated literal.
 ## Out of scope
 
 - Real price data for the new agents — empty tables are correct here (P8-002).
+  *(Filled in P12-010; `copilot` stayed empty on purpose — it bills premium
+  requests, not tokens.)*
 - Any adapter implementation.
 - Renaming the legacy `client.claude_code_version` wire field.
 

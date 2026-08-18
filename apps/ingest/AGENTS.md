@@ -43,12 +43,31 @@ re-ship short-circuits and a grown one replaces. Size is NOT a usable signal her
 what we store is the server's re-redacted recompression, whose length has nothing
 to do with the client's compressed upload.
 
-## Cost is recomputed, never trusted
+## Cost is computed here, and only here
 
-The hook computes cost client-side from the versioned price table so price changes
-propagate without redeploying binaries. Ingest **recomputes it server-side**
-(`src/lib/cost.ts`) against the same table. Client-reported cost is an input, not a
-fact. Don't shortcut this by persisting what arrived on the wire.
+Every adapter emits `cost_usd: 0`; `src/lib/cost.ts` computes the real number on
+receipt, against the versioned per-agent table in `src/data/`. A price correction is
+therefore a JSON edit plus a restart — no hook redeploy. Client-reported cost is an
+input, not a fact: don't shortcut this by persisting what arrived on the wire, even
+if a future adapter starts sending a real figure.
+
+**`computeCostUsd` assumes four *disjoint* token counts.** That is Anthropic's
+convention — its `input_tokens` excludes both cache counters. OpenAI and Google
+report the opposite: one inclusive prompt total with the cached tokens *inside* it.
+Normalizing that is the **adapter's** job (`codex.ts`, `gemini-cli.ts` both subtract
+before emitting), so this function stays agent-neutral. If you find yourself adding
+an `if (agent === …)` here, the adapter is doing too little.
+
+The one fallback the lookup does make is stripping a leading `<provider>/` on a
+miss, so `anthropic/claude-opus-5` from an OpenRouter-style agent prices as
+`claude-opus-5`. Exact keys still win, so a table can price a prefixed name
+differently by listing it verbatim.
+
+A model with no row bills `$0` and is recorded in `unknown_model_events_total`,
+namespaced `<agent>:<model>`. That metric is the signal to extend a table — watch it
+rather than assuming silence means correctness. **Copilot's table is empty on
+purpose**: Copilot bills premium requests against a seat allowance, not tokens, so
+there is no honest per-mtok row to write.
 
 ## Boot fails loud
 
