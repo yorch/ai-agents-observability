@@ -41,7 +41,7 @@ import { Prisma } from '@ai-agents-observability/db';
  * scoring): those operate on rows, not on people.
  *
  * The three continuous aggregates need no fragment at all — the filter is baked
- * into their definitions (`packages/db/sql/migrations/0008`), because an aggregate
+ * into their definitions (`packages/db/sql/migrations/0001_init.sql`), because an aggregate
  * named `daily_cost_by_user` that feeds a developer dashboard should not be able
  * to contain non-human runs in the first place.
  *
