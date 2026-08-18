@@ -47,8 +47,9 @@ rather than on the rule.
 
 - [x] Human-facing reads go through filtered views (e.g. `interactive_sessions`,
       `interactive_events`) rather than the base tables. The view definitions live
-      in `packages/db/sql/migrations/` as a **new numbered file** — never by editing
-      `0001_init.sql`.
+      in `packages/db/sql/migrations/`. *Landed as a new numbered file, then folded
+      into `0001_init.sql` by the 2026-08-18 pre-deployment squash — see
+      `packages/db/AGENTS.md`.*
 - [ ] **Remaining.** Prisma ORM reads are guarded by a client extension, so `prisma.session.findMany()`
       cannot silently include non-interactive runs. The extension is applied where
       the client is constructed, not per call site.
@@ -102,7 +103,7 @@ extension is deliberately a separate change; this task's own implementation note
 asked for that sequencing, and the reason held up.
 
 **The views.** `interactive_sessions` and `interactive_events` in
-`sql/migrations/0003_run_kind_views.sql`. The performance question was settled
+`sql/migrations/0001_init.sql`. The performance question was settled
 before committing to the approach rather than after: the planner inlines a simple
 view, so `EXPLAIN` on `interactive_events` and on the equivalent filtered `events`
 query produce **byte-identical plans** — same ChunkAppend, same index choice, 3 of

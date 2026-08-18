@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest';
  * see inside an applied migration either.
  */
 
-const MIGRATION = join(import.meta.dirname, '../sql/migrations/0002_scores_period_key.sql');
+const MIGRATION = join(import.meta.dirname, '../sql/migrations/0001_init.sql');
 
 describe('the scores period key', () => {
   const sql = readFileSync(MIGRATION, 'utf8');
@@ -34,11 +34,12 @@ describe('the scores period key', () => {
     );
   });
 
-  it('drops the superseded unique so both cannot coexist', () => {
-    // A database migrated before this change keeps the old 4-column unique,
-    // which would keep rejecting the second period for a subject — the exact
-    // bug this migration exists to fix, still present after applying it.
-    expect(sql).toMatch(/scores_subject_type_subject_id_scorer_name_scorer_version_key/);
+  it('is the only unique index on scores', () => {
+    // Post-squash there is no 4-column predecessor to drop — it never existed
+    // on a fresh install, because `schema.prisma` carries no @@unique. A DROP
+    // here would now be dead code implying a migration path that is gone.
+    expect(sql).not.toMatch(/scores_subject_type_subject_id_scorer_name_scorer_version_key/);
+    expect(sql.match(/CREATE UNIQUE INDEX[^;]*ON "scores"/g) ?? []).toHaveLength(1);
   });
 
   it('is not declared in schema.prisma, which cannot express it', () => {

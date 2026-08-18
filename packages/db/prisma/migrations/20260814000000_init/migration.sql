@@ -470,6 +470,8 @@ CREATE TABLE "scores" (
     "metadata" JSONB NOT NULL DEFAULT '{}',
     "rationale_ref" TEXT,
     "cost_usd" DECIMAL(12,6),
+    "period_start" TIMESTAMPTZ(6),
+    "period_end" TIMESTAMPTZ(6),
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "scores_pkey" PRIMARY KEY ("id")
@@ -641,7 +643,7 @@ CREATE INDEX "scores_subject_type_subject_id_idx" ON "scores"("subject_type", "s
 CREATE INDEX "scores_scorer_name_scorer_version_created_at_idx" ON "scores"("scorer_name", "scorer_version", "created_at" DESC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "scores_subject_type_subject_id_scorer_name_scorer_version_key" ON "scores"("subject_type", "subject_id", "scorer_name", "scorer_version");
+CREATE INDEX "scores_subject_type_subject_id_scorer_name_period_start_idx" ON "scores"("subject_type", "subject_id", "scorer_name", "period_start" DESC);
 
 -- CreateIndex
 CREATE INDEX "projections_claim_type_period_start_idx" ON "projections"("claim_type", "period_start" DESC);

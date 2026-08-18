@@ -108,7 +108,7 @@ statement serve both shapes.
 Consequences, each deliberate:
 
 - Prisma's schema language cannot express the modifier, so the unique index moved
-  to `sql/migrations/0002_scores_period_key.sql` — the same treatment
+  to `sql/migrations/0001_init.sql` — the same treatment
   `sessions_run_kind_idx` already gets. `test/scores-period-key.test.ts` reads
   that file as text and fails if it stops declaring it, because a dropped
   constraint here is invisible until duplicate rows appear.

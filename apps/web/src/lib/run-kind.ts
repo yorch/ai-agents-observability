@@ -7,7 +7,7 @@ import { Prisma } from '@ai-agents-observability/db';
  * enter a number a dashboard presents as developer behaviour. What changed is
  * where the rule lives. Human-facing SQL now reads the **filtered views**
  * `interactive_sessions` and `interactive_events` (`packages/db/sql/migrations/
- * 0003_run_kind_views.sql`) instead of filtering the base tables at ~130 call
+ * 0001_init.sql`) instead of filtering the base tables at ~130 call
  * sites. A query either names a filtered relation or it names a base table, and
  * naming a base table is a visible, greppable exception rather than an omission
  * nobody can see.

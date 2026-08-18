@@ -68,7 +68,20 @@ Current files:
   filtered to `run_kind = 'INTERACTIVE'`; the `transcript_index` FTS table with its
   generated `tsvector`; two things Prisma cannot express on a Prisma-managed table
   (the partial `sessions_run_kind_idx`, and `NOT NULL` on the `redaction_flags`
-  scalar list); and the built-in alert-rule seeds.
+  scalar list); the built-in alert-rule seeds; the `scores` unique index, which
+  needs `NULLS NOT DISTINCT` (P13-013) and so has no `@@unique` in
+  `schema.prisma` at all; and the `interactive_sessions` / `interactive_events`
+  views that carry the `run_kind` guard (P13-012).
+
+**Squashed twice, both times pre-deployment.** 2026-08-18 folded the P13-012 and
+P13-013 files back in, and collapsed the Prisma layer to a single regenerated
+`20260814000000_init` — so the two layers are one file each again. Verified rather
+than assumed: a `pg_dump` diff of the pre- and post-squash schemas over 1054
+normalized lines showed **one** difference, the physical column order of `scores`
+(`period_start`/`period_end` now sit in schema-declaration order instead of
+appended at the end, which is what folding an `ALTER` into a `CREATE` does).
+Indexes and constraints were byte-identical, and the sole writer
+(`scoreUpsertSql`) names its columns explicitly, so nothing depends on position.
 
 **Squashed 2026-08-14, pre-deployment**, from nine incremental files. The old chain
 created the three continuous aggregates and then dropped and recreated them twice
@@ -80,8 +93,11 @@ rebuild. Defining each aggregate once removed all three problems, and the result
 schema was verified byte-identical to the one the old chain produced.
 
 Add a **new numbered file** for any future change rather than editing this one or
-re-dropping anything in it — the squash was a one-off licensed by the project being
-pre-deployment.
+re-dropping anything in it. That both squashes happened is not a standing licence:
+each was an explicit owner decision, taken while nothing was deployed anywhere.
+The moment this schema exists in an environment, folding stops being free — an
+edit to an applied file is invisible to Prisma's name-based idempotency check and
+never runs.
 
 `sql/prototypes/` is **not applied by anything** — `prototype_semantic_search.sql` is
 the gated pgvector spike declined in P7-007. Leave it out of the numbered sequence.

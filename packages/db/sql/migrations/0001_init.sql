@@ -268,3 +268,68 @@ FROM (VALUES
 WHERE NOT EXISTS (
   SELECT 1 FROM "alert_rules" existing WHERE existing."rule_type" = v.rule_type
 );
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- The `scores` uniqueness rule (P13-013), which Prisma cannot express.
+--
+-- The key carries `period_start` so a subject that persists — a skill, an MCP
+-- server — accumulates one row per window instead of overwriting the same row
+-- every night. Without it `compute-subject-scores` could not produce the trend
+-- its own docstring describes: each run rewrote the previous run's figure.
+--
+-- **NULLS NOT DISTINCT is the load-bearing part.** A session's score is not
+-- periodic, so its `period_start` is NULL — and under Postgres's default
+-- semantics every NULL is distinct, meaning two rows for the same session would
+-- both insert rather than conflicting. That would silently turn the idempotent
+-- upsert every scorer job depends on into an append: re-running a job would
+-- multiply its rows instead of refreshing them, and nothing would error.
+--
+-- Requires Postgres 15+. The stack runs 18.
+--
+-- It lives here rather than in `schema.prisma` for the same reason
+-- `sessions_run_kind_idx` above does: Prisma's schema language has no way to say
+-- it. `packages/db/test/scores-period-key.test.ts` reads this file as text and
+-- fails if it stops declaring the constraint, because a silently-dropped unique
+-- index is invisible until duplicate score rows appear on a dashboard.
+
+CREATE UNIQUE INDEX IF NOT EXISTS scores_subject_scorer_period_key
+  ON "scores" (subject_type, subject_id, scorer_name, scorer_version, period_start)
+  NULLS NOT DISTINCT;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- The run_kind guard, expressed once instead of remembered ~140 times (P13-012).
+--
+-- Before these views, every human-facing read carried a `run_kind = 'INTERACTIVE'`
+-- fragment and two source-scanning lints counted them. That worked the way a rule
+-- at the wrong altitude works: the predicate was inline and drifted (org spend
+-- read 121 sessions / $547.83 against a true 115 / $19.03); centralizing it found
+-- 18 SQL and 22 ORM sites that had never adopted it; counting per literal then
+-- found seven guards bound to a CTE while the driving query ran unfiltered; and
+-- the ingest alert engine still had two unguarded `events` reads no lint could
+-- see. Four rounds, each finding sites the previous round's mechanism could not.
+--
+-- A view ends that: a query either reads the filtered relation or it names the
+-- base table, and naming the base table is the visible, greppable exception.
+--
+-- Cost check, settled before committing to the approach: the planner **inlines**
+-- a simple view, so TimescaleDB chunk exclusion is unaffected. `EXPLAIN` on
+-- `interactive_events` and on the equivalent filtered `events` query produce
+-- byte-identical plans — same ChunkAppend, same index choice, 3 of 30 chunks
+-- scanned either way.
+--
+-- `SELECT *` is deliberate. These views must track their base tables as columns
+-- are added — `events` in particular gains them regularly — and an explicit
+-- column list would silently stop exposing anything new.
+
+CREATE OR REPLACE VIEW interactive_sessions AS
+  SELECT * FROM sessions WHERE run_kind = 'INTERACTIVE';
+
+CREATE OR REPLACE VIEW interactive_events AS
+  SELECT * FROM events WHERE run_kind = 'INTERACTIVE';
+
+COMMENT ON VIEW interactive_sessions IS
+  'Sessions a human actually had (P13-012). Read this, not `sessions`, from anything that reports on people. Reading the base table is the documented exception and needs a run-kind-exempt marker at the call site.';
+
+COMMENT ON VIEW interactive_events IS
+  'Events from sessions a human actually had (P13-012). Read this, not `events`, from anything that reports on people. The planner inlines the view, so hypertable chunk exclusion is unaffected.';
