@@ -34,7 +34,7 @@ export function SessionsTable({
     <div className="space-y-4">
       <Table
         columns={[
-          { label: 'Started' },
+          { label: 'Started (UTC)' },
           { label: 'Repo' },
           { label: 'Ticket' },
           { label: 'Shape' },

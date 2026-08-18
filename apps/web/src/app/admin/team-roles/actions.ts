@@ -3,7 +3,7 @@
 import { AuditAction, type TeamRole } from '@ai-agents-observability/db';
 import { revalidatePath } from 'next/cache';
 
-import type { ActionResult } from '@/lib/action-result';
+import { withActionResult } from '@/lib/action-result';
 import { writeAuditLog } from '@/lib/audit';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -16,7 +16,7 @@ const ASSIGNABLE: ReadonlySet<TeamRole> = new Set<TeamRole>(['MEMBER', 'LEAD']);
  * dashboard team-lead visibility is granted, never inferred. Every change is
  * audited (`role_grant`).
  */
-export async function setTeamRole(formData: FormData): Promise<ActionResult> {
+export const setTeamRole = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
 
   const teamId = String(formData.get('teamId') ?? '');
@@ -50,4 +50,4 @@ export async function setTeamRole(formData: FormData): Promise<ActionResult> {
 
   revalidatePath('/admin/team-roles');
   return { message: 'Role updated.', ok: true };
-}
+});

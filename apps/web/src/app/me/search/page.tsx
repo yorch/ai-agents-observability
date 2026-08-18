@@ -96,7 +96,7 @@ export default async function MeSearchPage({
                   <div className="flex items-center gap-2 text-xs text-text-3">
                     <span className="text-text-2">{s.repoName ?? 'Unknown repo'}</span>
                     <span>·</span>
-                    <span>{fmtDateTime(new Date(s.startedAt))}</span>
+                    <span>{fmtDateTime(new Date(s.startedAt))} UTC</span>
                     <span>·</span>
                     <a
                       href={`/me/sessions/${s.sessionId}/transcript`}

@@ -1,5 +1,4 @@
 import { FilterChips } from '@/components/FilterChips';
-import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import {
   Button,
   ButtonLink,
@@ -9,6 +8,7 @@ import {
   Field,
   FilterPanel,
   Input,
+  Pagination,
   Row,
   Select,
   Table,
@@ -155,8 +155,6 @@ export default async function OrgSearchPage({
         label: `${label}: ${display}`,
       };
     });
-
-  const totalPages = Math.ceil(sessionResults.total / sessionResults.pageSize);
 
   return (
     <div className="space-y-6">
@@ -341,34 +339,9 @@ export default async function OrgSearchPage({
 
           {/* Session results */}
           <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-sm font-semibold text-text">
-                Sessions {sessionResults.total > 0 && `(${sessionResults.total})`}
-              </h2>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2 text-sm">
-                  {page > 1 && (
-                    <a
-                      href={buildUrl(params, { page: page - 1 })}
-                      className="inline-flex items-center gap-1 text-accent hover:underline"
-                    >
-                      <ArrowLeftIcon /> Prev
-                    </a>
-                  )}
-                  <span className="text-text-3">
-                    {page} / {totalPages}
-                  </span>
-                  {page < totalPages && (
-                    <a
-                      href={buildUrl(params, { page: page + 1 })}
-                      className="inline-flex items-center gap-1 text-accent hover:underline"
-                    >
-                      Next <ArrowRightIcon />
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
+            <h2 className="font-display text-sm font-semibold text-text">
+              Sessions {sessionResults.total > 0 && `(${sessionResults.total})`}
+            </h2>
 
             {sessionResults.results.length === 0 ? (
               <EmptyState
@@ -392,7 +365,7 @@ export default async function OrgSearchPage({
                   { label: 'Status' },
                   { align: 'right', label: 'Tools' },
                   { align: 'right', label: 'Cost' },
-                  { align: 'right', label: 'Started' },
+                  { align: 'right', label: 'Started (UTC)' },
                 ]}
               >
                 {sessionResults.results.map((s) => (
@@ -423,6 +396,12 @@ export default async function OrgSearchPage({
                 ))}
               </Table>
             )}
+            <Pagination
+              page={page}
+              pageSize={sessionResults.pageSize}
+              total={sessionResults.total}
+              hrefFor={(n) => buildUrl(params, { page: n })}
+            />
           </section>
         </>
       )}

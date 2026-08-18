@@ -5,6 +5,7 @@ import type { ShareResult } from '@/app/me/sessions/[id]/actions';
 import { revokeShare, shareSession } from '@/app/me/sessions/[id]/actions';
 import { ArrowRightIcon } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
+import { confirmSubmit } from '@/components/ui/ConfirmButton';
 import { Input, Select } from '@/components/ui/Field';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 
@@ -36,9 +37,10 @@ export function ShareSessionButton({
   const [isPending, startTransition] = useTransition();
   const menuRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef, open);
-
-  // Close on click-outside and Escape.
+  // The trap owns Escape-to-close and focus restore; only click-outside is
+  // handled here (the trap deliberately skips focus restore in that case so
+  // the clicked control keeps the focus it just took).
+  useFocusTrap(dialogRef, open, () => setOpen(false));
   useEffect(() => {
     if (!open) {
       return;
@@ -48,16 +50,9 @@ export function ShareSessionButton({
         setOpen(false);
       }
     }
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        setOpen(false);
-      }
-    }
     document.addEventListener('mousedown', onOutside);
-    document.addEventListener('keydown', onEsc);
     return () => {
       document.removeEventListener('mousedown', onOutside);
-      document.removeEventListener('keydown', onEsc);
     };
   }, [open]);
 
@@ -135,13 +130,9 @@ export function ShareSessionButton({
                       type="submit"
                       title="Revoke access"
                       aria-label={`Revoke access for ${share.granteeEmail ?? 'this user'}`}
-                      onClick={(e) => {
-                        if (
-                          !window.confirm(`Revoke access for ${share.granteeEmail ?? 'this user'}?`)
-                        ) {
-                          e.preventDefault();
-                        }
-                      }}
+                      onClick={confirmSubmit(
+                        `Revoke access for ${share.granteeEmail ?? 'this user'}?`,
+                      )}
                       className="rounded px-1.5 py-1 text-[10px] text-text-3 transition-colors hover:text-crit"
                     >
                       Revoke
@@ -156,6 +147,11 @@ export function ShareSessionButton({
           {lastShared && (
             <div className="border-t border-border px-4 py-3 space-y-2">
               <p className="text-xs text-good">Shared with {lastShared.email}</p>
+              {error && (
+                <p role="alert" className="text-xs text-crit">
+                  {error}
+                </p>
+              )}
               <div className="flex items-center gap-2">
                 <code className="flex-1 truncate rounded bg-surface-2 px-2 py-1 text-[10px] text-text-3">
                   /org/sessions/{sessionId}

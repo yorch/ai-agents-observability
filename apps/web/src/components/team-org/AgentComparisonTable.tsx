@@ -1,5 +1,5 @@
 import { agentDisplayName } from '@ai-agents-observability/schemas';
-import { Card, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { fmtPct, fmtTokens, fmtUsd } from '@/lib/fmt';
 import type { AgentComparisonRow } from '@/lib/org-queries';
 
@@ -16,7 +16,7 @@ export function AgentComparisonTable({ rows }: { rows: AgentComparisonRow[] }) {
         </p>
       </div>
       {rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-text-3">No agent activity in this period.</p>
+        <CardEmpty>No agent activity in this period.</CardEmpty>
       ) : (
         <Table
           columns={[

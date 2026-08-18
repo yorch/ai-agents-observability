@@ -1,9 +1,10 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 
 import { savePrivacySettings } from '@/app/me/settings/privacy/actions';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { useActionResult } from '@/lib/use-action-result';
 
 type Toggle = {
   description: string;
@@ -52,9 +53,7 @@ type InitialPolicy = {
 };
 
 export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | null }) {
-  const [isPending, startTransition] = useTransition();
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { error, isPending, reset, run, saved } = useActionResult();
   const [policy, setPolicy] = useState<InitialPolicy>({
     shareMetadataWithOrg: initialPolicy?.shareMetadataWithOrg ?? true,
     shareMetadataWithTeam: initialPolicy?.shareMetadataWithTeam ?? true,
@@ -94,8 +93,7 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
 
   function handleToggle(name: string, value: boolean) {
     setPolicy((prev) => ({ ...prev, [name]: value }));
-    setSaved(false);
-    setError(null);
+    reset();
   }
 
   function handleSave() {
@@ -105,21 +103,7 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
     formData.set('shareTranscriptsWithTeam', policy.shareTranscriptsWithTeam.toString());
     formData.set('shareTranscriptsWithOrg', policy.shareTranscriptsWithOrg.toString());
 
-    startTransition(async () => {
-      try {
-        const result = await savePrivacySettings(formData);
-        if ('error' in result) {
-          setError(result.error);
-          setSaved(false);
-        } else {
-          setError(null);
-          setSaved(true);
-        }
-      } catch {
-        setError('Could not save — check your connection and try again.');
-        setSaved(false);
-      }
-    });
+    run(() => savePrivacySettings(formData));
   }
 
   return (

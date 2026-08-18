@@ -57,11 +57,11 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
   // A navigation is the end of a drawer's usefulness.
   useEffect(() => setOpen(false), [pathname]);
 
-  // While the mobile drawer is open, keep keyboard focus inside it and let
-  // Escape close it (focus returns to the Menu button via the trap teardown).
+  // While the mobile drawer is open, keep keyboard focus inside it; the trap
+  // also owns Escape-to-close (focus returns to the Menu button on teardown).
   // Crossing up to the desktop breakpoint drops the drawer state so the trap
   // cannot linger on the always-visible rail.
-  useFocusTrap(drawerRef, open);
+  useFocusTrap(drawerRef, open, () => setOpen(false));
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
     const onChange = () => {
@@ -72,18 +72,6 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        setOpen(false);
-      }
-    }
-    document.addEventListener('keydown', onEsc);
-    return () => document.removeEventListener('keydown', onEsc);
-  }, [open]);
 
   const scope = scopeOf(pathname);
   const activeTeam = scope === 'team' ? teamSlugOf(pathname) : (teams[0]?.githubSlug ?? null);

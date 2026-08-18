@@ -204,7 +204,9 @@ export function Timeline({
                 </div>
                 <div>
                   <p className="text-sm font-medium text-text">{event.label}</p>
-                  <p className="text-xs text-text-3 font-mono">{fmtDateTime(new Date(event.at))}</p>
+                  <p className="text-xs text-text-3 font-mono">
+                    {fmtDateTime(new Date(event.at))} UTC
+                  </p>
                   <p className="text-xs text-text-2 mt-0.5">{event.description}</p>
                 </div>
               </div>

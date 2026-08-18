@@ -149,10 +149,14 @@ export default async function AdminJobsPage() {
                   </Cell>
 
                   <Cell>
-                    {queued ? (
-                      <Badge tone="neutral">queued</Badge>
-                    ) : run ? (
-                      <StatusBadge status={run.status} />
+                    {/* A queued manual run renders BESIDE the last outcome, never in
+                        place of it — replacing a failed badge with a neutral "queued"
+                        would mask exactly the state the admin is debugging. */}
+                    {run || queued ? (
+                      <span className="flex items-center gap-1.5">
+                        {run ? <StatusBadge status={run.status} /> : null}
+                        {queued ? <Badge tone="neutral">queued</Badge> : null}
+                      </span>
                     ) : (
                       <span className="text-text-3 text-xs">—</span>
                     )}

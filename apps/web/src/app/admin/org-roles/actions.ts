@@ -3,7 +3,7 @@
 import { AuditAction, OrgRole } from '@ai-agents-observability/db';
 import { revalidatePath } from 'next/cache';
 
-import type { ActionResult } from '@/lib/action-result';
+import { withActionResult } from '@/lib/action-result';
 import { writeAuditLog } from '@/lib/audit';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -20,7 +20,7 @@ const ASSIGNABLE: ReadonlySet<OrgRole> = new Set<OrgRole>([
  * aggregate access + the ability to request time-boxed grants — never standing
  * individual access. Audited via `role_grant`.
  */
-export async function setOrgRole(formData: FormData): Promise<ActionResult> {
+export const setOrgRole = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
 
   const targetUserId = String(formData.get('userId') ?? '');
@@ -51,4 +51,4 @@ export async function setOrgRole(formData: FormData): Promise<ActionResult> {
 
   revalidatePath('/admin/org-roles');
   return { message: 'Role updated.', ok: true };
-}
+});

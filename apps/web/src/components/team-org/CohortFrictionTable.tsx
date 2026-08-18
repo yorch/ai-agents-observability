@@ -1,4 +1,4 @@
-import { Card, Cell, Row, Table, TONE_BG, TONE_TEXT } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table, TONE_BG, TONE_TEXT } from '@/components/ui';
 import type { CohortFrictionRow } from '@/lib/cohort-queries';
 import { frictionBadge } from '@/lib/effectiveness';
 
@@ -30,9 +30,7 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
       </p>
 
       {qualifying.length === 0 ? (
-        <p className="py-6 text-center text-sm text-text-3">
-          Not enough data per cohort to compare.
-        </p>
+        <CardEmpty>Not enough data per cohort to compare.</CardEmpty>
       ) : (
         <Table
           columns={[

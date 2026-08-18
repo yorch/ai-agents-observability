@@ -1,4 +1,4 @@
-import { Card, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { fmtDate } from '@/lib/fmt';
 import type { TeamPrRollupRow } from '@/lib/team-queries';
 
@@ -6,7 +6,7 @@ export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
   if (rows.length === 0) {
     return (
       <Card title="Merged PRs" contentClassName="space-y-3">
-        <p className="py-6 text-center text-sm text-text-3">No merged PRs in this period.</p>
+        <CardEmpty>No merged PRs in this period.</CardEmpty>
       </Card>
     );
   }

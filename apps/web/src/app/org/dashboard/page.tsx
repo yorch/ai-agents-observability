@@ -7,8 +7,9 @@ import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTr
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable';
 import { SpendForecast } from '@/components/team-org/SpendForecast';
-import { axisMoney, BarChart, Card, Cell, Row, Stat, Table } from '@/components/ui';
+import { axisMoney, BarChart, Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
 import { getOrgCohortFriction } from '@/lib/cohort-queries';
+import { fmtDayShort } from '@/lib/fmt';
 import {
   getActiveBudget,
   getAnomalies,
@@ -162,11 +163,7 @@ export default async function OrgDashboardPage({
         <Card title="Weekly cost trend" caption="Twelve weeks" hint="hover for detail">
           <BarChart
             data={trend.map((t) => ({
-              label: new Date(t.day).toLocaleDateString('en-US', {
-                day: 'numeric',
-                month: 'short',
-                timeZone: 'UTC',
-              }),
+              label: fmtDayShort(new Date(t.day)),
               values: [t.costUsd],
             }))}
             format={axisMoney}
@@ -191,7 +188,7 @@ export default async function OrgDashboardPage({
         {/* Cost by team */}
         <Card title="Cost by team (top 10)" contentClassName="space-y-3">
           {teamCost.length === 0 ? (
-            <p className="py-6 text-center text-sm text-text-3">No team activity in this period.</p>
+            <CardEmpty>No team activity in this period.</CardEmpty>
           ) : (
             <Table
               columns={[
@@ -228,7 +225,7 @@ export default async function OrgDashboardPage({
         {/* Cost by repo */}
         <Card title="Cost by repo (top 10)" contentClassName="space-y-3">
           {repoCost.length === 0 ? (
-            <p className="py-6 text-center text-sm text-text-3">No repo activity in this period.</p>
+            <CardEmpty>No repo activity in this period.</CardEmpty>
           ) : (
             <Table
               columns={[
@@ -257,7 +254,7 @@ export default async function OrgDashboardPage({
         {/* Model mix */}
         <Card title="Cost by model" contentClassName="space-y-3">
           {modelCost.length === 0 ? (
-            <p className="py-6 text-center text-sm text-text-3">No model usage in this period.</p>
+            <CardEmpty>No model usage in this period.</CardEmpty>
           ) : (
             <div className="space-y-2">
               {modelCost.map((m) => {

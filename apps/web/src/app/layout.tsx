@@ -1,16 +1,23 @@
-import { DM_Sans, IBM_Plex_Mono, Syne } from 'next/font/google';
+import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
 
 import '../styles/globals.css';
 
-// globals.css maps --font-display/body/mono onto these variables; the weights
-// mirror the type ramp (Syne 700 display, DM Sans 400/500 UI, Plex Mono 400/500 data).
-const syne = Syne({ subsets: ['latin'], variable: '--font-syne', weight: ['700'] });
-const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans', weight: ['400', '500'] });
-const ibmMono = IBM_Plex_Mono({
-  subsets: ['latin'],
+// globals.css maps --font-display/body/mono onto these variables. The files
+// are vendored (src/fonts/README.md) so `next build` needs no network — the
+// Google-hosted variant made every Docker build depend on fonts.googleapis.com.
+const syne = localFont({ src: '../fonts/syne-700.woff2', variable: '--font-syne', weight: '700' });
+const dmSans = localFont({
+  src: '../fonts/dm-sans.woff2',
+  variable: '--font-dm-sans',
+  weight: '400 500',
+});
+const ibmMono = localFont({
+  src: [
+    { path: '../fonts/ibm-plex-mono-400.woff2', weight: '400' },
+    { path: '../fonts/ibm-plex-mono-500.woff2', weight: '500' },
+  ],
   variable: '--font-ibm-mono',
-  weight: ['400', '500'],
 });
 
 import { Rail, type RailTeam } from '@/components/shell/Rail';

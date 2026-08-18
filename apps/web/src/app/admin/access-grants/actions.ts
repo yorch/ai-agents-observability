@@ -3,7 +3,7 @@
 import { AuditAction, type GrantScope } from '@ai-agents-observability/db';
 import { revalidatePath } from 'next/cache';
 
-import type { ActionResult } from '@/lib/action-result';
+import { withActionResult } from '@/lib/action-result';
 import { writeAuditLog } from '@/lib/audit';
 import { getPrisma } from '@/lib/prisma';
 import { requireGrantRequester, requireOrgAdmin } from '@/lib/roles';
@@ -16,7 +16,7 @@ const DEFAULT_GRANT_HOURS = 48;
  * org_admins can request (P9-005 adds the research capability). The grant starts
  * UNAPPROVED (granted_at null) — it grants nothing until an org_admin approves.
  */
-export async function requestGrant(formData: FormData): Promise<ActionResult> {
+export const requestGrant = withActionResult(async (formData) => {
   // org_admin OR investigator (P9-005) — never viewer_aggregate. Approval still
   // requires org_admin, so an investigator can't self-approve.
   const { user } = await requireGrantRequester();
@@ -50,13 +50,13 @@ export async function requestGrant(formData: FormData): Promise<ActionResult> {
 
   revalidatePath('/admin/access-grants');
   return { message: 'Request submitted.', ok: true };
-}
+});
 
 /**
  * Approve a pending grant: set granted_at + a required expiry (default 48h). Only
  * org_admins approve. Audited; the viewed user sees it in /me/audit.
  */
-export async function approveGrant(formData: FormData): Promise<ActionResult> {
+export const approveGrant = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
 
   const id = String(formData.get('id') ?? '');
@@ -97,14 +97,14 @@ export async function approveGrant(formData: FormData): Promise<ActionResult> {
 
   revalidatePath('/admin/access-grants');
   return { message: 'Grant approved.', ok: true };
-}
+});
 
 /**
  * R8: approve every currently-pending grant in one action (bulk approve from the
  * "needs attention" queue), each with the same bounded window. Writes one audit
  * row per grant so each viewed user still sees the access in their feed.
  */
-export async function approveAllPending(formData: FormData): Promise<ActionResult> {
+export const approveAllPending = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
   const hoursRaw = String(formData.get('hours') ?? '').trim();
   const hours = Number(hoursRaw) > 0 ? Number(hoursRaw) : DEFAULT_GRANT_HOURS;
@@ -133,10 +133,10 @@ export async function approveAllPending(formData: FormData): Promise<ActionResul
 
   revalidatePath('/admin/access-grants');
   return { message: `Approved ${pending.length} requests.`, ok: true };
-}
+});
 
 /** Revoke an active grant immediately (sets revoked_at). Audited. */
-export async function revokeGrant(formData: FormData): Promise<ActionResult> {
+export const revokeGrant = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
 
   const id = String(formData.get('id') ?? '');
@@ -168,4 +168,4 @@ export async function revokeGrant(formData: FormData): Promise<ActionResult> {
 
   revalidatePath('/admin/access-grants');
   return { message: 'Grant revoked.', ok: true };
-}
+});

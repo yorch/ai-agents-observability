@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { Card, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamSkillCostComparison,
@@ -122,7 +122,7 @@ export default async function TeamSkillDetailPage({
             )}
           </div>
         ) : (
-          <p className="py-6 text-center text-sm text-text-3">No cost data in this period.</p>
+          <CardEmpty>No cost data in this period.</CardEmpty>
         )}
       </Card>
 

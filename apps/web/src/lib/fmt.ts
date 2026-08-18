@@ -43,34 +43,47 @@ export function fmtBytes(n: number | null): string {
 /* Dates pin locale AND timezone (en-US, UTC): a bare toLocaleString renders in
    the server's zone on the SSR pass and the browser's on any client render, so
    the same timestamp could paint two ways. UTC matches how schedules and jobs
-   are configured. */
+   are configured.
+
+   Formatters are constructed once at module level — toLocaleString with an
+   options bag builds and discards an Intl.DateTimeFormat per call, which adds
+   up when a 50-row table formats every cell on every force-dynamic render. */
+
+const DATE = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+  year: 'numeric',
+});
+
+const DATE_TIME = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  hour: '2-digit',
+  hour12: false,
+  minute: '2-digit',
+  month: 'short',
+  timeZone: 'UTC',
+  year: 'numeric',
+});
+
+const DAY_SHORT = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+});
 
 export function fmtDate(d: Date | null): string {
-  if (!d) {
-    return '\u2014';
-  }
-  return d.toLocaleDateString('en-US', {
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-    year: 'numeric',
-  });
+  return d ? DATE.format(d) : '\u2014';
 }
 
-/** Date + time, e.g. "Jan 5, 2026, 14:32". UTC \u2014 pair with a zone hint where ambiguity matters. */
+/** Date + time, e.g. "Jan 5, 2026, 14:32". UTC — pair with a zone hint where ambiguity matters. */
 export function fmtDateTime(d: Date | null): string {
-  if (!d) {
-    return '\u2014';
-  }
-  return d.toLocaleString('en-US', {
-    day: 'numeric',
-    hour: '2-digit',
-    hour12: false,
-    minute: '2-digit',
-    month: 'short',
-    timeZone: 'UTC',
-    year: 'numeric',
-  });
+  return d ? DATE_TIME.format(d) : '\u2014';
+}
+
+/** Short axis/row label, e.g. "Jan 5". UTC, like every date in the app. */
+export function fmtDayShort(d: Date): string {
+  return DAY_SHORT.format(d);
 }
 
 /** Wall-clock seconds \u2192 "45s" / "5m 12s" / "1h 5m". For session and PR durations. */

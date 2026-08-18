@@ -19,7 +19,7 @@ export function RecentSessions({ sessions }: { sessions: RecentSession[] }) {
   return (
     <Card>
       <h2 className="mb-4 font-mono text-[10px] uppercase tracking-widest text-text-3">
-        Recent Sessions
+        Recent Sessions (UTC)
       </h2>
       <div className="space-y-1">
         {sessions.map((s) => (

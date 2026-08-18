@@ -4,6 +4,7 @@ import { AuditAction, computePRRollup, GrantScope } from '@ai-agents-observabili
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+import { withActionResult } from '@/lib/action-result';
 import { writeAuditLog } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
 import { getPrisma } from '@/lib/prisma';
@@ -97,9 +98,7 @@ export async function shareSession(formData: FormData): Promise<ShareResult> {
  * session (thumbs up/down + optional note). Upserted per (session, user); an
  * empty sentiment clears it. Own-session only — verified via getSession.
  */
-export type FeedbackResult = { error: string } | { ok: true };
-
-export async function submitSessionFeedback(formData: FormData): Promise<FeedbackResult> {
+export const submitSessionFeedback = withActionResult(async (formData) => {
   const user = await currentUser();
   if (!user) {
     redirect('/login');
@@ -109,13 +108,13 @@ export async function submitSessionFeedback(formData: FormData): Promise<Feedbac
   const sentiment = String(formData.get('sentiment') ?? '').trim();
   const note = String(formData.get('note') ?? '').trim();
   if (!sessionId) {
-    return { error: 'Session not found.' };
+    return { error: 'Session not found.', ok: false };
   }
 
   // Own-session only.
   const session = await getSession(user.id, sessionId);
   if (!session) {
-    return { error: 'Session not found.' };
+    return { error: 'Session not found.', ok: false };
   }
 
   const db = getPrisma();
@@ -136,7 +135,7 @@ export async function submitSessionFeedback(formData: FormData): Promise<Feedbac
 
   revalidatePath(`/me/sessions/${sessionId}`);
   return { ok: true };
-}
+});
 
 export type PRLinkResult = { error: string } | { ok: true };
 

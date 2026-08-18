@@ -1,6 +1,7 @@
 import { AgentsTable } from '@/components/team-org/AgentsTable';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { EmptyState, Stat } from '@/components/ui';
+import { fmtUsd } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamSubagentStats, resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
@@ -39,17 +40,10 @@ export default async function TeamAgentsPage({
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat label={`Agent spawns (${range}d)`} value={totalSpawns.toLocaleString()} />
         <Stat label="Agent types" value={distinctTypes.toString()} />
-        <Stat
-          label="Attributed cost"
-          value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
-        />
+        <Stat label="Attributed cost" value={totalCostUsd > 0 ? fmtUsd(totalCostUsd) : '—'} />
         <Stat
           label="Avg cost / spawn"
-          value={
-            totalSpawns > 0 && totalCostUsd > 0
-              ? `$${(totalCostUsd / totalSpawns).toFixed(2)}`
-              : '—'
-          }
+          value={totalSpawns > 0 && totalCostUsd > 0 ? fmtUsd(totalCostUsd / totalSpawns) : '—'}
         />
       </div>
 

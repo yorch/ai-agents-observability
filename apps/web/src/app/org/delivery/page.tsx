@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, Cell, Row, Stat, Table } from '@/components/ui';
-import { fmtHoursShort } from '@/lib/fmt';
+import { Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
+import { fmtDayShort, fmtHoursShort } from '@/lib/fmt';
 import {
   getOrgCheckHealth,
   getOrgPRDeliveryStats,
@@ -93,11 +93,7 @@ export default async function OrgDeliveryPage({
           <div className="flex items-end gap-1 h-24">
             {weeklyTrend.map((w) => {
               const height = Math.max(4, (w.mergedPRs / maxPRs) * 96);
-              const label = new Date(w.week).toLocaleDateString('en-US', {
-                day: 'numeric',
-                month: 'short',
-                timeZone: 'UTC',
-              });
+              const label = fmtDayShort(new Date(w.week));
               return (
                 <div key={w.week.toISOString()} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-[10px] text-text-3">{w.mergedPRs}</span>
@@ -118,10 +114,10 @@ export default async function OrgDeliveryPage({
       <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Review health ({range}d)</h2>
         {reviews.reviewedPrs === 0 ? (
-          <p className="py-6 text-center text-sm text-text-3">
+          <CardEmpty>
             No submitted reviews recorded in this period. Review data arrives via the
             pull_request_review webhook.
-          </p>
+          </CardEmpty>
         ) : (
           <div className="grid gap-4 sm:grid-cols-3">
             <Stat
@@ -149,10 +145,10 @@ export default async function OrgDeliveryPage({
           Failing CI checks ({range}d)
         </h2>
         {checkHealth.length === 0 ? (
-          <p className="py-6 text-center text-sm text-text-3">
+          <CardEmpty>
             No failing check runs recorded in this period. Per-run outcomes arrive via the check_run
             webhook.
-          </p>
+          </CardEmpty>
         ) : (
           <Table
             columns={[
@@ -195,7 +191,7 @@ export default async function OrgDeliveryPage({
           Top repos by merged PRs ({range}d)
         </h2>
         {topRepos.length === 0 ? (
-          <p className="py-6 text-center text-sm text-text-3">No merged PRs in this period.</p>
+          <CardEmpty>No merged PRs in this period.</CardEmpty>
         ) : (
           <Table
             columns={[

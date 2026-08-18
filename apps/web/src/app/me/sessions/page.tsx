@@ -266,6 +266,20 @@ export default async function SessionsPage({
           >
             Try removing a filter or widening the date range.
           </EmptyState>
+        ) : total > 0 ? (
+          // An out-of-range ?page= (stale bookmark, pruned history) is not a
+          // first run — the install CTA here would tell an onboarded user to
+          // reinstall.
+          <EmptyState
+            title="Nothing on this page"
+            action={
+              <ButtonLink variant="secondary" href="/me/sessions">
+                Back to page 1
+              </ButtonLink>
+            }
+          >
+            Your sessions start on an earlier page.
+          </EmptyState>
         ) : (
           <EmptyState
             title="No sessions yet"

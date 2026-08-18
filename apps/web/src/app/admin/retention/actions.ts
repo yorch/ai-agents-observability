@@ -2,7 +2,7 @@
 
 import { AuditAction } from '@ai-agents-observability/db';
 import { revalidatePath } from 'next/cache';
-import type { ActionResult } from '@/lib/action-result';
+import { withActionResult } from '@/lib/action-result';
 import { writeAuditLog } from '@/lib/audit';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -13,7 +13,7 @@ import { requireOrgAdmin } from '@/lib/roles';
  * is audited via `retention_override_changed`. Clamping to the org maximum happens
  * in the sweep job, not here — the stored value is the admin's literal intent.
  */
-export async function setTeamRetention(formData: FormData): Promise<ActionResult> {
+export const setTeamRetention = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
 
   const teamId = String(formData.get('teamId') ?? '');
@@ -54,4 +54,4 @@ export async function setTeamRetention(formData: FormData): Promise<ActionResult
       retentionDays === null ? 'Override cleared.' : `Retention set to ${retentionDays} days.`,
     ok: true,
   };
-}
+});

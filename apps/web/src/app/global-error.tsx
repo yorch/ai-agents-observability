@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { Button } from '@/components/ui/Button';
 
 import '../styles/globals.css';
 
@@ -26,13 +27,9 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
             The app could not load. This usually means the database is unreachable — try again in a
             moment.
           </p>
-          <button
-            type="button"
-            onClick={reset}
-            className="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium text-text-2 hover:bg-surface-2 hover:text-text"
-          >
+          <Button variant="secondary" onClick={reset}>
             Try again
-          </button>
+          </Button>
         </div>
       </body>
     </html>

@@ -1,7 +1,21 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { Button, type ButtonSize, type ButtonVariant } from './Button';
+
+/**
+ * The confirm guard itself, for destructive submits that are not `Button`s
+ * (e.g. text affordances like the share popover's Revoke). ConfirmButton uses
+ * this too, so replacing the native confirm() with a styled dialog later is
+ * one edit for every call site.
+ */
+export function confirmSubmit(message: string) {
+  return (e: MouseEvent<HTMLButtonElement>) => {
+    if (!window.confirm(message)) {
+      e.preventDefault();
+    }
+  };
+}
 
 /**
  * A submit button whose form action only fires after a native confirm().
@@ -25,11 +39,7 @@ export function ConfirmButton({
       type="submit"
       variant={variant}
       {...(size ? { size } : {})}
-      onClick={(e) => {
-        if (!window.confirm(confirmMessage)) {
-          e.preventDefault();
-        }
-      }}
+      onClick={confirmSubmit(confirmMessage)}
     >
       {children}
     </Button>

@@ -1,11 +1,11 @@
-import { Card, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import type { TeamModelGovernanceRow } from '@/lib/org-queries';
 
 export function ModelGovernanceTable({ rows }: { rows: TeamModelGovernanceRow[] }) {
   if (rows.length === 0) {
     return (
       <Card title="Model governance by team" contentClassName="space-y-3">
-        <p className="py-6 text-center text-sm text-text-3">No model usage in this period.</p>
+        <CardEmpty>No model usage in this period.</CardEmpty>
       </Card>
     );
   }

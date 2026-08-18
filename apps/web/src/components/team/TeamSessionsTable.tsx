@@ -29,7 +29,7 @@ export function TeamSessionsTable({
       <Table
         columns={[
           { label: 'Member' },
-          { label: 'Started' },
+          { label: 'Started (UTC)' },
           { label: 'Repo' },
           { label: 'Shape' },
           { align: 'right', label: 'Duration' },

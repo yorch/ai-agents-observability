@@ -2,11 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 
-import type { ActionResult } from '@/lib/action-result';
+import { withActionResult } from '@/lib/action-result';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
-export async function updateJobConfig(formData: FormData): Promise<ActionResult> {
+export const updateJobConfig = withActionResult(async (formData) => {
   await requireOrgAdmin();
   const jobName = formData.get('jobName') as string;
   const enabled = formData.get('enabled') === 'on';
@@ -34,9 +34,9 @@ export async function updateJobConfig(formData: FormData): Promise<ActionResult>
   }
   revalidatePath('/admin/jobs');
   return { message: 'Schedule saved.', ok: true };
-}
+});
 
-export async function triggerJob(formData: FormData): Promise<ActionResult> {
+export const triggerJob = withActionResult(async (formData) => {
   await requireOrgAdmin();
   const jobName = formData.get('jobName') as string;
   if (!jobName) {
@@ -53,4 +53,4 @@ export async function triggerJob(formData: FormData): Promise<ActionResult> {
   }
   revalidatePath('/admin/jobs');
   return { message: 'Run requested — the scheduler picks it up within a minute.', ok: true };
-}
+});

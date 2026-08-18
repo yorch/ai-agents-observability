@@ -3,7 +3,7 @@
 import { BudgetThresholdParamsSchema } from '@ai-agents-observability/schemas';
 import { revalidatePath } from 'next/cache';
 
-import type { ActionResult } from '@/lib/action-result';
+import { withActionResult } from '@/lib/action-result';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -13,7 +13,7 @@ const CHANNEL_TYPES = new Set(['webhook', 'slack_webhook', 'email']);
 // Allowed silence windows (hours). Bounds the dropdown and rejects arbitrary input.
 const SILENCE_HOURS = new Set([1, 4, 24, 72]);
 
-export async function toggleRule(formData: FormData): Promise<ActionResult> {
+export const toggleRule = withActionResult(async (formData) => {
   await requireOrgAdmin();
   const id = String(formData.get('id') ?? '');
   const enabled = String(formData.get('enabled') ?? '') === 'true';
@@ -26,7 +26,7 @@ export async function toggleRule(formData: FormData): Promise<ActionResult> {
   }
   revalidatePath('/admin/alerts');
   return { message: 'Rule updated.', ok: true };
-}
+});
 
 /**
  * Set the spend budget (params.budgetUsd, optional params.windowDays) for a
@@ -34,7 +34,7 @@ export async function toggleRule(formData: FormData): Promise<ActionResult> {
  * this is what turns the seeded rule on. Invalid input is rejected with an inline
  * error rather than persisted.
  */
-export async function updateBudgetThreshold(formData: FormData): Promise<ActionResult> {
+export const updateBudgetThreshold = withActionResult(async (formData) => {
   await requireOrgAdmin();
   const id = String(formData.get('id') ?? '');
   if (!id) {
@@ -61,10 +61,10 @@ export async function updateBudgetThreshold(formData: FormData): Promise<ActionR
   }
   revalidatePath('/admin/alerts');
   return { message: 'Threshold saved.', ok: true };
-}
+});
 
 /** Add a notification channel. Config is a small typed object per channel type. */
-export async function addChannel(formData: FormData): Promise<ActionResult> {
+export const addChannel = withActionResult(async (formData) => {
   await requireOrgAdmin();
   const channelType = String(formData.get('channelType') ?? '');
   const target = String(formData.get('target') ?? '').trim();
@@ -84,9 +84,9 @@ export async function addChannel(formData: FormData): Promise<ActionResult> {
   await getPrisma().alertChannelConfig.create({ data: { channelType, config, enabled: true } });
   revalidatePath('/admin/alerts');
   return { message: 'Channel added.', ok: true };
-}
+});
 
-export async function toggleChannel(formData: FormData): Promise<ActionResult> {
+export const toggleChannel = withActionResult(async (formData) => {
   await requireOrgAdmin();
   const id = String(formData.get('id') ?? '');
   const enabled = String(formData.get('enabled') ?? '') === 'true';
@@ -102,9 +102,9 @@ export async function toggleChannel(formData: FormData): Promise<ActionResult> {
   }
   revalidatePath('/admin/alerts');
   return { message: 'Channel updated.', ok: true };
-}
+});
 
-export async function deleteChannel(formData: FormData): Promise<ActionResult> {
+export const deleteChannel = withActionResult(async (formData) => {
   await requireOrgAdmin();
   const id = String(formData.get('id') ?? '');
   if (!id) {
@@ -116,13 +116,14 @@ export async function deleteChannel(formData: FormData): Promise<ActionResult> {
   }
   revalidatePath('/admin/alerts');
   return { message: 'Channel removed.', ok: true };
-}
+});
 
 /** R7: acknowledge an open alert firing ("seen it"). Audited; not the same as resolve. */
-export async function acknowledgeAlert(formData: FormData): Promise<ActionResult> {
+export const acknowledgeAlert = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
   const id = String(formData.get('id') ?? '');
-  if (!id) {
+  // Guard before BigInt(id) — a non-numeric id would throw a SyntaxError.
+  if (!/^\d+$/.test(id)) {
     return { error: 'Missing alert id — refresh and try again.', ok: false };
   }
   const { count } = await getPrisma().alertEvent.updateMany({
@@ -135,10 +136,10 @@ export async function acknowledgeAlert(formData: FormData): Promise<ActionResult
   void writeAuditLog({ action: AuditAction.ALERT_ACKNOWLEDGED, actorUserId: user.id });
   revalidatePath('/admin/alerts');
   return { message: 'Acknowledged.', ok: true };
-}
+});
 
 /** R7: silence a rule for a bounded window — it is evaluated but neither fires nor notifies. */
-export async function silenceRule(formData: FormData): Promise<ActionResult> {
+export const silenceRule = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
   const id = String(formData.get('id') ?? '');
   const hours = Number(formData.get('hours') ?? 0);
@@ -163,10 +164,10 @@ export async function silenceRule(formData: FormData): Promise<ActionResult> {
   });
   revalidatePath('/admin/alerts');
   return { message: 'Rule silenced.', ok: true };
-}
+});
 
 /** R7: lift a silence early. */
-export async function unsilenceRule(formData: FormData): Promise<ActionResult> {
+export const unsilenceRule = withActionResult(async (formData) => {
   await requireOrgAdmin();
   const id = String(formData.get('id') ?? '');
   if (!id) {
@@ -181,4 +182,4 @@ export async function unsilenceRule(formData: FormData): Promise<ActionResult> {
   }
   revalidatePath('/admin/alerts');
   return { message: 'Silence cleared.', ok: true };
-}
+});

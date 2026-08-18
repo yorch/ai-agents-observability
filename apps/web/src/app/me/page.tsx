@@ -21,26 +21,31 @@ export const dynamic = 'force-dynamic';
    state); every other section streams in behind its own Suspense boundary, so
    the header and stat row paint without waiting for the slowest query. */
 
-async function OversightSection({ periodStart, userId }: { periodStart: Date; userId: string }) {
-  const oversight = await getUserOversight(userId, periodStart);
-  return <OversightPanel data={oversight} />;
+async function OversightSection({ oversight }: { oversight: ReturnType<typeof getUserOversight> }) {
+  return <OversightPanel data={await oversight} />;
 }
 
-async function ToolsAndModels({ periodStart, userId }: { periodStart: Date; userId: string }) {
-  const [tools, models] = await Promise.all([
-    getTopTools(userId, periodStart),
-    getModelMix(userId, periodStart),
-  ]);
+async function ToolsAndModels({
+  models,
+  tools,
+}: {
+  models: ReturnType<typeof getModelMix>;
+  tools: ReturnType<typeof getTopTools>;
+}) {
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <TopTools tools={tools} />
-      <ModelMixChart models={models} />
+      <TopTools tools={await tools} />
+      <ModelMixChart models={await models} />
     </div>
   );
 }
 
-async function EffectivenessSection({ since, userId }: { since: Date; userId: string }) {
-  const effectiveness = await getUserEffectiveness(userId, { since });
+async function EffectivenessSection({
+  effectiveness: effectivenessPromise,
+}: {
+  effectiveness: ReturnType<typeof getUserEffectiveness>;
+}) {
+  const effectiveness = await effectivenessPromise;
   return (
     <div>
       <p className="mb-3 text-xs text-text-3 uppercase tracking-widest">
@@ -57,9 +62,12 @@ async function EffectivenessSection({ since, userId }: { since: Date; userId: st
   );
 }
 
-async function RecentSessionsSection({ userId }: { userId: string }) {
-  const sessions = await getRecentSessions(userId);
-  return <RecentSessions sessions={sessions} />;
+async function RecentSessionsSection({
+  sessions,
+}: {
+  sessions: ReturnType<typeof getRecentSessions>;
+}) {
+  return <RecentSessions sessions={await sessions} />;
 }
 
 function SectionSkeleton({ split = false }: { split?: boolean }) {
@@ -91,6 +99,20 @@ export default async function MePage({
   const prevPeriodStart = new Date(now.getTime() - 2 * days * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+  // Kick every section query off before the first await so the Suspense
+  // refactor keeps the old Promise.all parallelism — sections stream in as
+  // they resolve rather than starting after the summary pair lands.
+  const oversightP = getUserOversight(user.id, periodStart);
+  const toolsP = getTopTools(user.id, periodStart);
+  const modelsP = getModelMix(user.id, periodStart);
+  const effectivenessP = getUserEffectiveness(user.id, { since: thirtyDaysAgo });
+  const sessionsP = getRecentSessions(user.id);
+  // A rejected section promise is surfaced by its own Suspense boundary; this
+  // keeps an early summary throw from also logging an unhandled rejection.
+  for (const p of [oversightP, toolsP, modelsP, effectivenessP, sessionsP]) {
+    (p as Promise<unknown>).catch(() => {});
+  }
+
   const [thisPeriod, lastPeriod] = await Promise.all([
     getUsageSummary(user.id, periodStart),
     getUsageSummary(user.id, prevPeriodStart, periodStart),
@@ -120,16 +142,16 @@ export default async function MePage({
         <>
           <SummaryCards thisWeek={thisPeriod} lastWeek={lastPeriod} />
           <Suspense fallback={<SectionSkeleton />}>
-            <OversightSection userId={user.id} periodStart={periodStart} />
+            <OversightSection oversight={oversightP} />
           </Suspense>
           <Suspense fallback={<SectionSkeleton split />}>
-            <ToolsAndModels userId={user.id} periodStart={periodStart} />
+            <ToolsAndModels tools={toolsP} models={modelsP} />
           </Suspense>
           <Suspense fallback={<SectionSkeleton split />}>
-            <EffectivenessSection userId={user.id} since={thirtyDaysAgo} />
+            <EffectivenessSection effectiveness={effectivenessP} />
           </Suspense>
           <Suspense fallback={<SectionSkeleton />}>
-            <RecentSessionsSection userId={user.id} />
+            <RecentSessionsSection sessions={sessionsP} />
           </Suspense>
         </>
       )}

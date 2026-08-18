@@ -1,4 +1,4 @@
-import { Card, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { fmtDuration } from '@/lib/fmt';
 import type { SubagentStatRow } from '@/lib/org-queries';
 
@@ -12,7 +12,7 @@ export function AgentsTable({
   if (agents.length === 0) {
     return (
       <Card>
-        <p className="py-6 text-center text-sm text-text-3">No activity in this period.</p>
+        <CardEmpty>No activity in this period.</CardEmpty>
       </Card>
     );
   }

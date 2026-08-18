@@ -1,7 +1,7 @@
 import { AuditAction } from '@ai-agents-observability/db';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Badge, type BadgeTone, Card, Cell, Row, Stat, Table } from '@/components/ui';
-import { fmtBytes } from '@/lib/fmt';
+import { Badge, type BadgeTone, Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
+import { fmtBytes, fmtDayShort } from '@/lib/fmt';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
 import {
@@ -133,7 +133,7 @@ export default async function OrgSecurityPage({
         contentClassName="space-y-3"
       >
         {categories.length === 0 ? (
-          <p className="py-6 text-center text-sm text-text-3">No tool activity in this period.</p>
+          <CardEmpty>No tool activity in this period.</CardEmpty>
         ) : (
           <CategoryTable rows={categories} />
         )}
@@ -146,9 +146,7 @@ export default async function OrgSecurityPage({
         contentClassName="space-y-3"
       >
         {repoExposure.length === 0 ? (
-          <p className="py-6 text-center text-sm text-text-3">
-            No exec/web/write activity in this period.
-          </p>
+          <CardEmpty>No exec/web/write activity in this period.</CardEmpty>
         ) : (
           <Table
             columns={[
@@ -183,7 +181,7 @@ export default async function OrgSecurityPage({
         contentClassName="space-y-3"
       >
         {egress.length === 0 ? (
-          <p className="py-6 text-center text-sm text-text-3">No MCP calls in this period.</p>
+          <CardEmpty>No MCP calls in this period.</CardEmpty>
         ) : (
           <Table
             columns={[
@@ -227,11 +225,11 @@ export default async function OrgSecurityPage({
           transcripts in this window matched a redaction class.
         </p>
         {redaction.classes.length === 0 ? (
-          <p className="py-6 text-center text-sm text-text-3">
+          <CardEmpty>
             No redaction classes recorded in this period. Capture began when the{' '}
             <code className="font-mono text-text-2">redaction_flags</code> column was added;
             historical transcripts are not backfilled.
-          </p>
+          </CardEmpty>
         ) : (
           <Table columns={[{ label: 'Class' }, { align: 'right', label: 'Sessions' }]}>
             {redaction.classes.map((c) => (
@@ -255,9 +253,7 @@ export default async function OrgSecurityPage({
         contentClassName="space-y-3"
       >
         {largeOutputs.length === 0 ? (
-          <p className="py-6 text-center text-sm text-text-3">
-            No sized tool outputs in this period.
-          </p>
+          <CardEmpty>No sized tool outputs in this period.</CardEmpty>
         ) : (
           <Table
             columns={[
@@ -269,9 +265,7 @@ export default async function OrgSecurityPage({
           >
             {largeOutputs.map((r, i) => (
               <Row key={`${r.sessionId}-${i}`}>
-                <Cell className="text-xs text-text-2">
-                  {r.ts.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
-                </Cell>
+                <Cell className="text-xs text-text-2">{fmtDayShort(r.ts)}</Cell>
                 <Cell className="text-xs">
                   <span className="font-mono text-text">{r.toolName ?? '—'}</span>
                   {r.category && <span className="ml-1.5 text-text-3">{r.category}</span>}
