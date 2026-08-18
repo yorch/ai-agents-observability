@@ -78,6 +78,31 @@ recomputed, so it will not drift back into agreement on its own.
 **Copilot's table is empty on purpose**: Copilot bills premium requests against a
 seat allowance, not tokens, so there is no honest per-mtok row to write.
 
+## Two kinds of price table
+
+**Hand-maintained, from one vendor's own pricing page** — `claude_code`, `codex`,
+`gemini_cli`. Single vendor, single source, and the page carries what a catalog
+flattens away: promotional windows with expiry dates, per-tier rates, cache-write
+multipliers. Edit these by hand and cite the page and retrieval date in `_comment`.
+
+**Generated from models.dev** — `pi`, `omp`, `opencode`. These three drive whatever
+provider the user holds credentials for, so their tables are a *union* across
+twenty vendors, and a union hand-maintained from twenty pages goes stale the week
+it lands. models.dev is the catalog opencode itself builds its model list from, so
+the keys are by construction the names the adapter reports — a correct rate filed
+under a name the agent never emits prices nothing. Refresh with:
+
+```bash
+bun run gen:price-tables            # or --from ./api.json for a pinned snapshot
+```
+
+Do not hand-edit those three; the next regeneration overwrites you. The one
+sanctioned override lives in `scripts/gen-price-tables.ts` (`VENDOR_OVERRIDES`) and
+exists for exactly one thing a catalog cannot carry: a promotional rate with an
+expiry date. A test asserts the generated tables agree with the hand-maintained
+ones on every shared model, so an unlisted disagreement fails the suite rather
+than pricing the same model two ways depending on which agent ran it.
+
 ## Boot fails loud
 
 `src/index.ts` runs a `HeadBucketCommand` at startup to prove the bucket exists and the

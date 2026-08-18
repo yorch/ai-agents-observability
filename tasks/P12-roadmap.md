@@ -10,7 +10,7 @@ wrong response to agents that now largely agree on a format.
 
 Research + sourcing: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/research/2026-08-13-agent-adapter-expansion.md).
 
-**Status**: P12-001 through P12-011 are code complete, with the migration verified against a real Postgres-Timescale container. Three acceptance criteria remain unchecked for want of the agents themselves: a recorded Pi session (P12-007), which of omp's two documented config roots is real (P12-008), and a recorded opencode session for the collated transcript (P12-009).
+**Status**: P12-001 through P12-012 are code complete, with the migration verified against a real Postgres-Timescale container. Three acceptance criteria remain unchecked for want of the agents themselves: a recorded Pi session (P12-007), which of omp's two documented config roots is real (P12-008), and a recorded opencode session for the collated transcript (P12-009).
 
 ## Goal recap
 
@@ -65,6 +65,12 @@ Go from three agents to seven, while *reducing* per-adapter code:
   correction back through stored events, session totals, PR rollups and the cost
   continuous aggregates; and naming the models nothing prices, on
   `/admin/price-tables` and in the `unknown_model_surge` alert.
+- **P12-012 generate the provider-agnostic tables** (WS B, M) — acting on what
+  P12-011 surfaced. Pi, omp and opencode drive any provider the user holds
+  credentials for, so their tables are generated from models.dev — the catalog
+  opencode itself builds its model list from, so the keys are the names the
+  adapter reports — taking coverage from ~34 models across 3 vendors to 243
+  across 20.
 
 Explicitly **not** in this phase, each for a stated reason (research §2.6–2.7):
 **Cursor** (the CLI reportedly emits only shell events — no session lifecycle, no

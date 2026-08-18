@@ -120,6 +120,10 @@ rates — wrong in a way nothing downstream would catch.
   fetchable here. Third-party aggregators quote $2/$12, but the tables cite
   primary sources with retrieval dates and that convention is worth more than one
   model's row. It stays unpriced and now says so on `/admin/price-tables`.
+  *(P12-012 established why: Google has **shut it down**, and it is absent from
+  the models.dev catalog too, so it cannot appear in new traffic. The claim that
+  it is "selectable in Gemini CLI" came from a third-party docs mirror that had
+  not caught up.)*
 - Scheduling the reprice. Rewriting historical cost is an operator decision.
 - A per-event record of *which* table version priced it. That would make
   repricing unnecessary for reporting, but it is a schema change and a much

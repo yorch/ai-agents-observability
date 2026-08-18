@@ -992,6 +992,8 @@ This is a presentation discipline, not a data model decision. Worth re-asserting
 **Known limits, all deliberate:**
 
 - One rate per model. Google's prompt-size tiers (`gemini-2.5-pro` above 200k) and Anthropic's 1-hour cache write are not expressible; the tables use the common tier and say so in their `_comment`.
+- **Two provenances.** The single-vendor tables (`claude_code`, `codex`, `gemini_cli`) are transcribed by hand from that vendor's pricing page, which carries promotional windows and tiering a catalog flattens away. The provider-agnostic ones (`pi`, `omp`, `opencode`) are generated from the models.dev catalog — the same catalog opencode builds its own model list from, so the keys are the names the adapter reports — via `bun run gen:price-tables`. A test binds the two: where both name a model, they must agree.
+- **Alias tags are deliberately unpriced.** `gemini-flash-latest` and friends are repointed at a new model without the name changing, so a rate pinned to one would silently misprice from the day it moves. They bill `$0` and report themselves, which is the honest failure.
 - GitHub Copilot bills premium requests against a seat allowance, not tokens, so its table is **empty by design** — a per-token row would invent a number no Copilot user is charged. Copilot models bill `$0` and land in `unknown_model_events_total`.
 
 ### 11.7 Platform Self-Observability: stdout Logs + Prometheus (v1)
