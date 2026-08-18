@@ -88,7 +88,7 @@ curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
 
 **Phases 7–9** — task work is `done`. P7-007 completed as a no-go semantic-search spike; opencode transcript upload was the one documented follow-up, closed in P12-009.
 
-**Phase 10** (model cost optimization) — **proposed, not started**. P10-001 through P10-006 are `ready`. See [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md).
+**Phase 10** (model cost optimization) — **partially delivered**. P10-004 (team + individual routing/cache coaching) and P10-006 (the projected-vs-realized validation loop) are `done`; P10-001/P10-003 are `in-progress` — `/org/models` ships price-derived, volume-gated recommendations but still as point estimates, and the premium test is `opus`-only, so nothing fires for the six non-Anthropic agents. P10-002 (model policy store) and P10-005 (`disallowed_model` governance alert) are `ready` — not started. See [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md).
 
 **Phase 11** (correlation & Jira integration) — `done`. Shipped ahead of Phase 10 as a single vertical slice: session ↔ PR ↔ repo ↔ Jira correlation, defect attribution (`/org/quality`), and significance testing on friction-band deltas.
 

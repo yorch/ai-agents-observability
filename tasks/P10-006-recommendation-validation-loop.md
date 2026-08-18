@@ -3,8 +3,8 @@ id: P10-006
 title: Recommendation validation loop
 phase: 10
 workstream: E
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P10-001, P10-003]
 blocks: []
 estimate: M
@@ -26,18 +26,18 @@ the Phase 7/HITL discipline of validating a computed signal against reality.
 
 ## Acceptance criteria
 
-- [ ] When `P10-001`/`P10-003` emit a recommendation, the projection (task type,
+- [x] When `P10-001`/`P10-003` emit a recommendation, the projection (task type,
       target tier, projected range, baseline spend, timestamp) is persisted so it can be
       compared later.
-- [ ] A validation panel (on `/org/models`, org-admin scope) shows, for prior
+- [x] A validation panel (on `/org/models`, org-admin scope) shows, for prior
       recommendations, the projected range vs the realized spend delta for the same
       task-type segment in the subsequent period.
-- [ ] Realized delta pairs cost change with an outcome guard: it flags if a downgrade
+- [x] Realized delta pairs cost change with an outcome guard: it flags if a downgrade
       coincided with a **rise** in friction, tool-error, or revert rate for that segment,
       so a "saving" that degraded outcomes is surfaced, not celebrated.
-- [ ] Segments with insufficient post-change volume are shown as "not yet
+- [x] Segments with insufficient post-change volume are shown as "not yet
       measurable," never as a spurious delta.
-- [ ] The projection→realization comparison is a pure, unit-tested function over
+- [x] The projection→realization comparison is a pure, unit-tested function over
       persisted projections + post-period aggregates.
 
 ## Implementation notes
@@ -55,6 +55,48 @@ the Phase 7/HITL discipline of validating a computed signal against reality.
 - `packages/db/prisma/schema.prisma` (projection store)
 - `apps/web/src/lib/routing-analysis.ts` (validation function + test)
 - `apps/web/src/app/org/models/page.tsx` (validation panel)
+
+## As shipped
+
+- The projection store is `routing_recommendation_projections`, keyed
+  `(window_start, window_end, range_days, model)` — **not** the sketched
+  `(agent_type, tool_category, target_tier, created_at)`. `agent_type` is absent
+  because the upstream recommendation itself is not yet per-agent (see below).
+- It lives in the **relational layer**: the Prisma model
+  `RoutingRecommendationProjection` plus its `CREATE TABLE` in the squashed init
+  migration. It is deliberately *not* a `sql/migrations/NNNN_*.sql` file — that layer
+  is for "nothing Prisma could have modelled", and a table Prisma models but the
+  relational layer doesn't create leaves `schema.prisma` declaring a model with no
+  migration behind it. **Applying this task's schema change therefore needs the reset
+  in [`packages/db/AGENTS.md`](../packages/db/AGENTS.md)** (`docker:infra:down:v` →
+  `up` → `db:deploy`), because Prisma's idempotency check is name-based and cannot see
+  an edited-after-applied init migration.
+- The three constraint names are pinned with `map:` in the model. Prisma's derived
+  names for this table would exceed Postgres' 63-character identifier limit and be
+  silently truncated, and the hand-written init migration has to match them exactly.
+- "Replay against the price table active at projection time" is satisfied by storing
+  `savings_ratio` and `price_precise` **on the projection row**, so a later price-table
+  refresh (e.g. `P12-010`) cannot retroactively rewrite what was projected.
+- Projections are written on read from `/org/models`, inside a `try/catch` that logs
+  `routing.projections.persist_failed` and continues. The page must stay up before the
+  migration is applied; a projection is a side effect of viewing, never a hard
+  dependency of the view.
+- The panel is gated by `requireOrgViewer()` — the page's existing gate, so
+  `viewer_aggregate` sees it too. It carries no individual identifiers, and its
+  queries honour `share_metadata_with_org` and skip deactivated users.
+- `not_measurable` is returned below `MIN_REALIZED_CALLS = 25` realized calls, before
+  any delta is computed — the "never a spurious delta" rule is enforced by early
+  return, not by presentation.
+
+## Known gap (not this task)
+
+The premium-model test is still `PREMIUM_PATTERN = 'opus'` (`routing-queries.ts`), so
+routing recommendations — and therefore projections and this validation panel — never
+fire for Codex, Gemini CLI, Copilot, Pi, or omp models. That is `P10-001`/`P10-002`
+territory ("savings are computed per `agent_type`; a Claude Opus→Sonnet ratio is never
+applied to another agent's models"), and it became materially more visible once
+`P12-001` widened the registry to seven agents and `P12-010` filled their price tables.
+Tracked there, not here.
 
 ## Out of scope
 

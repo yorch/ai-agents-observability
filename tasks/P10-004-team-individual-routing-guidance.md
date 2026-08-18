@@ -3,8 +3,8 @@ id: P10-004
 title: Team + individual routing guidance
 phase: 10
 workstream: E
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P10-001]
 blocks: []
 estimate: M
@@ -31,19 +31,19 @@ parallel one.
 
 ## Acceptance criteria
 
-- [ ] `/team/[slug]` shows team routing opportunities (by task type) and a team
+- [x] `/team/[slug]` shows team routing opportunities (by task type) and a team
       cache-efficiency figure with guidance, honoring `share_metadata_with_team` — no
       individual member's routing detail is exposed to the lead beyond existing
       drill-in rules.
-- [ ] `/me/insights` surfaces at least one routing/cache recommendation when the
+- [x] `/me/insights` surfaces at least one routing/cache recommendation when the
       developer's own data warrants it (e.g. "you ran a premium model for mostly
       read-only work — a standard model would likely cover it"; "your cache-read ratio
       is low — resume sessions instead of restarting"), framed as a suggestion.
-- [ ] Recommendations are **gated**: none appear when the developer's data is thin or
+- [x] Recommendations are **gated**: none appear when the developer's data is thin or
       already efficient (no nagging, no false positives). Thresholds unit-tested.
-- [ ] Individual routing recommendations are derived only from the requesting user's
+- [x] Individual routing recommendations are derived only from the requesting user's
       own sessions and never leak cross-user.
-- [ ] The tip logic is a pure function over already-fetched inputs (extends
+- [x] The tip logic is a pure function over already-fetched inputs (extends
       `buildRecommendations()`), unit-tested for the show/suppress boundaries.
 
 ## Implementation notes
@@ -60,6 +60,30 @@ parallel one.
 - `apps/web/src/app/me/insights/page.tsx`
 - `apps/web/src/app/team/[slug]/page.tsx` (or a team models sub-page)
 - `apps/web/src/components/me/RecommendationsSection.tsx` (extend)
+
+## As shipped
+
+- `buildRecommendations()` gained two kinds — `routing:<model>` and
+  `cache-efficiency` — behind their own evidence floors
+  (`MIN_ROUTING_CHEAP_CALLS` / `MIN_ROUTING_CHEAP_SPEND_USD`, shared with
+  `/org/models` via `routing-queries.ts`; `MIN_CACHE_SESSIONS` /
+  `MIN_CACHE_INPUT_TOKENS` / `CACHE_HIT_LOW` locally). Both show *and* suppress
+  paths are unit-tested.
+- **Deviation from the implementation note:** `/me/insights` does two new queries
+  (`getUserModelRouting`, `getUserCacheSummary`) rather than deriving from data the
+  page already had — per-turn `model × tool_category` cost was not previously fetched
+  there, and the session summary carries no cache-read total. Both are single grouped
+  reads on an already-indexed `(user_id, ts)` path, added to the page's existing
+  `Promise.all`, and both are scoped to the requesting user's own rows.
+- The same pass tightened two pre-existing tool/MCP hints onto a **Wilson lower
+  bound** rather than a raw error ratio, so a 2-of-5 fluke no longer reads as a 40%
+  error rate, and put a floor under the permission-denial hint
+  (`MIN_PERMISSION_DENIALS`). That is the "no nagging, no false positives" criterion
+  applied to the tips that were already there.
+- Team-side guidance calls `computeRoutingRecommendations(routing, range)` **without**
+  a price resolver, so it uses the flat `HAIKU_SAVINGS_RATIO` fallback and its copy
+  claims "estimated up to" rather than a precise figure. `/org/models` remains the
+  price-derived surface.
 
 ## Out of scope
 

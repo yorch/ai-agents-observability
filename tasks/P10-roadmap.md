@@ -1,5 +1,16 @@
 # Phase 10 — Model Cost Optimization (roadmap)
 
+> **Status: partially delivered.** P10-004 and P10-006 are `done`; P10-001/P10-003 are
+> `in-progress`; P10-002 and P10-005 are `ready` — not started. The "Current state"
+> section below is the **trigger snapshot from decomposition time**, kept as written;
+> for what the tree holds today read [`INDEX.md`](./INDEX.md), which is the source of
+> truth. Two items in that snapshot are now fixed: the flat `DOWNGRADE_SAVINGS_RATE`
+> and the page-local `PREMIUM_PATTERNS`/`CHEAP_CATEGORIES` constants are gone, savings
+> come from the live price table, and low-volume rows are suppressed. Three are not:
+> savings are still point estimates rather than ranges, the tier definitions are shared
+> module constants rather than an admin-editable per-agent policy, and there is no
+> allowed-model governance alert.
+
 **Trigger to decompose**: [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §3.2 and §4 rank
 "Model cost optimization (routing + cache-efficiency guidance)" as the single
 highest impact-to-effort opportunity — potential 30–50% spend reduction, low
