@@ -86,7 +86,7 @@ export type SessionDetail = {
   userMessageCount: number;
 };
 
-const PAGE_SIZE = 50;
+export const SESSIONS_PAGE_SIZE = 50;
 
 export async function listSessions(
   userId: string,
@@ -146,8 +146,8 @@ export async function listSessions(
         repo: { select: { githubName: true, githubOwner: true } },
       },
       orderBy: { startedAt: 'desc' },
-      skip: (safePage - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
+      skip: (safePage - 1) * SESSIONS_PAGE_SIZE,
+      take: SESSIONS_PAGE_SIZE,
       where,
     }),
   ]);

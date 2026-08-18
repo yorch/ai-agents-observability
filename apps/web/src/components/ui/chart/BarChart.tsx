@@ -88,14 +88,22 @@ export function BarChart({
                             return null;
                           }
                           const isTop = s === d.values.length - 1;
+                          const text = format(v);
                           return (
+                            // Focusable so keyboard users can raise the same
+                            // tooltip hover gets; the aria-label carries the
+                            // value, which otherwise exists only in the tip.
                             <span
                               key={series[s] ?? s}
-                              className={`block ${seriesBg(s)}${isTop ? ' rounded-t-[3px]' : ''}${
+                              role="img"
+                              // biome-ignore lint/a11y/noNoninteractiveTabindex: the tooltip value must be reachable by keyboard, not hover-only (WCAG 1.4.13 / 2.1.1)
+                              tabIndex={0}
+                              aria-label={`${d.label} ${series[s] ?? ''}: ${text}`}
+                              className={`block focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${seriesBg(s)}${isTop ? ' rounded-t-[3px]' : ''}${
                                 s > 0 ? ' mb-[1.5px]' : ''
                               }`}
                               style={{ height: `${share}%` }}
-                              data-tip={`${d.label} · ${series[s] ?? ''}|${format(v)}`}
+                              data-tip={`${d.label} · ${series[s] ?? ''}|${text}`}
                             />
                           );
                         })}

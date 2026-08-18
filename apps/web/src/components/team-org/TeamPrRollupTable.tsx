@@ -1,11 +1,12 @@
-import { Card, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { fmtDate } from '@/lib/fmt';
 import type { TeamPrRollupRow } from '@/lib/team-queries';
 
 export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
   if (rows.length === 0) {
     return (
       <Card title="Merged PRs" contentClassName="space-y-3">
-        <p className="text-sm text-text-3">No merged PRs in this period.</p>
+        <CardEmpty>No merged PRs in this period.</CardEmpty>
       </Card>
     );
   }
@@ -37,7 +38,7 @@ export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
             </Cell>
             <Cell className="text-text-2 truncate max-w-xs">{row.title || '(untitled)'}</Cell>
             <Cell className="text-text-2 text-xs">{row.authorGithubLogin}</Cell>
-            <Cell className="text-text-2 text-xs">{row.mergedAt.toLocaleDateString()}</Cell>
+            <Cell className="text-text-2 text-xs">{fmtDate(row.mergedAt)}</Cell>
             <Cell>
               <div className="inline-flex rounded-full bg-surface-2 px-2 py-0.5 font-mono text-xs text-text-2">
                 ${row.totalCostUsd.toFixed(2)}

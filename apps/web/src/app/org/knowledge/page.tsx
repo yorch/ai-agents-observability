@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, EmptyState } from '@/components/ui';
+import { Card, CardEmpty, EmptyState } from '@/components/ui';
 import { getKnowledgeTopics, type KnowledgeTopicRow } from '@/lib/knowledge-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -63,10 +63,10 @@ export default async function OrgKnowledgePage({
               </p>
             </div>
             {visible.length === 0 ? (
-              <p className="text-sm text-text-3">
+              <CardEmpty>
                 No topic cleared the small-n threshold ({MIN_SESSIONS}+ sessions across {MIN_USERS}+
-                developers) in this window.
-              </p>
+                developers) in this period.
+              </CardEmpty>
             ) : (
               <div className="space-y-2.5">
                 {visible.map((t) => (

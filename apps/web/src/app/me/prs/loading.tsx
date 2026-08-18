@@ -2,10 +2,10 @@ import { Card, SkeletonBar, SkeletonCard } from '@/components/ui';
 
 export default function PRsLoading() {
   return (
-    <div className="animate-pulse space-y-6">
+    <div className="animate-pulse motion-reduce:animate-none space-y-6">
       <SkeletonBar className="h-8 w-48" />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         {[...Array(3)].map((_, i) => (
           <SkeletonCard key={i} className="h-20" />
         ))}

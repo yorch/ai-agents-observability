@@ -1,6 +1,24 @@
+import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
 
 import '../styles/globals.css';
+
+// globals.css maps --font-display/body/mono onto these variables. The files
+// are vendored (src/fonts/README.md) so `next build` needs no network — the
+// Google-hosted variant made every Docker build depend on fonts.googleapis.com.
+const syne = localFont({ src: '../fonts/syne-700.woff2', variable: '--font-syne', weight: '700' });
+const dmSans = localFont({
+  src: '../fonts/dm-sans.woff2',
+  variable: '--font-dm-sans',
+  weight: '400 500',
+});
+const ibmMono = localFont({
+  src: [
+    { path: '../fonts/ibm-plex-mono-400.woff2', weight: '400' },
+    { path: '../fonts/ibm-plex-mono-500.woff2', weight: '500' },
+  ],
+  variable: '--font-ibm-mono',
+});
 
 import { Rail, type RailTeam } from '@/components/shell/Rail';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -38,7 +56,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   }
 
   return (
-    <html lang="en">
+    <html lang="en" className={`${syne.variable} ${dmSans.variable} ${ibmMono.variable}`}>
       <head>
         {/* Applies the stored theme before first paint. Without it the page
             renders dark and then snaps to light on hydration. */}
@@ -49,6 +67,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         />
       </head>
       <body className="bg-bg font-body text-text">
+        {/* First tab stop on every page — the rail is ~20 links deep. */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:border focus:border-accent-line focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:text-text"
+        >
+          Skip to content
+        </a>
         {user ? (
           // The rail owns navigation, so pages render straight into the canvas
           // with no section sub-nav above them.
@@ -60,7 +85,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               teams={teams}
               userLabel={user.displayName ?? user.githubLogin ?? user.email ?? 'User'}
             />
-            <main className="min-w-0 flex-1 px-5 py-7 lg:px-8">
+            <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-5 py-7 outline-none lg:px-8">
               <div className="mx-auto w-full max-w-6xl">{children}</div>
             </main>
           </div>
@@ -72,7 +97,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <div className="flex justify-end px-6 py-4">
               <ThemeToggle />
             </div>
-            <main className="flex-1 px-6 pb-8">{children}</main>
+            <main id="main" tabIndex={-1} className="flex-1 px-6 pb-8 outline-none">
+              {children}
+            </main>
           </div>
         )}
       </body>

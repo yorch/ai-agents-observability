@@ -3,6 +3,7 @@
 import { AuditAction, type TeamRole } from '@ai-agents-observability/db';
 import { revalidatePath } from 'next/cache';
 
+import { withActionResult } from '@/lib/action-result';
 import { writeAuditLog } from '@/lib/audit';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -15,7 +16,7 @@ const ASSIGNABLE: ReadonlySet<TeamRole> = new Set<TeamRole>(['MEMBER', 'LEAD']);
  * dashboard team-lead visibility is granted, never inferred. Every change is
  * audited (`role_grant`).
  */
-export async function setTeamRole(formData: FormData): Promise<void> {
+export const setTeamRole = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
 
   const teamId = String(formData.get('teamId') ?? '');
@@ -23,7 +24,7 @@ export async function setTeamRole(formData: FormData): Promise<void> {
   const role = String(formData.get('role') ?? '') as TeamRole;
 
   if (!teamId || !userId || !ASSIGNABLE.has(role)) {
-    return;
+    return { error: 'Missing member or role.', ok: false };
   }
 
   const db = getPrisma();
@@ -35,15 +36,18 @@ export async function setTeamRole(formData: FormData): Promise<void> {
     where: { teamId, userId },
   });
 
-  if (count > 0) {
-    await writeAuditLog({
-      action: AuditAction.ROLE_GRANT,
-      actorUserId: user.id,
-      justification: `Set team role to ${role}`,
-      targetTeamId: teamId,
-      targetUserId: userId,
-    });
+  if (count === 0) {
+    return { error: 'Member not found — refresh and try again.', ok: false };
   }
 
+  await writeAuditLog({
+    action: AuditAction.ROLE_GRANT,
+    actorUserId: user.id,
+    justification: `Set team role to ${role}`,
+    targetTeamId: teamId,
+    targetUserId: userId,
+  });
+
   revalidatePath('/admin/team-roles');
-}
+  return { message: 'Role updated.', ok: true };
+});

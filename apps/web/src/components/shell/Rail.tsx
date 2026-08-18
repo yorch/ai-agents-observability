@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select } from '@/components/ui/Field';
+import { useFocusTrap } from '@/lib/use-focus-trap';
+import { CommandPalette } from './CommandPalette';
 import {
   ADMIN_NAV,
   isActive,
@@ -50,9 +52,26 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const drawerId = useId();
+  const drawerRef = useRef<HTMLElement>(null);
 
   // A navigation is the end of a drawer's usefulness.
   useEffect(() => setOpen(false), [pathname]);
+
+  // While the mobile drawer is open, keep keyboard focus inside it; the trap
+  // also owns Escape-to-close (focus returns to the Menu button on teardown).
+  // Crossing up to the desktop breakpoint drops the drawer state so the trap
+  // cannot linger on the always-visible rail.
+  useFocusTrap(drawerRef, open, () => setOpen(false));
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => {
+      if (mq.matches) {
+        setOpen(false);
+      }
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   const scope = scopeOf(pathname);
   const activeTeam = scope === 'team' ? teamSlugOf(pathname) : (teams[0]?.githubSlug ?? null);
@@ -97,6 +116,7 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
 
       <nav
         id={drawerId}
+        ref={drawerRef}
         aria-label="Primary"
         className={`${
           open ? 'flex' : 'hidden'
@@ -108,6 +128,13 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
         >
           Observability
         </Link>
+
+        <CommandPalette
+          canViewOrg={canViewOrg}
+          isAdmin={isAdmin}
+          showGrants={showGrants}
+          teamSlug={activeTeam}
+        />
 
         {scopes.length > 1 && (
           <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">

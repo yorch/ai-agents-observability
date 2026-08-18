@@ -521,7 +521,7 @@ export type TeamSessionRow = SessionRow & {
   ownerLogin: string | null;
 };
 
-const TEAM_PAGE_SIZE = 50;
+export const TEAM_PAGE_SIZE = 50;
 
 export async function listTeamSessions(
   visibleIds: string[],

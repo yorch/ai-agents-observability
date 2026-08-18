@@ -1,6 +1,6 @@
 import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { getJiraBase } from '@/lib/config';
 import { fmtDate, fmtPct, fmtUsd } from '@/lib/fmt';
 import { getDefectAttributions, getOutcomesByFrictionBand } from '@/lib/quality-queries';
@@ -65,10 +65,10 @@ export default async function OrgQualityPage({
           PR outcomes by session friction ({range}d)
         </h2>
         {totalPrs === 0 ? (
-          <p className="text-sm text-text-3">
-            No merged PRs with friction-scored contributing sessions in this window. Friction scores
+          <CardEmpty>
+            No merged PRs with friction-scored contributing sessions in this period. Friction scores
             are computed nightly by the compute-effectiveness job.
-          </p>
+          </CardEmpty>
         ) : (
           <Table
             columns={[

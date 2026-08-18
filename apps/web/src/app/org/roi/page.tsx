@@ -1,6 +1,6 @@
 import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, Cell, Row, Stat, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
 import { getConfig, getJiraBase } from '@/lib/config';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
@@ -131,7 +131,7 @@ export default async function OrgRoiPage({
       {/* CI outcome cost correlation */}
       <Card title="CI outcome vs cost" contentClassName="space-y-3">
         {ci.cleanCount === 0 && ci.failedCount === 0 ? (
-          <p className="text-sm text-text-3">No merged PRs with cost data in this window.</p>
+          <CardEmpty>No merged PRs with cost data in this period.</CardEmpty>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-4">
@@ -165,10 +165,10 @@ export default async function OrgRoiPage({
           Spend by Jira ticket ({range}d)
         </h2>
         {jiraSpend.length === 0 ? (
-          <p className="text-sm text-text-3">
-            No PRs or sessions with a Jira key in this window. Jira keys are extracted from branch
+          <CardEmpty>
+            No PRs or sessions with a Jira key in this period. Jira keys are extracted from branch
             names, PR titles, and PR bodies.
-          </p>
+          </CardEmpty>
         ) : (
           <Table
             columns={[
@@ -225,10 +225,10 @@ export default async function OrgRoiPage({
           Spend by Jira project ({range}d)
         </h2>
         {projectSpend.length === 0 ? (
-          <p className="text-sm text-text-3">
-            No tickets with a Jira key in this window. Project spend groups tickets by their key
+          <CardEmpty>
+            No tickets with a Jira key in this period. Project spend groups tickets by their key
             prefix (PLAT-123 → PLAT).
-          </p>
+          </CardEmpty>
         ) : (
           <Table
             columns={[
@@ -267,10 +267,10 @@ export default async function OrgRoiPage({
       <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Spend by epic ({range}d)</h2>
         {epicSpend.length === 0 ? (
-          <p className="text-sm text-text-3">
-            No epic-level data. Epics require the Jira sync job (JIRA_BASE_URL + JIRA_API_TOKEN) to
-            have resolved ticket metadata.
-          </p>
+          <CardEmpty>
+            No epic-level data recorded yet. Epics require the Jira sync job (JIRA_BASE_URL +
+            JIRA_API_TOKEN) to have resolved ticket metadata.
+          </CardEmpty>
         ) : (
           <Table
             columns={[
@@ -482,7 +482,7 @@ export default async function OrgRoiPage({
       <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">ROI by repo ({range}d)</h2>
         {repoRoi.length === 0 ? (
-          <p className="text-sm text-text-3">No merged PR data available.</p>
+          <CardEmpty>No merged PRs in this period.</CardEmpty>
         ) : (
           <Table
             columns={[

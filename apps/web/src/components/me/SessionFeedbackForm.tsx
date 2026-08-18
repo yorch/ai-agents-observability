@@ -1,12 +1,13 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { submitSessionFeedback } from '@/app/me/sessions/[id]/actions';
 import { ThumbsDownIcon, ThumbsUpIcon } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Textarea } from '@/components/ui/Field';
+import { useActionResult } from '@/lib/use-action-result';
 
 type Sentiment = 'up' | 'down' | null;
 
@@ -23,24 +24,20 @@ export function SessionFeedbackForm({
 }) {
   const [sentiment, setSentiment] = useState<Sentiment>(initialSentiment);
   const [note, setNote] = useState(initialNote ?? '');
-  const [saved, setSaved] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const { error, isPending, reset, run, saved } = useActionResult();
 
   function save(next: Sentiment) {
     const fd = new FormData();
     fd.set('sessionId', sessionId);
     fd.set('sentiment', next ?? '');
     fd.set('note', note);
-    startTransition(async () => {
-      await submitSessionFeedback(fd);
-      setSaved(true);
-    });
+    run(() => submitSessionFeedback(fd));
   }
 
   function pick(value: 'up' | 'down') {
     const next = sentiment === value ? null : value;
     setSentiment(next);
-    setSaved(false);
+    reset();
     save(next);
   }
 
@@ -85,7 +82,7 @@ export function SessionFeedbackForm({
         value={note}
         onChange={(e) => {
           setNote(e.target.value);
-          setSaved(false);
+          reset();
         }}
         aria-label="Session note"
         placeholder="Optional note (what worked, what didn't)…"
@@ -100,6 +97,11 @@ export function SessionFeedbackForm({
           {isPending ? 'Saving…' : 'Save note'}
         </Button>
         {saved && !isPending && <span className="text-xs text-text-3">Saved</span>}
+        {error && !isPending && (
+          <span role="alert" className="text-xs text-crit">
+            {error}
+          </span>
+        )}
       </div>
     </Card>
   );

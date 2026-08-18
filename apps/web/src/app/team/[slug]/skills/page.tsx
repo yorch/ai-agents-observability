@@ -46,7 +46,7 @@ export default async function TeamSkillsPage({
         title={teamName}
       />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Unique skills" value={skills.length.toString()} />
         <Stat label="Total invocations" value={totalInvocations.toLocaleString()} />
         <Stat label="Active adopters" value={uniqueAdopters.toString()} />

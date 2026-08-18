@@ -15,14 +15,17 @@ export function SettingsNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-col gap-0.5 w-48 shrink-0">
+    // A row of pills on phones (the 192px sidebar left ~103px of content at
+    // 375px wide); the stacked sidebar returns at md.
+    <nav className="flex gap-0.5 overflow-x-auto md:w-48 md:shrink-0 md:flex-col md:overflow-visible">
       {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
         const isActive = pathname.startsWith(href);
         return (
           <Link
             key={href}
             href={href}
-            className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors ${
+            aria-current={isActive ? 'page' : undefined}
+            className={`flex shrink-0 items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors ${
               isActive
                 ? 'bg-accent-dim text-accent font-medium'
                 : 'text-text-2 hover:text-text hover:bg-surface-2'

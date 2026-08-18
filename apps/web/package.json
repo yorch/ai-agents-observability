@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "catalog:",
+    "@types/react-dom": "catalog:",
     "fast-check": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",

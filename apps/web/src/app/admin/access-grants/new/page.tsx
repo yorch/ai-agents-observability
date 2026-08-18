@@ -1,4 +1,4 @@
-import { Button, ButtonLink, Field, Input, Select, Textarea } from '@/components/ui';
+import { ActionForm, Button, ButtonLink, Field, Input, Select, Textarea } from '@/components/ui';
 import { requireGrantRequester } from '@/lib/roles';
 import { requestGrant } from '../actions';
 
@@ -20,7 +20,7 @@ export default async function NewAccessGrantPage() {
         </p>
       </div>
 
-      <form action={requestGrant} className="space-y-4">
+      <ActionForm action={requestGrant} className="space-y-4">
         <Field label="Scope" htmlFor="scope">
           <Select id="scope" name="scope" defaultValue="SINGLE_SESSION">
             <option value="SINGLE_SESSION">A single session</option>
@@ -62,7 +62,7 @@ export default async function NewAccessGrantPage() {
             Cancel
           </ButtonLink>
         </div>
-      </form>
+      </ActionForm>
     </div>
   );
 }

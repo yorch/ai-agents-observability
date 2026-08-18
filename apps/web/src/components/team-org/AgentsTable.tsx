@@ -1,4 +1,4 @@
-import { Card, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { fmtDuration } from '@/lib/fmt';
 import type { SubagentStatRow } from '@/lib/org-queries';
 
@@ -9,6 +9,13 @@ export function AgentsTable({
   agents: SubagentStatRow[];
   totalSpawns: number;
 }) {
+  if (agents.length === 0) {
+    return (
+      <Card>
+        <CardEmpty>No activity in this period.</CardEmpty>
+      </Card>
+    );
+  }
   const maxSpawns = Math.max(...agents.map((a) => a.spawnCount), 1);
   return (
     <Card>

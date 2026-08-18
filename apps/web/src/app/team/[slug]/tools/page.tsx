@@ -45,7 +45,7 @@ export default async function TeamToolsPage({
         title={teamName}
       />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Tool calls" value={totalCalls.toLocaleString()} />
         <Stat label="Unique tools" value={tools.length.toString()} />
         <Stat label="Denial rate" value={`${(denyRate * 100).toFixed(1)}%`} />

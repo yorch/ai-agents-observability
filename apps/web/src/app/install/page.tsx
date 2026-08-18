@@ -146,7 +146,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
         </div>
         <p className="text-xs text-text-3">
           You can also manage privacy settings from the{' '}
-          <Link href="/me/privacy" className="text-accent hover:underline">
+          <Link href="/me/settings/privacy" className="text-accent hover:underline">
             Privacy
           </Link>{' '}
           page.

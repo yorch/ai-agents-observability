@@ -1,4 +1,5 @@
 import { Card, Cell, EmptyState, Row, Table } from '@/components/ui';
+import { fmtUsdSession } from '@/lib/fmt';
 import type {
   ModelBreakdownRow,
   SessionSkillRow,
@@ -160,7 +161,7 @@ export function ModelsTab({ costUsd, rows }: { costUsd: number; rows: ModelBreak
         )}
       </Table>
       <div className="mt-4 pt-4 border-t border-border text-xs text-text-3">
-        Total cost: <span className="text-text-2 font-mono">${costUsd.toFixed(4)}</span>
+        Total cost: <span className="text-text-2 font-mono">{fmtUsdSession(costUsd)}</span>
       </div>
     </Card>
   );

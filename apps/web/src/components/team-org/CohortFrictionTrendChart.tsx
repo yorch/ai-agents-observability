@@ -1,4 +1,4 @@
-import { AreaLine, Card } from '@/components/ui';
+import { AreaLine, Card, CardEmpty } from '@/components/ui';
 import { FRICTION_VERSION } from '@/lib/effectiveness';
 import type { FrictionTrendBucket } from '@/lib/effectiveness-queries';
 
@@ -14,9 +14,9 @@ export function CohortFrictionTrendChart({
   return (
     <Card title={title} hint={`v${FRICTION_VERSION}`}>
       {points.length === 0 ? (
-        <p className="text-sm text-text-3">
+        <CardEmpty>
           Not enough scored sessions per week to show a trend without risking re-identification.
-        </p>
+        </CardEmpty>
       ) : (
         <AreaLine
           ariaLabel="Weekly median friction score"

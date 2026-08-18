@@ -1,6 +1,6 @@
 import { TriangleDownIcon, TriangleUpIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, Cell, Row, Table } from '@/components/ui';
+import { Card, Cell, EmptyState, Row, Table } from '@/components/ui';
 import { getTeamBenchmarks } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -102,12 +102,10 @@ export default async function OrgBenchmarksPage({
 
       {/* Benchmark table */}
       {teams.length === 0 ? (
-        <Card>
-          <p className="text-sm text-text-3">
-            No team data yet. Teams need ≥5 sessions from org-sharing users in the last {weeks}{' '}
-            weeks to appear here.
-          </p>
-        </Card>
+        <EmptyState>
+          No team benchmarks recorded yet. Teams need ≥5 sessions from org-sharing users in the last{' '}
+          {weeks} weeks to appear here.
+        </EmptyState>
       ) : (
         <Card title="Team comparison" contentClassName="space-y-3">
           <Table

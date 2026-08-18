@@ -1,6 +1,7 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { TeamPrRollupTable } from '@/components/team-org/TeamPrRollupTable';
 import { Stat } from '@/components/ui';
+import { fmtHoursShort } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamPRDeliveryStats,
@@ -31,16 +32,6 @@ export default async function TeamPrsPage({
     getTeamPRDeliveryStats(visibleIds, since),
   ]);
 
-  const fmtHours = (h: number | null) => {
-    if (h === null) {
-      return '—';
-    }
-    if (h < 24) {
-      return `${h.toFixed(1)}h`;
-    }
-    return `${(h / 24).toFixed(1)}d`;
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -53,7 +44,7 @@ export default async function TeamPrsPage({
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat label="PRs opened" value={delivery.totalPRs.toString()} />
         <Stat label="Merge rate" value={`${Math.round(delivery.mergeRate * 100)}%`} />
-        <Stat label="Median time to merge" value={fmtHours(delivery.medianTimeToMergeHours)} />
+        <Stat label="Median time to merge" value={fmtHoursShort(delivery.medianTimeToMergeHours)} />
         <Stat
           label="Avg cost / PR"
           value={delivery.avgCostPerPR > 0 ? `$${delivery.avgCostPerPR.toFixed(2)}` : '—'}

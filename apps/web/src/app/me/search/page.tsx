@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { Button, Card, Input } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
+import { fmtDateTime } from '@/lib/fmt';
 import { MIN_QUERY_LENGTH, searchOwnTranscripts } from '@/lib/search-queries';
 
 export const dynamic = 'force-dynamic';
@@ -95,7 +96,7 @@ export default async function MeSearchPage({
                   <div className="flex items-center gap-2 text-xs text-text-3">
                     <span className="text-text-2">{s.repoName ?? 'Unknown repo'}</span>
                     <span>·</span>
-                    <span>{new Date(s.startedAt).toLocaleString()}</span>
+                    <span>{fmtDateTime(new Date(s.startedAt))} UTC</span>
                     <span>·</span>
                     <a
                       href={`/me/sessions/${s.sessionId}/transcript`}

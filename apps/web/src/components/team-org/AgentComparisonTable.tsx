@@ -1,17 +1,7 @@
 import { agentDisplayName } from '@ai-agents-observability/schemas';
-import { Card, Cell, Row, Table } from '@/components/ui';
-import { fmtPct, fmtUsd } from '@/lib/fmt';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { fmtPct, fmtTokens, fmtUsd } from '@/lib/fmt';
 import type { AgentComparisonRow } from '@/lib/org-queries';
-
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toFixed(1)}M`;
-  }
-  if (n >= 1_000) {
-    return `${(n / 1_000).toFixed(0)}k`;
-  }
-  return String(n);
-}
 
 // Side-by-side comparison of agent products (agent_type) on cost and quality.
 // Single-agent orgs (only Claude Code) still render a one-row table — useful as a
@@ -26,7 +16,7 @@ export function AgentComparisonTable({ rows }: { rows: AgentComparisonRow[] }) {
         </p>
       </div>
       {rows.length === 0 ? (
-        <p className="text-sm text-text-3">No agent activity in this window.</p>
+        <CardEmpty>No agent activity in this period.</CardEmpty>
       ) : (
         <Table
           columns={[

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { Card, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamSkillCostComparison,
@@ -70,7 +70,7 @@ export default async function TeamSkillDetailPage({
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         {[
           { label: 'Invocations', value: (stat?.callCount ?? 0).toLocaleString() },
           { label: 'Distinct users', value: (stat?.distinctUsers ?? 0).toString() },
@@ -122,7 +122,7 @@ export default async function TeamSkillDetailPage({
             )}
           </div>
         ) : (
-          <p className="text-sm text-text-3">No cost data available</p>
+          <CardEmpty>No cost data in this period.</CardEmpty>
         )}
       </Card>
 

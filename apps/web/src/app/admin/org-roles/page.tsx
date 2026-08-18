@@ -1,5 +1,5 @@
 import { OrgRole } from '@ai-agents-observability/db';
-import { Button, Cell, Row, Select, Table } from '@/components/ui';
+import { ActionForm, Button, Cell, Row, Select, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setOrgRole } from './actions';
@@ -42,7 +42,7 @@ export default async function OrgRolesAdminPage() {
               <span className="text-text-3">{u.githubLogin}</span>
             </Cell>
             <Cell>
-              <form action={setOrgRole} className="inline-flex items-center gap-2">
+              <ActionForm action={setOrgRole} className="inline-flex flex-wrap items-center gap-2">
                 <input type="hidden" name="userId" value={u.id} />
                 <Select
                   size="sm"
@@ -59,7 +59,7 @@ export default async function OrgRolesAdminPage() {
                 <Button size="sm" type="submit">
                   Save
                 </Button>
-              </form>
+              </ActionForm>
             </Cell>
           </Row>
         ))}

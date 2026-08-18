@@ -1,4 +1,4 @@
-import { Button, Cell, Input, Row, Table } from '@/components/ui';
+import { ActionForm, Button, Cell, Input, Row, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setTeamRetention } from './actions';
@@ -52,7 +52,10 @@ export default async function RetentionAdminPage() {
               {team.name} <span className="text-text-3">{team.githubSlug}</span>
             </Cell>
             <Cell num>
-              <form action={setTeamRetention} className="inline-flex items-center gap-2">
+              <ActionForm
+                action={setTeamRetention}
+                className="inline-flex flex-wrap items-center gap-2"
+              >
                 <input type="hidden" name="teamId" value={team.id} />
                 <Input
                   size="sm"
@@ -68,7 +71,7 @@ export default async function RetentionAdminPage() {
                 <Button size="sm" type="submit">
                   Save
                 </Button>
-              </form>
+              </ActionForm>
             </Cell>
             <Cell num className="text-text-2">
               {effectiveDays(team.retentionDays)}d

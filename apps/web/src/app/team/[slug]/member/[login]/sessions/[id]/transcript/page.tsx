@@ -4,6 +4,7 @@ import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
 import { EmptyState } from '@/components/ui';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
+import { fmtDateTime } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
 import { getSession } from '@/lib/sessions-queries';
 import { getMemberForTeam } from '@/lib/team-queries';
@@ -62,7 +63,7 @@ export default async function TeamMemberTranscriptPage({
       backHref={`/team/${slug}/member/${login}/sessions/${id}`}
       hasTranscript={Boolean(session.transcriptS3Key)}
       sessionId={id}
-      subtitle={`${session.repoName ?? 'Unknown repo'} · ${session.startedAt.toLocaleString()}`}
+      subtitle={`${session.repoName ?? 'Unknown repo'} · ${fmtDateTime(session.startedAt)} UTC`}
     />
   );
 }

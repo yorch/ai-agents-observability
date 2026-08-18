@@ -1,5 +1,6 @@
 import { Card } from '@/components/ui';
 import type { WeeklyShapeBucket } from '@/lib/cohort-queries';
+import { fmtDayShort } from '@/lib/fmt';
 import { shapeBg } from './shape';
 
 const BAR_HEIGHT_PX = 96;
@@ -33,10 +34,7 @@ export function ShapeTrendChart({ buckets }: { buckets: WeeklyShapeBucket[] }) {
           <div className="flex items-end gap-1" style={{ height: BAR_HEIGHT_PX }}>
             {weeksWithData.map((bucket) => {
               const total = Object.values(bucket.shapeCounts).reduce((sum, c) => sum + c, 0);
-              const label = new Date(bucket.weekStart).toLocaleDateString(undefined, {
-                day: 'numeric',
-                month: 'short',
-              });
+              const label = fmtDayShort(new Date(bucket.weekStart));
               return (
                 <div key={bucket.weekStart} className="flex flex-1 flex-col items-center gap-1">
                   <div

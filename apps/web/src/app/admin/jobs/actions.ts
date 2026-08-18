@@ -2,10 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { withActionResult } from '@/lib/action-result';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
-export async function updateJobConfig(formData: FormData) {
+export const updateJobConfig = withActionResult(async (formData) => {
   await requireOrgAdmin();
   const jobName = formData.get('jobName') as string;
   const enabled = formData.get('enabled') === 'on';
@@ -20,24 +21,36 @@ export async function updateJobConfig(formData: FormData) {
     runMinuteUtc < 0 ||
     runMinuteUtc > 59
   ) {
-    return;
+    return { error: 'Hour must be 0-23 and minute 0-59.', ok: false };
   }
-  await getPrisma().jobConfig.update({
+  // updateMany (not update) so an unknown job is a 0-row no-op with an inline
+  // error rather than a thrown P2025.
+  const { count } = await getPrisma().jobConfig.updateMany({
     data: { enabled, runHourUtc, runMinuteUtc },
     where: { jobName },
   });
+  if (count === 0) {
+    return { error: 'Job not found — refresh and try again.', ok: false };
+  }
   revalidatePath('/admin/jobs');
-}
+  return { message: 'Schedule saved.', ok: true };
+});
 
-export async function triggerJob(formData: FormData) {
+export const triggerJob = withActionResult(async (formData) => {
   await requireOrgAdmin();
   const jobName = formData.get('jobName') as string;
   if (!jobName) {
-    return;
+    return { error: 'Missing job name.', ok: false };
   }
-  await getPrisma().jobConfig.update({
+  // updateMany (not update) so an unknown job is a 0-row no-op with an inline
+  // error rather than a thrown P2025.
+  const { count } = await getPrisma().jobConfig.updateMany({
     data: { runRequestedAt: new Date() },
     where: { jobName },
   });
+  if (count === 0) {
+    return { error: 'Job not found — refresh and try again.', ok: false };
+  }
   revalidatePath('/admin/jobs');
-}
+  return { message: 'Run requested — the scheduler picks it up within a minute.', ok: true };
+});

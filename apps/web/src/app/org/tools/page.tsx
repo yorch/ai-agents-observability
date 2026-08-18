@@ -1,6 +1,7 @@
 import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, Cell, Row, SeriesBadge, Stat, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, SeriesBadge, Stat, Table } from '@/components/ui';
+import { fmtDayShort } from '@/lib/fmt';
 import {
   type CategoryStatRow,
   type DailyToolVolumeRow,
@@ -106,7 +107,7 @@ export default async function OrgToolsPage({
       <Card contentClassName="space-y-3">
         <h2 className="font-display text-sm font-semibold text-text">Top tools ({range}d)</h2>
         {tools.length === 0 ? (
-          <p className="text-sm text-text-3">No tool data available.</p>
+          <CardEmpty>No tool activity in this period.</CardEmpty>
         ) : (
           <ToolsTable tools={tools} />
         )}
@@ -116,7 +117,7 @@ export default async function OrgToolsPage({
         {/* Category breakdown */}
         <Card title="By category" contentClassName="space-y-3">
           {categories.length === 0 ? (
-            <p className="text-sm text-text-3">No data available.</p>
+            <CardEmpty>No tool activity in this period.</CardEmpty>
           ) : (
             <CategoryBreakdown categories={categories} />
           )}
@@ -125,7 +126,7 @@ export default async function OrgToolsPage({
         {/* MCP servers */}
         <Card title="MCP servers" contentClassName="space-y-3">
           {mcpServers.length === 0 ? (
-            <p className="text-sm text-text-3">No MCP usage in this period.</p>
+            <CardEmpty>No MCP usage in this period.</CardEmpty>
           ) : (
             <McpTable servers={mcpServers} />
           )}
@@ -135,12 +136,12 @@ export default async function OrgToolsPage({
       {/* Skills & slash commands — always rendered so the section is visible even before data */}
       <Card title="Skills & slash commands" contentClassName="space-y-3">
         {skills.length === 0 ? (
-          <p className="text-sm text-text-3">
-            No skill or slash command invocations in the last {range} days. Skills are captured when
-            the <span className="font-mono text-text-2">Skill</span> tool fires (e.g.{' '}
+          <CardEmpty>
+            No skill or slash command invocations in this period. Skills are captured when the{' '}
+            <span className="font-mono text-text-2">Skill</span> tool fires (e.g.{' '}
             <span className="font-mono text-text-2">/code-review</span>,{' '}
             <span className="font-mono text-text-2">/commit</span>).
-          </p>
+          </CardEmpty>
         ) : (
           <SkillsTable skills={skills} adoption={skillAdoption} />
         )}
@@ -193,10 +194,7 @@ function DailyVolumeBars({ volume }: { volume: DailyToolVolumeRow[] }) {
       {volume.map((v) => {
         const height = Math.max(4, (v.callCount / max) * 112);
         const denyHeight = v.callCount > 0 ? (v.denyCount / v.callCount) * height : 0;
-        const label = new Date(v.day).toLocaleDateString(undefined, {
-          day: 'numeric',
-          month: 'short',
-        });
+        const label = fmtDayShort(new Date(v.day));
         return (
           <div key={v.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
             <span className="text-[9px] text-text-3">{v.callCount}</span>
@@ -431,7 +429,7 @@ function TeamSkillMatrix({ rows }: { rows: TeamSkillRow[] }) {
   const allTeams = Array.from(new Set(rows.map((r) => r.teamName))).sort();
 
   if (allTeams.length === 0) {
-    return <p className="text-sm text-text-3">No team membership data available.</p>;
+    return <CardEmpty>No team membership recorded yet.</CardEmpty>;
   }
 
   return (
@@ -546,7 +544,15 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
                       }`}
                       title={`${r.ciStatus}: ${r.sessionCount} sessions`}
                     />
-                    <span className={`${cls} block text-center`}>{r.ciStatus.slice(0, 4)}</span>
+                    {/* Distinct short words, not a 4-char slice — "succ"/"fail"
+                        collide at a glance and leaned on colour to disambiguate. */}
+                    <span className={`${cls} block truncate text-center`}>
+                      {r.ciStatus === 'success'
+                        ? 'pass'
+                        : r.ciStatus === 'failure'
+                          ? 'fail'
+                          : r.ciStatus}
+                    </span>
                   </div>
                 );
               })}

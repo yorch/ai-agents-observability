@@ -1,5 +1,19 @@
-import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { Button, Card, Cell, Field, FilterPanel, Input, Row, Select, Table } from '@/components/ui';
+import { FilterChips } from '@/components/FilterChips';
+import {
+  Button,
+  ButtonLink,
+  Card,
+  Cell,
+  EmptyState,
+  Field,
+  FilterPanel,
+  Input,
+  Pagination,
+  Row,
+  Select,
+  Table,
+} from '@/components/ui';
+import { fmtDateTime, fmtUsdSession } from '@/lib/fmt';
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
 import { getPrisma } from '@/lib/prisma';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
@@ -107,7 +121,40 @@ export default async function OrgSearchPage({
   // Transcript FTS search (if query provided)
   const transcriptResults = query ? await searchTranscripts(query, canView) : [];
 
-  const totalPages = Math.ceil(sessionResults.total / sessionResults.pageSize);
+  // Applied-filter chips: each links to the URL without that one facet, with
+  // ids resolved to the display names the dropdowns show.
+  const CHIP_LABELS: Record<string, string> = {
+    agent: 'Agent',
+    band: 'Friction',
+    from: 'From',
+    jira: 'Ticket',
+    model: 'Model',
+    q: 'Query',
+    repo: 'Repo',
+    shape: 'Shape',
+    team: 'Team',
+    to: 'To',
+    tool: 'Tool',
+    user: 'User',
+  };
+  const chips = Object.entries(CHIP_LABELS)
+    .map(([key, label]) => ({ key, label, value: params[key]?.trim() ?? '' }))
+    .filter((f) => f.value !== '')
+    .map(({ key, label, value }) => {
+      let display = value;
+      if (key === 'team') {
+        display = teams.find((t) => t.id === value)?.name ?? value;
+      } else if (key === 'repo') {
+        const r = repos.find((x) => x.id === value);
+        display = r ? `${r.githubOwner}/${r.githubName}` : value;
+      } else if (key === 'user') {
+        display = `${value.slice(0, 8)}…`;
+      }
+      return {
+        href: buildUrl(params, { [key]: '', page: '' }),
+        label: `${label}: ${display}`,
+      };
+    });
 
   return (
     <div className="space-y-6">
@@ -247,17 +294,22 @@ export default async function OrgSearchPage({
             </div>
           </FilterPanel>
 
+          <FilterChips chips={chips} clearHref="/org/search" />
+
           {/* Transcript results */}
           {query && (
             <section className="space-y-3">
               <h2 className="font-display text-sm font-semibold text-text">
                 Transcript matches for &quot;{query}&quot;
+                {transcriptResults.length >= 20 && (
+                  <span className="ml-2 font-body text-xs font-normal text-text-3">top 20</span>
+                )}
               </h2>
               {transcriptResults.length === 0 ? (
-                <p className="text-sm text-text-3">
-                  No transcript matches. (Only sessions from users who have enabled org transcript
-                  sharing are searched.)
-                </p>
+                <EmptyState>
+                  No transcript matches. Only sessions from users who have enabled org transcript
+                  sharing are searched.
+                </EmptyState>
               ) : (
                 <div className="space-y-3">
                   {transcriptResults.map((r) => (
@@ -272,7 +324,7 @@ export default async function OrgSearchPage({
                           {r.sessionId.slice(0, 8)}…
                         </a>
                         <span>· {r.role}</span>
-                        {r.ts && <span>· {new Date(r.ts).toLocaleString()}</span>}
+                        {r.ts && <span>· {fmtDateTime(new Date(r.ts))}</span>}
                       </div>
                       <p
                         className="text-sm text-text-2 leading-relaxed"
@@ -287,37 +339,23 @@ export default async function OrgSearchPage({
 
           {/* Session results */}
           <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-sm font-semibold text-text">
-                Sessions {sessionResults.total > 0 && `(${sessionResults.total})`}
-              </h2>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2 text-sm">
-                  {page > 1 && (
-                    <a
-                      href={buildUrl(params, { page: page - 1 })}
-                      className="inline-flex items-center gap-1 text-accent hover:underline"
-                    >
-                      <ArrowLeftIcon /> Prev
-                    </a>
-                  )}
-                  <span className="text-text-3">
-                    {page} / {totalPages}
-                  </span>
-                  {page < totalPages && (
-                    <a
-                      href={buildUrl(params, { page: page + 1 })}
-                      className="inline-flex items-center gap-1 text-accent hover:underline"
-                    >
-                      Next <ArrowRightIcon />
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
+            <h2 className="font-display text-sm font-semibold text-text">
+              Sessions {sessionResults.total > 0 && `(${sessionResults.total})`}
+            </h2>
 
             {sessionResults.results.length === 0 ? (
-              <p className="text-sm text-text-3">No sessions match the current filters.</p>
+              <EmptyState
+                title="No sessions match these filters"
+                action={
+                  chips.length > 0 ? (
+                    <ButtonLink variant="secondary" href="/org/search">
+                      Clear filters
+                    </ButtonLink>
+                  ) : undefined
+                }
+              >
+                Try removing a filter or widening the date range.
+              </EmptyState>
             ) : (
               <Table
                 columns={[
@@ -327,7 +365,7 @@ export default async function OrgSearchPage({
                   { label: 'Status' },
                   { align: 'right', label: 'Tools' },
                   { align: 'right', label: 'Cost' },
-                  { align: 'right', label: 'Started' },
+                  { align: 'right', label: 'Started (UTC)' },
                 ]}
               >
                 {sessionResults.results.map((s) => (
@@ -350,14 +388,20 @@ export default async function OrgSearchPage({
                     <Cell num className="text-text-2">
                       {s.toolCallCount}
                     </Cell>
-                    <Cell num>${s.costUsd.toFixed(4)}</Cell>
+                    <Cell num>{fmtUsdSession(s.costUsd)}</Cell>
                     <Cell num className="text-text-2 text-xs">
-                      {new Date(s.startedAt).toLocaleString()}
+                      {fmtDateTime(new Date(s.startedAt))}
                     </Cell>
                   </Row>
                 ))}
               </Table>
             )}
+            <Pagination
+              page={page}
+              pageSize={sessionResults.pageSize}
+              total={sessionResults.total}
+              hrefFor={(n) => buildUrl(params, { page: n })}
+            />
           </section>
         </>
       )}
@@ -368,7 +412,11 @@ export default async function OrgSearchPage({
 function buildUrl(current: Record<string, string>, overrides: Record<string, string | number>) {
   const p = new URLSearchParams(current);
   for (const [k, v] of Object.entries(overrides)) {
-    p.set(k, String(v));
+    if (v === '') {
+      p.delete(k);
+    } else {
+      p.set(k, String(v));
+    }
   }
   return `/org/search?${p.toString()}`;
 }

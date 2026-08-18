@@ -1,9 +1,10 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 
 import { savePrivacySettings } from '@/app/me/settings/privacy/actions';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { useActionResult } from '@/lib/use-action-result';
 
 type Toggle = {
   description: string;
@@ -52,8 +53,7 @@ type InitialPolicy = {
 };
 
 export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | null }) {
-  const [isPending, startTransition] = useTransition();
-  const [saved, setSaved] = useState(false);
+  const { error, isPending, reset, run, saved } = useActionResult();
   const [policy, setPolicy] = useState<InitialPolicy>({
     shareMetadataWithOrg: initialPolicy?.shareMetadataWithOrg ?? true,
     shareMetadataWithTeam: initialPolicy?.shareMetadataWithTeam ?? true,
@@ -93,7 +93,7 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
 
   function handleToggle(name: string, value: boolean) {
     setPolicy((prev) => ({ ...prev, [name]: value }));
-    setSaved(false);
+    reset();
   }
 
   function handleSave() {
@@ -103,10 +103,7 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
     formData.set('shareTranscriptsWithTeam', policy.shareTranscriptsWithTeam.toString());
     formData.set('shareTranscriptsWithOrg', policy.shareTranscriptsWithOrg.toString());
 
-    startTransition(async () => {
-      await savePrivacySettings(formData);
-      setSaved(true);
-    });
+    run(() => savePrivacySettings(formData));
   }
 
   return (
@@ -117,11 +114,50 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
         ))}
       </div>
 
+      {/* The plain-language consequence of the toggles as currently set —
+          the strongest trust signal is being able to see exactly what a team
+          lead or org admin gets before pressing save. */}
+      <div className="mt-4 rounded-md border border-border-subtle bg-surface-2 p-3">
+        <p className="text-xs font-semibold text-text-2">With these settings, right now:</p>
+        <ul className="mt-2 space-y-1 text-xs text-text-3">
+          <li>
+            Team leads {policy.shareMetadataWithTeam ? 'can see' : 'cannot see'} your session
+            metadata (cost, duration, repo, tool counts).
+          </li>
+          <li>
+            Team leads {policy.shareTranscriptsWithTeam ? 'can read' : 'cannot read'} your
+            transcripts.
+          </li>
+          <li>
+            Your sessions {policy.shareMetadataWithOrg ? 'contribute to' : 'are excluded from'}{' '}
+            org-wide aggregate dashboards.
+          </li>
+          <li>
+            Org admins{' '}
+            {policy.shareTranscriptsWithOrg
+              ? 'can read your transcripts without a per-view justification.'
+              : 'can only read a transcript with a logged justification or an approved, time-boxed grant.'}
+          </li>
+          <li>
+            Every privileged view of your data is recorded in{' '}
+            <a href="/me/settings/audit" className="underline hover:text-text-2">
+              your audit log
+            </a>
+            .
+          </li>
+        </ul>
+      </div>
+
       <div className="mt-4 flex items-center gap-3">
         <Button onClick={handleSave} disabled={isPending}>
           {isPending ? 'Saving…' : 'Save settings'}
         </Button>
         {saved && <span className="text-sm text-good">Saved</span>}
+        {error && (
+          <span role="alert" className="text-sm text-crit">
+            {error}
+          </span>
+        )}
       </div>
     </Card>
   );

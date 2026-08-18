@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, Cell, Row, Stat, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
+import { fmtDayShort } from '@/lib/fmt';
 import {
   getActiveUsersTrend,
   getAdoptionByTeam,
@@ -67,7 +68,7 @@ export default async function OrgAdoptionPage({
           Weekly active users (trailing {range} days)
         </h2>
         {weeklyTrend.length === 0 ? (
-          <p className="text-sm text-text-3">No data yet.</p>
+          <CardEmpty>No active users in this period.</CardEmpty>
         ) : (
           <ActiveUsersBars trend={weeklyTrend} />
         )}
@@ -83,7 +84,7 @@ export default async function OrgAdoptionPage({
             Among org-sharing users — how often are they using Claude Code?
           </p>
           {totalUsersInDist === 0 ? (
-            <p className="text-sm text-text-3">No data.</p>
+            <CardEmpty>No sessions in this period.</CardEmpty>
           ) : (
             <div className="space-y-2 pt-1">
               {frequencyDist.map((b) => {
@@ -119,7 +120,7 @@ export default async function OrgAdoptionPage({
             Active members / total team members with sessions in the window.
           </p>
           {adoptionByTeam.length === 0 ? (
-            <p className="text-sm text-text-3">No team data available.</p>
+            <CardEmpty>No team activity in this period.</CardEmpty>
           ) : (
             <Table
               columns={[
@@ -169,10 +170,7 @@ function ActiveUsersBars({ trend }: { trend: { activeUsers: number; day: Date }[
     <div className="flex items-end gap-1 h-24">
       {trend.map((t) => {
         const height = Math.max(4, (t.activeUsers / max) * 96);
-        const label = new Date(t.day).toLocaleDateString(undefined, {
-          day: 'numeric',
-          month: 'short',
-        });
+        const label = fmtDayShort(new Date(t.day));
         return (
           <div key={t.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
             <span className="text-[10px] text-text-3">{t.activeUsers}</span>

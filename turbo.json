@@ -18,11 +18,11 @@
     },
     "test": {
       "dependsOn": ["build", "^build"],
-      "outputs": ["coverage/**"]
+      "outputs": []
     },
     "typecheck": {
       "dependsOn": ["build", "^typecheck"],
-      "outputs": ["*.tsbuildinfo"]
+      "outputs": []
     }
   },
   "ui": "tui"

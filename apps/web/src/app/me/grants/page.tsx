@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowRightIcon } from '@/components/icons';
 import { buttonClasses, Card, EmptyState } from '@/components/ui';
+import { fmtDate, fmtDateTime } from '@/lib/fmt';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
 import { requireGrantRequester } from '@/lib/roles';
@@ -152,9 +153,7 @@ function GrantCard({
             {status}
           </span>
           <span className="text-text-3">· scope: {g.scope}</span>
-          <span className="text-text-3">
-            · requested {new Date(g.requestedAt).toLocaleDateString()}
-          </span>
+          <span className="text-text-3">· requested {fmtDate(new Date(g.requestedAt))}</span>
         </div>
         {sessionLink && (
           <Link
@@ -180,15 +179,15 @@ function GrantCard({
 
       {g.grantedAt && (
         <div className="text-xs text-text-3">
-          Approved {new Date(g.grantedAt).toLocaleString()}
-          {g.expiresAt && ` · expires ${new Date(g.expiresAt).toLocaleString()}`}
+          Approved {fmtDateTime(new Date(g.grantedAt))} UTC
+          {g.expiresAt && ` · expires ${fmtDateTime(new Date(g.expiresAt))} UTC`}
           {status === 'active' && isGrantExpiringSoon(g.expiresAt) && (
             <span className="ml-2 rounded bg-warn-soft px-1.5 py-0.5 text-warn">expiring soon</span>
           )}
         </div>
       )}
       {g.revokedAt && (
-        <div className="text-xs text-crit">Revoked {new Date(g.revokedAt).toLocaleString()}</div>
+        <div className="text-xs text-crit">Revoked {fmtDateTime(new Date(g.revokedAt))} UTC</div>
       )}
     </Card>
   );

@@ -1,7 +1,8 @@
 import { PERMISSION_MODES } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
+import { FilterChips } from '@/components/FilterChips';
 import { SessionsTable } from '@/components/me/SessionsTable';
-import { Button, ButtonLink, Field, FilterPanel, Input, Select } from '@/components/ui';
+import { Button, ButtonLink, EmptyState, Field, FilterPanel, Input, Select } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
 import { getPrisma } from '@/lib/prisma';
@@ -102,8 +103,8 @@ export default async function SessionsPage({
   const agentTypes = agentFacets.map((f) => f.agentType);
   const shapeLabels = shapeFacets.map((f) => f.shapeLabel as string);
 
-  // One list, so the Clear button and the export URL cannot disagree about what
-  // counts as a filter.
+  // One list, so the Clear button, the export URL, and the pager cannot
+  // disagree about what counts as a filter.
   const filters = {
     agent,
     band: frictionBand,
@@ -114,6 +115,44 @@ export default async function SessionsPage({
     status,
     to: params.to,
   };
+
+  // The pager must carry the active filters, or moving to page 2 clears them.
+  const hrefForPage = (n: number) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) {
+      if (v) {
+        p.set(k, v);
+      }
+    }
+    p.set('page', String(n));
+    return `?${p.toString()}`;
+  };
+
+  // Chips mirror the same filter object; each one links to the URL without
+  // itself, so removing a facet is one click instead of a form round-trip.
+  const CHIP_LABELS: Record<string, string> = {
+    agent: 'Agent',
+    band: 'Friction',
+    from: 'From',
+    mode: 'Mode',
+    repo: 'Repo',
+    shape: 'Shape',
+    status: 'Status',
+    to: 'To',
+  };
+  const chips = Object.entries(filters)
+    .filter(([, v]) => Boolean(v))
+    .map(([key, value]) => {
+      const p = new URLSearchParams();
+      for (const [k, v] of Object.entries(filters)) {
+        if (v && k !== key) {
+          p.set(k, v);
+        }
+      }
+      const qs = p.toString();
+      return { href: qs ? `?${qs}` : '/me/sessions', label: `${CHIP_LABELS[key]}: ${value}` };
+    });
+  const hasFilters = chips.length > 0;
 
   return (
     <div className="space-y-6">
@@ -213,12 +252,51 @@ export default async function SessionsPage({
         </div>
       </FilterPanel>
 
-      <SessionsTable
-        sessions={sessions}
-        total={total}
-        currentPage={page}
-        jiraBase={getJiraBase()}
-      />
+      <FilterChips chips={chips} clearHref="/me/sessions" />
+
+      {sessions.length === 0 ? (
+        hasFilters ? (
+          <EmptyState
+            title="No sessions match these filters"
+            action={
+              <ButtonLink variant="secondary" href="/me/sessions">
+                Clear filters
+              </ButtonLink>
+            }
+          >
+            Try removing a filter or widening the date range.
+          </EmptyState>
+        ) : total > 0 ? (
+          // An out-of-range ?page= (stale bookmark, pruned history) is not a
+          // first run — the install CTA here would tell an onboarded user to
+          // reinstall.
+          <EmptyState
+            title="Nothing on this page"
+            action={
+              <ButtonLink variant="secondary" href="/me/sessions">
+                Back to page 1
+              </ButtonLink>
+            }
+          >
+            Your sessions start on an earlier page.
+          </EmptyState>
+        ) : (
+          <EmptyState
+            title="No sessions yet"
+            action={<ButtonLink href="/install">Install the hook</ButtonLink>}
+          >
+            Install the telemetry hook to start tracking your agent sessions.
+          </EmptyState>
+        )
+      ) : (
+        <SessionsTable
+          sessions={sessions}
+          total={total}
+          currentPage={page}
+          hrefFor={hrefForPage}
+          jiraBase={getJiraBase()}
+        />
+      )}
     </div>
   );
 }

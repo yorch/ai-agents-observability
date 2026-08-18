@@ -1,4 +1,5 @@
-import { Card, SectionHeader } from '@/components/ui';
+import { Card, CardEmpty, SectionHeader } from '@/components/ui';
+import { fmtDayShort } from '@/lib/fmt';
 
 /**
  * Daily invocation trend for a skill or command. The same block appeared
@@ -12,7 +13,12 @@ export function DailyTrendBars({
   title?: string;
 }) {
   if (points.length === 0) {
-    return null;
+    return (
+      <Card>
+        <SectionHeader>{title}</SectionHeader>
+        <CardEmpty>No activity in this period.</CardEmpty>
+      </Card>
+    );
   }
   const max = Math.max(...points.map((p) => p.count), 1);
 
@@ -25,7 +31,7 @@ export function DailyTrendBars({
             key={p.day.toISOString()}
             className="flex-1 rounded-t bg-accent"
             style={{ height: `${Math.max(2, (p.count / max) * 100)}%` }}
-            title={`${p.day.toLocaleDateString()}: ${p.count}`}
+            title={`${fmtDayShort(p.day)}: ${p.count}`}
           />
         ))}
       </div>

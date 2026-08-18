@@ -5,7 +5,9 @@ import type { ShareResult } from '@/app/me/sessions/[id]/actions';
 import { revokeShare, shareSession } from '@/app/me/sessions/[id]/actions';
 import { ArrowRightIcon } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
+import { confirmSubmit } from '@/components/ui/ConfirmButton';
 import { Input, Select } from '@/components/ui/Field';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 
 type ActiveShare = { expiresAt: Date; granteeEmail: string | null; id: string };
 
@@ -34,8 +36,11 @@ export function ShareSessionButton({
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
   const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close on click-outside and Escape.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // The trap owns Escape-to-close and focus restore; only click-outside is
+  // handled here (the trap deliberately skips focus restore in that case so
+  // the clicked control keeps the focus it just took).
+  useFocusTrap(dialogRef, open, () => setOpen(false));
   useEffect(() => {
     if (!open) {
       return;
@@ -45,16 +50,9 @@ export function ShareSessionButton({
         setOpen(false);
       }
     }
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        setOpen(false);
-      }
-    }
     document.addEventListener('mousedown', onOutside);
-    document.addEventListener('keydown', onEsc);
     return () => {
       document.removeEventListener('mousedown', onOutside);
-      document.removeEventListener('keydown', onEsc);
     };
   }, [open]);
 
@@ -72,9 +70,15 @@ export function ShareSessionButton({
 
   async function copyLink() {
     const url = `${window.location.origin}/org/sessions/${sessionId}`;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard can be denied (permissions, insecure context) — surface it
+      // instead of leaving the button silently inert.
+      setError('Could not copy the link — copy it from the address bar instead.');
+    }
   }
 
   const count = activeShares.length;
@@ -98,7 +102,9 @@ export function ShareSessionButton({
 
       {open && (
         <div
+          ref={dialogRef}
           role="dialog"
+          aria-modal="true"
           aria-label="Share session"
           className="absolute right-0 top-full mt-2 z-50 w-72 rounded-lg border border-border bg-surface shadow-xl"
         >
@@ -123,7 +129,11 @@ export function ShareSessionButton({
                     <button
                       type="submit"
                       title="Revoke access"
-                      className="rounded px-1.5 py-0.5 text-[10px] text-text-3 transition-colors hover:text-crit"
+                      aria-label={`Revoke access for ${share.granteeEmail ?? 'this user'}`}
+                      onClick={confirmSubmit(
+                        `Revoke access for ${share.granteeEmail ?? 'this user'}?`,
+                      )}
+                      className="rounded px-1.5 py-1 text-[10px] text-text-3 transition-colors hover:text-crit"
                     >
                       Revoke
                     </button>
@@ -137,6 +147,11 @@ export function ShareSessionButton({
           {lastShared && (
             <div className="border-t border-border px-4 py-3 space-y-2">
               <p className="text-xs text-good">Shared with {lastShared.email}</p>
+              {error && (
+                <p role="alert" className="text-xs text-crit">
+                  {error}
+                </p>
+              )}
               <div className="flex items-center gap-2">
                 <code className="flex-1 truncate rounded bg-surface-2 px-2 py-1 text-[10px] text-text-3">
                   /org/sessions/{sessionId}

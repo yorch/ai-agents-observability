@@ -1,52 +1,25 @@
 import Link from 'next/link';
-import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { StatusBadge } from '@/components/me/StatusBadge';
 import { ShapeBadge } from '@/components/me/shape';
-import { Cell, EmptyState, Row, Table, TONE_TEXT } from '@/components/ui';
+import { Cell, EmptyState, Pagination, Row, Table, TONE_TEXT } from '@/components/ui';
 import { computeFrictionScore, frictionBadge } from '@/lib/effectiveness';
-import type { TeamSessionRow } from '@/lib/team-queries';
-
-function formatDuration(seconds: number | null): string {
-  if (seconds === null) {
-    return '—';
-  }
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (m < 60) {
-    return `${m}m ${s}s`;
-  }
-  const h = Math.floor(m / 60);
-  return `${h}h ${Math.floor(m % 60)}m`;
-}
-
-function formatDate(d: Date): string {
-  return d.toLocaleDateString('en-US', {
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-const PAGE_SIZE = 50;
+import { fmtDateTime, fmtDurationSec, fmtUsdSession } from '@/lib/fmt';
+import { TEAM_PAGE_SIZE, type TeamSessionRow } from '@/lib/team-queries';
 
 export function TeamSessionsTable({
   currentPage,
+  hrefFor = (page) => `?page=${page}`,
   sessions,
   slug,
   total,
 }: {
   currentPage: number;
+  /** Builds the pager href for a page, preserving any active filters. */
+  hrefFor?: (page: number) => string;
   sessions: TeamSessionRow[];
   slug: string;
   total: number;
 }) {
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-
   if (sessions.length === 0) {
     return <EmptyState>No sessions found</EmptyState>;
   }
@@ -56,7 +29,7 @@ export function TeamSessionsTable({
       <Table
         columns={[
           { label: 'Member' },
-          { label: 'Started' },
+          { label: 'Started (UTC)' },
           { label: 'Repo' },
           { label: 'Shape' },
           { align: 'right', label: 'Duration' },
@@ -97,7 +70,7 @@ export function TeamSessionsTable({
               </Cell>
               <Cell className="text-text-2 text-xs">
                 <Link href={sessionPath} className="hover:text-accent transition-colors">
-                  {formatDate(s.startedAt)}
+                  {fmtDateTime(s.startedAt)}
                 </Link>
               </Cell>
               <Cell className="text-text-2 max-w-[180px] truncate">{s.repoName ?? '—'}</Cell>
@@ -105,13 +78,13 @@ export function TeamSessionsTable({
                 <ShapeBadge label={s.shapeLabel} />
               </Cell>
               <Cell num className="text-text-2 text-xs">
-                {formatDuration(s.durationSeconds)}
+                {fmtDurationSec(s.durationSeconds)}
               </Cell>
               <Cell num className="text-text-2 text-xs">
                 {s.eventCount}
               </Cell>
               <Cell num className="text-text-2 text-xs">
-                ${s.costUsd.toFixed(3)}
+                {fmtUsdSession(s.costUsd)}
               </Cell>
               <Cell className="text-center">
                 {badge ? (
@@ -133,32 +106,7 @@ export function TeamSessionsTable({
         })}
       </Table>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-text-3 font-mono text-xs">
-            {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of{' '}
-            {total}
-          </p>
-          <div className="flex gap-2">
-            {currentPage > 1 && (
-              <a
-                href={`?page=${currentPage - 1}`}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
-              >
-                <ArrowLeftIcon /> Prev
-              </a>
-            )}
-            {currentPage < totalPages && (
-              <a
-                href={`?page=${currentPage + 1}`}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
-              >
-                Next <ArrowRightIcon />
-              </a>
-            )}
-          </div>
-        </div>
-      )}
+      <Pagination page={currentPage} pageSize={TEAM_PAGE_SIZE} total={total} hrefFor={hrefFor} />
     </div>
   );
 }
