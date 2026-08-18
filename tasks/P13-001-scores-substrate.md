@@ -3,7 +3,7 @@ id: P13-001
 title: Generic versioned scores table
 phase: 13
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: []
 blocks: [P13-003, P13-004, P13-005, P13-006, P13-007, P13-008, P13-009]

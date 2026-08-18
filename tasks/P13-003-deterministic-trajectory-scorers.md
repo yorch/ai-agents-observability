@@ -3,7 +3,7 @@ id: P13-003
 title: Deterministic trajectory scorers
 phase: 13
 workstream: B
-status: review
+status: done
 owner: claude
 depends_on: [P13-001]
 blocks: [P13-004]

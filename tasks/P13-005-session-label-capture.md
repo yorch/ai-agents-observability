@@ -3,7 +3,7 @@ id: P13-005
 title: Session label capture (versioned rubric)
 phase: 13
 workstream: C
-status: review
+status: done
 owner: claude
 depends_on: [P13-001]
 blocks: [P13-007, P13-010]

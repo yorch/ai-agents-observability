@@ -3,7 +3,7 @@ id: P13-012
 title: Move the run_kind guard from call sites into the data layer
 phase: 13
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P13-002]
 blocks: []

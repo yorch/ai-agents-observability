@@ -3,7 +3,7 @@ id: P13-002
 title: run_kind dimension (interactive / ci / eval)
 phase: 13
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: []
 blocks: []

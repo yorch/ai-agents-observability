@@ -3,7 +3,7 @@ id: P13-009
 title: Judge runner + guardrails (own transcripts only)
 phase: 13
 workstream: D
-status: review
+status: done
 owner: claude
 depends_on: [P13-001]
 blocks: [P13-010, P13-011]

@@ -286,10 +286,10 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P13-001](./P13-001-scores-substrate.md) | Generic versioned scores table | review | claude | M | — |
-| [P13-002](./P13-002-run-kind-dimension.md) | `run_kind` dimension (interactive / ci / eval) | review | claude | S | — |
-| [P13-012](./P13-012-run-kind-views.md) | Move the `run_kind` guard into the data layer | review | claude | M | P13-002 |
-| [P13-013](./P13-013-scores-time-dimension.md) | Time dimension on the `scores` unique key | review | claude | M | P13-001, P13-004 |
+| [P13-001](./P13-001-scores-substrate.md) | Generic versioned scores table | done | claude | M | — |
+| [P13-002](./P13-002-run-kind-dimension.md) | `run_kind` dimension (interactive / ci / eval) | done | claude | S | — |
+| [P13-012](./P13-012-run-kind-views.md) | Move the `run_kind` guard into the data layer | done | claude | M | P13-002 |
+| [P13-013](./P13-013-scores-time-dimension.md) | Time dimension on the `scores` unique key | done | claude | M | P13-001, P13-004 |
 
 > **Both started as deliberate deferrals and both have since landed.**
 > [`P13-012`](./P13-012-run-kind-views.md) is the end state for the `run_kind`
@@ -305,15 +305,15 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P13-003](./P13-003-deterministic-trajectory-scorers.md) | Deterministic trajectory scorers | review | claude | M | P13-001 |
-| [P13-004](./P13-004-skill-mcp-effectiveness.md) | Skill & MCP effectiveness scoring | review | claude | M | P13-001, P13-003 |
+| [P13-003](./P13-003-deterministic-trajectory-scorers.md) | Deterministic trajectory scorers | done | claude | M | P13-001 |
+| [P13-004](./P13-004-skill-mcp-effectiveness.md) | Skill & MCP effectiveness scoring | done | claude | M | P13-001, P13-003 |
 
 ### Workstream C — Capture & validation
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P13-005](./P13-005-session-label-capture.md) | Session label capture (versioned rubric) | review | claude | M | P13-001 |
-| [P13-006](./P13-006-projection-validation-pattern.md) | Projection registry + realization (generalizes P10-006) | review | claude | M | P13-001 |
+| [P13-005](./P13-005-session-label-capture.md) | Session label capture (versioned rubric) | done | claude | M | P13-001 |
+| [P13-006](./P13-006-projection-validation-pattern.md) | Projection registry + realization (generalizes P10-006) | done | claude | M | P13-001 |
 | [P13-007](./P13-007-scorer-calibration-analysis.md) | Scorer calibration analysis | blocked (DP-1) | — | M | P13-001, P13-005 |
 | [P13-008](./P13-008-scorer-validation-surface.md) | Scorer validation surface | blocked (DP-1) | — | M | P13-001, P13-007 |
 
@@ -321,7 +321,7 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P13-009](./P13-009-judge-runner-guardrails.md) | Judge runner + guardrails (own transcripts only) | review | claude | L | P13-001 |
+| [P13-009](./P13-009-judge-runner-guardrails.md) | Judge runner + guardrails (own transcripts only) | done | claude | L | P13-001 |
 | [P13-010](./P13-010-judge-calibration-drift.md) | Judge calibration + drift alerting | blocked (DP-1) | — | M | P13-005, P13-007, P13-009 |
 | [P13-011](./P13-011-arm-judge-for-other-users.md) | Arm the judge for other users' transcripts | blocked | — | S | P13-007, P13-009, P13-010 |
 

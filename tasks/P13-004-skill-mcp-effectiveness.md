@@ -3,7 +3,7 @@ id: P13-004
 title: Skill & MCP effectiveness scoring
 phase: 13
 workstream: B
-status: review
+status: done
 owner: claude
 depends_on: [P13-001, P13-003]
 blocks: []

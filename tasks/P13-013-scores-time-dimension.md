@@ -3,7 +3,7 @@ id: P13-013
 title: Time dimension on the scores unique key
 phase: 13
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P13-001, P13-004]
 blocks: []
