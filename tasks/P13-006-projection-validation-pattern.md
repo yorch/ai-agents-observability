@@ -53,9 +53,16 @@ superseded rather than built twice.
       not celebrated.
 - [x] Segments with insufficient post-period volume render as "not yet measurable,"
       never as a spurious delta.
-- [x] Applied to at least the `/org/models` routing recommendations, satisfying
-      P10-006's acceptance criteria; P10-006 is marked `cancelled` (superseded) in
-      `INDEX.md` with a pointer here, in the same commit.
+- [x] Applied to at least the `/org/models` routing recommendations, which is what
+      P10-006 asks for.
+- [ ] **Withdrawn, not done.** This originally said P10-006 would be marked
+      `cancelled` (superseded) in `INDEX.md`. It is not, and this branch should not
+      make that call: it was written when Phase 10 read `ready`, and the trunk now
+      reads `done`. `INDEX.md` carries a note recording the open question — and the
+      fact that Phase 10's own state is self-inconsistent regardless of this branch
+      (`INDEX.md` says `done`, `P10-006-recommendation-validation-loop.md` says
+      `ready`, and no `model_policy` table exists). Reconciling Phase 10 is the
+      owner's call, not this task's.
 - [x] The forecast on `/org/dashboard` records its projection and later shows
       projected-vs-actual for the closed month.
 - [x] The comparison is a pure, unit-tested function over

@@ -189,8 +189,8 @@ export async function getOrgSummary(since: Date): Promise<OrgSummary> {
 // queries below — a user who has not opted in to `share_metadata_with_org`
 // never contributes, matching every other org-queries function.
 //
-// `daily_cost_by_model` and `daily_tool_usage` also carry `user_id` (added in
-// migration 0005), so they are visibility-scoped the same way: `getOrgModelDetail`
+// `daily_cost_by_model` and `daily_tool_usage` also carry `user_id`, so they are
+// visibility-scoped the same way: `getOrgModelDetail`
 // and `getOrgTopTools` read them with a `user_id IN (visible)` filter instead of
 // scanning raw `events`. Two semantic notes on the model rollup: `session_count`
 // is `SUM(session_count)` across daily buckets, so a session spanning midnight is

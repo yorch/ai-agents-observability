@@ -46,9 +46,21 @@ This task does **not** build a harness, and adds no capability to run an agent.
       keeps working unchanged with no version bump required.
 - [x] Ingest persists the reported value, and an unrecognized value is rejected by
       schema validation rather than stored.
-- [x] Every human-facing aggregate — `/me`, `/team/[slug]`, `/org/*`, the continuous
-      aggregates, effectiveness computation, and the alert engine — excludes
-      non-`interactive` runs by default. This is verified by test, not by inspection.
+- [x] Every human-facing aggregate — `/me`, `/team/[slug]`, `/org/*`, the three
+      continuous aggregates, and the alert engine — excludes non-`interactive` runs
+      by default. Two lints stand behind this rather than review:
+      `apps/web/test/run-kind-coverage.test.ts` counts guards per table per SQL
+      literal across `apps/web/src/lib` and also scans the Prisma ORM reads;
+      `apps/ingest/test/run-kind-fragment.test.ts` proves the ingest filter comes
+      only from the shared fragment and counts the alert engine's scans against its
+      guards. Both are floors: counting proves nobody forgot a read, and cannot
+      prove a filter is bound to the scan it was written for.
+      **Not** excluded, deliberately: per-session drill-downs (a query already scoped
+      to one id is not a population), the mechanical jobs that operate on rows rather
+      than people (retention, transcript indexing, redaction backfill), and the
+      effectiveness scorer — a CI session's friction score is a property of that
+      session, and withholding it would make the row unexplainable rather than
+      excluded. `apps/ingest/src/lib/run-kind.ts` records that list.
 - [x] The exclusion is centralized (one predicate/helper reused by the query layer),
       not copy-pasted into each query.
 - [x] A session with `run_kind != 'interactive'` is still retrievable by its own id
@@ -68,7 +80,10 @@ This task does **not** build a harness, and adds no capability to run an agent.
   aggregate is not a free change. Prefer keeping the caggs as they are and filtering
   at the session/event boundary if the alternative is a cagg rebuild — and if a
   rebuild is needed, say so explicitly in the task notes rather than doing it
-  silently. Migration `0005_caggs_add_user_id.sql` is the precedent to read first.
+  silently. This landed before the migration squash, as a DROP/CREATE of all three
+  caggs; the squash folded the filter into their single definitions in
+  `packages/db/sql/migrations/0001_init.sql`, so a fresh install never rebuilds them
+  and the backfill-gap hazard the DROP/CREATE carried no longer exists.
 - Default-safe direction matters: the default must be `interactive` so that a client
   that never reports the field is treated as a developer session (the status quo),
   and only an explicit claim moves a run out of the aggregates.
@@ -78,9 +93,10 @@ This task does **not** build a harness, and adds no capability to run an agent.
 ## Files touched
 
 - `packages/db/prisma/schema.prisma`
-- `packages/db/sql/migrations/00NN_run_kind.sql`
+- `packages/db/sql/migrations/0001_init.sql` (the `events` column and the cagg filters)
 - `packages/schemas/src/session-context.ts` (+ test)
-- `apps/ingest/src/routes/` (events handler), `apps/ingest/src/jobs/compute-effectiveness.ts`
+- `apps/ingest/src/routes/` (events handler), `apps/ingest/src/lib/run-kind.ts`,
+  `apps/ingest/src/jobs/evaluate-alerts.ts`
 - `apps/web/src/lib/` (shared exclusion predicate + the query modules that adopt it)
 
 ## Out of scope

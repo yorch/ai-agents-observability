@@ -47,3 +47,34 @@ describe('run_kind filtering goes through the shared fragment', () => {
     expect(files.length).toBeGreaterThan(20);
   });
 });
+
+/**
+ * The alert engine is the one ingest job that is *entirely* a human aggregate —
+ * every evaluator answers "is this org's people-driven usage going wrong?", so
+ * unlike the sweeps and scorers there is no read in it that should see CI or eval
+ * runs. That makes a counting lint meaningful here where it isn't app-wide.
+ *
+ * It earns its place: the five `sessions` reads were guarded from the start and
+ * the two `events` reads were not, so `unknown_model_surge` and `routing_waste`
+ * counted machine traffic while `spend_spike` and `budget_threshold` did not.
+ * Nothing failed — the numbers were just wrong in one direction.
+ *
+ * Counting is a floor, not a proof: it cannot tell a filter bound to the scan
+ * from one bound to a join. It does prove nobody added a sixth read and forgot.
+ */
+describe('the alert engine guards every table it scans', () => {
+  const source = readFileSync(join(SRC, 'jobs/evaluate-alerts.ts'), 'utf8');
+  const count = (re: RegExp) => source.match(re)?.length ?? 0;
+
+  it('has one interactiveSessions guard per sessions scan', () => {
+    const scans = count(/\bFROM sessions s\b/g);
+    expect(scans).toBeGreaterThan(0);
+    expect(count(/interactiveSessions\('s'\)/g)).toBe(scans);
+  });
+
+  it('has one interactiveEvents guard per events scan', () => {
+    const scans = count(/\bFROM events e\b/g);
+    expect(scans).toBeGreaterThan(0);
+    expect(count(/interactiveEvents\('e'\)/g)).toBe(scans);
+  });
+});

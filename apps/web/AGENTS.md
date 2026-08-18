@@ -54,13 +54,44 @@ Read [`/PLAN.md`](../../PLAN.md) and [`/tasks/`](../../tasks/) before picking up
 - **Prisma**: server-only. Import `prisma` from `src/lib/prisma.ts`; never reference it inside `'use client'` modules.
 - **Routing layout**:
   - `/login`, `/install`, `/health`, `/metrics` — public.
-  - `/me/*` — authenticated, own-data scope. Session list, PR list, insights, search, transcript viewer, privacy settings, audit feed.
-  - `/team/[slug]/*` — authenticated, team-scoped. Roster, member sessions, PR tab. Gated by `team_lead` role via `requireTeamAccess()`.
-  - `/org/*` — authenticated, org-scoped. Dashboard (incl. spend forecast + cohort friction), adoption funnel, benchmarks, delivery stats, tools breakdown, models (routing recommendations), ROI, quality, security (data-flow/secret exposure), knowledge (topic clustering), governance, search, cross-user session/transcript. Gated by `org_admin` or `viewer_aggregate` roles.
+  - `/me/*` — authenticated, own-data scope. Session list + detail + transcript viewer, PR list, insights, search, access grants, and settings (profile, privacy, audit feed).
+  - `/team/[slug]/*` — authenticated, team-scoped. Roster, sessions, member drill-down (sessions + transcript), PRs, adoption, agents, tools, skills, MCP. Gated by `team_lead` role via `requireTeamAccess()`.
+  - `/org/*` — authenticated, org-scoped. Dashboard (incl. spend forecast + cohort friction), adoption funnel, benchmarks, delivery stats, agents comparison, tools breakdown, skills and MCP effectiveness, models (routing recommendations), ROI, quality, security (data-flow/secret exposure), knowledge (topic clustering), governance, teams, search, cross-user session/transcript. Gated by `org_admin` or `viewer_aggregate` roles.
   - `/admin/*` — authenticated, `org_admin` only. Alerts, access grants, adapters, jobs, org roles, team roles, price tables, retention.
   - `/api/auth/*` — OAuth + session endpoints; device-code flow for the hook binary.
   - `/api/me/*` — transcript proxy, data export, self-deletion.
   - `/api/org/*` and `/api/team/[slug]/*` — cross-user transcript endpoints (audit-logged).
+
+## Every aggregate query carries a `run_kind` guard
+
+Sessions and events carry a `run_kind` (`INTERACTIVE` | `CI` | `EVAL`). CI and eval
+runs have no human prompts, so they are stored and trendable but must never enter a
+number a dashboard presents as developer behaviour. **Every read of `sessions` or
+`events` in `src/lib` carries a fragment from [`src/lib/run-kind.ts`](src/lib/run-kind.ts)**
+— `interactiveOnly('s')` / `interactiveEvents('e')` in raw SQL, `runKind: 'INTERACTIVE'`
+in a Prisma ORM call.
+
+This is not a style rule. The predicate was previously inline, drifted, and let CI
+runs into org spend: `getOrgSummary` reported 121 sessions and $547.83 against a true
+115 and $19.03 — a ~28× inflation that no test caught, because a wrong number is
+still a number.
+
+`test/run-kind-coverage.test.ts` is what stands behind it now. It counts guards
+against table reads **per table per SQL literal**, so a multi-CTE query that scans
+`events` three times needs three of them, and it scans Prisma ORM reads too. Two ways
+to satisfy the count and still be wrong, both of which have shipped here:
+
+- **Guarding the join, not the scan** — a filter on `LEFT JOIN sessions` while the
+  driving `FROM events` runs unfiltered gives a row whose counts cover everyone and
+  whose averages cover only humans. On a LEFT JOIN it also nulls rather than excludes.
+- **Guarding one sibling CTE** — two CTEs over the same table, one filtered, compares
+  different populations: a total larger than the sum of its parts.
+
+A read that legitimately sees every run says so inline with `run-kind-exempt: <reason>`.
+The three continuous aggregates need no fragment — the filter is baked into their
+definitions in `packages/db/sql/migrations/0001_init.sql`. Per-session drill-downs are
+deliberately unguarded: a query already scoped to one id is not a population, and
+filtering it empties the session's own detail page instead of excluding it from anything.
 
 ## Pinning
 

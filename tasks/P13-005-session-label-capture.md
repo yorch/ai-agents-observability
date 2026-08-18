@@ -45,10 +45,17 @@ The seed script creates 24 such rows.
 
 ## Acceptance criteria
 
-- [x] `SessionFeedback` carries a **rubric version** and two new structured fields:
-      a self-reported session shape (the same four values as `shape_label`, plus an
-      explicit "none of these") and a task-outcome judgement
-      (`yes` / `partly` / `no`).
+- [x] The rubric captures a self-reported session shape (the same four values as
+      `shape_label`, plus an explicit "none of these") and a task-outcome judgement
+      (`yes` / `partly` / `no`), against a **rubric version**.
+      *Landed differently from the wording above:* only `rubric_version` is a
+      `SessionFeedback` column. The two answers are `scores` rows
+      (`human_session_shape` / `human_task_outcome`), not columns — they were
+      briefly both, and a dual write to two stores is a divergence waiting for its
+      first failed request. `rubric_version` stays on the row because no score row
+      can express it: "answered version 1 and declined both questions" and
+      "predates the rubric" are different facts, and an absent score row cannot
+      tell them apart.
 - [x] All fields are optional. A developer can still leave a bare thumbs-up, and the
       existing capture path keeps working unchanged.
 - [x] Existing `SessionFeedback` rows remain valid and are readable as
@@ -91,8 +98,8 @@ The seed script creates 24 such rows.
 
 ## Files touched
 
-- `packages/db/prisma/schema.prisma` (`SessionFeedback` fields + rubric version)
-- `packages/db/sql/migrations/00NN_session_feedback_rubric.sql`
+- `packages/db/prisma/schema.prisma` (`SessionFeedback.rubricVersion`, nullable
+  `sentiment`) — a Prisma migration, not a `sql/migrations/` file; see the record below
 - `packages/schemas/src/rubric.ts` (+ test) — versioned rubric definition
 - `apps/web/src/app/me/sessions/[id]/page.tsx` + the feedback component/action
 - `packages/db/src/seed.ts`
@@ -123,9 +130,10 @@ bun run test
 
 Landed. Notes for a reviewer:
 
-- The `SessionFeedback` change is a **Prisma** migration
-  (`packages/db/prisma/migrations/20260812140000_session_rubric_and_projections/`),
-  not the `sql/migrations/00NN_…` file this task's "Files touched" guessed at:
+- The `SessionFeedback` change is a **Prisma** migration — it landed as
+  `20260812140000_session_rubric_and_projections/` and now lives inside the squashed
+  `20260814000000_init/` — not the `sql/migrations/00NN_…` file this task's
+  "Files touched" originally guessed at:
   `session_feedback` is a Prisma-managed table, and patching one of those from
   the custom-SQL layer produces a schema Prisma can no longer regenerate
   (`packages/db/AGENTS.md`).

@@ -28,7 +28,7 @@ import type { Logger } from 'pino';
 import { dispatchAlert } from '../lib/notify/channel';
 import type { EmailConfig } from '../lib/notify/email';
 import { buildAlertPayload } from '../lib/notify/payload';
-import { interactiveSessions } from '../lib/run-kind';
+import { interactiveEvents, interactiveSessions } from '../lib/run-kind';
 import { type AlertEvaluation, applyAlertTransition } from './alert-transition';
 
 type AlertsDb = Pick<
@@ -147,7 +147,8 @@ async function evalUnknownModelSurge(db: AlertsDb, params: unknown): Promise<Eva
     FROM events e
     JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE e.ts >= ${windowStart}
+    WHERE ${interactiveEvents('e')}
+      AND e.ts >= ${windowStart}
       AND e.model IS NOT NULL
       AND e.cost_usd = 0
       AND e.input_tokens > 0
@@ -224,7 +225,8 @@ async function evalRoutingWaste(db: AlertsDb, params: unknown): Promise<Evaluati
     FROM events e
     JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE e.ts >= ${windowStart}
+    WHERE ${interactiveEvents('e')}
+      AND e.ts >= ${windowStart}
       AND e.event_type = 'PostToolUse'
       AND e.model ILIKE '%opus%'
       AND e.tool_category IN ('fs_read', 'search')

@@ -54,9 +54,10 @@ bun run db:seed               # optional
 The rule is **not** "no `ALTER TABLE`" — it is **"nothing Prisma could have modelled."**
 
 `events` is a TimescaleDB hypertable and does not appear in `schema.prisma` at all, so
-`ALTER TABLE events ADD COLUMN IF NOT EXISTS …` is correct here and `0003` does exactly
-that. What's forbidden is patching a **Prisma-managed** table from this layer to dodge
-the reset above — that produces a schema Prisma can no longer regenerate.
+`ALTER TABLE events ADD COLUMN IF NOT EXISTS …` is correct here, and `0001_init.sql`
+creates the whole table this way. What's forbidden is patching a **Prisma-managed**
+table from this layer to dodge the reset above — that produces a schema Prisma can no
+longer regenerate.
 
 Current files:
 

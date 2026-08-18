@@ -89,8 +89,8 @@ shape matters more than the migration mechanics.
 
 ## Files touched
 
-- `packages/db/prisma/schema.prisma`
-- `packages/db/sql/migrations/00NN_scores_table.sql`
+- `packages/db/prisma/schema.prisma` (`Score`) — Prisma models it fully, so it is a
+  relational migration and no `sql/migrations/` file was needed
 - `packages/schemas/src/scores.ts` (+ test) — scorer-name union, source enum, row type
 - `packages/schemas/src/index.ts`
 - `apps/ingest/src/jobs/compute-effectiveness.ts`

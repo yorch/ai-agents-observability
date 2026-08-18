@@ -124,8 +124,9 @@ recorded in `job_runs`. Registered: `sync-teams`, `sync-jira`, `sweep-abandoned`
 `sweep-scratch`, `run-deletions`, `sweep-retention`, `index-transcripts`,
 `compute-effectiveness`, `compute-effectiveness-backfill`,
 `compute-trajectory-scores`, `compute-subject-scores`, `evaluate-alerts`,
-`backfill-redaction`, `reconcile-cost`, `reprice-events` /
-`reprice-events-apply`, and `judge-sessions`. (`alert-transition` and
+`backfill-redaction`, `reconcile-cost`, `reprice-events` / `reprice-events-apply`,
+`judge-sessions`, plus the two operator-triggered rescore entries
+`rescore-effectiveness` and `rescore-trajectory`. (`alert-transition` and
 `anthropic-billing-source` are collaborators, not scheduled entries.)
 
 **`judge-sessions` is the one job that reads conversation content with a model**
@@ -158,8 +159,20 @@ today; the locking is what keeps that from being an assumption.
 `embed-transcripts` is a gated prototype and is **not scheduled** (P7-007 no-go).
 Leave it that way unless the semantic-search decision is revisited.
 
-Any job can be triggered manually via `POST /admin/jobs/:name/run` — that's the
-supported way to exercise one, rather than shortening its schedule.
+**Three tiers, and they are not interchangeable.** `CONFIGURABLE_JOBS` is the set with
+an editable hour+minute cadence in `job_config` (`sweep-retention`,
+`index-transcripts`, `compute-effectiveness`, `compute-trajectory-scores`,
+`compute-subject-scores`, `evaluate-alerts`, `judge-sessions`); the scheduler DB-polls
+those every 60s. `ALL_KNOWN_JOBS` adds the fixed-timer and operator-drain jobs that
+`POST /admin/jobs/:name/run` accepts (`sync-teams`, `sync-jira`, `sweep-abandoned`,
+`sweep-scratch`, `run-deletions`, `backfill-redaction`, `reprice-events`,
+`reprice-events-apply`). Everything else `triggerJob()` can dispatch is **deliberately
+unreachable over HTTP** — `compute-effectiveness-backfill`, `rescore-effectiveness`,
+`rescore-trajectory` and `reconcile-cost` are dispatchable only from in-process code
+(an operator script, or `reconcile-cost`'s own daily timer when
+`billingReconciliationEnabled`). Adding a job to the enum is not what makes it
+triggerable; adding it to `ALL_KNOWN_JOBS` is. For the tiers it does cover, the manual
+trigger is the supported way to exercise a job, rather than shortening its schedule.
 
 **`reprice-events` is two job names on purpose.** The bare name reports what
 repricing would change; `reprice-events-apply` writes it. The trigger endpoint

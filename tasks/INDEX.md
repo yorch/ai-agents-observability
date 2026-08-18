@@ -211,7 +211,9 @@ See [`P9-roadmap.md`](./P9-roadmap.md). Turns passive dashboards into proactive 
 
 ## Phase 10 — Model Cost Optimization
 
-See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §4. **Proposed — not yet started.**
+See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §4.
+
+> **This phase's state is self-contradictory and needs an owner call.** The rows below all read `done`, but this paragraph said "Proposed — not yet started" until 2026-08-18, every `P10-*.md` file still carries `status: ready`, and no `model_policy` table or routing-projection code exists in the repo. Something was marked done that was not built, or built and not recorded. Nothing in Phase 13 depends on the answer — see the note at the end of Phase 13 for the one place it touches (`P10-006` vs `P13-006`).
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
