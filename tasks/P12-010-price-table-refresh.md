@@ -116,6 +116,16 @@ Two things it would not fix, both deliberate: Copilot's table stays empty (seat
 allowance, not tokens), and provider token-accounting normalization stays in the
 adapters, where the semantics are known.
 
+**Resolved by [`P12-012`](./P12-012-generate-provider-agnostic-price-tables.md),
+from a better source than the one proposed above.** The three provider-agnostic
+tables (`pi`, `omp`, `opencode`) are now generated from
+<https://models.dev/api.json> — the catalog opencode itself builds its model list
+from — rather than from `pi-catalog`, which would have meant extracting data from a
+package carrying three `@oh-my-pi/*` deps. The property this note cared about
+survived: the tables are still versioned JSON in the repo, so a price correction is
+still a JSON edit plus a restart, and the generator is a script run deliberately,
+not a fetch at boot. Coverage went from 34 models across 3 vendors to 243 across 20.
+
 ## Files touched
 
 - `apps/ingest/src/data/price-table.{claude_code,codex,gemini_cli,pi,omp,opencode,copilot}.v1.json`

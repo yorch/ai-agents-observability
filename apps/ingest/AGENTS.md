@@ -103,6 +103,40 @@ expiry date. A test asserts the generated tables agree with the hand-maintained
 ones on every shared model, so an unlisted disagreement fails the suite rather
 than pricing the same model two ways depending on which agent ran it.
 
+## Every base-table read says why it sees all runs
+
+Sessions and events carry a `run_kind` (`INTERACTIVE` | `CI` | `EVAL`). The filtered
+views `interactive_sessions` / `interactive_events` (in
+`packages/db/sql/migrations/0001_init.sql`) carry the guard, so a query gets it by
+naming the view rather than by remembering a predicate.
+
+Ingest is the app where **most** reads are legitimately exempt — retention sweeps,
+transcript indexing, redaction backfill, per-session scoring and repricing all operate
+on rows rather than on people, and a job that skipped non-interactive rows would leave
+them permanently unswept, unindexed or mispriced. `src/lib/run-kind.ts` records the
+three classes: row-operations, per-session scorers, and comparisons against an
+unfiltered external ground truth (`reconcile-cost` sums against a vendor invoice that
+bills every token, so filtering would manufacture a permanent drift).
+
+That inverts what is worth checking. Counting guards proves nothing here; the
+interesting claim is the *exemption*. So any `FROM`/`JOIN`/`UPDATE` naming a base table
+must carry a `run-kind-exempt: <why>` comment within twelve lines, and
+`test/run-kind-fragment.test.ts` fails without one. Write the actual reason — a reader
+should be able to check it against the query.
+
+The alert engine is the exception that keeps its own stricter rule: every evaluator
+there answers "is this org's people-driven usage going wrong?", so **no** read in
+`jobs/evaluate-alerts.ts` may name a base table at all. That rule exists because two of
+its seven reads once didn't have the guard while the other five did, so
+`unknown_model_surge` and `routing_waste` counted machine traffic and `spend_spike` and
+`budget_threshold` did not. Nothing failed; the numbers were just wrong in one
+direction.
+
+The app-wide half of the lint was added after the `reprice-events` job landed reading
+and writing both base tables with nothing to flag it — the earlier check was scoped to
+`evaluate-alerts.ts` alone, which is precisely the shape of lint that cannot see the
+file you didn't think of.
+
 ## Boot fails loud
 
 `src/index.ts` runs a `HeadBucketCommand` at startup to prove the bucket exists and the

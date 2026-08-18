@@ -60,6 +60,11 @@ export async function runSweepRetention(
     // retention is disabled for that session. Note LEAST() ignores NULLs, so the
     // `IS NOT NULL` guard is required to keep disabled rows from clamping to the
     // org max. Computed per-row so one query covers every team's policy.
+    // run-kind-exempt: retention sweep. This deletes stored transcript bytes
+    // once they age past the policy window — a storage-lifecycle operation on
+    // the row, not a report about a person. A CI or eval session's transcript
+    // occupies S3 exactly like an interactive one's and must age out the same
+    // way, or non-interactive transcripts would accumulate forever.
     const expiredRows = await db.$queryRaw<{ session_id: string; transcript_s3_key: string }[]>(
       Prisma.sql`
         SELECT s.session_id::text AS session_id, s.transcript_s3_key

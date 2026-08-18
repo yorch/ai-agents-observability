@@ -179,9 +179,21 @@ export async function resolveJudgeSubject(
   sessionId: string,
   config: JudgeRunConfig,
 ): Promise<string | null> {
+  // run-kind-exempt: this looks up one already-identified session by its exact
+  // session_id. The candidate was already restricted to `interactive_sessions`
+  // in selectJudgeCandidates above, so run kind is not a population filter
+  // here — this is a re-check of *consent* for a session already known to be
+  // eligible, and consent is the thing that must not be assumed from the
+  // earlier query. Filtering by run kind again would be redundant rather than
+  // unsafe (it would fail closed, returning no row and skipping the session);
+  // it is left out because the guard this lookup exists to enforce is
+  // `allow_judge_analysis`, and mixing a second predicate into it would blur
+  // which condition rejected a session.
   const rows = await db.$queryRaw<GuardRow[]>(Prisma.sql`
     SELECT s.user_id::text AS user_id,
            COALESCE(vp.allow_judge_analysis, FALSE) AS allow_judge_analysis
+    -- run-kind-exempt: one session by primary key, already selected via
+    -- interactive_sessions upstream; see the comment above this function.
     FROM sessions s
     LEFT JOIN visibility_policies vp ON vp.user_id = s.user_id
     WHERE s.session_id = ${sessionId}::uuid

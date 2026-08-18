@@ -83,6 +83,12 @@ export async function runBackfillRedaction(
 
         const flags = scanRedactionMarkers(text);
         if (flags.length > 0) {
+          // run-kind-exempt: redaction backfill. It writes the marker-scan
+          // result for a row already identified by session_id (from the
+          // candidate walk below) — every transcript was redacted at ingest
+          // regardless of run kind, so the flag summary must cover CI and eval
+          // sessions too or their (already-redacted) transcripts would carry a
+          // permanently-wrong "nothing was redacted" summary.
           await db.$executeRaw(Prisma.sql`
             UPDATE sessions
             SET redaction_flags = ${flags}::text[]
@@ -101,6 +107,10 @@ export async function runBackfillRedaction(
     let cursor: { id: string; ts: Date } | null = null;
 
     for (;;) {
+      // run-kind-exempt: candidate walk for the backfill above — every session
+      // with an already-stored (already-redacted) transcript and no flag
+      // summary yet is a candidate, independent of run kind, since redaction
+      // itself was never run-kind-gated.
       const rows = await db.$queryRaw<BackfillRow[]>(Prisma.sql`
         SELECT s.session_id, s.started_at, s.transcript_s3_key
         FROM sessions s

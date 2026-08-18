@@ -154,6 +154,11 @@ export async function processTrajectoryBatch(
   // lets us tell "exactly the cap, nothing dropped" apart from "more than the
   // cap, truncated" below — `events.length` alone can never do that, since it is
   // clamped to the cap either way.
+  //
+  // run-kind-exempt: per-session scoring -- `sessions` here is the batch this
+  // function was handed by the walk (already selected below), and a trajectory
+  // score is a property of one session's event list, not a people-facing
+  // aggregate.
   const eventRows = await db.$queryRaw<EventRow[]>(Prisma.sql`
     SELECT session_id::text AS session_id, agent_type, event_type, tool_name,
            tool_input_hash, tool_target_hash, tool_action, tool_exit_status,
@@ -163,6 +168,7 @@ export async function processTrajectoryBatch(
              tool_target_hash, tool_action, tool_exit_status, tool_was_denied,
              tool_was_interrupted,
              ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY ts, event_id) AS rn
+      -- run-kind-exempt: see the comment above this query -- per-session scoring.
       FROM events
       WHERE session_id = ANY(${sessionIds}::uuid[])
     ) q
@@ -313,6 +319,11 @@ async function walkSessions(db: DbWithRaw, options: WalkOptions, logger?: Logger
     let totalWritten = 0;
     let batches = 0;
     for (;;) {
+      // run-kind-exempt: candidate walk for the per-session trajectory scorer
+      // (nightly window or full re-score, per `candidateFilter`). Trajectory
+      // scores are a property of one session's event list, same class as
+      // compute-effectiveness — a CI or eval session must be scored too, or its
+      // row would carry no explanation for why it was skipped.
       const sessions = await db.$queryRaw<WalkRow[]>(Prisma.sql`
         SELECT session_id, agent_type, shape_label, tool_call_count, last_event_at
         FROM sessions

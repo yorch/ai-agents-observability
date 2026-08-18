@@ -116,6 +116,11 @@ async function resolveRates(
   db: RepriceDb,
   registry: PriceTableRegistry,
 ): Promise<{ rates: ModelRate[]; unpriced: RepricePlan['unpriced'] }> {
+  // run-kind-exempt: repricing corrects a number already stored on a row, keyed
+  // by (agent_type, model). A CI run's cost_usd is wrong in exactly the same way
+  // an interactive one's is, and nothing else would ever revisit it. Every
+  // human-facing read stays clean downstream — interactive_sessions /
+  // interactive_events, and both cost caggs are themselves filtered.
   const pairs = await db.$queryRaw<PairRow[]>(Prisma.sql`
     SELECT agent_type, model, COUNT(*) AS events
     FROM events
@@ -167,6 +172,11 @@ export async function planReprice(
     }[]
   >(Prisma.sql`
     WITH ${ratesCte(rates)}
+    -- run-kind-exempt: same reasoning as resolveRates above -- this plans the
+    -- repriced delta across every event regardless of run kind, since a CI
+    -- run's stored cost_usd is wrong in exactly the same way an interactive
+    -- one's is, and repriceSessionTotals below must recompute from this same
+    -- unfiltered population or the two would disagree.
     SELECT
       e.agent_type,
       e.model,
@@ -241,6 +251,8 @@ async function repriceEventRows(
     try {
       // `IS DISTINCT FROM` keeps this to the rows whose cost actually moves, so
       // a re-run after a partial failure rewrites nothing it already fixed.
+      // run-kind-exempt: see resolveRates. Repricing is all-or-nothing across
+      // run kinds for the same reason it is all-or-nothing across time.
       const n = await db.$executeRaw(Prisma.sql`
         WITH ${ratesCte(rates)}
         UPDATE events e
@@ -273,6 +285,10 @@ async function repriceEventRows(
  * all-or-nothing for that reason, and this recompute reads every event.
  */
 async function repriceSessionTotals(db: RepriceDb, logger: Logger | undefined): Promise<number> {
+  // run-kind-exempt: this must match what the UPDATE above wrote. Filtering the
+  // recompute while the event reprice ran unfiltered would desynchronize
+  // sessions.total_cost_usd from events.cost_usd for every non-interactive
+  // session — the exact drift this job exists to remove.
   const n = await db.$executeRaw(Prisma.sql`
     UPDATE sessions s
     SET total_cost_usd = agg.total

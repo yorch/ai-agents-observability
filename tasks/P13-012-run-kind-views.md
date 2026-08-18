@@ -190,3 +190,45 @@ Thirteen web test suites that mock `@ai-agents-observability/db` gained an ident
 place.** They resolve to the same value the extension injects, they document intent
 at the call site, and removing them is a diff whose only effect is to make the guard
 less visible.
+
+## Part 3, unplanned — the ingest lint was scoped to one file
+
+Found while rebasing onto the price-table work (#114), and worth recording because
+it is the fifth round of the same failure this task was written about.
+
+#114 added `reprice-events`, a job that reads `events`, writes `events`, and writes
+`sessions` — all unfiltered, all correct. It passed CI clean, and not because anyone
+had decided it should: the ingest lint's only structural check
+(`the alert engine guards every table it scans`) was hard-scoped to
+`jobs/evaluate-alerts.ts` by filename. Nothing looked at the rest of the app. A lint
+aimed at the places you already thought of cannot see the place you didn't — which is
+the same sentence this task's Context section already used about four earlier rounds.
+
+`test/run-kind-fragment.test.ts` now asks the app-wide question instead: any
+`FROM`/`JOIN`/`UPDATE` naming a base table must carry a `run-kind-exempt:` marker
+within twelve lines. It found **21 sites**, every one of them pre-existing and
+legitimately exempt. That is the expected result and not a reason to skip the work:
+the markers turn twenty-one silent assumptions into twenty-one checkable claims,
+which is the whole point of inverting the default.
+
+Two decisions came out of it rather than being mechanical:
+
+- **`reprice-events` is exempt, and guarding it would be a bug.** Its own docstring
+  says four things must move together or the dashboards contradict each other
+  (`events.cost_usd` → `sessions.total_cost_usd` → `pr_rollups` → the cost caggs).
+  Filtering the event reprice while `repriceSessionTotals` stayed unwindowed would
+  desynchronize session totals from event costs for every non-interactive session —
+  the exact drift the job exists to remove. The caggs are themselves filtered, so no
+  unguarded number reaches a dashboard through that path.
+- **`getUnpricedModels` (new on `apps/web`) is exempt for the opposite reason.** It
+  asks which models the price tables are missing. A model only CI ever runs is
+  missing just as expensively, and filtering would hide the gap precisely where
+  nobody would notice it. Its guarded sibling `unknown_model_surge` answers a
+  different question — "is billing drifting for the people we report on" — and the
+  two differing is deliberate, now stated in both places.
+
+One cross-app invariant surfaced too: `computePRRollup` runs from three places (the
+github-app webhook, the manual link/unlink actions on `/me/sessions/[id]`, and now
+the reprice job). Only the web path could have been guarded, and a guard there would
+have made the stored rollup depend on which path wrote it last. Both web call sites
+already used `getAllRunsPrisma`; the comment now says *why* rather than only that.

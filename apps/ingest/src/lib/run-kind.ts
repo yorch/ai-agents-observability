@@ -14,9 +14,22 @@ import { Prisma } from '@ai-agents-observability/db';
  * silently let CI runs into org spend. A single fragment is greppable, and a
  * missing one is visible as an absent import.
  *
- * **Deliberately not applied** to jobs that operate on rows rather than people —
- * retention sweeps, transcript indexing, redaction backfill, and the effectiveness
- * scorer, which must see every session it is asked to score.
+ * **Deliberately not applied** to three classes of read, each of which states its
+ * reason inline with a `run-kind-exempt:` marker that
+ * `test/run-kind-fragment.test.ts` requires:
+ *
+ * 1. **Jobs that operate on rows rather than people** — retention sweeps,
+ *    transcript indexing, redaction backfill, and repricing. A CI session's
+ *    transcript occupies S3 and its `cost_usd` goes stale exactly like anyone
+ *    else's; skipping it leaves it permanently unswept or mispriced.
+ * 2. **Per-session scorers** — a CI session's friction score is a property of
+ *    that session. Withholding it would make the row unexplainable rather than
+ *    excluded.
+ * 3. **Comparisons against an unfiltered external ground truth** — `reconcile-cost`
+ *    sums client-computed cost against the vendor's monthly invoice, and the
+ *    vendor bills every token the account sends. There is no "interactive only"
+ *    line item to reconcile against, so filtering here would manufacture a
+ *    permanent drift against a number that was never meant to match.
  */
 
 /** For `FROM sessions` with no alias. */

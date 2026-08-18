@@ -333,6 +333,11 @@ export async function upsertSessions(
   const alreadyEscalated = new Set<string>();
   if (claiming.length > 0) {
     const claimedIds = Prisma.join(claiming.map((a) => Prisma.sql`${a.sessionId}::uuid`));
+    // run-kind-exempt: this is the ingest WRITE path that establishes run_kind
+    // in the first place (see the file-level P13-002 note above). It reads
+    // sessions.run_kind to decide whether *this batch* is the moment a session
+    // transitions to non-interactive — the value being checked here is the
+    // fact under construction, not something to filter by.
     const settled = await db.$queryRaw<{ session_id: string }[]>(Prisma.sql`
       SELECT session_id::text AS session_id
       FROM sessions
@@ -426,6 +431,10 @@ export async function upsertSessions(
   const escalated = claiming.filter((a) => !alreadyEscalated.has(a.sessionId));
   if (escalated.length > 0) {
     const ids = Prisma.join(escalated.map((a) => Prisma.sql`${a.sessionId}::uuid`));
+    // run-kind-exempt: still the write path. This propagates the session's
+    // just-settled run_kind onto its own already-written events rows — it is
+    // the mechanism that keeps events.run_kind in step with sessions.run_kind,
+    // not a read that should be scoped to interactive rows.
     await db.$executeRaw(Prisma.sql`
       UPDATE events e
       SET run_kind = s.run_kind

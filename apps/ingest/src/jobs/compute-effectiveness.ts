@@ -53,6 +53,11 @@ async function processEffectivenessBatch(
   logger?: Logger,
 ): Promise<number> {
   const sessionIds = sessions.map((s) => s.session_id);
+  // run-kind-exempt: per-session scoring. `sessions` is the exact batch this
+  // function was handed by its caller (already selected upstream, e.g. by
+  // shape_label IS NULL or a scores-table gap) — a CI or eval session's
+  // friction score is a property of that session, so withholding it here would
+  // make the row unexplainable rather than excluded from anything.
   const allHistograms = sessionIds.length
     ? await db.$queryRaw<(ToolRow & { session_id: string })[]>(Prisma.sql`
         SELECT session_id::text AS session_id, tool_name, COUNT(*) AS call_count
@@ -73,6 +78,8 @@ async function processEffectivenessBatch(
 
   // HITL response latency: gap between each blocking Notification and the next
   // event in the session (LEAD), aggregated per session. One batch query.
+  // run-kind-exempt: same batch of already-selected sessionIds as the
+  // histogram query above — this is per-session scoring, not a people report.
   const gapRows = sessionIds.length
     ? await db.$queryRaw<
         { gap_ms: number; notification_kind: string | null; session_id: string }[]
@@ -129,6 +136,9 @@ async function processEffectivenessBatch(
       // are written in one transaction so a scored session can never end up with
       // a column value and no matching score row, which would make the
       // calibration reads silently under-count.
+      // run-kind-exempt: writes the friction_score/shape_label cache for the
+      // one session `s` this loop iteration is scoring — a per-session scorer
+      // write, not a people-facing aggregate.
       await db.$transaction([
         db.$executeRaw(Prisma.sql`
           UPDATE sessions
@@ -176,6 +186,10 @@ export async function runComputeEffectiveness(db: DbWithRaw, logger?: Logger): P
     jobRunId = jobRun.id;
 
     // Unscored sessions (shape_label IS NULL) updated in the last 48 hours.
+    // run-kind-exempt: candidate selection for the per-session effectiveness
+    // scorer — every session, interactive or not, that has never been scored
+    // must get a friction_score/shape_label, since those are properties of the
+    // session itself (see the class doc in lib/run-kind.ts).
     const sessions = await db.$queryRaw<SessionEffRow[]>(Prisma.sql`
       SELECT
         session_id, status, started_at, ended_at,
@@ -248,6 +262,9 @@ export async function runRescoreEffectiveness(
       // current version. Shape is the marker rather than friction for the same
       // reason the other two jobs use `shape_label`: classifySessionShape is
       // total, whereas computeFrictionScore legitimately returns null.
+      // run-kind-exempt: re-score-at-current-version walk for the per-session
+      // effectiveness scorer — bumping the scorer version must re-score every
+      // session, CI/eval included, exactly like the nightly/backfill paths do.
       const sessions = await db.$queryRaw<SessionEffRow[]>(Prisma.sql`
       SELECT
         s.session_id, s.status, s.started_at, s.ended_at,
@@ -323,6 +340,9 @@ export async function runComputeEffectivenessBackfill(
     let totalUpdated = 0;
     let batches = 0;
     for (;;) {
+      // run-kind-exempt: historical backfill walk for the per-session
+      // effectiveness scorer — same reasoning as the nightly job's candidate
+      // query above, just with no recency window.
       const sessions = await db.$queryRaw<SessionEffRow[]>(Prisma.sql`
         SELECT
           session_id, status, started_at, ended_at,

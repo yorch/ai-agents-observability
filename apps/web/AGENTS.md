@@ -51,7 +51,7 @@ Read [`/PLAN.md`](../../PLAN.md) and [`/tasks/`](../../tasks/) before picking up
 - **Faceted pages keep filter state visible and survivable.** Applied filters render as `FilterChips` (per-chip remove + clear-all); every pager `hrefFor` must carry the active filters (dropping them on page 2 was a shipped bug); zero-result states say the filters caused it and offer one-click clear.
 - **The command palette derives from `nav-model.ts`** — add a page to the nav model and Cmd/Ctrl+K finds it; never give the palette its own page list.
 - **Auth is owned by `@ai-agents-observability/auth`** — do not introduce NextAuth. Use `currentUser()` from `src/lib/auth.ts` in server components / route handlers.
-- **Prisma**: server-only. Import `prisma` from `src/lib/prisma.ts`; never reference it inside `'use client'` modules.
+- **Prisma**: server-only. Call `getPrisma()` from `src/lib/prisma.ts` — there is no bare `prisma` export to import, deliberately, because the guarded and unguarded clients have to be told apart at the call site (see the `run_kind` section below). Never reference either inside `'use client'` modules.
 - **Routing layout**:
   - `/login`, `/install`, `/health`, `/metrics` — public.
   - `/me/*` — authenticated, own-data scope. Session list + detail + transcript viewer, PR list, insights, search, access grants, and settings (profile, privacy, audit feed).

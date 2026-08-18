@@ -68,6 +68,8 @@ These SLOs define the measurable reliability targets for the ai-agents-observabi
 | `sync-jira` | Every 6h when Jira is configured | < 5 min | > 15 min or 2 consecutive failures. No-ops with a warning when unconfigured |
 | `reconcile-cost` | Daily when `BILLING_RECONCILIATION_ENABLED=true` | < 15 min | Any failure when enabled |
 | `backfill-redaction` | Operator-triggered only (`POST /admin/jobs/backfill-redaction/run`) | one trigger drains the whole backlog | Any failure |
+| `reprice-events` | Operator-triggered only, report-only — never writes | < 5 min | Any failure |
+| `reprice-events-apply` | Operator-triggered only, **writes historical cost** | < 30 min | Any failure. A run that fails partway leaves history partly repriced — re-run it rather than leaving it, since `IS DISTINCT FROM` makes the rewrite idempotent. Do not run a report against a table mid-apply: it will describe a half-repriced state |
 
 Three more jobs — `compute-effectiveness-backfill`, `rescore-effectiveness`,
 `rescore-trajectory` — are one-shot and dispatchable only from in-process operator

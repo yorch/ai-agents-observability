@@ -234,6 +234,11 @@ export async function linkSessionPR(formData: FormData): Promise<PRLinkResult> {
 
   // run-kind-exempt: one session by id, already ownership-checked below. A
   // developer linking a PR to their own CI session must be able to.
+  //
+  // This one is load-bearing beyond the read. `computePRRollup` below runs the
+  // same code `apps/ingest`'s reprice job and the github-app webhook run, and
+  // neither of those filters by run kind. A guarded client here would make the
+  // stored rollup depend on which of the three paths wrote it last.
   const db = getAllRunsPrisma('own session by id, ownership checked inline');
 
   // Own-session only.

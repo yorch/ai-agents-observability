@@ -86,3 +86,47 @@ describe('the alert engine guards every table it scans', () => {
     expect(count(/interactiveSessions\('s'\)|interactiveEvents\('e'\)/g)).toBe(0);
   });
 });
+
+/**
+ * The generic half, added when the price-table work (#114) landed a new job —
+ * `reprice-events` — that reads and *writes* both base tables, and sailed through
+ * this file clean because the only structural check above was hard-scoped to
+ * `evaluate-alerts.ts`.
+ *
+ * That is the same failure the web side already learned: a lint aimed at the
+ * places you already thought of cannot see the place you didn't. So this asks the
+ * app-wide question instead — any `FROM`/`JOIN`/`UPDATE` naming a base table must
+ * say, within a few lines of itself, why it is allowed to see every run.
+ *
+ * Ingest genuinely has more exempt reads than guarded ones (retention, indexing,
+ * redaction backfill, per-session scoring, repricing), which is precisely why the
+ * marker has to be written rather than counted: the exemption is the interesting
+ * claim here, not the guard.
+ */
+const BASE_TABLE = /\b(?:FROM|JOIN|UPDATE)\s+(sessions|events)\b(?!_)/g;
+const EXEMPT = /run-kind-exempt:/;
+const EXEMPT_WINDOW = 12;
+
+describe('every base-table read in ingest states why it sees all runs', () => {
+  it('names no base table without a run-kind-exempt marker beside it', () => {
+    // run-kind.ts is the filter's own definition — it names the base tables
+    // because it is the thing that filters them.
+    const offenders = walk(SRC)
+      .filter((f) => !f.endsWith('lib/run-kind.ts'))
+      .flatMap((file) => {
+        const src = readFileSync(file, 'utf8');
+        const lines = src.split('\n');
+        return [...src.matchAll(BASE_TABLE)]
+          .map((m) => {
+            const lineNo = src.slice(0, m.index).split('\n').length;
+            const context = lines.slice(Math.max(0, lineNo - 1 - EXEMPT_WINDOW), lineNo).join('\n');
+            return EXEMPT.test(context)
+              ? null
+              : `${file.slice(SRC.length + 1)} line ${lineNo}: ${m[0]}`;
+          })
+          .filter((o): o is string => o !== null);
+      });
+
+    expect(offenders).toEqual([]);
+  });
+});

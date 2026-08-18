@@ -185,12 +185,14 @@ by the shipper before upload, out of the hot path.)*
 - `POST /v1/events` (idempotent batch), `POST /v1/transcripts/:id` (chunked,
   re-redacted), `GET /v1/price-table?agent=` (per-agent, ETag), `/health`,
   `/readyz`, `/metrics`, `POST /admin/jobs/:name/run`.
-- **17 dispatchable jobs in three tiers.** Seven have an operator-editable cadence in
+- **19 dispatchable jobs in three tiers.** Seven have an operator-editable cadence in
   `job_config` (`sweep-retention`, `index-transcripts`, `compute-effectiveness`,
   `compute-trajectory-scores`, `compute-subject-scores`, `evaluate-alerts`,
-  `judge-sessions`); six more run on fixed timers or are drainable over HTTP
+  `judge-sessions`); eight more run on fixed timers or are drainable over HTTP
   (`sync-teams`, `sync-jira`, `sweep-abandoned`, `sweep-scratch`, `run-deletions`,
-  `backfill-redaction`); four are one-shot and reachable only from in-process operator
+  `backfill-redaction`, and the `reprice-events` / `reprice-events-apply` pair, which
+  is one job behind a two-name safety interlock — the bare name reports, `-apply`
+  writes); four are one-shot and reachable only from in-process operator
   code, never over HTTP (`compute-effectiveness-backfill`, `rescore-effectiveness`,
   `rescore-trajectory`, `reconcile-cost`). Notably the **alert-evaluation engine**
   (`evaluate-alerts` → `alert-transition` → notify channels) and
