@@ -1,5 +1,5 @@
 import { ADAPTER_AGENT_TYPES } from '@ai-agents-observability/schemas';
-import { Cell, Row, Table } from '@/components/ui';
+import { CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { getConfig } from '@/lib/config';
 import { fmtDate } from '@/lib/fmt';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -104,9 +104,7 @@ export default async function PriceTablesPage() {
           {!result.ok ? (
             <p className="text-sm text-text-3 italic">{result.reason}</p>
           ) : Object.keys(result.prices).length === 0 ? (
-            <p className="text-sm text-text-3 italic">
-              No models configured (all sessions bill $0)
-            </p>
+            <CardEmpty>No models configured — all sessions bill $0.</CardEmpty>
           ) : (
             <Table
               columns={[

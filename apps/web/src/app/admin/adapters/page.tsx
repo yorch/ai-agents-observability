@@ -1,5 +1,5 @@
 import { ADAPTER_AGENT_TYPES, agentDisplayName } from '@ai-agents-observability/schemas';
-import { Badge, Card, Cell, Row, Table } from '@/components/ui';
+import { Badge, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -198,7 +198,7 @@ export default async function AdaptersPage() {
           </p>
         </div>
         {versionAgents.length === 0 ? (
-          <p className="text-sm text-text-3">No sessions in the last 30 days.</p>
+          <CardEmpty>No sessions in this period.</CardEmpty>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {versionAgents.map((agent) => {
