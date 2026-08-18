@@ -27,8 +27,11 @@ describe('buildAlertPayload (trust guardrail — aggregate only)', () => {
         details: {
           count: 73,
           models: [
-            { agentType: 'GEMINI_CLI', count: 60, model: 'gemini-3-pro-preview' },
-            { agentType: 'PI', count: 13, model: 'groq/llama-4' },
+            // Two shapes an operator really sees: an alias tag, deliberately
+            // unpriced because it is repointed without its name changing; and a
+            // model from a provider the tables do not cover.
+            { agentType: 'GEMINI_CLI', count: 60, model: 'gemini-flash-latest' },
+            { agentType: 'PI', count: 13, model: 'ollama/llama4' },
           ],
           threshold: 10,
           windowHours: 24,
@@ -39,8 +42,8 @@ describe('buildAlertPayload (trust guardrail — aggregate only)', () => {
     );
     // A count alone leaves the operator grepping logs for what to add.
     expect(p.description).toContain('73 events');
-    expect(p.description).toContain('gemini_cli:gemini-3-pro-preview (60)');
-    expect(p.description).toContain('pi:groq/llama-4 (13)');
+    expect(p.description).toContain('gemini_cli:gemini-flash-latest (60)');
+    expect(p.description).toContain('pi:ollama/llama4 (13)');
   });
 
   it('still renders unknown_model_surge for a details blob written before `models`', () => {

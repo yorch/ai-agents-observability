@@ -107,6 +107,26 @@ name-alignment matter more there than those details.
 - **Providers models.dev does not carry.** Still `$0`, still counted in
   `unknown_model_events_total`.
 
+## Fixtures naming models nobody ships
+
+Auditing the `gemini-3-pro-preview` question turned up the same problem in the
+test suite: three adapter fixtures named models no vendor has ever shipped —
+`gemini-3-pro` (it was `gemini-3-pro-preview`, now shut down), `gpt-5.2-codex`
+(OpenAI's line goes `gpt-5-codex` → `gpt-5.3-codex`), and a bare `claude-opus-4`
+(Opus 4 only ever had a dated id). All three were green, on input that bills `$0`
+in production — the same shape as P12-002, where opencode's fixtures used
+UUID-shaped session ids while the real ones were `ses_`-prefixed.
+
+Replaced with ids taken from the shipped tables, and the "test with realistic
+payloads" rule in [`apps/hook/AGENTS.md`](../apps/hook/AGENTS.md) now says model
+names count. It cannot be enforced by a test: the price tables live in
+`apps/ingest` and `apps/hook` must not depend on it.
+
+The `unknown_model_surge` alert fixture moved off `gemini-3-pro-preview` too — a
+shut-down model cannot be the unpriced model an operator is being warned about.
+It now shows the two shapes that really occur: an alias tag and a provider the
+tables do not cover.
+
 ## Files touched
 
 - `scripts/gen-price-tables.ts` (new), `package.json` (`gen:price-tables`)
@@ -115,7 +135,9 @@ name-alignment matter more there than those details.
 - `apps/ingest/test/price-tables.test.ts` — invariants split by provenance, plus
   the cross-source agreement test
 - `apps/web/src/app/admin/price-tables/page.tsx`
-- `apps/ingest/AGENTS.md`, `DESIGN_DOC.md` §11.6
+- `apps/hook/src/adapters/{gemini-cli,omp,stdin-hook-factory}.test.ts`,
+  `apps/ingest/test/alert-notify.test.ts` — fixtures onto real, priced model ids
+- `apps/ingest/AGENTS.md`, `apps/hook/AGENTS.md`, `DESIGN_DOC.md` §11.6
 
 ## Out of scope
 

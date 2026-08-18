@@ -69,14 +69,14 @@ describe('omp adapter', () => {
 
   it('attaches usage on turn_end', () => {
     const ev = ompAdapter.mapPayload('stop', {
-      model: 'gpt-5.2-codex',
+      model: 'gpt-5.3-codex',
       sessionId: SESSION_ID,
       usage: { cacheRead: 500, input: 3000, output: 400 },
     });
     expect(ev.llm?.input_tokens).toBe(3000);
     expect(ev.llm?.output_tokens).toBe(400);
     expect(ev.llm?.cache_read_tokens).toBe(500);
-    expect(ev.llm?.model).toBe('gpt-5.2-codex');
+    expect(ev.llm?.model).toBe('gpt-5.3-codex');
   });
 
   it('reads usage past the 256-byte title slot at the head of the file', () => {

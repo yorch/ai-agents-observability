@@ -89,8 +89,8 @@ describe('claude-code through the factory — golden output', () => {
   });
 
   it('keeps `model` in metadata for Claude (it is not a structurally captured key)', () => {
-    const ev = toEvent('stop', { cwd: '/repo', model: 'claude-opus-4', session_id: SESSION_ID });
-    expect(ev.metadata.model).toBe('claude-opus-4');
+    const ev = toEvent('stop', { cwd: '/repo', model: 'claude-opus-5', session_id: SESSION_ID });
+    expect(ev.metadata.model).toBe('claude-opus-5');
   });
 
   it('ships the Stop transcript keyed to the event session id', () => {
