@@ -221,24 +221,22 @@ See [`P9-roadmap.md`](./P9-roadmap.md). Turns passive dashboards into proactive 
 
 See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §4.
 
-> **This phase's state is self-contradictory and needs an owner call.** The rows below all read `done`, but this paragraph said "Proposed — not yet started" until 2026-08-18 and every `P10-*.md` file still carries `status: ready`.
+> **Reconciled 2026-08-18 by owner decision.** Every row here previously read `done` while every `P10-*.md` file read `status: ready`. Each task was audited against the code rather than against the other document, and the answer differed per task — which is why "`INDEX.md` is the source of truth" would have been the wrong blanket fix in either direction.
 >
-> Checked against the repo on 2026-08-18, the answer differs per task rather than per phase, which is why this is not a one-line fix:
->
-> - **Not built.** `P10-002`'s `model_policy` table, `apps/web/src/lib/model-policy.ts` and `/admin/model-policy` do not exist anywhere — not in `schema.prisma`, not in either app. `P10-005`'s `disallowed_model` alert rule does not exist in `packages/schemas`, the alert engine, or the seeds. These two are unambiguously **not** done, and `P10-005` depends on `P10-002`.
-> - **Shipped, under other names.** The substance of `P10-001`/`003`/`004` is present — `apps/web/src/lib/routing-queries.ts` (not the planned `routing-analysis.ts`), `/org/models`, `recommendations.ts`, and the per-team routing-accountability table — but it arrived through P8/P11 work rather than as these tasks, so "done" may be recording the outcome rather than the task.
-> - **Arguably superseded.** `P10-006` is what [`P13-006`](./P13-006-projection-validation-pattern.md) generalizes; see the note at the end of Phase 13.
->
-> Nothing in Phase 13 depends on the answer. What an owner needs to decide is whether `P10-001`/`003`/`004` count as done by another route, and whether `P10-002`/`005` should be reopened or dropped.
+> - **`P10-002` and `P10-005` were never built**, confirmed by search: no `model_policy` in `schema.prisma`, `sql/migrations/` or either app; no `apps/web/src/lib/model-policy.ts`; no `/admin/model-policy` route; no `disallowed_model` in `packages/schemas`, the alert engine, or the seeds. Both reopened as `ready`. `P10-002` is the load-bearing one — `P10-003`'s constants-removal criterion and all of `P10-005` depend on it.
+> - **`P10-001` and `P10-003` shipped their substance but miss named criteria**, so both are `in-progress` with the gaps unticked in their files. The routing layer landed as `routing-queries.ts` (not the planned `routing-analysis.ts`) via P8/P11 work: real, pure, price-table-driven, range-producing. What it lacks is not cosmetic — no `agent_type`/`shape_label` grain, no volume floor, and a savings resolver that draws its target rate from one merged price map, so another agent's economy model can set the denominator for a Claude model. That last is exactly what `P10-001` criterion 5 forbids. `P10-003` fails its own grep: `PREMIUM_PATTERNS` is still declared at `org/models/page.tsx:31`.
+> - **One item is a design disagreement, not unfinished work.** `P10-001` says a missing price entry must yield `savings: null`, "never a fabricated number"; the code deliberately falls back to a flat `HAIKU_SAVINGS_RATIO = 0.9` and marks the surface imprecise. Settle that before building the rest.
+> - **`P10-004` was not built.** `buildRecommendations` emits five kinds and none is routing or cache, which its criterion 2 requires; `/team/[slug]` has a cache-hit stat but no routing section. Reopened as `ready`. The seam it specifies already exists and is the right shape, so this is an extension rather than new architecture.
+> - **`P10-006` is `cancelled`, superseded by [`P13-006`](./P13-006-projection-validation-pattern.md)**, which satisfies all five of its criteria through a general projection registry — persisted ranged claims, `not_yet_measurable` volume gating, and an outcome guard over friction / revert / tool-error movement. `cancelled` rather than `done` because this spec was never implemented as written.
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | done | claude | M | P8-002, P4-004, P7-001 |
-| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | done | claude | M | P8-002 |
-| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | done | claude | M | P10-001, P10-002 |
-| [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | done | claude | M | P10-001 |
-| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | done | claude | M | P10-002, P9-001 |
-| [P10-006](./P10-006-recommendation-validation-loop.md) | Recommendation validation loop | done | claude | M | P10-001, P10-003 |
+| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | in-progress | claude | M | P8-002, P4-004, P7-001 |
+| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | ready | — | M | P8-002 |
+| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | in-progress | claude | M | P10-001, P10-002 |
+| [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | ready | — | M | P10-001 |
+| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | ready | — | M | P10-002, P9-001 |
+| [P10-006](./P10-006-recommendation-validation-loop.md) | Recommendation validation loop | cancelled | — | M | P10-001, P10-003 |
 
 ---
 
@@ -327,4 +325,4 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 > **Workstream D is split, not deferred.** The runner and every guardrail (consent gating, audit writes, owner-only display, versioned prompt registry, cost recording) are built now and exercised against the operator's own sessions — those are the things that never get retrofitted. The irreversible act, pointing the judge at another person's transcript, is isolated in [`P13-011`](./P13-011-arm-judge-for-other-users.md) behind a calibrated judge **and** an explicit owner decision taken with developers consulted in advance.
 >
-> **Overlap with `P10-006` — needs an owner call.** [`P13-006`](./P13-006-projection-validation-pattern.md) ships the projected-vs-realized check as a general mechanism (projection registry, pure realization function, outcome guard, volume gating) and applies it to the `/org/models` routing recommendations that [`P10-006`](./P10-006-recommendation-validation-loop.md) specifies. This branch originally marked P10-006 cancelled-as-superseded; that was written when P10 was `ready`. Phase 10 is now `done` here, so the claim is withdrawn rather than re-asserted over the trunk. Note the state is inconsistent independently of this branch: the row above says `done`, `P10-006-recommendation-validation-loop.md` still carries `status: ready`, and no `model_policy` table or routing-projection code is present. Whoever reconciles Phase 10 should decide whether P10-006 is satisfied by P13-006 or is still outstanding.
+> **Overlap with `P10-006` — settled 2026-08-18.** [`P13-006`](./P13-006-projection-validation-pattern.md) ships the projected-vs-realized check as a general mechanism (projection registry, pure realization function, outcome guard, volume gating) and applies it to the `/org/models` routing recommendations that [`P10-006`](./P10-006-recommendation-validation-loop.md) specifies. `P10-006` is now `cancelled` as superseded, by owner decision taken with the rest of the Phase 10 reconciliation — `cancelled` rather than `done` because its own spec was never implemented as written. The criterion-by-criterion mapping is in that task file. This branch had asserted the same conclusion unilaterally once and withdrew it; the difference now is that Phase 10's state was audited against the code first.

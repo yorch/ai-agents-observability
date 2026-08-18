@@ -73,3 +73,22 @@ bun --filter '@ai-agents-observability/web' test recommendations
 bun run --cwd apps/web typecheck
 # Manual: an efficient seeded user shows no routing nag; an Opus-on-reads user does.
 ```
+
+## Audit 2026-08-18 — confirmed not built, status held at `ready`
+
+`INDEX.md` carried this as `done` and a note claimed its substance had shipped under
+other filenames. Checked against the code, it has not.
+
+`buildRecommendations` (`apps/web/src/lib/recommendations.ts`) emits five kinds —
+`permission-denials`, `tool-errors:*`, `mcp-errors:*`, `interrupts`, `abandonment`.
+**None is a routing or cache recommendation**, which criterion 2 requires outright.
+`/team/[slug]` renders a "Cache hit rate" stat but has no routing-opportunities
+section and no guidance attached to the cache figure.
+
+The good news for whoever picks this up: the seam this task specifies already exists
+and is already the right shape. `buildRecommendations` is pure, takes pre-fetched
+inputs, and each existing recommendation is individually gated — so adding a routing
+tip and a cache tip is an extension of a working pattern, not new architecture. The
+org-side derivation (`computeRoutingRecommendations`, `routingSavingRange`) is
+likewise reusable, though it inherits `P10-001`'s missing volume floor, which
+criterion 3 ("no nagging, no false positives") depends on.

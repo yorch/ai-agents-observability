@@ -10,7 +10,7 @@ These were agreed during planning and are the basis for every task below. If one
 
 | Area | Choice | Rationale (short) |
 |---|---|---|
-| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 12 (agent adapter expansion, done); Phase 10 proposed (`ready`); Phase 13 (scoring & evaluation) in progress; remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
+| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 12 (agent adapter expansion, done); Phase 10 partly shipped and reconciled per task (two `in-progress`, three `ready`, one `cancelled`); Phase 13 (scoring & evaluation) done except four tasks `blocked` on the DP-1 data precondition; remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
 | Dev environment | docker-compose locally | Single `up` from a clean clone |
 | Hook binary | Bun, compiled with `bun build --compile` | Single static binary, fast cold start |
 | Object store | MinIO (local dev + homelab prod) | S3-compatible, self-hostable |
@@ -205,9 +205,9 @@ Tasks P11-001–P11-004 are `done`, including defect attribution (`/org/quality`
 
 ### Phase 10 — Model Cost Optimization
 
-**Proposed — not started.** Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](./OPPORTUNITIES.md) §4.
+**Partly shipped, reconciled 2026-08-18.** Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](./OPPORTUNITIES.md) §4.
 
-Tasks P10-001–P10-006 are `ready` (all dependencies `done`). See [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md) for the full rationale.
+The phase never ran as a phase; parts of it arrived through P8/P11 work, which is why `INDEX.md` and the task files disagreed for a while. Audited against the code and settled per task: `P10-001` and `P10-003` are `in-progress` (the routing layer and the `/org/models` surface are real, but there is no `agent_type`/`shape_label` grain, no volume floor, a cross-agent price contamination in the savings resolver, and the constants `P10-003` required be deleted are still there); `P10-002`, `P10-004` and `P10-005` are `ready` and confirmed unbuilt; `P10-006` is `cancelled`, superseded by `P13-006`. `P10-002` is the load-bearing gap — the other two open tasks and one of `P10-003`'s criteria all wait on the policy it defines. See [`tasks/INDEX.md`](./tasks/INDEX.md) for the per-task evidence and [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md) for the rationale.
 
 **Exit**: a routing recommendation carries a savings figure an engineer can defend from the price table, and a team can see its own routing accountability without an org admin reading anyone's sessions.
 
@@ -227,7 +227,7 @@ Sequenced against the fact that no rollout has happened: build only what pays of
 
 **Exit**: no number on a dashboard is asserted without provenance, a version, and — once measurable — a published relationship to a real outcome. No individual's score is visible to anyone but them.
 
-**Overlaps Phase 10.** P13-006 implements the projected-vs-realized check that P10-006 specifies, as a general mechanism. Phase 10 is marked `done` while `P10-006`'s own task file still reads `ready` and no routing-projection code is present, so whether P10-006 is satisfied by P13-006 or still outstanding is an owner call, not one this phase makes.
+**Overlaps Phase 10.** P13-006 implements the projected-vs-realized check that P10-006 specifies, as a general mechanism — a projection registry rather than a routing-specific panel. `P10-006` is now `cancelled` as superseded, settled by owner decision on 2026-08-18 with the rest of the Phase 10 reconciliation; the criterion-by-criterion mapping is in that task file.
 
 ---
 

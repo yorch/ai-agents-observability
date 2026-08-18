@@ -83,3 +83,13 @@ bun run typecheck
 # Manual: set an allowed set excluding a seeded model, trigger evaluate-alerts via
 # POST /admin/jobs/evaluate-alerts/run, confirm an AlertEvent with aggregate-only detail.
 ```
+
+## Audit 2026-08-18 — confirmed not built, status held at `ready`
+
+`INDEX.md` carried this as `done`. It is not started: `disallowed_model` appears
+nowhere in `packages/schemas`, in the ingest alert engine, or in the alert-rule seeds
+in `packages/db/sql/migrations/0001_init.sql`.
+
+It also cannot start yet. This task's whole subject is enforcing the allowed-model set
+that `P10-002` defines, and `P10-002` is itself unbuilt — so `depends_on: [P10-002]`
+is a real block, not a formality.

@@ -1,7 +1,7 @@
 # ai-agents-observability — Design Document
 
 **Project:** `ai-agents-observability`
-**Status:** Phases 1–9, 11 and 12 are done; Phase 10 is proposed (`ready`); Phase 13 (scoring & evaluation) is in progress, with its analysis and judge-arming tasks `blocked` by design on a stated data precondition. Remaining open task statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8
+**Status:** Phases 1–9, 11 and 12 are done; Phase 10 is partly shipped and reconciled per task (§12.10); Phase 13 (scoring & evaluation) is done apart from its analysis and judge-arming tasks, which are `blocked` by design on a stated data precondition. Remaining open task statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8
 **Owner:** Jorge (SentinelOne)
 **Last updated:** 2026-08-14 (see §17 — keep this in step with the last row of the history table)
 **Audience:** Internal — dev tools team, leadership stakeholders
@@ -1227,7 +1227,7 @@ Turns the heuristic `/org/models` routing card into a defensible, governed optim
 45. Org, team and individual routing guidance, plus a per-team routing-accountability table
 46. `routing_waste` alert rule — premium-model spend on retrieval-only tool categories
 
-**State:** `tasks/INDEX.md` marks the phase `done` while every `P10-*.md` file reads `ready` and no `model_policy` table exists. That contradiction is recorded in `INDEX.md` and is an owner call, not a documented design position.
+**State:** partly shipped. Reconciled per task on 2026-08-18, after `INDEX.md` marked the phase `done` while every `P10-*.md` file read `ready`. Item 44's query layer and item 45's org/team surfaces exist (as `routing-queries.ts` and `/org/models`, reached through P8/P11 work) but miss named criteria, so `P10-001`/`P10-003` are `in-progress`; item 45's individual guidance was never built. Item 46's `routing_waste` rule ships. The governed half — a `model_policy` table and the `disallowed_model` rule — does not exist, so `P10-002`/`P10-005` are `ready`. `P10-006` is `cancelled`, superseded by `P13-006`'s projection registry. Per-task evidence is in `tasks/INDEX.md`.
 
 ### 12.11 Phase 11 — Correlation & Jira Integration
 
