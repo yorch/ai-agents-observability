@@ -83,6 +83,8 @@ rather than per-agent branching leaking into the transport.
 ## Out of scope
 
 - Real OpenAI per-model prices (the table is a deliberate empty placeholder).
+  *(Filled with GPT-4o/o-series rates, then refreshed to the current lineup in
+  P12-010.)*
 - A session-end signal / smarter transcript de-duplication (re-ship per turn is fine).
 - Parsing the rollout into a normalized transcript view (ships raw; redaction runs
   ingest-side as for any transcript).

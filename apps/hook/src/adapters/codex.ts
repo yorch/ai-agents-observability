@@ -157,12 +157,21 @@ function toolInfo(call: {
   };
 }
 
+// OpenAI's `input_tokens` is the *total* prompt size: the cached-read and
+// cache-write tokens are subsets of it, not counters beside it (Anthropic's are
+// beside it, which is the convention `computeCostUsd` assumes — it bills all four
+// counts at their own rate and sums). Passing OpenAI's number through unchanged
+// therefore bills the cached tokens twice, at full input rate on top of their
+// discounted rate. Subtract here, where the provider's semantics are known;
+// ingest stays agent-neutral. Clamped at 0: the counters come from a JSONL we do
+// not control, and a negative token count would be worse than a lossy one.
 function llmBlock(usage: CodexUsage): NonNullable<Event['llm']> {
+  const cached = usage.cacheReadTokens + usage.cacheWriteTokens;
   return {
     cache_creation_tokens: usage.cacheWriteTokens,
     cache_read_tokens: usage.cacheReadTokens,
-    cost_usd: 0, // computed ingest-side from the codex price table (empty for now)
-    input_tokens: usage.inputTokens,
+    cost_usd: 0, // computed ingest-side from the codex price table
+    input_tokens: Math.max(0, usage.inputTokens - cached),
     model: usage.model ?? 'unknown',
     output_tokens: usage.outputTokens,
   };

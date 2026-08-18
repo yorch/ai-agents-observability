@@ -359,6 +359,10 @@ possible. Not a substitute for the adapter seam.
   agents = five new (initially empty) tables. Pi and OMP record cost themselves, so
   for those two we could ingest agent-reported cost — but that crosses P8-006's
   reconciliation design and should be decided there, not smuggled in per-adapter.
+  *(Outcome: the empty tables shipped as planned and were filled in P12-010, which
+  also found that the empty-table design had been masking a second problem — the
+  four-rate cost model assumes disjoint token counts, and only Anthropic reports
+  them that way. Ingesting agent-reported cost remains undecided, as recommended.)*
 
 ## 6. Recommendation
 

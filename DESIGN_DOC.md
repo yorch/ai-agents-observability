@@ -683,9 +683,13 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 
 ### 6.7 Cost Source of Truth
 
-Client computes cost from token counts × a **versioned price table** served by the service. Clients fetch and cache the price table daily. Anthropic price changes propagate without redeploying hooks.
+Cost is computed from token counts × a **versioned, per-agent price table**, keyed on `(agent_type, model)`. Ingest is where the computation happens: adapters emit `cost_usd: 0` and ingest recomputes on receipt, so a price correction lands by editing a JSON file and restarting ingest — no hook redeploy, and no trust placed in a number the client sent. The table is also served at `GET /v1/price-table?agent=` for `/admin/price-tables` and the `/org/models` routing estimate.
 
-(Alternative considered: pull billed amounts from Anthropic's admin API. Adds a dependency; deferred.)
+The provider decides what the four rates mean. Anthropic reports four disjoint token counts; OpenAI and Google report one inclusive prompt total with the cached tokens *inside* it. The adapter normalizes to disjoint counts before emitting, because that is where the provider's semantics are known and ingest's cost function stays agent-neutral — otherwise the cached tokens bill twice, once at the cache rate and again at full input.
+
+A model absent from its agent's table bills `$0` and increments `unknown_model_events_total`; that metric, not a guess, is the signal to extend the table.
+
+(Alternative considered: pull billed amounts from Anthropic's admin API. Adds a dependency; scaffolded behind a flag in P8, see §13 Q4.)
 
 ---
 
@@ -835,7 +839,7 @@ Matches are replaced with `[REDACTED:type]` placeholders (square brackets, not a
 - Slash command name (when invoked)
 - Model per turn (not just per session)
 - Input/output/cache_read/cache_creation tokens
-- Cost (computed client-side from versioned price table)
+- Cost (computed ingest-side from the versioned per-agent price table — §6.7)
 - Mode (normal / plan / accept_edits)
 
 **Per session:**
@@ -971,14 +975,21 @@ This is a presentation discipline, not a data model decision. Worth re-asserting
 
 **Choice:** Both, separately scoped (see §7.5).
 
-### 11.6 Cost Computation: Client-Side, Versioned Table
+### 11.6 Cost Computation: Server-Side, Versioned Per-Agent Table
 
-**Choice:** Client computes from token counts × a service-served price table; clients refresh daily.
+**Choice:** Ingest computes cost from token counts × a versioned per-agent price table, keyed on `(agent_type, model)`. The table ships as JSON in `apps/ingest/src/data/` and is served at `GET /v1/price-table?agent=` for the admin and routing surfaces.
 
 **Rationale:**
 
-- Anthropic price changes don't require hook redeploy
-- Ground truth (Anthropic admin API) is heavier dependency; deferred
+- A price change is a JSON edit plus an ingest restart — no hook redeploy, and no re-shipping binaries to every developer machine
+- Client-reported cost is an input, never a fact; recomputing server-side means a stale or tampered hook cannot move the numbers
+- Per-agent keying stops two vendors' same-named models from colliding
+- Ground truth (Anthropic admin API) is a heavier dependency; scaffolded behind a flag rather than adopted (§13 Q4)
+
+**Known limits, all deliberate:**
+
+- One rate per model. Google's prompt-size tiers (`gemini-2.5-pro` above 200k) and Anthropic's 1-hour cache write are not expressible; the tables use the common tier and say so in their `_comment`.
+- GitHub Copilot bills premium requests against a seat allowance, not tokens, so its table is **empty by design** — a per-token row would invent a number no Copilot user is charged. Copilot models bill `$0` and land in `unknown_model_events_total`.
 
 ### 11.7 Platform Self-Observability: stdout Logs + Prometheus (v1)
 
@@ -1110,7 +1121,7 @@ Prove the multi-agent spine §2.4 with a real second agent, and build the cost m
 37. Agent-driven user-facing copy (no hard-coded "Claude")
 38. Gated: cost reconciliation against a vendor billing API (§13 Q4) — scaffolded behind a flag
 
-A **third** adapter (`codex`, P8-007) was added after the phase's original scope. OpenAI Codex CLI's only stable hook is its turn-level `notify` program, with tool calls + token usage living in a separate rollout JSONL — so it exercised, and minimally extended, the seam: an optional `mapBatch` lets one turn-complete notification expand into the turn's tool events + a usage-bearing Stop read from the rollout (the first two adapters emit one event per hook and are unchanged). It ships an empty `codex` price table — every Codex model bills `$0` via the table until real OpenAI rates are filled in.
+A **third** adapter (`codex`, P8-007) was added after the phase's original scope. OpenAI Codex CLI's only stable hook is its turn-level `notify` program, with tool calls + token usage living in a separate rollout JSONL — so it exercised, and minimally extended, the seam: an optional `mapBatch` lets one turn-complete notification expand into the turn's tool events + a usage-bearing Stop read from the rollout (the first two adapters emit one event per hook and are unchanged). Its price table shipped with GPT-4o/o-series rates and was refreshed to the current OpenAI lineup (`gpt-5.x`, `gpt-5.3-codex`) in P12-010.
 
 **Success criteria:** a second agent's sessions ingest, price correctly, render with correct labels, and never collide on tool names; the transport is shared between adapters without a fork.
 

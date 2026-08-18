@@ -108,11 +108,34 @@ describe('gemini-cli adapter', () => {
 
     const stop = geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID })?.[0];
     expect(stop?.event_type).toBe('Stop');
-    expect(stop?.llm?.input_tokens).toBe(2000);
+    // Google's promptTokenCount includes the cached content, so the first call
+    // contributes 1500 - 400 = 1100 uncached input, not 1500. Billing the raw
+    // 2000 alongside cache_read_tokens charges those 400 tokens twice.
+    expect(stop?.llm?.input_tokens).toBe(1600);
     expect(stop?.llm?.output_tokens).toBe(300);
     expect(stop?.llm?.cache_read_tokens).toBe(400);
     expect(stop?.llm?.model).toBe('gemini-3-pro');
     expect(conformanceErrors(stop)).toEqual([]);
+  });
+
+  it('counts thinking tokens as output', () => {
+    // thoughtsTokenCount is billed at the output rate and sits outside
+    // candidatesTokenCount, so a reasoning turn under-reports without it.
+    geminiCliAdapter.mapBatch?.('after-model', {
+      llm_request: { model: 'gemini-3.7-flash' },
+      llm_response: {
+        usageMetadata: {
+          candidatesTokenCount: 200,
+          promptTokenCount: 900,
+          thoughtsTokenCount: 1300,
+        },
+      },
+      session_id: SESSION_ID,
+    });
+
+    const stop = geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID })?.[0];
+    expect(stop?.llm?.output_tokens).toBe(1500);
+    expect(stop?.llm?.input_tokens).toBe(900);
   });
 
   it('resets the accumulator per turn so the next Stop is not double-counted', () => {

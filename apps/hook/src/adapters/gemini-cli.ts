@@ -162,13 +162,22 @@ function extractUsage(raw: Record<string, unknown>): Usage | null {
     (typeof raw.model === 'string' ? raw.model : null) ??
     modelFromRequest(raw);
 
-  const input = num(meta.promptTokenCount ?? meta.prompt_token_count ?? meta.input_tokens);
-  const output = num(
-    meta.candidatesTokenCount ?? meta.candidates_token_count ?? meta.output_tokens,
-  );
+  // `promptTokenCount` is documented as "the total effective prompt size ...
+  // includes the number of tokens in the cached content", so the cached count is a
+  // subset of it, not a counter beside it. `computeCostUsd` bills every count it is
+  // given at that count's own rate, so passing the raw number through charges the
+  // cached tokens twice — full input rate on top of the cache-read rate. Normalize
+  // to disjoint counts here, where Google's semantics are known.
+  const promptTokens = num(meta.promptTokenCount ?? meta.prompt_token_count ?? meta.input_tokens);
   const cacheRead = num(
     meta.cachedContentTokenCount ?? meta.cached_content_token_count ?? meta.cache_read_tokens,
   );
+  const input = Math.max(0, promptTokens - cacheRead);
+  // Thinking tokens are billed at the output rate and are reported *outside*
+  // `candidatesTokenCount`, so a reasoning turn under-reports without them.
+  const output =
+    num(meta.candidatesTokenCount ?? meta.candidates_token_count ?? meta.output_tokens) +
+    num(meta.thoughtsTokenCount ?? meta.thoughts_token_count);
   if (input === 0 && output === 0 && cacheRead === 0) {
     return null;
   }

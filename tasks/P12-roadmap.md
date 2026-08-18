@@ -10,7 +10,7 @@ wrong response to agents that now largely agree on a format.
 
 Research + sourcing: [`docs/research/2026-08-13-agent-adapter-expansion.md`](../docs/research/2026-08-13-agent-adapter-expansion.md).
 
-**Status**: P12-001 through P12-009 are code complete, with the migration verified against a real Postgres-Timescale container. Three acceptance criteria remain unchecked for want of the agents themselves: a recorded Pi session (P12-007), which of omp's two documented config roots is real (P12-008), and a recorded opencode session for the collated transcript (P12-009).
+**Status**: P12-001 through P12-010 are code complete, with the migration verified against a real Postgres-Timescale container. Three acceptance criteria remain unchecked for want of the agents themselves: a recorded Pi session (P12-007), which of omp's two documented config roots is real (P12-008), and a recorded opencode session for the collated transcript (P12-009).
 
 ## Goal recap
 
@@ -55,6 +55,11 @@ Go from three agents to seven, while *reducing* per-adapter code:
   `~/.oh-omp/`; skip the 256-byte title slot when parsing transcripts.
 - **P12-009 opencode transcript export** (WS D, M) — the P8-004 follow-up: export
   opencode's directory-shaped history into a single file the shipper can take.
+- **P12-010 price-table refresh** (WS B, S) — added after the phase's original
+  scope. Fills the tables P12-001 registered empty, refreshes the two that had
+  gone stale, and fixes the token accounting they rest on: OpenAI and Google
+  report one inclusive prompt total with the cached tokens inside it, which the
+  four-rate cost model billed twice.
 
 Explicitly **not** in this phase, each for a stated reason (research §2.6–2.7):
 **Cursor** (the CLI reportedly emits only shell events — no session lifecycle, no
