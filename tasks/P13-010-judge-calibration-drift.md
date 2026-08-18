@@ -83,6 +83,23 @@ is measurably wrong, without anyone labelling anything.
   outcome-agreement runs over the judged population and should reuse P13-009's
   sampling rather than scoring everything again.
 
+- **Consider promptfoo rather than hand-rolling the agreement harness.** This
+  task is "run the judge against a gold set and measure agreement", which is a
+  dev/CI eval-harness problem — the shape promptfoo is built for, unlike the
+  runtime client in [`P13-009`](./P13-009-judge-runner-guardrails.md). It is
+  open source, Node-native, supports Anthropic, and runs evals entirely locally,
+  so the consent model this phase rests on survives. Evaluate it when DP-1
+  unblocks the task; the assessment that surfaced it is
+  [`docs/research/2026-08-18-judge-client-provider-abstraction.md`](../docs/research/2026-08-18-judge-client-provider-abstraction.md) §2.4.
+- **A second provider is the strongest reason to revisit provider abstraction.**
+  If the judge is Claude and the sessions are largely Claude Code, agreement
+  against a human gold set is one model checking itself. An independent judge on
+  a different provider gives inter-rater agreement *across* models, which is a
+  materially stronger calibration signal. The shape is a second class
+  implementing `JudgeModelClient` plus a **`provider` field on `JudgeRevision`** —
+  if the provider changes, the scorer's identity changes, and `scorerVersion`
+  must capture it or two providers' verdicts blend into one series.
+
 ## Files touched
 
 - `apps/ingest/src/jobs/calibrate-judge.ts` (+ test), `apps/ingest/src/jobs/scheduler.ts`

@@ -120,6 +120,44 @@ bun run build
 bun run test
 ```
 
+## Why the client is hand-rolled
+
+Assessed 2026-08-18 against the 2026 TypeScript landscape — Vercel AI SDK,
+LangChain.js, Mastra, Genkit, LlamaIndex.TS, the thin unified clients
+(`litellmjs`, `multi-llm-ts`, `llm-sdk`), the gateways (OpenRouter, LiteLLM),
+the eval frameworks (Braintrust `autoevals`, promptfoo, BAML), and Pi's own
+`pi-ai`. Full write-up: [`docs/research/2026-08-18-judge-client-provider-abstraction.md`](../docs/research/2026-08-18-judge-client-provider-abstraction.md).
+
+Verdict: **no library.** `JudgeModelClient` is already the seam, and a second
+provider is a second ~80-line class implementing it — cheaper than any candidate.
+Each candidate costs at least one of three things this task's guardrails depend on:
+
+- **No tools, by construction.** Every general abstraction takes `tools` as a
+  first-class parameter. One clarification the client's own comment blurs: the
+  restriction is a property of the **interface** (`complete()` has nowhere to put
+  a tool), not of `fetch`. So swapping in a vendor SDK *inside*
+  `AnthropicJudgeClient` keeps the property; replacing `JudgeModelClient` with a
+  library's `generateText()` does not.
+- **Per-provider usage semantics.** `cost_usd` on every score row is computed
+  from provider usage. P12-010 fixed exactly this class of bug — OpenAI and
+  Google report an inclusive prompt total, Anthropic four disjoint counts — and
+  `apps/ingest/AGENTS.md` now requires normalizing where the semantics are known.
+- **Provider-specific params as identity.** `JUDGE_REVISIONS` binds
+  `effort: 'low'` (and Haiku 4.5's *absence* of `effort`) into `scorerVersion`.
+  A lowest-common-denominator abstraction drops those while the version number
+  stays put.
+
+`pi-ai` was the closest fit on features and the worst on dependencies: it is a
+fan-in of five vendor SDKs (`openai`, `@anthropic-ai/sdk`, `@google/genai`,
+`@mistralai/mistralai`, `@aws-sdk/client-bedrock-runtime`) rather than an
+abstraction over them. It also observes-the-observer — Pi is one of the seven
+agents this platform measures.
+
+Open, and separable: adopting the official `@anthropic-ai/sdk` **inside**
+`AnthropicJudgeClient`. Single-provider, structurally safe, and it would replace
+hand-rolled refusal handling and content-block filtering with maintained code —
+against the repo's "no vendor SDK" convention. A real trade, not a free win.
+
 ## Implementation record
 
 Landed. Notes for a reviewer, in the order they are most worth checking:
