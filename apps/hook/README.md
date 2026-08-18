@@ -112,7 +112,7 @@ Removed paths:
 - `~/.claude-telemetry/flusher-state.json` (flusher state cache)
 - `~/.claude-telemetry/paused` (pause marker, if present)
 
-**This does not affect data already uploaded to the server.** Manage server-side data at `$CLAUDE_TELEMETRY_API/me/privacy`.
+**This does not affect data already uploaded to the server.** Manage server-side data at `$CLAUDE_TELEMETRY_API/me/settings/privacy`.
 
 ### `install`
 

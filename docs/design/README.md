@@ -1,5 +1,9 @@
 # Design
 
+## `ui-ux-review-2026-08.md` — post-revamp UI/UX review
+
+A full review of `apps/web` conducted after the Instrument revamp landed ([#112](https://github.com/yorch/ai-agents-observability/pull/112)): verified bugs, a gap analysis (G1–G10) against dashboard-UX and WCAG 2.2 practice with `file:line` evidence, a prioritized roadmap, and sources. Its status note records which findings are implemented and which remain open (saved views, the first-run "waiting for first event" loop, table sorting, org-page streaming). The conventions that came out of it live in [`apps/web/AGENTS.md`](../../apps/web/AGENTS.md).
+
 ## `ui-direction.html` — "Instrument"
 
 The design direction behind the `apps/web` UI revamp ([#101](https://github.com/yorch/ai-agents-observability/pull/101)). Open it in a browser; it is self-contained and needs no network.
