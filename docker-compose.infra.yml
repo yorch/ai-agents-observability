@@ -68,7 +68,7 @@ services:
     restart: "no"
 
   prometheus:
-    image: prom/prometheus:v3.4.1
+    image: prom/prometheus:v3.14.0
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./data/prometheus:/prometheus
@@ -87,7 +87,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:12.0.1
+    image: grafana/grafana:13.2.0
     volumes:
       - ./data/grafana:/var/lib/grafana
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
