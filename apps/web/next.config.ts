@@ -23,6 +23,12 @@ const nextConfig: NextConfig = {
     '@ai-agents-observability/db',
     '@ai-agents-observability/github',
   ],
+  // In git worktrees, Next can infer a too-deep Turbopack root (e.g. src/app)
+  // and fail to resolve next/package.json from that directory. Pin this to the
+  // monorepo root and keep it aligned with outputFileTracingRoot.
+  turbopack: {
+    root: path.join(import.meta.dirname, '../../'),
+  },
 };
 
 export default nextConfig;
