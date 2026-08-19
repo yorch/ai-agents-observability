@@ -48,7 +48,8 @@ export function blendedRate(price: RankableRate): number {
  * Ranks the **distinct** blended rates and splits them into three bands, rather
  * than thresholding on an absolute rate or a multiple of the cheapest model.
  * Both of those alternatives fail on real data: the spread between the cheapest
- * and dearest model is ~6x for `claude_code` but ~225x for `opencode`, so one
+ * and dearest model is ~19x for `claude_code` but ~8000x for `opencode` (whose
+ * table is generated from the models.dev catalog and spans 20 vendors), so one
  * multiple cannot serve both; and price tables retain retired models (Opus 4.1
  * at the old $15/$75, three times today's Opus) which drag any mean or maximum.
  * Ranking distinct levels is invariant to both.

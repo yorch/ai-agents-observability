@@ -77,6 +77,26 @@ with the admin override on top.
   from `apps/web`, and the ingest `routing_waste` evaluator no longer carries
   `ILIKE '%opus%'` — it resolves the same policy.
 
+## Interaction with generated price tables
+
+`P12-012` made `pi`, `omp` and `opencode` **generated** tables — regenerated
+wholesale from the models.dev catalog, 34 models each to ~243 across 20 vendors.
+Deriving tiers on read means those agents re-tier automatically on the next
+regeneration, with no seeded rows to go stale and no migration to write; admin
+overrides survive untouched because they are stored separately and merged last.
+
+Two consequences worth knowing:
+
+- The cheapest-to-dearest spread in those tables is now **~8000x**, which is why
+  tiering ranks distinct levels rather than thresholding on a multiple. A
+  fixed multiple that behaved sensibly on the 19x `claude_code` table would put
+  essentially every models.dev model in one band.
+- The `routing_waste` evaluator's downgradeable-model join grew from ~250 tuples
+  to ~1100. It binds three parallel arrays through `unnest` rather than inlining
+  a `VALUES` list, so the query text — and therefore the plan Postgres can cache
+  — is fixed regardless of how large the catalog becomes.
+  `apps/ingest/test/routing-waste-shape.test.ts` pins that.
+
 ## Deliberate deviation: no seeded rows
 
 The criteria asked for default rows **seeded** from the shipped price tables. This

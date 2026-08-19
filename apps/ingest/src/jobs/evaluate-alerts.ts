@@ -223,7 +223,11 @@ async function evalBudgetThreshold(db: AlertsDb, params: unknown): Promise<Evalu
 // /org/models routing recommendation surfaces, promoted to a proactive alert.
 // Aggregate + visibility-scoped like the other evaluators. Fires on absolute
 // wasted spend (params.thresholdUsd overrides the default); critical at 2×.
-async function evalRoutingWaste(db: AlertsDb, params: unknown): Promise<Evaluation> {
+// Exported for the query-shape regression test only — see the sibling
+// routing-waste-shape.test.ts.
+// Its siblings stay module-private; this one carries a policy-derived join whose
+// parameter count must not grow with the size of the price tables.
+export async function evalRoutingWaste(db: AlertsDb, params: unknown): Promise<Evaluation> {
   const threshold = Number(paramsObject(params).thresholdUsd ?? ROUTING_WASTE_DEFAULT_USD);
   if (!(threshold > 0)) {
     return null;
@@ -238,13 +242,23 @@ async function evalRoutingWaste(db: AlertsDb, params: unknown): Promise<Evaluati
   if (triples.length === 0) {
     return null;
   }
-  const values = triples.map((t) => Prisma.sql`(${t.agentType}, ${t.model}, ${t.toolCategory})`);
+  // Three parallel arrays through `unnest` rather than an inlined VALUES list.
+  // The query text is then FIXED — three bind parameters regardless of how many
+  // models are downgradeable — so Postgres can cache a plan for it. P12-012
+  // regenerated the pi/omp/opencode tables from the models.dev catalog and took
+  // them from 34 models to ~243 each, which grew this join from ~250 tuples to
+  // ~1100; as a VALUES literal that is a differently-shaped query on every
+  // policy edit, evaluated hourly.
+  const agentTypes = triples.map((t) => t.agentType);
+  const models = triples.map((t) => t.model);
+  const categories = triples.map((t) => t.toolCategory);
   const rows = await db.$queryRaw<{ waste: number }[]>(Prisma.sql`
     SELECT COALESCE(SUM(e.cost_usd), 0) AS waste
     FROM events e
     JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    JOIN (VALUES ${Prisma.join(values)}) AS dm(agent_type, model, tool_category)
+    JOIN unnest(${agentTypes}::text[], ${models}::text[], ${categories}::text[])
+      AS dm(agent_type, model, tool_category)
       ON dm.agent_type = e.agent_type
      AND dm.model = e.model
      AND dm.tool_category = e.tool_category

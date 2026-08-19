@@ -79,8 +79,9 @@ and callers must be able to suppress low-confidence rows.
   legitimately collapses to a point.
 - Tiers are **derived by ranking distinct blended rates** within one agent's price
   table, not by an absolute threshold or a multiple of the cheapest model. Both
-  alternatives fail on the real data: the cheapest-to-dearest spread is ~6x for
-  `claude_code` but ~225x for `opencode`.
+  alternatives fail on the real data: the cheapest-to-dearest spread is ~19x for
+  `claude_code` but ~8000x for `opencode`, whose table `P12-012` regenerated from
+  the models.dev catalog across 20 vendors.
 - `getOrgModelRoutingBreakdown` now groups by `agent_type`, so one agent's price
   ratio can never reach another agent's models. `shape_label` from the original
   criteria was **not** added: nothing consumes it, and putting it in the `GROUP BY`

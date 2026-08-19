@@ -59,6 +59,12 @@ export function resolveIngestModelPolicies(
 export function downgradeableTriples(
   policies: Map<string, ModelPolicySnapshot>,
 ): { agentType: string; model: string; toolCategory: string }[] {
+  // De-duped on the composite key. The admin editor runs cheap_categories
+  // through a Set, but the column carries no uniqueness constraint, so a
+  // hand-edited row could repeat a category — and a repeated triple would
+  // duplicate the join row and double-count that event's cost in the SUM the
+  // alert threshold is compared against.
+  const seen = new Set<string>();
   const out: { agentType: string; model: string; toolCategory: string }[] = [];
   for (const policy of policies.values()) {
     for (const model of Object.keys(policy.tiers)) {
@@ -66,6 +72,11 @@ export function downgradeableTriples(
         continue;
       }
       for (const toolCategory of policy.cheapCategories) {
+        const key = `${policy.agentType}:${model}:${toolCategory}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
         out.push({ agentType: policy.agentType, model, toolCategory });
       }
     }

@@ -12,8 +12,18 @@ import { pricedAgentTypes, priceTableFor } from '../src/lib/price-tables';
 // Golden test over the REAL shipped price tables. Every other model-policy test
 // runs on hand-built fixtures, which means they validate a world we chose rather
 // than the one we ship — and the two differ: `claude_code` retains retired rows
-// at three times today's Opus rate, and `opencode` spans a ~225x range. This
+// at three times today's Opus rate, and `opencode` spans an ~8000x range. This
 // file is what fails when a price-table edit silently re-tiers a live model.
+//
+// The assertions are split deliberately, because the two kinds of price table
+// (see AGENTS.md) change for different reasons:
+//   - GENERIC invariants (`it.each` over every agent) — monotonicity, tier
+//     coverage, well-formed ranges. These hold for `pi`/`omp`/`opencode`, which
+//     `bun run gen:price-tables` rewrites wholesale from the models.dev catalog;
+//     pinning a specific model's tier there would fail on every regeneration for
+//     no useful reason.
+//   - SPECIFIC pins — only against the hand-maintained `claude_code` table and
+//     the intentionally-empty `copilot` one, which change by deliberate edit.
 
 const TIER_RANK: Record<ModelTier, number> = { economy: 0, premium: 2, standard: 1 };
 

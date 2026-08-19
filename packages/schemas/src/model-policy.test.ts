@@ -135,7 +135,7 @@ describe('deriveModelTiers', () => {
   });
 
   it('scales to a wide spread without collapsing everything into premium', () => {
-    // opencode spans ~225x cheapest-to-dearest; a multiple-of-cheapest rule
+    // opencode spans ~8000x cheapest-to-dearest; a multiple-of-cheapest rule
     // would call almost every model premium.
     const wide: Record<string, ModelPrice> = {};
     for (const [i, input] of [0.05, 0.25, 0.75, 1.25, 2, 3, 5, 10, 15].entries()) {
