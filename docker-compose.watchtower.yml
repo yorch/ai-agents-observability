@@ -1,6 +1,11 @@
 services:
   watchtower:
-    image: containrrr/watchtower
+    # containrrr/watchtower was archived in Dec 2025 (last image push Nov 2023).
+    # nickfedor/watchtower is the maintained community fork: same
+    # `com.centurylinklabs.watchtower.*` label namespace and the same
+    # WATCHTOWER_* environment variables, so the swap is drop-in. Pulled from
+    # GHCR and pinned exactly, per PLAN.md §4 "Pinning policy".
+    image: ghcr.io/nicholas-fedor/watchtower:1.21.0
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

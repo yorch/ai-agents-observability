@@ -33,37 +33,43 @@ New pins are only taken once they clear `bunfig.toml`'s `minimumReleaseAge` (5-d
 
 | Tool | Exact version | Why this pin |
 |---|---|---|
-| Node.js | >=24 | Active LTS. The Next.js prod runtime is Node 24. Bun runs everything else. `package.json` uses `"node": ">=24"`; CI uses `setup-node@v6.4.0` with `node-version: '24'` (major pin, not exact patch). |
+| Node.js | >=24 | Active LTS. The Next.js prod runtime is Node 24. Bun runs everything else. `package.json` uses `"node": ">=24"`; CI uses `actions/setup-node@v7` reading `.node-version` (major pin, not exact patch). |
 | Bun | 1.3.14 | **Package manager + workspace tool + script runner + ingest/hook runtime.** Replaces pnpm. Use HOISTED installs, not isolated — Bun 1.3.0's isolated + catalogs combo has known dedup/cache bugs ([oven-sh/bun#23615](https://github.com/oven-sh/bun/issues/23615)). Revisit when fixed. Lockfile is text `bun.lock` (v3 format). |
-| Turborepo | 2.10.5 | Works correctly with Bun workspaces in practice. Upgrade to 3.x when it stabilises. |
-| TypeScript | 6.0.3 | TS 7.0 (native Go "tsgo" rewrite) is GA but has an open Next.js incompatibility ([vercel/next.js#95490](https://github.com/vercel/next.js/issues/95490)) and no programmatic compiler API until 7.1 — wait for Next.js support. |
-| Biome | 2.5.4 | v2 unified lint + format; type-aware rules + GritQL plugins. `linter.rules.recommended` migrated to `preset` (`recommended` deprecated in 2.5). |
-| Next.js | 16.2.10 | App Router default, Turbopack default for `dev` + `build`, pins React 19.2. Runs under Node 24 in prod (not Bun — Next on Bun is unofficial). 16.2.11 (a 9-CVE security patch) is held back purely by the `minimumReleaseAge` guard — take it once it clears 5 days old. |
-| React | 19.2.7 | Don't drift past what Next.js 16 pins. |
-| react-dom | 19.2.7 | Lockstep with React. |
+| Turborepo | 2.10.9 | Works correctly with Bun workspaces in practice. Upgrade to 3.x when it stabilises. |
+| TypeScript | 7.0.2 | The native Go ("tsgo") compiler. Adopted across every workspace; `tsc --noEmit` is the typecheck gate and `apps/web` typechecks clean against Next.js 16.3. |
+| Biome | 2.5.8 | v2 unified lint + format; type-aware rules + GritQL plugins. `linter.rules.recommended` migrated to `preset` (`recommended` deprecated in 2.5). |
+| Next.js | 16.3.1 | App Router default, Turbopack default for `dev` + `build`, pins React 19.2. Runs under Node 24 in prod (not Bun — Next on Bun is unofficial). 16.3 adds the Turbopack filesystem build cache and native Node streams for SSR; no app-code migration was required. |
+| React | 19.2.8 | Don't drift past what Next.js 16 pins. |
+| react-dom | 19.2.8 | Lockstep with React. |
 | Tailwind CSS | 4.3.3 | Oxide engine + CSS-first config (`@theme`, no JS config file). |
 | `@tailwindcss/postcss` | 4.3.3 | Lockstep with Tailwind core. |
-| Prisma | 7.8.0 | Latest stable. Classic Prisma Client (not Prisma Postgres). |
-| `@prisma/client` | 7.8.0 | Lockstep with `prisma`. |
+| Prisma | 7.9.1 | Latest stable. Classic Prisma Client (not Prisma Postgres). |
+| `@prisma/client` | 7.9.1 | Lockstep with `prisma`. |
 | TimescaleDB image | `timescale/timescaledb:latest-pg18` | Current local-dev compose image. This intentionally uses the standard TimescaleDB image with bind-mounted state under `./data/postgres`; revisit exact tag pinning before production hardening. |
 | MinIO image | `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | Docker Hub MinIO images deprecated Oct 2025. Pull from quay.io. Pin exact RELEASE, never `:latest`. |
 | MinIO client image | `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` | Bucket init + lifecycle. |
-| Hono | 4.12.30 | |
+| Prometheus image | `prom/prometheus:v3.14.0` | Scrapes `/metrics` on web, ingest and github-app. `infra/prometheus/prometheus.yml` validates clean under `promtool check config` on this tag. |
+| Grafana image | `grafana/grafana:13.2.0` | Dashboards + datasource are file-provisioned from `infra/grafana/`. The 12→13 jump migrates the Grafana sqlite DB under `./data/grafana` **forward only** — snapshot that directory before upgrading a live install, because Grafana does not support downgrading it. |
+| Watchtower image | `ghcr.io/nicholas-fedor/watchtower:1.21.0` | Optional auto-update overlay. `containrrr/watchtower` was archived Dec 2025; this maintained fork keeps the `com.centurylinklabs.watchtower.*` label namespace and the `WATCHTOWER_*` variables, so the compose overlay is unchanged apart from the image. |
+| Hono | 4.13.2 | HTTP framework for `apps/ingest` + `apps/github-app`, served by `Bun.serve`. |
 | `@hono/zod-validator` | 0.9.0 | Hono middleware for Zod validation; first version with real Zod v4 peer support. |
 | Zod | 4.4.3 | v4: top-level string formats (`z.email()`, strict `z.uuid()`), `z.strictObject()/z.looseObject()` replace `.strict()/.passthrough()`. |
-| jose | 6.2.3 | JWT/JWS/JWE. Zero deps, runs on Bun/Node/Workers. |
+| jose | 6.2.8 | JWT/JWS/JWE. Zero deps, runs on Bun/Node/Workers. |
 | `octokit` | 5.0.5 | GHES compatibility via `@octokit/plugin-enterprise-compatibility` if pre-3.x GHES surfaces. |
 | `@octokit/plugin-enterprise-compatibility` | 6.0.3 | Conditionally loaded for old GHES. ESM-only since v5 — fine, this repo only uses `import`. |
-| `@aws-sdk/client-s3` | 3.1089.0 | MinIO via `forcePathStyle: true` + custom `endpoint`. |
+| `@aws-sdk/client-s3` | 3.1110.0 | MinIO via `forcePathStyle: true` + custom `endpoint`. |
 | pino | 10.3.1 | Worker-thread transports. |
 | `pino-pretty` | 13.1.3 | Dev-only pretty printing. |
+| nodemailer | 9.0.5 | Alert email delivery from `apps/ingest`. 9.0.4/9.0.5 are MIME + header injection hardening. |
+| `@types/nodemailer` | 8.0.1 | Types for the above. |
+| `prom-client` | 15.1.3 | `/metrics` exposition on web, ingest and github-app. |
 | Croner | 10.0.1 | Catalog dependency reserved for scheduler work; current ingest scheduling is implemented with in-process intervals plus `job_config`. |
 | Vitest | 4.1.10 | Requires Vite 8. v5 in beta — don't pin yet. |
 | `fast-check` | 4.9.0 | Property-based tests in redaction package. |
 | `@octokit/webhooks` | 14.2.0 | Phase 2; pin now to avoid drift. |
 | `react-virtuoso` | 4.18.11 | Transcript viewer virtualization. |
 | keytar | 7.9.0 | OS keychain access for the hook binary. |
-| js-yaml | 5.2.1 | Ships its own types (`@types/js-yaml` removed). |
+| js-yaml | 5.3.0 | Ships its own types (`@types/js-yaml` removed). |
 | `@faker-js/faker` | 10.5.0 | Seed script fake data. |
 | zstd | (built into Bun) | Use `Bun.zstd*` APIs; no userland package. |
 
@@ -219,7 +225,7 @@ Tasks P12-001–P12-012 are `done`. Along the way it fixed a silent drop of ever
 
 These apply to every task. Don't restate in each task file.
 
-- **Language**: TypeScript 6 everywhere.
+- **Language**: TypeScript 7 everywhere (the native `tsgo` compiler).
 - **Package manager + runner**: Bun 1.3. `bun install` for deps, `bun run <script>` for scripts, `bun --filter '@scope/pkg' <script>` for workspace-scoped runs, `bunx` instead of `pnpm dlx`/`npx`. Lockfile is `bun.lock` (text v3) — commit it.
 - **Workspaces**: declared in root `package.json` `workspaces: ["apps/*", "packages/*"]`. No `pnpm-workspace.yaml`.
 - **Catalogs**: centralized in root `package.json` `workspaces.catalog` (Bun's catalog syntax). Sub-packages reference shared deps as `"catalog:"`.
@@ -228,7 +234,7 @@ These apply to every task. Don't restate in each task file.
   2. `bunfig.toml` sets `[install] exact = true` so `bun add` writes exact versions by default.
   3. `bun.lock` is the source of truth for what gets installed and is required to match `package.json`. CI runs `bun install --frozen-lockfile`; out-of-band edits fail the build.
   4. Docker image tags should be exact before production use. MinIO is already pinned (`RELEASE.2025-09-07T16-13-09Z`); the local TimescaleDB image currently uses `timescale/timescaledb:latest-pg18` and is called out as a hardening risk in §6. SHA256-digest pinning (`@sha256:...`) is acceptable for prod overlays.
-  5. Engine pins: `engines.node = ">=24"` in `package.json`; CI uses `setup-node@v6.4.0` with `node-version: '24'` (major pin). `engines.bun = "1.3.14"` exact; CI uses `setup-bun@v2.2.0` with `bun-version: '1.3.14'` (exact).
+  5. Engine pins: `engines.node = ">=24"` in `package.json`; CI uses `actions/setup-node@v7` reading `.node-version` (major pin). `engines.bun = "1.3.14"` exact; CI uses `oven-sh/setup-bun@v2.2.0` with `bun-version: '1.3.14'` (exact).
   6. Bumps are deliberate: open a PR per dependency (or per coordinated group — e.g., React + react-dom + Next.js), update the catalog entry, regenerate `bun.lock`, run the full CI suite. No mass-bump PRs.
   7. Renovate/Dependabot may *propose* bumps but never auto-merges. Schedule weekly so PRs don't pile up.
   8. Security patches are an exception to (6): cherry-pick the patch version, ship same-day.
@@ -266,6 +272,7 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 | Wrong Postgres patch version breaks TimescaleDB ABI | Local dev currently uses `timescale/timescaledb:latest-pg18`; pin an exact `timescale/timescaledb` tag before production hardening. | Backend |
 | MinIO Docker Hub image deprecation (Oct 2025) | Pull from `quay.io/minio/minio` with pinned RELEASE tag, never `:latest` | Backend |
 | Bun 1.3 isolated installs + catalogs has dedup/cache bugs ([#23615](https://github.com/oven-sh/bun/issues/23615)) | Use HOISTED installs (`linker = "hoisted"` in `bunfig.toml`) until fixed | Cross-cutting |
+| Watchtower is a third-party fork with `docker.sock` access | The upstream `containrrr/watchtower` is archived; `nickfedor/watchtower` is pinned to an exact tag (never `:latest`) and the overlay stays opt-in — it is not part of `docker:app` or `docker:infra`. Re-audit the fork before enabling it in production. | Platform/SRE |
 | Bun Rust-rewrite branch regressions on native modules | Pin Bun 1.3.14 (stable JS impl), not bleeding-edge | Systems |
 | Next.js on Bun is unofficial | Run Next.js prod under Node 24; only use Bun for `apps/web` package management + script execution | Frontend |
 
