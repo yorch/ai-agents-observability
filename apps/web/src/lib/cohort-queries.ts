@@ -16,7 +16,7 @@ export async function getUserShapeTrend(userId: string, since: Date): Promise<We
         date_trunc('week', started_at) AS week,
         shape_label,
         COUNT(*) AS count
-      FROM sessions
+      FROM interactive_sessions
       WHERE user_id = ${userId}::uuid
         AND started_at >= ${since}
         AND shape_label IS NOT NULL
@@ -64,7 +64,8 @@ export async function getOrgCohortFriction(since: Date): Promise<CohortFrictionR
   >(Prisma.sql`
     WITH first_seen AS (
       SELECT user_id, to_char(date_trunc('month', MIN(started_at)), 'YYYY-MM') AS cohort_month
-      FROM sessions
+      FROM interactive_sessions
+      
       GROUP BY user_id
     )
     SELECT
@@ -72,7 +73,7 @@ export async function getOrgCohortFriction(since: Date): Promise<CohortFrictionR
       COUNT(DISTINCT s.user_id)                              AS user_count,
       COUNT(*) FILTER (WHERE s.friction_score IS NOT NULL)  AS scored_sessions,
       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.friction_score) AS median_friction
-    FROM sessions s
+    FROM interactive_sessions s
     JOIN first_seen fs ON fs.user_id = s.user_id
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id

@@ -91,12 +91,69 @@ export function canonicalPermissionMode(raw: unknown): PermissionMode {
   }
 }
 
+// How a session was produced (P13-002). `interactive` is a developer at a
+// keyboard; `ci` is an agent run inside a pipeline; `eval` is a run from an
+// external eval harness (see tasks/P13-002 — this platform stores such runs but
+// deliberately does not execute them).
+//
+// Optional on the wire and defaulting to `interactive`, so every already-shipped
+// hook binary keeps working unchanged with no schema version bump. Only an
+// explicit claim moves a run out of the human aggregates — and since nothing is
+// granted by the claim, a client that lies only removes its own data.
+export const RUN_KINDS = ['interactive', 'ci', 'eval'] as const;
+
+export type RunKind = (typeof RUN_KINDS)[number];
+
+export const DEFAULT_RUN_KIND: RunKind = 'interactive';
+
+/** DB enum spelling of `RunKind` (UPPER_SNAKE_CASE, per packages/db/AGENTS.md). */
+export type RunKindDb = 'INTERACTIVE' | 'CI' | 'EVAL';
+
+/** Wire (lowercase) → DB enum (UPPER_SNAKE_CASE, per packages/db/AGENTS.md). */
+export function runKindToDbEnum(kind: RunKind | null | undefined): RunKindDb {
+  switch (kind) {
+    case 'ci':
+      return 'CI';
+    case 'eval':
+      return 'EVAL';
+    default:
+      return 'INTERACTIVE';
+  }
+}
+
+/**
+ * How a session's `run_kind` combines across the events and batches that build it.
+ *
+ * **Rule: the first explicit non-interactive claim wins, and it is sticky.**
+ *
+ * The rule is asymmetric because the two values are not equally informative.
+ * `run_kind` is optional on the wire and absent means `interactive`, so an
+ * INTERACTIVE reading is ambiguous — it is either an explicit claim or merely the
+ * default standing in for a field nobody sent. CI and EVAL are never defaults;
+ * they only ever arrive because a client said so. Treating the two symmetrically
+ * (last-write-wins, or first-write-wins) would let a single event that omitted the
+ * field overwrite a real claim, or pin a session INTERACTIVE forever because its
+ * first batch happened to predate the environment detection.
+ *
+ * Sticky in the other direction matters just as much: once a session is known to
+ * be a CI run, a later defaulted INTERACTIVE event must not promote it back into
+ * the human aggregates. And since a claim only ever *removes* a run from those
+ * aggregates, honouring it eagerly cannot be used to smuggle data in.
+ *
+ * CI vs EVAL between themselves is first-claim-wins, which is arbitrary but
+ * deterministic — a session is not expected to be both.
+ */
+export function mergeRunKind(current: RunKindDb, incoming: RunKindDb): RunKindDb {
+  return current === 'INTERACTIVE' ? incoming : current;
+}
+
 export const SessionContextSchema = z.object({
   cwd: z.string(),
   git: GitContextSchema.nullable(),
   is_resume: z.boolean(),
   mode: z.enum(PERMISSION_MODES),
   project_name: z.string().nullable().optional(),
+  run_kind: z.enum(RUN_KINDS).optional(),
 });
 
 export type SessionContext = z.infer<typeof SessionContextSchema>;

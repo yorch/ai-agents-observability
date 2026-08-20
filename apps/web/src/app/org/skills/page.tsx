@@ -1,14 +1,24 @@
 import Link from 'next/link';
 import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import {
+  DeprecationCandidates,
+  SubjectQualityPanel,
+} from '@/components/team-org/SubjectQualityPanel';
 import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
 import {
   getDailySkillVolume,
   getOrgSkillSequences,
   getSkillAdoptionFunnel,
   getSkillUsage,
+  orgVisibleUserIds,
 } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
+import {
+  getDeprecationCandidates,
+  getSkillQuality,
+  getSubjectScoreSeries,
+} from '@/lib/subject-quality-queries';
 import { daysAgo } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
@@ -23,15 +33,22 @@ export default async function OrgSkillsPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
 
-  const [skills, funnel, trend, sequences] = await Promise.all([
+  const visibleIds = await orgVisibleUserIds(since);
+  const [skills, funnel, trend, sequences, quality, deprecation] = await Promise.all([
     getSkillUsage(since),
     getSkillAdoptionFunnel(since),
     getDailySkillVolume(since),
     getOrgSkillSequences(since),
+    getSkillQuality(visibleIds, since),
+    getDeprecationCandidates(visibleIds, since),
   ]);
 
   const totalInvocations = skills.reduce((s, r) => s + r.callCount, 0);
   const uniqueAdopters = funnel.length > 0 ? Math.max(...funnel.map((r) => r.recentUsers)) : 0;
+
+  // The stored series behind the error-rate column (P13-013). Keyed the same
+  // way `scores.subject_id` is, so the panel needs no id-shaping of its own.
+  const qualitySeries = await getSubjectScoreSeries('SKILL', quality);
 
   return (
     <div className="space-y-6">
@@ -90,6 +107,16 @@ export default async function OrgSkillsPage({
       ) : (
         <EmptyState>No skill activity in this period</EmptyState>
       )}
+
+      <SubjectQualityPanel
+        caption={`How sessions that invoked each skill compare with matched sessions that did not, over the trailing ${range} days.`}
+        rows={quality}
+        series={qualitySeries}
+        subjectNoun="Skill"
+        title="Effectiveness"
+      />
+
+      <DeprecationCandidates candidates={deprecation} windowDays={range} />
 
       {funnel.length > 0 && (
         <Card>

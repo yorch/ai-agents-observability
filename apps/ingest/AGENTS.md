@@ -103,6 +103,40 @@ expiry date. A test asserts the generated tables agree with the hand-maintained
 ones on every shared model, so an unlisted disagreement fails the suite rather
 than pricing the same model two ways depending on which agent ran it.
 
+## Every base-table read says why it sees all runs
+
+Sessions and events carry a `run_kind` (`INTERACTIVE` | `CI` | `EVAL`). The filtered
+views `interactive_sessions` / `interactive_events` (in
+`packages/db/sql/migrations/0001_init.sql`) carry the guard, so a query gets it by
+naming the view rather than by remembering a predicate.
+
+Ingest is the app where **most** reads are legitimately exempt — retention sweeps,
+transcript indexing, redaction backfill, per-session scoring and repricing all operate
+on rows rather than on people, and a job that skipped non-interactive rows would leave
+them permanently unswept, unindexed or mispriced. `src/lib/run-kind.ts` records the
+three classes: row-operations, per-session scorers, and comparisons against an
+unfiltered external ground truth (`reconcile-cost` sums against a vendor invoice that
+bills every token, so filtering would manufacture a permanent drift).
+
+That inverts what is worth checking. Counting guards proves nothing here; the
+interesting claim is the *exemption*. So any `FROM`/`JOIN`/`UPDATE` naming a base table
+must carry a `run-kind-exempt: <why>` comment within twelve lines, and
+`test/run-kind-fragment.test.ts` fails without one. Write the actual reason — a reader
+should be able to check it against the query.
+
+The alert engine is the exception that keeps its own stricter rule: every evaluator
+there answers "is this org's people-driven usage going wrong?", so **no** read in
+`jobs/evaluate-alerts.ts` may name a base table at all. That rule exists because two of
+its seven reads once didn't have the guard while the other five did, so
+`unknown_model_surge` and `routing_waste` counted machine traffic and `spend_spike` and
+`budget_threshold` did not. Nothing failed; the numbers were just wrong in one
+direction.
+
+The app-wide half of the lint was added after the `reprice-events` job landed reading
+and writing both base tables with nothing to flag it — the earlier check was scoped to
+`evaluate-alerts.ts` alone, which is precisely the shape of lint that cannot see the
+file you didn't think of.
+
 ## Boot fails loud
 
 `src/index.ts` runs a `HeadBucketCommand` at startup to prove the bucket exists and the
@@ -120,12 +154,37 @@ channel wires up only when `SMTP_HOST` and `SMTP_FROM` are both set
 ## Scheduled jobs
 
 `src/jobs/`, dispatched by `scheduler.ts` against the `job_config` table with runs
-recorded in `job_runs`: `sync-teams`, `sync-jira`, `sweep-abandoned`,
+recorded in `job_runs`. Registered: `sync-teams`, `sync-jira`, `sweep-abandoned`,
 `sweep-scratch`, `run-deletions`, `sweep-retention`, `index-transcripts`,
-`compute-effectiveness`, `compute-effectiveness-backfill`, `evaluate-alerts`,
-`backfill-redaction`, `reconcile-cost`, and `reprice-events` /
-`reprice-events-apply`. (`alert-transition` and `anthropic-billing-source` are
-collaborators, not scheduled entries.)
+`compute-effectiveness`, `compute-effectiveness-backfill`,
+`compute-trajectory-scores`, `compute-subject-scores`, `evaluate-alerts`,
+`backfill-redaction`, `reconcile-cost`, `reprice-events` / `reprice-events-apply`,
+`judge-sessions`, plus the two operator-triggered rescore entries
+`rescore-effectiveness` and `rescore-trajectory`. (`alert-transition` and
+`anthropic-billing-source` are collaborators, not scheduled entries.)
+
+**`judge-sessions` is the one job that reads conversation content with a model**
+(P13-009), and it is off in three independent ways: seeded `enabled = false`,
+wired only when `JUDGE_ANTHROPIC_API_KEY` **and** `JUDGE_OPERATOR_USER_ID` are
+both set, and restricted to sessions whose owner set `allow_judge_analysis`.
+The own-sessions restriction is a **code constant** (`JUDGE_OWN_SESSIONS_ONLY`),
+not an env var, so no deployment configuration can aim it at a third party —
+lifting it is [`P13-011`](../../tasks/P13-011-arm-judge-for-other-users.md).
+Both guards are re-evaluated immediately before each fetch, every read writes an
+`AuditLog` row visible to the subject, and the judge is sent no tools. If you
+touch this job, keep those properties: `test/judge-sessions.test.ts` asserts
+that removing either guard alone still blocks a third party's transcript.
+
+**Scorer jobs write `scores` rows, never `sessions` columns** — except
+`compute-effectiveness`, which predates the substrate and still maintains the
+denormalized `friction_score` / `shape_label` cache alongside its score rows.
+Their idempotency comes from the upsert on
+`(subject_type, subject_id, scorer_name, scorer_version, period_start)` — declared
+`NULLS NOT DISTINCT`, so a session score's NULL period still conflicts with itself
+rather than appending (P13-013) — so re-running one is free; bumping a scorer version in `packages/schemas/src/scores.ts` and triggering
+`rescore-effectiveness` / `rescore-trajectory` re-scores history without a
+bespoke backfill job. Those two rescore entries are operator-triggered only and
+deliberately absent from `CONFIGURABLE_JOBS`.
 
 **Wrap new jobs in `withJobRun()`** (`src/jobs/job-run.ts`). It takes
 `pg_try_advisory_lock(hashtext('job:<name>'))`, skips the run with a warning if it
@@ -135,8 +194,20 @@ today; the locking is what keeps that from being an assumption.
 `embed-transcripts` is a gated prototype and is **not scheduled** (P7-007 no-go).
 Leave it that way unless the semantic-search decision is revisited.
 
-Any job can be triggered manually via `POST /admin/jobs/:name/run` — that's the
-supported way to exercise one, rather than shortening its schedule.
+**Three tiers, and they are not interchangeable.** `CONFIGURABLE_JOBS` is the set with
+an editable hour+minute cadence in `job_config` (`sweep-retention`,
+`index-transcripts`, `compute-effectiveness`, `compute-trajectory-scores`,
+`compute-subject-scores`, `evaluate-alerts`, `judge-sessions`); the scheduler DB-polls
+those every 60s. `ALL_KNOWN_JOBS` adds the fixed-timer and operator-drain jobs that
+`POST /admin/jobs/:name/run` accepts (`sync-teams`, `sync-jira`, `sweep-abandoned`,
+`sweep-scratch`, `run-deletions`, `backfill-redaction`, `reprice-events`,
+`reprice-events-apply`). Everything else `triggerJob()` can dispatch is **deliberately
+unreachable over HTTP** — `compute-effectiveness-backfill`, `rescore-effectiveness`,
+`rescore-trajectory` and `reconcile-cost` are dispatchable only from in-process code
+(an operator script, or `reconcile-cost`'s own daily timer when
+`billingReconciliationEnabled`). Adding a job to the enum is not what makes it
+triggerable; adding it to `ALL_KNOWN_JOBS` is. For the tiers it does cover, the manual
+trigger is the supported way to exercise a job, rather than shortening its schedule.
 
 **`reprice-events` is two job names on purpose.** The bare name reports what
 repricing would change; `reprice-events-apply` writes it. The trigger endpoint

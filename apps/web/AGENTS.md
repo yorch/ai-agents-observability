@@ -44,23 +44,69 @@ Read [`/PLAN.md`](../../PLAN.md) and [`/tasks/`](../../tasks/) before picking up
 - **Route error/loading files are one-line re-exports.** `error.tsx` re-exports `SectionError` and `loading.tsx` re-exports `SectionLoading` (`src/components/`); don't paste a bespoke boundary per segment — the four copies this replaced had already drifted.
 - **Navigation is data, not markup.** The rail (`src/components/shell/`) is the only nav surface; add a section to `nav-model.ts` rather than building another bar. Section layouts are pass-throughs — the root layout owns the single content measure.
 - **Icons, not emoji.** Never use emoji or Unicode symbol glyphs (✓ ⚠ ▶ ▲ ▼ ← → ↑ ↓ ↗ 👍 🎉 …) as UI affordances. Import a component from [`src/components/icons`](src/components/icons/index.tsx) instead — stroke-based SVGs on a 16×16 grid that inherit color via `currentColor`. Add new icons to that module rather than reaching for an icon library (none is installed). Typographic characters used as *units* rather than icons — the multiplication sign `×` ("3×"), the en-dash `–`, or a prose "maps to" arrow — stay as text.
-- **Formatting goes through `src/lib/fmt.ts` — never a local re-implementation.** `fmtUsd` (aggregates, 2dp) vs `fmtUsdSession` (per-session/per-event, 3dp — the same quantity must not change shape between list and detail); `fmtDuration`/`fmtDurationOrDash` take **milliseconds**, `fmtDurationSec` takes **seconds**; `fmtDate`/`fmtDateTime`/`fmtDayShort` (chart axis labels) are pinned to en-US + UTC on module-level cached `Intl.DateTimeFormat`s (a bare `toLocaleString` renders in the server's zone on SSR and the browser's after hydration, and rebuilds a formatter per call). Where a timestamp's zone matters (admin, audit), append the literal ` UTC`. Numbers keep `toLocaleString()` for thousands separators.
+- **Formatting goes through `src/lib/fmt.ts` — never a local re-implementation.** `fmtUsd` (aggregates, 2dp) vs `fmtUsdSession` (per-session/per-event, 3dp — the same quantity must not change shape between list and detail); `fmtDuration`/`fmtDurationOrDash` take **milliseconds**, `fmtDurationSec` takes **seconds**; `fmtDate`/`fmtDateTime`/`fmtDayShort` (chart axis labels) are pinned to en-US + UTC on module-level cached `Intl.DateTimeFormat`s (a bare `toLocaleString` renders in the server's zone on SSR and the browser's after hydration, and rebuilds a formatter per call). Where a timestamp's zone matters (admin, audit), append the literal ` UTC`. Numbers keep `toLocaleString()` for thousands separators. `fmtPct`/`fmtPctOrDash` take an optional digit count that defaults to 0 — pass 1 for a quantity that lives near zero, since an error rate of 0.004 renders as "0%" at 0dp and reads as "none" rather than "rare".
 - **Empty states have two shapes.** Section-level: the `EmptyState` primitive (`title` + guidance + `action` — filtered views offer "Clear filters", first-run views offer the install/setup CTA). Inside a `Card`: the `CardEmpty` primitive, never a nested EmptyState card. Wording: `No <thing> recorded yet.` for first-run (keep any how-data-arrives explanation), `No <thing> in this period.` for windowed views. A component must never render nothing (or a headers-only table) for an empty result.
 - **Form server actions return `ActionResult`** (`src/lib/action-result.ts`) — success `{ ok, message? }`, rejection `{ ok: false, error }` naming what was wrong. Wrap every action in `withActionResult` so an unexpected throw becomes an inline error instead of the error boundary; render through `ActionForm` (`useActionState` under the hood), or the `useActionResult` hook for client components that submit programmatically. A bare `return;` on invalid input is a bug, not a guard. Destructive one-click submits go through `ConfirmButton` (or `confirmSubmit` for text affordances). Row-mutating writes use `updateMany`/`deleteMany` + count check and report "not found — refresh and try again" on 0 rows.
 - **Keyboard access is part of done.** `globals.css` paints `:focus-visible` for link/button-like elements; anything with `role="dialog"` uses `useFocusTrap(ref, open, onClose)` — it owns focus-in, Tab cycling over *visible* focusables, Escape-to-close (stopping propagation so stacked layers close one at a time), and focus restore (skipped when a click-outside moved focus elsewhere); never add a separate document-level Escape listener per dialog; chart marks carrying `data-tip` are focusable with an `aria-label` that repeats the tooltip value (`ChartHover` raises tips on focus and dismisses on Escape). Data that exists only in a `title` attribute or a hover tooltip is a bug.
 - **Faceted pages keep filter state visible and survivable.** Applied filters render as `FilterChips` (per-chip remove + clear-all); every pager `hrefFor` must carry the active filters (dropping them on page 2 was a shipped bug); zero-result states say the filters caused it and offer one-click clear.
 - **The command palette derives from `nav-model.ts`** — add a page to the nav model and Cmd/Ctrl+K finds it; never give the palette its own page list.
 - **Auth is owned by `@ai-agents-observability/auth`** — do not introduce NextAuth. Use `currentUser()` from `src/lib/auth.ts` in server components / route handlers.
-- **Prisma**: server-only. Import `prisma` from `src/lib/prisma.ts`; never reference it inside `'use client'` modules.
+- **Prisma**: server-only. Call `getPrisma()` from `src/lib/prisma.ts` — there is no bare `prisma` export to import, deliberately, because the guarded and unguarded clients have to be told apart at the call site (see the `run_kind` section below). Never reference either inside `'use client'` modules.
 - **Routing layout**:
   - `/login`, `/install`, `/health`, `/metrics` — public.
-  - `/me/*` — authenticated, own-data scope. Session list, PR list, insights, search, transcript viewer, privacy settings, audit feed.
-  - `/team/[slug]/*` — authenticated, team-scoped. Roster, member sessions, PR tab. Gated by `team_lead` role via `requireTeamAccess()`.
-  - `/org/*` — authenticated, org-scoped. Dashboard (incl. spend forecast + cohort friction), adoption funnel, benchmarks, delivery stats, tools breakdown, models (routing recommendations), ROI, quality, security (data-flow/secret exposure), knowledge (topic clustering), governance, search, cross-user session/transcript. Gated by `org_admin` or `viewer_aggregate` roles.
+  - `/me/*` — authenticated, own-data scope. Session list + detail + transcript viewer, PR list, insights, search, access grants, and settings (profile, privacy, audit feed).
+  - `/team/[slug]/*` — authenticated, team-scoped. Roster, sessions, member drill-down (sessions + transcript), PRs, adoption, agents, tools, skills, MCP. Gated by `team_lead` role via `requireTeamAccess()`.
+  - `/org/*` — authenticated, org-scoped. Dashboard (incl. spend forecast + cohort friction), adoption funnel, benchmarks, delivery stats, agents comparison, tools breakdown, skills and MCP effectiveness, models (routing recommendations), ROI, quality, security (data-flow/secret exposure), knowledge (topic clustering), governance, teams, search, cross-user session/transcript. Gated by `org_admin` or `viewer_aggregate` roles.
   - `/admin/*` — authenticated, `org_admin` only. Alerts, access grants, adapters, jobs, org roles, team roles, price tables, retention.
   - `/api/auth/*` — OAuth + session endpoints; device-code flow for the hook binary.
   - `/api/me/*` — transcript proxy, data export, self-deletion.
   - `/api/org/*` and `/api/team/[slug]/*` — cross-user transcript endpoints (audit-logged).
+
+## The `run_kind` guard lives in the data layer, not at call sites
+
+Sessions and events carry a `run_kind` (`INTERACTIVE` | `CI` | `EVAL`). CI and eval
+runs have no human prompts, so they are stored and trendable but must never enter a
+number a dashboard presents as developer behaviour.
+
+**You do not write the filter.** Two mechanisms apply it for you:
+
+- **Raw SQL** reads the filtered views `interactive_sessions` / `interactive_events`
+  (defined in `packages/db/sql/migrations/0001_init.sql`) instead of the base tables.
+- **Prisma ORM** reads go through `getPrisma()`, whose client is extended to inject
+  `runKind: 'INTERACTIVE'` into every `session` read (`withInteractiveOnly` in
+  `packages/db`). An explicit `runKind` in your `where` still wins, so a future
+  CI-facing surface needs no escape hatch.
+
+A read that legitimately sees every run **opts out explicitly**: name the base table
+in SQL, or call `getAllRunsPrisma(reason)`. The `reason` string is never used at
+runtime — it exists so the exemption is argued at the call site and visible in a
+diff. Pair either with a `run-kind-exempt: <why>` comment; `test/run-kind-coverage.test.ts`
+fails without one.
+
+Three kinds of read qualify, and only these three: per-session drill-downs (a page
+scoped to one id is not a population — filtering it renders empty tabs rather than
+excluding anything), facet counts over a person's own data, and fleet inventory
+(which agents are reporting at all) where a CI-only runner must still be counted.
+
+**Why this shape.** The rule used to be a fragment you remembered at ~140 call sites,
+policed by a counting lint. That failed four times in a row, each round finding sites
+the previous mechanism could not see: the predicate drifted inline and let CI runs
+into org spend (`getOrgSummary` read 121 sessions / $547.83 against a true 115 /
+$19.03); centralizing it revealed 18 SQL and 22 ORM sites that had never adopted it;
+counting per literal then caught seven guards bound to a CTE while the driving query
+ran unfiltered; and the ingest alert engine still had two unguarded `events` reads.
+Counting can prove a filter is *present* and never that it is bound to the right scan.
+
+The inversion is chosen for the shape of its failures. A forgotten guard used to
+produce an inflated aggregate — silent, plausible, wrong. A forgotten opt-out now
+produces an empty drill-down page — loud, immediate, attributable.
+
+One trap worth knowing, because it defeated the guard completely and silently:
+`packages/db` publishes a module-level client on `globalThis._prisma` outside
+production. `src/lib/prisma.ts` therefore caches under `_prismaGuarded`, not
+`_prisma` — sharing the key meant importing the db package pre-populated the cache
+with an **unguarded** client, and `getPrisma()` handed it straight back. A test pins
+this.
 
 ## Pinning
 

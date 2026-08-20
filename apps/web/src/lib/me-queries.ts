@@ -40,6 +40,9 @@ export async function getUsageSummary(
 ): Promise<UsageSummary> {
   const prisma = getPrisma();
   const where: Prisma.SessionWhereInput = {
+    // "My Agents" is a per-developer surface; CI and eval runs are not sessions
+    // the human had, and their cost would land in this user's totals.
+    runKind: 'INTERACTIVE',
     startedAt: {
       gte: since,
       ...(until ? { lt: until } : {}),
@@ -91,7 +94,7 @@ export async function getTopTools(userId: string, since: Date, limit = 5): Promi
     { agent_type: string; call_count: bigint; tool_name: string }[]
   >(Prisma.sql`
     SELECT agent_type, tool_name, COUNT(*) AS call_count
-    FROM events
+    FROM interactive_events
     WHERE user_id = ${userId}::uuid
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
@@ -123,14 +126,14 @@ export async function getModelMix(userId: string, since: Date): Promise<ModelMix
         COALESCE(SUM(total_cost_usd), 0)      AS cost_usd,
         COALESCE(SUM(total_input_tokens), 0)  AS input_tokens,
         COALESCE(SUM(total_output_tokens), 0) AS output_tokens
-      FROM sessions
+      FROM interactive_sessions
       WHERE user_id = ${userId}::uuid
         AND started_at >= ${since}
       GROUP BY primary_model
     `),
     prisma.$queryRaw<{ model: string; turns: bigint }[]>(Prisma.sql`
       SELECT model, COUNT(*) AS turns
-      FROM events
+      FROM interactive_events
       WHERE user_id = ${userId}::uuid
         AND ts >= ${since}
         AND model IS NOT NULL
@@ -231,7 +234,8 @@ export async function getRecentSessions(userId: string, limit = 10): Promise<Rec
     },
     orderBy: { startedAt: 'desc' },
     take: limit,
-    where: { userId },
+    // Same population as the full session list (sessions-queries.listSessions).
+    where: { runKind: 'INTERACTIVE', userId },
   });
 
   return sessions.map((s) => {

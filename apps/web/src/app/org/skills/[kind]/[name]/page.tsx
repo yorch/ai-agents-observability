@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { SubjectQualityPanel } from '@/components/team-org/SubjectQualityPanel';
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import {
   getOrgSkillCostComparison,
@@ -9,8 +10,10 @@ import {
   getOrgSkillTopUsers,
   getSkillRoi,
   getSkillUsage,
+  orgVisibleUserIds,
 } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
+import { getSkillQuality, getSubjectScoreSeries } from '@/lib/subject-quality-queries';
 import { daysAgo } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
@@ -34,13 +37,18 @@ export default async function OrgSkillDetailPage({
   const name = decodeURIComponent(encodedName);
   const since = daysAgo(range);
 
-  const [allSkills, trend, topUsers, costRows, roiRows] = await Promise.all([
+  const visibleIds = await orgVisibleUserIds(since);
+  const [allSkills, trend, topUsers, costRows, roiRows, quality] = await Promise.all([
     getSkillUsage(since),
     getOrgSkillDailyTrend(name, kind, since),
     getOrgSkillTopUsers(name, kind, since),
     getOrgSkillCostComparison(name, kind, since),
     getSkillRoi(since),
+    // The org-wide profile, filtered to this subject below: one query definition
+    // means the detail page and the index can never disagree about a rate.
+    getSkillQuality(visibleIds, since),
   ]);
+  const subjectQuality = quality.filter((q) => q.name === name && q.kind === kind);
 
   const stat = allSkills.find((s) => s.name === name && s.kind === kind);
   if (!stat && trend.length === 0) {
@@ -50,6 +58,10 @@ export default async function OrgSkillDetailPage({
   const withoutSkill = costRows.find((r) => !r.hasSkill);
   const ciRows = roiRows.filter((r) => r.skillName === name && r.ciStatus != null);
   const ciTotal = ciRows.reduce((s, r) => s + r.sessionCount, 0);
+
+  // The stored series behind the error-rate column (P13-013). Keyed the same
+  // way `scores.subject_id` is, so the panel needs no id-shaping of its own.
+  const qualitySeries = await getSubjectScoreSeries('SKILL', subjectQuality);
 
   return (
     <div className="space-y-6">
@@ -86,6 +98,14 @@ export default async function OrgSkillDetailPage({
       </div>
 
       <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />
+
+      <SubjectQualityPanel
+        caption={`Sessions that invoked /${name} against matched sessions that did not, over the trailing ${range} days.`}
+        rows={subjectQuality}
+        series={qualitySeries}
+        subjectNoun="Skill"
+        title="Effectiveness"
+      />
 
       <div className="grid grid-cols-2 gap-6">
         {/* Cost impact */}

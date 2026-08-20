@@ -34,6 +34,11 @@ const ClientInfoSchema = z.object({
 // default rather than being required, so the hook can emit a tool block from
 // just `tool_name` + `tool_input`. `name` is the only hard requirement.
 const ToolInfoSchema = z.object({
+  // Coarse shell-command class (`test` / `build` / `lint` / `vcs` / `pkg` /
+  // `other`), derived at capture time by `tool-capture.ts`. Null for any call
+  // that carries no command — "no test ran" and "no command ran" are different
+  // facts and the deterministic scorers (P13-003) need to tell them apart.
+  action: z.string().nullable().default(null),
   category: z.string().default('other'),
   duration_ms: z.number().int().nonnegative().default(0),
   exit_status: z.number().int().nullable().default(null),
@@ -46,6 +51,10 @@ const ToolInfoSchema = z.object({
   skill: z.string().nullable().default(null),
   slash_command: z.string().nullable().default(null),
   subagent_type: z.string().nullable().default(null),
+  // Non-reversible digest of *what* the call acted on (a path, a glob, a URL, a
+  // command) — never the value itself. Lets "the same file was edited five
+  // times" be counted server-side without the path ever being transmitted.
+  target_hash: z.string().nullable().default(null),
   was_denied: z.boolean().default(false),
   was_interrupted: z.boolean().default(false),
 });

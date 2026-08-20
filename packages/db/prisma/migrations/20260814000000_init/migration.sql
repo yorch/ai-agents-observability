@@ -1,3 +1,6 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateEnum
 CREATE TYPE "SessionStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'CRASHED', 'TIMED_OUT', 'ABANDONED');
 
@@ -5,7 +8,7 @@ CREATE TYPE "SessionStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'CRASHED', 'TIMED_OU
 CREATE TYPE "AgentType" AS ENUM ('CLAUDE_CODE', 'CURSOR', 'AIDER', 'COPILOT', 'CODEX', 'WINDSURF', 'OPENCODE', 'GEMINI_CLI', 'PI', 'OMP');
 
 -- CreateEnum
-CREATE TYPE "AuditAction" AS ENUM ('VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM', 'EXPORT_ORG', 'ADMIN_IMPERSONATE', 'DELETE_REQUEST', 'HOOK_TOKEN_ISSUED', 'ROLE_GRANT', 'RETENTION_OVERRIDE_CHANGED', 'GRANT_REQUESTED', 'GRANT_APPROVED', 'GRANT_REVOKED', 'ALERT_ACKNOWLEDGED', 'ALERT_SILENCED');
+CREATE TYPE "AuditAction" AS ENUM ('VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM', 'EXPORT_ORG', 'ADMIN_IMPERSONATE', 'DELETE_REQUEST', 'HOOK_TOKEN_ISSUED', 'ROLE_GRANT', 'RETENTION_OVERRIDE_CHANGED', 'GRANT_REQUESTED', 'GRANT_APPROVED', 'GRANT_REVOKED', 'ALERT_ACKNOWLEDGED', 'ALERT_SILENCED', 'JUDGE_READ_TRANSCRIPT');
 
 -- CreateEnum
 CREATE TYPE "GrantScope" AS ENUM ('USER_SESSIONS', 'SINGLE_SESSION');
@@ -24,6 +27,15 @@ CREATE TYPE "PRState" AS ENUM ('OPEN', 'CLOSED', 'MERGED');
 
 -- CreateEnum
 CREATE TYPE "LinkSource" AS ENUM ('SESSION_START', 'WEBHOOK_RECONCILE', 'MANUAL');
+
+-- CreateEnum
+CREATE TYPE "RunKind" AS ENUM ('INTERACTIVE', 'CI', 'EVAL');
+
+-- CreateEnum
+CREATE TYPE "ScoreSubjectType" AS ENUM ('SESSION', 'PULL_REQUEST', 'SKILL', 'MCP_SERVER');
+
+-- CreateEnum
+CREATE TYPE "ScoreSource" AS ENUM ('HEURISTIC', 'DETERMINISTIC', 'HUMAN', 'JUDGE', 'OUTCOME');
 
 -- CreateTable
 CREATE TABLE "teams" (
@@ -99,6 +111,7 @@ CREATE TABLE "visibility_policies" (
     "share_metadata_with_org" BOOLEAN NOT NULL DEFAULT true,
     "share_transcripts_with_team" BOOLEAN NOT NULL DEFAULT false,
     "share_transcripts_with_org" BOOLEAN NOT NULL DEFAULT false,
+    "allow_judge_analysis" BOOLEAN NOT NULL DEFAULT false,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "visibility_policies_pkey" PRIMARY KEY ("user_id")
@@ -126,6 +139,7 @@ CREATE TABLE "sessions" (
     "user_id" UUID NOT NULL,
     "agent_type" "AgentType" NOT NULL DEFAULT 'CLAUDE_CODE',
     "agent_version" TEXT,
+    "run_kind" "RunKind" NOT NULL DEFAULT 'INTERACTIVE',
     "started_at" TIMESTAMPTZ(6) NOT NULL,
     "ended_at" TIMESTAMPTZ(6),
     "last_event_at" TIMESTAMPTZ(6) NOT NULL,
@@ -170,7 +184,7 @@ CREATE TABLE "sessions" (
     "transcript_bytes" BIGINT,
     "transcript_uploaded_at" TIMESTAMPTZ(6),
     "transcript_redacted" BOOLEAN NOT NULL DEFAULT false,
-    "redaction_flags" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    "redaction_flags" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "shape_label" TEXT,
     "friction_score" DOUBLE PRECISION,
     "total_response_ms" BIGINT NOT NULL DEFAULT 0,
@@ -206,17 +220,6 @@ CREATE TABLE "pull_requests" (
     "is_draft" BOOLEAN,
 
     CONSTRAINT "pull_requests_pkey" PRIMARY KEY ("repo_id","pr_number")
-);
-
--- CreateTable
-CREATE TABLE "session_pr_links" (
-    "session_id" UUID NOT NULL,
-    "repo_id" UUID NOT NULL,
-    "pr_number" INTEGER NOT NULL,
-    "linked_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "link_source" "LinkSource" NOT NULL,
-
-    CONSTRAINT "session_pr_links_pkey" PRIMARY KEY ("session_id","repo_id","pr_number")
 );
 
 -- CreateTable
@@ -288,6 +291,17 @@ CREATE TABLE "jira_issue_links" (
     "synced_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "jira_issue_links_pkey" PRIMARY KEY ("source_key","target_key","link_type")
+);
+
+-- CreateTable
+CREATE TABLE "session_pr_links" (
+    "session_id" UUID NOT NULL,
+    "repo_id" UUID NOT NULL,
+    "pr_number" INTEGER NOT NULL,
+    "linked_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "link_source" "LinkSource" NOT NULL,
+
+    CONSTRAINT "session_pr_links_pkey" PRIMARY KEY ("session_id","repo_id","pr_number")
 );
 
 -- CreateTable
@@ -398,19 +412,14 @@ CREATE TABLE "session_feedback" (
     "id" UUID NOT NULL,
     "session_id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
-    "sentiment" TEXT NOT NULL,
+    "sentiment" TEXT,
     "note" TEXT,
+    "rubric_version" INTEGER NOT NULL DEFAULT 0,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "session_feedback_pkey" PRIMARY KEY ("id")
 );
-
--- CreateIndex
-CREATE UNIQUE INDEX "session_feedback_session_id_user_id_key" ON "session_feedback"("session_id", "user_id");
-
--- CreateIndex
-CREATE INDEX "session_feedback_session_id_idx" ON "session_feedback"("session_id");
 
 -- CreateTable
 CREATE TABLE "alert_events" (
@@ -446,6 +455,47 @@ CREATE TABLE "alert_delivery_log" (
     "error" TEXT,
 
     CONSTRAINT "alert_delivery_log_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "scores" (
+    "id" UUID NOT NULL,
+    "subject_type" "ScoreSubjectType" NOT NULL,
+    "subject_id" TEXT NOT NULL,
+    "scorer_name" TEXT NOT NULL,
+    "scorer_version" INTEGER NOT NULL,
+    "source" "ScoreSource" NOT NULL,
+    "value" DOUBLE PRECISION,
+    "label" TEXT,
+    "metadata" JSONB NOT NULL DEFAULT '{}',
+    "rationale_ref" TEXT,
+    "cost_usd" DECIMAL(12,6),
+    "period_start" TIMESTAMPTZ(6),
+    "period_end" TIMESTAMPTZ(6),
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "scores_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "projections" (
+    "id" UUID NOT NULL,
+    "claim_type" TEXT NOT NULL,
+    "segment" TEXT NOT NULL,
+    "projected_low" DOUBLE PRECISION NOT NULL,
+    "projected_high" DOUBLE PRECISION NOT NULL,
+    "unit" TEXT NOT NULL,
+    "baseline_value" DOUBLE PRECISION NOT NULL,
+    "baseline_window_days" INTEGER NOT NULL,
+    "period_start" TIMESTAMPTZ(6) NOT NULL,
+    "period_end" TIMESTAMPTZ(6) NOT NULL,
+    "price_table_version" TEXT,
+    "scorer_versions" JSONB NOT NULL DEFAULT '{}',
+    "guard_baseline" JSONB NOT NULL DEFAULT '{}',
+    "metadata" JSONB NOT NULL DEFAULT '{}',
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "projections_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -503,16 +553,25 @@ CREATE INDEX "sessions_agent_type_started_at_idx" ON "sessions"("agent_type", "s
 CREATE INDEX "sessions_jira_key_idx" ON "sessions"("jira_key");
 
 -- CreateIndex
+CREATE INDEX "sessions_last_event_at_session_id_idx" ON "sessions"("last_event_at", "session_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "pull_requests_github_id_key" ON "pull_requests"("github_id");
+
+-- CreateIndex
+CREATE INDEX "pull_requests_opened_at_idx" ON "pull_requests"("opened_at");
+
+-- CreateIndex
+CREATE INDEX "pull_requests_merged_at_idx" ON "pull_requests"("merged_at");
 
 -- CreateIndex
 CREATE INDEX "pull_requests_jira_key_idx" ON "pull_requests"("jira_key");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "pr_check_runs_repo_id_pr_number_github_id_key" ON "pr_check_runs"("repo_id", "pr_number", "github_id");
+CREATE INDEX "pr_check_runs_repo_id_pr_number_completed_at_idx" ON "pr_check_runs"("repo_id", "pr_number", "completed_at");
 
 -- CreateIndex
-CREATE INDEX "pr_check_runs_repo_id_pr_number_completed_at_idx" ON "pr_check_runs"("repo_id", "pr_number", "completed_at");
+CREATE UNIQUE INDEX "pr_check_runs_repo_id_pr_number_github_id_key" ON "pr_check_runs"("repo_id", "pr_number", "github_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "pr_reviews_github_id_key" ON "pr_reviews"("github_id");
@@ -537,12 +596,6 @@ CREATE INDEX "jira_issues_project_key_idx" ON "jira_issues"("project_key");
 
 -- CreateIndex
 CREATE INDEX "jira_issue_links_target_key_idx" ON "jira_issue_links"("target_key");
-
--- CreateIndex
-CREATE INDEX "pull_requests_opened_at_idx" ON "pull_requests"("opened_at");
-
--- CreateIndex
-CREATE INDEX "pull_requests_merged_at_idx" ON "pull_requests"("merged_at");
 
 -- CreateIndex
 CREATE INDEX "session_pr_links_repo_id_pr_number_idx" ON "session_pr_links"("repo_id", "pr_number");
@@ -572,10 +625,31 @@ CREATE INDEX "access_grants_grantee_user_id_expires_at_idx" ON "access_grants"("
 CREATE INDEX "access_grants_granted_at_revoked_at_idx" ON "access_grants"("granted_at", "revoked_at");
 
 -- CreateIndex
+CREATE INDEX "session_feedback_session_id_idx" ON "session_feedback"("session_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "session_feedback_session_id_user_id_key" ON "session_feedback"("session_id", "user_id");
+
+-- CreateIndex
 CREATE INDEX "alert_events_rule_id_resolved_at_idx" ON "alert_events"("rule_id", "resolved_at");
 
 -- CreateIndex
 CREATE INDEX "alert_delivery_log_attempted_at_idx" ON "alert_delivery_log"("attempted_at" DESC);
+
+-- CreateIndex
+CREATE INDEX "scores_subject_type_subject_id_idx" ON "scores"("subject_type", "subject_id");
+
+-- CreateIndex
+CREATE INDEX "scores_scorer_name_scorer_version_created_at_idx" ON "scores"("scorer_name", "scorer_version", "created_at" DESC);
+
+-- CreateIndex
+CREATE INDEX "scores_subject_type_subject_id_scorer_name_period_start_idx" ON "scores"("subject_type", "subject_id", "scorer_name", "period_start" DESC);
+
+-- CreateIndex
+CREATE INDEX "projections_claim_type_period_start_idx" ON "projections"("claim_type", "period_start" DESC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "projections_claim_type_segment_period_start_key" ON "projections"("claim_type", "segment", "period_start");
 
 -- AddForeignKey
 ALTER TABLE "teams" ADD CONSTRAINT "teams_parent_team_id_fkey" FOREIGN KEY ("parent_team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -617,6 +691,12 @@ ALTER TABLE "sessions" ADD CONSTRAINT "sessions_repo_id_fkey" FOREIGN KEY ("repo
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_repo_id_fkey" FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_author_user_id_fkey" FOREIGN KEY ("author_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "pr_check_runs" ADD CONSTRAINT "pr_check_runs_repo_id_pr_number_fkey" FOREIGN KEY ("repo_id", "pr_number") REFERENCES "pull_requests"("repo_id", "pr_number") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -627,12 +707,6 @@ ALTER TABLE "session_commit_links" ADD CONSTRAINT "session_commit_links_session_
 
 -- AddForeignKey
 ALTER TABLE "session_commit_links" ADD CONSTRAINT "session_commit_links_repo_id_fkey" FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_repo_id_fkey" FOREIGN KEY ("repo_id") REFERENCES "repos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_author_user_id_fkey" FOREIGN KEY ("author_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "session_pr_links" ADD CONSTRAINT "session_pr_links_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "sessions"("session_id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -651,3 +725,4 @@ ALTER TABLE "access_grants" ADD CONSTRAINT "access_grants_grantee_user_id_fkey" 
 
 -- AddForeignKey
 ALTER TABLE "alert_events" ADD CONSTRAINT "alert_events_rule_id_fkey" FOREIGN KEY ("rule_id") REFERENCES "alert_rules"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+

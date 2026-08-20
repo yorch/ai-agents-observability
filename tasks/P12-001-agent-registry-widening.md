@@ -73,7 +73,7 @@ than a restated literal.
 ## Files touched
 
 - `packages/schemas/src/event.ts`, `agent-display.ts` (+ new registry, + tests)
-- `packages/db/prisma/schema.prisma`, `prisma/migrations/20260625075457_init/migration.sql`
+- `packages/db/prisma/schema.prisma`, `prisma/migrations/20260814000000_init/migration.sql`
 - `apps/ingest/src/data/price-table.{pi,omp,gemini_cli,copilot}.v1.json`,
   `src/lib/price-tables.ts` — copilot needed one too, since P12-006 gives it an adapter
 - `apps/web/src/app/admin/adapters/page.tsx`, `apps/web/src/app/admin/price-tables/page.tsx`

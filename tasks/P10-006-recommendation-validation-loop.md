@@ -3,7 +3,7 @@ id: P10-006
 title: Recommendation validation loop
 phase: 10
 workstream: E
-status: ready
+status: cancelled
 owner: null
 depends_on: [P10-001, P10-003]
 blocks: []
@@ -68,3 +68,30 @@ bun install
 bun --filter '@ai-agents-observability/web' test routing-analysis
 bun run --cwd apps/web typecheck
 ```
+
+## Cancelled 2026-08-18 — superseded by P13-006
+
+Owner decision, taken while reconciling Phase 10. All five acceptance criteria are
+satisfied, but by [`P13-006`](./P13-006-projection-validation-pattern.md) rather than
+by this task's own design, so `cancelled` records what happened where `done` would
+imply this spec was built.
+
+The mapping, verified against the code:
+
+| This task asked for | P13-006 provides |
+|---|---|
+| the projection persisted for later comparison | the `Projection` model — `claimType`, `segment`, `projectedLow`/`projectedHigh`, `unit`, baseline and window |
+| a validation panel on `/org/models`, org-admin scope | the realization panels in `projection-queries.ts`, rendered on that page |
+| an outcome guard flagging a saving that degraded outcomes | `outcomeFlagged`, computed from `frictionMean` / `revertRate` / `toolErrorRate` movement |
+| "not yet measurable" instead of a spurious delta | `realizeProjection` returns `not_yet_measurable` below `minPostPeriodVolume` |
+| a pure, unit-tested projection→realization function | `realizeProjection`, pure over persisted claims + post-period aggregates |
+
+The difference that made it worth generalizing: P13-006 registers claims of any kind,
+so the routing recommendation is one registered claim rather than the only thing the
+mechanism knows how to check. `routingSavingRange` exists precisely to register the
+routing claim as a **range** — a single number there would have been an assertion the
+data cannot support.
+
+An earlier revision of the Phase 13 branch marked this `cancelled` unilaterally, then
+withdrew the claim because it had been written when Phase 10 read `ready`. This is
+that decision taken properly, with Phase 10's state reconciled at the same time.

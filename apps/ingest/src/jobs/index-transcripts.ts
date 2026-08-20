@@ -132,6 +132,11 @@ export async function runIndexTranscripts(
     jobRunId = jobRun.id;
 
     // Find sessions with transcripts that have no index entries yet (batch 200)
+    // run-kind-exempt: transcript indexing. FTS indexing operates on whatever
+    // transcript was stored, regardless of run kind — a CI session's transcript
+    // is real stored content and must be searchable/findable by the same
+    // mechanism as an interactive one's, or index-transcripts would leave a
+    // permanent gap for every non-interactive session.
     const unindexed = await db.$queryRaw<{ session_id: string; transcript_s3_key: string }[]>`
       SELECT s.session_id, s.transcript_s3_key
       FROM sessions s

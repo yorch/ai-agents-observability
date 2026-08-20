@@ -90,6 +90,42 @@ Nothing records a price-table version per event, so a rate correction is a data
 update: bump `generated_at`, keep `version`, keep the filename. The "keep old
 `v<N>` files" rule applies to *structure* changes, not price changes.
 
+## Follow-up — a maintained catalog instead of hand-research
+
+Surfaced 2026-08-18 while assessing LLM client libraries for the judge
+([`docs/research/2026-08-18-judge-client-provider-abstraction.md`](../docs/research/2026-08-18-judge-client-provider-abstraction.md) §4).
+
+Pi's `pi-ai` maintains pricing metadata for hundreds of models, partly
+auto-generated from OpenRouter and the Vercel AI Gateway, and
+`@oh-my-pi/pi-catalog` publishes it separately (MIT: "bundled model database,
+provider discovery descriptors, model identity, classification"). There is an
+irony worth acting on: this task hand-filled a price table for **Pi**, one of the
+four that shipped empty and billed everything at $0 — while Pi ships a maintained
+catalog covering hundreds of models.
+
+The opportunity is a **data source, not a dependency.** `src/data/price-table.*.v1.json`
+is deliberately versioned JSON a human edits, so that a price correction stays "a
+JSON edit plus a restart" with no hook redeploy. Syncing or vendoring from a
+maintained catalog keeps that property while removing the hand-research that made
+six of seven tables wrong in the first place. Before acting: check licence
+attribution, confirm the catalog's rate shape maps onto `ModelPrice`, and note
+that `pi-catalog` itself carries three `@oh-my-pi/*` deps — extract the data
+rather than depend on the package.
+
+Two things it would not fix, both deliberate: Copilot's table stays empty (seat
+allowance, not tokens), and provider token-accounting normalization stays in the
+adapters, where the semantics are known.
+
+**Resolved by [`P12-012`](./P12-012-generate-provider-agnostic-price-tables.md),
+from a better source than the one proposed above.** The three provider-agnostic
+tables (`pi`, `omp`, `opencode`) are now generated from
+<https://models.dev/api.json> — the catalog opencode itself builds its model list
+from — rather than from `pi-catalog`, which would have meant extracting data from a
+package carrying three `@oh-my-pi/*` deps. The property this note cared about
+survived: the tables are still versioned JSON in the repo, so a price correction is
+still a JSON edit plus a restart, and the generator is a script run deliberately,
+not a fetch at boot. Coverage went from 34 models across 3 vendors to 243 across 20.
+
 ## Files touched
 
 - `apps/ingest/src/data/price-table.{claude_code,codex,gemini_cli,pi,omp,opencode,copilot}.v1.json`

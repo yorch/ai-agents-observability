@@ -45,6 +45,34 @@ const ConfigSchema = z.object({
   // Optional Jira custom field holding a per-issue business value (currency
   // units), e.g. "customfield_10032". Synced into jira_issues.business_value.
   jira_value_field: z.string().optional(),
+  // ── LLM-as-judge (P13-009) ────────────────────────────────────────────────
+  // The judge is an optional subsystem gated by *config presence*, not a flag:
+  // with no API key and no operator user id it never runs, and its scheduled
+  // entry no-ops with a warning. Both are required — the operator id is the
+  // second guard (own-sessions-only), not a convenience.
+  //
+  // Anthropic API key for the judge. Deliberately separate from
+  // ANTHROPIC_ADMIN_KEY (cost reconciliation): a judge key spends money and an
+  // admin key reads the bill, and one credential doing both is a blast radius
+  // nobody chose.
+  judge_anthropic_api_key: z.string().optional(),
+  // A session at or above this cost that ended abandoned is always judged,
+  // regardless of the sample rate — expensive abandonment is the
+  // outcome-negative case a sample would most likely miss.
+  judge_high_cost_usd: z.coerce.number().min(0).default(5),
+  // Per-run cap. Bounds spend and runtime for one nightly pass; the next run
+  // picks up what this one left, because scoring is idempotent per version.
+  judge_max_sessions_per_run: z.coerce.number().int().min(1).max(500).default(25),
+  // Judge model. Must have a JUDGE_REVISIONS entry in packages/schemas — an
+  // unregistered model is refused rather than scored at a borrowed version.
+  judge_model: z.string().default('claude-opus-5'),
+  // The operator whose own sessions the judge may read. Until P13-011 this is
+  // the only user whose transcripts the runner can touch, and it is also the
+  // actor recorded on every audit row the judge writes.
+  judge_operator_user_id: z.uuid().optional(),
+  // Share of eligible sessions sampled, in [0, 1]. Default 10% — the low end of
+  // the 5–20% the literature converges on. Outcome-negative sessions bypass it.
+  judge_sample_rate: z.coerce.number().min(0).max(1).default(0.1),
   log_level: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   node_env: z.enum(['development', 'production', 'test']).default('development'),
   openai_api_key: z.string().optional(),
@@ -108,6 +136,12 @@ export function loadConfig(): Config {
     jira_project_keys: process.env.JIRA_PROJECT_KEYS,
     jira_story_points_field: process.env.JIRA_STORY_POINTS_FIELD,
     jira_value_field: process.env.JIRA_VALUE_FIELD,
+    judge_anthropic_api_key: process.env.JUDGE_ANTHROPIC_API_KEY,
+    judge_high_cost_usd: process.env.JUDGE_HIGH_COST_USD,
+    judge_max_sessions_per_run: process.env.JUDGE_MAX_SESSIONS_PER_RUN,
+    judge_model: process.env.JUDGE_MODEL,
+    judge_operator_user_id: process.env.JUDGE_OPERATOR_USER_ID,
+    judge_sample_rate: process.env.JUDGE_SAMPLE_RATE,
     log_level: process.env.LOG_LEVEL,
     node_env: process.env.NODE_ENV,
     openai_api_key: process.env.OPENAI_API_KEY,

@@ -30,6 +30,14 @@ const WINDOW_DAYS = 90;
  * tokens and no cost — because the price table is the only thing that can zero a
  * row with real token counts. It cannot distinguish "no price row" from "a row
  * whose rates are genuinely all zero", but no shipped table has one.
+ *
+ * run-kind-exempt: fleet inventory, not a population statistic. This asks which
+ * models the price tables are missing, and a model used only by CI runs is
+ * missing just as expensively — `reprice-events` would keep costing those rows at
+ * $0 for as long as they stayed invisible here. Guarding this read would hide the
+ * gap precisely where nobody would notice it. Note the `unknown_model_surge`
+ * alert answers a different question — "is our billing drifting for the people we
+ * report on" — and is guarded for that reason; the two differing is deliberate.
  */
 export async function getUnpricedModels(): Promise<UnpricedModel[]> {
   const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000);
@@ -52,6 +60,8 @@ export async function getUnpricedModels(): Promise<UnpricedModel[]> {
       COALESCE(SUM(output_tokens), 0)       AS output_tokens,
       MIN(ts)                               AS first_seen,
       MAX(ts)                               AS last_seen
+    -- run-kind-exempt: fleet inventory. A model only CI ever runs is missing from
+    -- the price table just as expensively; see the docstring above.
     FROM events
     WHERE ts >= ${since}
       AND model IS NOT NULL

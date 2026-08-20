@@ -126,7 +126,7 @@ function sessionSpendByKeySql(since: Date): Prisma.Sql {
       s.jira_key                          AS jira_key,
       COUNT(*)                            AS session_count,
       COALESCE(SUM(s.total_cost_usd), 0)  AS session_cost
-    FROM sessions s
+    FROM interactive_sessions s
     WHERE s.started_at >= ${since} AND s.jira_key IS NOT NULL
     GROUP BY s.jira_key
   `;

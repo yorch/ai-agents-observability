@@ -24,6 +24,10 @@ vi.mock('@ai-agents-observability/db', () => ({
   createClient: vi.fn(() => mockPrisma),
   // Minimal Prisma.sql tag so $queryRaw call sites don't blow up under mock.
   Prisma: { sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }) },
+  // Identity: these suites assert on the mock client's calls. That the real
+  // extension actually filters is proven by test/run-kind-coverage.test.ts
+  // and against a live database, not here.
+  withInteractiveOnly: <T>(c: T): T => c,
 }));
 
 // ── getUsageSummary ──────────────────────────────────────────────────────────

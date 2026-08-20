@@ -9,12 +9,19 @@
 > [`PLAN.md`](../PLAN.md) (phasing/decisions, Phases 1–9),
 > [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) (assessment of unrealized value —
 > the primary input for "what to build next"), [`AGENTS.md`](../AGENTS.md)
-> (agent guidelines), and [`tasks/`](../tasks/) (the P1–P12 task breakdown).
+> (agent guidelines), and [`tasks/`](../tasks/) (the P1–P13 task breakdown).
 >
 > **Currency:** reflects `main` as of the P6–P9 work (HITL observability,
 > alerting & governance, multi-agent adapters, insight surfaces), plus P11
-> (correlation & Jira) and P12 (agent adapter expansion — seven agents).
-> Phase 10 (model cost optimization) is proposed and `ready`, not built. If you are reading this much later, re-verify against
+> (correlation & Jira), P12 (agent adapter expansion — seven agents) and P13
+> (scoring & evaluation — the versioned `scores` substrate, `run_kind`,
+> deterministic trajectory scorers, the opt-in judge), and the post-revamp UI/UX
+> review ([`docs/design/ui-ux-review-2026-08.md`](design/ui-ux-review-2026-08.md) →
+> the `ActionResult` contract, `CardEmpty`/`EmptyState`, the `fmt.ts` monopoly,
+> `useFocusTrap`, `FilterChips`, and the nav-model-derived command palette).
+> Phase 10 (model cost optimization) is in a contradictory state — `tasks/INDEX.md`
+> marks it `done`, every `P10-*.md` file reads `ready`, and no `model_policy` table
+> exists. If you are reading this much later, re-verify against
 > `tasks/INDEX.md` — that file, not this one, is the source of truth for status.
 
 ---
@@ -100,7 +107,18 @@ migration path).
 - **Client-computed cost** from **versioned, per-agent price tables** served by
   ingest (`price-table.<agent>.v1.json`) → price changes propagate without
   redeploying hooks. Ingest recomputes server-side; client cost is not trusted.
-  A `reconcile-cost` job compares against a (currently null) vendor billing source.
+  A `reconcile-cost` job compares against a vendor billing source — a real
+  `AnthropicBillingSource` (Admin Cost Report API) when `ANTHROPIC_ADMIN_KEY` is set,
+  and a null source otherwise. The job itself is gated off by default.
+- **Every computed signal is a versioned score** (Phase 13). Scorer identity and
+  version live in one registry (`packages/schemas/src/scores.ts`) and every value
+  lands in `scores` with the scorer that produced it — so re-scoring history after a
+  scorer change is a version bump plus one trigger, not a bespoke backfill job.
+- **`run_kind` separates humans from machines.** Sessions and events carry
+  `INTERACTIVE` | `CI` | `EVAL`. Non-interactive runs are stored and trendable but
+  never enter a number presented as developer behaviour — the filter is baked into
+  the three continuous aggregates and enforced across the query layer by
+  source-scanning lints in both `apps/web` and `apps/ingest`.
 - **Capture-more-now / surface-later:** cheap-to-capture, expensive-to-backfill
   signals are captured day one; Phase 7 was largely about *surfacing* what Phase 5
   already computed.
@@ -130,8 +148,10 @@ GitHub PR event → github-app webhook: upsert PR (state, is_draft, jira_key,
 Scheduled jobs (ingest, advisory-locked): team sync, abandoned sweep,
   compute-effectiveness (friction + shape + response-latency), transcript FTS
   index, evaluate-alerts (→ Slack/webhook/email), retention sweep (per-team
-  override), GDPR deletion runner, cost reconciliation. (embed-transcripts is a
-  gated prototype, not scheduled.)
+  override), GDPR deletion runner, trajectory + subject scorers, the opt-in judge.
+  (Cost reconciliation is gated off by default, and falls back to a null billing
+  source unless ANTHROPIC_ADMIN_KEY is set. embed-transcripts is a gated prototype,
+  not scheduled.)
 
 Web reads: dev sees /me + /me/insights; lead sees /team/[slug] (audit-logged);
   leadership sees /org/* aggregates; investigators act only under a live grant.
@@ -142,7 +162,8 @@ Web reads: dev sees /me + /me/insights; lead sees /team/[slug] (audit-logged);
 ## 5. Implemented capabilities
 
 The system is **built well past its original design** — per `tasks/INDEX.md`,
-Phases 1–9 are all code-complete; open items are operational sign-off / manual
+Phases 1–9, 11 and 12 are code-complete and Phase 13 is in review; open items are
+operational sign-off / manual
 integration (see §8).
 
 ### Hook CLI (`apps/hook`)
@@ -150,8 +171,13 @@ Adapter-based capture (seven agents; `--agent <name>` selects one). Full command
 `login` (GitHub device-code **+ password fallback**), `install`/`uninstall`
 (launchd/systemd), `status`, `pause`/`resume`, `purge-local`, `import`
 (historical backfill from `~/.claude/projects`), the internal `hook <kind>`
-entrypoint, `flusher`, `shipper`. Offline-durable SQLite queue (WAL), sub-10ms
-hot path (CI-enforced), git-at-session-start capture, throttled transcript upload.
+entrypoint, `flusher`, `shipper`. Offline-durable SQLite queue (WAL), a p99
+cold-start budget of **<15 ms on developer hardware**, git-at-session-start capture,
+throttled transcript upload. The budget is *measured* in CI (`.github/workflows/perf.yml`,
+uploaded as an artifact for trend tracking) but **not enforced** — it runs
+`continue-on-error`, because a shared `ubuntu-latest` runner measures Bun
+single-file-binary cold start at ~60–80 ms regardless of the code. Re-tighten it if the
+job ever moves to dedicated perf hardware.
 *(A directory-shaped transcript target — opencode's — is collated into one JSONL
 by the shipper before upload, out of the hot path.)*
 
@@ -159,14 +185,25 @@ by the shipper before upload, out of the hot path.)*
 - `POST /v1/events` (idempotent batch), `POST /v1/transcripts/:id` (chunked,
   re-redacted), `GET /v1/price-table?agent=` (per-agent, ETag), `/health`,
   `/readyz`, `/metrics`, `POST /admin/jobs/:name/run`.
-- **~11 scheduled jobs**, notably the **alert-evaluation engine**
+- **19 dispatchable jobs in three tiers.** Seven have an operator-editable cadence in
+  `job_config` (`sweep-retention`, `index-transcripts`, `compute-effectiveness`,
+  `compute-trajectory-scores`, `compute-subject-scores`, `evaluate-alerts`,
+  `judge-sessions`); eight more run on fixed timers or are drainable over HTTP
+  (`sync-teams`, `sync-jira`, `sweep-abandoned`, `sweep-scratch`, `run-deletions`,
+  `backfill-redaction`, and the `reprice-events` / `reprice-events-apply` pair, which
+  is one job behind a two-name safety interlock — the bare name reports, `-apply`
+  writes); four are one-shot and reachable only from in-process operator
+  code, never over HTTP (`compute-effectiveness-backfill`, `rescore-effectiveness`,
+  `rescore-trajectory`, `reconcile-cost`). Notably the **alert-evaluation engine**
   (`evaluate-alerts` → `alert-transition` → notify channels) and
   `compute-effectiveness` (friction score, shape label, human-response-latency).
 
 ### GitHub App (`apps/github-app`)
-HMAC-verified webhook intake (202-before-processing + idempotency). Handles
-`pull_request` (upsert with `is_draft`, `jira_key`, revert links; rollup on merge;
-opt-in bot comment) and `check_run` (CI failure counts). GHES-capable.
+HMAC-verified webhook intake (202-before-processing + idempotency). Handles four
+event types: `pull_request` (upsert with `is_draft`, `jira_key`, revert links; rollup
+on merge; opt-in bot comment), `check_run` (CI failure counts), `pull_request_review`
+(review decisions) and `push` (commit↔session correlation on the default branch).
+GHES-capable.
 
 ### Web (`apps/web`, Next.js 16) — new capability areas in **bold**
 - **My Agents (`/me/*`):** overview, sessions (list + detail with
@@ -194,8 +231,9 @@ opt-in bot comment) and `check_run` (CI failure counts). GHES-capable.
   denial rate, human-response-latency to blocking prompts, a **rubber-stamp /
   over-trust detector**, `SessionFeedback` (👍/👎 ground truth), and a
   compliance-framed governance page (EU AI Act Art. 14 / NIST AI RMF / SOC 2).
-- **Alerting & governance (P9):** scheduled alert rules (spend spike, error rate,
-  unknown-model surge, autonomy surge; budget-threshold reserved) with
+- **Alerting & governance (P9):** six scheduled alert rules — spend spike, error
+  rate, unknown-model surge, autonomy surge, budget threshold and routing waste;
+  all six are evaluated, the last two seeded disabled pending a threshold — with
   Slack/webhook/**SMTP email** delivery + acknowledge/silence; **time-boxed
   access grants**; per-team retention; the **`INVESTIGATOR`** research role.
 - **Multi-agent & cost (P8):** `<agent>:<tool>` disambiguation, per-agent price
@@ -217,8 +255,22 @@ opt-in bot comment) and `check_run` (CI failure counts). GHES-capable.
   additive aggregates, transcript pointer, `friction_score`, `shape_label`, and
   **HITL fields**: `mode`, `notification_count`, `total_response_ms` /
   `response_sample_count`.
-- **`session_feedback`** (new) — per-session 👍/👎 + note; the human ground truth
-  that calibrates friction/autonomy signals.
+- **`session_feedback`** — per-session 👍/👎 + note, plus a `rubric_version` (P13-005).
+  The human ground truth that calibrates friction/autonomy signals. The rubric's two
+  answers are **not** columns here — they are `HUMAN` rows in `scores`, so calibration
+  reads one table.
+- **`scores`** (P13-001) — the scoring substrate. One row per
+  `(subject_type, subject_id, scorer_name, scorer_version, period_start)`: a value or a label, its
+  source (`HEURISTIC` | `DETERMINISTIC` | `HUMAN` | `JUDGE` | `OUTCOME`), optional
+  `cost_usd` for judge spend, and a `rationale_ref` pointer — never inline content.
+  Subjects are heterogeneous (session, PR, skill, MCP server), so there is no FK and
+  session-scoped rows are deleted explicitly by `run-deletions`.
+- **`projections`** (P13-006) — a recorded prediction (range, unit, baseline, period,
+  active price-table and scorer versions, plus outcome-guard baselines) so a claimed
+  saving can be graded against what actually happened, and a "win" alongside rising
+  friction is flagged rather than celebrated.
+- **`run_kind`** on both `sessions` and `events` — `INTERACTIVE` | `CI` | `EVAL`,
+  defaulting to `INTERACTIVE`, with a partial index on the non-default values.
 - **PR side:** `pull_requests` (`is_draft`, `jira_key`, revert links, CI/review
   decision), `session_pr_links`, `pr_rollups` (cost-per-LOC, `check_failures_count`).
 - **Governance:** `visibility_policies` (4 flags), `audit_log` (with new
@@ -239,7 +291,23 @@ opt-in bot comment) and `check_run` (CI failure counts). GHES-capable.
 `cursor`, `aider`, `windsurf` are schema entries without one.
 Permission modes widened to `normal|plan|accept_edits|auto|dont_ask|bypass` with
 an autonomy rank; new `notification.ts` classifier; `alerts.ts` shared rule/severity
-constants; expanded git-context (PR CI status, review decision).
+constants; expanded git-context (PR CI status, review decision). `scores.ts` is the
+single source of scorer identity (a `SCORERS` registry, not string literals at call
+sites); `trajectory.ts` holds the six deterministic scorers and `tool-capture.ts` the
+content-free `tool_target_hash` / `tool_action` derivation they run on.
+
+### Scoring & evaluation (Phase 13)
+Six **deterministic trajectory scorers** — retry loops, edit thrash, redundant reads,
+denial-retry success, tests-before-merge, step efficiency — computed from the
+content-free capture rather than transcript text, so they need no content access at
+all. Skills and MCP servers are first-class scored subjects. A versioned session
+rubric captures the owner's own judgement of their own session. An **LLM-as-judge**
+exists but is off in three independent ways (seeded disabled, requires two env vars,
+restricted to owners who opted in) and is own-sessions-only by a code constant no
+deployment configuration can override; every read writes an audit row visible to the
+subject. Calibration, the validation surface and judge drift alerting are built but
+**blocked on data** — they need ≥10 real users over ≥60 days, ≥200 labelled sessions
+and ≥100 outcome-linked PRs, and unblock themselves when that corpus exists.
 
 ### Redaction (`packages/redaction`)
 **9 rules**, run on both hook and ingest: AWS access/secret keys, GitHub tokens, JWT,
@@ -269,7 +337,7 @@ enforcement helpers (`hasActiveGrant`, `resolveOrgSessionAccess`, …) live in
 - **Deferred (not rejected):** external business-value joins beyond Jira (Linear /
   revenue) — the Jira per-issue value join now ships via `JIRA_VALUE_FIELD`;
   bug-correlation, IDE telemetry joins,
-  Cursor/Aider/Copilot/Windsurf adapters (schema-ready, no adapter), semantic
+  Cursor/Aider/Windsurf adapters (schema-ready, no adapter), semantic
   transcript search (declined pending a proven gap + self-hosted embeddings),
   vendor cost reconciliation (scaffolded, gated).
 
@@ -297,7 +365,7 @@ operator-triggered `backfill-redaction` job), and **per-team routing accountabil
 | **Semantic search prototype gated** (P7-007 no-go) | `sql/prototypes/`, `embed-transcripts` | Requires a self-hosted embedding path + a proven recall gap to revisit. |
 | **Redaction: ML-grade PII (names, phone numbers)** | `packages/redaction` | Regex `email` and `git-remote-url` (URL-embedded credentials) rules now ship; name/phone detection would need an ML pass (deferred, `DESIGN_DOC §9.2`). |
 | **Grant expiry enforced at read-time, not swept** | `apps/web` grant helpers | No background revocation job; fine today, worth noting for audit completeness. |
-| **Cursor/Aider/Copilot/Windsurf are schema-only** | hook adapters | Multi-vendor comparison at `/org/agents` needs their adapters + telemetry contract. |
+| **Cursor, Aider and Windsurf are schema-only** | hook adapters | Multi-vendor comparison at `/org/agents` needs their adapters + telemetry contract. |
 | **github-app ignores draft-only PR transitions** | `handlers/pull-request.ts` | `ready_for_review`/`converted_to_draft` don't trigger upsert; `is_draft` lags until next push/close. |
 
 ### Open task items (mostly manual/external)

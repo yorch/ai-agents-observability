@@ -1,8 +1,17 @@
 import Link from 'next/link';
 import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import {
+  DeprecationCandidates,
+  SubjectQualityPanel,
+} from '@/components/team-org/SubjectQualityPanel';
 import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
+import {
+  getDeprecationCandidates,
+  getSkillQuality,
+  getSubjectScoreSeries,
+} from '@/lib/subject-quality-queries';
 import {
   getTeamDailySkillVolume,
   getTeamSkillAdoptionFunnel,
@@ -28,14 +37,23 @@ export default async function TeamSkillsPage({
   const since = daysAgo(range);
 
   const { visibleIds } = await resolveTeamVisibility(teamId);
-  const [skills, funnel, trend] = await Promise.all([
+  const [skills, funnel, trend, quality, deprecation] = await Promise.all([
     getTeamSkillUsage(visibleIds, since),
     getTeamSkillAdoptionFunnel(visibleIds, since),
     getTeamDailySkillVolume(visibleIds, since),
+    // The same component as /org/skills, scoped to the team's visible members —
+    // the panel inherits its volume gates, so a small team simply reads
+    // "not yet measurable" rather than getting a noisier version of the claim.
+    getSkillQuality(visibleIds, since),
+    getDeprecationCandidates(visibleIds, since),
   ]);
 
   const totalInvocations = skills.reduce((s, r) => s + r.callCount, 0);
   const uniqueAdopters = funnel.length > 0 ? funnel.reduce((s, r) => s + r.recentUsers, 0) : 0;
+
+  // The stored series behind the error-rate column (P13-013). Keyed the same
+  // way `scores.subject_id` is, so the panel needs no id-shaping of its own.
+  const qualitySeries = await getSubjectScoreSeries('SKILL', quality);
 
   return (
     <div className="space-y-6">
@@ -53,6 +71,16 @@ export default async function TeamSkillsPage({
       </div>
 
       <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />
+
+      <SubjectQualityPanel
+        caption={`How sessions that invoked each skill compare with matched sessions that did not, over the trailing ${range} days.`}
+        rows={quality}
+        series={qualitySeries}
+        subjectNoun="Skill"
+        title="Effectiveness"
+      />
+
+      <DeprecationCandidates candidates={deprecation} windowDays={range} />
 
       {skills.length > 0 ? (
         <Card>

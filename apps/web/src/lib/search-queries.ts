@@ -43,20 +43,45 @@ export type TranscriptMatch = {
 };
 
 /**
+ * Who a transcript search is being run on behalf of.
+ *
+ * `where` is a SQL predicate fragment that constrains which sessions are
+ * searchable — supplied by each caller so scoping is ALWAYS part of the query,
+ * never a post-fetch JS filter (org search = transcript-sharing opt-in; /me search
+ * = own `user_id`).
+ *
+ * `runKind` is a separate axis and must be chosen deliberately, which is why it has
+ * no default. P13-002 keeps CI and eval runs out of *aggregates about people* —
+ * that is a statement about populations, and it does not follow that a developer
+ * should be unable to grep their own eval run for the error message they remember
+ * seeing. Own-data search is a retrieval tool over rows the caller already owns, so
+ * it sees every run; org-wide search stays on the interactive population, matching
+ * every other cross-user surface.
+ */
+export type TranscriptSearchScope = {
+  runKind: 'interactive-only' | 'every-run';
+  where: Prisma.Sql;
+};
+
+/**
  * Shared transcript FTS core. Runs `plainto_tsquery` against the `transcript_index`
  * GIN index and returns `ts_headline` excerpts ranked by relevance.
  *
- * `scope` is a SQL predicate fragment that constrains which sessions are
- * searchable — supplied by each caller so scoping is ALWAYS part of the query,
- * never a post-fetch JS filter (org search = transcript-sharing opt-in; /me search
- * = own `user_id`). `query` must be trimmed and ≥ MIN_QUERY_LENGTH; callers guard.
+ * `query` must be trimmed and ≥ MIN_QUERY_LENGTH; callers guard.
  */
 export async function searchTranscriptMatches(
   query: string,
-  scope: Prisma.Sql,
+  scope: TranscriptSearchScope,
   limit = 20,
 ): Promise<TranscriptMatch[]> {
   const prisma = getPrisma();
+  // The one read whose run-kind scope is chosen by the caller, so it switches
+  // the *relation* rather than adding a predicate (P13-012). Both branches are
+  // fully-literal `Prisma.sql`, so no identifier is interpolated into SQL.
+  const sessionRelation =
+    scope.runKind === 'interactive-only'
+      ? Prisma.sql`interactive_sessions s`
+      : Prisma.sql`sessions s`;
   const rows = await prisma.$queryRaw<
     {
       content_text: string;
@@ -82,14 +107,18 @@ export async function searchTranscriptMatches(
       ts_headline('english', ti.content_text,
         plainto_tsquery('english', ${query}), ${HEADLINE_OPTS}
       )                            AS content_text
+    -- run-kind-exempt: the relation is chosen by the caller — see
+    -- TranscriptSearchScope. Org search joins interactive_sessions; own-data
+    -- search joins the base sessions table so a developer can still find their
+    -- own CI and eval transcripts.
     FROM transcript_index ti
-    JOIN sessions s ON s.session_id = ti.session_id
+    JOIN ${sessionRelation} ON s.session_id = ti.session_id
     JOIN users u ON u.id = s.user_id
     LEFT JOIN repos r ON r.id = s.repo_id
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
     WHERE ti.content_tsv @@ plainto_tsquery('english', ${query})
       AND u.deactivated_at IS NULL
-      ${scope}
+      ${scope.where}
     ORDER BY ts_rank(ti.content_tsv, plainto_tsquery('english', ${query})) DESC
     LIMIT ${limit}
   `);
@@ -132,6 +161,10 @@ export type OwnTranscriptSearch = {
  * (`s.user_id = $userId` — cross-user leakage is structurally impossible). Groups
  * matches by session, keeps the top ≤3 excerpts per session (matches arrive
  * rank-ordered), and paginates the resulting sessions 20 per page.
+ *
+ * Searches every run kind. These are the caller's own transcripts, and silently
+ * hiding their CI and eval sessions from search — with no filter shown and no
+ * empty-state explaining it — reads as "the search is broken", not as a policy.
  */
 export async function searchOwnTranscripts(
   userId: string,
@@ -145,7 +178,7 @@ export async function searchOwnTranscripts(
 
   const matches = await searchTranscriptMatches(
     q,
-    Prisma.sql`AND s.user_id = ${userId}::uuid`,
+    { runKind: 'every-run', where: Prisma.sql`AND s.user_id = ${userId}::uuid` },
     OWN_FETCH_LIMIT,
   );
 

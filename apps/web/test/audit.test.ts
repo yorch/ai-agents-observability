@@ -18,6 +18,14 @@ vi.mock('@ai-agents-observability/db', () => ({
     view_transcript: 'VIEW_TRANSCRIPT',
   },
   createClient: vi.fn(() => ({})),
+  Prisma: {
+    empty: { strings: [''], values: [] },
+    sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+  },
+  // Identity: these suites assert on the mock client's calls. That the real
+  // extension actually filters is proven by test/run-kind-coverage.test.ts
+  // and against a live database, not here.
+  withInteractiveOnly: <T>(c: T): T => c,
 }));
 
 // ── next/headers ──────────────────────────────────────────────────────────────

@@ -88,11 +88,13 @@ curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
 
 **Phases 7–9** — task work is `done`. P7-007 completed as a no-go semantic-search spike; opencode transcript upload was the one documented follow-up, closed in P12-009.
 
-**Phase 10** (model cost optimization) — **proposed, not started**. P10-001 through P10-006 are `ready`. See [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md).
+**Phase 10** (model cost optimization) — **partly shipped**, reconciled per task on 2026-08-18 after `INDEX.md` and the task files disagreed. `P10-001`/`P10-003` are `in-progress` (the routing query layer and `/org/models` are real but miss named criteria), `P10-002`/`P10-004`/`P10-005` are `ready` and confirmed unbuilt, and `P10-006` is `cancelled` as superseded by `P13-006`. See [`tasks/INDEX.md`](./tasks/INDEX.md) for the evidence.
 
 **Phase 11** (correlation & Jira integration) — `done`. Shipped ahead of Phase 10 as a single vertical slice: session ↔ PR ↔ repo ↔ Jira correlation, defect attribution (`/org/quality`), and significance testing on friction-band deltas.
 
 **Phase 12** (agent adapter expansion) — `done`. Seven agents now ship data end-to-end: Claude Code, opencode, Codex, Gemini CLI, GitHub Copilot CLI, Pi and omp. Three acceptance criteria are unverified for want of the agents themselves — see [`tasks/P12-roadmap.md`](./tasks/P12-roadmap.md).
+
+**Phase 13** (scoring & evaluation) — implemented scope `done`; four tasks `blocked` on data. Gives every computed signal provenance and a version (`scores`), separates non-human runs from the human aggregates (`run_kind`), adds content-free trajectory scorers, and captures human session labels. The validation tasks that would calibrate `friction_score` and `shape_label` against real outcomes are `blocked` on a data precondition — no rollout has happened, and calibrating against seed data measures the seed script. See [`tasks/P13-roadmap.md`](./tasks/P13-roadmap.md) and [`docs/research/2026-08-12-llm-evals-assessment.md`](./docs/research/2026-08-12-llm-evals-assessment.md); why the judge talks to Anthropic over `fetch` rather than through a provider-abstraction library is assessed in [`docs/research/2026-08-18-judge-client-provider-abstraction.md`](./docs/research/2026-08-18-judge-client-provider-abstraction.md).
 
 See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status — it is the source of truth, and this summary is a convenience copy.
 

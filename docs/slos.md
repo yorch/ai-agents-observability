@@ -61,8 +61,19 @@ These SLOs define the measurable reliability targets for the ai-agents-observabi
 | `sweep-retention` | Configurable in `job_config` (default 02:00 UTC) | < 10 min | > 30 min or any failure |
 | `index-transcripts` | Configurable in `job_config` (default 03:30 UTC) | < 30 min | > 1h |
 | `compute-effectiveness` | Configurable in `job_config` (default 05:00 UTC) | < 15 min | > 45 min |
+| `compute-trajectory-scores` | Configurable in `job_config` (default 05:30 UTC) | < 20 min | > 1h. Must not overlap `compute-effectiveness` — it buckets step-efficiency by the shape label that job writes, and a session scored before its shape exists correctly gets no step-efficiency row |
+| `compute-subject-scores` | Configurable in `job_config` (default 06:00 UTC) | < 10 min | > 30 min |
 | `evaluate-alerts` | Configurable in `job_config` (default 01:00 UTC) | < 5 min | Any failure or missed run |
+| `judge-sessions` | Configurable in `job_config`, **seeded disabled** (default 06:30 UTC) | < 30 min | Any failure while enabled; also alert on spend — this is the only job with a per-run model cost |
+| `sync-jira` | Every 6h when Jira is configured | < 5 min | > 15 min or 2 consecutive failures. No-ops with a warning when unconfigured |
 | `reconcile-cost` | Daily when `BILLING_RECONCILIATION_ENABLED=true` | < 15 min | Any failure when enabled |
+| `backfill-redaction` | Operator-triggered only (`POST /admin/jobs/backfill-redaction/run`) | one trigger drains the whole backlog | Any failure |
+| `reprice-events` | Operator-triggered only, report-only — never writes | < 5 min | Any failure |
+| `reprice-events-apply` | Operator-triggered only, **writes historical cost** | < 30 min | Any failure. A run that fails partway leaves history partly repriced — re-run it rather than leaving it, since `IS DISTINCT FROM` makes the rewrite idempotent. Do not run a report against a table mid-apply: it will describe a half-repriced state |
+
+Three more jobs — `compute-effectiveness-backfill`, `rescore-effectiveness`,
+`rescore-trajectory` — are one-shot and dispatchable only from in-process operator
+scripts, not over HTTP. They have no schedule and therefore no SLO.
 
 ---
 

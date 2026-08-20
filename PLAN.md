@@ -10,7 +10,7 @@ These were agreed during planning and are the basis for every task below. If one
 
 | Area | Choice | Rationale (short) |
 |---|---|---|
-| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 10 (proposed, `ready`); remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
+| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 12 (agent adapter expansion, done); Phase 10 partly shipped and reconciled per task (two `in-progress`, three `ready`, one `cancelled`); Phase 13 (scoring & evaluation) done except four tasks `blocked` on the DP-1 data precondition; remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
 | Dev environment | docker-compose locally | Single `up` from a clean clone |
 | Hook binary | Bun, compiled with `bun build --compile` | Single static binary, fast cold start |
 | Object store | MinIO (local dev + homelab prod) | S3-compatible, self-hostable |
@@ -191,7 +191,7 @@ Tasks P8-001–P8-007 are `done`. opencode transcript upload was a follow-up her
 
 Turn render-time anomaly detection into a scheduled alert-evaluation job with persisted history and channel delivery (email / Slack / webhook); make privileged transcript access **time-boxed, requested, approved, and audited** (builds the §8.4 investigation path the audit actions already imply); add per-team retention overrides; and add a narrow, grant-scoped research/investigator capability for the Audience-B persona with **no standing access**. Real-time alerting was a v1 non-goal (`DESIGN_DOC.md` §2.2) now deliberately scoped for a later phase. Trust guardrails are first-class: alerts carry no individual-identifying data; every grant and view is auditable and expiring.
 
-Tasks P9-001–P9-006 are `done`. The alert engine evaluates spend-spike, error-rate, and unknown-model rules (`budget_threshold` is a reserved type, defined but not yet evaluated). Slack, generic webhook, and SMTP email delivery are all live — the email channel wires up only when `SMTP_HOST` and `SMTP_FROM` are configured (`apps/ingest/src/lib/notify/email.ts`).
+Tasks P9-001–P9-006 are `done`. The alert engine evaluates all six rule types — spend-spike, error-rate, unknown-model surge, autonomy surge, budget threshold and routing waste. The last two are seeded disabled: each needs an operator-chosen threshold before it means anything, and `parseBudgetThresholdParams` keeps a misconfigured budget rule silent rather than firing. Slack, generic webhook, and SMTP email delivery are all live — the email channel wires up only when `SMTP_HOST` and `SMTP_FROM` are configured (`apps/ingest/src/lib/notify/email.ts`).
 
 **Exit**: a spend spike fires a notification within one evaluation cycle; every privileged transcript view is the owner or a time-boxed approved grant, logged and visible to the viewed user; zero standing individual access beyond org_admin.
 
@@ -205,9 +205,9 @@ Tasks P11-001–P11-004 are `done`, including defect attribution (`/org/quality`
 
 ### Phase 10 — Model Cost Optimization
 
-**Proposed — not started.** Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](./OPPORTUNITIES.md) §4.
+**Partly shipped, reconciled 2026-08-18.** Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](./OPPORTUNITIES.md) §4.
 
-Tasks P10-001–P10-006 are `ready` (all dependencies `done`). See [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md) for the full rationale.
+The phase never ran as a phase; parts of it arrived through P8/P11 work, which is why `INDEX.md` and the task files disagreed for a while. Audited against the code and settled per task: `P10-001` and `P10-003` are `in-progress` (the routing layer and the `/org/models` surface are real, but there is no `agent_type`/`shape_label` grain, no volume floor, a cross-agent price contamination in the savings resolver, and the constants `P10-003` required be deleted are still there); `P10-002`, `P10-004` and `P10-005` are `ready` and confirmed unbuilt; `P10-006` is `cancelled`, superseded by `P13-006`. `P10-002` is the load-bearing gap — the other two open tasks and one of `P10-003`'s criteria all wait on the policy it defines. See [`tasks/INDEX.md`](./tasks/INDEX.md) for the per-task evidence and [`tasks/P10-roadmap.md`](./tasks/P10-roadmap.md) for the rationale.
 
 **Exit**: a routing recommendation carries a savings figure an engineer can defend from the price table, and a team can see its own routing accountability without an org admin reading anyone's sessions.
 
@@ -218,6 +218,16 @@ Takes the P8 seam from three agents to **seven**. Codex moves onto its native li
 Tasks P12-001–P12-012 are `done`. Along the way it fixed a silent drop of every live opencode event (their `ses_`-prefixed session ids failed `EventSchema`'s UUID requirement, and ingest drops invalid events per event), and a transcript-idempotency bug that had frozen **every** agent's transcript at its first upload. P12-010 then filled the price tables the new adapters shipped empty, corrected two stale ones (Opus 4.6/4.7 were priced at the retired 4.1 rate; Codex stopped at the GPT-4o era), and fixed the token accounting behind them — OpenAI and Google report one inclusive prompt total with the cached tokens *inside* it, so passing that through billed cached tokens twice. P12-011 then made those corrections retroactive — an operator-triggered `reprice-events` job that recomputes stored `events.cost_usd` from the token counts on each row and carries the change through session totals, PR rollups and the cost continuous aggregates — and put the models nothing prices on `/admin/price-tables` instead of only in a Prometheus counter — which immediately showed how thin the provider-agnostic tables were, so P12-012 generates those three from the models.dev catalog the agents themselves use for model IDs (34 models across 3 vendors → 243 across 20). Three acceptance criteria remain unverified for want of the agents themselves — see [`tasks/P12-roadmap.md`](./tasks/P12-roadmap.md).
 
 **Exit**: met — seven agents ship data end-to-end, an agent whose session id is not a UUID ingests correctly, the four stdin-hook adapters share one implementation, and opencode's directory-shaped history uploads via an agent-neutral collation in the shipper.
+
+### Phase 13 — Scoring & Evaluation
+
+**In progress.** Gives every computed signal provenance and a version, adds scorers that need no transcript access, captures human labels, and — once real data exists — validates the heuristics that already ship (`friction_score`, `shape_label`) against real engineering outcomes. Decomposed from [`docs/research/2026-08-12-llm-evals-assessment.md`](./docs/research/2026-08-12-llm-evals-assessment.md) after the owner scoped `DESIGN_DOC.md` §2.2's "prompt evaluation" non-goal to *model/agent benchmarking* only.
+
+Sequenced against the fact that no rollout has happened: build only what pays off regardless of whether one does, and prefer what gets more expensive with time. The analysis tasks are `blocked` on a stated data precondition (DP-1) and unblock themselves when a corpus arrives. See [`tasks/P13-roadmap.md`](./tasks/P13-roadmap.md).
+
+**Exit**: no number on a dashboard is asserted without provenance, a version, and — once measurable — a published relationship to a real outcome. No individual's score is visible to anyone but them.
+
+**Overlaps Phase 10.** P13-006 implements the projected-vs-realized check that P10-006 specifies, as a general mechanism — a projection registry rather than a routing-specific panel. `P10-006` is now `cancelled` as superseded, settled by owner decision on 2026-08-18 with the rest of the Phase 10 reconciliation; the criterion-by-criterion mapping is in that task file.
 
 ---
 

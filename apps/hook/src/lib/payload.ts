@@ -2,6 +2,8 @@ import {
   classifyNotification,
   type EventType,
   type ToolInfo,
+  toolActionFor,
+  toolTargetHash,
 } from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from './bytes';
@@ -111,6 +113,11 @@ export function buildClaudeToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
       : null;
 
   return {
+    // Coarse command class + non-reversible target digest (P13-003). Both read
+    // only the small target/command field of tool_input — never the whole input,
+    // never the output — so the hot-path cost is a pass over a path-length
+    // string, not over the ~1 MB stdin cap.
+    action: toolActionFor(raw.tool_input),
     // Categorize by the mcp__ prefix, not the parse result: a name like
     // `mcp__server` (no tool segment) is still an MCP tool.
     category: isMcp ? 'mcp' : 'builtin',
@@ -125,6 +132,7 @@ export function buildClaudeToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
     skill,
     slash_command: skill,
     subagent_type: subagentType,
+    target_hash: toolTargetHash(raw.tool_input),
     // Best-effort from the raw payload (absent → false). Unknown payload fields
     // are also preserved verbatim in `metadata`, so nothing is lost.
     was_denied: raw.tool_denied === true || raw.was_denied === true,

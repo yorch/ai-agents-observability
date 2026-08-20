@@ -7,6 +7,15 @@ effort, data already captured. The platform records **per-turn `model`** (not ju
 a per-session primary), `tool_category`, `shape_label`, and cache-token
 breakdowns, but only surfaces a single org-level heuristic card.
 
+> **Superseded in part — read `tasks/INDEX.md` first.** The "current state" below
+> describes the repo as it stood when this roadmap was written. Parts of the phase
+> have since shipped through P8/P11 work: `DOWNGRADE_SAVINGS_RATE` is gone, the
+> savings ratio is derived from the live price table, and the recommendations carry
+> ranges registered as P13-006 projections. Phase 10 was reconciled per task on
+> 2026-08-18 — `P10-001`/`P10-003` `in-progress`, `P10-002`/`P10-004`/`P10-005`
+> `ready` and confirmed unbuilt, `P10-006` `cancelled` as superseded. The rationale
+> below still stands; the state description does not.
+
 **Current state (what exists):** `/org/models` (`apps/web/src/app/org/models/page.tsx`)
 already renders a "routing opportunities" section and an org cache-efficiency stat.
 It is a **first-pass heuristic**, not a defensible optimization surface:

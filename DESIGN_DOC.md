@@ -1,9 +1,9 @@
 # ai-agents-observability — Design Document
 
 **Project:** `ai-agents-observability`
-**Status:** Phases 1–9 and 11 are done; Phase 10 is proposed (`ready`). Remaining open task statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8
+**Status:** Phases 1–9, 11 and 12 are done; Phase 10 is partly shipped and reconciled per task (§12.10); Phase 13 (scoring & evaluation) is done apart from its analysis and judge-arming tasks, which are `blocked` by design on a stated data precondition. Remaining open task statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8
 **Owner:** Jorge (SentinelOne)
-**Last updated:** 2026-07-13 (see §17 — keep this in step with the last row of the history table)
+**Last updated:** 2026-08-14 (see §17 — keep this in step with the last row of the history table)
 **Audience:** Internal — dev tools team, leadership stakeholders
 
 ---
@@ -34,9 +34,9 @@ The primary purpose is **developer experience and effectiveness research** (audi
 ### 2.2 Non-Goals (v1)
 
 - Multi-tenancy. This is single-org, single-tenant.
-- Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting — spend spikes, error-rate, unknown-model surges — is implemented in Phase 9 §12.9. `budget_threshold` rule type is reserved in the enum but not yet evaluated. SIEM-style behavioral analytics on transcript content remains out of scope.)*
+- Real-time alerting / SIEM-style behavioral analytics on session content. *(Update: threshold-based operational alerting is implemented in Phase 9 §12.9. All six rule types are evaluated — `spend_spike`, `high_error_rate`, `unknown_model_surge`, `autonomy_surge`, `budget_threshold` and `routing_waste`; the last two are seeded **disabled**, since neither means anything until an operator picks a threshold. SIEM-style behavioral analytics on transcript content remains out of scope.)*
 - Replacing any existing observability stack (Datadog, Splunk, etc.) — this is purpose-built for AI coding agent telemetry.
-- **Model-level observability** — inference latency, prompt evaluation, model drift, RAG quality. Out of scope by design; that's a different product.
+- **Model-level observability** — inference latency, prompt evaluation, model drift, RAG quality. Out of scope by design; that's a different product. *(Clarified 2026-08-12: this non-goal covers **model/agent benchmarking** — ranking models or agents, running task suites, counterfactual re-runs. It does **not** cover evaluating the platform's own computed signals against real engineering outcomes, which is a goal and is decomposed in Phase 13 (`tasks/P13-roadmap.md`). The distinction, and why `friction_score`/`shape_label` are already unvalidated evals, is argued in `docs/research/2026-08-12-llm-evals-assessment.md`.)*
 - Capturing telemetry from every possible coding agent. Seven adapters ship (Claude Code, opencode, Codex, Gemini CLI, Copilot CLI, Pi, omp); Cursor, Aider and Windsurf remain future adapters, each deferred for a stated reason (see `tasks/P12-roadmap.md`).
 - Computing line-of-code-generated style "AI productivity" headline numbers (explicitly avoided — see §10).
 
@@ -322,6 +322,70 @@ CREATE INDEX ON sessions (status, last_event_at);
 CREATE INDEX ON sessions (agent_type, started_at DESC);
 ```
 
+### 5.2a Scores (Postgres) — the scoring substrate
+
+Added in Phase 13 (P13-001). Every computed signal — heuristic, deterministic, human, or judge — is a row here carrying *which scorer produced it* and *at what version*. Before this, each signal was a hard-wired column on `sessions` with no scorer identity and no version, which made calibration impossible and every scorer change a bespoke backfill job.
+
+```sql
+CREATE TABLE scores (
+  id             UUID PRIMARY KEY,
+  subject_type   "ScoreSubjectType" NOT NULL,   -- SESSION | PULL_REQUEST | SKILL | MCP_SERVER
+  subject_id     TEXT NOT NULL,                  -- heterogeneous: session uuid, skill name, …
+  scorer_name    TEXT NOT NULL,
+  scorer_version INT  NOT NULL,
+  source         "ScoreSource" NOT NULL,         -- HEURISTIC | DETERMINISTIC | HUMAN | JUDGE | OUTCOME
+  value          DOUBLE PRECISION,               -- numeric scorers
+  label          TEXT,                           -- categorical scorers
+  metadata       JSONB NOT NULL DEFAULT '{}',    -- provenance only; never raw content
+  rationale_ref  TEXT,                           -- pointer (e.g. S3 key), never inline text
+  cost_usd       NUMERIC(12,6),                  -- judge/eval spend, in the platform's own dashboards
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (subject_type, subject_id, scorer_name, scorer_version)
+);
+```
+
+`sessions.friction_score` / `shape_label` remain as a denormalized *current value* cache, so every existing dashboard, facet and query is untouched; this table holds the history and the provenance. `packages/schemas/src/scores.ts` is the single source of scorer identity — a `SCORERS` registry, not string literals at call sites. Scores carry no FK (the subject is heterogeneous), so session-scoped rows are deleted explicitly by `run-deletions`.
+
+Field names lean toward the emerging OpenTelemetry GenAI *evaluation event* so a future bridge is a mapping rather than a migration — deliberately without adopting it, since nothing in that spec is marked Stable.
+
+### 5.2b Run kind
+
+`sessions.run_kind` and `events.run_kind` (`INTERACTIVE` | `CI` | `EVAL`, default `INTERACTIVE`) separate developer sessions from non-human agent runs (P13-002). This resolves §13 Q8's concern directly: CI runs no longer *would* distort the aggregates, because every read that produces a human aggregate filters to `INTERACTIVE`. The filter is centralized in `apps/web/src/lib/run-kind.ts` and `apps/ingest/src/lib/run-kind.ts`, baked into the three continuous-aggregate definitions, and enforced by source-scanning tests in both apps rather than by review.
+
+Three classes of read are deliberately *not* filtered, and the distinction is the point: a per-session drill-down (a query scoped to one id is not a population — filtering it would empty the session's own detail page rather than exclude it from anything); the mechanical jobs that operate on rows rather than people (retention sweeps, transcript indexing, redaction backfill); and the per-session scorers, since a CI session's friction score is a property of that session. The rule is "no non-human run in a number about humans", not "no non-human run anywhere".
+
+Optional on the wire, so no hook binary needs a version bump; nothing is granted by the claim, so a client that lies only removes its own data.
+
+### 5.2c Human labels and projections (Postgres)
+
+Two small tables that exist so the platform can be checked against reality rather than trusted.
+
+`session_feedback` is the owner's own answer about their own session. It predates Phase 13 as a bare `sentiment` + `note`; P13-005 added `rubric_version` and made `sentiment` nullable, since "how did this feel" and "did it work" are distinct questions and gating the row on a thumbs would delete a rubric answer when someone cleared their thumbs. **The rubric answers themselves are not columns here** — they are `scores` rows (`human_session_shape`, `human_task_outcome`, `source: HUMAN`), because calibration reads one table. `rubric_version` stays on the row because no score row can express it: "answered version 1 and declined both questions" and "predates the rubric" are different facts that an absent score row cannot distinguish.
+
+`projections` records a prediction so it can be graded later:
+
+```sql
+CREATE TABLE projections (
+  id                   UUID PRIMARY KEY,
+  claim_type           TEXT NOT NULL,      -- vocabulary defined by the registry
+  segment              TEXT NOT NULL,      -- a model id, a team slug, "org"
+  projected_low        DOUBLE PRECISION NOT NULL,   -- a RANGE, never a point estimate
+  projected_high       DOUBLE PRECISION NOT NULL,
+  unit                 TEXT NOT NULL,      -- so realization cannot compare unlike things
+  baseline_value       DOUBLE PRECISION NOT NULL,
+  baseline_window_days INT NOT NULL,
+  period_start         TIMESTAMPTZ NOT NULL,
+  period_end           TIMESTAMPTZ NOT NULL,
+  price_table_version  TEXT,               -- replay apples-to-apples: a price-table
+  scorer_versions      JSONB NOT NULL DEFAULT '{}',  -- or scorer change is not a result
+  guard_baseline       JSONB NOT NULL DEFAULT '{}',  -- friction / error / revert at claim time
+  metadata             JSONB NOT NULL DEFAULT '{}',
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Two columns rather than a value-plus-margin so a degenerate range cannot be expressed by omission, and `guard_baseline` so a saving that arrived alongside rising friction is flagged instead of celebrated. Realization refuses to compare until `period_end` has closed.
+
 ### 5.3 Events Firehose (Timescale Hypertable)
 
 Every hook fire. Partitioned by day.
@@ -353,6 +417,8 @@ CREATE TABLE events (
   tool_exit_status      INT,
   tool_was_denied       BOOLEAN,
   tool_was_interrupted  BOOLEAN,
+  tool_target_hash      TEXT,                     -- non-reversible digest of WHAT was acted on
+  tool_action           TEXT,                     -- coarse class for shell commands ('test','vcs',…)
 
   -- MCP detail
   mcp_server            TEXT,
@@ -377,6 +443,8 @@ CREATE TABLE events (
   cost_usd              NUMERIC(12,6),
 
   mode                  TEXT,                     -- 'normal','plan','accept_edits'
+  notification_kind     TEXT,                     -- why the agent interrupted the human
+  run_kind              TEXT NOT NULL DEFAULT 'INTERACTIVE',  -- INTERACTIVE | CI | EVAL (§5.2b)
 
   metadata              JSONB,
 
@@ -389,7 +457,11 @@ CREATE INDEX ON events (tool_name, ts DESC) WHERE tool_name IS NOT NULL;
 CREATE INDEX ON events (mcp_server, ts DESC) WHERE mcp_server IS NOT NULL;
 CREATE INDEX ON events (skill_name, ts DESC) WHERE skill_name IS NOT NULL;
 CREATE INDEX ON events (agent_type, ts DESC);
+CREATE INDEX ON events (notification_kind, ts DESC) WHERE notification_kind IS NOT NULL;
+CREATE INDEX ON events (run_kind, ts DESC) WHERE run_kind <> 'INTERACTIVE';
 ```
+
+`tool_target_hash` and `tool_action` are the **content-free capture** the trajectory scorers (§5.2a, P13-003) run on: a two-lane digest of *what* a call acted on — file path for file tools, normalized command shape for shell — and a coarse action class. Neither is reversible, and neither is the tool input or output. They are what makes "this session read the same file four times" and "this edit was thrashed" computable without the platform ever holding the content. `run_kind`'s index is **partial on the non-default value**, since the interesting query is always "show me the runs that are *not* interactive".
 
 **Compression:** A 7-day compress policy runs on the hypertable, segmented by `(user_id, session_id)`.
 
@@ -398,7 +470,7 @@ CREATE INDEX ON events (agent_type, ts DESC);
 - `daily_cost_by_model` — `(day, user_id, model, agent_type)` → token totals, cost, session count
 - `daily_tool_usage` — `(day, user_id, tool_name, tool_category, agent_type)` → call counts
 
-All three carry `user_id` (added to the model/tool aggregates in migration `0005`), so every org rollup that reads them can be visibility-scoped (`WHERE user_id IN (sharers)`) exactly like the raw-events queries.
+All three carry `user_id`, so every org rollup that reads them can be visibility-scoped (`WHERE user_id IN (sharers)`) exactly like the raw-events queries. All three are also defined `WHERE run_kind = 'INTERACTIVE'`, so a CI or eval run cannot enter a developer-facing rollup even if a query forgets to filter — an aggregate named `daily_cost_by_user` that feeds a developer dashboard should not be *able* to contain non-human runs.
 
 ### 5.4 Pull Requests & Rollups (Postgres)
 
@@ -675,6 +747,11 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 | `evaluate-alerts` | configurable, default 01:00 UTC | Evaluates alert rules; fires/resolves `AlertEvent` rows and sends configured notifications |
 | `reconcile-cost` | daily when `BILLING_RECONCILIATION_ENABLED=true` | Gated cost reconciliation: compares client-computed `SUM(events.cost_usd)` against the vendor-billed cost for the previous calendar month, per `agent_type`, emitting delta/drift gauges. Vendor cost comes from `AnthropicBillingSource` (Admin **Cost Report API**, `GET /v1/organizations/cost_report`) when `ANTHROPIC_ADMIN_KEY` is set — only `CLAUDE_CODE` has an Anthropic bill; other agents record no drift. Falls back to a null source (no comparison) when the key is unset |
 | `compute-effectiveness-backfill` | operator-triggered only | One-shot historical effectiveness backfill, intentionally not exposed through `/admin/jobs` |
+| `rescore-effectiveness` | operator-triggered only | Re-scores every session whose `scores` rows are behind the **current** scorer version (P13-001). Selects on the absence of a row at that version rather than `shape_label IS NULL`, which is the marker that made re-scoring impossible — bump `FRICTION_VERSION` or `SESSION_SHAPE_VERSION`, trigger once, prior-version rows preserved |
+| `compute-trajectory-scores` | configurable, default 05:30 UTC | Deterministic, content-free trajectory scorers over the events hypertable (P13-003) — retry loops, edit thrash, redundant re-reads, denial→retry→success chains, tests-run-before-merge, step efficiency against a per-shape baseline derived from the data. Writes `scores` rows only; reads no transcript |
+| `rescore-trajectory` | operator-triggered only | The trajectory equivalent of `rescore-effectiveness`: re-scores sessions whose rows are behind the current trajectory scorer versions |
+| `compute-subject-scores` | configurable, default 06:00 UTC | Skill and MCP-server effectiveness (P13-004) — invocation volume against downstream friction, tool-error rate, and PR outcome, written as `scores` rows keyed on `SKILL` / `MCP_SERVER` subjects |
+| `judge-sessions` | configurable, **disabled by default** | Opt-in LLM-as-judge over consented transcripts (P13-009). Sampled and batched; gated by two independent guards (the owner's `allow_judge_analysis` consent **and** an own-sessions-only code constant), audit-logged before every read, rationales stored by reference. Enabling it is an operator decision taken in `/admin/jobs`, not a consequence of deploying |
 | `backfill-redaction` | operator-triggered via `/admin/jobs` | Backfills `sessions.redaction_flags` for transcripts archived before the column existed, by scanning stored (already-redacted) transcript text for `[REDACTED:<class>]` markers; drains the whole backlog in one run via a keyset walk (memory-bounded per page) |
 | `reprice-events` / `reprice-events-apply` | operator-triggered via `/admin/jobs` | Recomputes historical `events.cost_usd` from the stored token counts against the **current** price tables, then the `sessions` / `pr_rollups` totals and the two cost continuous aggregates that derive from it. Two names, one job: the bare name only reports what would change, `-apply` writes. Repricing is all-or-nothing — a windowed run would leave sessions straddling the boundary summed from a mix of old and new rates |
 
@@ -1086,7 +1163,7 @@ Resist the urge to build all of it. The MVP that proves value:
 - `/admin/jobs` — background job config (enable/disable individual scheduler jobs, trigger on demand)
 - `/admin/price-tables` — manage per-agent/per-model price tables
 
-The `/org/dashboard` also carries a **spend forecast** (trailing-7d run-rate + month-to-date projections, per-team run-rate, and a comparison against a configured `budget_threshold` alert rule) and a **cohort friction divergence** table (median friction by first-seen-month cohort, small-n suppressed). Session detail and `/me/insights` now surface the previously-captured-but-unrendered context-pressure (`compaction_count`/`clear_count`), continuity (`is_resume`), notification-kind, tool-byte-volume, `pr_review_decision`, `cost_per_loc`, and Jira `story_points` (cost-per-story-point on `/org/roi`) signals, plus a per-user **weekly shape-shift trend**. `/org/models` carries **routing recommendations** whose per-model saving fraction is derived from the ingest price table (`GET /v1/price-table`, falling back to a flat heuristic when `INGEST_URL` is unset), paired with a `routing_waste` **alert rule** (premium-model spend on retrieval-only categories over a threshold) and a per-team **routing accountability** table (premium spend on retrieval-only work, visibility-scoped, team-level only) — the observe-only substitute for hook-side routing enforcement (`§10.3a`). `/org/security` adds **secret-exposure by redaction class** (`sessions.redaction_flags`); an operator-triggered `backfill-redaction` job populates that column for transcripts archived before it existed by scanning stored (already-redacted) transcript text for `[REDACTED:<class>]` markers. `/org/roi` adds a **business-value** section: when `JIRA_VALUE_FIELD` is set, the `sync-jira` job pulls each ticket's real per-issue value into `jira_issues.business_value` and the section prefers that true external join, falling back to a flat `VALUE_PER_STORY_POINT` proxy (delivered story-points × the configured rate) when no synced ticket carries a value. The org cost/model/tool rollups read from the `daily_cost_by_user`, `daily_cost_by_model`, and `daily_tool_usage` continuous aggregates — all three now carry `user_id` (migration `0005`) so each is visibility-scoped like the raw-events queries it replaced.
+The `/org/dashboard` also carries a **spend forecast** (trailing-7d run-rate + month-to-date projections, per-team run-rate, and a comparison against a configured `budget_threshold` alert rule) and a **cohort friction divergence** table (median friction by first-seen-month cohort, small-n suppressed). Session detail and `/me/insights` now surface the previously-captured-but-unrendered context-pressure (`compaction_count`/`clear_count`), continuity (`is_resume`), notification-kind, tool-byte-volume, `pr_review_decision`, `cost_per_loc`, and Jira `story_points` (cost-per-story-point on `/org/roi`) signals, plus a per-user **weekly shape-shift trend**. `/org/models` carries **routing recommendations** whose per-model saving fraction is derived from the ingest price table (`GET /v1/price-table`, falling back to a flat heuristic when `INGEST_URL` is unset), paired with a `routing_waste` **alert rule** (premium-model spend on retrieval-only categories over a threshold) and a per-team **routing accountability** table (premium spend on retrieval-only work, visibility-scoped, team-level only) — the observe-only substitute for hook-side routing enforcement (`§10.3a`). `/org/security` adds **secret-exposure by redaction class** (`sessions.redaction_flags`); an operator-triggered `backfill-redaction` job populates that column for transcripts archived before it existed by scanning stored (already-redacted) transcript text for `[REDACTED:<class>]` markers. `/org/roi` adds a **business-value** section: when `JIRA_VALUE_FIELD` is set, the `sync-jira` job pulls each ticket's real per-issue value into `jira_issues.business_value` and the section prefers that true external join, falling back to a flat `VALUE_PER_STORY_POINT` proxy (delivered story-points × the configured rate) when no synced ticket carries a value. The org cost/model/tool rollups read from the `daily_cost_by_user`, `daily_cost_by_model`, and `daily_tool_usage` continuous aggregates — all three carry `user_id` so each is visibility-scoped like the raw-events queries it replaced.
 
 **Success criteria:** Quarterly leadership readout uses this instead of ad-hoc spreadsheets.
 
@@ -1134,13 +1211,59 @@ A **third** adapter (`codex`, P8-007) was added after the phase's original scope
 
 Move from passive dashboards to proactive, trust-preserving operation.
 
-39. Alert rules engine — scheduled evaluation of spend spike / error rate / unknown-model thresholds (`budget_threshold` is reserved in the rule-type enum but not yet evaluated), with persisted firing/resolving history (promotes the render-time anomaly detection of §12.4)
+39. Alert rules engine — scheduled evaluation of spend spike / error rate / unknown-model thresholds, with persisted firing/resolving history (promotes the render-time anomaly detection of §12.4). Phase 10 added `routing_waste` and `autonomy_surge`, and `budget_threshold` is evaluated too; `budget_threshold` and `routing_waste` are seeded disabled, awaiting an operator-chosen threshold
 40. Notification delivery (Slack / webhook, with an email seam pending SMTP wiring) + `/admin/alerts` config — aggregate data only, never individual content
 41. Time-boxed transcript access grants — the §8.4 request/approve/expire workflow, replacing implicit standing org-admin reach
 42. Per-team retention overrides on top of the global default
 43. A narrow, grant-scoped research/investigator capability for Audience B (§3) — sampled session access only within an active, expiring, audited grant; no standing access
 
 **Success criteria:** a spend spike fires a notification within one evaluation cycle; every privileged transcript view is the owner or a time-boxed approved grant, logged and visible to the viewed user.
+
+### 12.10 Phase 10 — Model Cost Optimization
+
+Turns the heuristic `/org/models` routing card into a defensible, governed optimization capability grounded in the per-agent price tables (`tasks/P10-roadmap.md`).
+
+44. Routing analysis query layer with a savings model derived from real price tables rather than a flat heuristic
+45. Org, team and individual routing guidance, plus a per-team routing-accountability table
+46. `routing_waste` alert rule — premium-model spend on retrieval-only tool categories
+
+**State:** partly shipped. Reconciled per task on 2026-08-18, after `INDEX.md` marked the phase `done` while every `P10-*.md` file read `ready`. Item 44's query layer and item 45's org/team surfaces exist (as `routing-queries.ts` and `/org/models`, reached through P8/P11 work) but miss named criteria, so `P10-001`/`P10-003` are `in-progress`; item 45's individual guidance was never built. Item 46's `routing_waste` rule ships. The governed half — a `model_policy` table and the `disallowed_model` rule — does not exist, so `P10-002`/`P10-005` are `ready`. `P10-006` is `cancelled`, superseded by `P13-006`'s projection registry. Per-task evidence is in `tasks/INDEX.md`.
+
+### 12.11 Phase 11 — Correlation & Jira Integration
+
+Shipped ahead of Phase 10 as a single vertical slice, deepening the session↔PR↔repo↔Jira spine.
+
+47. Commit-SHA and open-PR link backfill, a configurable link window, and a manual-link UI
+48. `pull_request_review` / `check_run` / `push` webhook capture (`pr_check_runs`, `pr_reviews`, `session_commit_links`)
+49. Session-level `jira_key`, the env-gated `sync-jira` issue sync, and the true external business-value join
+50. `/org/quality` defect attribution, with Fisher's exact significance testing on friction-band deltas
+
+### 12.12 Phase 12 — Agent Adapter Expansion ✓ done
+
+Takes the P8 seam from three agents to seven by extracting one stdin-hook factory rather than writing five bespoke adapters (`tasks/P12-roadmap.md`).
+
+51. A shared `createStdinHookAdapter` factory; Codex moved onto its native lifecycle hooks
+52. Gemini CLI, Copilot CLI, Pi and OMP adapters on that factory
+53. Session-ID normalization in the seam, fixing a live bug that silently dropped opencode traffic
+54. opencode transcript export, closing the P8-004 gap
+
+**Success criteria:** seven agents ingest, price and render correctly through one transport. Three criteria remain unverified for want of the agents themselves — a recorded Pi session, which of omp's two documented config roots is real, and a recorded opencode session for the collated transcript.
+
+### 12.13 Phase 13 — Scoring & Evaluation
+
+Gives every computed signal provenance and a version, adds scorers that need no content access, captures human labels, and — once real data exists — validates the heuristics that already ship against real outcomes. Decomposed from `docs/research/2026-08-12-llm-evals-assessment.md` (`tasks/P13-roadmap.md`).
+
+55. §5.2a `scores` — the versioned substrate. Scorer identity and version live in `packages/schemas/src/scores.ts`, so re-scoring history is a version bump plus one trigger rather than a bespoke backfill job
+56. §5.2b `run_kind` — resolves §13 Q8 by construction
+57. Six deterministic trajectory scorers (retry loops, edit thrash, redundant reads, denial-retry success, tests-before-merge, step efficiency), computed from the content-free capture in §5.3 — no transcript access
+58. Skill and MCP-server effectiveness as first-class scored subjects
+59. A versioned session rubric the owner answers about their own session, stored as `HUMAN` scores
+60. A projection registry: predictions are recorded, later compared against what happened, and guarded so a "win" alongside rising friction is flagged rather than celebrated
+61. An opt-in LLM-as-judge, off by default, own-sessions-only, audited and priced
+
+**Sequenced against seed-only data.** No rollout has happened. Tasks are placed by two rules — build only what pays off regardless of whether rollout happens, and prefer what gets more expensive with time. Calibration, the validation surface, judge drift alerting, and arming the judge for other people's transcripts are all explicitly blocked on a data precondition (≥10 users over ≥60 days, ≥200 labelled sessions, ≥100 outcome-linked PRs) and unblock themselves when the corpus arrives.
+
+**Success criteria:** every score carries the scorer and version that produced it; a scorer change re-scores history without new code; no CI or eval run reaches a number presented as developer behaviour; and no transcript reaches a model without its owner having opted in.
 
 ---
 
@@ -1209,6 +1332,15 @@ Beyond Phase 5, the natural extensions:
 | **Audit log**             | Record of every privileged access to another user's data                                                                                           |
 | **My Agents**             | The per-developer self-service dashboard; the trust anchor of the product                                                                          |
 | **Aggregate-only viewer** | Role for leadership/finance — sees org rollups, never individual sessions                                                                          |
+| **Score**                 | One row in `scores` (§5.2a): a value or label, plus which scorer produced it and at what version. The unit of everything Phase 13 computes           |
+| **Scorer**                | A named, versioned function producing scores. Declared once in `packages/schemas/src/scores.ts`; bumping its version and triggering a rescore replaces what used to be a bespoke backfill job |
+| **Source**                | Where a score came from: `HEURISTIC` (friction), `DETERMINISTIC` (the trajectory scorers), `HUMAN` (the session rubric), `JUDGE` (an LLM), `OUTCOME` (a real-world result — merged, reverted, CI green) |
+| **Trajectory metric**     | A deterministic score over the *shape* of a session's tool sequence rather than its content — retry loops, edit thrash, redundant reads, step efficiency. Computable because of the content-free capture (§5.3) |
+| **Run kind**              | `INTERACTIVE` \| `CI` \| `EVAL` (§5.2b). Non-interactive runs are stored and trendable but never enter a number presented as developer behaviour     |
+| **Outcome oracle**        | This platform's structural advantage over a generic eval harness: it already knows whether the work *landed* — the PR merged, CI passed, nothing reverted it. A judge scores what a session looked like; the oracle knows how it turned out |
+| **LLM-as-judge**          | A model scoring a session against a rubric. Opt-in per user, off by default, own-sessions-only, audited, and priced — the only place the platform sends conversation content to a model |
+| **Projection**            | A recorded prediction (e.g. "this routing change saves $X/mo") that is later compared against what actually happened, with an outcome guard so a "win" alongside rising friction is flagged rather than celebrated |
+| **Gold set**              | A held-out set of human-labelled sessions used to calibrate a scorer — the thing that says whether a judge or heuristic agrees with people                                     |
 
 ---
 
@@ -1224,4 +1356,11 @@ Beyond Phase 5, the natural extensions:
 | 2026-07-10 | Jorge (with Claude) | Correlation deepening: session-level `jira_key` + `team_id` FK (§5.2); `pr_check_runs`, `pr_reviews`, `session_commit_links`, `jira_issues` tables + hardened session↔PR backfill (SHA matching, open-PR linking, configurable window, manual link UI) (§5.4); `sync-jira` job (§6.5); `pull_request_review`/`check_run`/`push` webhook handling (§7.2); updated §2.3 and §13 Q6 accordingly |
 | 2026-07-11 | Jorge (with Claude) | Follow-ups: per-team **routing accountability** table on `/org/models` (observe-only substitute for hook-side routing enforcement, `§10.3a`); **true external business-value join** (`JIRA_VALUE_FIELD` → `jira_issues.business_value`, `sync-jira`) preferred over the flat `VALUE_PER_STORY_POINT` proxy on `/org/roi`; operator-triggered `backfill-redaction` job populating `sessions.redaction_flags` for pre-column transcripts by scanning stored text for `[REDACTED:<class>]` markers |
 | 2026-07-13 | Jorge (with Claude) | Two new redaction classes (§9.1): **URL-embedded credentials** (`git-remote-url` — scrubs `scheme://user:secret@host` userinfo, runs after the token rules so a known token keeps its own class) and **email** addresses (PII); fixed `/org/security`'s redaction-class labels to key by the persisted rule names |
+| 2026-08-14 | Jorge (with Claude) | Rebased Phase 13 onto Phase 12 (seven-agent adapter seam). The content-free tool capture (`tool_target_hash`, `tool_action`) moved into the shared `buildGenericToolInfo` factory and the Pi/omp builder, so every agent produces it on its hook path rather than Claude Code alone — without that, the three target-keyed trajectory scorers would be silently dead for Gemini CLI, Copilot CLI, Codex, Pi and omp. One path genuinely cannot: Codex's legacy rollout-file reader records only byte counts per tool call, never the arguments, so it emits `null` and says so — the scorers exclude unobservable calls rather than bucketing them together and inventing repeats. `toolRole()` gained a shared self-describing-name layer for the same reason: enumerating every new agent's vocabulary is not possible, and an unknown name still resolves to `other` so a scorer stays silent rather than guessing |
+| 2026-08-12 | Jorge (with Claude) | Phase 13 implementation: §5.2a `scores` (the versioned scoring substrate — scorer identity, provenance, re-scoring without a bespoke backfill) and §5.2b `run_kind` (INTERACTIVE/CI/EVAL, resolving §13 Q8 by construction); `rescore-effectiveness` added to the §6.5 job table |
+| 2026-08-12 | Jorge (with Claude) | Scoped the §2.2 "prompt evaluation" non-goal to *model/agent benchmarking*: evaluating the platform's own computed signals against real engineering outcomes is now a goal, decomposed as Phase 13 (Scoring & Evaluation — `tasks/P13-roadmap.md`) following `docs/research/2026-08-12-llm-evals-assessment.md`. Updated the status header accordingly |
 | 2026-07-13 | Jorge (with Claude) | Real `reconcile-cost` billing client: `AnthropicBillingSource` backed by the Admin **Cost Report API** (`ANTHROPIC_ADMIN_KEY`, optional `ANTHROPIC_COST_WORKSPACE_ID`), replacing the null placeholder — sums the org's Anthropic-billed cost per month (cents→USD, paginated) for `CLAUDE_CODE`, feeding the existing delta/drift reconciliation (§6.5) |
+| 2026-08-14 | Jorge (with Claude) | **Migration squash** (pre-deployment, one-off): nine `sql/migrations/` files merged into `0001_init.sql` and the Prisma chain into `20260814000000_init/`. The old chain created the three continuous aggregates and then dropped and recreated them twice more within the same deploy, which destroyed materialized history and intermittently failed the deploy with `tuple concurrently deleted`. Each aggregate is now defined once, already filtered to `run_kind = 'INTERACTIVE'`; the resulting schema was verified identical to the one the old chain produced |
+| 2026-08-18 | Jorge (with Claude) | Documentation audit against the code. Corrected the §2.2 and §12.9 claim that `budget_threshold` is "reserved but not evaluated" (all six alert rule types are evaluated; two are seeded disabled pending an operator threshold); narrowed §5.2b's "every human-facing surface filters to `INTERACTIVE`" to what the lints actually enforce, and named the three deliberately-unfiltered read classes; added the four missing `events` columns to §5.3 (`run_kind`, `notification_kind`, `tool_target_hash`, `tool_action`) with their partial indexes; added Phase 13 vocabulary to §16 |
+| 2026-08-18 | Jorge (with Claude) | Rebased Phase 13 onto the post-revamp UI/UX review (#112). The substantive integrations: `SessionFeedbackForm` keeps the rubric but moves onto `useActionResult`, so a failed save shows an inline error instead of a false "Saved"; the audit feed's action labels take main's uppercase enum keys — a lowercase copy had made the filter silently never match — with `JUDGE_READ_TRANSCRIPT` folded in and `VALID_ACTIONS` derived from the map so the two cannot disagree; and `/org/models` drops the two type imports that the removed hardcoded-savings banner was the last consumer of |
+| 2026-08-18 | Jorge (with Claude) | Rebased Phase 13 onto the price-table refresh (#113). No adjustment was needed: that change normalizes provider token semantics in the adapters and prices models through a `<provider>/` fallback, none of which the scoring substrate reads. It does interact with one alert — `unknown_model_surge` fires on `cost_usd = 0 AND input_tokens > 0`, so filling the four empty tables and correcting two stale ones removes most of what it was firing on. That is the fix working, not a regression |

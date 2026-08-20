@@ -2,12 +2,20 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 import type { S3Client } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
 
+import type { JudgeModelClient } from '../lib/judge-client';
 import type { EmailConfig } from '../lib/notify/email';
 import type { PriceTableRegistry } from '../lib/price-tables';
 import { runBackfillRedaction } from './backfill-redaction';
-import { runComputeEffectiveness, runComputeEffectivenessBackfill } from './compute-effectiveness';
+import {
+  runComputeEffectiveness,
+  runComputeEffectivenessBackfill,
+  runRescoreEffectiveness,
+} from './compute-effectiveness';
+import { runComputeSubjectScores } from './compute-subject-scores';
+import { runComputeTrajectoryScores, runRescoreTrajectory } from './compute-trajectory-scores';
 import { runEvaluateAlerts } from './evaluate-alerts';
 import { runIndexTranscripts } from './index-transcripts';
+import { type JudgeRunConfig, runJudgeSessions } from './judge-sessions';
 import { type BillingSource, NullBillingSource, runReconcileCost } from './reconcile-cost';
 import { runRepriceEvents } from './reprice-events';
 import { runDeletions } from './run-deletions';
@@ -33,6 +41,11 @@ export type SchedulerDeps = {
   // Jira issue-metadata sync (env-gated like reconcile-cost) — undefined when
   // JIRA_BASE_URL / JIRA_API_TOKEN are not configured.
   jiraConfig?: JiraSyncConfig;
+  // LLM-as-judge (P13-009) — undefined unless BOTH a judge API key and an
+  // operator user id are configured *and* the configured model has a registered
+  // revision. Undefined means the scheduled entry no-ops with a warning; there
+  // is no half-configured state in which the judge reads a transcript.
+  judge?: { client: JudgeModelClient; config: JudgeRunConfig };
   logger?: Logger;
   orgMaxRetentionDays: number;
   // Price tables for reprice-events. Undefined → the reprice jobs no-op with a
@@ -47,7 +60,17 @@ const CONFIGURABLE_JOBS = [
   'sweep-retention',
   'index-transcripts',
   'compute-effectiveness',
+  // Deterministic trajectory scorers (P13-003) and skill/MCP subject scores
+  // (P13-004). Scheduled after compute-effectiveness so the shape labels the
+  // step-efficiency baseline is bucketed by are already written for the night's
+  // sessions — a session scored before its shape exists gets no baseline and
+  // (correctly) no step-efficiency row, but it would then wait a whole day.
+  'compute-trajectory-scores',
+  'compute-subject-scores',
   'evaluate-alerts',
+  // LLM-as-judge (P13-009). Seeded **disabled** — a fresh deployment never
+  // sends a transcript to a model because a container booted.
+  'judge-sessions',
 ] as const;
 
 // All job names accepted by the manual-trigger endpoint. sync-jira is included
@@ -92,6 +115,7 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
     emailConfig,
     githubSyncToken,
     jiraConfig,
+    judge,
     logger,
     orgMaxRetentionDays,
     priceTables,
@@ -133,6 +157,37 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
     case 'compute-effectiveness':
       await runComputeEffectiveness(db as Parameters<typeof runComputeEffectiveness>[0], logger);
       break;
+    // Deterministic trajectory scorers (P13-003). Writes `scores` rows only —
+    // nothing here is surfaced on a dashboard until P13-007 says whether these
+    // numbers predict anything.
+    case 'compute-trajectory-scores':
+      await runComputeTrajectoryScores(
+        db as Parameters<typeof runComputeTrajectoryScores>[0],
+        logger,
+      );
+      break;
+    // Skill / MCP-server score rows (P13-004) — the persisted trend behind the
+    // read-time comparison panels.
+    case 'compute-subject-scores':
+      await runComputeSubjectScores(db as Parameters<typeof runComputeSubjectScores>[0], logger);
+      break;
+    // LLM-as-judge over sampled transcripts (P13-009). Gated on config
+    // presence: no judge credentials (or an unregistered model) means the job
+    // does nothing at all rather than falling back to some default judge.
+    case 'judge-sessions':
+      if (judge) {
+        await runJudgeSessions(
+          db as Parameters<typeof runJudgeSessions>[0],
+          s3,
+          bucket,
+          judge.config,
+          judge.client,
+          logger,
+        );
+      } else {
+        logger?.warn('judge-sessions: skipped, the judge is not configured');
+      }
+      break;
     // Scheduled alert evaluation (P9-001). Records firing/resolving transitions.
     case 'evaluate-alerts':
       await runEvaluateAlerts(
@@ -150,6 +205,20 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
         db as Parameters<typeof runComputeEffectivenessBackfill>[0],
         logger,
       );
+      break;
+    // Operator-triggered one-shot (P13-001): re-score every session whose
+    // `scores` rows are behind the current scorer version. This is the path that
+    // makes a scorer change cheap — bump FRICTION_VERSION or
+    // SESSION_SHAPE_VERSION, trigger once. Like the backfill above it has no
+    // cadence, so it stays out of CONFIGURABLE_JOBS.
+    case 'rescore-effectiveness':
+      await runRescoreEffectiveness(db as Parameters<typeof runRescoreEffectiveness>[0], logger);
+      break;
+    // Operator-triggered one-shot (P13-003): re-score every session's trajectory
+    // after bumping one of the six trajectory scorer versions. No cadence, so it
+    // stays out of CONFIGURABLE_JOBS like its effectiveness counterpart.
+    case 'rescore-trajectory':
+      await runRescoreTrajectory(db as Parameters<typeof runRescoreTrajectory>[0], logger);
       break;
     // Operator-triggered one-shot: backfill sessions.redaction_flags for
     // transcripts archived before the column existed, by scanning stored
@@ -206,7 +275,12 @@ export function startScheduler(deps: SchedulerDeps): void {
           ('sweep-retention',       true, 2, 0),
           ('index-transcripts',     true, 3, 30),
           ('compute-effectiveness', true, 5, 0),
-          ('evaluate-alerts',       true, 1, 0)
+          ('compute-trajectory-scores', true, 5, 30),
+          ('compute-subject-scores',    true, 6, 0),
+          ('evaluate-alerts',       true, 1, 0),
+          -- P13-009: off by default. Enabling it is an operator decision taken
+          -- in /admin/jobs, not a consequence of deploying.
+          ('judge-sessions',        false, 6, 30)
         ON CONFLICT (job_name) DO NOTHING
       `;
       logger?.info('Scheduler: seeded job_config defaults');
@@ -389,10 +463,11 @@ export function startScheduler(deps: SchedulerDeps): void {
 
   logger?.info(
     {
+      judge: deps.judge !== undefined,
       reconcileCost: deps.billingReconciliationEnabled === true,
       reconcileCostSource: deps.billingSource ? 'anthropic' : 'null',
       syncJira: deps.jiraConfig !== undefined,
     },
-    'Job scheduler started (DB-poll every 60s: sweep-retention/index-transcripts/compute-effectiveness; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',
+    'Job scheduler started (DB-poll every 60s for the job_config cadences: sweep-retention, index-transcripts, compute-effectiveness, compute-trajectory-scores, compute-subject-scores, evaluate-alerts, judge-sessions; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',
   );
 }

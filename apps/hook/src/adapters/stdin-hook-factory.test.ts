@@ -38,6 +38,7 @@ describe('claude-code through the factory — golden output', () => {
       session_context: { cwd: '/repo', git: null, is_resume: false, mode: 'normal' },
       session_id: SESSION_ID,
       tool: {
+        action: null,
         category: 'mcp',
         duration_ms: 0,
         exit_status: null,
@@ -50,6 +51,7 @@ describe('claude-code through the factory — golden output', () => {
         skill: null,
         slash_command: null,
         subagent_type: null,
+        target_hash: null,
         was_denied: false,
         was_interrupted: false,
       },
@@ -114,6 +116,42 @@ describe('createStdinHookAdapter', () => {
       settingsHint: 'hint',
     },
     transcriptKinds: ['after-tool'],
+  });
+
+  it('derives the content-free capture fields for a non-Claude agent', () => {
+    // P13-003's target digest and command class are built in the shared factory,
+    // not in Claude's own builder — otherwise the three target-keyed trajectory
+    // scorers would work for Claude Code and be silently dead for every agent
+    // that came through the Phase 12 seam. This asserts the derivation actually
+    // runs for one of them, rather than merely that the keys exist.
+    const edit = adapter.mapPayload('after-tool', {
+      sessionId: SESSION_ID,
+      tool_name: 'write_file',
+      toolArgs: { file_path: '/repo/src/index.ts' },
+    });
+    const shell = adapter.mapPayload('after-tool', {
+      sessionId: SESSION_ID,
+      tool_name: 'run_shell_command',
+      toolArgs: { command: 'bun run test' },
+    });
+
+    expect(edit?.tool?.target_hash).toMatch(/^[0-9a-f]{16}$/);
+    expect(edit?.tool?.action).toBeNull();
+    expect(shell?.tool?.action).toBe('test');
+    // The digest is a grouping key, so the same target must hash the same way.
+    const again = adapter.mapPayload('after-tool', {
+      sessionId: SESSION_ID,
+      tool_name: 'write_file',
+      toolArgs: { file_path: '/repo/src/index.ts' },
+    });
+    expect(again?.tool?.target_hash).toBe(edit?.tool?.target_hash);
+    // …and a different target must not collide with it.
+    const other = adapter.mapPayload('after-tool', {
+      sessionId: SESSION_ID,
+      tool_name: 'write_file',
+      toolArgs: { file_path: '/repo/src/other.ts' },
+    });
+    expect(other?.tool?.target_hash).not.toBe(edit?.tool?.target_hash);
   });
 
   it('recognizes exactly the kinds in its event map', () => {

@@ -70,6 +70,27 @@ function isPremiumModel(model: string): boolean {
   return model.toLowerCase().includes(PREMIUM_PATTERN);
 }
 
+/**
+ * Fraction of the price-implied ceiling that the *low* end of a routing claim
+ * assumes (P13-006).
+ *
+ * `savingsRatio` is a ceiling, not an expectation: it prices every retrieval turn
+ * moving to the cheapest tier and succeeding first time. Real routing leaves some
+ * turns on the premium model and pays for the occasional retry, so the honest
+ * claim spans from a conservative share of that ceiling up to the ceiling itself.
+ * Registered as a range for exactly this reason — a single number here would be
+ * an assertion the data cannot support.
+ */
+export const ROUTING_SAVING_FLOOR_FRACTION = 0.4;
+
+/** The projected saving range for one recommendation, in monthly USD. */
+export function routingSavingRange(rec: RoutingRecommendation): { high: number; low: number } {
+  return {
+    high: rec.estimatedMonthlySaving,
+    low: rec.estimatedMonthlySaving * ROUTING_SAVING_FLOOR_FRACTION,
+  };
+}
+
 export function computeRoutingRecommendations(
   rows: OrgModelRoutingRow[],
   rangeDays: number,

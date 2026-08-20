@@ -65,7 +65,15 @@ Source of truth for task status. Update this in the same commit as the task file
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P1-028](./P1-028-hook-perf-benchmark.md) | Hook perf benchmark (<10ms target) | done | claude | S | P1-020 |
-| [P1-029](./P1-029-phase1-signoff.md) | Phase 1 exit-criteria sign-off | done | claude | S | all P1-* |
+| [P1-029](./P1-029-phase1-signoff.md) | Phase 1 exit-criteria sign-off | ready | — | S | all P1-* |
+
+> **P1-029 was marked `done` here and is not.** Corrected 2026-08-18 against the
+> evidence: it requires `docs/phase1-dogfood.md`, `docs/phase1-redaction-review.md`,
+> `docs/phase1-cleanclone.md` and `docs/phase1-retro.md`, and **none of the four
+> exists**. Its first criterion is five working days of real dogfood, which cannot
+> have happened — no rollout has occurred and the corpus is still seed data. Every
+> other `P1-*` task is genuinely done; this is the sign-off gate on top of them, and
+> it is still open. Nothing depends on it, so this changes no other status.
 
 ---
 
@@ -211,16 +219,24 @@ See [`P9-roadmap.md`](./P9-roadmap.md). Turns passive dashboards into proactive 
 
 ## Phase 10 — Model Cost Optimization
 
-See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §4. **Proposed — not yet started.**
+See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` routing card into a defensible, governed, persona-appropriate optimization capability grounded in the per-agent price tables. Ranked #1 by impact-to-effort in [`OPPORTUNITIES.md`](../OPPORTUNITIES.md) §4.
+
+> **Reconciled 2026-08-18 by owner decision.** Every row here previously read `done` while every `P10-*.md` file read `status: ready`. Each task was audited against the code rather than against the other document, and the answer differed per task — which is why "`INDEX.md` is the source of truth" would have been the wrong blanket fix in either direction.
+>
+> - **`P10-002` and `P10-005` were never built**, confirmed by search: no `model_policy` in `schema.prisma`, `sql/migrations/` or either app; no `apps/web/src/lib/model-policy.ts`; no `/admin/model-policy` route; no `disallowed_model` in `packages/schemas`, the alert engine, or the seeds. Both reopened as `ready`. `P10-002` is the load-bearing one — `P10-003`'s constants-removal criterion and all of `P10-005` depend on it.
+> - **`P10-001` and `P10-003` shipped their substance but miss named criteria**, so both are `in-progress` with the gaps unticked in their files. The routing layer landed as `routing-queries.ts` (not the planned `routing-analysis.ts`) via P8/P11 work: real, pure, price-table-driven, range-producing. What it lacks is not cosmetic — no `agent_type`/`shape_label` grain, no volume floor, and a savings resolver that draws its target rate from one merged price map, so another agent's economy model can set the denominator for a Claude model. That last is exactly what `P10-001` criterion 5 forbids. `P10-003` fails its own grep: `PREMIUM_PATTERNS` is still declared at `org/models/page.tsx:31`.
+> - **One item is a design disagreement, not unfinished work.** `P10-001` says a missing price entry must yield `savings: null`, "never a fabricated number"; the code deliberately falls back to a flat `HAIKU_SAVINGS_RATIO = 0.9` and marks the surface imprecise. Settle that before building the rest.
+> - **`P10-004` was not built.** `buildRecommendations` emits five kinds and none is routing or cache, which its criterion 2 requires; `/team/[slug]` has a cache-hit stat but no routing section. Reopened as `ready`. The seam it specifies already exists and is the right shape, so this is an extension rather than new architecture.
+> - **`P10-006` is `cancelled`, superseded by [`P13-006`](./P13-006-projection-validation-pattern.md)**, which satisfies all five of its criteria through a general projection registry — persisted ranged claims, `not_yet_measurable` volume gating, and an outcome guard over friction / revert / tool-error movement. `cancelled` rather than `done` because this spec was never implemented as written.
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | done | claude | M | P8-002, P4-004, P7-001 |
-| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | done | claude | M | P8-002 |
-| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | done | claude | M | P10-001, P10-002 |
-| [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | done | claude | M | P10-001 |
-| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | done | claude | M | P10-002, P9-001 |
-| [P10-006](./P10-006-recommendation-validation-loop.md) | Recommendation validation loop | done | claude | M | P10-001, P10-003 |
+| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | in-progress | claude | M | P8-002, P4-004, P7-001 |
+| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | ready | — | M | P8-002 |
+| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | in-progress | claude | M | P10-001, P10-002 |
+| [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | ready | — | M | P10-001 |
+| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | ready | — | M | P10-002, P9-001 |
+| [P10-006](./P10-006-recommendation-validation-loop.md) | Recommendation validation loop | cancelled | — | M | P10-001, P10-003 |
 
 ---
 
@@ -255,3 +271,58 @@ See [`P12-roadmap.md`](./P12-roadmap.md). Takes the P8 seam from three agents to
 | [P12-010](./P12-010-price-table-refresh.md) | Price-table refresh + provider-correct token accounting | done | claude | S | P8-002, P12-001, P12-004, P12-005 |
 | [P12-011](./P12-011-reprice-history-and-unpriced-visibility.md) | Reprice historical cost + unpriced-model visibility | done | claude | M | P8-002, P8-006, P9-001, P12-010 |
 | [P12-012](./P12-012-generate-provider-agnostic-price-tables.md) | Generate the provider-agnostic price tables from models.dev | done | claude | M | P12-010, P12-011 |
+
+---
+
+## Phase 13 — Scoring & Evaluation
+
+See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance and a version, adds scorers that need no content access, captures human labels, and — once real data exists — validates the heuristics that already ship (`friction_score`, `shape_label`) against real outcomes. Decomposed from [`docs/research/2026-08-12-llm-evals-assessment.md`](../docs/research/2026-08-12-llm-evals-assessment.md) after the owner resolved its first open question: evaluating real sessions against real outcomes is a goal. **Proposed.**
+
+> **Sequenced against seed-only data.** No rollout has happened; the corpus is seed and dev data, and a real rollout is intended but unscheduled. Tasks are therefore placed by two rules: build only what pays off regardless of whether rollout happens, and prefer what gets more expensive with time. Tasks marked *blocked (DP-1)* wait on the data precondition defined once in [`P13-roadmap.md`](./P13-roadmap.md) — ≥10 real users over ≥60 days, ≥200 labelled sessions, ≥100 outcome-linked PRs. They unblock themselves when the corpus arrives; no decision is needed.
+
+### Workstream A — Substrate
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P13-001](./P13-001-scores-substrate.md) | Generic versioned scores table | done | claude | M | — |
+| [P13-002](./P13-002-run-kind-dimension.md) | `run_kind` dimension (interactive / ci / eval) | done | claude | S | — |
+| [P13-012](./P13-012-run-kind-views.md) | Move the `run_kind` guard into the data layer | done | claude | M | P13-002 |
+| [P13-013](./P13-013-scores-time-dimension.md) | Time dimension on the `scores` unique key | done | claude | M | P13-001, P13-004 |
+
+> **Both started as deliberate deferrals and both have since landed.**
+> [`P13-012`](./P13-012-run-kind-views.md) is the end state for the `run_kind`
+> guard — four rounds of lint-strengthening on this branch each found sites the
+> previous round could not see, which is what a rule enforced at the wrong altitude
+> looks like. It landed in two parts, filtered views then a Prisma client extension,
+> because the second inverts the default and needed its own verification pass.
+> [`P13-013`](./P13-013-scores-time-dimension.md) closed a real gap —
+> `compute-subject-scores` could not produce the trend its docstring claimed — by
+> putting a period on the `scores` unique key.
+
+### Workstream B — Deterministic scorers
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P13-003](./P13-003-deterministic-trajectory-scorers.md) | Deterministic trajectory scorers | done | claude | M | P13-001 |
+| [P13-004](./P13-004-skill-mcp-effectiveness.md) | Skill & MCP effectiveness scoring | done | claude | M | P13-001, P13-003 |
+
+### Workstream C — Capture & validation
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P13-005](./P13-005-session-label-capture.md) | Session label capture (versioned rubric) | done | claude | M | P13-001 |
+| [P13-006](./P13-006-projection-validation-pattern.md) | Projection registry + realization (generalizes P10-006) | done | claude | M | P13-001 |
+| [P13-007](./P13-007-scorer-calibration-analysis.md) | Scorer calibration analysis | blocked (DP-1) | — | M | P13-001, P13-005 |
+| [P13-008](./P13-008-scorer-validation-surface.md) | Scorer validation surface | blocked (DP-1) | — | M | P13-001, P13-007 |
+
+### Workstream D — Judge
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P13-009](./P13-009-judge-runner-guardrails.md) | Judge runner + guardrails (own transcripts only) | done | claude | L | P13-001 |
+| [P13-010](./P13-010-judge-calibration-drift.md) | Judge calibration + drift alerting | blocked (DP-1) | — | M | P13-005, P13-007, P13-009 |
+| [P13-011](./P13-011-arm-judge-for-other-users.md) | Arm the judge for other users' transcripts | blocked | — | S | P13-007, P13-009, P13-010 |
+
+> **Workstream D is split, not deferred.** The runner and every guardrail (consent gating, audit writes, owner-only display, versioned prompt registry, cost recording) are built now and exercised against the operator's own sessions — those are the things that never get retrofitted. The irreversible act, pointing the judge at another person's transcript, is isolated in [`P13-011`](./P13-011-arm-judge-for-other-users.md) behind a calibrated judge **and** an explicit owner decision taken with developers consulted in advance.
+>
+> **Overlap with `P10-006` — settled 2026-08-18.** [`P13-006`](./P13-006-projection-validation-pattern.md) ships the projected-vs-realized check as a general mechanism (projection registry, pure realization function, outcome guard, volume gating) and applies it to the `/org/models` routing recommendations that [`P10-006`](./P10-006-recommendation-validation-loop.md) specifies. `P10-006` is now `cancelled` as superseded, by owner decision taken with the rest of the Phase 10 reconciliation — `cancelled` rather than `done` because its own spec was never implemented as written. The criterion-by-criterion mapping is in that task file. This branch had asserted the same conclusion unilaterally once and withdrew it; the difference now is that Phase 10's state was audited against the code first.

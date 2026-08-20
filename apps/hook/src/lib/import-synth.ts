@@ -1,4 +1,9 @@
-import type { Event, ToolInfo } from '@ai-agents-observability/schemas';
+import {
+  type Event,
+  type ToolInfo,
+  toolActionFor,
+  toolTargetHash,
+} from '@ai-agents-observability/schemas';
 import { fieldBytes } from './bytes';
 import { clientInfo } from './client-info';
 import { userIdClaim } from './identity';
@@ -48,6 +53,7 @@ function buildImportToolInfo(name: string, input: unknown, output: unknown): Too
   const outputBytes = fieldBytes(output);
 
   return {
+    action: toolActionFor(input),
     category: isMcp ? 'mcp' : 'builtin',
     duration_ms: 0,
     exit_status: null,
@@ -60,6 +66,7 @@ function buildImportToolInfo(name: string, input: unknown, output: unknown): Too
     skill: null,
     slash_command: null,
     subagent_type: subagentType,
+    target_hash: toolTargetHash(input),
     was_denied: false,
     was_interrupted: false,
   };

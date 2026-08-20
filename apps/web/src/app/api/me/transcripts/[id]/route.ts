@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { withRouteLogging } from '@/lib/api-logging';
 import { currentUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
-import { getPrisma } from '@/lib/prisma';
+import { getAllRunsPrisma } from '@/lib/prisma';
 import { getRequestId } from '@/lib/request-context';
 import { getS3Client, streamTranscript } from '@/lib/s3';
 
@@ -20,7 +20,11 @@ export const GET = withRouteLogging(
 
     const { id } = await params;
 
-    const session = await getPrisma().session.findFirst({
+    // run-kind-exempt: one session by id, for its owner. A developer opening
+    // their own CI session's transcript must get it, not a 404.
+    const session = await getAllRunsPrisma(
+      'own transcript, scoped to one session id',
+    ).session.findFirst({
       select: { transcriptS3Key: true },
       where: { sessionId: id, userId: user.id },
     });

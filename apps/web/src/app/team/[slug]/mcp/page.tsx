@@ -1,7 +1,9 @@
 import { McpServerCard } from '@/components/team-org/McpServerCard';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import { SubjectQualityPanel } from '@/components/team-org/SubjectQualityPanel';
 import { EmptyState, Stat } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
+import { getMcpQuality, getSubjectScoreSeries } from '@/lib/subject-quality-queries';
 import type { McpTeamDetailRow } from '@/lib/team-queries';
 import { getTeamMcpDetails, resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
@@ -22,7 +24,10 @@ export default async function TeamMcpPage({
 
   const since = daysAgo(range);
   const { visibleIds } = await resolveTeamVisibility(teamId);
-  const details = await getTeamMcpDetails(visibleIds, since);
+  const [details, quality] = await Promise.all([
+    getTeamMcpDetails(visibleIds, since),
+    getMcpQuality(visibleIds, since),
+  ]);
 
   type ServerEntry = {
     distinctUsers: number;
@@ -76,6 +81,10 @@ export default async function TeamMcpPage({
   const overallErrorRate = totalCalls > 0 ? totalUnhealthy / totalCalls : 0;
   const totalCostUsd = servers.reduce((s, [, v]) => s + v.totalCostUsd, 0);
 
+  // The stored series behind the error-rate column (P13-013). Keyed the same
+  // way `scores.subject_id` is, so the panel needs no id-shaping of its own.
+  const qualitySeries = await getSubjectScoreSeries('MCP_SERVER', quality);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -98,6 +107,14 @@ export default async function TeamMcpPage({
           value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
         />
       </div>
+
+      <SubjectQualityPanel
+        caption={`How sessions that used each server compare with matched sessions that did not, over the trailing ${range} days.`}
+        rows={quality}
+        series={qualitySeries}
+        subjectNoun="MCP server"
+        title="Effectiveness"
+      />
 
       {servers.length === 0 ? (
         <EmptyState>No MCP usage recorded in the last {range} days.</EmptyState>

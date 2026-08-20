@@ -10,6 +10,8 @@ import {
   Select,
   Table,
 } from '@/components/ui';
+import { fmtUsd } from '@/lib/fmt';
+import { getJudgeSpend } from '@/lib/judge-queries';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -35,13 +37,16 @@ export default async function AdminJobsPage() {
 
   const db = getPrisma();
 
-  const [configs, recentRuns] = await Promise.all([
+  const [configs, recentRuns, judgeSpend] = await Promise.all([
     db.jobConfig.findMany({ orderBy: { jobName: 'asc' } }),
     db.jobRun.findMany({
       distinct: ['jobName'],
       orderBy: { startedAt: 'desc' },
       select: { finishedAt: true, jobName: true, startedAt: true, status: true },
     }),
+    // P13-009: the platform's own eval bill, beside the switch that turns the
+    // spending on. Aggregate money only — no session, no developer, no label.
+    getJudgeSpend(),
   ]);
 
   const runByJob = new Map(recentRuns.map((r) => [r.jobName, r]));
@@ -58,6 +63,20 @@ export default async function AdminJobsPage() {
           60-second scheduler poll.
         </p>
       </div>
+
+      {judgeSpend.scoredSessions > 0 && (
+        <Card
+          title="Automated evaluation spend"
+          caption="Trailing 30 days — what the judge-sessions job cost to run"
+        >
+          <p className="text-sm text-text-2">
+            <span className="font-mono text-text">{fmtUsd(judgeSpend.costUsd)}</span> across{' '}
+            {judgeSpend.scoredSessions} scored session
+            {judgeSpend.scoredSessions === 1 ? '' : 's'}. Per-session evaluation output is visible
+            only to the developer whose session it is.
+          </p>
+        </Card>
+      )}
 
       {configs.length === 0 ? (
         <EmptyState>

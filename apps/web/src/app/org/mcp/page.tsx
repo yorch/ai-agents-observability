@@ -1,8 +1,15 @@
 import { McpServerCard } from '@/components/team-org/McpServerCard';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { EmptyState, Stat } from '@/components/ui';
-import { getMcpServerDetails, type McpServerDetailRow } from '@/lib/org-queries';
+import { SubjectQualityPanel } from '@/components/team-org/SubjectQualityPanel';
+import { Card, Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
+import { fmtDurationOrDash } from '@/lib/fmt';
+import { getMcpServerDetails, type McpServerDetailRow, orgVisibleUserIds } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
+import {
+  getMcpFailureSplit,
+  getMcpQuality,
+  getSubjectScoreSeries,
+} from '@/lib/subject-quality-queries';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +23,12 @@ export default async function OrgMcpPage({
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
-  const details = await getMcpServerDetails(since);
+  const visibleIds = await orgVisibleUserIds(since);
+  const [details, quality, failureSplit] = await Promise.all([
+    getMcpServerDetails(since),
+    getMcpQuality(visibleIds, since),
+    getMcpFailureSplit(visibleIds, since),
+  ]);
 
   // Group rows by server, computing server-level aggregates
   type ServerEntry = {
@@ -71,6 +83,10 @@ export default async function OrgMcpPage({
   const overallErrorRate = totalCalls > 0 ? totalUnhealthy / totalCalls : 0;
   const totalCostUsd = servers.reduce((s, [, v]) => s + v.totalCostUsd, 0);
 
+  // The stored series behind the error-rate column (P13-013). Keyed the same
+  // way `scores.subject_id` is, so the panel needs no id-shaping of its own.
+  const qualitySeries = await getSubjectScoreSeries('MCP_SERVER', quality);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -93,6 +109,54 @@ export default async function OrgMcpPage({
           value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
         />
       </div>
+
+      <SubjectQualityPanel
+        caption={`How sessions that used each server compare with matched sessions that did not, over the trailing ${range} days.`}
+        rows={quality}
+        series={qualitySeries}
+        subjectNoun="MCP server"
+        title="Effectiveness"
+      />
+
+      {failureSplit.length > 0 && (
+        <Card
+          caption="A non-zero exit that returned no payload at all did not reach a tool — that is the server. One that returned a payload is the tool's own error. The two need different owners, so they are never summed into one rate."
+          flush
+          title="Failure attribution"
+        >
+          <div className="px-4 pb-4">
+            <Table
+              columns={[
+                { label: 'Server' },
+                { align: 'right', label: 'Calls', mono: true },
+                { align: 'right', label: 'Server unavailable', mono: true },
+                { align: 'right', label: 'Tool returned error', mono: true },
+                { align: 'right', label: 'p95 duration', mono: true },
+              ]}
+            >
+              {failureSplit.map((r) => (
+                <Row key={r.mcpServer}>
+                  <Cell>
+                    <span className="font-mono text-text">{r.mcpServer}</span>
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {r.calls.toLocaleString()}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {r.unavailable.toLocaleString()}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {r.toolErrors.toLocaleString()}
+                  </Cell>
+                  <Cell num className="text-text-2">
+                    {fmtDurationOrDash(r.p95DurationMs)}
+                  </Cell>
+                </Row>
+              ))}
+            </Table>
+          </div>
+        </Card>
+      )}
 
       {servers.length === 0 ? (
         <EmptyState>No MCP usage recorded in the last {range} days.</EmptyState>

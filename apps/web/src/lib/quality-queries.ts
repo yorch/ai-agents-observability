@@ -65,7 +65,7 @@ export async function getOutcomesByFrictionBand(since: Date): Promise<FrictionBa
       SELECT l.repo_id, l.pr_number, AVG(s.friction_score) AS mean_friction
       FROM pull_requests pr
       JOIN session_pr_links l ON l.repo_id = pr.repo_id AND l.pr_number = pr.pr_number
-      JOIN sessions s ON s.session_id = l.session_id
+      JOIN interactive_sessions s ON s.session_id = l.session_id
       WHERE pr.state = 'MERGED' AND pr.merged_at >= ${since}
         AND s.friction_score IS NOT NULL
       GROUP BY l.repo_id, l.pr_number

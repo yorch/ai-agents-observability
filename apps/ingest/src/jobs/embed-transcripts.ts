@@ -194,6 +194,11 @@ async function runEmbedTranscripts(): Promise<void> {
     jobRunId = jobRun.id;
 
     const sampleLimit = sample != null ? sample : 10_000;
+    // run-kind-exempt: transcript indexing (same class as index-transcripts.ts).
+    // This gated prototype embeds whatever transcript content was stored for
+    // semantic search; a CI or eval session's transcript is real content that
+    // needs the same index coverage as an interactive one's, so filtering by
+    // run kind here would just leave those sessions permanently unembedded.
     const unembedded = await db.$queryRawUnsafe<
       { session_id: string; transcript_s3_key: string }[]
     >(

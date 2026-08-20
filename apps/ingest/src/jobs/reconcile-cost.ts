@@ -81,6 +81,12 @@ export async function runReconcileCost(
     const year = monthStart.getUTCFullYear();
     const month = monthStart.getUTCMonth() + 1; // 1-based for billing APIs
 
+    // run-kind-exempt: this sums client-computed cost to compare against the
+    // vendor's own monthly bill. The vendor bills every token the account
+    // sends it, CI and eval runs included -- there is no "interactive only"
+    // line item on their invoice -- so excluding non-interactive events here
+    // would manufacture a permanent drift against a number that was never
+    // supposed to match in the first place.
     const rows = await db.$queryRaw<{ agent_type: string; client_cost: number | string }[]>(
       Prisma.sql`
         SELECT agent_type, COALESCE(SUM(cost_usd), 0) AS client_cost

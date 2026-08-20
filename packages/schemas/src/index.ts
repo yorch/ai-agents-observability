@@ -65,6 +65,33 @@ export {
 } from './event';
 export { extractJiraKey, extractJiraKeyFromSources } from './jira';
 export { BUG_ISSUE_TYPE_LIST, BUG_ISSUE_TYPES } from './jira-domain';
+export type {
+  JudgeCoherenceLabel,
+  JudgeCompletionLabel,
+  JudgeParams,
+  JudgePricing,
+  JudgeRevision,
+  JudgeTranscriptMessage,
+  JudgeUsage,
+  JudgeVerdict,
+} from './judge';
+export {
+  buildJudgeUserMessage,
+  excerptTranscript,
+  JUDGE_BASE_SCORER_VERSION,
+  JUDGE_COHERENCE_LABELS,
+  JUDGE_COMPLETION_LABELS,
+  JUDGE_MAX_MESSAGE_CHARS,
+  JUDGE_MAX_RATIONALE_CHARS,
+  JUDGE_MAX_TRANSCRIPT_CHARS,
+  JUDGE_REVISIONS,
+  JudgeVerdictSchema,
+  judgeCostUsd,
+  judgeScoreMetadata,
+  judgeSystemPrompt,
+  parseJudgeVerdict,
+  resolveJudgeRevision,
+} from './judge';
 export type { NotificationKind } from './notification';
 export {
   BLOCKING_NOTIFICATION_KINDS,
@@ -76,15 +103,93 @@ export type { ModelPrice, PriceTable } from './price-table';
 export { PriceTableSchema } from './price-table';
 export type { RepoConfig } from './repo-config';
 export { parseRepoConfig, RepoConfigSchema } from './repo-config';
-export type { GitContext, PermissionMode, SessionContext } from './session-context';
+export type {
+  RubricOutcome,
+  RubricQuestion,
+  RubricShape,
+  SessionRubricResponse,
+} from './rubric';
+export {
+  capturedRubricVersion,
+  PRE_RUBRIC_VERSION,
+  parseRubricOutcome,
+  parseRubricShape,
+  RUBRIC_BLINDED_FIELDS,
+  RUBRIC_OUTCOME_QUESTION,
+  RUBRIC_OUTCOMES,
+  RUBRIC_SHAPE_QUESTION,
+  RUBRIC_SHAPES,
+  RubricOutcomeSchema,
+  RubricShapeSchema,
+  SESSION_RUBRIC_VERSION,
+  SessionRubricResponseSchema,
+} from './rubric';
+export type {
+  ScoreInput,
+  ScoreKind,
+  ScorerDefinition,
+  ScorerName,
+  ScoreSource,
+  ScoreSubjectType,
+} from './scores';
+export {
+  buildScoreRow,
+  DENIAL_RETRY_SUCCESS_VERSION,
+  EDIT_THRASH_VERSION,
+  isEmptyScore,
+  MCP_EFFECTIVENESS_VERSION,
+  REDUNDANT_READ_VERSION,
+  RETRY_LOOP_VERSION,
+  SCORER_NAMES,
+  SCORERS,
+  SESSION_SHAPE_VERSION,
+  SKILL_EFFECTIVENESS_VERSION,
+  STEP_EFFICIENCY_VERSION,
+  skillSubjectId,
+  TESTS_BEFORE_MERGE_VERSION,
+  trailingWindow,
+} from './scores';
+export type {
+  GitContext,
+  PermissionMode,
+  RunKind,
+  RunKindDb,
+  SessionContext,
+} from './session-context';
 export {
   AUTONOMY_RANK,
   canonicalPermissionMode,
+  DEFAULT_RUN_KIND,
   GitContextSchema,
   isLowOversightMode,
   LOW_OVERSIGHT_MODES,
+  mergeRunKind,
   PERMISSION_MODES,
+  RUN_KINDS,
+  runKindToDbEnum,
   SessionContextSchema,
 } from './session-context';
+export type { ToolAction } from './tool-capture';
+export {
+  classifyCommandAction,
+  TOOL_ACTIONS,
+  targetDigest,
+  toolActionFor,
+  toolTargetHash,
+} from './tool-capture';
+export type { StepEfficiencyBaseline, ToolRole, TrajectoryEvent } from './trajectory';
+export {
+  denialRetrySuccessCount,
+  EDIT_THRASH_MIN_REPEATS,
+  editThrashScore,
+  redundantReadScore,
+  retryLoopScore,
+  STEP_EFFICIENCY_MIN_BASELINE_SESSIONS,
+  stepEfficiencyRatio,
+  TRAJECTORY_MIN_KEYED_CALLS,
+  TRAJECTORY_MIN_TOOL_CALLS,
+  testCommandRun,
+  toolRole,
+} from './trajectory';
 export type { TranscriptChunkMeta } from './transcript';
 export { TranscriptChunkMetaSchema } from './transcript';

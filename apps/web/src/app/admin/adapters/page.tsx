@@ -1,6 +1,6 @@
 import { ADAPTER_AGENT_TYPES, agentDisplayName } from '@ai-agents-observability/schemas';
 import { Badge, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
-import { getPrisma } from '@/lib/prisma';
+import { getAllRunsPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
@@ -49,7 +49,10 @@ const BADGE_TONE = {
 export default async function AdaptersPage() {
   await requireOrgAdmin();
 
-  const db = getPrisma();
+  // run-kind-exempt: adapter inventory is about the fleet, not about people —
+  // "which agents are reporting at all" must count a CI runner's sessions too,
+  // or a rollout that only runs in CI reads as an adapter that never shipped.
+  const db = getAllRunsPrisma('adapter inventory counts every run, including CI');
   const now = new Date();
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const since7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);

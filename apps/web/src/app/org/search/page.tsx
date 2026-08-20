@@ -15,7 +15,7 @@ import {
 } from '@/components/ui';
 import { fmtDateTime, fmtUsdSession } from '@/lib/fmt';
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
-import { getPrisma } from '@/lib/prisma';
+import { getAllRunsPrisma } from '@/lib/prisma';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +58,10 @@ export default async function OrgSearchPage({
   }
 
   // Load filter options for dropdowns
-  const prisma = getPrisma();
+  // run-kind-exempt: these are the search *facets* — the counts beside each
+  // filter option. They must match what the search itself can return, and
+  // org search's run-kind scope is the caller's choice (see search-queries).
+  const prisma = getAllRunsPrisma('search facet counts mirror the search scope');
   // Facet dropdowns must respect visibility: a user who opted out of org metadata
   // sharing must not surface their models/shapes/agents in the org facet lists.
   const orgVisibleSession = {

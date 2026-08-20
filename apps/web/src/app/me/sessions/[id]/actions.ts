@@ -1,13 +1,19 @@
 'use server';
 
 import { AuditAction, computePRRollup, GrantScope } from '@ai-agents-observability/db';
+import {
+  capturedRubricVersion,
+  parseRubricOutcome,
+  parseRubricShape,
+} from '@ai-agents-observability/schemas';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { withActionResult } from '@/lib/action-result';
 import { writeAuditLog } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
-import { getPrisma } from '@/lib/prisma';
+import { getAllRunsPrisma, getPrisma } from '@/lib/prisma';
+import { deleteScore, upsertScore } from '@/lib/scores';
 import { getSession } from '@/lib/sessions-queries';
 
 const ALLOWED_DAYS = [1, 7, 30];
@@ -94,9 +100,32 @@ export async function shareSession(formData: FormData): Promise<ShareResult> {
 }
 
 /**
- * R11: the session owner records a lightweight quality signal on their own
- * session (thumbs up/down + optional note). Upserted per (session, user); an
- * empty sentiment clears it. Own-session only — verified via getSession.
+ * R11 + P13-005: the session owner records their own judgement of their own
+ * session — a thumbs, an optional note, and the two versioned rubric answers
+ * (which shape, and did it accomplish what you wanted).
+ *
+ * Own-session only, verified via `getSession`. There is deliberately **no** path
+ * here for labelling anyone else's session: owner self-labelling is the only
+ * label source that is both cheap and trust-preserving, and a researcher-grant
+ * variant would need its own trust review (P13-005 "out of scope").
+ *
+ * The rubric answers are written as `scores` rows with `source: HUMAN` and the
+ * rubric version as `scorer_version`, so the calibration work in P13-007 reads
+ * one table instead of joining a bespoke one. Nothing aggregates or exposes
+ * these beyond this page — capture only.
+ *
+ * **`scores` is the only home for an answer.** The two columns that briefly
+ * mirrored them onto `session_feedback` are gone (migration
+ * `20260813100000_drop_session_feedback_rubric_answers`): one fact written to
+ * two stores in two separate awaits diverges the first time a request fails
+ * between them, and it would be P13-007's copy — the one everything downstream
+ * reads — that lost. What remains on the feedback row is what no score row can
+ * express: the thumbs, the note, and `rubric_version`, which distinguishes
+ * "answered v1 and declined both questions" from "predates the rubric".
+ *
+ * The feedback row and the score rows still move together, so they are written
+ * in **one `$transaction`**: a half-applied submission would leave the rubric
+ * version claiming an answer that no score row holds.
  */
 export const submitSessionFeedback = withActionResult(async (formData) => {
   const user = await currentUser();
@@ -105,8 +134,12 @@ export const submitSessionFeedback = withActionResult(async (formData) => {
   }
 
   const sessionId = String(formData.get('sessionId') ?? '').trim();
-  const sentiment = String(formData.get('sentiment') ?? '').trim();
+  const sentimentRaw = String(formData.get('sentiment') ?? '').trim();
   const note = String(formData.get('note') ?? '').trim();
+  // Anything that is not a current-rubric option parses to null — an unanswered
+  // question and a stale option from an older rubric are both "no label".
+  const shape = parseRubricShape(String(formData.get('rubricShape') ?? ''));
+  const taskOutcome = parseRubricOutcome(String(formData.get('rubricOutcome') ?? ''));
   if (!sessionId) {
     return { error: 'Session not found.', ok: false };
   }
@@ -118,19 +151,60 @@ export const submitSessionFeedback = withActionResult(async (formData) => {
   }
 
   const db = getPrisma();
+  const sentiment = sentimentRaw === 'up' || sentimentRaw === 'down' ? sentimentRaw : null;
+  const trimmedNote = note.slice(0, 1000) || null;
 
-  if (sentiment !== 'up' && sentiment !== 'down') {
-    // Clearing feedback.
-    await db.sessionFeedback.deleteMany({ where: { sessionId, userId: user.id } });
+  // The row is cleared only when the developer has retracted *everything*.
+  // Sentiment alone no longer gates the row: a rubric answer with no thumbs is a
+  // legitimate label, and deleting it because the thumbs was toggled off would
+  // silently discard the more informative half.
+  if (sentiment === null && trimmedNote === null && shape === null && taskOutcome === null) {
+    // A retraction is the same two stores in the other direction, so it takes
+    // the same transaction: a label surviving the feedback row it was given
+    // alongside is the retraction not happening.
+    await db.$transaction(async (tx) => {
+      await tx.sessionFeedback.deleteMany({ where: { sessionId, userId: user.id } });
+      await deleteScore('human_session_shape', sessionId, tx);
+      await deleteScore('human_task_outcome', sessionId, tx);
+    });
     revalidatePath(`/me/sessions/${sessionId}`);
     return { ok: true };
   }
 
-  const trimmedNote = note.slice(0, 1000) || null;
-  await db.sessionFeedback.upsert({
-    create: { note: trimmedNote, sentiment, sessionId, userId: user.id },
-    update: { note: trimmedNote, sentiment, updatedAt: new Date() },
-    where: { sessionId_userId: { sessionId, userId: user.id } },
+  // The row records which rubric it answered even when both questions were
+  // skipped: "declined to answer v1" and "predates the rubric" are different
+  // facts, and only the first says anything about the rubric.
+  const rubricVersion = capturedRubricVersion();
+  await db.$transaction(async (tx) => {
+    await tx.sessionFeedback.upsert({
+      create: {
+        note: trimmedNote,
+        rubricVersion,
+        sentiment,
+        sessionId,
+        userId: user.id,
+      },
+      update: {
+        note: trimmedNote,
+        rubricVersion,
+        sentiment,
+        updatedAt: new Date(),
+      },
+      where: { sessionId_userId: { sessionId, userId: user.id } },
+    });
+
+    // An unanswered question deletes rather than writes an empty row: "declined"
+    // is carried by `rubric_version` on the row above, and an empty score row
+    // would read as an answer.
+    await (shape === null
+      ? deleteScore('human_session_shape', sessionId, tx)
+      : upsertScore({ label: shape, scorerName: 'human_session_shape', subjectId: sessionId }, tx));
+    await (taskOutcome === null
+      ? deleteScore('human_task_outcome', sessionId, tx)
+      : upsertScore(
+          { label: taskOutcome, scorerName: 'human_task_outcome', subjectId: sessionId },
+          tx,
+        ));
   });
 
   revalidatePath(`/me/sessions/${sessionId}`);
@@ -158,7 +232,14 @@ export async function linkSessionPR(formData: FormData): Promise<PRLinkResult> {
     return { error: 'A valid PR number is required.' };
   }
 
-  const db = getPrisma();
+  // run-kind-exempt: one session by id, already ownership-checked below. A
+  // developer linking a PR to their own CI session must be able to.
+  //
+  // This one is load-bearing beyond the read. `computePRRollup` below runs the
+  // same code `apps/ingest`'s reprice job and the github-app webhook run, and
+  // neither of those filters by run kind. A guarded client here would make the
+  // stored rollup depend on which of the three paths wrote it last.
+  const db = getAllRunsPrisma('own session by id, ownership checked inline');
 
   // Own-session only.
   const session = await db.session.findFirst({
@@ -205,7 +286,8 @@ export async function unlinkSessionPR(formData: FormData): Promise<PRLinkResult>
     return { error: 'A valid PR number is required.' };
   }
 
-  const db = getPrisma();
+  // run-kind-exempt: same shape as above — one session by id, owner-scoped.
+  const db = getAllRunsPrisma('own session by id, ownership checked inline');
 
   const session = await db.session.findFirst({
     select: { repoId: true },

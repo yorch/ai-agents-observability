@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
+import { SCORERS } from '@ai-agents-observability/schemas';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runComputeEffectivenessBackfill } from '../src/jobs/compute-effectiveness.ts';
@@ -37,6 +38,16 @@ interface MockSession {
   user_message_count: number;
 }
 
+interface MockScore {
+  label: string | null;
+  scorerName: string;
+  scorerVersion: number;
+  source: string;
+  subjectId: string;
+  subjectType: string;
+  value: number | null;
+}
+
 interface MockJobRun {
   errorText: string | null;
   finishedAt: Date | null;
@@ -51,6 +62,8 @@ function makeMockDb(opts?: { lockAlwaysFails?: boolean }) {
   // session_id -> [{ tool_name, count }]
   const histograms = new Map<string, { count: number; tool_name: string }[]>();
   const jobRuns: MockJobRun[] = [];
+  // P13-001: score rows written alongside the `sessions` column update.
+  const scores: MockScore[] = [];
   let jobRunIdCounter = 1n;
   let lockHeld = false;
   let updateCount = 0;
@@ -86,6 +99,7 @@ function makeMockDb(opts?: { lockAlwaysFails?: boolean }) {
   return {
     _histograms: histograms,
     _jobRuns: jobRuns,
+    _scores: scores,
     _sessions: sessions,
     get _updateCount() {
       return updateCount;
@@ -101,6 +115,28 @@ function makeMockDb(opts?: { lockAlwaysFails?: boolean }) {
           s.friction_score = friction;
           s.shape_label = shape;
           updateCount++;
+        }
+        return 1;
+      }
+      if (text.includes('INSERT INTO scores')) {
+        // Param order mirrors scoreUpsert(): subject_type, subject_id,
+        // scorer_name, scorer_version, source, value, label, metadata,
+        // rationale_ref, cost_usd.
+        const [subjectType, subjectId, scorerName, scorerVersion, source, value, label] =
+          values as [string, string, string, number, string, number | null, string | null];
+        const existing = scores.find(
+          (s) =>
+            s.subjectType === subjectType &&
+            s.subjectId === subjectId &&
+            s.scorerName === scorerName &&
+            s.scorerVersion === scorerVersion,
+        );
+        if (existing) {
+          // Upsert semantics: same (subject, scorer, version) overwrites.
+          existing.label = label;
+          existing.value = value;
+        } else {
+          scores.push({ label, scorerName, scorerVersion, source, subjectId, subjectType, value });
         }
         return 1;
       }
@@ -124,6 +160,12 @@ function makeMockDb(opts?: { lockAlwaysFails?: boolean }) {
       }
       return runSelect(text, values);
     }),
+    // A real PrismaClient returns lazy PrismaPromises from $executeRaw and only
+    // runs them when the transaction executes; this mock applies them eagerly, so
+    // $transaction just has to await what it is handed. Its presence is what
+    // matters — without it the job's per-session catch would swallow a TypeError
+    // and silently report zero updates.
+    $transaction: vi.fn(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
     jobRun: {
       create: vi.fn(async (args: { data: Omit<MockJobRun, 'id'> }) => {
         const id = jobRunIdCounter++;
@@ -188,6 +230,20 @@ describe('runComputeEffectivenessBackfill', () => {
     expect(db._sessions.every((s) => s.shape_label !== null)).toBe(true);
     expect(db._sessions.find((s) => s.session_id === 'a')?.shape_label).toBe('exploratory');
     expect(db._sessions.find((s) => s.session_id === 'b')?.shape_label).toBe('focused-edit');
+
+    // P13-001: the columns stay the current-value cache, and every scored
+    // session also gets provenance rows carrying which scorer produced the
+    // value and at what version.
+    const shapeA = db._scores.find((s) => s.subjectId === 'a' && s.scorerName === 'session_shape');
+    expect(shapeA).toMatchObject({
+      label: 'exploratory',
+      scorerVersion: SCORERS.session_shape.version,
+      source: 'HEURISTIC',
+      subjectType: 'SESSION',
+    });
+    expect(
+      db._scores.find((s) => s.subjectId === 'a' && s.scorerName === 'friction'),
+    ).toMatchObject({ scorerVersion: SCORERS.friction.version, source: 'HEURISTIC' });
   });
 
   it('keeps friction_score null for insufficient-data sessions (not 0)', async () => {
@@ -199,6 +255,15 @@ describe('runComputeEffectivenessBackfill', () => {
     const s = db._sessions[0];
     expect(s?.friction_score).toBeNull();
     expect(s?.shape_label).toBe('minimal');
+
+    // A null friction score is "not enough data", not "scored zero" — writing a
+    // row anyway would misreport it as scored. The shape row is still written.
+    expect(
+      db._scores.some((r) => r.subjectId === s?.session_id && r.scorerName === 'friction'),
+    ).toBe(false);
+    expect(
+      db._scores.some((r) => r.subjectId === s?.session_id && r.scorerName === 'session_shape'),
+    ).toBe(true);
   });
 
   it('is a no-op on re-run over an already-backfilled dataset', async () => {

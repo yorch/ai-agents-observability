@@ -22,11 +22,16 @@ services needing the same schema state, migrate-on-boot in each would race.
 
 | Layer | Lives in | Applied by | Holds |
 |---|---|---|---|
-| 1. Relational | `prisma/migrations/20260625075457_init/` | `prisma migrate deploy` | Everything Prisma models |
+| 1. Relational | `prisma/migrations/20260814000000_init/` | `prisma migrate deploy` | Everything Prisma models |
 | 2. Custom SQL | `sql/migrations/NNNN_*.sql` | `applySqlMigrations()` (`src/sql-migrate.ts`) | Everything it can't |
 
-Layer 2 runs **after** layer 1, in filename order, and each file must be idempotent
-(`IF NOT EXISTS`, `CREATE OR REPLACE`) — it re-runs on every stack boot.
+Layer 2 runs **after** layer 1, in filename order. Each file runs **once**:
+`applySqlMigrations()` tracks applied filenames in `_db_sql_migrations` and skips
+any file already recorded there, so a file does not re-run on later boots.
+Files still use `IF NOT EXISTS` / `CREATE OR REPLACE` as belt-and-braces for a
+half-applied file (a crash mid-transaction), not because the file is expected to
+run twice — don't rely on "it'll just re-apply" reasoning when writing one, and
+never clear `_db_sql_migrations` to force a re-run.
 
 ## The drift trap — read this before touching `schema.prisma`
 
@@ -49,17 +54,50 @@ bun run db:seed               # optional
 The rule is **not** "no `ALTER TABLE`" — it is **"nothing Prisma could have modelled."**
 
 `events` is a TimescaleDB hypertable and does not appear in `schema.prisma` at all, so
-`ALTER TABLE events ADD COLUMN IF NOT EXISTS …` is correct here and `0003` does exactly
-that. What's forbidden is patching a **Prisma-managed** table from this layer to dodge
-the reset above — that produces a schema Prisma can no longer regenerate.
+`ALTER TABLE events ADD COLUMN IF NOT EXISTS …` is correct here, and `0001_init.sql`
+creates the whole table this way. What's forbidden is patching a **Prisma-managed**
+table from this layer to dodge the reset above — that produces a schema Prisma can no
+longer regenerate.
 
-Current files, as a sense of the range:
+Current files:
 
-- `0001_init.sql` — hypertable, compression, retention, continuous aggregates
-- `0002`, `0004`, `0006` — data seeds (built-in alert rules)
-- `0003` — `ALTER TABLE events` + partial index (hypertable, not Prisma-managed)
-- `0005` — redefines two continuous aggregates in place (DROP + CREATE, `WITH NO DATA`
-  plus a policy; a cagg refresh cannot run inside the migration transaction)
+- `0001_init.sql` — everything Prisma cannot model, in one file: the `events`
+  hypertable (all columns, including `run_kind`, `notification_kind`,
+  `tool_target_hash` and `tool_action`) with its indexes, compression and retention
+  policies; the three continuous aggregates, each defined **once** and already
+  filtered to `run_kind = 'INTERACTIVE'`; the `transcript_index` FTS table with its
+  generated `tsvector`; two things Prisma cannot express on a Prisma-managed table
+  (the partial `sessions_run_kind_idx`, and `NOT NULL` on the `redaction_flags`
+  scalar list); the built-in alert-rule seeds; the `scores` unique index, which
+  needs `NULLS NOT DISTINCT` (P13-013) and so has no `@@unique` in
+  `schema.prisma` at all; and the `interactive_sessions` / `interactive_events`
+  views that carry the `run_kind` guard (P13-012).
+
+**Squashed twice, both times pre-deployment.** 2026-08-18 folded the P13-012 and
+P13-013 files back in, and collapsed the Prisma layer to a single regenerated
+`20260814000000_init` — so the two layers are one file each again. Verified rather
+than assumed: a `pg_dump` diff of the pre- and post-squash schemas over 1054
+normalized lines showed **one** difference, the physical column order of `scores`
+(`period_start`/`period_end` now sit in schema-declaration order instead of
+appended at the end, which is what folding an `ALTER` into a `CREATE` does).
+Indexes and constraints were byte-identical, and the sole writer
+(`scoreUpsertSql`) names its columns explicitly, so nothing depends on position.
+
+**Squashed 2026-08-14, pre-deployment**, from nine incremental files. The old chain
+created the three continuous aggregates and then dropped and recreated them twice
+more within the same deploy (`0001` → `0005` → `0008`). That was slow, it destroyed
+materialized history that only a manual `refresh_continuous_aggregate` could
+rebuild, and it **intermittently failed the deploy outright** with
+`tuple concurrently deleted` when Timescale's background workers raced the second
+rebuild. Defining each aggregate once removed all three problems, and the resulting
+schema was verified byte-identical to the one the old chain produced.
+
+Add a **new numbered file** for any future change rather than editing this one or
+re-dropping anything in it. That both squashes happened is not a standing licence:
+each was an explicit owner decision, taken while nothing was deployed anywhere.
+The moment this schema exists in an environment, folding stops being free — an
+edit to an applied file is invisible to Prisma's name-based idempotency check and
+never runs.
 
 `sql/prototypes/` is **not applied by anything** — `prototype_semantic_search.sql` is
 the gated pgvector spike declined in P7-007. Leave it out of the numbered sequence.

@@ -14,7 +14,7 @@ import { AgentType } from '../src/index';
 
 const MIGRATION_SQL = join(
   import.meta.dirname,
-  '../prisma/migrations/20260625075457_init/migration.sql',
+  '../prisma/migrations/20260814000000_init/migration.sql',
 );
 
 function enumValuesFromInitMigration(): string[] {

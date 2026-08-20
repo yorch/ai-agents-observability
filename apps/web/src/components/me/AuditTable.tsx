@@ -23,6 +23,9 @@ const ACTION_LABELS: Record<string, string> = {
   GRANT_APPROVED: 'share approved',
   GRANT_REVOKED: 'share revoked',
   HOOK_TOKEN_ISSUED: 'CLI token issued',
+  // P13-009: the LLM-as-judge runner read this transcript. Phrased as an
+  // action taken *on* the subject, like every other row in this feed.
+  JUDGE_READ_TRANSCRIPT: 'automated evaluation read transcript',
   VIEW_SESSION: 'viewed session',
   VIEW_TRANSCRIPT: 'viewed transcript',
 };

@@ -71,7 +71,7 @@ export async function getTeamFrictionTrend(
       SELECT date_trunc('week', started_at) AS week,
              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY friction_score) AS median,
              COUNT(friction_score) AS scored
-      FROM sessions
+      FROM interactive_sessions
       WHERE friction_score IS NOT NULL
         AND started_at >= ${range.since}
         ${untilFragment(range)}
@@ -148,7 +148,7 @@ export async function getUserEffectiveness(
     SELECT started_at, ended_at, status, shape_label, friction_score,
            tool_call_count, tool_error_count, permission_deny_count,
            interrupt_count, user_message_count
-    FROM sessions
+    FROM interactive_sessions
     WHERE user_id = ${userId}::uuid
       AND started_at >= ${range.since}
       ${untilFragment(range)}
@@ -235,7 +235,7 @@ async function effectivenessDistribution(
         PERCENTILE_CONT(0.5)  WITHIN GROUP (ORDER BY friction_score) AS p50,
         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY friction_score) AS p75,
         COUNT(friction_score) AS count
-      FROM sessions
+      FROM interactive_sessions
       WHERE friction_score IS NOT NULL
         AND started_at >= ${range.since}
         ${until}
@@ -243,7 +243,7 @@ async function effectivenessDistribution(
     `),
     prisma.$queryRaw<{ count: bigint; shape_label: string }[]>(Prisma.sql`
       SELECT shape_label, COUNT(*) AS count
-      FROM sessions
+      FROM interactive_sessions
       WHERE shape_label IS NOT NULL
         AND started_at >= ${range.since}
         ${until}

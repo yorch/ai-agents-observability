@@ -71,6 +71,45 @@ Response-time expectations and rotation cadence are maintained in the team's ops
 
 ---
 
+## The judge and the scorers
+
+Two things here behave unlike the rest of the stack, and both are worth knowing
+before you are paged about them.
+
+**`judge-sessions` is the only job that spends money per run, and the only one that
+sends conversation content to a model.** It is off in three independent ways: seeded
+`enabled = false`, wired only when `JUDGE_ANTHROPIC_API_KEY` **and**
+`JUDGE_OPERATOR_USER_ID` are both set, and restricted to sessions whose owner set
+`allow_judge_analysis`. A fourth restriction — own-sessions-only — is a code constant
+(`JUDGE_OWN_SESSIONS_ONLY`), so no deployment configuration can aim it at a third
+party. Every read writes an `AuditLog` row visible to the subject.
+
+If judge spend surprises you: disable the job in `/admin/jobs` (takes effect on the
+next 60s poll), then read the trailing-30-day cost panel on that page. Unsetting
+`JUDGE_ANTHROPIC_API_KEY` and restarting also works and is the harder stop. Do **not**
+respond to a cost surprise by clearing `scores` rows — they are the audit trail of
+what was spent on what.
+
+**The scorer jobs are idempotent and safe to re-run.** `compute-effectiveness`,
+`compute-trajectory-scores` and `compute-subject-scores` upsert on
+`(subject_type, subject_id, scorer_name, scorer_version)`, so a partial run followed
+by a re-run costs time and nothing else. A failed nightly scorer is **not** a wake-up:
+the next night's run covers the gap, and the dashboards degrade to "not yet scored"
+rather than to a wrong number.
+
+Re-scoring history after a scorer changes is not a backfill job — bump the version
+constant in `packages/schemas/src/scores.ts` and trigger `rescore-effectiveness` or
+`rescore-trajectory`. Both are one-shot and dispatchable only from an in-process
+operator script, **not** over `POST /admin/jobs/:name/run`.
+
+**A dashboard reporting an implausibly large number is a `run_kind` bug, not a data
+bug.** Aggregates are filtered to `run_kind = 'INTERACTIVE'`; a missing filter on one
+read admits CI and eval runs and has previously inflated org spend ~28×. Check
+whether the offending query carries a fragment from `apps/web/src/lib/run-kind.ts`
+before you go looking at the ingest path.
+
+---
+
 ## SLOs (target)
 
 | Service | Availability | Latency |

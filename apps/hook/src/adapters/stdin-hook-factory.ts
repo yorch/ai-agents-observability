@@ -3,6 +3,8 @@ import {
   canonicalPermissionMode,
   type EventType,
   type ToolInfo,
+  toolActionFor,
+  toolTargetHash,
 } from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from '../lib/bytes';
@@ -129,6 +131,14 @@ export function buildGenericToolInfo(
   }
 
   return {
+    // Content-free capture (P13-003). Derived from the target/command field of
+    // the tool input only — never the whole input, never the output — so
+    // DESIGN_DOC §9.3 holds. Living in the shared factory rather than each
+    // adapter means every stdin agent gets it: without this, the three
+    // trajectory scorers keyed on a target (edit thrash, redundant re-read,
+    // tests-before-merge) would be silently dead for Gemini CLI, Copilot CLI
+    // and Codex while working for Claude Code.
+    action: toolActionFor(input),
     category: isMcp ? 'mcp' : 'builtin',
     duration_ms: 0,
     exit_status: null,
@@ -141,6 +151,7 @@ export function buildGenericToolInfo(
     skill: null,
     slash_command: null,
     subagent_type: null,
+    target_hash: toolTargetHash(input),
     was_denied: raw.tool_denied === true || raw.was_denied === true,
     was_interrupted: raw.was_interrupted === true,
   };

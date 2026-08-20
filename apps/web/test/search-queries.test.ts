@@ -14,6 +14,10 @@ vi.mock('@ai-agents-observability/db', () => ({
     empty: { strings: [''], values: [] },
     sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
   },
+  // Identity: these suites assert on the mock client's calls. That the real
+  // extension actually filters is proven by test/run-kind-coverage.test.ts
+  // and against a live database, not here.
+  withInteractiveOnly: <T>(c: T): T => c,
 }));
 
 function mrow(sessionId: string, idx: number) {
@@ -84,5 +88,58 @@ describe('searchOwnTranscripts', () => {
 
     expect(result.total).toBe(0);
     expect(result.sessions).toEqual([]);
+  });
+});
+
+/**
+ * Flattens the mocked `Prisma.sql` tree into one string. Nested fragments arrive
+ * as interpolated values, so the run_kind predicate is a child node, not text in
+ * the top-level template.
+ */
+function renderSql(node: unknown): string {
+  if (node === null || node === undefined) {
+    return '';
+  }
+  if (typeof node === 'object' && 'strings' in node && 'values' in node) {
+    const { strings, values } = node as { strings: string[]; values: unknown[] };
+    return strings.map((s, i) => s + renderSql(values[i])).join('');
+  }
+  return typeof node === 'string' ? '' : '';
+}
+
+/**
+ * P13-002 scope split. `searchTranscriptMatches` is shared by /org search and
+ * /me search, and it used to apply the interactive-only filter unconditionally —
+ * so a developer searching their OWN transcripts silently could not find their own
+ * CI or eval sessions, with no filter shown and no empty state saying why.
+ * The filter is now the caller's decision.
+ */
+describe('transcript search run_kind scope', () => {
+  it('does not filter own-data search by run_kind', async () => {
+    mockPrisma.$queryRaw.mockResolvedValueOnce([]);
+
+    const { searchOwnTranscripts } = await import('../src/lib/search-queries.js');
+    await searchOwnTranscripts('u1', 'deploy');
+
+    const sql = renderSql(mockPrisma.$queryRaw.mock.calls[0]?.[0]);
+    expect(sql).not.toContain('run_kind');
+    // The own-data scope predicate is still there — this is not a widening.
+    expect(sql).toContain('s.user_id =');
+  });
+
+  it('filters org-wide search to interactive runs', async () => {
+    mockPrisma.$queryRaw.mockResolvedValueOnce([]);
+
+    const { searchTranscriptMatches } = await import('../src/lib/search-queries.js');
+    await searchTranscriptMatches('deploy', {
+      runKind: 'interactive-only',
+      // biome-ignore lint/suspicious/noExplicitAny: the Prisma.Sql mock is structural.
+      where: { strings: ['AND 1 = 1'], values: [] } as any,
+    });
+
+    const sql = renderSql(mockPrisma.$queryRaw.mock.calls[0]?.[0]);
+    // Since P13-012 the scope picks the relation rather than adding a predicate,
+    // so the filter being present *is* the table name.
+    expect(sql).toContain('JOIN interactive_sessions s');
   });
 });

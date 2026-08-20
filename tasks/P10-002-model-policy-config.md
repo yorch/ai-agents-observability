@@ -76,3 +76,17 @@ bun run docker:infra:down:v && bun run docker:infra:up && bun run db:deploy
 bun --filter '@ai-agents-observability/web' test model-policy
 bun run --cwd apps/web typecheck
 ```
+
+## Audit 2026-08-18 — confirmed not built, status held at `ready`
+
+`INDEX.md` carried this as `done`. It is not started, and the check is unambiguous:
+`model_policy` appears nowhere in `schema.prisma`, in `packages/db/sql/migrations/`,
+or in either app; `apps/web/src/lib/model-policy.ts` does not exist; and
+`apps/web/src/app/admin/` has no `model-policy` route (its entries are
+`access-grants`, `adapters`, `alerts`, `jobs`, `org-roles`, `price-tables`,
+`retention`, `team-roles`).
+
+This is the load-bearing gap in Phase 10, not a leaf. `P10-003`'s "the constants are
+gone" criterion cannot be satisfied until something supplies the policy that replaces
+`PREMIUM_PATTERN`, `CHEAP_SUITABLE_CATEGORIES` and `HAIKU_SAVINGS_RATIO`, and
+`P10-005` depends on it outright. Reopening it keeps that chain honest.
