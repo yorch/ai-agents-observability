@@ -23,7 +23,11 @@ A Next.js 16 app exists at `apps/web` with the App Router, Turbopack as the defa
 
 ## Acceptance criteria
 
-- [ ] `apps/web` is a Next.js 16.2.x app with App Router, TypeScript 6, Tailwind CSS 4.1.x, React 19.2.x.
+- [ ] `apps/web` is a Next.js app with App Router, on the TypeScript / Tailwind / React
+      versions pinned in [`PLAN.md`](../PLAN.md) §3. *Stated by reference on purpose: this
+      originally pinned "Next.js 16.2.x, TypeScript 6, Tailwind CSS 4.1.x" and all three
+      had drifted by the time anyone read it. The pinning table is what dependency-bump
+      PRs actually maintain, so pointing at it cannot go stale.*
 - [ ] `next dev` and `next build` both run on Turbopack (the default in Next 16; no flag needed).
 - [ ] `apps/web/src/styles/globals.css` declares the Tailwind theme inline: `@import "tailwindcss"; @theme { --color-brand-*: ...; --font-display: ...; }`. **No `tailwind.config.ts`.**
 - [ ] Biome config (root `biome.json`) has `linter.rules.nursery.useSortedClasses` enabled with the Tailwind 4 preset so class strings stay sorted.
