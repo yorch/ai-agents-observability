@@ -88,7 +88,7 @@ curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
 
 **Phases 7–9** — task work is `done`. P7-007 completed as a no-go semantic-search spike; opencode transcript upload was the one documented follow-up, closed in P12-009.
 
-**Phase 10** (model cost optimization) — **partly shipped**, reconciled per task on 2026-08-18 after `INDEX.md` and the task files disagreed. `P10-001`/`P10-003` are `in-progress` (the routing query layer and `/org/models` are real but miss named criteria), `P10-002`/`P10-004`/`P10-005` are `ready` and confirmed unbuilt, and `P10-006` is `cancelled` as superseded by `P13-006`. See [`tasks/INDEX.md`](./tasks/INDEX.md) for the evidence.
+**Phase 10** (model cost optimization) — `done`. The 2026-08-18 reconciliation reopened this after an audit found `P10-002`/`P10-004`/`P10-005` unbuilt and `P10-001`/`P10-003` partial; those five are now built and the audit sections in each task file record what closed them. A shared per-agent model policy (tiers derived from the live price tables, admin-overridable at `/admin/model-policy`) replaces the hardcoded `opus` substring, savings render as **ranges**, and a `disallowed_model` alert enforces an allow-list. `P10-006` remains `cancelled` — superseded by `P13-006`, whose projection registry is what `/org/models` now records against. See [`tasks/INDEX.md`](./tasks/INDEX.md).
 
 **Phase 11** (correlation & Jira integration) — `done`. Shipped ahead of Phase 10 as a single vertical slice: session ↔ PR ↔ repo ↔ Jira correlation, defect attribution (`/org/quality`), and significance testing on friction-band deltas.
 

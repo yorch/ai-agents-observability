@@ -3,8 +3,8 @@ id: P10-005
 title: Model governance enforcement
 phase: 10
 workstream: C
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P10-002, P9-001]
 blocks: []
 estimate: M
@@ -93,3 +93,29 @@ in `packages/db/sql/migrations/0001_init.sql`.
 It also cannot start yet. This task's whole subject is enforcing the allowed-model set
 that `P10-002` defines, and `P10-002` is itself unbuilt — so `depends_on: [P10-002]`
 is a real block, not a formality.
+
+## Built 2026-08-20 — the audit above is resolved
+
+`disallowed_model` now exists end to end: in the `AlertRuleType` union with its own
+threshold constants, evaluated in `evaluate-alerts` alongside the existing rules,
+using the same transition, silence, acknowledge and dispatch machinery, and seeded
+(disabled) as a built-in rule. The `depends_on: [P10-002]` block the audit named is
+cleared — the allow-list comes from that policy, so there is no second definition of
+"allowed".
+
+**An empty or missing allow-list means unconfigured, never "deny everything."**
+Enforced twice in SQL: an INNER JOIN on `model_policy`, and
+`COALESCE(array_length(mp.allowed_models, 1), 0) > 0`. The `COALESCE` is
+load-bearing — Postgres `array_length` returns `NULL`, not `0`, for an empty array.
+Without both, enabling the rule on a fresh install would flag every session.
+
+Seeded **disabled**, because it is inert until an org configures an allow-list and
+should not fire on upgrade. `details` carry numbers only — spend, counts, window and
+a *count* of distinct disallowed models, never their names; a test poisons `details`
+with `userId`/`sessionId`/`login` and asserts none survive into a dispatched payload.
+
+## Not done
+
+The optional hook-side `SessionStart` warning. It was marked optional, and it is the
+only part of this task that would put policy on a developer's machine — worth its own
+decision rather than riding along here.

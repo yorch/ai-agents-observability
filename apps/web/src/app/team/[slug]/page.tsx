@@ -5,15 +5,19 @@ import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
 import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { EmptyState, Stat } from '@/components/ui';
+import { Card, CardEmpty, EmptyState, Stat } from '@/components/ui';
 import {
   getTeamEffectivenessDistribution,
   getTeamFrictionTrend,
 } from '@/lib/effectiveness-queries';
+import { fmtUsd } from '@/lib/fmt';
+import { getModelPolicies } from '@/lib/model-policy';
 import { getTeamOversight } from '@/lib/oversight-queries';
 import { requireTeamLead } from '@/lib/roles';
+import { computeRoutingRecommendations } from '@/lib/routing-queries';
 import {
   getTeamModelMix,
+  getTeamRoutingBreakdown,
   getTeamSummaryWithDelta,
   getTeamTopTools,
   resolveTeamVisibility,
@@ -38,15 +42,30 @@ export default async function TeamOverviewPage({
 
   const { totalCount, visibleIds } = await resolveTeamVisibility(teamId);
 
-  const [{ current: summary, deltas }, tools, models, effectiveness, frictionTrend, oversight] =
-    await Promise.all([
-      getTeamSummaryWithDelta(range, visibleIds, totalCount),
-      getTeamTopTools(since, visibleIds),
-      getTeamModelMix(since, visibleIds),
-      getTeamEffectivenessDistribution(visibleIds, { since }),
-      getTeamFrictionTrend(visibleIds, { since }),
-      getTeamOversight(visibleIds, since),
-    ]);
+  const [
+    { current: summary, deltas },
+    tools,
+    models,
+    routing,
+    effectiveness,
+    frictionTrend,
+    oversight,
+  ] = await Promise.all([
+    getTeamSummaryWithDelta(range, visibleIds, totalCount),
+    getTeamTopTools(since, visibleIds),
+    getTeamModelMix(since, visibleIds),
+    getTeamRoutingBreakdown(since, visibleIds),
+    getTeamEffectivenessDistribution(visibleIds, { since }),
+    getTeamFrictionTrend(visibleIds, { since }),
+    getTeamOversight(visibleIds, since),
+  ]);
+
+  const policies = await getModelPolicies(routing.map((r) => r.agentType));
+  const {
+    estimatedMonthlySavingHigh,
+    estimatedMonthlySavingLow,
+    recommendations: routingRecs,
+  } = computeRoutingRecommendations(routing, range, policies);
 
   const hasData = summary.sessionCount > 0;
 
@@ -96,6 +115,58 @@ export default async function TeamOverviewPage({
       ) : (
         <>
           <OversightPanel data={oversight} />
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card title="Team routing opportunities" caption={`Trailing ${range} days`}>
+              {routingRecs.length === 0 ? (
+                <CardEmpty>No high-confidence routing opportunities in this period.</CardEmpty>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-text-2">
+                    Estimated{' '}
+                    <span className="font-mono text-good">
+                      {fmtUsd(estimatedMonthlySavingLow)}–{fmtUsd(estimatedMonthlySavingHigh)} / mo
+                    </span>{' '}
+                    by routing retrieval-heavy turns to a cheaper model.
+                  </p>
+                  {routingRecs.slice(0, 3).map((r) => (
+                    <div
+                      key={`${r.agentType}:${r.model}`}
+                      className="rounded border border-border bg-surface-2 px-3 py-2"
+                    >
+                      <p className="text-sm text-text">
+                        <span className="font-mono">{r.model}</span> ·{' '}
+                        {fmtUsd(r.cheapCategorySpend)} retrieval spend
+                      </p>
+                      <p className="text-xs text-text-3">
+                        {r.cheapCategoryCalls.toLocaleString()} calls · confidence {r.confidence}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+            <Card
+              title="Team cache efficiency guidance"
+              caption={`Current hit rate: ${summary.cacheHitRate.toFixed(1)}%`}
+            >
+              {summary.cacheHitRate < 20 ? (
+                <p className="text-sm text-text-2">
+                  Cache reuse is low for this team. Encourage longer-running sessions and stable
+                  prompt/context scaffolds to reduce repeated full-price input tokens.
+                </p>
+              ) : summary.cacheHitRate < 40 ? (
+                <p className="text-sm text-text-2">
+                  Cache reuse is moderate. A small push toward fewer restarts and consistent context
+                  can move this into the 40–60% efficient range.
+                </p>
+              ) : (
+                <p className="text-sm text-text-2">
+                  Cache reuse is in the healthy range. Keep current session continuity habits to
+                  sustain savings.
+                </p>
+              )}
+            </Card>
+          </div>
           <div className="grid gap-6 md:grid-cols-2">
             <TopTools title="Top Tools" tools={tools} />
             <ModelMixChart models={models} />

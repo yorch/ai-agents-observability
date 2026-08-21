@@ -4,6 +4,7 @@ import type {
   CategoryStatRow,
   DailySkillVolumeRow,
   DailyToolVolumeRow,
+  OrgModelRoutingRow,
   SkillAdoptionRow,
   SkillCostComparisonRow,
   SkillRow,
@@ -252,6 +253,54 @@ export async function getTeamModelMix(since: Date, visibleIds: string[]): Promis
       };
     })
     .sort((a, b) => b.turns - a.turns);
+}
+
+/**
+ * The team-scoped twin of `getOrgModelRoutingBreakdown`, returning the same row
+ * shape so `computeRoutingRecommendations` serves both surfaces unchanged.
+ * `agent_type` travels with the row because routing policy is per-agent.
+ */
+export async function getTeamRoutingBreakdown(
+  since: Date,
+  visibleIds: string[],
+): Promise<OrgModelRoutingRow[]> {
+  if (visibleIds.length === 0) {
+    return [];
+  }
+
+  const uuids = toUuidList(visibleIds);
+  const rows = await getPrisma().$queryRaw<
+    {
+      agent_type: string;
+      call_count: bigint;
+      model: string;
+      tool_category: string;
+      total_cost_usd: number;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      e.agent_type,
+      e.model,
+      e.tool_category,
+      COUNT(*)                     AS call_count,
+      COALESCE(SUM(e.cost_usd), 0) AS total_cost_usd
+    FROM interactive_events e
+    WHERE e.user_id IN (${uuids})
+      AND e.ts >= ${since}
+      AND e.event_type = 'PostToolUse'
+      AND e.model IS NOT NULL
+      AND e.tool_category IS NOT NULL
+    GROUP BY e.agent_type, e.model, e.tool_category
+    ORDER BY total_cost_usd DESC
+  `);
+
+  return rows.map((r) => ({
+    agentType: r.agent_type,
+    callCount: Number(r.call_count),
+    model: r.model,
+    toolCategory: r.tool_category,
+    totalCostUsd: Number(r.total_cost_usd),
+  }));
 }
 
 export type MemberProfile = {

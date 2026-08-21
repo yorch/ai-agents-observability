@@ -47,6 +47,16 @@ export type PriceTableRegistry = {
   forAgentParam(agent: string | undefined): PriceTable | null;
 };
 
+/** Every agent whose table ships in this build, for policy resolution. */
+export function pricedAgentTypes(): string[] {
+  return Object.keys(tables);
+}
+
+/** The raw table for one agent, or null. Used to derive model tiers. */
+export function priceTableFor(agentType: string): PriceTable | null {
+  return tables[normalize(agentType)] ?? null;
+}
+
 export function buildPriceTableRegistry(): PriceTableRegistry {
   return {
     forAgentParam(agent: string | undefined): PriceTable | null {

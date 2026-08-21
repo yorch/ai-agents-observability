@@ -52,6 +52,7 @@ enum AuditAction {
   // new privileged reader and is modelled as one — every read it makes lands in
   // the subject's own audit feed, exactly like a human's would.
   JUDGE_READ_TRANSCRIPT
+  MODEL_POLICY_CHANGED
 }
 
 enum GrantScope {
@@ -870,4 +871,25 @@ model Projection {
   // "Recent projections of this claim" — the realization panel's read.
   @@index([claimType, periodStart(sort: Desc)])
   @@map("projections")
+}
+
+
+// P10-002 model policy: one row per agent_type carrying the org's overrides on
+// top of the tiers derived from that agent's price table (see
+// packages/schemas/src/model-policy.ts). Both the /org/models recommendations
+// and the ingest disallowed_model alert resolve against this, so "premium" and
+// "allowed" have exactly one definition.
+model ModelPolicy {
+  agentType       AgentType @id @map("agent_type")
+  // Empty means no allow-list configured — every model is allowed. It must
+  // never read as "deny everything", or an untouched policy would alert on
+  // every session.
+  allowedModels   String[]  @map("allowed_models")
+  cheapCategories String[]  @map("cheap_categories")
+  // model id -> ModelTier. Overrides the price-derived tier for that model only.
+  tierOverrides   Json      @default("{}") @map("tier_overrides")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedByUserId String?   @map("updated_by_user_id") @db.Uuid
+
+  @@map("model_policy")
 }

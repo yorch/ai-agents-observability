@@ -229,13 +229,31 @@ See [`P10-roadmap.md`](./P10-roadmap.md). Turns the heuristic `/org/models` rout
 > - **`P10-004` was not built.** `buildRecommendations` emits five kinds and none is routing or cache, which its criterion 2 requires; `/team/[slug]` has a cache-hit stat but no routing section. Reopened as `ready`. The seam it specifies already exists and is the right shape, so this is an extension rather than new architecture.
 > - **`P10-006` is `cancelled`, superseded by [`P13-006`](./P13-006-projection-validation-pattern.md)**, which satisfies all five of its criteria through a general projection registry — persisted ranged claims, `not_yet_measurable` volume gating, and an outcome guard over friction / revert / tool-error movement. `cancelled` rather than `done` because this spec was never implemented as written.
 
+> **Closed 2026-08-20.** The five reopened tasks are built; each task file's audit
+> section carries what closed it, kept alongside the original finding rather than
+> replaced. `P10-002` landed first because the audit was right that it was
+> load-bearing: a shared per-agent model policy in `packages/schemas`, read by both
+> apps, an admin route at `/admin/model-policy`, and a `model_policy` table. On top
+> of it, `P10-001` gained per-`agent_type` grain and volume floors, `P10-003`'s
+> `PREMIUM_PATTERNS` grep now returns nothing, `P10-004` added routing and cache
+> kinds to `buildRecommendations`, and `P10-005` shipped `disallowed_model`.
+>
+> **The design disagreement is settled the way this file framed it.** A missing
+> price entry now yields no recommendation at all rather than a flat
+> `HAIKU_SAVINGS_RATIO` fallback, and the models it affects are surfaced explicitly
+> as unpriced — so an empty recommendation list means "efficient" and never "we
+> could not tell". The flat-ratio fallback is gone.
+>
+> `P10-006` stays `cancelled`. `/org/models` records its claims against `P13-006`'s
+> projection registry; nothing here re-implements it.
+
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | in-progress | claude | M | P8-002, P4-004, P7-001 |
-| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | ready | — | M | P8-002 |
-| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | in-progress | claude | M | P10-001, P10-002 |
-| [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | ready | — | M | P10-001 |
-| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | ready | — | M | P10-002, P9-001 |
+| [P10-001](./P10-001-routing-analysis-query-layer.md) | Routing analysis query layer + defensible savings model | done | claude | M | P8-002, P4-004, P7-001 |
+| [P10-002](./P10-002-model-policy-config.md) | Shared, configurable model policy | done | claude | M | P8-002 |
+| [P10-003](./P10-003-org-model-optimization-dashboard.md) | Org model optimization dashboard | done | claude | M | P10-001, P10-002 |
+| [P10-004](./P10-004-team-individual-routing-guidance.md) | Team + individual routing guidance | done | claude | M | P10-001 |
+| [P10-005](./P10-005-model-governance-enforcement.md) | Model governance enforcement | done | claude | M | P10-002, P9-001 |
 | [P10-006](./P10-006-recommendation-validation-loop.md) | Recommendation validation loop | cancelled | — | M | P10-001, P10-003 |
 
 ---

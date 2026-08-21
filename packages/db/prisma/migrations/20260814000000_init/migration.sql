@@ -8,7 +8,7 @@ CREATE TYPE "SessionStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'CRASHED', 'TIMED_OU
 CREATE TYPE "AgentType" AS ENUM ('CLAUDE_CODE', 'CURSOR', 'AIDER', 'COPILOT', 'CODEX', 'WINDSURF', 'OPENCODE', 'GEMINI_CLI', 'PI', 'OMP');
 
 -- CreateEnum
-CREATE TYPE "AuditAction" AS ENUM ('VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM', 'EXPORT_ORG', 'ADMIN_IMPERSONATE', 'DELETE_REQUEST', 'HOOK_TOKEN_ISSUED', 'ROLE_GRANT', 'RETENTION_OVERRIDE_CHANGED', 'GRANT_REQUESTED', 'GRANT_APPROVED', 'GRANT_REVOKED', 'ALERT_ACKNOWLEDGED', 'ALERT_SILENCED', 'JUDGE_READ_TRANSCRIPT');
+CREATE TYPE "AuditAction" AS ENUM ('VIEW_SESSION', 'VIEW_TRANSCRIPT', 'EXPORT_TEAM', 'EXPORT_ORG', 'ADMIN_IMPERSONATE', 'DELETE_REQUEST', 'HOOK_TOKEN_ISSUED', 'ROLE_GRANT', 'RETENTION_OVERRIDE_CHANGED', 'GRANT_REQUESTED', 'GRANT_APPROVED', 'GRANT_REVOKED', 'ALERT_ACKNOWLEDGED', 'ALERT_SILENCED', 'JUDGE_READ_TRANSCRIPT', 'MODEL_POLICY_CHANGED');
 
 -- CreateEnum
 CREATE TYPE "GrantScope" AS ENUM ('USER_SESSIONS', 'SINGLE_SESSION');
@@ -647,6 +647,18 @@ CREATE INDEX "scores_subject_type_subject_id_scorer_name_period_start_idx" ON "s
 
 -- CreateIndex
 CREATE INDEX "projections_claim_type_period_start_idx" ON "projections"("claim_type", "period_start" DESC);
+
+-- CreateTable
+CREATE TABLE "model_policy" (
+    "agent_type" "AgentType" NOT NULL,
+    "allowed_models" TEXT[],
+    "cheap_categories" TEXT[],
+    "tier_overrides" JSONB NOT NULL DEFAULT '{}',
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_by_user_id" UUID,
+
+    CONSTRAINT "model_policy_pkey" PRIMARY KEY ("agent_type")
+);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "projections_claim_type_segment_period_start_key" ON "projections"("claim_type", "segment", "period_start");
