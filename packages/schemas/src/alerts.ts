@@ -12,7 +12,8 @@ export type AlertRuleType =
   | 'unknown_model_surge'
   | 'autonomy_surge'
   | 'budget_threshold'
-  | 'routing_waste';
+  | 'routing_waste'
+  | 'disallowed_model';
 
 export type AlertSeverity = 'warn' | 'critical';
 
@@ -74,6 +75,21 @@ export function parseBudgetThresholdParams(raw: unknown): BudgetThresholdParams 
 export const ROUTING_WASTE_WINDOW_DAYS = 7;
 export const ROUTING_WASTE_DEFAULT_USD = 25;
 export const ROUTING_WASTE_CRITICAL_MULTIPLE = 2;
+
+// Disallowed model (P10-005, model governance): spend in the recent window that
+// went to models outside the org's allow-list for their agent_type. "Allowed" has
+// exactly one definition — the P10-002 model policy (./model-policy.ts,
+// isModelAllowed) — so this rule never re-defines it.
+//
+// The rule is INERT until an allow-list is configured: an agent with no
+// model_policy row, or one whose allowed_models is empty, contributes ZERO
+// disallowed spend. An unconfigured policy means "unconfigured", never "deny
+// everything" — otherwise enabling this on a fresh install would flag every
+// session. Like routing_waste it fires on absolute dollars (meaningful without a
+// configured budget), overridable per-rule via params.thresholdUsd; critical at 2×.
+export const DISALLOWED_MODEL_WINDOW_DAYS = 7;
+export const DISALLOWED_MODEL_DEFAULT_USD = 10;
+export const DISALLOWED_MODEL_CRITICAL_MULTIPLE = 2;
 
 // Autonomy surge (R9, Human-in-the-loop governance): share of sessions running
 // in a low-oversight mode (bypass / dont_ask — no per-action human gate) over the

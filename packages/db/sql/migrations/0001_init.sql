@@ -257,13 +257,21 @@ WHERE NOT EXISTS (
   SELECT 1 FROM "alert_rules" existing WHERE existing."rule_type" = v.rule_type
 );
 
--- Disabled by default: both need an operator-chosen threshold before they mean
--- anything.
+-- Disabled by default: each needs something an operator chooses before it means
+-- anything — a threshold, or in `disallowed_model`'s case an allow-list.
+--
+-- `disallowed_model` (P10-005) would be inert even if enabled: it joins
+-- `model_policy` (P10-002), and an agent with no row — or one with an empty
+-- `allowed_models` — contributes zero disallowed spend, because an unconfigured
+-- allow-list means "unconfigured", not "deny everything". Seeding it disabled
+-- means an upgrade adds no noise: an admin fills the allow-list in
+-- /admin/model-policy, then enables and tunes it in /admin/alerts.
 INSERT INTO "alert_rules" ("id", "name", "rule_type", "params", "enabled", "cadence_minutes")
 SELECT gen_random_uuid(), v.name, v.rule_type, v.params::jsonb, false, 60
 FROM (VALUES
   ('Org budget threshold', 'budget_threshold', '{}'),
-  ('Routing waste (premium models on retrieval)', 'routing_waste', '{"thresholdUsd": 25}')
+  ('Routing waste (premium models on retrieval)', 'routing_waste', '{"thresholdUsd": 25}'),
+  ('Disallowed model spend', 'disallowed_model', '{"thresholdUsd": 10}')
 ) AS v(name, rule_type, params)
 WHERE NOT EXISTS (
   SELECT 1 FROM "alert_rules" existing WHERE existing."rule_type" = v.rule_type

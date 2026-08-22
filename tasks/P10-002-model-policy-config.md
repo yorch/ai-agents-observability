@@ -3,8 +3,8 @@ id: P10-002
 title: Shared, configurable model policy
 phase: 10
 workstream: A
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P8-002]
 blocks: [P10-003, P10-005]
 estimate: M
@@ -90,3 +90,33 @@ This is the load-bearing gap in Phase 10, not a leaf. `P10-003`'s "the constants
 gone" criterion cannot be satisfied until something supplies the policy that replaces
 `PREMIUM_PATTERN`, `CHEAP_SUITABLE_CATEGORIES` and `HAIKU_SAVINGS_RATIO`, and
 `P10-005` depends on it outright. Reopening it keeps that chain honest.
+
+## Built 2026-08-20 — the audit above is resolved
+
+Every absence the audit listed now exists:
+
+- `model_policy` is a Prisma model (`ModelPolicy`, keyed by `agent_type`) with its
+  DDL in the init migration, holding tier overrides, the allowed-model set and the
+  cheap-category list.
+- `apps/web/src/lib/model-policy.ts` and `apps/ingest/src/lib/model-policy.ts` are
+  thin per-app adapters over one shared resolver in `packages/schemas`; only the
+  price source differs (HTTP vs in-process tables).
+- `/admin/model-policy` exists, org-admin gated, audit-logged under a new
+  `AuditAction.MODEL_POLICY_CHANGED`, effective without a redeploy.
+
+The chain the audit called out is unblocked with it: `P10-003`'s "the constants are
+gone" criterion is met, and `P10-005` is built on this policy.
+
+## Deliberate deviation: no seeded rows
+
+The criteria asked for default rows **seeded** from the shipped price tables. Tiers
+are derived **on read** instead, with only the admin's overrides stored.
+
+A seeded row snapshots tiers at seed time. `P12-012` regenerated three tables from
+the models.dev catalog in a single PR — 34 models each to ~243 — and every seeded
+tier would have gone stale that day, with no way to tell a deliberate choice from an
+unrevisited default. Deriving on read re-tiers automatically while overrides survive.
+
+The criterion's intent — *"no agent starts with an empty policy"* — holds: every
+agent resolves to a complete policy immediately. What it lacks is a **row** until an
+admin saves one.

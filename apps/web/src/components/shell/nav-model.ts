@@ -144,6 +144,7 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { href: '/admin/retention', icon: ClockIcon, label: 'Retention' },
       { href: '/admin/price-tables', icon: StackIcon, label: 'Price tables' },
+      { href: '/admin/model-policy', icon: PolicyIcon, label: 'Model policy' },
     ],
     label: 'Data',
   },

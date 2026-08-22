@@ -3,8 +3,8 @@ id: P10-001
 title: Routing analysis query layer + defensible savings model
 phase: 10
 workstream: B
-status: in-progress
-owner: null
+status: done
+owner: claude
 depends_on: [P8-002, P4-004, P7-001]
 blocks: [P10-003, P10-004, P10-006]
 estimate: M
@@ -133,3 +133,31 @@ work.
 the model policy, which does not exist. The implementation notes anticipated that
 and asked for an injected tier resolver — `SavingsRatioResolver` is that seam, so
 the dependency is honoured, not ignored.
+
+## Resolved 2026-08-20 — the reopened criteria are now met
+
+The 2026-08-18 audit reopened this for three named failures. Each is closed:
+
+- **Cross-agent price contamination.** The audit found `buildSavingsRatioResolver`
+  took one merged price map, so another agent's economy rate could set the
+  denominator for a Claude model. Savings now resolve against a
+  `ModelPolicySnapshot` built from **one** agent's table
+  ([`packages/schemas/src/model-policy.ts`](../packages/schemas/src/model-policy.ts)),
+  and the rollup groups by `(agent_type, model)`. A test asserts the same model id
+  under two agents produces two different targets.
+- **Ranges, not point estimates.** `estimateRoutingSavings` returns `low`/`high`
+  or `null`. `high` assumes the cheapest model in the target tier, `low` the
+  dearest; a one-rate tier legitimately collapses to a point.
+- **Never a fabricated number.** A model with no price entry yields no
+  recommendation and is reported separately as unpriced.
+
+Tiers are **derived** by ranking distinct blended rates inside each agent's own
+table rather than thresholding on a multiple — the cheapest-to-dearest spread is
+~19x for `claude_code` but ~8000x for the models.dev-generated tables, so no single
+multiple serves both.
+
+**Known limitations, pinned by `apps/ingest/test/model-policy-golden.test.ts`** so a
+fix shows as a visible diff: the price tables retain retired models (historical cost
+recompute needs them), so a retired model can surface as a downgrade target, and
+current Opus tiers as `standard` because its retired rows occupy the top band. Both
+are correctable through the admin tier override.

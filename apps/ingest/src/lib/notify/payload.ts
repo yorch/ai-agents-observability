@@ -61,6 +61,10 @@ function describe(ruleType: string, details: Record<string, unknown>): string {
       return `${(num(details, 'share') * 100).toFixed(0)}% of sessions ran with no per-action human gate (${num(details, 'lowOversightSessions')} of ${num(details, 'totalSessions')}) over the last ${num(details, 'windowDays')} days — human oversight is eroding.`;
     case 'routing_waste':
       return `$${num(details, 'wasteUsd').toFixed(2)} of premium-model spend went to retrieval-only tool calls over the last ${num(details, 'windowDays')} days — above the $${num(details, 'thresholdUsd').toFixed(2)} threshold. Routing these to a cheaper model would recover most of it.`;
+    case 'disallowed_model':
+      // Counts only — never the model names. `num()` reads specific numeric keys
+      // by name, so a stray string in `details` cannot reach a channel.
+      return `$${num(details, 'spendUsd').toFixed(2)} of spend went to models outside the approved allow-list over the last ${num(details, 'windowDays')} days (${num(details, 'eventCount')} events across ${num(details, 'sessionCount')} sessions, ${num(details, 'distinctModels')} non-approved models) — above the $${num(details, 'thresholdUsd').toFixed(2)} threshold.`;
     default:
       return 'An alert rule fired.';
   }

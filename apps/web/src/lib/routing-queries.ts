@@ -1,138 +1,192 @@
+import {
+  DEFAULT_CHEAP_CATEGORIES,
+  estimateRoutingSavings,
+  isCheapCategory,
+  MIN_SAVINGS_RATIO,
+  type ModelPolicySnapshot,
+  type ModelTier,
+  resolveModelTier,
+  type SavingsRange,
+} from '@ai-agents-observability/schemas';
 import type { OrgModelRoutingRow } from '@/lib/org-queries';
 
 // Pure recommendation logic layered on top of getOrgModelRoutingBreakdown's
 // already-visibility-scoped rows (see org-queries.ts). No DB/network access here —
-// the caller fetches the price table and passes a resolver in, so this stays
+// the caller resolves each agent's policy and passes it in, so this stays
 // trivially testable and free of its own visibility concerns.
+//
+// Everything that used to be a hardcoded Anthropic assumption (`PREMIUM_PATTERN
+// = 'opus'`, a flat 0.9 savings ratio, a page-local cheap-category set) now
+// comes from the per-agent policy in packages/schemas/src/model-policy.ts,
+// which apps/ingest reads too.
 
-// Model ids containing this substring (case-insensitive) are treated as
-// premium-tier. `sonnet` is deliberately excluded — it's "mid", not premium.
-// Exported so the raw-SQL routing surfaces (getRoutingSpendByTeam) source the
-// policy from here instead of re-hardcoding it. NOTE: the ingest routing_waste
-// alert (evaluate-alerts.ts) is a separate app and mirrors the same policy.
-export const PREMIUM_PATTERN = 'opus';
+/**
+ * The default retrieval-only categories, as a set, for the one raw-SQL surface
+ * that cannot resolve a per-agent policy inside its aggregate: `getRoutingActuals`
+ * in projection-queries.ts measures a single model over a single window and has
+ * no agent in hand. Re-exported from the shared policy defaults rather than
+ * restated, so a projection and the recommendation it checks can never disagree
+ * about what "retrieval-only" means.
+ */
+export const CHEAP_SUITABLE_CATEGORIES: ReadonlySet<string> = new Set(DEFAULT_CHEAP_CATEGORIES);
 
-// Tool categories that are pure retrieval — no hard reasoning required, so a
-// Haiku-class model is a safe downgrade target. Conservative on purpose:
-// `exec` is debatable (tool calls can gate on reasoning) so it's left out.
-export const CHEAP_SUITABLE_CATEGORIES = new Set(['fs_read', 'search']);
+// Recommendation evidence gates (P10): avoid seductive point estimates from a
+// tiny call/spend sample. Rows below either threshold are suppressed.
+export const MIN_ROUTING_CHEAP_CALLS = 25;
+export const MIN_ROUTING_CHEAP_SPEND_USD = 5;
 
-// Fallback fraction saved when no price table is available (INGEST_URL unset, or
-// the model/target is missing rates). Directional only. When prices ARE present,
-// a per-model ratio is derived from them instead (buildSavingsRatioResolver).
-export const HAIKU_SAVINGS_RATIO = 0.9;
-
-// Never claim more than this even when raw price math implies it — keeps the
-// estimate honest given retrieval turns still carry some irreducible cost.
-const MAX_SAVINGS_RATIO = 0.95;
-
-/** Per-model input price ($/Mtok) — the subset of the price table we need. */
-export type ModelInputPrice = { input_per_mtok: number };
-
-/** Resolves the estimated saved fraction of a premium model's retrieval spend. */
-export type SavingsRatioResolver = (model: string) => number;
-
-// Builds a price-derived savings resolver: for a premium model priced at
-// `premiumRate` $/Mtok input, routing retrieval turns to the cheapest Haiku-class
-// model (`targetRate`) saves `1 - targetRate/premiumRate` of that spend. Input
-// rate is the basis because retrieval turns are input-dominated. Falls back to the
-// flat HAIKU_SAVINGS_RATIO when prices are missing so the surface degrades cleanly.
-export function buildSavingsRatioResolver(
-  prices: Record<string, ModelInputPrice> | null | undefined,
-): SavingsRatioResolver {
-  const entries = Object.entries(prices ?? {}).filter(([, p]) => p.input_per_mtok > 0);
-  if (entries.length === 0) {
-    return () => HAIKU_SAVINGS_RATIO;
-  }
-  const haiku = entries.filter(([m]) => m.toLowerCase().includes('haiku'));
-  const pool = haiku.length > 0 ? haiku : entries;
-  const targetRate = Math.min(...pool.map(([, p]) => p.input_per_mtok));
-  return (model: string) => {
-    const rate = prices?.[model]?.input_per_mtok;
-    if (!rate || rate <= 0 || rate <= targetRate) {
-      return HAIKU_SAVINGS_RATIO;
-    }
-    return Math.max(0, Math.min(MAX_SAVINGS_RATIO, 1 - targetRate / rate));
-  };
-}
+// Above these a recommendation is called high-confidence rather than medium.
+const HIGH_CONFIDENCE_SPEND_USD = 20;
+const HIGH_CONFIDENCE_CALLS = 100;
 
 export type RoutingRecommendation = {
+  agentType: string;
+  cheapCategoryCalls: number;
   cheapCategorySpend: number;
-  estimatedMonthlySaving: number;
+  confidence: 'high' | 'medium';
+  /** Cheapest model in the target tier — what the best case assumes. */
+  exampleTargetModel: string;
+  /**
+   * Monthly saving as a RANGE, never a point estimate. The target tier holds
+   * several models at different rates, so what a team actually saves depends on
+   * which one it picks (DESIGN_DOC §10.6).
+   */
+  monthlySavingHigh: number;
+  monthlySavingLow: number;
   model: string;
-  // The saved fraction applied (price-derived when a table was supplied, else the
-  // flat fallback) — surfaced so the UI can show "~72% cheaper", not a fixed 90%.
-  savingsRatio: number;
+  targetTier: ModelTier;
+  tier: ModelTier;
   topCategories: { callCount: number; category: string; costUsd: number }[];
 };
 
-function isPremiumModel(model: string): boolean {
-  return model.toLowerCase().includes(PREMIUM_PATTERN);
-}
+type Grouped = {
+  agentType: string;
+  calls: number;
+  model: string;
+  rows: OrgModelRoutingRow[];
+  spend: number;
+};
 
 /**
- * Fraction of the price-implied ceiling that the *low* end of a routing claim
- * assumes (P13-006).
+ * Build routing recommendations across every agent present in `rows`.
  *
- * `savingsRatio` is a ceiling, not an expectation: it prices every retrieval turn
- * moving to the cheapest tier and succeeding first time. Real routing leaves some
- * turns on the premium model and pays for the occasional retry, so the honest
- * claim spans from a conservative share of that ceiling up to the ceiling itself.
- * Registered as a range for exactly this reason — a single number here would be
- * an assertion the data cannot support.
+ * `policies` is keyed by `agent_type`. A row whose agent has no policy — or
+ * whose model has no price entry, or no cheaper tier to route to — produces no
+ * recommendation at all rather than a fabricated one, which is the
+ * `savings: null` requirement in P10-001 expressed as an omission.
  */
-export const ROUTING_SAVING_FLOOR_FRACTION = 0.4;
-
-/** The projected saving range for one recommendation, in monthly USD. */
-export function routingSavingRange(rec: RoutingRecommendation): { high: number; low: number } {
-  return {
-    high: rec.estimatedMonthlySaving,
-    low: rec.estimatedMonthlySaving * ROUTING_SAVING_FLOOR_FRACTION,
-  };
-}
-
 export function computeRoutingRecommendations(
   rows: OrgModelRoutingRow[],
   rangeDays: number,
-  savingsRatioFor: SavingsRatioResolver = () => HAIKU_SAVINGS_RATIO,
-): { estimatedMonthlySaving: number; recommendations: RoutingRecommendation[] } {
-  const cheapRowsByModel = new Map<string, OrgModelRoutingRow[]>();
+  policies: Map<string, ModelPolicySnapshot>,
+): {
+  estimatedMonthlySavingHigh: number;
+  estimatedMonthlySavingLow: number;
+  recommendations: RoutingRecommendation[];
+  /** Models that carried cheap-category spend but could not be priced. */
+  unpricedModels: { agentType: string; model: string }[];
+} {
+  // Group by (agent_type, model): the same model id under two agents is two
+  // different economic objects, priced from two different tables.
+  const grouped = new Map<string, Grouped>();
   for (const row of rows) {
-    if (!isPremiumModel(row.model) || !CHEAP_SUITABLE_CATEGORIES.has(row.toolCategory)) {
+    const policy = policies.get(row.agentType);
+    if (!policy || !isCheapCategory(policy, row.toolCategory)) {
       continue;
     }
-    const existing = cheapRowsByModel.get(row.model);
+    const key = `${row.agentType}:${row.model}`;
+    const existing = grouped.get(key);
     if (existing) {
-      existing.push(row);
+      existing.calls += row.callCount;
+      existing.spend += row.totalCostUsd;
+      existing.rows.push(row);
     } else {
-      cheapRowsByModel.set(row.model, [row]);
+      grouped.set(key, {
+        agentType: row.agentType,
+        calls: row.callCount,
+        model: row.model,
+        rows: [row],
+        spend: row.totalCostUsd,
+      });
     }
   }
 
   const normalizeToMonthly = rangeDays > 0 ? 30 / rangeDays : 0;
   const recommendations: RoutingRecommendation[] = [];
-  for (const [model, modelRows] of cheapRowsByModel) {
-    const cheapCategorySpend = modelRows.reduce((sum, r) => sum + r.totalCostUsd, 0);
-    if (cheapCategorySpend <= 0) {
+  const unpricedModels: { agentType: string; model: string }[] = [];
+
+  for (const group of grouped.values()) {
+    if (group.spend < MIN_ROUTING_CHEAP_SPEND_USD || group.calls < MIN_ROUTING_CHEAP_CALLS) {
       continue;
     }
-    const savingsRatio = savingsRatioFor(model);
-    const topCategories = modelRows
+    const policy = policies.get(group.agentType);
+    if (!policy) {
+      continue;
+    }
+
+    const tier = resolveModelTier(policy, group.model);
+    // "Unpriced" and "nothing cheaper to route to" both yield no recommendation
+    // but mean opposite things, and only the first is a gap worth reporting.
+    // Conflating them would list every economy-tier model as unpriced.
+    const rate = policy.inputRates[group.model];
+    if (tier === null || rate === undefined || rate <= 0) {
+      // Material spend on a model we cannot price is worth surfacing — silently
+      // dropping it would read as "routing is already efficient".
+      unpricedModels.push({ agentType: group.agentType, model: group.model });
+      continue;
+    }
+    const savings: SavingsRange | null = estimateRoutingSavings(policy, group.model);
+    if (savings === null) {
+      // Priced, but already on the cheapest tier its agent offers.
+      continue;
+    }
+    // A downgrade that saves a rounding error is not worth the behaviour change.
+    if (savings.high < MIN_SAVINGS_RATIO) {
+      continue;
+    }
+
+    const topCategories = group.rows
       .map((r) => ({ callCount: r.callCount, category: r.toolCategory, costUsd: r.totalCostUsd }))
       .sort((a, b) => b.costUsd - a.costUsd);
+
     recommendations.push({
-      cheapCategorySpend,
-      estimatedMonthlySaving: cheapCategorySpend * savingsRatio * normalizeToMonthly,
-      model,
-      savingsRatio,
+      agentType: group.agentType,
+      cheapCategoryCalls: group.calls,
+      cheapCategorySpend: group.spend,
+      confidence:
+        group.spend >= HIGH_CONFIDENCE_SPEND_USD && group.calls >= HIGH_CONFIDENCE_CALLS
+          ? 'high'
+          : 'medium',
+      exampleTargetModel: savings.bestTargetModel,
+      model: group.model,
+      monthlySavingHigh: group.spend * savings.high * normalizeToMonthly,
+      monthlySavingLow: group.spend * savings.low * normalizeToMonthly,
+      targetTier: savings.targetTier,
+      tier,
       topCategories,
     });
   }
-  recommendations.sort((a, b) => b.estimatedMonthlySaving - a.estimatedMonthlySaving);
 
-  const estimatedMonthlySaving = recommendations.reduce(
-    (sum, r) => sum + r.estimatedMonthlySaving,
-    0,
-  );
-  return { estimatedMonthlySaving, recommendations };
+  recommendations.sort((a, b) => b.monthlySavingHigh - a.monthlySavingHigh);
+
+  return {
+    estimatedMonthlySavingHigh: recommendations.reduce((s, r) => s + r.monthlySavingHigh, 0),
+    estimatedMonthlySavingLow: recommendations.reduce((s, r) => s + r.monthlySavingLow, 0),
+    recommendations,
+    unpricedModels,
+  };
 }
+
+/**
+ * Fraction of the best case that the *low* end of a registered routing claim may
+ * never exceed (P13-006).
+ *
+ * The price-derived range spans target-model choice only: `low` prices the
+ * dearest model in the target tier, `high` the cheapest. When that tier holds a
+ * single priced model the two collapse into one number — and a projection
+ * registered as `low === high` asserts a precision the data cannot support. This
+ * floor is the *other* source of uncertainty the price ratio cannot see: real
+ * routing leaves some turns on the premium model and pays for the occasional
+ * retry. It caps the low end rather than replacing it, so a genuinely wide
+ * price-derived range is still reported as measured.
+ */

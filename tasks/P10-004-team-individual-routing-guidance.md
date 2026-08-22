@@ -3,8 +3,8 @@ id: P10-004
 title: Team + individual routing guidance
 phase: 10
 workstream: E
-status: ready
-owner: null
+status: done
+owner: claude
 depends_on: [P10-001]
 blocks: []
 estimate: M
@@ -92,3 +92,21 @@ tip and a cache tip is an extension of a working pattern, not new architecture. 
 org-side derivation (`computeRoutingRecommendations`, `routingSavingRange`) is
 likewise reusable, though it inherits `P10-001`'s missing volume floor, which
 criterion 3 ("no nagging, no false positives") depends on.
+
+## Built 2026-08-20 — the audit above is resolved
+
+The audit's finding was that `buildRecommendations` emitted five kinds, none of them
+routing or cache. It now emits both:
+
+- `routing:<model>` — fires when a developer's own retrieval work runs on a model
+  with a materially cheaper tier available, naming a target and a saving range.
+- `cache-efficiency` — fires on low cache reuse with enough evidence to be worth
+  saying.
+
+Both sit behind evidence floors shared with `/org/models`, and both the show *and*
+suppress paths are unit-tested. `/team/[slug]` carries the team-scoped equivalent,
+resolved through the team-visibility path rather than the org one.
+
+The same pass moved the pre-existing tool and MCP error hints onto a **Wilson lower
+bound**, so a 2-of-5 fluke no longer reads as a 40% error rate — the "no nagging, no
+false positives" criterion applied to the tips that were already there.

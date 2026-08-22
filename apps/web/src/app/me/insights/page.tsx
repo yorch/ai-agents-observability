@@ -24,6 +24,8 @@ import {
   getSlashCommands,
   getSubagentUsage,
   getToolPerf,
+  getUserCacheSummary,
+  getUserModelRouting,
   type McpUsageRow,
   type NotificationKindRow,
   type SessionSummaryRow,
@@ -36,6 +38,7 @@ import {
   type SubagentUsageRow,
   type ToolPerfRow,
 } from '@/lib/insights-queries';
+import { getModelPolicies } from '@/lib/model-policy';
 import { buildRecommendations, type Recommendation } from '@/lib/recommendations';
 
 export const dynamic = 'force-dynamic';
@@ -76,6 +79,8 @@ export default async function InsightsPage({
     continuity,
     notificationKinds,
     shapeTrend,
+    modelRouting,
+    cacheSummary,
   ] = await Promise.all([
     getMcpUsage(user.id, since),
     getSkillUsage(user.id, since),
@@ -91,10 +96,16 @@ export default async function InsightsPage({
     getContinuitySummary(user.id, since),
     getNotificationKinds(user.id, since),
     getUserShapeTrend(user.id, since),
+    getUserModelRouting(user.id, since),
+    getUserCacheSummary(user.id, since),
   ]);
 
+  const policies = await getModelPolicies(modelRouting.map((r) => r.agentType));
   const recommendations = buildRecommendations({
+    cacheSummary,
     mcp,
+    modelRouting,
+    policies,
     scoredSessionCount: effectiveness.scoredSessionCount,
     sources: effectiveness.sources,
     toolPerf,
@@ -103,6 +114,7 @@ export default async function InsightsPage({
   const hasSessionData = summary.sessionCount > 0;
   const hasEventData =
     mcp.length > 0 ||
+    modelRouting.length > 0 ||
     skills.length > 0 ||
     slashCmds.length > 0 ||
     subagents.length > 0 ||

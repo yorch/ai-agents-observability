@@ -59,6 +59,12 @@ creates the whole table this way. What's forbidden is patching a **Prisma-manage
 table from this layer to dodge the reset above — that produces a schema Prisma can no
 longer regenerate.
 
+**One file per layer, and that is the invariant.** The relational layer is a
+single Prisma-generated migration; the custom layer is a single SQL file. A change
+to `schema.prisma` is regenerated into the former, never hand-patched into it, and
+anything Prisma cannot model goes in the latter — not folded into the Prisma
+migration, where the next regeneration would drop it.
+
 Current files:
 
 - `0001_init.sql` — everything Prisma cannot model, in one file: the `events`
@@ -73,7 +79,17 @@ Current files:
   `schema.prisma` at all; and the `interactive_sessions` / `interactive_events`
   views that carry the `run_kind` guard (P13-012).
 
-**Squashed twice, both times pre-deployment.** 2026-08-18 folded the P13-012 and
+**Squashed three times, all pre-deployment.** 2026-08-21 folded the
+`disallowed_model` alert seed (P10-005) into `0001_init.sql`'s existing
+disabled-by-default seed block rather than leaving it as a second numbered file,
+and verified the Prisma layer against a regenerated one: pushing `schema.prisma`
+into a throwaway database and diffing it back produced **118 statements matching
+the committed migration exactly**, differing only in statement order and in
+explicit `ASC` on index columns (the default, and an artifact of the
+introspection route). Both layers were then applied to an empty database from
+scratch to confirm they still stand alone.
+
+**Squashed twice before that, both times pre-deployment.** 2026-08-18 folded the P13-012 and
 P13-013 files back in, and collapsed the Prisma layer to a single regenerated
 `20260814000000_init` — so the two layers are one file each again. Verified rather
 than assumed: a `pg_dump` diff of the pre- and post-squash schemas over 1054

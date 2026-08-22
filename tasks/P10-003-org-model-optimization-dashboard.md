@@ -3,8 +3,8 @@ id: P10-003
 title: Org model optimization dashboard
 phase: 10
 workstream: E
-status: in-progress
-owner: null
+status: done
+owner: claude
 depends_on: [P10-001, P10-002]
 blocks: [P10-006]
 estimate: M
@@ -123,3 +123,20 @@ standing copy this task asked for, because it flags a degrading saving from meas
 friction / revert / tool-error movement rather than from a sentence. It does not
 cover the same ground, though: it fires on realization, so a fresh recommendation
 still renders uncaveated.
+
+## Resolved 2026-08-20 — the constants are gone
+
+The audit's literal failure was `page.tsx` still holding
+`const PREMIUM_PATTERNS = ['opus']`. That constant and the page-local `modelTier()`
+substring classifier are removed; tier, cheap-category and savings all resolve
+through the `P10-002` policy, so grepping the page for `DOWNGRADE_SAVINGS_RATE`,
+`PREMIUM_PATTERNS` or `CHEAP_CATEGORIES` returns nothing.
+
+Savings render as a **range** with the spread explained in the copy, and segments
+under the call/spend floor are suppressed rather than shown as a point estimate.
+Material retrieval spend on a model the price table cannot price gets its own
+surface, so an empty recommendation list means "efficient" and never "we could not
+tell".
+
+The projected-vs-realized half of this page is **P13-006**'s registry, not this
+task's — see `P10-006`, cancelled as superseded.

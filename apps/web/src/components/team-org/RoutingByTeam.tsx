@@ -25,8 +25,8 @@ export function RoutingByTeam({ rows }: RoutingByTeamProps) {
       </h2>
       <p className="text-xs text-text-2">
         Observe-only — the platform never blocks a live tool call. This surfaces which teams are
-        spending premium-model (Opus) budget on retrieval-only work (file reads, search) so leads
-        can follow up; pair it with the <span className="font-mono text-text-2">routing_waste</span>{' '}
+        spending downgradeable-model budget on retrieval-only work (file reads, search) so leads can
+        follow up; pair it with the <span className="font-mono text-text-2">routing_waste</span>{' '}
         alert for proactive notice.
       </p>
 
@@ -38,8 +38,8 @@ export function RoutingByTeam({ rows }: RoutingByTeamProps) {
         <Table
           columns={[
             { label: 'Team' },
-            { align: 'right', label: 'Retrieval spend (Opus)' },
-            { align: 'right', label: 'Total Opus spend' },
+            { align: 'right', label: 'Retrieval spend' },
+            { align: 'right', label: 'Total on those models' },
             { align: 'right', label: 'Share' },
           ]}
         >

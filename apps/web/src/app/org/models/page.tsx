@@ -1,3 +1,8 @@
+import {
+  type ModelPolicySnapshot,
+  type ModelTier,
+  resolveModelTier,
+} from '@ai-agents-observability/schemas';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { ProjectionRealization } from '@/components/team-org/ProjectionRealization';
 import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
@@ -5,12 +10,12 @@ import type { RegisteredRoutingClaim } from '@/components/team-org/RoutingRecomm
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
 import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
 import { fmtTokens } from '@/lib/fmt';
+import { getModelPolicies } from '@/lib/model-policy';
 import {
   getOrgModelDetail,
   getOrgModelRoutingBreakdown,
   getRoutingSpendByTeam,
 } from '@/lib/org-queries';
-import { getModelInputPrices } from '@/lib/price-client';
 import { getGuardMetrics, getRoutingActuals } from '@/lib/projection-queries';
 import {
   listClosedProjections,
@@ -19,29 +24,38 @@ import {
   startOfUtcDay,
 } from '@/lib/projections';
 import { requireOrgViewer } from '@/lib/roles';
-import {
-  buildSavingsRatioResolver,
-  computeRoutingRecommendations,
-  routingSavingRange,
-} from '@/lib/routing-queries';
+import { computeRoutingRecommendations, type RoutingRecommendation } from '@/lib/routing-queries';
 import { daysAgo } from '@/lib/time';
 export const dynamic = 'force-dynamic';
-
-// Models whose names contain these substrings are considered premium-tier.
-const PREMIUM_PATTERNS = ['opus'];
 
 // A routing claim is about the *next* month's retrieval spend for one model.
 const ROUTING_CLAIM_DAYS = 30;
 
-function modelTier(model: string): 'economy' | 'premium' | 'standard' {
-  const lower = model.toLowerCase();
-  if (PREMIUM_PATTERNS.some((p) => lower.includes(p))) {
-    return 'premium';
+/**
+ * The tier to label a model with in the spend-by-model table.
+ *
+ * A tier is agent-relative — it is derived by ranking one agent's own price
+ * table (packages/schemas `model-policy.ts`), so the same model id can sit in
+ * different bands under two agents. `getOrgModelDetail` aggregates spend by
+ * model with no agent dimension, so of the two options the table can honestly
+ * offer, this is the one available: report a tier only when every agent that
+ * prices the model agrees, and otherwise show none. Grouping the table by
+ * (agent, model) would be the other answer, but it needs a different query and
+ * `org-queries.ts` is not this change's business. Picking one agent's tier
+ * arbitrarily is the option that is never right.
+ */
+function tierAcrossAgents(
+  policies: Map<string, ModelPolicySnapshot>,
+  model: string,
+): ModelTier | null {
+  const seen = new Set<ModelTier>();
+  for (const policy of policies.values()) {
+    const tier = resolveModelTier(policy, model);
+    if (tier) {
+      seen.add(tier);
+    }
   }
-  if (lower.includes('haiku')) {
-    return 'economy';
-  }
-  return 'standard';
+  return seen.size === 1 ? ([...seen][0] as ModelTier) : null;
 }
 
 function cacheEfficiencyClass(rate: number): string {
@@ -70,12 +84,17 @@ export default async function OrgModelsPage({
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
-  const [models, routing, modelPrices, routingByTeam] = await Promise.all([
+  const [models, routing] = await Promise.all([
     getOrgModelDetail(since),
     getOrgModelRoutingBreakdown(since),
-    getModelInputPrices(),
-    getRoutingSpendByTeam(since),
   ]);
+
+  // Resolve policy once per agent that actually has routing spend, then reuse it
+  // for the recommendations, the team accountability table, and the tier labels.
+  // Sequenced after the breakdown rather than folded into the Promise.all above
+  // because both consumers need the agent list it returns.
+  const policies = await getModelPolicies(routing.map((r) => r.agentType));
+  const routingByTeam = await getRoutingSpendByTeam(since, policies);
 
   const totalCostUsd = models.reduce((s, m) => s + m.totalCostUsd, 0);
   const totalInput = models.reduce((s, m) => s + m.inputTokens + m.cacheReadTokens, 0);
@@ -87,17 +106,32 @@ export default async function OrgModelsPage({
   const avgInputCostPerToken = totalInput > 0 ? totalCostUsd / totalInput : 0;
   const estimatedCacheSavings = totalCacheRead * 0.9 * avgInputCostPerToken;
 
-  // Price-derived per-model savings ratio when the ingest price table is
-  // reachable; falls back to the flat heuristic when INGEST_URL is unset.
-  const savingsRatioFor = buildSavingsRatioResolver(modelPrices);
-  // Only claim price-precision when the table actually yielded usable rates — an
-  // empty map falls back to the flat heuristic inside buildSavingsRatioResolver.
-  const pricePrecise = modelPrices !== null && Object.keys(modelPrices).length > 0;
-  const { recommendations: routingRecs } = computeRoutingRecommendations(
+  // Tiers, cheap categories and savings ranges all come from each agent's own
+  // resolved policy — never a substring of the model id. An agent whose price
+  // table is unreachable still gets a snapshot, just an unpriced one, so its
+  // models surface as `unpricedModels` rather than as a fabricated tier.
+  const { recommendations: routingRecs, unpricedModels } = computeRoutingRecommendations(
     routing,
     range,
-    savingsRatioFor,
+    policies,
   );
+
+  // A claim is registered per MODEL, not per (agent, model): `getRoutingActuals`
+  // measures `model = segment` across the org, so a segment of `agent:model`
+  // would match no rows and every claim would realize as "not yet measurable"
+  // forever. Recommendations that share a model id are therefore folded into one
+  // claim whose range is the sum of theirs — which also keeps the headline total
+  // from counting the same model twice.
+  const recsByModel = new Map<string, RoutingRecommendation[]>();
+  for (const rec of routingRecs) {
+    const group = recsByModel.get(rec.model);
+    if (group) {
+      group.push(rec);
+    } else {
+      recsByModel.set(rec.model, [rec]);
+    }
+  }
+  const claimGroups = [...recsByModel].map(([model, recs]) => ({ model, recs }));
 
   // P13-006: register every recommendation as a projection at the moment it is
   // rendered. `RegisteredProjection` is the only thing RoutingRecommendations
@@ -108,34 +142,44 @@ export default async function OrgModelsPage({
   const claimStart = startOfUtcDay(now);
   const claimEnd = new Date(claimStart.getTime() + ROUTING_CLAIM_DAYS * 86_400_000);
   const guardBaseline = await getGuardMetrics(daysAgo(range), now);
+  const toMonthly = range > 0 ? 30 / range : 0;
   const projections = await recordProjections(
-    routingRecs.map((rec) => {
-      const { high, low } = routingSavingRange(rec);
-      return {
-        // The observed retrieval spend the claim is measured against, normalized
-        // to the same monthly basis as the projected saving.
-        baselineValue: rec.cheapCategorySpend * (range > 0 ? 30 / range : 0),
-        baselineWindowDays: range,
-        claimType: 'routing_savings' as const,
-        guardBaseline,
-        metadata: { pricePrecise, savingsRatio: rec.savingsRatio },
-        periodEnd: claimEnd,
-        periodStart: claimStart,
-        // Which price table produced the ratio, so the check replays against it
-        // rather than measuring a repricing as a routing result.
-        priceTableVersion: pricePrecise ? 'ingest:current' : null,
-        projectedHigh: high,
-        projectedLow: low,
-        segment: rec.model,
-      };
-    }),
+    claimGroups.map(({ model, recs }) => ({
+      // The observed retrieval spend the claim is measured against, normalized
+      // to the same monthly basis as the projected saving.
+      baselineValue: recs.reduce((s, r) => s + r.cheapCategorySpend, 0) * toMonthly,
+      baselineWindowDays: range,
+      claimType: 'routing_savings' as const,
+      guardBaseline,
+      // Per-agent provenance, so a later check can tell "the routing worked"
+      // apart from "an admin re-tiered the model in between".
+      metadata: {
+        agents: recs.map((r) => ({
+          agentType: r.agentType,
+          confidence: r.confidence,
+          exampleTargetModel: r.exampleTargetModel,
+          targetTier: r.targetTier,
+          tier: r.tier,
+        })),
+      },
+      periodEnd: claimEnd,
+      periodStart: claimStart,
+      // A recommendation only exists when the model AND a cheaper target are
+      // priced, so every routing claim is price-derived; record which table
+      // produced it so the check replays against it rather than measuring a
+      // repricing as a routing result.
+      priceTableVersion: 'ingest:current',
+      projectedHigh: recs.reduce((s, r) => s + r.monthlySavingHigh, 0),
+      projectedLow: recs.reduce((s, r) => s + r.monthlySavingLow, 0),
+      segment: model,
+    })),
   );
-  const routingClaims: RegisteredRoutingClaim[] = routingRecs
-    .map((rec, i) => ({
+  const routingClaims: RegisteredRoutingClaim[] = claimGroups
+    .map(({ model, recs }, i) => ({
       // recordProjections preserves input order, so index alignment is safe; the
       // find is a belt-and-braces guard against that changing silently.
-      projection: projections.find((p) => p.segment === rec.model) ?? projections[i],
-      recommendation: rec,
+      projection: projections.find((p) => p.segment === model) ?? projections[i],
+      recommendations: recs,
     }))
     .filter((c): c is RegisteredRoutingClaim => c.projection !== undefined);
 
@@ -182,7 +226,7 @@ export default async function OrgModelsPage({
       ) : (
         <>
           {/* Routing recommendations */}
-          <RoutingRecommendations claims={routingClaims} pricePrecise={pricePrecise} />
+          <RoutingRecommendations claims={routingClaims} unpricedModels={unpricedModels} />
 
           {/* Did the recommendations work? (P13-006, supersedes P10-006) */}
           <ProjectionRealization
@@ -213,7 +257,7 @@ export default async function OrgModelsPage({
               ]}
             >
               {models.map((m) => {
-                const tier = modelTier(m.model);
+                const tier = tierAcrossAgents(policies, m.model);
                 const costPct = totalCostUsd > 0 ? (m.totalCostUsd / totalCostUsd) * 100 : 0;
                 return (
                   <Row key={m.model}>
@@ -260,7 +304,7 @@ export default async function OrgModelsPage({
               <GuidanceCard
                 accent="good"
                 title="What cache hit rate means"
-                body="Claude's prompt cache reuses previous context at ~10% of the input token price. A 40–60% cache hit rate is typical for iterative coding sessions. Below 20% suggests sessions are starting fresh each time."
+                body="Prompt caching reuses previous context at a fraction of the input token price — around a tenth, on most providers' tables. A 40–60% cache hit rate is typical for iterative coding sessions. Below 20% suggests sessions are starting fresh each time."
               />
               <GuidanceCard
                 accent="warn"
@@ -270,7 +314,7 @@ export default async function OrgModelsPage({
               <GuidanceCard
                 accent="series1"
                 title="Model routing quick wins"
-                body="File reads, grep, and web searches don't require Opus-level reasoning. Routing these to Haiku or Sonnet reduces cost 5–15× per call with no quality loss. Claude Code's model selection is controllable via the model field in API calls."
+                body="File reads, grep, and web searches don't require premium-tier reasoning. Routing them to a cheaper tier typically cuts cost several-fold per call with no quality loss. The recommendations above name the target tier and an example model for each agent, derived from that agent's own price table."
               />
             </div>
           </div>
@@ -280,7 +324,10 @@ export default async function OrgModelsPage({
   );
 }
 
-function TierBadge({ tier }: { tier: 'economy' | 'premium' | 'standard' }) {
+function TierBadge({ tier }: { tier: ModelTier | null }) {
+  if (tier === null) {
+    return <span className="text-text-3">—</span>;
+  }
   if (tier === 'premium') {
     return (
       <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-warn-soft text-warn border border-warn-line">
