@@ -4,6 +4,7 @@ import {
   type EventType,
   type ToolInfo,
   toolActionFor,
+  toolCategory,
   toolTargetHash,
 } from '@ai-agents-observability/schemas';
 
@@ -108,11 +109,16 @@ export type StdinHookConfig = {
 /**
  * Tool block from a Claude-shaped payload: name, MCP split, byte sizes. Only what
  * is knowable at capture time — duration/exit are filled downstream or defaulted.
+ *
+ * `agentType` drives the per-agent tool-category lookup (`toolCategory()`) —
+ * required because this one function serves every stdin agent that doesn't
+ * override `buildTool`, and their tool-name vocabularies don't overlap.
  */
 export function buildGenericToolInfo(
   raw: Record<string, unknown>,
   aliases: FieldAliases,
-  _kind?: string,
+  _kind: string | undefined,
+  agentType: AgentType,
 ): ToolInfo {
   const name = pickString(raw, aliases.toolName) ?? 'unknown';
   const input = pickValue(raw, aliases.toolInput);
@@ -139,7 +145,9 @@ export function buildGenericToolInfo(
     // tests-before-merge) would be silently dead for Gemini CLI, Copilot CLI
     // and Codex while working for Claude Code.
     action: toolActionFor(input),
-    category: isMcp ? 'mcp' : 'builtin',
+    // isMcp, not mcpServer: a name like `mcp__server` (no tool segment) parses
+    // no server but is still an MCP tool — see payload.ts's identical rule.
+    category: toolCategory(agentType, name, isMcp),
     duration_ms: 0,
     exit_status: null,
     input_bytes: fieldBytes(input),
@@ -159,7 +167,9 @@ export function buildGenericToolInfo(
 
 export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
   const aliases: FieldAliases = { ...DEFAULT_FIELD_ALIASES, ...config.fields };
-  const buildTool = config.buildTool ?? buildGenericToolInfo;
+  const buildTool =
+    config.buildTool ??
+    ((raw, toolAliases, kind) => buildGenericToolInfo(raw, toolAliases, kind, config.agentType));
   const transcriptKinds = new Set(config.transcriptKinds ?? []);
   // Every kind we ask the agent to install. A superset of eventMap when the agent
   // has a hook that is captured but produces no event.

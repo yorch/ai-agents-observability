@@ -2,6 +2,7 @@ import {
   type Event,
   type ToolInfo,
   toolActionFor,
+  toolCategory,
   toolTargetHash,
 } from '@ai-agents-observability/schemas';
 import { fieldBytes } from './bytes';
@@ -54,7 +55,8 @@ function buildImportToolInfo(name: string, input: unknown, output: unknown): Too
 
   return {
     action: toolActionFor(input),
-    category: isMcp ? 'mcp' : 'builtin',
+    // Import synthesizes events from a Claude Code transcript only.
+    category: toolCategory('CLAUDE_CODE', name, isMcp),
     duration_ms: 0,
     exit_status: null,
     input_bytes: inputBytes,

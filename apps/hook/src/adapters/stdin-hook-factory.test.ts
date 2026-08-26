@@ -66,7 +66,7 @@ describe('claude-code through the factory — golden output', () => {
       tool_name: 'Task',
     });
     expect(ev.tool?.subagent_type).toBe('Explore');
-    expect(ev.tool?.category).toBe('builtin');
+    expect(ev.tool?.category).toBe('task');
   });
 
   it('keeps Claude-specific metadata enrichment (slash command, notification kind)', () => {

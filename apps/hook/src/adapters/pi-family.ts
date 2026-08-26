@@ -15,6 +15,7 @@ import {
   type EventType,
   type ToolInfo,
   toolActionFor,
+  toolCategory,
   toolTargetHash,
 } from '@ai-agents-observability/schemas';
 
@@ -108,7 +109,7 @@ const TOOL_KNOWN_KEYS = new Set([
 const STOP_KNOWN_KEYS = new Set([...BASE_KNOWN_KEYS, ...USAGE_KEYS]);
 const OTHER_KNOWN_KEYS = new Set(BASE_KNOWN_KEYS);
 
-function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
+function buildToolInfo(raw: Record<string, unknown>, agentType: string): ToolInfo {
   const name = str(pickValue(raw, TOOL_NAME_KEYS), 'unknown');
   const input = pickValue(raw, TOOL_INPUT_KEYS);
   const output = pickValue(raw, TOOL_OUTPUT_KEYS);
@@ -117,7 +118,7 @@ function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
   return {
     // Content-free capture (P13-003) — see the note in stdin-hook-factory.ts.
     action: toolActionFor(input),
-    category: isMcp ? 'mcp' : 'builtin',
+    category: toolCategory(agentType, name, isMcp),
     duration_ms: num(raw.durationMs ?? raw.duration_ms),
     exit_status: typeof raw.exitStatus === 'number' ? raw.exitStatus : null,
     input_bytes: fieldBytes(input),
@@ -403,7 +404,7 @@ export function createPiFamilyAdapter(config: PiFamilyConfig): HookAdapter {
         mode: 'normal',
       },
       session_id: sessionUuid(config.agentType, nativeSessionId(raw)),
-      ...(isToolEvent ? { tool: buildToolInfo(raw) } : {}),
+      ...(isToolEvent ? { tool: buildToolInfo(raw, config.agentType) } : {}),
       ts: new Date().toISOString(),
       user_id_claim: userIdClaim(),
     } as ConformantEvent;

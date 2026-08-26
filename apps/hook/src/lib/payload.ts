@@ -3,6 +3,7 @@ import {
   type EventType,
   type ToolInfo,
   toolActionFor,
+  toolCategory,
   toolTargetHash,
 } from '@ai-agents-observability/schemas';
 
@@ -119,8 +120,9 @@ export function buildClaudeToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
     // string, not over the ~1 MB stdin cap.
     action: toolActionFor(raw.tool_input),
     // Categorize by the mcp__ prefix, not the parse result: a name like
-    // `mcp__server` (no tool segment) is still an MCP tool.
-    category: isMcp ? 'mcp' : 'builtin',
+    // `mcp__server` (no tool segment) is still an MCP tool — pass `isMcp`
+    // itself through rather than `mcpServer`, which is null in exactly that case.
+    category: toolCategory('CLAUDE_CODE', name, isMcp),
     duration_ms: 0,
     exit_status: null,
     input_bytes: fieldBytes(raw.tool_input),

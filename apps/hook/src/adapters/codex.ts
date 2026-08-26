@@ -19,6 +19,7 @@ import {
   type Event,
   type EventType,
   type ToolInfo,
+  toolCategory,
 } from '@ai-agents-observability/schemas';
 
 import { clientInfo } from '../lib/client-info';
@@ -145,7 +146,7 @@ function toolInfo(call: {
     // the honest answer: the trajectory scorers exclude unobservable calls
     // rather than bucketing them together and inventing repeats.
     action: null,
-    category: isMcp ? 'mcp' : 'builtin',
+    category: toolCategory('CODEX', call.name, isMcp),
     duration_ms: 0,
     exit_status: null,
     input_bytes: call.inputBytes,

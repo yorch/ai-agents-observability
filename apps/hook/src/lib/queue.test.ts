@@ -74,7 +74,7 @@ describe('payload → Event', () => {
     expect(ev.session_context.cwd).toBe('/home/dev/project');
     expect(ev.session_context.git).toBeNull();
     expect(ev.tool?.name).toBe('Bash');
-    expect(ev.tool?.category).toBe('builtin');
+    expect(ev.tool?.category).toBe('exec');
     expect(ev.tool?.input_bytes).toBeGreaterThan(0);
     expect(ev.event_id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
