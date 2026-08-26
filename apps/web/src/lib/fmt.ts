@@ -19,6 +19,17 @@ export function fmtUsd(n: number): string {
 }
 
 /**
+ * `fmtUsd` with the null → "—" convention, paired like `fmtDurationOrDash`.
+ *
+ * Attribution columns (P14-004) are nullable on purpose: NULL means "not
+ * attributed", which is a different claim from "$0.00". Rendering it as a dash
+ * is what keeps the two apart on screen.
+ */
+export function fmtUsdOrDash(n: number | null): string {
+  return n === null ? '—' : fmtUsd(n);
+}
+
+/**
  * A 0–1 ratio as a percent, e.g. 0.8 → "80%".
  *
  * `digits` defaults to 0 because most call sites are shares of a whole, where a

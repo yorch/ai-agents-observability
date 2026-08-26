@@ -131,7 +131,15 @@ export type McpUsageRow = {
 };
 
 export type SkillUsageRow = {
+  /**
+   * P14-004. Two lenses on the same dollars, never a total: the issuing turn's
+   * share, and the input-side inflation this skill's tool output caused on the
+   * following turn. NULL means the events carried no turn linkage — not $0.00.
+   */
+  attributedCostUsd: number | null;
+  /** The pre-P14-004 proxy, kept beside the real number. See org-queries.ts. */
   avgSessionCostUsd: number | null;
+  downstreamCostUsd: number | null;
   sessionCount: number;
   skillName: string;
   skillPath: string | null;
@@ -169,16 +177,22 @@ export type SlashCommandRow = {
 };
 
 export type SubagentUsageRow = {
+  /** P14-004 — see `SkillUsageRow`. Not additive with `downstreamCostUsd`. */
+  attributedCostUsd: number | null;
+  downstreamCostUsd: number | null;
   subagentType: string;
   useCount: number;
 };
 
 export type ToolPerfRow = {
+  /** P14-004 — see `SkillUsageRow`. Not additive with `downstreamCostUsd`. */
+  attributedCostUsd: number | null;
   avgDurationMs: number | null;
   avgInputBytes: number | null;
   avgOutputBytes: number | null;
   callCount: number;
   deniedCount: number;
+  downstreamCostUsd: number | null;
   errorCount: number;
   p95DurationMs: number | null;
   toolCategory: string | null;
@@ -210,7 +224,9 @@ type McpRawRow = {
 };
 
 type SkillUsageRawRow = {
+  attributed_cost_usd: string | null;
   avg_session_cost_usd: string | null;
+  downstream_cost_usd: string | null;
   session_count: bigint;
   skill_name: string;
   skill_path: string | null;
@@ -232,14 +248,21 @@ type SkillSequenceRawRow = {
 };
 
 type SlashCommandRawRow = { slash_command: string; use_count: bigint };
-type SubagentRawRow = { subagent_type: string; use_count: bigint };
+type SubagentRawRow = {
+  attributed_cost_usd: string | null;
+  downstream_cost_usd: string | null;
+  subagent_type: string;
+  use_count: bigint;
+};
 
 type ToolPerfRawRow = {
+  attributed_cost_usd: string | null;
   avg_duration_ms: string | null;
   avg_input_bytes: string | null;
   avg_output_bytes: string | null;
   call_count: bigint;
   denied_count: bigint;
+  downstream_cost_usd: string | null;
   error_count: bigint;
   p95_duration_ms: string | null;
   tool_category: string | null;
@@ -290,7 +313,13 @@ export async function getMcpUsage(userId: string, since: Date): Promise<McpUsage
 export async function getSkillUsage(userId: string, since: Date): Promise<SkillUsageRow[]> {
   const rows = await getPrisma().$queryRaw<SkillUsageRawRow[]>(Prisma.sql`
     WITH invocations AS (
-      SELECT skill_name, skill_path, session_id, COUNT(*) AS invocation_count
+      SELECT
+        skill_name, skill_path, session_id,
+        COUNT(*) AS invocation_count,
+        -- P14-004: summed per (skill, session) here and rolled up below, so the
+        -- attribution follows exactly the rows this CTE counts.
+        SUM(attributed_cost_usd) AS attributed_cost_usd,
+        SUM(downstream_cost_usd) AS downstream_cost_usd
       FROM interactive_events
       WHERE user_id = ${userId}::uuid
         AND ts       >= ${since}
@@ -302,6 +331,10 @@ export async function getSkillUsage(userId: string, since: Date): Promise<SkillU
       i.skill_path,
       SUM(i.invocation_count)::bigint           AS use_count,
       COUNT(DISTINCT i.session_id)::bigint       AS session_count,
+      SUM(i.attributed_cost_usd)::text           AS attributed_cost_usd,
+      SUM(i.downstream_cost_usd)::text           AS downstream_cost_usd,
+      -- The pre-P14-004 proxy, kept beside the real numbers rather than
+      -- replaced — see getSkillUsage in org-queries.ts.
       AVG(s.total_cost_usd)::text                AS avg_session_cost_usd
     -- run-kind-exempt: the population is fixed by the guarded invocations CTE
     -- above, so every session reachable here is already INTERACTIVE. Repeating the
@@ -315,7 +348,9 @@ export async function getSkillUsage(userId: string, since: Date): Promise<SkillU
     LIMIT 50
   `);
   return rows.map((r) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgSessionCostUsd: r.avg_session_cost_usd != null ? Number(r.avg_session_cost_usd) : null,
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     sessionCount: Number(r.session_count),
     skillName: r.skill_name,
     skillPath: r.skill_path,
@@ -457,7 +492,14 @@ export async function getSlashCommands(userId: string, since: Date): Promise<Sla
 
 export async function getSubagentUsage(userId: string, since: Date): Promise<SubagentUsageRow[]> {
   const rows = await getPrisma().$queryRaw<SubagentRawRow[]>(Prisma.sql`
-    SELECT subagent_type, COUNT(*) AS use_count
+    SELECT
+      subagent_type,
+      COUNT(*) AS use_count,
+      -- P14-004. Two readings of the same dollars, never added together: the
+      -- issuing turn's share of this spawn, and the input-side inflation the
+      -- sub-agent's result caused on the turn that read it.
+      SUM(attributed_cost_usd)::text AS attributed_cost_usd,
+      SUM(downstream_cost_usd)::text AS downstream_cost_usd
     FROM interactive_events
     WHERE user_id = ${userId}::uuid
       AND ts       >= ${since}
@@ -466,6 +508,8 @@ export async function getSubagentUsage(userId: string, since: Date): Promise<Sub
     ORDER BY use_count DESC
   `);
   return rows.map((r: SubagentRawRow) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     subagentType: r.subagent_type,
     useCount: Number(r.use_count),
   }));
@@ -483,7 +527,10 @@ export async function getToolPerf(userId: string, since: Date): Promise<ToolPerf
       AVG(tool_duration_ms)::text                                            AS avg_duration_ms,
       PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tool_duration_ms)::text  AS p95_duration_ms,
       AVG(tool_input_bytes)::text                                           AS avg_input_bytes,
-      AVG(tool_output_bytes)::text                                          AS avg_output_bytes
+      AVG(tool_output_bytes)::text                                          AS avg_output_bytes,
+      -- P14-004. Two readings of the same dollars — never added together.
+      SUM(attributed_cost_usd)::text                                        AS attributed_cost_usd,
+      SUM(downstream_cost_usd)::text                                        AS downstream_cost_usd
     FROM interactive_events
     WHERE user_id = ${userId}::uuid
       AND ts       >= ${since}
@@ -494,11 +541,13 @@ export async function getToolPerf(userId: string, since: Date): Promise<ToolPerf
     LIMIT 25
   `);
   return rows.map((r: ToolPerfRawRow) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgDurationMs: r.avg_duration_ms != null ? Math.round(Number(r.avg_duration_ms)) : null,
     avgInputBytes: r.avg_input_bytes != null ? Math.round(Number(r.avg_input_bytes)) : null,
     avgOutputBytes: r.avg_output_bytes != null ? Math.round(Number(r.avg_output_bytes)) : null,
     callCount: Number(r.call_count),
     deniedCount: Number(r.denied_count),
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     errorCount: Number(r.error_count),
     p95DurationMs: r.p95_duration_ms != null ? Math.round(Number(r.p95_duration_ms)) : null,
     toolCategory: r.tool_category,
