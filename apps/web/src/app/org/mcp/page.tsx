@@ -1,8 +1,10 @@
+import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { McpServerCard } from '@/components/team-org/McpServerCard';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { SubjectQualityPanel } from '@/components/team-org/SubjectQualityPanel';
 import { Card, Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
-import { fmtDurationOrDash } from '@/lib/fmt';
+import { addNullable, getAttributionCoverage, sumAttributed } from '@/lib/attribution-coverage';
+import { fmtDurationOrDash, fmtUsdOrDash } from '@/lib/fmt';
 import { getMcpServerDetails, type McpServerDetailRow, orgVisibleUserIds } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import {
@@ -24,21 +26,25 @@ export default async function OrgMcpPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
   const visibleIds = await orgVisibleUserIds(since);
-  const [details, quality, failureSplit] = await Promise.all([
+  const [details, quality, failureSplit, coverage] = await Promise.all([
     getMcpServerDetails(since),
     getMcpQuality(visibleIds, since),
     getMcpFailureSplit(visibleIds, since),
+    getAttributionCoverage(visibleIds, since),
   ]);
 
   // Group rows by server, computing server-level aggregates
   type ServerEntry = {
+    // Nullable, and separately: two lenses on the same dollars (P14-004),
+    // never a total.
+    attributedCostUsd: number | null;
     distinctUsers: number;
+    downstreamCostUsd: number | null;
     durationCount: number;
     durationSum: number;
     p95DurationMs: number | null;
     tools: McpServerDetailRow[];
     totalCalls: number;
-    totalCostUsd: number;
     totalDenies: number;
     totalErrors: number;
   };
@@ -47,13 +53,14 @@ export default async function OrgMcpPage({
   for (const row of details) {
     if (!serverMap.has(row.mcpServer)) {
       serverMap.set(row.mcpServer, {
+        attributedCostUsd: null,
         distinctUsers: row.serverDistinctUsers,
+        downstreamCostUsd: null,
         durationCount: 0,
         durationSum: 0,
         p95DurationMs: null,
         tools: [],
         totalCalls: 0,
-        totalCostUsd: 0,
         totalDenies: 0,
         totalErrors: 0,
       });
@@ -63,7 +70,10 @@ export default async function OrgMcpPage({
     entry.totalCalls += row.callCount;
     entry.totalDenies += row.denyCount;
     entry.totalErrors += row.errorCount;
-    entry.totalCostUsd += row.totalCostUsd;
+    // `null + x` would be 0 + x, which would turn "not attributed" into $0.00
+    // the moment one tool on the server had a number and another did not.
+    entry.attributedCostUsd = addNullable(entry.attributedCostUsd, row.attributedCostUsd);
+    entry.downstreamCostUsd = addNullable(entry.downstreamCostUsd, row.downstreamCostUsd);
     if (row.avgDurationMs !== null) {
       entry.durationSum += row.avgDurationMs * row.callCount;
       entry.durationCount += row.callCount;
@@ -103,15 +113,16 @@ export default async function OrgMcpPage({
           value={totalCalls > 0 ? `${(overallErrorRate * 100).toFixed(1)}%` : '—'}
           accent={overallErrorRate > 0.05 ? 'warn' : undefined}
         />
-        {/* Cost isn't attributed per tool event today (P14-003 will link it to
-            turns); showing a computed sum here would present that gap as a
-            real number instead of naming it. */}
+        {/* P14-004. Two lenses on the same dollars — the tile shows the
+            issuing-turn share, and the caption below names the other. */}
         <Stat
-          label="Attributed LLM cost"
-          sub="Requires turn-linked cost attribution"
-          value="Not yet captured"
+          label="Turn-share LLM cost"
+          sub="Issuing turn's cost, split across its tool calls"
+          value={fmtUsdOrDash(sumAttributed(details.map((d) => d.attributedCostUsd)))}
         />
       </div>
+
+      <CostAttributionNote coverage={coverage} />
 
       <SubjectQualityPanel
         caption={`How sessions that used each server compare with matched sessions that did not, over the trailing ${range} days.`}

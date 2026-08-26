@@ -1,6 +1,9 @@
+import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { AgentsTable } from '@/components/team-org/AgentsTable';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { EmptyState, Stat } from '@/components/ui';
+import { getAttributionCoverage, sumAttributed } from '@/lib/attribution-coverage';
+import { fmtUsdOrDash } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamSubagentStats, resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
@@ -21,10 +24,15 @@ export default async function TeamAgentsPage({
 
   const since = daysAgo(range);
   const { visibleIds } = await resolveTeamVisibility(teamId);
-  const agents = await getTeamSubagentStats(visibleIds, since);
+  const [agents, coverage] = await Promise.all([
+    getTeamSubagentStats(visibleIds, since),
+    getAttributionCoverage(visibleIds, since),
+  ]);
 
   const totalSpawns = agents.reduce((s, a) => s + a.spawnCount, 0);
   const distinctTypes = agents.filter((a) => a.subagentType !== null).length;
+  const attributed = sumAttributed(agents.map((a) => a.attributedCostUsd));
+  const downstream = sumAttributed(agents.map((a) => a.downstreamCostUsd));
 
   return (
     <div className="space-y-6">
@@ -38,20 +46,21 @@ export default async function TeamAgentsPage({
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat label={`Agent spawns (${range}d)`} value={totalSpawns.toLocaleString()} />
         <Stat label="Agent types" value={distinctTypes.toString()} />
-        {/* Cost isn't attributed per tool event today (P14-003 will link it to
-            turns); showing a computed sum here would present that gap as a
-            real number instead of naming it. */}
+        {/* P14-004. Two lenses on the same dollars, never a total — hence two
+            tiles with distinct labels rather than one "cost" figure. */}
         <Stat
-          label="Attributed cost"
-          sub="Requires turn-linked cost attribution"
-          value="Not yet captured"
+          label="Turn-share cost"
+          sub="Issuing turn's cost, split across its tool calls"
+          value={fmtUsdOrDash(attributed)}
         />
         <Stat
-          label="Avg cost / spawn"
-          sub="Requires turn-linked cost attribution"
-          value="Not yet captured"
+          label="Downstream cost"
+          sub="Input-side cost their output added to the next turn"
+          value={fmtUsdOrDash(downstream)}
         />
       </div>
+
+      <CostAttributionNote coverage={coverage} />
 
       {agents.length === 0 ? (
         <EmptyState>No sub-agent activity recorded in the last {range} days.</EmptyState>

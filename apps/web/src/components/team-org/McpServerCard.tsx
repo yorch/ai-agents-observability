@@ -1,23 +1,26 @@
 import { Card, Cell, Row, Table } from '@/components/ui';
-import { fmtDuration } from '@/lib/fmt';
+import { fmtDuration, fmtUsdOrDash } from '@/lib/fmt';
 
 export type McpToolRow = {
+  /** P14-004 — two lenses on the same dollars. Never summed together. */
+  attributedCostUsd: number | null;
   avgDurationMs: number | null;
   callCount: number;
   denyCount: number;
   distinctUsers: number;
+  downstreamCostUsd: number | null;
   errorCount: number;
   mcpTool: string | null;
   p95DurationMs: number | null;
-  totalCostUsd: number;
 };
 
 type ServerData = {
+  attributedCostUsd: number | null;
   distinctUsers: number;
+  downstreamCostUsd: number | null;
   p95DurationMs: number | null;
   tools: McpToolRow[];
   totalCalls: number;
-  totalCostUsd: number;
   totalDenies: number;
   totalErrors: number;
 };
@@ -60,9 +63,17 @@ export function McpServerCard({
           <span>
             {data.distinctUsers} user{data.distinctUsers !== 1 ? 's' : ''}
           </span>
-          {data.totalCostUsd > 0 && (
+          {/* Named apart because they are not addable: one is the issuing
+              turn's cost, the other is what this server's output cost the turn
+              that read it. */}
+          {data.attributedCostUsd !== null && (
             <span className="font-mono text-text-2">
-              ${data.totalCostUsd.toFixed(3)} attributed
+              {fmtUsdOrDash(data.attributedCostUsd)} turn share
+            </span>
+          )}
+          {data.downstreamCostUsd !== null && (
+            <span className="font-mono text-text-2">
+              {fmtUsdOrDash(data.downstreamCostUsd)} downstream
             </span>
           )}
         </div>
@@ -101,7 +112,8 @@ export function McpServerCard({
           { align: 'right', label: 'Avg ms' },
           { align: 'right', label: 'p95 ms' },
           { align: 'right', label: 'Users' },
-          { align: 'right', label: 'Cost' },
+          { align: 'right', label: 'Turn share' },
+          { align: 'right', label: 'Downstream' },
         ]}
       >
         {data.tools.map((t) => (
@@ -130,7 +142,10 @@ export function McpServerCard({
               {t.distinctUsers}
             </Cell>
             <Cell num className="text-text-2">
-              {t.totalCostUsd > 0 ? `$${t.totalCostUsd.toFixed(3)}` : '—'}
+              {fmtUsdOrDash(t.attributedCostUsd)}
+            </Cell>
+            <Cell num className="text-text-2">
+              {fmtUsdOrDash(t.downstreamCostUsd)}
             </Cell>
           </Row>
         ))}

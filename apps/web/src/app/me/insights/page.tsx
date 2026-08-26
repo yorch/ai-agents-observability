@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { ArrowRightIcon } from '@/components/icons';
 import { DaysSelector, parseDays } from '@/components/me/DaysSelector';
 import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
@@ -6,10 +7,11 @@ import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
 import { Card, Cell, EmptyState, Row, Sparkline, Table } from '@/components/ui';
+import { type AttributionCoverage, getAttributionCoverage } from '@/lib/attribution-coverage';
 import { currentUser } from '@/lib/auth';
 import { getUserShapeTrend } from '@/lib/cohort-queries';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
-import { fmtBytes, fmtDurationOrDash, fmtTokens, fmtUsd } from '@/lib/fmt';
+import { fmtBytes, fmtDurationOrDash, fmtTokens, fmtUsd, fmtUsdOrDash } from '@/lib/fmt';
 import {
   type ContinuitySummaryRow,
   getContinuitySummary,
@@ -81,6 +83,7 @@ export default async function InsightsPage({
     shapeTrend,
     modelRouting,
     cacheSummary,
+    coverage,
   ] = await Promise.all([
     getMcpUsage(user.id, since),
     getSkillUsage(user.id, since),
@@ -98,6 +101,9 @@ export default async function InsightsPage({
     getUserShapeTrend(user.id, since),
     getUserModelRouting(user.id, since),
     getUserCacheSummary(user.id, since),
+    // Own-data scope: the coverage fraction is computed over this user's own
+    // sessions, so it never widens past what the page already shows.
+    getAttributionCoverage([user.id], since),
   ]);
 
   const policies = await getModelPolicies(modelRouting.map((r) => r.agentType));
@@ -171,12 +177,13 @@ export default async function InsightsPage({
                 <SlashCommandsSection rows={slashCmds} />
               </div>
               <div className="grid gap-6 md:grid-cols-2">
-                <SubagentsSection rows={subagents} />
-                <ToolPerfSection rows={toolPerf} />
+                <SubagentsSection coverage={coverage} rows={subagents} />
+                <ToolPerfSection coverage={coverage} rows={toolPerf} />
               </div>
 
               {skills.length > 0 && (
                 <SkillsSection
+                  coverage={coverage}
                   rows={skills}
                   outcomes={skillOutcomes}
                   trend={skillTrend}
@@ -392,11 +399,13 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function SkillsSection({
+  coverage,
   rows,
   outcomes,
   trend,
   subagents,
 }: {
+  coverage: AttributionCoverage;
   outcomes: SkillOutcomeRow[];
   rows: SkillUsageRow[];
   subagents: SkillSubagentRow[];
@@ -433,7 +442,11 @@ function SkillsSection({
           { label: 'Skill' },
           { align: 'right', label: 'Uses' },
           { align: 'right', label: 'Sessions' },
+          // The pre-P14-004 proxy, kept beside the real numbers.
           { align: 'right', label: 'Avg session $' },
+          // P14-004: two lenses on the same dollars, never a total.
+          { align: 'right', label: 'Turn share' },
+          { align: 'right', label: 'Downstream' },
           { align: 'right', label: 'Avg subagents' },
           { label: 'Outcomes' },
           { label: 'Trend' },
@@ -474,6 +487,12 @@ function SkillsSection({
                 {r.avgSessionCostUsd != null ? fmtUsd(r.avgSessionCostUsd) : '—'}
               </Cell>
               <Cell num className="text-xs text-text-2">
+                {fmtUsdOrDash(r.attributedCostUsd)}
+              </Cell>
+              <Cell num className="text-xs text-text-2">
+                {fmtUsdOrDash(r.downstreamCostUsd)}
+              </Cell>
+              <Cell num className="text-xs text-text-2">
                 {sub != null ? sub.avgSubagents.toFixed(1) : '—'}
               </Cell>
               <Cell>
@@ -498,6 +517,7 @@ function SkillsSection({
           );
         })}
       </Table>
+      <CostAttributionNote coverage={coverage} />
     </Card>
   );
 }
@@ -565,7 +585,13 @@ function SlashCommandsSection({ rows }: { rows: SlashCommandRow[] }) {
   );
 }
 
-function SubagentsSection({ rows }: { rows: SubagentUsageRow[] }) {
+function SubagentsSection({
+  coverage,
+  rows,
+}: {
+  coverage: AttributionCoverage;
+  rows: SubagentUsageRow[];
+}) {
   const total = rows.reduce((s, r) => s + r.useCount, 0);
   return (
     <SectionShell title="Subagents spawned" empty={rows.length === 0}>
@@ -576,15 +602,28 @@ function SubagentsSection({ rows }: { rows: SubagentUsageRow[] }) {
             <div className="flex items-center gap-3 text-xs text-text-2">
               <span>{r.useCount}×</span>
               <span>{pct(r.useCount, total)}</span>
+              {/* Labelled, not just placed: two dollar figures side by side with
+                  no names would read as a subtotal and a total. */}
+              <span className="font-mono">turn {fmtUsdOrDash(r.attributedCostUsd)}</span>
+              <span className="font-mono text-text-3">
+                downstream {fmtUsdOrDash(r.downstreamCostUsd)}
+              </span>
             </div>
           </div>
         ))}
       </div>
+      <CostAttributionNote coverage={coverage} />
     </SectionShell>
   );
 }
 
-function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
+function ToolPerfSection({
+  coverage,
+  rows,
+}: {
+  coverage: AttributionCoverage;
+  rows: ToolPerfRow[];
+}) {
   return (
     <Card contentClassName="space-y-3">
       <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
@@ -604,6 +643,9 @@ function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
             { align: 'right', label: 'p95' },
             { align: 'right', label: 'Avg in' },
             { align: 'right', label: 'Avg out' },
+            // P14-004: two lenses on the same dollars, never a total.
+            { align: 'right', label: 'Turn share' },
+            { align: 'right', label: 'Downstream' },
           ]}
         >
           {rows.map((r) => (
@@ -641,10 +683,17 @@ function ToolPerfSection({ rows }: { rows: ToolPerfRow[] }) {
               <Cell num className="text-xs text-text-3">
                 {fmtBytes(r.avgOutputBytes)}
               </Cell>
+              <Cell num className="text-xs text-text-2">
+                {fmtUsdOrDash(r.attributedCostUsd)}
+              </Cell>
+              <Cell num className="text-xs text-text-2">
+                {fmtUsdOrDash(r.downstreamCostUsd)}
+              </Cell>
             </Row>
           ))}
         </Table>
       )}
+      <CostAttributionNote coverage={coverage} />
     </Card>
   );
 }

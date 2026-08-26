@@ -1,5 +1,5 @@
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
-import { fmtDuration } from '@/lib/fmt';
+import { fmtDuration, fmtUsdOrDash } from '@/lib/fmt';
 import type { SubagentStatRow } from '@/lib/org-queries';
 
 export function AgentsTable({
@@ -26,7 +26,10 @@ export function AgentsTable({
           { align: 'right', label: 'Share' },
           { align: 'right', label: 'Users' },
           { align: 'right', label: 'Avg duration' },
-          { align: 'right', label: 'Total cost' },
+          // Two lenses on the same dollars (P14-004) — labelled apart so
+          // neither reads as this agent's total, which their sum is not.
+          { align: 'right', label: 'Turn share' },
+          { align: 'right', label: 'Downstream' },
         ]}
       >
         {agents.map((a) => {
@@ -63,7 +66,10 @@ export function AgentsTable({
                 {a.avgDurationMs !== null ? fmtDuration(a.avgDurationMs) : '—'}
               </Cell>
               <Cell num className="text-text-2">
-                {a.totalCostUsd > 0 ? `$${a.totalCostUsd.toFixed(3)}` : '—'}
+                {fmtUsdOrDash(a.attributedCostUsd)}
+              </Cell>
+              <Cell num className="text-text-2">
+                {fmtUsdOrDash(a.downstreamCostUsd)}
               </Cell>
             </Row>
           );

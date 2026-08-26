@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { SubjectQualityPanel } from '@/components/team-org/SubjectQualityPanel';
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { getAttributionCoverage } from '@/lib/attribution-coverage';
+import { fmtUsdOrDash } from '@/lib/fmt';
 import {
   getOrgSkillCostComparison,
   getOrgSkillDailyTrend,
@@ -38,7 +41,7 @@ export default async function OrgSkillDetailPage({
   const since = daysAgo(range);
 
   const visibleIds = await orgVisibleUserIds(since);
-  const [allSkills, trend, topUsers, costRows, roiRows, quality] = await Promise.all([
+  const [allSkills, trend, topUsers, costRows, roiRows, quality, coverage] = await Promise.all([
     getSkillUsage(since),
     getOrgSkillDailyTrend(name, kind, since),
     getOrgSkillTopUsers(name, kind, since),
@@ -47,6 +50,7 @@ export default async function OrgSkillDetailPage({
     // The org-wide profile, filtered to this subject below: one query definition
     // means the detail page and the index can never disagree about a rate.
     getSkillQuality(visibleIds, since),
+    getAttributionCoverage(visibleIds, since),
   ]);
   const subjectQuality = quality.filter((q) => q.name === name && q.kind === kind);
 
@@ -80,8 +84,12 @@ export default async function OrgSkillDetailPage({
         <DateRangePicker range={range} />
       </div>
 
-      {/* Summary cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* Summary cards. The three cost figures are three different claims and
+          are never added: "Avg session cost" is the pre-P14-004 proxy (the mean
+          cost of whole sessions that used this skill, credited entirely to it),
+          while "Turn share" and "Downstream" are two readings of the same real
+          dollars — see the caption below. */}
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {[
           { label: 'Invocations', value: (stat?.callCount ?? 0).toLocaleString() },
           { label: 'Distinct users', value: (stat?.distinctUsers ?? 0).toString() },
@@ -89,6 +97,8 @@ export default async function OrgSkillDetailPage({
             label: 'Avg session cost',
             value: stat?.avgSessionCostUsd != null ? `$${stat.avgSessionCostUsd.toFixed(3)}` : '—',
           },
+          { label: 'Turn share', value: fmtUsdOrDash(stat?.attributedCostUsd ?? null) },
+          { label: 'Downstream', value: fmtUsdOrDash(stat?.downstreamCostUsd ?? null) },
         ].map((c) => (
           <Card key={c.label}>
             <p className="text-xs text-text-3 uppercase tracking-wider">{c.label}</p>
@@ -96,6 +106,8 @@ export default async function OrgSkillDetailPage({
           </Card>
         ))}
       </div>
+
+      <CostAttributionNote coverage={coverage} />
 
       <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />
 
