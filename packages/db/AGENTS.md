@@ -59,11 +59,12 @@ creates the whole table this way. What's forbidden is patching a **Prisma-manage
 table from this layer to dodge the reset above — that produces a schema Prisma can no
 longer regenerate.
 
-**One file per layer, and that is the invariant.** The relational layer is a
-single Prisma-generated migration; the custom layer is a single SQL file. A change
-to `schema.prisma` is regenerated into the former, never hand-patched into it, and
-anything Prisma cannot model goes in the latter — not folded into the Prisma
-migration, where the next regeneration would drop it.
+**One Prisma migration; a forward-only chain of SQL files.** The relational layer
+is a single squashed Prisma-generated migration, and a change to `schema.prisma`
+is regenerated into it, never hand-patched. Anything Prisma cannot model goes in
+the custom layer — not folded into the Prisma migration, where the next
+regeneration would drop it. The custom layer started as one file and **grows by
+appending a new numbered file**; `0001_init.sql` is closed.
 
 Current files:
 
@@ -78,6 +79,12 @@ Current files:
   needs `NULLS NOT DISTINCT` (P13-013) and so has no `@@unique` in
   `schema.prisma` at all; and the `interactive_sessions` / `interactive_events`
   views that carry the `run_kind` guard (P13-012).
+- `0003_tool_cost_attribution.sql` — the two nullable `events` columns that carry
+  turn-linked cost attribution (P14-004), `attributed_cost_usd` and
+  `downstream_cost_usd`. It also **redefines `interactive_events`**: that view is
+  `SELECT *`, which Postgres expands at creation time, so a column added to
+  `events` is invisible through the view until the view is replaced. Any future
+  migration that adds an `events` column has to do the same.
 
 **Squashed three times, all pre-deployment.** 2026-08-21 folded the
 `disallowed_model` alert seed (P10-005) into `0001_init.sql`'s existing
