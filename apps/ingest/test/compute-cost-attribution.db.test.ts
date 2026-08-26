@@ -146,6 +146,47 @@ describe.skipIf(!DATABASE_URL)('runComputeCostAttribution (against a real Timesc
     await prisma.$disconnect();
   });
 
+  it('exposes both columns on the base table AND through the guard view', async () => {
+    // A green migration proves nothing here. `interactive_events` is
+    // `SELECT * FROM events`, and Postgres resolves that star at view-creation
+    // time and stores the column list in the rewrite rule — so a migration that
+    // added the columns without a `CREATE OR REPLACE VIEW` would apply cleanly,
+    // pass every mocked test, and ship two columns no dashboard can read.
+    //
+    // Asserted as an explicit column-list comparison rather than left to surface
+    // as a generic "column does not exist" further down, so the failure names
+    // its own cause.
+    const rows = await prisma.$queryRaw<{ column_name: string; table_name: string }[]>`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_name IN ('events', 'interactive_events')
+        AND column_name IN ('attributed_cost_usd', 'downstream_cost_usd')
+      ORDER BY table_name, column_name
+    `;
+
+    expect(rows).toEqual([
+      { column_name: 'attributed_cost_usd', table_name: 'events' },
+      { column_name: 'downstream_cost_usd', table_name: 'events' },
+      { column_name: 'attributed_cost_usd', table_name: 'interactive_events' },
+      { column_name: 'downstream_cost_usd', table_name: 'interactive_events' },
+    ]);
+  });
+
+  it('keeps the two columns out of every cost continuous aggregate', async () => {
+    // The other half of the same sweep: the three caggs read `events` too, and
+    // they must NOT carry these columns. They already count these dollars once,
+    // at the Stop event; a cagg that picked up an attribution column would be
+    // the double count this whole feature is built to avoid.
+    const rows = await prisma.$queryRaw<{ column_name: string }[]>`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name IN ('daily_cost_by_user', 'daily_cost_by_model', 'daily_tool_usage')
+        AND column_name IN ('attributed_cost_usd', 'downstream_cost_usd')
+    `;
+
+    expect(rows).toEqual([]);
+  });
+
   it('writes both attributions through a compressed chunk, and recompresses it', async () => {
     const compressedBefore = await prisma.$queryRaw<{ n: bigint }[]>`
       SELECT COUNT(*) AS n FROM timescaledb_information.chunks

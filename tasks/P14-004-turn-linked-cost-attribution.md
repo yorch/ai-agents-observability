@@ -208,6 +208,56 @@ the kind that get dropped in a second copy.
   tool output, which the content-free capture policy does not keep.
 - Sub-agent identification ([`P14-001`](./P14-001-subagent-identification-fix.md))
   and the tool-category taxonomy ([`P14-002`](./P14-002-tool-category-taxonomy.md)).
+- **The model-routing surfaces, which have the same bug and are not fixed here.**
+  Found while checking what the P14-003 seed change touches; see "Adjacent
+  finding" below. Fixing them means designing a *different* redistribution (spend
+  per model per tool category, not per tool call), across six call sites one of
+  which is an alert. That is its own task, not a rider on this one.
+
+## Adjacent finding — the routing surfaces are dead the same way
+
+Six reads sum `events.cost_usd` over rows matching
+`event_type = 'PostToolUse' AND model IS NOT NULL AND tool_category IS NOT NULL`:
+
+| Where | Function |
+|---|---|
+| `apps/web/src/lib/org-queries.ts` | `getOrgModelRoutingBreakdown`, `getRoutingSpendByTeam` |
+| `apps/web/src/lib/team-queries.ts` | `getTeamRoutingBreakdown` |
+| `apps/web/src/lib/insights-queries.ts` | `getUserModelRouting` |
+| `apps/web/src/lib/projection-queries.ts` | `getRoutingActuals` |
+| `apps/ingest/src/jobs/evaluate-alerts.ts` | the `routing_waste` evaluator |
+
+**No adapter puts a model on a `PostToolUse` row.** All three producers of an
+`llm` block attach it to `Stop`: `adapters/codex.ts` (`stopWithUsage` /
+`withModelOnly`), `adapters/gemini-cli.ts` (drains the turn's usage onto the
+Stop), and `lib/import-synth.ts`. So `model IS NOT NULL` matches zero tool rows
+in real telemetry, independently of the cost column — and `tool_category` is the
+second NULL predicate, which is P14-002's mandate.
+
+Note the shape of the guarantee, because it changes the fix: `packages/schemas`
+puts `llm` in `baseEventShape`, so the wire contract **permits** an `llm` block
+on a `PostToolUse` event. Nothing forbids it; no producer does it. So this cannot
+be pinned by a schema assertion, and if some adapter later started attaching
+usage to tool rows, these six queries would silently come alive with
+partially-correct numbers covering only that one agent — worse than the current
+honest emptiness. Whoever fixes this should decide the definition first and make
+the queries state it, rather than letting producer behaviour decide it for them.
+
+This is the *same class* of bug P14-001 diagnosed — a query filtered on a value
+no producer emits — reaching a surface that investigation did not scan:
+`/org/models`, the routing recommendations, the projection-realization panel, and
+a live alert. Everything anyone has seen on them came from `packages/db/seed.ts`.
+
+It has been latent, not new. What makes it visible now is P14-003 moving the
+seeded token/cost columns off `PostToolUse` rows onto per-turn `Stop` rows — the
+right change, and it removes the fabrication that was masking this.
+
+Whoever picks it up should decide the definition first, not the query: "spend on
+model M for tool category C" is a *routing* question about which model served a
+turn, so it probably wants the `Stop` row's model against the categories of the
+tools that turn issued — not this task's per-tool split. **Needs a task ID
+assigned**; deliberately not claimed here, because three agents are renumbering
+Phase 14 concurrently and a guessed ID is how the last collision happened.
 
 ## Verification
 

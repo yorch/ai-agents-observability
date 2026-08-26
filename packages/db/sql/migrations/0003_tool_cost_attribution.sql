@@ -72,6 +72,24 @@ COMMENT ON COLUMN events.downstream_cost_usd IS
 -- columns exist on the hypertable but are invisible to every human-facing read
 -- in `apps/web`, which names the view rather than the base table (P13-012).
 -- `CREATE OR REPLACE VIEW` permits columns appended at the end, which is exactly
--- what the two `ALTER TABLE`s above produced.
+-- what the two `ALTER TABLE`s above produced. (It cannot remove, reorder or
+-- retype an existing column — that would need DROP + CREATE.)
+--
+-- Every view over `events` was enumerated rather than assumed, because the
+-- failure here is silent: the migration applies, `\d events` shows the columns,
+-- and nothing that reads through a view can see them.
+--
+--   interactive_events   SELECT *          -> replaced below.
+--   daily_cost_by_user   explicit aggregates \
+--   daily_cost_by_model  explicit aggregates  > deliberately NOT touched: these
+--   daily_tool_usage     explicit aggregates /  already count these dollars once,
+--                                              at the Stop event. A cagg that
+--                                              picked up an attribution column
+--                                              would be the double count this
+--                                              feature exists to avoid.
+--   interactive_sessions SELECT * FROM sessions -- different table, unaffected.
+--
+-- Standing rule for the next migration that adds an `events` column: replace
+-- this view in the same file. `packages/db/AGENTS.md` says so too.
 CREATE OR REPLACE VIEW interactive_events AS
   SELECT * FROM events WHERE run_kind = 'INTERACTIVE';
