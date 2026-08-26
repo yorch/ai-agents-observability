@@ -347,19 +347,39 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 ---
 
-## Phase 14 — Tool, Skill & Agent Cost Attribution
+## Phase 14 — Telemetry Fidelity
 
-Fixes sub-agent identification (dead since no adapter ever emitted the `tool_category = 'agent'` these queries filtered on), stops the org/agents, team/agents, org/mcp, and team/mcp pages from presenting a computed `SUM(cost_usd)` over tool events as real cost when no producer populates it in real telemetry — the number was always seed-data fiction — and then makes those numbers real.
+Closes gaps where the pipeline recorded a *plausible* value rather than a true one, then makes the corrected values usable. Sub-agent identification was dead (no adapter ever emitted the `tool_category = 'agent'` those queries filtered on); the cost on `/org/agents`, `/team/agents`, `/org/mcp` and `/team/mcp` was a `SUM(cost_usd)` over tool events that no producer populates in real telemetry, and was always seed-data fiction; and Claude Code recorded `$0` in steady state.
 
-Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. Four tasks on separate branches: P14-001 and P14-002 off `main`, P14-004 stacked on P14-001.
+Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. Four tasks on separate branches: P14-001 and P14-002 off `main`, P14-004 stacked on P14-001, P14-003 stacked on P14-002.
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P14-001](./P14-001-subagent-identification-fix.md) | Fix sub-agent identification and stop reporting fabricated tool cost | review | claude | S | — |
-| [P14-002](./P14-002-tool-category-taxonomy.md) | Tool-category taxonomy in the hook adapters | in-progress | claude | M | — |
-| [P14-003](./P14-003-turn-linked-cost-attribution.md) | Claude Code per-turn usage capture and turn linkage | in-progress | claude | M | — |
+| [P14-002](./P14-002-tool-category-taxonomy.md) | Derive the real tool-category taxonomy in the adapter seam | review | claude | M | — |
+| [P14-003](./P14-003-claude-code-usage-capture.md) | Claude Code per-turn usage capture + turn linkage | review | claude | M | P14-002 |
 | [P14-004](./P14-004-turn-linked-cost-attribution.md) | Turn-linked cost attribution for tools, skills and sub-agents | review | claude | L | P14-001, P14-003 |
 
-P14-004 degrades rather than guesses: a tool event whose `turn_number` is NULL gets **no** attribution, and every surface shows what fraction of the window's sessions have turn linkage instead of a false `$0.00`. Until P14-003 lands (and, on the live Claude Code path, possibly beyond it — see that file's "Known partial delivery") that fraction is low.
+> **Phase 14 exists because green tests are not evidence of true data.** Every task
+> here fixes a value that was written, validated, aggregated and displayed — and was
+> wrong. [`P14-002`](./P14-002-tool-category-taxonomy.md) found every adapter writing
+> a flat `'builtin'` / `'mcp'` against a design doc that had specified eight
+> categories since Phase 1. [`P14-003`](./P14-003-claude-code-usage-capture.md) found
+> Claude Code — the *first* agent, and the one every dashboard is calibrated on —
+> recording `$0` in steady state, because its usage lived in the transcript and only
+> the `import` subcommand ever read it.
+
+P14-004 degrades rather than guesses: a tool event whose `turn_number` is NULL gets **no** attribution, and every surface shows what fraction of the window's sessions have turn linkage instead of a false `$0.00`.
+
+> **One gap in `P14-003` is a known, deliberate non-fix.** Live
+> `PreToolUse`/`PostToolUse` events carry NULL turn linkage: the tool hooks are
+> separate processes that fire *before* the turn's Stop exists, and Claude Code's
+> Stop hook fires per response cycle rather than per assistant turn, so no correct
+> live turn number is derivable without transcript I/O on the hottest path.
+> Attributing tools to the nearest Stop by timestamp would produce a
+> plausible-looking dollar figure on the wrong tool — the exact failure mode this
+> phase exists to remove — so it was reported instead of approximated. Imported
+> sessions carry the full linkage, so the coverage fraction above is low until a
+> follow-up closes this.
 
 **Unclaimed follow-up — the model-routing surfaces have the same bug, and no task ID yet.** Six reads (`getOrgModelRoutingBreakdown`, `getRoutingSpendByTeam`, `getTeamRoutingBreakdown`, `getUserModelRouting`, `getRoutingActuals`, and the `routing_waste` alert evaluator) sum `events.cost_usd` over rows matching `event_type = 'PostToolUse' AND model IS NOT NULL AND tool_category IS NOT NULL`. **No adapter puts a model on a tool row** — all three producers of an `llm` block attach it to `Stop` — so that predicate matches nothing in real telemetry, and `/org/models`, the routing recommendations, the projection-realization panel and a live alert have only ever shown seed data. Same class as P14-001 (a filter on a value no producer emits), on a surface that investigation did not scan; latent all along, and made visible by P14-003 moving the seeded token/cost columns onto `Stop` rows. Fixing it needs a *different* redistribution than P14-004's per-tool split — see the "Adjacent finding" section in [P14-004](./P14-004-turn-linked-cost-attribution.md). Left unnumbered deliberately: three agents renumbered Phase 14 concurrently, and a guessed ID is how the last collision happened.

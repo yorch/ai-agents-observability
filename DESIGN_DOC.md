@@ -647,7 +647,7 @@ Responsibilities:
 - Periodic transcript heartbeat (every 10 min) for long-running sessions
 - Final transcript ship on `Stop` / `SessionEnd`
 - Local CLI: `install` (register hooks), `uninstall` (remove hooks), `login` (OIDC device-code flow), `status` (queue depth + connectivity), `pause` / `resume` (toggle flushing), `purge` (clear local queue + optional local transcripts), `import` (backfill historical transcripts from `~/.claude/projects/`)
-- **Hook adapter seam** (Phase 8, extended in Phase 12): each agent has its own adapter — `claude-code`, `codex`, `gemini-cli`, `copilot`, `pi`, `omp`, `opencode`. The transport (batching, queue, flushing, auth) is shared; adapters handle event translation. An optional `mapBatch` lets one hook fire expand into multiple events (used by the Codex adapter to read rollout JSONL, and by Gemini to fold per-call token usage onto the turn's Stop). Agents that speak Claude Code's stdin hook shape — Codex, Gemini CLI and Copilot CLI all do — are configuration objects over a shared factory rather than separate implementations.
+- **Hook adapter seam** (Phase 8, extended in Phase 12): each agent has its own adapter — `claude-code`, `codex`, `gemini-cli`, `copilot`, `pi`, `omp`, `opencode`. The transport (batching, queue, flushing, auth) is shared; adapters handle event translation. An optional `mapBatch` lets one hook fire expand into multiple events (used by the Codex adapter to read rollout JSONL, by Gemini to fold per-call token usage onto the turn's Stop, and by Claude Code to read per-turn usage out of the session transcript at Stop — see §6.4). Agents that speak Claude Code's stdin hook shape — Codex, Gemini CLI and Copilot CLI all do — are configuration objects over a shared factory rather than separate implementations.
 
 Local queue: SQLite database at `~/.claude-telemetry/queue.db`. Survives crashes, machine reboots, and offline periods.
 
@@ -664,7 +664,7 @@ Local queue: SQLite database at `~/.claude-telemetry/queue.db`. Survives crashes
   "ts": "2026-05-16T14:32:11.482Z",
   "event_type": "PostToolUse",
   "turn_number": 17,
-  "parent_event_id": "01939f6c-...-pretooluse",
+  "parent_event_id": "01939f6c-...-turn-17-stop",
 
   "client": {
     "claude_code_version": "1.x.y",
@@ -719,6 +719,8 @@ Local queue: SQLite database at `~/.claude-telemetry/queue.db`. Survives crashes
 
 Send only relevant blocks per event type. `tool` is null on `UserPromptSubmit`. `llm` is null on `SessionStart`. Empty blocks omitted.
 
+**Turn linkage** (P14-003). `turn_number` is 1-based, increases monotonically within a `session_id`, and increments once per assistant turn; it is carried by the turn's `Stop` — which is where that turn's `llm` block lives — and by the tool events for the calls that turn issued. `parent_event_id` on a tool event is the `event_id` of its turn's `Stop`; it is NULL on the `Stop` itself and on non-tool events. Both are optional: an agent that cannot derive a turn correctly emits neither, and NULL means "not attributed", never zero. See §6.4 for which paths can populate them.
+
 ### 6.4 Transcript Shipping
 
 At `Stop` and on a 10-minute heartbeat for long-running sessions:
@@ -729,6 +731,17 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 4. `POST /v1/transcripts/{session_id}` with `Content-Range` for chunked / resumable upload
 5. Server writes to MinIO/S3 at `transcripts/{yyyy}/{mm}/{dd}/{user_id}/{session_id}.jsonl.zst`
 6. On final chunk, update `sessions.transcript_*` columns
+
+**The transcript is also read locally, at Stop, for token usage (P14-003).** Claude Code's hook payload carries none — on any hook — so until P14-003 the only producer of an `llm` block for `CLAUDE_CODE` was the `import` subcommand, and every live-captured session recorded `$0` across every cost surface in the product. The Stop payload hands over `transcript_path`, each `assistant` entry in that JSONL carries `message.usage`, and `mapBatch` folds one Stop event per assistant turn out of the entries appended since the last Stop.
+
+Two properties of that read are load-bearing:
+
+- **It is incremental.** Stop fires once per response cycle, so re-reading the whole transcript each time is O(n²) over a session. A per-session `{ path, offset, turns }` cursor under `agentStateDir('claude-code')` keeps each Stop's cost flat in session length. The *first* Stop of a session reads from the top on purpose, so the turn ordinal is counted from entry one.
+- **Its event ids and timestamps are derived from the transcript entry**, identically to what `import` synthesizes for the same turn (`apps/hook/src/lib/claude-turns.ts` is the single definition). Both paths can produce events for the same session, so this is what lets ingest's `ON CONFLICT (event_id, ts) DO NOTHING` dedupe them — without it, a session captured live and later imported would be billed twice, permanently, since `sessions.total_cost_usd` accumulates and is never recomputed.
+
+`turn_number` and `parent_event_id` (§6.3) are populated from the same read. **On the live path only the Stop carries them**: `PreToolUse`/`PostToolUse` hooks are separate processes that fire *before* their turn's Stop exists, and Claude Code's Stop hook fires per response cycle rather than per assistant turn, so no correct live turn number is derivable without transcript I/O on the hottest path. Imported sessions carry the full linkage; live tool rows carry NULL, which downstream reads as "not attributed" rather than `$0`.
+
+Every failure mode of the read — missing, truncated, locked or malformed transcript — degrades to a usage-less Stop. The always-exit-0 rule (§6.2) is not weakened by it.
 
 ### 6.5 Ingest Scheduler Jobs
 
