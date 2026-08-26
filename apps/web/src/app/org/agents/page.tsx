@@ -23,7 +23,6 @@ export default async function OrgAgentsPage({
   ]);
 
   const totalSpawns = agents.reduce((s, a) => s + a.spawnCount, 0);
-  const totalCostUsd = agents.reduce((s, a) => s + a.totalCostUsd, 0);
   const distinctTypes = agents.filter((a) => a.subagentType !== null).length;
 
   return (
@@ -42,17 +41,18 @@ export default async function OrgAgentsPage({
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat label={`Agent spawns (${range}d)`} value={totalSpawns.toLocaleString()} />
         <Stat label="Agent types" value={distinctTypes.toString()} />
+        {/* Cost isn't attributed per tool event today (P14-003 will link it to
+            turns); showing a computed sum here would present that gap as a
+            real number instead of naming it. */}
         <Stat
           label="Attributed cost"
-          value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
+          sub="Requires turn-linked cost attribution"
+          value="Not yet captured"
         />
         <Stat
           label="Avg cost / spawn"
-          value={
-            totalSpawns > 0 && totalCostUsd > 0
-              ? `$${(totalCostUsd / totalSpawns).toFixed(3)}`
-              : '—'
-          }
+          sub="Requires turn-linked cost attribution"
+          value="Not yet captured"
         />
       </div>
 

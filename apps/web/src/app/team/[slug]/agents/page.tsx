@@ -1,7 +1,6 @@
 import { AgentsTable } from '@/components/team-org/AgentsTable';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { EmptyState, Stat } from '@/components/ui';
-import { fmtUsd } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamSubagentStats, resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
@@ -25,7 +24,6 @@ export default async function TeamAgentsPage({
   const agents = await getTeamSubagentStats(visibleIds, since);
 
   const totalSpawns = agents.reduce((s, a) => s + a.spawnCount, 0);
-  const totalCostUsd = agents.reduce((s, a) => s + a.totalCostUsd, 0);
   const distinctTypes = agents.filter((a) => a.subagentType !== null).length;
 
   return (
@@ -40,10 +38,18 @@ export default async function TeamAgentsPage({
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat label={`Agent spawns (${range}d)`} value={totalSpawns.toLocaleString()} />
         <Stat label="Agent types" value={distinctTypes.toString()} />
-        <Stat label="Attributed cost" value={totalCostUsd > 0 ? fmtUsd(totalCostUsd) : '—'} />
+        {/* Cost isn't attributed per tool event today (P14-003 will link it to
+            turns); showing a computed sum here would present that gap as a
+            real number instead of naming it. */}
+        <Stat
+          label="Attributed cost"
+          sub="Requires turn-linked cost attribution"
+          value="Not yet captured"
+        />
         <Stat
           label="Avg cost / spawn"
-          value={totalSpawns > 0 && totalCostUsd > 0 ? fmtUsd(totalCostUsd / totalSpawns) : '—'}
+          sub="Requires turn-linked cost attribution"
+          value="Not yet captured"
         />
       </div>
 

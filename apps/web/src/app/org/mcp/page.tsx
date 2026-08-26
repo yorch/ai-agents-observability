@@ -81,7 +81,6 @@ export default async function OrgMcpPage({
   const totalCalls = servers.reduce((s, [, v]) => s + v.totalCalls, 0);
   const totalUnhealthy = servers.reduce((s, [, v]) => s + v.totalErrors + v.totalDenies, 0);
   const overallErrorRate = totalCalls > 0 ? totalUnhealthy / totalCalls : 0;
-  const totalCostUsd = servers.reduce((s, [, v]) => s + v.totalCostUsd, 0);
 
   // The stored series behind the error-rate column (P13-013). Keyed the same
   // way `scores.subject_id` is, so the panel needs no id-shaping of its own.
@@ -104,9 +103,13 @@ export default async function OrgMcpPage({
           value={totalCalls > 0 ? `${(overallErrorRate * 100).toFixed(1)}%` : '—'}
           accent={overallErrorRate > 0.05 ? 'warn' : undefined}
         />
+        {/* Cost isn't attributed per tool event today (P14-003 will link it to
+            turns); showing a computed sum here would present that gap as a
+            real number instead of naming it. */}
         <Stat
           label="Attributed LLM cost"
-          value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
+          sub="Requires turn-linked cost attribution"
+          value="Not yet captured"
         />
       </div>
 
