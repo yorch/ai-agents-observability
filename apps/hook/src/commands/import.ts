@@ -3,7 +3,7 @@ import type { Event } from '@ai-agents-observability/schemas';
 import { listSessionFiles } from '../lib/claude-projects';
 import { loadHookToken } from '../lib/identity';
 import { AuthError, checkServerReady, postEventBatch, uploadTranscript } from '../lib/import-ship';
-import { createSynthCtx, entryToEvents } from '../lib/import-synth';
+import { createSynthCtx, entryToEvents, noteSkippedEntry } from '../lib/import-synth';
 import { parseSessionFile } from '../lib/transcript-parser';
 
 const BATCH_SIZE = 100;
@@ -195,22 +195,14 @@ export async function runImport(args: string[]): Promise<number> {
           ctx.version = entry.version;
         }
 
-        // Apply --since filter; for assistant entries still register tool names
+        // Apply --since filter. Skipped entries still update the synth context:
+        // tool names (a tool_result inside the window can name a tool_use from
+        // before it) AND the turn ordinal, so `--since` numbers turns exactly as a
+        // full import of the same session would.
         if (opts.since && entry.timestamp) {
           const entryDate = new Date(entry.timestamp);
           if (entryDate < opts.since) {
-            if (entry.type === 'assistant' && Array.isArray(entry.message?.content)) {
-              const content = entry.message?.content as Array<{
-                type?: string;
-                id?: string;
-                name?: string;
-              }>;
-              for (const block of content) {
-                if (block.type === 'tool_use' && block.id && block.name) {
-                  ctx.toolNameMap.set(block.id, block.name);
-                }
-              }
-            }
+            noteSkippedEntry(entry, ctx);
             continue;
           }
         }

@@ -1,12 +1,9 @@
 import {
-  closeSync,
   type Dirent,
   existsSync,
   mkdirSync,
-  openSync,
   readdirSync,
   readFileSync,
-  readSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -29,6 +26,7 @@ import { userIdClaim } from '../lib/identity';
 import { log } from '../lib/log';
 import { agentStateDir } from '../lib/paths';
 import { NIL_UUID, sessionUuid } from '../lib/session-id';
+import { readNewLines, safeJsonLine } from '../lib/tail-read';
 import { uuidv7 } from '../lib/uuid';
 import type { AdapterInstallConfig, ConformantEvent, HookAdapter, TranscriptTarget } from './index';
 import { createStdinHookAdapter } from './stdin-hook-factory';
@@ -490,40 +488,6 @@ function writeCursor(sessionId: string, cursor: Cursor): void {
   writeFileSync(p, JSON.stringify(cursor), { encoding: 'utf8', mode: 0o600 });
 }
 
-// Read only the bytes appended since the stored offset, returning whole lines and
-// the new offset (up to the last newline so a half-written final line waits for
-// the next turn).
-function readNewLines(path: string, fromOffset: number): { lines: string[]; newOffset: number } {
-  const size = statSync(path).size;
-  if (size <= fromOffset) {
-    return { lines: [], newOffset: fromOffset };
-  }
-  const len = size - fromOffset;
-  const buf = Buffer.allocUnsafe(len);
-  const fd = openSync(path, 'r');
-  try {
-    readSync(fd, buf, 0, len, fromOffset);
-  } finally {
-    closeSync(fd);
-  }
-  const slice = buf.toString('utf8');
-  const lastNl = slice.lastIndexOf('\n');
-  if (lastNl < 0) {
-    return { lines: [], newOffset: fromOffset };
-  }
-  const consumed = slice.slice(0, lastNl + 1);
-  const lines = consumed.split('\n').filter((l) => l.trim().length > 0);
-  return { lines, newOffset: fromOffset + Buffer.byteLength(consumed, 'utf8') };
-}
-
-function safeJson(line: string): unknown {
-  try {
-    return JSON.parse(line);
-  } catch {
-    return null;
-  }
-}
-
 // ── Adapter ─────────────────────────────────────────────────────────────────
 
 // The native-hooks path. Codex's payload is Claude-shaped, so this is pure
@@ -580,7 +544,7 @@ function readUsageDelta(loc: RolloutLocation): {
 } {
   const cursor = readCursor(loc.sessionId, loc.path);
   const { lines, newOffset } = readNewLines(loc.path, cursor.offset);
-  const records = lines.map(safeJson).filter((r): r is Record<string, unknown> => r !== null);
+  const records = lines.map(safeJsonLine).filter((r): r is Record<string, unknown> => r !== null);
   const { toolCalls, cumulativeUsage } = parseRolloutRecords(records);
   // `token_count` in the rollout is a running total, so it is diffed to a per-turn
   // delta — never summed.

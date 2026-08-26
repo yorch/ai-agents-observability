@@ -6,10 +6,19 @@ import {
   toolTargetHash,
 } from '@ai-agents-observability/schemas';
 import { fieldBytes } from './bytes';
+import { assistantTurn, llmFromEntry, normalizeTs, stopIdSeed } from './claude-turns';
 import { clientInfo } from './client-info';
 import { userIdClaim } from './identity';
 import type { ClaudeEntry, MessageContent } from './transcript-parser';
 import { deterministicEventId } from './uuid5';
+
+/** What a tool_use block's later PostToolUse needs in order to link back. */
+export type ToolOrigin = {
+  /** The issuing turn's Stop event_id — the tool event's `parent_event_id`. */
+  parentEventId: string;
+  toolName: string;
+  turnNumber: number;
+};
 
 export type SynthCtx = {
   sessionId: string;
@@ -18,6 +27,14 @@ export type SynthCtx = {
   // Mutable map populated as we encounter tool_use entries so tool_result
   // entries can look up the tool name (stored in tool_use, not tool_result).
   toolNameMap: Map<string, string>; // tool_use_id → tool_name
+  // The turn-linkage half of the same lookup (P14-003). A tool_result arrives in
+  // a LATER entry than the assistant turn that issued it, so the issuing turn's
+  // ordinal and Stop event_id have to be remembered here to reach it.
+  toolOrigin: Map<string, ToolOrigin>; // tool_use_id → issuing turn
+  // Assistant turns seen so far; `turn_number` is 1-based, so the next assistant
+  // entry is turnsSeen + 1. Counted over the file in order, which is what makes
+  // it agree with the live Stop path's ordinal (adapters/claude-code.ts).
+  turnsSeen: number;
 };
 
 /**
@@ -25,7 +42,56 @@ export type SynthCtx = {
  * through all entryToEvents() calls for that session.
  */
 export function createSynthCtx(sessionId: string, cwd: string, version: string | null): SynthCtx {
-  return { cwd, sessionId, toolNameMap: new Map(), version };
+  return {
+    cwd,
+    sessionId,
+    toolNameMap: new Map(),
+    toolOrigin: new Map(),
+    turnsSeen: 0,
+    version,
+  };
+}
+
+/**
+ * Advance the turn counter for an assistant entry and register the tool_use
+ * blocks it issued against that turn.
+ */
+function registerAssistantTurn(
+  entry: ClaudeEntry,
+  ctx: SynthCtx,
+): { parentEventId: string; turnNumber: number } {
+  ctx.turnsSeen += 1;
+  const turnNumber = ctx.turnsSeen;
+  const parentEventId = assistantTurn(entry).eventId;
+
+  const content = entry.message?.content;
+  if (Array.isArray(content)) {
+    for (const block of content as MessageContent[]) {
+      if (block.type === 'tool_use') {
+        const toolBlock = block as { type: 'tool_use'; id: string; name: string };
+        ctx.toolNameMap.set(toolBlock.id, toolBlock.name);
+        ctx.toolOrigin.set(toolBlock.id, { parentEventId, toolName: toolBlock.name, turnNumber });
+      }
+    }
+  }
+  return { parentEventId, turnNumber };
+}
+
+/**
+ * Record an entry's turn bookkeeping WITHOUT emitting events for it.
+ *
+ * `import --since` skips entries older than the cutoff but must still walk them,
+ * because a tool_result inside the window can name a tool_use from before it.
+ * Turn numbering has the same requirement and one more besides: the ordinal must
+ * count every assistant entry in the file, or a `--since` import numbers turns
+ * differently from a full import of the same session and the two disagree about
+ * which Stop a tool belongs to. Both bookkeeping halves therefore live here, and
+ * the skip path in commands/import.ts calls this rather than poking the maps.
+ */
+export function noteSkippedEntry(entry: ClaudeEntry, ctx: SynthCtx): void {
+  if (entry.type === 'assistant') {
+    registerAssistantTurn(entry, ctx);
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -74,26 +140,27 @@ function buildImportToolInfo(name: string, input: unknown, output: unknown): Too
   };
 }
 
-// Ensure ts has a timezone offset (z.iso.datetime({ offset: true }) requires it).
-// Claude Code timestamps are typically ISO 8601 with 'Z' suffix already, but
-// fall back gracefully if the field is absent or malformed.
-function normalizeTs(ts: string | undefined): string {
-  if (!ts) {
-    return new Date().toISOString();
-  }
-  // Already has offset (+HH:MM or Z)
-  if (ts.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(ts)) {
-    return ts;
-  }
-  // No offset — treat as UTC
-  return `${ts}Z`;
+/** A tool event's linkage, or an empty one when its issuing turn was never seen. */
+function linkOf(origin: ToolOrigin | undefined): Linkage {
+  return origin
+    ? { parentEventId: origin.parentEventId, turnNumber: origin.turnNumber }
+    : { parentEventId: null };
 }
+
+/** Turn linkage for one event, per the P14-003 contract. */
+type Linkage = {
+  /** The issuing turn's Stop event_id. Null on the Stop itself and on non-tool events. */
+  parentEventId?: string | null;
+  /** 1-based assistant-turn ordinal. Absent on events that belong to no turn. */
+  turnNumber?: number;
+};
 
 function baseEvent(
   eventType: Event['event_type'],
   idSeed: string,
   ts: string,
   ctx: SynthCtx,
+  link: Linkage = {},
 ): Omit<Event, 'tool' | 'llm'> {
   return {
     agent_type: 'CLAUDE_CODE',
@@ -105,7 +172,7 @@ function baseEvent(
       source: 'claude-jsonl',
       ...(ctx.version ? { claude_code_version_import: ctx.version } : {}),
     },
-    parent_event_id: null,
+    parent_event_id: link.parentEventId ?? null,
     redaction_flags: [],
     schema_version: 1,
     session_context: {
@@ -116,7 +183,7 @@ function baseEvent(
     },
     session_id: ctx.sessionId,
     ts,
-    turn_number: undefined,
+    turn_number: link.turnNumber,
     user_id_claim: userIdClaim(),
   } as Omit<Event, 'tool' | 'llm'>;
 }
@@ -164,18 +231,27 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
         events.push(baseEvent('UserPromptSubmit', `${entry.uuid ?? ts}:user`, ts, ctx) as Event);
       }
 
-      // PostToolUse per tool_result block
+      // PostToolUse per tool_result block, linked back to the turn that issued the
+      // call. An origin we never saw (a truncated head, a `--session` import of a
+      // resumed file) leaves the linkage null rather than guessing a turn.
       for (const block of toolResultBlocks) {
         const toolResultBlock = block as {
           type: 'tool_result';
           tool_use_id: string;
           content: unknown;
         };
-        const toolName = ctx.toolNameMap.get(toolResultBlock.tool_use_id) ?? 'unknown';
-        const base = baseEvent('PostToolUse', `${toolResultBlock.tool_use_id}:posttool`, ts, ctx);
+        const origin = ctx.toolOrigin.get(toolResultBlock.tool_use_id);
+        const toolName = origin?.toolName ?? ctx.toolNameMap.get(toolResultBlock.tool_use_id);
+        const base = baseEvent(
+          'PostToolUse',
+          `${toolResultBlock.tool_use_id}:posttool`,
+          ts,
+          ctx,
+          linkOf(origin),
+        );
         events.push({
           ...base,
-          tool: buildImportToolInfo(toolName, undefined, toolResultBlock.content),
+          tool: buildImportToolInfo(toolName ?? 'unknown', undefined, toolResultBlock.content),
         } as Event);
       }
 
@@ -184,28 +260,19 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
 
     case 'assistant': {
       const events: Event[] = [];
-      const usage = entry.message?.usage;
 
-      // Always emit a Stop event
-      const stopBase = baseEvent('Stop', `${entry.uuid ?? ts}:stop`, ts, ctx);
-      if (usage) {
-        const stopEvent: Event = {
-          ...stopBase,
-          llm: {
-            cache_creation_tokens: usage.cache_creation_input_tokens ?? 0,
-            cache_read_tokens: usage.cache_read_input_tokens ?? 0,
-            cost_usd: 0,
-            input_tokens: usage.input_tokens ?? 0,
-            model: entry.message?.model ?? 'unknown',
-            output_tokens: usage.output_tokens ?? 0,
-          },
-        } as Event;
-        events.push(stopEvent);
-      } else {
-        events.push(stopBase as Event);
-      }
+      // One assistant entry is one turn. This is also the point at which the turn's
+      // tool_use blocks are registered, so the tool_result that lands in a later
+      // entry can find its way back here.
+      const { turnNumber } = registerAssistantTurn(entry, ctx);
 
-      // Emit PreToolUse per tool_use block
+      // Always emit a Stop event. `parent_event_id` is null on it by contract —
+      // the Stop IS the turn; it is what the turn's tool events point at.
+      const stopBase = baseEvent('Stop', stopIdSeed(entry, ts), ts, ctx, { turnNumber });
+      const llm = llmFromEntry(entry);
+      events.push((llm ? { ...stopBase, llm } : stopBase) as Event);
+
+      // Emit PreToolUse per tool_use block, carrying this turn's linkage.
       const content = entry.message?.content;
       if (Array.isArray(content)) {
         for (const block of content as MessageContent[]) {
@@ -216,8 +283,13 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
               name: string;
               input: unknown;
             };
-            ctx.toolNameMap.set(toolBlock.id, toolBlock.name);
-            const preBase = baseEvent('PreToolUse', `${toolBlock.id}:pretool`, ts, ctx);
+            const preBase = baseEvent(
+              'PreToolUse',
+              `${toolBlock.id}:pretool`,
+              ts,
+              ctx,
+              linkOf(ctx.toolOrigin.get(toolBlock.id)),
+            );
             const preEvent: Event = {
               ...preBase,
               tool: buildImportToolInfo(toolBlock.name, toolBlock.input, undefined),
@@ -233,8 +305,9 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
     case 'tool': {
       // Rare fallback entry type — same as tool_result blocks in 'user' entries
       const toolUseId = typeof entry.tool_use_id === 'string' ? entry.tool_use_id : ts;
-      const toolName = ctx.toolNameMap.get(toolUseId) ?? 'unknown';
-      const base = baseEvent('PostToolUse', `${toolUseId}:posttool`, ts, ctx);
+      const origin = ctx.toolOrigin.get(toolUseId);
+      const toolName = origin?.toolName ?? ctx.toolNameMap.get(toolUseId) ?? 'unknown';
+      const base = baseEvent('PostToolUse', `${toolUseId}:posttool`, ts, ctx, linkOf(origin));
       return [
         {
           ...base,
