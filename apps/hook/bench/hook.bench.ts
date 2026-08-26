@@ -21,7 +21,7 @@
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +40,101 @@ const NO_WRITE = Boolean(process.env.PERF_NO_WRITE);
 
 const WARM_P99_LIMIT_MS = 10;
 const COLD_P99_LIMIT_MS = 15;
+
+// ---------------------------------------------------------------------------
+// Synthetic transcript — what the Stop hook reads
+// ---------------------------------------------------------------------------
+
+// Turns in the benchmark transcript. Sized for a LONG session, because the point
+// of the incremental read is that this number stops mattering: the first Stop
+// reads the file from the top, every later one reads only the bytes appended
+// since. Raise it to confirm the per-Stop cost is flat.
+const TRANSCRIPT_TURNS = Number(process.env.PERF_TRANSCRIPT_TURNS ?? 400);
+const TRANSCRIPT_PATH = join(tmpdir(), 'claude-bench-transcript.jsonl');
+
+/** ~1 KB per assistant turn with usage, plus its tool_result — realistic shape. */
+function writeBenchTranscript(path: string, turns: number): void {
+  const lines: string[] = [];
+  for (let i = 0; i < turns; i++) {
+    lines.push(
+      JSON.stringify({
+        cwd: '/home/dev/project/some-repo',
+        message: {
+          content: [
+            { text: 'x'.repeat(400), type: 'text' },
+            {
+              id: `toolu_${i}`,
+              input: { command: 'ls -la /home/dev/project/some-repo/packages/backend/src' },
+              name: 'Bash',
+              type: 'tool_use',
+            },
+          ],
+          model: 'claude-opus-4-5-20251101',
+          role: 'assistant',
+          usage: {
+            cache_creation_input_tokens: 300,
+            cache_read_input_tokens: 12_000,
+            input_tokens: 1500,
+            output_tokens: 420,
+          },
+        },
+        sessionId: '550e8400-e29b-41d4-a716-446655440001',
+        timestamp: new Date(Date.now() - (turns - i) * 1000).toISOString(),
+        type: 'assistant',
+        uuid: `01906a44-0000-7000-8000-${String(i).padStart(12, '0')}`,
+      }),
+      JSON.stringify({
+        message: {
+          content: [{ content: 'y'.repeat(400), tool_use_id: `toolu_${i}`, type: 'tool_result' }],
+          role: 'user',
+        },
+        timestamp: new Date(Date.now() - (turns - i) * 1000).toISOString(),
+        type: 'user',
+        uuid: `01906a44-0001-7000-8000-${String(i).padStart(12, '0')}`,
+      }),
+    );
+  }
+  writeFileSync(path, `${lines.join('\n')}\n`);
+}
+
+let appendedTurns = TRANSCRIPT_TURNS;
+
+/**
+ * Between-iteration setup, run OUTSIDE the timed window.
+ *
+ * Without this the first Stop consumes the whole transcript and the other 999
+ * iterations find nothing new — which measures the empty case, not the steady
+ * state. Appending one turn per iteration makes every measured Stop do what a
+ * real one does: read the bytes appended since the last Stop, parse one turn,
+ * emit one usage-bearing event.
+ */
+function prepareFor(kind: HookKind): (() => void) | undefined {
+  if (kind !== 'stop') {
+    return undefined;
+  }
+  return () => {
+    appendedTurns += 1;
+    appendFileSync(
+      TRANSCRIPT_PATH,
+      `${JSON.stringify({
+        message: {
+          content: [{ text: 'x'.repeat(400), type: 'text' }],
+          model: 'claude-opus-4-5-20251101',
+          role: 'assistant',
+          usage: {
+            cache_creation_input_tokens: 300,
+            cache_read_input_tokens: 12_000,
+            input_tokens: 1500,
+            output_tokens: 420,
+          },
+        },
+        timestamp: new Date().toISOString(),
+        type: 'assistant',
+        uuid: `01906a44-0000-7000-8000-${String(appendedTurns).padStart(12, '0')}`,
+      })}\n`,
+    );
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Synthetic payloads — ~500 bytes each, representative of real hook events
@@ -98,8 +193,11 @@ const PAYLOADS: Record<HookKind, string> = {
     end_reason: 'completed',
     hook_event_name: 'Stop',
     session_id: '550e8400-e29b-41d4-a716-446655440001',
-    // Non-existent path — writeShipMarker only writes a JSON marker file, not the transcript
-    transcript_path: '/tmp/claude-bench-noop/550e8400-e29b-41d4-a716-446655440001.jsonl',
+    // A REAL file, written by writeBenchTranscript() below. Stop is the one hook
+    // that reads the transcript — it folds each new turn's token usage onto a Stop
+    // event (P14-003) — so pointing this at a path that does not exist measures
+    // the degraded fallback and reports a budget the real hook never pays.
+    transcript_path: TRANSCRIPT_PATH,
   }),
   'subagent-stop': JSON.stringify({
     cwd: '/home/dev/project/some-repo',
@@ -156,13 +254,17 @@ async function warmBench(kind: HookKind, iterations: number): Promise<Stats> {
       },
     });
 
+  const prepare = prepareFor(kind);
+
   // Warmup — prime SQLite connection, JIT paths, file descriptor cache.
   for (let i = 0; i < 50; i++) {
+    prepare?.();
     await runHook(kind, { quiet: true });
   }
 
   const samples: number[] = [];
   for (let i = 0; i < iterations; i++) {
+    prepare?.();
     const t0 = performance.now();
     await runHook(kind, { quiet: true });
     samples.push(performance.now() - t0);
@@ -181,9 +283,11 @@ async function coldBench(
   env: Record<string, string>,
 ): Promise<Stats> {
   const payloadBytes = new TextEncoder().encode(PAYLOADS[kind]);
+  const prepare = prepareFor(kind);
 
   // Warmup — prime filesystem caches so first measured iteration is not an outlier.
   for (let i = 0; i < 10; i++) {
+    prepare?.();
     const proc = Bun.spawn({
       cmd: [binary, 'hook', kind, '--quiet'],
       env,
@@ -198,6 +302,7 @@ async function coldBench(
 
   const samples: number[] = [];
   for (let i = 0; i < iterations; i++) {
+    prepare?.();
     const t0 = performance.now();
     const proc = Bun.spawn({
       cmd: [binary, 'hook', kind, '--quiet'],
@@ -306,6 +411,7 @@ function buildMarkdown(
 async function main(): Promise<number> {
   const tmpHome = mkdtempSync(join(tmpdir(), 'claude-telemetry-bench-'));
   process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
+  writeBenchTranscript(TRANSCRIPT_PATH, TRANSCRIPT_TURNS);
 
   const benchDir = dirname(fileURLToPath(import.meta.url));
   const hookDir = resolve(benchDir, '..');
@@ -404,6 +510,7 @@ async function main(): Promise<number> {
   }
 
   rmSync(tmpHome, { force: true, recursive: true });
+  rmSync(TRANSCRIPT_PATH, { force: true });
 
   // --- Exit code ------------------------------------------------------------
   let failed = false;
