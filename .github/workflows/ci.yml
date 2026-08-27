@@ -50,3 +50,64 @@ jobs:
 
       - name: Test
         run: bun run test
+
+  # The three DB-gated suites (packages/db/test/schema.test.ts,
+  # apps/ingest/test/*.db.test.ts) skip via describe.skipIf(!DATABASE_URL), and
+  # the `ci` job above never sets it — so this is the only place they execute.
+  # See tasks/P14-014-db-test-isolation.md for why they were never wired up
+  # before, and packages/db/AGENTS.md for the migration layers this applies.
+  db-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ai_agents_observability
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_agents_observability"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_agents_observability
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install native build deps (keytar → libsecret)
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Applies both migration layers (prisma migrate deploy, then the SQL
+      # layer) directly against the service container — the same path
+      # `bun run db:deploy` uses locally. packages/db/AGENTS.md: "reset, don't
+      # patch" doesn't apply here since this container is created fresh per run.
+      - name: Apply migrations
+        run: bun run db:deploy
+
+      # apps/ingest's own `test` script (via vitest.config.ts's project split)
+      # is safe to run with DATABASE_URL set, but `test:db` keeps this job
+      # scoped to only the suites the `ci` job's DATABASE_URL-less run skips,
+      # rather than re-running the ~30 non-DB ingest files a second time.
+      - name: Test (DB-gated suites)
+        run: bun run --cwd packages/db test && bun run --cwd apps/ingest test:db
