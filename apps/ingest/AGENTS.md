@@ -191,8 +191,8 @@ recorded in `job_runs`. Registered: `sync-teams`, `sync-jira`, `sweep-abandoned`
 `evaluate-alerts`,
 `backfill-redaction`, `reconcile-cost`, `reprice-events` / `reprice-events-apply`,
 `judge-sessions`, plus the two operator-triggered rescore entries
-`rescore-effectiveness` and `rescore-trajectory`. (`alert-transition` and
-`anthropic-billing-source` are collaborators, not scheduled entries.)
+`rescore-effectiveness` and `rescore-trajectory`. (`alert-transition`, `anthropic-billing-source` and
+`github-billing-source` are collaborators, not scheduled entries.)
 
 **`judge-sessions` is the one job that reads conversation content with a model**
 (P13-009), and it is off in three independent ways: seeded `enabled = false`,
@@ -305,6 +305,26 @@ the issuing turn (`turn.event_id = tool.parent_event_id`) and sums the tool row'
 `attributed_cost_usd`, and it carries `attributedCalls` / `callCount` in
 `details` so a fired alert says how much of the window it could measure. If you
 add a query that asks a tool row about a model, you are writing a dead query.
+
+**`reconcile-cost` records drift; it never corrects cost.** It compares
+`SUM(events.cost_usd)` for the previous calendar month against a vendor's own
+figure, per `agent_type`, through the `BillingSource` seam — `AnthropicBillingSource`
+(Admin Cost Report API) and `GitHubBillingSource` (AI-credit usage report),
+composed, each wired only when its own credential is configured. Correcting
+history is `reprice-events`' job and stays an operator trigger.
+
+Two properties of that seam are load-bearing. **A vendor bill is org-wide**: the
+Anthropic cost report cannot separate Claude Code from other API usage on the
+same org without a dedicated workspace, and GitHub publishes no per-user
+breakdown at all (`user` is a request *filter* that is echoed back, not a
+grouping). So drift is an org-level claim, never a per-developer one. And **a
+capture gap is not a pricing error**: when the vendor billed and not one stored
+event for that agent carried a token count, `SUM(cost_usd)` is structurally zero
+because cost is derived from tokens, so the job logs
+`cost.reconciliation.no_client_token_coverage` and sets the gauges but does not
+increment the breach counter. `COPILOT` is in exactly that state today, and
+without the distinction it would fire a pricing alert every month for a hook
+that is working as built.
 
 **`reprice-events` is two job names on purpose.** The bare name reports what
 repricing would change; `reprice-events-apply` writes it. The trigger endpoint

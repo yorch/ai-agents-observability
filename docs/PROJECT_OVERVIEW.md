@@ -107,9 +107,13 @@ migration path).
 - **Client-computed cost** from **versioned, per-agent price tables** served by
   ingest (`price-table.<agent>.v1.json`) → price changes propagate without
   redeploying hooks. Ingest recomputes server-side; client cost is not trusted.
-  A `reconcile-cost` job compares against a vendor billing source — a real
-  `AnthropicBillingSource` (Admin Cost Report API) when `ANTHROPIC_ADMIN_KEY` is set,
-  and a null source otherwise. The job itself is gated off by default.
+  A `reconcile-cost` job compares against vendor billing sources — an
+  `AnthropicBillingSource` (Admin Cost Report API, `ANTHROPIC_ADMIN_KEY`) and a
+  `GitHubBillingSource` (AI-credit usage report, `GITHUB_BILLING_TOKEN` +
+  `GITHUB_BILLING_SCOPE`), each wired only when its own credential is set, and a
+  null source when neither is. Vendor bills are org-wide, so drift is an
+  org-level claim; and drift against an agent that captured no tokens is
+  recorded but never counted as a pricing breach. The job is gated off by default.
 - **Every computed signal is a versioned score** (Phase 13). Scorer identity and
   version live in one registry (`packages/schemas/src/scores.ts`) and every value
   lands in `scores` with the scorer that produced it — so re-scoring history after a
@@ -150,7 +154,8 @@ Scheduled jobs (ingest, advisory-locked): team sync, abandoned sweep,
   index, evaluate-alerts (→ Slack/webhook/email), retention sweep (per-team
   override), GDPR deletion runner, trajectory + subject scorers, the opt-in judge.
   (Cost reconciliation is gated off by default, and falls back to a null billing
-  source unless ANTHROPIC_ADMIN_KEY is set. embed-transcripts is a gated prototype,
+  source unless ANTHROPIC_ADMIN_KEY or GITHUB_BILLING_TOKEN + GITHUB_BILLING_SCOPE
+  are set. embed-transcripts is a gated prototype,
   not scheduled.)
 
 Web reads: dev sees /me + /me/insights; lead sees /team/[slug] (audit-logged);
@@ -361,7 +366,7 @@ operator-triggered `backfill-redaction` job), and **per-team routing accountabil
 |---|---|---|
 | **External business-value join beyond Jira** (Linear / revenue) | product | The Jira per-issue value join now ships (`JIRA_VALUE_FIELD`); a Linear/revenue/business-outcome source is the remaining piece for non-Jira shops. |
 | **Model-routing *blocking* enforcement** | hook | The `routing_waste` alert + per-team routing-accountability table make waste actionable, but hook-side auto-route/block is intentionally out of scope — the platform is observe-only (`DESIGN_DOC §10.3a`: nothing intercepts a live tool call). "Enforcement" here is visibility + accountability + alert. |
-| **Cost reconciliation beyond Anthropic** | ingest `reconcile-cost` | The Anthropic vendor client now ships (`AnthropicBillingSource`, Admin Cost Report API, `ANTHROPIC_ADMIN_KEY`); other vendors (e.g. OpenAI for Codex) still have no billing source. |
+| **Cost reconciliation beyond Anthropic and GitHub** | ingest `reconcile-cost` | Two vendor clients ship (`AnthropicBillingSource`, Admin Cost Report API; `GitHubBillingSource`, AI-credit usage report); other vendors (e.g. OpenAI for Codex) still have no billing source. Both existing ones are org-wide — no vendor billing API we have found attributes spend to a developer. |
 | **Semantic search prototype gated** (P7-007 no-go) | `sql/prototypes/`, `embed-transcripts` | Requires a self-hosted embedding path + a proven recall gap to revisit. |
 | **Redaction: ML-grade PII (names, phone numbers)** | `packages/redaction` | Regex `email` and `git-remote-url` (URL-embedded credentials) rules now ship; name/phone detection would need an ML pass (deferred, `DESIGN_DOC §9.2`). |
 | **Grant expiry enforced at read-time, not swept** | `apps/web` grant helpers | No background revocation job; fine today, worth noting for audit completeness. |
