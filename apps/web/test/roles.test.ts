@@ -257,7 +257,7 @@ describe('isLeadOrAbove', () => {
 
 describe('canViewIndividuals (P9-005 — investigator has no standing access)', () => {
   it('only org_admin views individuals without a grant', async () => {
-    const { canViewIndividuals } = await import('../src/lib/roles.ts');
+    const { canViewIndividuals } = await import('../src/lib/roles');
     expect(canViewIndividuals('ORG_ADMIN' as never)).toBe(true);
     expect(canViewIndividuals('INVESTIGATOR' as never)).toBe(false);
     expect(canViewIndividuals('VIEWER_AGGREGATE' as never)).toBe(false);
@@ -267,7 +267,7 @@ describe('canViewIndividuals (P9-005 — investigator has no standing access)', 
 
 describe('canRequestGrants (P9-005)', () => {
   it('org_admin and investigator may request grants; others may not', async () => {
-    const { canRequestGrants } = await import('../src/lib/roles.ts');
+    const { canRequestGrants } = await import('../src/lib/roles');
     expect(canRequestGrants('ORG_ADMIN' as never)).toBe(true);
     expect(canRequestGrants('INVESTIGATOR' as never)).toBe(true);
     expect(canRequestGrants('VIEWER_AGGREGATE' as never)).toBe(false);
