@@ -3,6 +3,7 @@ import { computePRRollup, Prisma } from '@ai-agents-observability/db';
 import type { Logger } from 'pino';
 
 import { resolveModelPrice } from '../lib/cost';
+import { listEventChunks, withDecompressedChunk } from '../lib/hypertable-chunks';
 import type { PriceTableRegistry } from '../lib/price-tables';
 import { type JobRunDb, withJobRun } from './job-run';
 
@@ -58,14 +59,6 @@ export type RepricePlan = {
   rows: RepricePlanRow[];
   /** (agent, model) pairs with events but no price row — they stay at $0. */
   unpriced: { agentType: string; events: number; model: string }[];
-};
-
-type ChunkRow = {
-  chunk_name: string;
-  chunk_schema: string;
-  is_compressed: boolean;
-  range_end: Date;
-  range_start: Date;
 };
 
 type PairRow = { agent_type: string; events: number | string; model: string };
@@ -211,65 +204,41 @@ export async function planReprice(
  * Rewrite `events.cost_usd`, one hypertable chunk at a time.
  *
  * `events` is compressed after 7 days, so most of the history this job exists to
- * fix lives in compressed chunks. Rather than rely on DML-over-compressed-data,
- * each affected chunk is decompressed, updated, and recompressed — and only
- * recompressed if it *was* compressed, so a chunk the policy has not reached yet
- * is not compressed early as a side effect.
+ * fix lives in compressed chunks. The decompress → update → recompress dance
+ * (and the reasons for each of its details) lives in `lib/hypertable-chunks.ts`,
+ * shared with `compute-cost-attribution`.
  *
- * Chunk identifiers come from `timescaledb_information.chunks` and are quoted
- * with `format('%I.%I', …)` in-database, so they never round-trip through string
- * interpolation here. The UPDATE itself is scoped by the chunk's *time range*
- * rather than by `tableoid`: a `ts` predicate is what Timescale's chunk
- * exclusion understands, so each statement touches one chunk instead of
- * scanning the whole hypertable once per chunk.
+ * The UPDATE itself is scoped by the chunk's *time range* rather than by
+ * `tableoid`: a `ts` predicate is what Timescale's chunk exclusion understands,
+ * so each statement touches one chunk instead of scanning the whole hypertable
+ * once per chunk.
  */
 async function repriceEventRows(
   db: RepriceDb,
   rates: ModelRate[],
   logger: Logger | undefined,
 ): Promise<number> {
-  const chunks = await db.$queryRaw<ChunkRow[]>(Prisma.sql`
-    SELECT chunk_schema, chunk_name, is_compressed, range_start, range_end
-    FROM timescaledb_information.chunks
-    WHERE hypertable_name = 'events'
-    ORDER BY range_start
-  `);
+  const chunks = await listEventChunks(db);
 
   let updated = 0;
   for (const chunk of chunks) {
-    // The ::text casts are load-bearing: without them Postgres cannot infer a
-    // bare parameter's type inside format() and rejects the statement with
-    // 42P18 "could not determine data type of parameter $1".
-    const target = Prisma.sql`
-      format('%I.%I', ${chunk.chunk_schema}::text, ${chunk.chunk_name}::text)::regclass
-    `;
-    if (chunk.is_compressed) {
-      // ::text on the result too — decompress_chunk returns regclass, which the
-      // Prisma driver cannot decode (UnsupportedNativeDataType).
-      await db.$queryRaw(Prisma.sql`SELECT decompress_chunk(${target})::text`);
-    }
-    try {
+    updated += await withDecompressedChunk(db, chunk, async () => {
       // `IS DISTINCT FROM` keeps this to the rows whose cost actually moves, so
       // a re-run after a partial failure rewrites nothing it already fixed.
       // run-kind-exempt: see resolveRates. Repricing is all-or-nothing across
       // run kinds for the same reason it is all-or-nothing across time.
-      const n = await db.$executeRaw(Prisma.sql`
+      return db.$executeRaw(Prisma.sql`
         WITH ${ratesCte(rates)}
         UPDATE events e
         SET cost_usd = ${NEW_COST}
         FROM rates r
         WHERE r.agent_type = e.agent_type
           AND r.model = e.model
-          AND e.ts >= ${chunk.range_start}
-          AND e.ts <  ${chunk.range_end}
+          AND e.ts >= ${chunk.rangeStart}
+          AND e.ts <  ${chunk.rangeEnd}
           AND e.cost_usd IS DISTINCT FROM ${NEW_COST}
       `);
-      updated += n;
-    } finally {
-      if (chunk.is_compressed) {
-        await db.$queryRaw(Prisma.sql`SELECT compress_chunk(${target})::text`);
-      }
-    }
+    });
   }
 
   logger?.info({ chunks: chunks.length, updated }, 'reprice: events rewritten');

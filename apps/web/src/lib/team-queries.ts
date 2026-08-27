@@ -639,10 +639,12 @@ export async function getTeamToolStats(
   const rows = await getPrisma().$queryRaw<
     {
       agent_type: string;
+      attributed_cost_usd: string | null;
       avg_duration_ms: number | null;
       call_count: bigint;
       deny_count: bigint;
       distinct_users: bigint;
+      downstream_cost_usd: string | null;
       tool_category: string | null;
       tool_name: string;
     }[]
@@ -654,7 +656,11 @@ export async function getTeamToolStats(
       COUNT(*)                                         AS call_count,
       COUNT(*) FILTER (WHERE tool_was_denied = true)   AS deny_count,
       AVG(tool_duration_ms)                            AS avg_duration_ms,
-      COUNT(DISTINCT user_id)                          AS distinct_users
+      COUNT(DISTINCT user_id)                          AS distinct_users,
+      -- P14-004. Two readings of the same dollars — never added together. A
+      -- NULL SUM means these events carried no turn linkage, not $0.00.
+      SUM(attributed_cost_usd)::text                   AS attributed_cost_usd,
+      SUM(downstream_cost_usd)::text                   AS downstream_cost_usd
     FROM interactive_events
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
@@ -674,12 +680,14 @@ export async function getTeamToolStats(
 
   const multiAgent = new Set(rows.map((r) => r.agent_type)).size > 1;
   return rows.map((r) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
     callCount: Number(r.call_count),
     category: r.tool_category ?? 'other',
     denyCount: Number(r.deny_count),
     denyRate: Number(r.call_count) > 0 ? Number(r.deny_count) / Number(r.call_count) : 0,
     distinctUsers: Number(r.distinct_users),
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     toolName: multiAgent ? `${r.agent_type}:${r.tool_name}` : r.tool_name,
   }));
 }
@@ -755,9 +763,11 @@ export async function getTeamSkillUsage(visibleIds: string[], since: Date): Prom
   const uuids = toUuidList(visibleIds);
   const rows = await getPrisma().$queryRaw<
     {
+      attributed_cost_usd: string | null;
       avg_session_cost_usd: string | null;
       call_count: bigint;
       distinct_users: bigint;
+      downstream_cost_usd: string | null;
       kind: string;
       name: string;
     }[]
@@ -768,7 +778,11 @@ export async function getTeamSkillUsage(visibleIds: string[], since: Date): Prom
         CASE WHEN skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END AS kind,
         session_id,
         user_id,
-        COUNT(*)                                                        AS invocation_count
+        COUNT(*)                                                        AS invocation_count,
+        -- P14-004: summed per (name, session, user) here and rolled up below, so
+        -- the attribution follows exactly the rows this CTE counts.
+        SUM(attributed_cost_usd)                                        AS attributed_cost_usd,
+        SUM(downstream_cost_usd)                                        AS downstream_cost_usd
       FROM interactive_events
       WHERE user_id IN (${uuids})
         AND ts >= ${since}
@@ -784,6 +798,10 @@ export async function getTeamSkillUsage(visibleIds: string[], since: Date): Prom
       i.kind,
       SUM(i.invocation_count)::bigint     AS call_count,
       COUNT(DISTINCT i.user_id)::bigint   AS distinct_users,
+      SUM(i.attributed_cost_usd)::text    AS attributed_cost_usd,
+      SUM(i.downstream_cost_usd)::text    AS downstream_cost_usd,
+      -- The pre-P14-004 proxy, kept beside the real numbers rather than
+      -- replaced — see getSkillUsage in org-queries.ts.
       AVG(s.total_cost_usd)::text         AS avg_session_cost_usd
     -- run-kind-exempt: the population is fixed by the guarded invocations CTE, so
     -- every session reachable here is already INTERACTIVE. The filter used to sit
@@ -796,9 +814,11 @@ export async function getTeamSkillUsage(visibleIds: string[], since: Date): Prom
     LIMIT 20
   `);
   return rows.map((r) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgSessionCostUsd: r.avg_session_cost_usd != null ? Number(r.avg_session_cost_usd) : null,
     callCount: Number(r.call_count),
     distinctUsers: Number(r.distinct_users),
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     kind: r.kind as 'skill' | 'slash',
     name: r.name,
   }));
@@ -1137,16 +1157,22 @@ export async function getTeamSkillCostComparison(
 // ── Team MCP queries ──────────────────────────────────────────────────────────
 
 export type McpTeamDetailRow = {
+  /**
+   * P14-004 — see `McpServerDetailRow` in org-queries.ts. Replaces a
+   * `SUM(events.cost_usd)` over tool events that only ever had a value because
+   * the seed fabricated one. Two lenses, never a total.
+   */
+  attributedCostUsd: number | null;
   avgDurationMs: number | null;
   callCount: number;
   denyCount: number;
   distinctUsers: number;
+  downstreamCostUsd: number | null;
   errorCount: number;
   mcpServer: string;
   mcpTool: string | null;
   p95DurationMs: number | null;
   serverDistinctUsers: number;
-  totalCostUsd: number;
 };
 
 export async function getTeamMcpDetails(
@@ -1159,16 +1185,17 @@ export async function getTeamMcpDetails(
   const uuids = toUuidList(visibleIds);
   const rows = await getPrisma().$queryRaw<
     {
+      attributed_cost_usd: string | null;
       avg_duration_ms: number | null;
       call_count: bigint;
       deny_count: bigint;
       distinct_users: bigint;
+      downstream_cost_usd: string | null;
       error_count: bigint;
       mcp_server: string;
       mcp_tool: string | null;
       p95_duration_ms: number | null;
       server_distinct_users: bigint;
-      total_cost_usd: number;
     }[]
   >(Prisma.sql`
     WITH tool_stats AS (
@@ -1183,7 +1210,10 @@ export async function getTeamMcpDetails(
         AVG(tool_duration_ms)                                                         AS avg_duration_ms,
         PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tool_duration_ms)               AS p95_duration_ms,
         COUNT(DISTINCT user_id)                                                       AS distinct_users,
-        COALESCE(SUM(cost_usd), 0)                                                   AS total_cost_usd
+        -- P14-004. No COALESCE: NULL means "no turn linkage on these events",
+        -- and collapsing it to 0 would print a measurement where there is none.
+        SUM(attributed_cost_usd)::text                                               AS attributed_cost_usd,
+        SUM(downstream_cost_usd)::text                                               AS downstream_cost_usd
       FROM interactive_events
       WHERE user_id IN (${uuids})
         AND ts >= ${since}
@@ -1210,16 +1240,17 @@ export async function getTeamMcpDetails(
     ORDER BY t.call_count DESC
   `);
   return rows.map((r) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
     callCount: Number(r.call_count),
     denyCount: Number(r.deny_count),
     distinctUsers: Number(r.distinct_users),
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     errorCount: Number(r.error_count),
     mcpServer: r.mcp_server,
     mcpTool: r.mcp_tool,
     p95DurationMs: r.p95_duration_ms !== null ? Math.round(Number(r.p95_duration_ms)) : null,
     serverDistinctUsers: Number(r.server_distinct_users),
-    totalCostUsd: Number(r.total_cost_usd),
   }));
 }
 
@@ -1236,19 +1267,23 @@ export async function getTeamSubagentStats(
   const uuids = toUuidList(visibleIds);
   const rows = await getPrisma().$queryRaw<
     {
+      attributed_cost_usd: string | null;
       avg_duration_ms: number | null;
       distinct_users: bigint;
+      downstream_cost_usd: string | null;
       spawn_count: bigint;
       subagent_type: string | null;
-      total_cost_usd: string | null;
     }[]
   >(Prisma.sql`
     SELECT
       subagent_type,
-      COUNT(*)                    AS spawn_count,
-      COUNT(DISTINCT user_id)     AS distinct_users,
-      AVG(tool_duration_ms)       AS avg_duration_ms,
-      SUM(cost_usd)               AS total_cost_usd
+      COUNT(*)                        AS spawn_count,
+      COUNT(DISTINCT user_id)         AS distinct_users,
+      AVG(tool_duration_ms)           AS avg_duration_ms,
+      -- P14-004. SUM(cost_usd) used to sit here and was a fiction: a spawn
+      -- event carries no tokens, so it is priced at nothing. Not additive.
+      SUM(attributed_cost_usd)::text  AS attributed_cost_usd,
+      SUM(downstream_cost_usd)::text  AS downstream_cost_usd
     FROM interactive_events
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
@@ -1264,10 +1299,11 @@ export async function getTeamSubagentStats(
   `);
 
   return rows.map((r) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
     distinctUsers: Number(r.distinct_users),
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     spawnCount: Number(r.spawn_count),
     subagentType: r.subagent_type,
-    totalCostUsd: r.total_cost_usd !== null ? Number(r.total_cost_usd) : 0,
   }));
 }

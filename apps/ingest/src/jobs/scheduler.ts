@@ -6,6 +6,7 @@ import type { JudgeModelClient } from '../lib/judge-client';
 import type { EmailConfig } from '../lib/notify/email';
 import type { PriceTableRegistry } from '../lib/price-tables';
 import { runBackfillRedaction } from './backfill-redaction';
+import { runComputeCostAttribution } from './compute-cost-attribution';
 import {
   runComputeEffectiveness,
   runComputeEffectivenessBackfill,
@@ -67,6 +68,11 @@ const CONFIGURABLE_JOBS = [
   // (correctly) no step-efficiency row, but it would then wait a whole day.
   'compute-trajectory-scores',
   'compute-subject-scores',
+  // Turn-linked cost attribution (P14-004). Scheduled after the scorers so it
+  // runs on a quiet part of the night; it depends on nothing they write. It is
+  // configurable rather than fixed-timer because how far behind "yesterday's
+  // cost by tool" is allowed to be is an operator's call, not a constant.
+  'compute-cost-attribution',
   'evaluate-alerts',
   // LLM-as-judge (P13-009). Seeded **disabled** — a fresh deployment never
   // sends a transcript to a model because a container booted.
@@ -164,6 +170,26 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       await runComputeTrajectoryScores(
         db as Parameters<typeof runComputeTrajectoryScores>[0],
         logger,
+      );
+      break;
+    // Turn-linked cost attribution (P14-004): redistributes each assistant
+    // turn's cost onto the tool calls that turn issued, and the following turn's
+    // input-side cost onto the tool outputs that inflated it. Writes two columns
+    // on `events` and nothing else — the session/PR/cagg cost chain is
+    // deliberately untouched. Gated on the price-table registry for the same
+    // reason reprice-events is: the downstream half prices tokens.
+    case 'compute-cost-attribution':
+      if (!priceTables) {
+        logger?.warn(
+          { jobName },
+          'compute-cost-attribution: skipped, no price-table registry wired',
+        );
+        break;
+      }
+      await runComputeCostAttribution(
+        db as Parameters<typeof runComputeCostAttribution>[0],
+        priceTables,
+        { logger },
       );
       break;
     // Skill / MCP-server score rows (P13-004) — the persisted trend behind the
@@ -277,6 +303,7 @@ export function startScheduler(deps: SchedulerDeps): void {
           ('compute-effectiveness', true, 5, 0),
           ('compute-trajectory-scores', true, 5, 30),
           ('compute-subject-scores',    true, 6, 0),
+          ('compute-cost-attribution',   true, 6, 15),
           ('evaluate-alerts',       true, 1, 0),
           -- P13-009: off by default. Enabling it is an operator decision taken
           -- in /admin/jobs, not a consequence of deploying.
@@ -468,6 +495,6 @@ export function startScheduler(deps: SchedulerDeps): void {
       reconcileCostSource: deps.billingSource ? 'anthropic' : 'null',
       syncJira: deps.jiraConfig !== undefined,
     },
-    'Job scheduler started (DB-poll every 60s for the job_config cadences: sweep-retention, index-transcripts, compute-effectiveness, compute-trajectory-scores, compute-subject-scores, evaluate-alerts, judge-sessions; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',
+    'Job scheduler started (DB-poll every 60s for the job_config cadences: sweep-retention, index-transcripts, compute-effectiveness, compute-trajectory-scores, compute-subject-scores, compute-cost-attribution, evaluate-alerts, judge-sessions; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',
   );
 }

@@ -1,5 +1,8 @@
+import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
+import { getAttributionCoverage } from '@/lib/attribution-coverage';
+import { fmtUsdOrDash } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamSkillUsage,
@@ -26,10 +29,11 @@ export default async function TeamToolsPage({
   const since = daysAgo(range);
 
   const { visibleIds } = await resolveTeamVisibility(teamId);
-  const [tools, categories, skills] = await Promise.all([
+  const [tools, categories, skills, coverage] = await Promise.all([
     getTeamToolStats(visibleIds, since),
     getTeamToolCategoryBreakdown(visibleIds, since),
     getTeamSkillUsage(visibleIds, since),
+    getAttributionCoverage(visibleIds, since),
   ]);
 
   const totalCalls = tools.reduce((s, r) => s + r.callCount, 0);
@@ -81,6 +85,9 @@ export default async function TeamToolsPage({
               { align: 'right', label: 'Deny %', mono: true },
               { align: 'right', label: 'Avg ms', mono: true },
               { align: 'right', label: 'Users', mono: true },
+              // P14-004: two lenses on the same dollars, never a total.
+              { align: 'right', label: 'Turn share', mono: true },
+              { align: 'right', label: 'Downstream', mono: true },
             ]}
           >
             {tools.map((r) => (
@@ -101,9 +108,16 @@ export default async function TeamToolsPage({
                   {r.avgDurationMs !== null ? r.avgDurationMs : '—'}
                 </td>
                 <td className="py-2 text-right font-mono text-text-2">{r.distinctUsers}</td>
+                <td className="py-2 text-right font-mono text-text-2">
+                  {fmtUsdOrDash(r.attributedCostUsd)}
+                </td>
+                <td className="py-2 text-right font-mono text-text-2">
+                  {fmtUsdOrDash(r.downstreamCostUsd)}
+                </td>
               </tr>
             ))}
           </Table>
+          <CostAttributionNote className="mt-3" coverage={coverage} />
         </Card>
       ) : (
         <EmptyState>No tool activity in this period</EmptyState>
@@ -118,7 +132,10 @@ export default async function TeamToolsPage({
               { label: 'Type' },
               { align: 'right', label: 'Invocations', mono: true },
               { align: 'right', label: 'Users', mono: true },
+              // The pre-P14-004 session proxy, kept beside the real numbers.
               { align: 'right', label: 'Avg session $', mono: true },
+              { align: 'right', label: 'Turn share', mono: true },
+              { align: 'right', label: 'Downstream', mono: true },
             ]}
           >
             {skills.map((r) => (
@@ -130,9 +147,16 @@ export default async function TeamToolsPage({
                 <td className="py-2 text-right font-mono text-text-2">
                   {r.avgSessionCostUsd !== null ? `$${r.avgSessionCostUsd.toFixed(3)}` : '—'}
                 </td>
+                <td className="py-2 text-right font-mono text-text-2">
+                  {fmtUsdOrDash(r.attributedCostUsd)}
+                </td>
+                <td className="py-2 text-right font-mono text-text-2">
+                  {fmtUsdOrDash(r.downstreamCostUsd)}
+                </td>
               </tr>
             ))}
           </Table>
+          <CostAttributionNote className="mt-3" coverage={coverage} />
         </Card>
       )}
     </div>

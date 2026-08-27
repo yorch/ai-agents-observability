@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { DailyTrendBars } from '@/components/team-org/DailyTrendBars';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import {
@@ -6,6 +7,8 @@ import {
   SubjectQualityPanel,
 } from '@/components/team-org/SubjectQualityPanel';
 import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
+import { getAttributionCoverage } from '@/lib/attribution-coverage';
+import { fmtUsdOrDash } from '@/lib/fmt';
 import {
   getDailySkillVolume,
   getOrgSkillSequences,
@@ -34,13 +37,14 @@ export default async function OrgSkillsPage({
   const since = daysAgo(range);
 
   const visibleIds = await orgVisibleUserIds(since);
-  const [skills, funnel, trend, sequences, quality, deprecation] = await Promise.all([
+  const [skills, funnel, trend, sequences, quality, deprecation, coverage] = await Promise.all([
     getSkillUsage(since),
     getSkillAdoptionFunnel(since),
     getDailySkillVolume(since),
     getOrgSkillSequences(since),
     getSkillQuality(visibleIds, since),
     getDeprecationCandidates(visibleIds, since),
+    getAttributionCoverage(visibleIds, since),
   ]);
 
   const totalInvocations = skills.reduce((s, r) => s + r.callCount, 0);
@@ -76,7 +80,12 @@ export default async function OrgSkillsPage({
               { label: 'Type' },
               { align: 'right', label: 'Invocations', mono: true },
               { align: 'right', label: 'Users', mono: true },
+              // The pre-P14-004 proxy, kept beside the real numbers rather than
+              // replaced — retiring it is someone's decision to take.
               { align: 'right', label: 'Avg session $', mono: true },
+              // P14-004: two lenses on the same dollars, never a total.
+              { align: 'right', label: 'Turn share', mono: true },
+              { align: 'right', label: 'Downstream', mono: true },
             ]}
           >
             {skills.map((r) => (
@@ -100,9 +109,16 @@ export default async function OrgSkillsPage({
                 <td className="py-2 text-right font-mono text-text-2">
                   {r.avgSessionCostUsd != null ? `$${r.avgSessionCostUsd.toFixed(3)}` : '—'}
                 </td>
+                <td className="py-2 text-right font-mono text-text-2">
+                  {fmtUsdOrDash(r.attributedCostUsd)}
+                </td>
+                <td className="py-2 text-right font-mono text-text-2">
+                  {fmtUsdOrDash(r.downstreamCostUsd)}
+                </td>
               </tr>
             ))}
           </Table>
+          <CostAttributionNote className="mt-3" coverage={coverage} />
         </Card>
       ) : (
         <EmptyState>No skill activity in this period</EmptyState>

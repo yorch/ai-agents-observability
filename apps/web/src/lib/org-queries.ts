@@ -770,12 +770,21 @@ export async function getOrgTopTools(since: Date, limit = 10): Promise<OrgToolUs
 // ── Tool / skill / MCP analytics ──────────────────────────────────────────────
 
 export type ToolStatRow = {
+  /**
+   * P14-004. Two lenses on the same dollars, never a total:
+   * `attributedCostUsd` is the issuing turn's share, `downstreamCostUsd` is the
+   * input-side inflation this tool's output caused on the following turn.
+   * NULL means the events had no turn linkage — not $0.00. Pair with
+   * `getAttributionCoverage` wherever they are shown.
+   */
+  attributedCostUsd: number | null;
   avgDurationMs: number | null;
   callCount: number;
   category: string;
   denyCount: number;
   denyRate: number;
   distinctUsers: number;
+  downstreamCostUsd: number | null;
   toolName: string;
 };
 
@@ -793,9 +802,18 @@ export type McpServerRow = {
 };
 
 export type SkillRow = {
+  /** P14-004 — see ToolStatRow. Not additive with `downstreamCostUsd`. */
+  attributedCostUsd: number | null;
+  /**
+   * The pre-P14-004 proxy: the mean `sessions.total_cost_usd` of sessions that
+   * happened to invoke this skill, credited entirely to it. Kept beside the real
+   * number rather than replaced, because retiring it silently would change what
+   * an existing column means without telling anyone.
+   */
   avgSessionCostUsd: number | null;
   callCount: number;
   distinctUsers: number;
+  downstreamCostUsd: number | null;
   kind: 'skill' | 'slash';
   name: string;
 };
@@ -844,10 +862,12 @@ export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow
   const rows = await getPrisma().$queryRaw<
     {
       agent_type: string;
+      attributed_cost_usd: string | null;
       avg_duration_ms: number | null;
       call_count: bigint;
       deny_count: bigint;
       distinct_users: bigint;
+      downstream_cost_usd: string | null;
       tool_category: string | null;
       tool_name: string;
     }[]
@@ -859,7 +879,12 @@ export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow
       COUNT(*)                                          AS call_count,
       COUNT(*) FILTER (WHERE tool_was_denied = true)    AS deny_count,
       AVG(tool_duration_ms)                             AS avg_duration_ms,
-      COUNT(DISTINCT user_id)                           AS distinct_users
+      COUNT(DISTINCT user_id)                           AS distinct_users,
+      -- P14-004. Bare SUMs, deliberately not added together: they are two
+      -- readings of the same dollars. SUM over all-NULL is NULL, which is what
+      -- lets the UI say "not attributed" instead of "$0.00".
+      SUM(attributed_cost_usd)::text                    AS attributed_cost_usd,
+      SUM(downstream_cost_usd)::text                    AS downstream_cost_usd
     FROM interactive_events
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
@@ -879,12 +904,14 @@ export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow
 
   const multiAgent = new Set(rows.map((r) => r.agent_type)).size > 1;
   return rows.map((r) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
     callCount: Number(r.call_count),
     category: r.tool_category ?? 'other',
     denyCount: Number(r.deny_count),
     denyRate: Number(r.call_count) > 0 ? Number(r.deny_count) / Number(r.call_count) : 0,
     distinctUsers: Number(r.distinct_users),
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     toolName: multiAgent ? `${r.agent_type}:${r.tool_name}` : r.tool_name,
   }));
 }
@@ -960,16 +987,23 @@ export async function getMcpServerUsage(since: Date): Promise<McpServerRow[]> {
 }
 
 export type McpServerDetailRow = {
+  /**
+   * P14-004. This replaces a `SUM(events.cost_usd)` over tool events, which was
+   * non-NULL only because the seed fabricated it — a tool event carries no
+   * tokens and is priced at nothing. Two lenses, never a total; NULL means no
+   * turn linkage, not $0.00.
+   */
+  attributedCostUsd: number | null;
   avgDurationMs: number | null;
   callCount: number;
   denyCount: number;
   distinctUsers: number;
+  downstreamCostUsd: number | null;
   errorCount: number;
   mcpServer: string;
   mcpTool: string | null;
   p95DurationMs: number | null;
   serverDistinctUsers: number;
-  totalCostUsd: number;
 };
 
 export async function getMcpServerDetails(since: Date): Promise<McpServerDetailRow[]> {
@@ -981,16 +1015,17 @@ export async function getMcpServerDetails(since: Date): Promise<McpServerDetailR
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<
     {
+      attributed_cost_usd: string | null;
       avg_duration_ms: number | null;
       call_count: bigint;
       deny_count: bigint;
       distinct_users: bigint;
+      downstream_cost_usd: string | null;
       error_count: bigint;
       mcp_server: string;
       mcp_tool: string | null;
       p95_duration_ms: number | null;
       server_distinct_users: bigint;
-      total_cost_usd: number;
     }[]
   >(Prisma.sql`
     WITH tool_stats AS (
@@ -1005,7 +1040,11 @@ export async function getMcpServerDetails(since: Date): Promise<McpServerDetailR
         AVG(tool_duration_ms)                                                         AS avg_duration_ms,
         PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tool_duration_ms)               AS p95_duration_ms,
         COUNT(DISTINCT user_id)                                                       AS distinct_users,
-        COALESCE(SUM(cost_usd), 0)                                                   AS total_cost_usd
+        -- P14-004. No COALESCE: NULL here means "no turn linkage on these
+        -- events", and collapsing it to 0 would print a measurement where there
+        -- is none. Never summed with each other.
+        SUM(attributed_cost_usd)::text                                               AS attributed_cost_usd,
+        SUM(downstream_cost_usd)::text                                               AS downstream_cost_usd
       FROM interactive_events
       WHERE user_id IN (${uuids})
         AND ts >= ${since}
@@ -1035,7 +1074,8 @@ export async function getMcpServerDetails(since: Date): Promise<McpServerDetailR
       t.avg_duration_ms,
       t.p95_duration_ms,
       t.distinct_users,
-      t.total_cost_usd,
+      t.attributed_cost_usd,
+      t.downstream_cost_usd,
       s.distinct_users AS server_distinct_users
     FROM tool_stats t
     JOIN server_users s USING (mcp_server)
@@ -1043,16 +1083,17 @@ export async function getMcpServerDetails(since: Date): Promise<McpServerDetailR
   `);
 
   return rows.map((r) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
     callCount: Number(r.call_count),
     denyCount: Number(r.deny_count),
     distinctUsers: Number(r.distinct_users),
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     errorCount: Number(r.error_count),
     mcpServer: r.mcp_server,
     mcpTool: r.mcp_tool,
     p95DurationMs: r.p95_duration_ms !== null ? Math.round(Number(r.p95_duration_ms)) : null,
     serverDistinctUsers: Number(r.server_distinct_users),
-    totalCostUsd: Number(r.total_cost_usd),
   }));
 }
 
@@ -1065,9 +1106,11 @@ export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<
     {
+      attributed_cost_usd: string | null;
       avg_session_cost_usd: string | null;
       call_count: bigint;
       distinct_users: bigint;
+      downstream_cost_usd: string | null;
       kind: string;
       name: string;
     }[]
@@ -1078,7 +1121,11 @@ export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
         CASE WHEN skill_name IS NOT NULL THEN 'skill' ELSE 'slash' END AS kind,
         session_id,
         user_id,
-        COUNT(*)                                                        AS invocation_count
+        COUNT(*)                                                        AS invocation_count,
+        -- P14-004: summed per (name, session, user) here and rolled up below, so
+        -- the attribution follows exactly the rows this CTE counts.
+        SUM(attributed_cost_usd)                                        AS attributed_cost_usd,
+        SUM(downstream_cost_usd)                                        AS downstream_cost_usd
       FROM interactive_events
       WHERE user_id IN (${uuids})
         AND ts >= ${since}
@@ -1094,6 +1141,12 @@ export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
       i.kind,
       SUM(i.invocation_count)::bigint        AS call_count,
       COUNT(DISTINCT i.user_id)::bigint      AS distinct_users,
+      SUM(i.attributed_cost_usd)::text       AS attributed_cost_usd,
+      SUM(i.downstream_cost_usd)::text       AS downstream_cost_usd,
+      -- The pre-P14-004 proxy, kept beside the real numbers rather than
+      -- replaced: it is the mean cost of whole sessions that used this skill,
+      -- credited entirely to it. Retiring it is someone's decision, not a
+      -- side effect of this change.
       AVG(s.total_cost_usd)::text            AS avg_session_cost_usd
     -- run-kind-exempt: the population is fixed by the guarded invocations CTE, so
     -- every session reachable here is already INTERACTIVE. The filter used to sit
@@ -1107,9 +1160,11 @@ export async function getSkillUsage(since: Date): Promise<SkillRow[]> {
   `);
 
   return rows.map((r) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgSessionCostUsd: r.avg_session_cost_usd != null ? Number(r.avg_session_cost_usd) : null,
     callCount: Number(r.call_count),
     distinctUsers: Number(r.distinct_users),
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     kind: r.kind as 'skill' | 'slash',
     name: r.name,
   }));
@@ -2388,11 +2443,17 @@ export async function getTeamModelGovernance(
 }
 
 export type SubagentStatRow = {
+  /**
+   * P14-004. Replaces a `SUM(events.cost_usd)` over spawn events, which was
+   * non-NULL only because the seed fabricated it. Two lenses on the same
+   * dollars, never a total; NULL means no turn linkage, not $0.00.
+   */
+  attributedCostUsd: number | null;
   avgDurationMs: number | null;
   distinctUsers: number;
+  downstreamCostUsd: number | null;
   spawnCount: number;
   subagentType: string | null;
-  totalCostUsd: number;
 };
 
 export async function getOrgSubagentStats(since: Date): Promise<SubagentStatRow[]> {
@@ -2404,19 +2465,24 @@ export async function getOrgSubagentStats(since: Date): Promise<SubagentStatRow[
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<
     {
+      attributed_cost_usd: string | null;
       avg_duration_ms: number | null;
       distinct_users: bigint;
+      downstream_cost_usd: string | null;
       spawn_count: bigint;
       subagent_type: string | null;
-      total_cost_usd: string | null;
     }[]
   >(Prisma.sql`
     SELECT
       subagent_type,
-      COUNT(*)                    AS spawn_count,
-      COUNT(DISTINCT user_id)     AS distinct_users,
-      AVG(tool_duration_ms)       AS avg_duration_ms,
-      SUM(cost_usd)               AS total_cost_usd
+      COUNT(*)                        AS spawn_count,
+      COUNT(DISTINCT user_id)         AS distinct_users,
+      AVG(tool_duration_ms)           AS avg_duration_ms,
+      -- P14-004. SUM(cost_usd) used to sit here and was a fiction: a spawn
+      -- event carries no tokens, so it is priced at nothing. These two are the
+      -- redistribution of the issuing turn's real cost. Not additive.
+      SUM(attributed_cost_usd)::text  AS attributed_cost_usd,
+      SUM(downstream_cost_usd)::text  AS downstream_cost_usd
     FROM interactive_events
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
@@ -2432,11 +2498,12 @@ export async function getOrgSubagentStats(since: Date): Promise<SubagentStatRow[
   `);
 
   return rows.map((r) => ({
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
     distinctUsers: Number(r.distinct_users),
+    downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
     spawnCount: Number(r.spawn_count),
     subagentType: r.subagent_type,
-    totalCostUsd: r.total_cost_usd !== null ? Number(r.total_cost_usd) : 0,
   }));
 }
 

@@ -157,7 +157,8 @@ channel wires up only when `SMTP_HOST` and `SMTP_FROM` are both set
 recorded in `job_runs`. Registered: `sync-teams`, `sync-jira`, `sweep-abandoned`,
 `sweep-scratch`, `run-deletions`, `sweep-retention`, `index-transcripts`,
 `compute-effectiveness`, `compute-effectiveness-backfill`,
-`compute-trajectory-scores`, `compute-subject-scores`, `evaluate-alerts`,
+`compute-trajectory-scores`, `compute-subject-scores`, `compute-cost-attribution`,
+`evaluate-alerts`,
 `backfill-redaction`, `reconcile-cost`, `reprice-events` / `reprice-events-apply`,
 `judge-sessions`, plus the two operator-triggered rescore entries
 `rescore-effectiveness` and `rescore-trajectory`. (`alert-transition` and
@@ -197,7 +198,8 @@ Leave it that way unless the semantic-search decision is revisited.
 **Three tiers, and they are not interchangeable.** `CONFIGURABLE_JOBS` is the set with
 an editable hour+minute cadence in `job_config` (`sweep-retention`,
 `index-transcripts`, `compute-effectiveness`, `compute-trajectory-scores`,
-`compute-subject-scores`, `evaluate-alerts`, `judge-sessions`); the scheduler DB-polls
+`compute-subject-scores`, `compute-cost-attribution`, `evaluate-alerts`,
+`judge-sessions`); the scheduler DB-polls
 those every 60s. `ALL_KNOWN_JOBS` adds the fixed-timer and operator-drain jobs that
 `POST /admin/jobs/:name/run` accepts (`sync-teams`, `sync-jira`, `sweep-abandoned`,
 `sweep-scratch`, `run-deletions`, `backfill-redaction`, `reprice-events`,
@@ -208,6 +210,26 @@ unreachable over HTTP** — `compute-effectiveness-backfill`, `rescore-effective
 `billingReconciliationEnabled`). Adding a job to the enum is not what makes it
 triggerable; adding it to `ALL_KNOWN_JOBS` is. For the tiers it does cover, the manual
 trigger is the supported way to exercise a job, rather than shortening its schedule.
+
+**`compute-cost-attribution` writes two columns that must never be added
+together.** Real spend accrues per assistant *turn*; `events.cost_usd` lands on
+the `Stop` event and the tool rows that turn issued are priced at nothing. The
+job redistributes that for display, into `events.attributed_cost_usd` (the
+issuing turn's cost split evenly across the `PostToolUse` events it issued) and
+`events.downstream_cost_usd` (the *following* turn's input-side cost apportioned
+by `tool_output_bytes`). Those are **two lenses on the same dollars** — turn N+1
+appears once as its own tools' issuing share and again as turn N's tools'
+downstream inflation — so summing them double-counts, and neither may feed
+`sessions.total_cost_usd`, `pr_rollups.total_cost_usd` or the cost caggs, which
+already count these dollars once. The arithmetic is a pure function in
+`src/lib/cost-attribution.ts` precisely so the definitions have tests; the job is
+the plumbing. NULL means *not attributed*, never $0.00 — a session with no
+`turn_number` linkage gets nothing, which is why the dashboards show a coverage
+indicator rather than a confident zero.
+
+Unlike `reprice-events` it needs **no report/apply interlock**: it assigns a
+derived value rather than rewriting a measured one, is a pure function of the
+stored rows, and re-running is a no-op.
 
 **`reprice-events` is two job names on purpose.** The bare name reports what
 repricing would change; `reprice-events-apply` writes it. The trigger endpoint

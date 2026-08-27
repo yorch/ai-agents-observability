@@ -1,7 +1,9 @@
+import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, CardEmpty, Cell, Row, SeriesBadge, Stat, Table } from '@/components/ui';
-import { fmtDayShort } from '@/lib/fmt';
+import { getAttributionCoverage } from '@/lib/attribution-coverage';
+import { fmtDayShort, fmtUsdOrDash } from '@/lib/fmt';
 import {
   type CategoryStatRow,
   type DailyToolVolumeRow,
@@ -16,6 +18,7 @@ import {
   getToolStats,
   type McpServerRow,
   type OrgSkillSequenceRow,
+  orgVisibleUserIds,
   type SkillAdoptionRow,
   type SkillRoiRow,
   type SkillRow,
@@ -37,6 +40,7 @@ export default async function OrgToolsPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
 
+  const visibleIds = await orgVisibleUserIds(since);
   const [
     tools,
     categories,
@@ -47,6 +51,7 @@ export default async function OrgToolsPage({
     skillAdoption,
     skillSequences,
     skillRoi,
+    coverage,
   ] = await Promise.all([
     getToolStats(since, 20),
     getToolCategoryBreakdown(since),
@@ -57,6 +62,7 @@ export default async function OrgToolsPage({
     getSkillAdoptionFunnel(since),
     getOrgSkillSequences(since),
     getSkillRoi(since),
+    getAttributionCoverage(visibleIds, since),
   ]);
 
   const totalCalls = tools.reduce((s, t) => s + t.callCount, 0);
@@ -109,7 +115,10 @@ export default async function OrgToolsPage({
         {tools.length === 0 ? (
           <CardEmpty>No tool activity in this period.</CardEmpty>
         ) : (
-          <ToolsTable tools={tools} />
+          <>
+            <ToolsTable tools={tools} />
+            <CostAttributionNote coverage={coverage} />
+          </>
         )}
       </Card>
 
@@ -143,7 +152,10 @@ export default async function OrgToolsPage({
             <span className="font-mono text-text-2">/commit</span>).
           </CardEmpty>
         ) : (
-          <SkillsTable skills={skills} adoption={skillAdoption} />
+          <>
+            <SkillsTable skills={skills} adoption={skillAdoption} />
+            <CostAttributionNote coverage={coverage} />
+          </>
         )}
       </Card>
 
@@ -230,6 +242,10 @@ function ToolsTable({ tools }: { tools: ToolStatRow[] }) {
         { align: 'right', label: 'Deny %' },
         { align: 'right', label: 'Avg ms' },
         { align: 'right', label: 'Users' },
+        // P14-004: two lenses on the same dollars, labelled apart so neither
+        // reads as this tool's total spend — which their sum is not.
+        { align: 'right', label: 'Turn share' },
+        { align: 'right', label: 'Downstream' },
       ]}
     >
       {tools.map((t) => (
@@ -270,6 +286,12 @@ function ToolsTable({ tools }: { tools: ToolStatRow[] }) {
           </Cell>
           <Cell num className="text-text-2 text-xs">
             {t.distinctUsers}
+          </Cell>
+          <Cell num className="text-text-2 text-xs">
+            {fmtUsdOrDash(t.attributedCostUsd)}
+          </Cell>
+          <Cell num className="text-text-2 text-xs">
+            {fmtUsdOrDash(t.downstreamCostUsd)}
           </Cell>
         </Row>
       ))}
@@ -361,7 +383,12 @@ function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skill
         { label: 'Type' },
         { align: 'right', label: 'Invocations' },
         { align: 'right', label: 'Users' },
+        // The pre-P14-004 proxy, kept next to the real numbers rather than
+        // replaced: it is the mean cost of whole sessions that used this skill,
+        // credited entirely to it. Retiring it is someone's decision to take.
         { align: 'right', label: 'Avg session $' },
+        { align: 'right', label: 'Turn share' },
+        { align: 'right', label: 'Downstream' },
         { align: 'right', label: 'New / Return' },
       ]}
     >
@@ -397,6 +424,12 @@ function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skill
             </Cell>
             <Cell num className="text-xs text-text-2">
               {s.avgSessionCostUsd != null ? `$${s.avgSessionCostUsd.toFixed(2)}` : '—'}
+            </Cell>
+            <Cell num className="text-xs text-text-2">
+              {fmtUsdOrDash(s.attributedCostUsd)}
+            </Cell>
+            <Cell num className="text-xs text-text-2">
+              {fmtUsdOrDash(s.downstreamCostUsd)}
             </Cell>
             <Cell num className="text-xs text-text-2">
               {adp != null ? (

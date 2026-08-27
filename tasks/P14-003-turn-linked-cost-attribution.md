@@ -1,80 +1,70 @@
 ---
 id: P14-003
-title: Turn-linked cost attribution for tool events
+title: Claude Code per-turn usage capture and turn linkage
 phase: 14
 workstream: A
-status: blocked
-owner: null
-depends_on: [P14-001]
-blocks: []
-estimate: L
+status: in-progress
+owner: claude
+depends_on: []
+blocks: [P14-004]
+estimate: M
 ---
+
+> **STUB — renumbered, not yet written by its owner.**
+>
+> This file previously held the cost-attribution task. That work is now
+> [`P14-004`](./P14-004-turn-linked-cost-attribution.md); `P14-003` is the
+> **hook-side** half it consumes. The owner of the hook work fills this in.
+> Do not treat the sections below as a specification — they record only the
+> contract P14-004 was built against, so the two halves can be checked against
+> each other.
 
 ## Goal
 
-Individual tool-call events (and, downstream, sub-agent spawns and MCP calls)
-carry real attributed cost, so the "Attributed cost" / "Avg cost / spawn" /
-"Attributed LLM cost" tiles this task's dependency (P14-001) changed to say
-"Not yet captured" can show a real number instead.
+The Claude Code adapter emits, per assistant turn, a `Stop` event carrying that
+turn's `llm` usage block plus `turn_number`, and links the tool events that turn
+issued back to it. Without this, `events.turn_number` and
+`events.parent_event_id` stay NULL and nothing downstream can attribute cost to
+a tool call.
 
-## Blocker
+## The contract P14-004 was built against
 
-Blocked on [`P14-001`](./P14-001-subagent-identification-fix.md): the honest
-not-yet-captured state it shipped is the correct interim behavior, and this
-task should land after it so the two don't race on the same tiles.
+- `events.turn_number` (INT) — 1-based, monotonically increasing within a
+  `session_id`, one increment per assistant turn. Carried by the `Stop` event
+  that holds the turn's `llm` usage and by the `PreToolUse` / `PostToolUse`
+  events for the tools that turn issued.
+- `events.parent_event_id` (UUID) — on a tool event, the `event_id` of the
+  `Stop` event for the turn that issued it. NULL on the Stop event itself and on
+  non-tool events.
+- The `Stop` event for turn N carries model plus the four token counts, so
+  ingest's existing cost path gives it a `cost_usd`.
 
-## Context
+Both columns already exist in the `events` DDL (`0001_init.sql`).
 
-`apps/ingest/src/lib/insert-events.ts:49` sets `cost_usd` on an event only when
-it carries an `llm` block. For Claude Code the only producer of an `llm` block
-is the transcript importer (`apps/hook/src/lib/import-synth.ts:~189`), and it
-attaches one exclusively to `Stop` events — once per turn, not once per tool
-call. Tool events (`PostToolUse`) therefore never carry cost in real telemetry
-today; every dollar figure ever shown for a sub-agent spawn or MCP call came
-from `packages/db/src/seed.ts` fabricating a `cost_usd` on seeded rows,
-diagnosed and stopped from displaying by P14-001.
+## Known partial delivery
 
-Turn-linking means associating each `Stop` event's per-turn cost back to the
-tool calls that happened within that turn (bounded by `turn_number`, already a
-column on `events`) so a proportional or exact share of the turn's cost can be
-attributed to, e.g., a specific sub-agent spawn or MCP tool call within it.
+The owner of this task reported, while P14-004 was in flight, that the **live**
+hook path cannot carry `turn_number` / `parent_event_id` on tool events:
+`PreToolUse` / `PostToolUse` fire in separate short-lived processes *before* the
+turn's `Stop` hook, so the Stop event's id does not exist yet; and Claude Code's
+`Stop` hook fires once per user-prompt response cycle rather than once per
+assistant API turn, so there is no live per-turn signal to count. The **import**
+path (`import-synth.ts`, reading the transcript JSONL) can carry both.
 
-## Acceptance criteria
+P14-004 degrades correctly under this: a tool event with a NULL `turn_number`
+gets no attribution at all, and the dashboards show a coverage fraction rather
+than a false `$0.00`. The consequence to record here is that for live Claude
+Code sessions that fraction will be low until this gap is closed.
 
-- [ ] A defined, documented method attributes turn-level `cost_usd` down to the
-      tool events within that turn (proportional by token usage, by duration,
-      or exact if the underlying LLM API ever reports it per-call — pick one
-      and justify it).
-- [ ] `getOrgSubagentStats` / `getTeamSubagentStats` and `getMcpServerDetails` /
-      `getTeamMcpDetails` read real, non-fabricated cost once this lands.
-- [ ] The P14-001 "Not yet captured" tiles are updated to show the real
-      computed value once cost is available (conditionally, or removed if
-      attribution is always available going forward).
-- [ ] Historical events without turn-linked cost degrade gracefully (still
-      "Not yet captured", not a false zero).
-
-## Implementation notes
-
-Non-binding — unclaimed, not yet designed. Consider whether this belongs in
-`apps/ingest` (attribute at ingest time) or as a scheduled recompute job
-(similar to `apps/ingest/src/jobs/reprice-events` from P12-011), given that
-turn cost may not be known until the `Stop` event arrives, after the tool
-events it should attribute to.
-
-## Files touched
-
-- `apps/ingest/src/lib/insert-events.ts` (or a new attribution job)
-- `apps/web/src/lib/org-queries.ts`, `apps/web/src/lib/team-queries.ts`
-- `apps/web/src/app/org/agents/page.tsx`, `apps/web/src/app/team/[slug]/agents/page.tsx`
-- `apps/web/src/app/org/mcp/page.tsx`, `apps/web/src/app/team/[slug]/mcp/page.tsx`
+Deriving a tool→turn assignment heuristically (nearest following `Stop` by
+timestamp) was **considered and declined** in P14-004: parallel tool calls, the
+response-cycle-vs-API-turn mismatch, and hook-time vs assistant-message-time skew
+all move a call into the wrong turn's divisor, and the symptom is a plausible
+dollar figure attached to the wrong tool. If it is wanted, it is its own task
+with its own error analysis.
 
 ## Out of scope
 
-- Sub-agent identification and the honest not-yet-captured interim state —
-  P14-001.
-- The tool-category taxonomy — P14-002.
-
-## Verification
-
-Not yet defined — write this section when the task is claimed and the
-attribution method is chosen.
+- The attribution arithmetic and the surfaces — [`P14-004`](./P14-004-turn-linked-cost-attribution.md).
+- Sub-agent identification — [`P14-001`](./P14-001-subagent-identification-fix.md).
+- The tool-category taxonomy — [`P14-002`](./P14-002-tool-category-taxonomy.md).

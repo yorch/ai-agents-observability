@@ -349,10 +349,17 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 ## Phase 14 — Tool, Skill & Agent Cost Attribution
 
-Fixes sub-agent identification (dead since no adapter ever emitted the `tool_category = 'agent'` these queries filtered on) and stops the org/agents, team/agents, org/mcp, and team/mcp pages from presenting a computed `SUM(cost_usd)` over tool events as real cost when no producer populates it in real telemetry — the number was always seed-data fiction. Three tasks running in parallel on separate branches: P14-001 (this fix), P14-002 (the tool-category taxonomy gap the same investigation surfaced), and P14-003 (the real cost attribution P14-001 deliberately does not build, stacked on it).
+Fixes sub-agent identification (dead since no adapter ever emitted the `tool_category = 'agent'` these queries filtered on), stops the org/agents, team/agents, org/mcp, and team/mcp pages from presenting a computed `SUM(cost_usd)` over tool events as real cost when no producer populates it in real telemetry — the number was always seed-data fiction — and then makes those numbers real.
+
+Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. Four tasks on separate branches: P14-001 and P14-002 off `main`, P14-004 stacked on P14-001.
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P14-001](./P14-001-subagent-identification-fix.md) | Fix sub-agent identification and stop reporting fabricated tool cost | review | claude | S | — |
 | [P14-002](./P14-002-tool-category-taxonomy.md) | Tool-category taxonomy in the hook adapters | in-progress | claude | M | — |
-| [P14-003](./P14-003-turn-linked-cost-attribution.md) | Turn-linked cost attribution for tool events | blocked | — | L | P14-001 |
+| [P14-003](./P14-003-turn-linked-cost-attribution.md) | Claude Code per-turn usage capture and turn linkage | in-progress | claude | M | — |
+| [P14-004](./P14-004-turn-linked-cost-attribution.md) | Turn-linked cost attribution for tools, skills and sub-agents | review | claude | L | P14-001, P14-003 |
+
+P14-004 degrades rather than guesses: a tool event whose `turn_number` is NULL gets **no** attribution, and every surface shows what fraction of the window's sessions have turn linkage instead of a false `$0.00`. Until P14-003 lands (and, on the live Claude Code path, possibly beyond it — see that file's "Known partial delivery") that fraction is low.
+
+**Unclaimed follow-up — the model-routing surfaces have the same bug, and no task ID yet.** Six reads (`getOrgModelRoutingBreakdown`, `getRoutingSpendByTeam`, `getTeamRoutingBreakdown`, `getUserModelRouting`, `getRoutingActuals`, and the `routing_waste` alert evaluator) sum `events.cost_usd` over rows matching `event_type = 'PostToolUse' AND model IS NOT NULL AND tool_category IS NOT NULL`. **No adapter puts a model on a tool row** — all three producers of an `llm` block attach it to `Stop` — so that predicate matches nothing in real telemetry, and `/org/models`, the routing recommendations, the projection-realization panel and a live alert have only ever shown seed data. Same class as P14-001 (a filter on a value no producer emits), on a surface that investigation did not scan; latent all along, and made visible by P14-003 moving the seeded token/cost columns onto `Stop` rows. Fixing it needs a *different* redistribution than P14-004's per-tool split — see the "Adjacent finding" section in [P14-004](./P14-004-turn-linked-cost-attribution.md). Left unnumbered deliberately: three agents renumbered Phase 14 concurrently, and a guessed ID is how the last collision happened.
