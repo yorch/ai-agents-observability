@@ -10,6 +10,7 @@ vi.mock('@ai-agents-observability/db', () => ({
 
 import {
   type BillingSource,
+  CompositeBillingSource,
   NullBillingSource,
   runReconcileCost,
 } from '../src/jobs/reconcile-cost';
@@ -29,7 +30,7 @@ function introspect(arg0: unknown): string {
 
 function makeMockDb(opts?: {
   lockAlwaysFails?: boolean;
-  rows?: { agent_type: string; client_cost: number }[];
+  rows?: { agent_type: string; client_cost: number; client_tokens?: number }[];
 }) {
   const jobRuns: { id: bigint; jobName: string; status: string }[] = [];
   let idCounter = 1n;
@@ -54,7 +55,9 @@ function makeMockDb(opts?: {
         return [{ pg_advisory_unlock: true }];
       }
       if (text.includes('SUM(cost_usd)')) {
-        return opts?.rows ?? [];
+        // Default the token column so a row that doesn't care about coverage
+        // still looks like a normally-captured agent (tokens > 0).
+        return (opts?.rows ?? []).map((r) => ({ client_tokens: 1_000, ...r }));
       }
       return [];
     }),
@@ -109,6 +112,46 @@ describe('runReconcileCost', () => {
     expect(db._jobRuns[0]?.status).toBe('success');
   });
 
+  it('records drift but NOT a threshold breach when no event carried tokens', async () => {
+    // COPILOT's real state today (P14-007): events land, none carry token
+    // counts, so SUM(cost_usd) is structurally 0. GitHub still bills. That is a
+    // capture gap, not a pricing error, and must not page anyone.
+    const db = makeMockDb({ rows: [{ agent_type: 'COPILOT', client_cost: 0, client_tokens: 0 }] });
+    const warn = vi.fn();
+
+    await runReconcileCost(
+      asDb(db),
+      { fetchBilledCost: async () => 250 },
+      // biome-ignore lint/suspicious/noExplicitAny: partial pino double
+      { logger: { error: vi.fn(), info: vi.fn(), warn } as any, now: new Date('2026-06-15Z') },
+    );
+
+    const events = warn.mock.calls.map((c) => c[1]);
+    expect(events).toContain('cost.reconciliation.no_client_token_coverage');
+    expect(events).not.toContain('cost.reconciliation.drift_exceeded');
+    expect(db._jobRuns[0]?.status).toBe('success');
+  });
+
+  it('still reports a breach for an agent that DID capture tokens', async () => {
+    // Anti-vacuity for the test above: same vendor figure, same 100% drift, but
+    // tokens were captured — so this one is a real pricing disagreement.
+    const db = makeMockDb({
+      rows: [{ agent_type: 'CLAUDE_CODE', client_cost: 0, client_tokens: 5_000 }],
+    });
+    const warn = vi.fn();
+
+    await runReconcileCost(
+      asDb(db),
+      { fetchBilledCost: async () => 250 },
+      // biome-ignore lint/suspicious/noExplicitAny: partial pino double
+      { logger: { error: vi.fn(), info: vi.fn(), warn } as any, now: new Date('2026-06-15Z') },
+    );
+
+    const events = warn.mock.calls.map((c) => c[1]);
+    expect(events).toContain('cost.reconciliation.drift_exceeded');
+    expect(events).not.toContain('cost.reconciliation.no_client_token_coverage');
+  });
+
   it('skips when the advisory lock is unavailable', async () => {
     const db = makeMockDb({ lockAlwaysFails: true, rows: [] });
     const fetchBilledCost = vi.fn(async () => 1);
@@ -121,5 +164,29 @@ describe('runReconcileCost', () => {
 
     expect(db._jobRuns).toHaveLength(0);
     expect(fetchBilledCost).not.toHaveBeenCalled();
+  });
+});
+
+describe('CompositeBillingSource', () => {
+  it('takes the first source that answers, and stops there', async () => {
+    const anthropicish = vi.fn(async (agentType: string) =>
+      agentType === 'CLAUDE_CODE' ? 10 : null,
+    );
+    const githubish = vi.fn(async (agentType: string) => (agentType === 'COPILOT' ? 20 : null));
+    const source = new CompositeBillingSource([
+      { fetchBilledCost: anthropicish },
+      { fetchBilledCost: githubish },
+    ]);
+
+    expect(await source.fetchBilledCost('CLAUDE_CODE', 2026, 5)).toBe(10);
+    expect(githubish).not.toHaveBeenCalled(); // short-circuited
+
+    expect(await source.fetchBilledCost('COPILOT', 2026, 5)).toBe(20);
+    // Anti-vacuity: an agent neither source bills still resolves to null.
+    expect(await source.fetchBilledCost('OPENCODE', 2026, 5)).toBeNull();
+  });
+
+  it('is a no-op source when constructed empty', async () => {
+    expect(await new CompositeBillingSource([]).fetchBilledCost('COPILOT', 2026, 5)).toBeNull();
   });
 });
