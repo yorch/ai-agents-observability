@@ -2,15 +2,20 @@ import { promisify } from 'node:util';
 import { zstdCompress } from 'node:zlib';
 import { hashPassword } from '@ai-agents-observability/auth';
 import {
+  type AttributionEvent,
+  type AttributionRow,
   buildScoreRow,
+  computeSessionAttribution,
+  type ModelPrice,
   PRE_RUBRIC_VERSION,
+  type PriceLookup,
   RUBRIC_SHAPES,
   SESSION_RUBRIC_VERSION,
   toolCategory,
 } from '@ai-agents-observability/schemas';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { faker } from '@faker-js/faker';
-import { createClient } from './index';
+import { createClient, Prisma } from './index';
 import { scoreUpsertSql } from './score-upsert';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -62,6 +67,25 @@ function calcCost(input: number, output: number, cacheRead: number, cacheWrite: 
     1_000_000
   );
 }
+
+/**
+ * The same rates as a `ModelPrice`, for `computeSessionAttribution` (P14-011).
+ *
+ * Flat across every model on purpose: `calcCost` above prices every seeded model
+ * at one rate, and the downstream half of the attribution redistributes the very
+ * `cost_usd` `calcCost` produced. Handing it a different rate table would make
+ * the two halves of a seeded session disagree with each other — a demo database
+ * whose numbers are internally inconsistent is worse than one that is coarse.
+ */
+const SEED_MODEL_PRICE: ModelPrice = {
+  cache_read_per_mtok: PRICE_PER_MTOK.cache_read,
+  cache_write_per_mtok: PRICE_PER_MTOK.cache_write,
+  input_per_mtok: PRICE_PER_MTOK.input,
+  output_per_mtok: PRICE_PER_MTOK.output,
+};
+
+/** Production resolves this per agent from a versioned table; the seed has one. */
+const seedPriceFor: PriceLookup = () => SEED_MODEL_PRICE;
 
 function weightedDurationMs() {
   return faker.helpers.weightedArrayElement([
@@ -3027,13 +3051,135 @@ async function seedGovernance(opts: {
   }
 }
 
+/** Rows per UPDATE … FROM (VALUES …), matching the job's batch size. */
+const ATTRIBUTION_WRITE_BATCH = 500;
+
+/** One turn-linked event, in the column spellings the SELECT below returns. */
+type AttributionEventRow = {
+  agent_type: string;
+  cache_creation_tokens: number | null;
+  cache_read_tokens: number | null;
+  cost_usd: string | null;
+  event_id: string;
+  event_type: string;
+  input_tokens: number | null;
+  model: string | null;
+  session_id: string;
+  tool_output_bytes: number | null;
+  ts: Date;
+  turn_number: number | null;
+};
+
+/**
+ * `events.attributed_cost_usd` / `events.downstream_cost_usd` for everything
+ * seeded, computed by the SAME function ingest's `compute-cost-attribution` job
+ * calls (P14-011).
+ *
+ * ── Why this is an import and not a query ───────────────────────────────────
+ *
+ * Before this, a freshly seeded database left both columns NULL, so `/org/tools`,
+ * `/org/skills`, `/org/agents`, `/org/models` and their team and `/me`
+ * equivalents rendered an em dash until someone ran the nightly job by hand.
+ * The obvious fix — write the arithmetic again here in SQL — is the defect this
+ * phase exists to remove. The fabricated per-tool cost, the invented
+ * `tool_category` taxonomy and the `model`-on-tool-rows fiction each shipped
+ * because the seed produced numbers no producer produces, and every query was
+ * reviewed against them. So the definition lives once, in
+ * `packages/schemas/src/cost-attribution.ts`, and this calls it. If the
+ * definition changes, the demo database changes with it; if it is wrong, it is
+ * wrong in both places and visible in one test.
+ *
+ * ── THE INVARIANT, restated because a second writer is where it gets lost ────
+ *
+ * The two columns are **two lenses on the same dollars, not two costs** — turn
+ * N+1 appears once as its own tools' issuing share and again as turn N's tools'
+ * downstream inflation. Never sum them. And this write must never touch
+ * `sessions.total_cost_usd`, `pr_rollups.total_cost_usd` or the three cost
+ * continuous aggregates: that chain already counts these dollars once, at the
+ * Stop event, and the seed populates it independently. NULL means *not
+ * attributed*, never $0.00. `test/seed-cost-attribution.test.ts` pins all three.
+ *
+ * Unlike the job this does no chunk decompression — a seeded database is fresh,
+ * and the byte-volume UPDATE above already assumes the same.
+ */
+async function attributeToolCosts(): Promise<number> {
+  const rows = await db.$queryRaw<AttributionEventRow[]>(Prisma.sql`
+    SELECT
+      session_id, event_id, ts, event_type, turn_number, agent_type,
+      tool_output_bytes, model, cost_usd::text AS cost_usd,
+      input_tokens, cache_read_tokens, cache_creation_tokens
+    FROM events
+    WHERE turn_number IS NOT NULL
+    ORDER BY session_id, ts
+  `);
+
+  const bySession = new Map<string, AttributionEvent[]>();
+  for (const r of rows) {
+    const list = bySession.get(r.session_id) ?? [];
+    list.push({
+      agentType: r.agent_type,
+      cacheCreationTokens: r.cache_creation_tokens,
+      cacheReadTokens: r.cache_read_tokens,
+      // `::text` above: a NUMERIC comes back as a driver-specific decimal
+      // object, and Number(String(x)) is the one exact conversion.
+      costUsd: r.cost_usd === null ? null : Number(r.cost_usd),
+      eventId: r.event_id,
+      eventType: r.event_type,
+      inputTokens: r.input_tokens,
+      model: r.model,
+      toolOutputBytes: r.tool_output_bytes,
+      ts: r.ts,
+      turnNumber: r.turn_number,
+    });
+    bySession.set(r.session_id, list);
+  }
+
+  const computed: AttributionRow[] = [];
+  for (const events of bySession.values()) {
+    computed.push(...computeSessionAttribution(events, seedPriceFor));
+  }
+
+  for (let i = 0; i < computed.length; i += ATTRIBUTION_WRITE_BATCH) {
+    // Values cross as text and are cast in-database, for the same reason the job
+    // does it: a NUMERIC(12,6) round-tripped through a JS double lands a
+    // half-ulp away often enough to matter.
+    const values = Prisma.join(
+      computed.slice(i, i + ATTRIBUTION_WRITE_BATCH).map(
+        (r) => Prisma.sql`(
+          ${r.eventId}::uuid,
+          ${r.ts}::timestamptz,
+          ${r.attributedCostUsd === null ? null : r.attributedCostUsd.toFixed(6)}::numeric,
+          ${r.downstreamCostUsd === null ? null : r.downstreamCostUsd.toFixed(6)}::numeric
+        )`,
+      ),
+      ',',
+    );
+    await db.$executeRaw(Prisma.sql`
+      UPDATE events e
+      SET attributed_cost_usd = v.attributed,
+          downstream_cost_usd = v.downstream
+      FROM (VALUES ${values}) AS v(event_id, ts, attributed, downstream)
+      WHERE e.event_id = v.event_id
+        AND e.ts = v.ts
+    `);
+  }
+
+  return computed.length;
+}
+
 // ── Post-seed telemetry finalization ────────────────────────────────────────
 // Backfills columns/aggregates that the newer dashboards read but that the
 // per-row inserts don't populate, so a freshly seeded DB drives every surface:
 // byte volumes (security & insights), transcript pointers + redaction classes
-// (security secret-exposure), and the continuous aggregates the org cost
-// rollups now read. Idempotent-ish: safe to re-run after a reseed. Operates on
-// whatever basic/extensive seeded, so it runs once in main.
+// (security secret-exposure), the continuous aggregates the org cost rollups now
+// read, and the two turn-linked cost attributions. Idempotent-ish: safe to
+// re-run after a reseed. Operates on whatever basic/extensive seeded, so it runs
+// once in main.
+//
+// Cost attribution is NOT recomputed here (P14-011) — `attributeToolCosts()`
+// calls `computeSessionAttribution` from `packages/schemas`, the same function
+// ingest's `compute-cost-attribution` job calls, for the same reason
+// `tool_category` is not backfilled below.
 //
 // tool_category is NOT backfilled here (P14-002) — every per-row insert above
 // already stamps the real category via the shared toolCategory() (the same
@@ -3100,6 +3246,14 @@ async function finalizeTelemetry() {
       console.warn(`  ⚠ could not refresh ${cagg}: ${err instanceof Error ? err.message : err}`);
     }
   }
+
+  // 5. Turn-linked cost attribution, via the shared definition (P14-011). Runs
+  //    after step 1 because the downstream half apportions by `tool_output_bytes`,
+  //    and after step 4 to make the ordering say what it means: the cost chain
+  //    the caggs feed on is already complete and closed, and attribution
+  //    redistributes those dollars for display without re-entering it.
+  const attributed = await attributeToolCosts();
+  console.log(`    ${attributed} tool events attributed`);
 }
 
 // ── Non-interactive runs (P13-002) ────────────────────────────────────────────
