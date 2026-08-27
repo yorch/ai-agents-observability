@@ -57,7 +57,14 @@ export interface HookAdapter {
   transcriptTarget(kind: string, raw: Record<string, unknown>): TranscriptTarget | null;
 }
 
-const ADAPTERS: Record<string, HookAdapter> = {
+/**
+ * Every adapter, keyed by its `--agent` CLI name.
+ *
+ * Exported so a cross-cutting test can sweep ALL of them rather than the ones its
+ * author remembered — `metadata-content-free.test.ts` (P14-008) enumerates this
+ * registry, so a newly-added agent is covered the moment it is registered here.
+ */
+export const ADAPTERS: Record<string, HookAdapter> = {
   'claude-code': claudeCodeAdapter,
   codex: codexAdapter,
   copilot: copilotAdapter,

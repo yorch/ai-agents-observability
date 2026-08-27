@@ -87,8 +87,11 @@ describe('claude-code through the factory — golden output', () => {
       notification_type: 'permission_request',
       session_id: SESSION_ID,
     });
+    // The derived `notification_kind` is classified from the RAW payload before
+    // the metadata filter runs, so the aggregate survives while the notification
+    // prose itself does not (P14-008). `notification_type` is a short vendor enum
+    // and stays.
     expect(note.metadata).toEqual({
-      message: 'needs permission',
       notification_kind: 'permission',
       notification_type: 'permission_request',
     });

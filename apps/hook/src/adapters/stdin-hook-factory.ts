@@ -1,5 +1,6 @@
 import {
   type AgentType,
+  admitsToMetadata,
   canonicalPermissionMode,
   type EventType,
   type ToolInfo,
@@ -194,11 +195,16 @@ export function createStdinHookAdapter(config: StdinHookConfig): HookAdapter {
   ]);
 
   // Everything we did not capture structurally rides along in metadata, so a
-  // payload field we have not modelled yet is preserved rather than dropped.
+  // payload field we have not modelled yet is preserved rather than dropped —
+  // but only if `admitsToMetadata` says it is content-free (P14-008). Before
+  // that filter existed this loop was *unknown ⇒ verbatim*, which is how Claude
+  // Code's `last_assistant_message` and Copilot CLI's `prompt` reached Postgres
+  // unredacted: neither agent's known-key list named a field the vendor added
+  // after that list was written. See packages/schemas/src/metadata-safety.ts.
   const buildMetadata = (raw: Record<string, unknown>): Record<string, unknown> => {
     const meta: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(raw)) {
-      if (!knownKeys.has(key)) {
+      if (!knownKeys.has(key) && admitsToMetadata(key, value)) {
         meta[key] = value;
       }
     }
