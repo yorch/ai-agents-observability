@@ -3,7 +3,7 @@ id: P14-005
 title: Make the model-routing surfaces read real cost instead of seed fiction
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P14-002, P14-003, P14-004]
 blocks: []

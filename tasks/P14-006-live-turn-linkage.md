@@ -3,7 +3,7 @@ id: P14-006
 title: Close live-session turn linkage
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P14-003, P14-004]
 blocks: []
