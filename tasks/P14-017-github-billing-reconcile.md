@@ -3,7 +3,7 @@ id: P14-017
 title: Reconcile Copilot spend against GitHub's billing API
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P14-015]
 blocks: []
