@@ -351,7 +351,7 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 Closes gaps where the pipeline recorded a *plausible* value rather than a true one, then makes the corrected values usable. Sub-agent identification was dead (no adapter ever emitted the `tool_category = 'agent'` those queries filtered on); the cost on `/org/agents`, `/team/agents`, `/org/mcp` and `/team/mcp` was a `SUM(cost_usd)` over tool events that no producer populates in real telemetry, and was always seed-data fiction; and Claude Code recorded `$0` in steady state.
 
-Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. All four tasks are merged (#117, #118, #119, #120).
+Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. All nine tasks are merged (#117, #118, #119, #120, #124, #125, #126, #127, #128).
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
@@ -359,6 +359,11 @@ Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost
 | [P14-002](./P14-002-tool-category-taxonomy.md) | Derive the real tool-category taxonomy in the adapter seam | done | claude | M | — |
 | [P14-003](./P14-003-claude-code-usage-capture.md) | Claude Code per-turn usage capture + turn linkage | done | claude | M | P14-002 |
 | [P14-004](./P14-004-turn-linked-cost-attribution.md) | Turn-linked cost attribution for tools, skills and sub-agents | done | claude | L | P14-001, P14-003 |
+| [P14-005](./P14-005-model-routing-attribution.md) | Make the model-routing surfaces read real cost instead of seed fiction | done | claude | M | P14-004 |
+| [P14-006](./P14-006-live-turn-linkage.md) | Close live-session turn linkage | done | claude | M | P14-003 |
+| [P14-007](./P14-007-copilot-usage-capture.md) | Copilot CLI token-usage capture — documented negative | done | claude | S | — |
+| [P14-008](./P14-008-metadata-redaction.md) | Stop passing model and user content through to events.metadata | done | claude | M | — |
+| [P14-009](./P14-009-migration-consolidation.md) | Consolidate the custom SQL migration layer back to one file | done | claude | S | P14-004, P14-006 |
 
 > **Phase 14 exists because green tests are not evidence of true data.** Every task
 > here fixes a value that was written, validated, aggregated and displayed — and was
@@ -382,4 +387,10 @@ P14-004 degrades rather than guesses: a tool event whose `turn_number` is NULL g
 > sessions carry the full linkage, so the coverage fraction above is low until a
 > follow-up closes this.
 
-**Unclaimed follow-up — the model-routing surfaces have the same bug, and no task ID yet.** Six reads (`getOrgModelRoutingBreakdown`, `getRoutingSpendByTeam`, `getTeamRoutingBreakdown`, `getUserModelRouting`, `getRoutingActuals`, and the `routing_waste` alert evaluator) sum `events.cost_usd` over rows matching `event_type = 'PostToolUse' AND model IS NOT NULL AND tool_category IS NOT NULL`. **No adapter puts a model on a tool row** — all three producers of an `llm` block attach it to `Stop` — so that predicate matches nothing in real telemetry, and `/org/models`, the routing recommendations, the projection-realization panel and a live alert have only ever shown seed data. Same class as P14-001 (a filter on a value no producer emits), on a surface that investigation did not scan; latent all along, and made visible by P14-003 moving the seeded token/cost columns onto `Stop` rows. Fixing it needs a *different* redistribution than P14-004's per-tool split — see the "Adjacent finding" section in [P14-004](./P14-004-turn-linked-cost-attribution.md). Left unnumbered deliberately: three agents renumbered Phase 14 concurrently, and a guessed ID is how the last collision happened.
+The model-routing follow-up recorded here while Phase 14 was in flight became [P14-005](./P14-005-model-routing-attribution.md): six reads and the `routing_waste` alert filtered `event_type = 'PostToolUse' AND model IS NOT NULL`, a combination no producer emits, so `/org/models` and a live alert had only ever seen seed data. Those surfaces now read the issuing turn's model through `parent_event_id` and the tool row's `attributed_cost_usd`.
+
+**Three follow-ups found during Phase 14, not yet scheduled and deliberately unnumbered until each is picked up.**
+
+1. **`PostToolUse.duration_ms` is discarded.** Claude Code's payload carries a real per-tool duration; `buildClaudeToolInfo` hardcodes `duration_ms: 0`. Every latency figure in the product — per-tool avg/p95, MCP server latency, the slow-tool panels — is therefore zero from live capture and seed-generated everywhere else. Same shape as the rest of this phase.
+2. **The `apps/ingest` DB-gated suites cannot share a database.** `compute-cost-attribution.db.test.ts` and `reprice-events.db.test.ts` pass alone and fail together — a lock deadlock while one recompresses a chunk the other writes, and a chunk-count assertion that counts *all* compressed chunks of `events` and so sees the other suite's work. Pre-existing (reproduces against the pre-squash schema) and invisible because `bun run test` sets no `DATABASE_URL`, so all three DB suites skip. Fix is a cross-cutting choice: `fileParallelism: false` for ingest, a per-suite database, or scoping that assertion.
+3. **Copilot spend cannot be expressed.** `price-table.copilot.v1.json` is intentionally empty: Copilot bills a premium-request allowance (Pro 300/mo, Pro+ 1500, $0.04 overage), not tokens. Its spend will read `$0` forever under the per-token schema regardless of what the hook captures — see [P14-007](./P14-007-copilot-usage-capture.md). Making it meaningful needs a request-denominated cost dimension the price-table schema cannot currently express.

@@ -3,7 +3,7 @@ id: P14-008
 title: Stop passing model and user content through to events.metadata
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: []
 blocks: []
