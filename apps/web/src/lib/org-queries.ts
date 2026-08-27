@@ -650,11 +650,27 @@ export async function getOrgEffectiveness(since: Date): Promise<EffectivenessDis
 
 export type AgentComparisonRow = {
   agentType: string;
-  avgCostUsd: number;
+  /** Null whenever `totalCostUsd` is — see the note on that field. */
+  avgCostUsd: number | null;
   medianFriction: number | null;
+  /**
+   * User prompts submitted (`UserPromptSubmit`), accumulated per session as
+   * `user_message_count`. The one cross-agent unit of work that does not depend
+   * on usage capture, and the unit a request-billed agent is denominated in —
+   * GitHub bills Copilot's legacy annual plans one premium request per prompt,
+   * with the agent's own autonomous tool calls inside it costing nothing extra.
+   */
+  prompts: number;
   sessions: number;
   toolErrorRate: number | null;
-  totalCostUsd: number;
+  /**
+   * Null means UNKNOWN, not $0.00 (P14-015), and the two must not render alike.
+   * An agent whose adapter captures no token usage — Copilot CLI is the live
+   * case, per P14-007 — accumulates `total_cost_usd = 0` for every session, and
+   * printing that as "$0.00" beside another agent's genuinely measured spend
+   * claims Copilot is free. It is not; we simply cannot see what it cost.
+   */
+  totalCostUsd: number | null;
   totalTokens: number;
 };
 
@@ -671,6 +687,7 @@ export async function getAgentTypeComparison(since: Date): Promise<AgentComparis
       input_tokens: bigint;
       median_friction: number | null;
       output_tokens: bigint;
+      prompts: bigint;
       sessions: bigint;
       tool_calls: bigint;
       tool_errors: bigint;
@@ -683,6 +700,7 @@ export async function getAgentTypeComparison(since: Date): Promise<AgentComparis
            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.friction_score)  AS median_friction,
            COALESCE(SUM(s.tool_call_count), 0)                            AS tool_calls,
            COALESCE(SUM(s.tool_error_count), 0)                           AS tool_errors,
+           COALESCE(SUM(s.user_message_count), 0)                         AS prompts,
            COALESCE(SUM(s.total_input_tokens), 0)                         AS input_tokens,
            COALESCE(SUM(s.total_output_tokens), 0)                        AS output_tokens
     FROM interactive_sessions s
@@ -698,14 +716,23 @@ export async function getAgentTypeComparison(since: Date): Promise<AgentComparis
     const sessions = Number(r.sessions);
     const calls = Number(r.tool_calls);
     const totalCost = Number(r.total_cost ?? 0);
+    const totalTokens = Number(r.input_tokens) + Number(r.output_tokens);
+    // P14-015. Cost is computed from token counts, so an agent that reported no
+    // tokens at all across the window reported nothing cost could be derived
+    // from — its zero is the absence of a measurement, not a measurement of
+    // zero. Keyed on the data, never on an agent name: any adapter with a
+    // capture gap gets the same treatment, and the day one starts reporting
+    // usage its cost appears with no change here.
+    const measured = totalTokens > 0 || totalCost > 0;
     return {
       agentType: r.agent_type,
-      avgCostUsd: sessions > 0 ? totalCost / sessions : 0,
+      avgCostUsd: measured && sessions > 0 ? totalCost / sessions : null,
       medianFriction: r.median_friction != null ? Number(r.median_friction) : null,
+      prompts: Number(r.prompts),
       sessions,
       toolErrorRate: calls > 0 ? Number(r.tool_errors) / calls : null,
-      totalCostUsd: totalCost,
-      totalTokens: Number(r.input_tokens) + Number(r.output_tokens),
+      totalCostUsd: measured ? totalCost : null,
+      totalTokens,
     };
   });
 }

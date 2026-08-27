@@ -67,13 +67,40 @@ import {
 //     terminal exit) rather than to a turn, which would not satisfy the
 //     per-turn granularity every other adapter provides.
 //   - Separately, and regardless of the above: `apps/ingest/src/data/
-//     price-table.copilot.v1.json` is INTENTIONALLY empty. Copilot bills
-//     seats against a premium-request allowance, not per-token, so even a
-//     captured token count would price at `$0` today — a request-denominated
-//     cost model is its own task, not this one.
+//     price-table.copilot.v1.json` was INTENTIONALLY empty, so even a
+//     captured token count would have priced at `$0`. **That is no longer
+//     true** — see the P14-015 note below.
 //
 // Net: this is a well-evidenced negative, not an oversight. Re-open this if
 // GitHub documents usage on a CLI hook payload, or formalizes events.jsonl.
+//
+// ── P14-015: the price table caught up; this adapter is now the only blocker ──
+//
+// GitHub replaced premium requests with token-metered AI credits on 2026-06-01
+// and publishes a per-model per-Mtok rate, so `price-table.copilot.v2.json`
+// prices 32 models. Copilot spend is therefore no longer blocked on pricing at
+// all — it is blocked here, and only here: a captured `llm` block would cost
+// correctly the moment it arrived.
+//
+// Two things a future capture attempt must supply, re-verified against
+// docs.github.com/en/copilot/reference/hooks-reference on 2026-08-27 (the
+// finding above still holds; this adds the model half):
+//
+//   - TOKENS. Still nowhere in any documented payload.
+//   - A MODEL. Also nowhere — checked field-by-field across all thirteen
+//     documented events. `sessionStart` is `{ sessionId, timestamp, cwd,
+//     source, initialPrompt? }` and `userPromptSubmitted` is `{ sessionId,
+//     timestamp, cwd, prompt }`; neither names one. The CLI resolves its model
+//     from (highest first) a custom agent definition, `--model`, `COPILOT_MODEL`,
+//     `~/.copilot/settings.json`, then an unnamed default — so a hook could
+//     infer a *likely* model from the middle two, but never the first or last.
+//     An inferred model is not a measured one, and mispricing on a guessed
+//     model is worse than pricing nothing; if you wire this, mark it inferred.
+//
+// This is also why no dollar figure comes off the legacy request denominator:
+// GitHub is exact that one prompt is one premium request (tool calls inside it
+// are free), so the COUNT is exact, but the multiplier needs the model and
+// spans 0.25x to 57x. See the table's `_comment` for the sourcing.
 
 const COPILOT_EVENT_TYPE: Record<string, EventType> = {
   'agent-stop': 'Stop',

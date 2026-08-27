@@ -138,8 +138,8 @@ export {
   isBlockingNotification,
   NOTIFICATION_KINDS,
 } from './notification';
-export type { ModelPrice, PriceTable } from './price-table';
-export { PriceTableSchema } from './price-table';
+export type { ModelPrice, PriceTable, RequestPricing } from './price-table';
+export { isRequestPriced, PriceTableSchema, requestCostUsd } from './price-table';
 export type { RepoConfig } from './repo-config';
 export { parseRepoConfig, RepoConfigSchema } from './repo-config';
 export type {

@@ -20,8 +20,21 @@ type ModelPrice = {
   output_per_mtok: number;
 };
 
+/** The second denominator (P14-015). Absent on a purely token-billed agent. */
+type RequestPricing = {
+  included_requests_per_seat_month: Record<string, number>;
+  multipliers: Record<string, number>;
+  overage_usd_per_request: number;
+};
+
 type PriceTableResult =
-  | { ok: true; generated_at: string; prices: Record<string, ModelPrice>; version: string }
+  | {
+      ok: true;
+      generated_at: string;
+      prices: Record<string, ModelPrice>;
+      request_pricing?: RequestPricing;
+      version: string;
+    }
   | { ok: false; reason: string };
 
 async function fetchTable(ingestUrl: string, agent: AgentName): Promise<PriceTableResult> {
@@ -47,15 +60,70 @@ function fmt(n: number): string {
 }
 
 /**
+ * The request-denominated dimension (P14-015), for agents billed per request
+ * against a monthly seat allowance rather than per token.
+ *
+ * Rendered as reference, never as spend, and the copy has to carry that: the
+ * per-request figure is what one request would cost **past** the allowance, and
+ * a seat inside its allowance pays nothing more. Allowance is monthly and
+ * per-seat, which no event stream observes, so nothing here is totalled into a
+ * dollar figure anywhere in the product — showing the operator the rate is the
+ * whole job.
+ */
+function RequestPricing({ pricing }: { pricing: RequestPricing }) {
+  const allowances = Object.entries(pricing.included_requests_per_seat_month);
+  const multipliers = Object.entries(pricing.multipliers).sort(([a], [b]) => a.localeCompare(b));
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border-subtle bg-surface-2 p-4">
+      <div>
+        <h3 className="text-xs font-semibold text-text">Request-denominated billing</h3>
+        <p className="mt-1 text-xs text-text-2">
+          This agent also bills per request on some plans: a seat spends its monthly allowance at
+          the model&rsquo;s multiplier, and only usage past that allowance is charged, at{' '}
+          <span className="font-mono text-text">{fmt(pricing.overage_usd_per_request)}</span> per
+          request.{' '}
+          {allowances.length > 0 && (
+            <>
+              Included per seat per month:{' '}
+              {allowances
+                .map(([plan, n]) => `${plan.replaceAll('_', ' ')} ${n.toLocaleString()}`)
+                .join(' · ')}
+              .{' '}
+            </>
+          )}
+          Nothing here feeds a cost figure: which denominator a seat is billed on is a property of
+          its plan, and how much allowance it has left is monthly and per-seat — neither is
+          observable from telemetry, so a dollar total computed here would be imputed, not billed.
+        </p>
+      </div>
+      <Table columns={[{ label: 'Model' }, { align: 'right', label: 'Requests per prompt' }]}>
+        {multipliers.map(([model, multiplier]) => (
+          <Row key={model}>
+            <Cell className="text-xs text-text">{model}</Cell>
+            <Cell num className="text-xs text-text-2">
+              {multiplier}&times;
+            </Cell>
+          </Row>
+        ))}
+      </Table>
+    </div>
+  );
+}
+
+/**
  * Models producing billable tokens that no table prices — every one of those
  * events cost $0. The `unknown_model_surge` alert counts them; this names them,
  * which is the part an operator needs to act.
  *
- * `notTokenBilled` carries the agents whose table is empty *by design* — Copilot
- * bills premium requests against a seat allowance, not tokens, so its models will
- * sit here forever and adding a per-mtok rate would invent a number nobody is
- * charged. Derived from the fetched tables rather than a hard-coded name, so a
- * second request-billed agent needs no edit here.
+ * `notTokenBilled` carries the agents that can never be priced per token: those
+ * whose table carries request pricing and *no* token rates at all. It used to be
+ * derived from an empty `prices` map alone, which was the same set only because
+ * Copilot was the one empty table; since P14-015 Copilot has both denominators
+ * (GitHub moved it to token-metered AI credits on 2026-06-01 and kept
+ * request-billing only for legacy annual plans), so an empty map is no longer
+ * what the badge means. Still derived from the fetched tables rather than a
+ * hard-coded name, so a genuinely request-only agent needs no edit here.
  */
 async function UnpricedModels({ notTokenBilled }: { notTokenBilled: Set<string> }) {
   const rows = await getUnpricedModels();
@@ -160,7 +228,12 @@ export default async function PriceTablesPage() {
         notTokenBilled={
           new Set(
             results
-              .filter(({ result }) => result.ok && Object.keys(result.prices).length === 0)
+              .filter(
+                ({ result }) =>
+                  result.ok &&
+                  result.request_pricing !== undefined &&
+                  Object.keys(result.prices).length === 0,
+              )
               .map(({ agent }) => agent),
           )
         }
@@ -209,6 +282,10 @@ export default async function PriceTablesPage() {
                 </Row>
               ))}
             </Table>
+          )}
+
+          {result.ok && result.request_pricing && (
+            <RequestPricing pricing={result.request_pricing} />
           )}
         </section>
       ))}

@@ -87,15 +87,32 @@ to move `sessions.total_cost_usd`, `pr_rollups.total_cost_usd` and the two cost
 continuous aggregates with it — the session total is *accumulated* at ingest, never
 recomputed, so it will not drift back into agreement on its own.
 
-**Copilot's table is empty on purpose**: Copilot bills premium requests against a
-seat allowance, not tokens, so there is no honest per-mtok row to write.
+**A table can carry a second denominator** (`request_pricing`, P14-015): per-model
+request multipliers, a per-seat monthly allowance and an overage rate, for an agent
+billed per request rather than per token. `computeCostUsd` does **not** read it, and
+should not start: which denominator a seat bills on is a property of its *plan*, and
+remaining allowance is monthly and per-seat, so neither is in the event stream. A
+figure derived from it would be an *imputed* marginal cost, not billed spend — it is
+reference material for `/admin/price-tables`, not an input to cost.
+
+**Copilot's table used to be empty on purpose; it isn't any more.** The reason it was
+— "Copilot bills premium requests, not tokens" — stopped being true on 2026-06-01,
+when GitHub moved Copilot to token-metered AI credits and published per-model rates.
+`copilot.v2` carries those, plus `request_pricing` for the legacy annual plans that
+kept the old model. Copilot spend still reads as unknown, but that is now purely a
+**capture** gap (P14-007: no hook payload carries a token count or a model) — which
+also means no Copilot model has ever appeared in `unknown_model_events_total`, since
+that path needs an `llm` block Copilot never sends.
 
 ## Two kinds of price table
 
 **Hand-maintained, from one vendor's own pricing page** — `claude_code`, `codex`,
-`gemini_cli`. Single vendor, single source, and the page carries what a catalog
-flattens away: promotional windows with expiry dates, per-tier rates, cache-write
-multipliers. Edit these by hand and cite the page and retrieval date in `_comment`.
+`copilot`, `gemini_cli`. Single vendor, single source, and the page carries what a
+catalog flattens away: promotional windows with expiry dates, per-tier rates,
+cache-write multipliers. Edit these by hand and cite the page and retrieval date in
+`_comment`. `copilot` is the one that is a *reseller's* page rather than a model
+vendor's, so its rates legitimately differ from the same model's direct rate — which
+is why it is excluded from the cross-table agreement test the other three share.
 
 **Generated from models.dev** — `pi`, `omp`, `opencode`. These three drive whatever
 provider the user holds credentials for, so their tables are a *union* across
