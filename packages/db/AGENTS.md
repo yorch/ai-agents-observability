@@ -239,6 +239,18 @@ the gated pgvector spike declined in P7-007. Leave it out of the numbered sequen
   columns (`model`, the four token counts, `cost_usd`) belong on the `Stop` that
   closes a turn and nowhere else; `test/seed-event-shape.test.ts` fails if one
   reappears elsewhere.
+- **The seed may not reimplement a derived number either.** Same failure mode
+  from the other direction: a seed that recomputes production's arithmetic
+  locally produces numbers that agree with the queries reviewed against them and
+  with nothing else. So `finalizeTelemetry()` gets `events.attributed_cost_usd`
+  and `events.downstream_cost_usd` by calling `computeSessionAttribution` from
+  `packages/schemas` — the same function `apps/ingest`'s
+  `compute-cost-attribution` job calls (P14-011) — exactly as it gets
+  `tool_category` from the shared `toolCategory()` (P14-002). The two columns are
+  **two lenses on the same dollars, never additive**, neither may feed
+  `sessions.total_cost_usd`, `pr_rollups.total_cost_usd` or a cost cagg, and NULL
+  means *not attributed*, never $0.00. `test/seed-cost-attribution.test.ts` binds
+  all of that to the seed's write path.
 - `prisma migrate dev` needs the Prisma engine download, which is **egress-blocked in
   CI sandboxes**. Regenerate locally, commit the result.
 - Scripts take `--env-file=../../.env`; `db:generate` deliberately runs with

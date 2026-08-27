@@ -85,7 +85,7 @@ Run them in this order: lint → typecheck → build → test. Fix each failure 
 | `packages/db` | — | Prisma 7 client + schema + SQL migration runner | — |
 | `packages/github` | — | Octokit wrapper — shared by web + github-app | — |
 | `packages/redaction` | — | secret/PII scrub, applied before transcripts hit S3 | — |
-| `packages/schemas` | — | the zod wire contract for telemetry events | — |
+| `packages/schemas` | — | the zod wire contract for telemetry events, plus the pure definitions more than one workspace must agree on | — |
 
 ### Migrations — the "runner" pattern
 
@@ -103,5 +103,6 @@ Unlike most workspace repos (which migrate from each app's `docker-entrypoint.sh
 - **`apps/web` uses `@ai-agents-observability/auth`** — never introduce NextAuth. Use `currentUser()` from `apps/web/src/lib/auth.ts` in server components / route handlers (see [`apps/web/AGENTS.md`](apps/web/AGENTS.md) for the full conventions).
 - **Redaction runs before S3 writes.** Transcripts pass through `packages/redaction` first — never write raw transcripts to MinIO/S3. New telemetry shapes that carry user-pasted content must add their own redaction rules to that package.
 - **`packages/schemas` is the truth** for telemetry event shapes. The hook CLI, ingest, and web all import from there. Don't redeclare event types app-locally.
+- **A definition two workspaces must agree on lives in `packages/schemas`, not in whichever one wrote it first.** `toolCategory()` (P14-002), the cost-attribution arithmetic (P14-011), `judgeCostUsd`, `estimateRoutingSavings` and the trajectory scorers are all there because a second caller — usually `packages/db/src/seed.ts`, which cannot depend on an app — would otherwise reimplement them. A seed that recomputes production's arithmetic is how a fabricated number survives review: every query gets written against it and agrees with it. Adding a caller is the fix; retyping the definition is the bug.
 - **Service-side env validation** — each app's `loadConfig()` (Zod-validated) is the only place that touches `process.env`. Missing config is a startup failure, not a runtime crash.
 - **Check task status before assuming a feature is signed off.** [`tasks/INDEX.md`](tasks/INDEX.md) is the source of truth for what is `done` vs `ready` vs `review` — the roadmap prose in `README.md` / `PLAN.md` is a convenience copy and has drifted before. Caveats live in the individual task files.
