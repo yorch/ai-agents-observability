@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app';
-import type { Config } from '../src/config';
-import { makeTestDeps } from './helpers';
+import { makeTestConfig, makeTestDeps } from './helpers';
 
 const BATCH_FIXTURE = {
   events: [
@@ -30,7 +29,7 @@ const BATCH_FIXTURE = {
 describe('POST /v1/events', () => {
   it('returns 401 without auth', async () => {
     const deps = makeTestDeps();
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request('/v1/events', {
       body: JSON.stringify(BATCH_FIXTURE),
       headers: { 'Content-Type': 'application/json' },
@@ -60,7 +59,7 @@ describe('POST /v1/events', () => {
     // upsertSessions still uses $executeRaw.
     dbStub.$executeRaw = vi.fn().mockResolvedValue(1);
 
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request('/v1/events', {
       body: JSON.stringify(BATCH_FIXTURE),
       headers: {
@@ -108,7 +107,7 @@ describe('POST /v1/events', () => {
       session_context: BATCH_FIXTURE.session_context,
     };
 
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request('/v1/events', {
       body: JSON.stringify(mixedBatch),
       headers: {
@@ -144,7 +143,7 @@ describe('POST /v1/events', () => {
     dbStub.$executeRaw = executeRaw;
     dbStub.$queryRaw = queryRaw;
 
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request('/v1/events', {
       body: JSON.stringify(BATCH_FIXTURE),
       headers: {
@@ -178,7 +177,7 @@ describe('POST /v1/events', () => {
     const dbStub = deps.db as unknown as { $queryRaw: ReturnType<typeof vi.fn> };
     dbStub.$queryRaw = vi.fn().mockRejectedValue(new Error('connection reset'));
 
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request('/v1/events', {
       body: JSON.stringify(BATCH_FIXTURE),
       headers: {
@@ -209,7 +208,7 @@ describe('POST /v1/events', () => {
       event_id: `01906a44-0000-7000-8000-0000000${String(i).padStart(5, '0')}`,
     }));
 
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request('/v1/events', {
       body: JSON.stringify({ ...BATCH_FIXTURE, events }),
       headers: {
