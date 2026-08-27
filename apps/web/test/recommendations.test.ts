@@ -1,21 +1,25 @@
 import { deriveModelTiers, type ModelPolicySnapshot } from '@ai-agents-observability/schemas';
 import { describe, expect, it } from 'vitest';
-import type { FrictionSources } from '../src/lib/effectiveness-queries.ts';
+import type { FrictionSources } from '../src/lib/effectiveness-queries';
 import type {
   McpUsageRow,
   ToolPerfRow,
   UserCacheSummaryRow,
   UserModelRoutingRow,
-} from '../src/lib/insights-queries.ts';
-import { buildRecommendations } from '../src/lib/recommendations.ts';
+} from '../src/lib/insights-queries';
+import { buildRecommendations } from '../src/lib/recommendations';
 
 const NO_FRICTION: FrictionSources = { abandonment: 0, denial: 0, error: 0, interrupt: 0 };
 
 function toolPerf(overrides: Partial<ToolPerfRow> = {}): ToolPerfRow {
   return {
+    attributedCostUsd: null,
     avgDurationMs: 100,
+    avgInputBytes: null,
+    avgOutputBytes: null,
     callCount: 10,
     deniedCount: 0,
+    downstreamCostUsd: null,
     errorCount: 0,
     p95DurationMs: 200,
     toolCategory: null,

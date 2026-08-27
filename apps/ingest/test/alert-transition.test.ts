@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { applyAlertTransition } from '../src/jobs/alert-transition.ts';
+import { applyAlertTransition } from '../src/jobs/alert-transition';
 
 type OpenEvent = { id: bigint; resolvedAt: Date | null };
 

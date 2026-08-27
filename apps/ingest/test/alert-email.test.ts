@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { type EmailConfig, sendEmail } from '../src/lib/notify/email.ts';
-import { buildAlertPayload } from '../src/lib/notify/payload.ts';
+import { type EmailConfig, sendEmail } from '../src/lib/notify/email';
+import { buildAlertPayload } from '../src/lib/notify/payload';
 
 // Capture the last sendMail call so assertions can inspect the rendered message.
 const sentMail: Array<Record<string, unknown>> = [];
-const createTransport = vi.fn(() => ({
+const createTransport = vi.fn((_opts: unknown) => ({
   sendMail: vi.fn(async (msg: Record<string, unknown>) => {
     sentMail.push(msg);
     return { messageId: 'test' };
@@ -70,11 +70,16 @@ describe('sendEmail', () => {
   });
 
   it('omits SMTP auth when no user is configured', async () => {
-    await sendEmail('ops@obs.example', payload, {
-      ...config,
-      password: undefined,
-      user: undefined,
-    });
+    // `EmailConfig`'s auth fields are optional, and under
+    // exactOptionalPropertyTypes "not configured" means absent, not
+    // `undefined` — which is also what loadConfig produces.
+    const noAuth: EmailConfig = {
+      from: config.from,
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+    };
+    await sendEmail('ops@obs.example', payload, noAuth);
     expect(createTransport).toHaveBeenCalledWith(
       expect.not.objectContaining({ auth: expect.anything() }),
     );

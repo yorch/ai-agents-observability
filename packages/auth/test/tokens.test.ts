@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@ai-agents-observability/db';
 import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -37,7 +38,7 @@ type FakeToken = {
   userId: string;
 };
 
-function makeDb(store: Map<string, FakeToken> = new Map()) {
+function makeDb(store: Map<string, FakeToken> = new Map()): PrismaClient {
   const db = {
     $transaction: vi.fn(async (fn: (tx: typeof db) => unknown) => fn(db)),
     authToken: {
@@ -81,7 +82,11 @@ function makeDb(store: Map<string, FakeToken> = new Map()) {
       ),
     },
   };
-  return db;
+  // Deliberately partial test double: the token functions touch only
+  // `authToken` and `$transaction`. Prisma's generated delegates carry ~18
+  // methods each, so the seam is narrowed with a cast rather than stubbing
+  // methods no production path calls.
+  return db as unknown as PrismaClient;
 }
 
 // ── Access token ──────────────────────────────────────────────────────────────

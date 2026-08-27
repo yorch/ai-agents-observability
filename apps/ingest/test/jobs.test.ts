@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { runSweepAbandoned } from '../src/jobs/sweep-abandoned.ts';
+import { runSweepAbandoned } from '../src/jobs/sweep-abandoned';
 
 function asDb(mock: ReturnType<typeof makeMockDb>): PrismaClient {
   return mock as unknown as PrismaClient;

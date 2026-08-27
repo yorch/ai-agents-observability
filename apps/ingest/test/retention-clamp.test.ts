@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { effectiveRetentionDays } from '../src/jobs/retention-policy.ts';
+import { effectiveRetentionDays } from '../src/jobs/retention-policy';
 
 describe('effectiveRetentionDays (P9-004)', () => {
   it('uses the global default when a team has no override (unchanged behavior)', () => {

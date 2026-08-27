@@ -141,6 +141,7 @@
       "name": "@ai-agents-observability/redaction",
       "version": "0.0.0",
       "devDependencies": {
+        "@types/node": "24.13.3",
         "fast-check": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",

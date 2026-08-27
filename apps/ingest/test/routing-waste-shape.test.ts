@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { evalRoutingWaste } from '../src/jobs/evaluate-alerts.ts';
-import { pricedAgentTypes } from '../src/lib/price-tables.ts';
+import { evalRoutingWaste } from '../src/jobs/evaluate-alerts';
+import { pricedAgentTypes } from '../src/lib/price-tables';
 
 // The routing_waste evaluator joins a policy-derived set of downgradeable
 // (agent, model, category) triples. P12-012 regenerated three price tables from
@@ -12,7 +12,7 @@ import { pricedAgentTypes } from '../src/lib/price-tables.ts';
 type Db = Parameters<typeof evalRoutingWaste>[0];
 
 function captureSql() {
-  const $queryRaw = vi.fn(async () => [{ waste: 0 }]);
+  const $queryRaw = vi.fn(async (_query: unknown) => [{ waste: 0 }]);
   const modelPolicy = { findMany: vi.fn(async () => []) };
   return {
     $queryRaw,

@@ -7,7 +7,8 @@ type Membership = Parameters<typeof syncLoginTeams>[2][number];
 function membership(over: Partial<Membership> = {}): Membership {
   return {
     org: 'acme',
-    role: 'MEMBER',
+    // GitHub's /user/teams endpoint reports lowercase 'member' / 'maintainer'.
+    role: 'member',
     team_github_id: 1,
     team_name: 'Engineering',
     team_slug: 'eng',
@@ -31,7 +32,7 @@ describe('syncLoginTeams', () => {
     const { db, teamMemberUpsert } = mockDb();
     await syncLoginTeams(db, 'u1', [membership()]);
     expect(teamMemberUpsert).toHaveBeenCalledTimes(1);
-    const arg = teamMemberUpsert.mock.calls[0][0];
+    const arg = teamMemberUpsert.mock.calls[0]?.[0];
     // create may set the role (first insert), but update must NOT — otherwise a
     // lead/maintainer is downgraded to 'MEMBER' on every sign-in.
     expect(arg.create.roleInTeam).toBe('MEMBER');
@@ -50,7 +51,7 @@ describe('syncLoginTeams', () => {
     const { db, teamMemberUpdateMany } = mockDb();
     await syncLoginTeams(db, 'u1', [membership()]);
     expect(teamMemberUpdateMany).toHaveBeenCalledTimes(1);
-    const where = teamMemberUpdateMany.mock.calls[0][0].where;
+    const where = teamMemberUpdateMany.mock.calls[0]?.[0].where;
     expect(where.userId).toBe('u1');
     expect(where.teamId).toEqual({ notIn: ['team-1'] });
   });

@@ -61,7 +61,7 @@ describe('writeAuditLog', () => {
     );
 
     expect(mockCreate).toHaveBeenCalledOnce();
-    const data = mockCreate.mock.calls[0][0].data;
+    const data = mockCreate.mock.calls[0]?.[0].data;
     expect(data.action).toBe(AuditAction.VIEW_SESSION);
     expect(data.actorUserId).toBe('u-actor');
     expect(data.targetUserId).toBe('u-target');
@@ -79,7 +79,7 @@ describe('writeAuditLog', () => {
       mockDb,
     );
 
-    const data = mockCreate.mock.calls[0][0].data;
+    const data = mockCreate.mock.calls[0]?.[0].data;
     expect(data.targetUserId).toBeNull();
     expect(data.targetSessionId).toBeNull();
     expect(data.targetTeamId).toBe('t1');
@@ -101,7 +101,7 @@ describe('writeAuditLog', () => {
       mockDb,
     );
 
-    const data = mockCreate.mock.calls[0][0].data;
+    const data = mockCreate.mock.calls[0]?.[0].data;
     expect(data.justification).toBe('security incident #1234');
   });
 
@@ -124,7 +124,7 @@ describe('writeAuditLog', () => {
     const { AuditAction, writeAuditLog } = await import('../src/lib/audit.js');
     await writeAuditLog({ action: AuditAction.EXPORT_TEAM, actorUserId: 'u1' }, mockDb);
 
-    const data = mockCreate.mock.calls[0][0].data;
+    const data = mockCreate.mock.calls[0]?.[0].data;
     expect(data.ip).toBe('10.0.0.1');
   });
 });
@@ -190,7 +190,7 @@ describe('P3-005: audit action contract for cross-user page views', () => {
       mockAuditDb,
     );
 
-    const data = mockAuditCreate.mock.calls[0][0].data;
+    const data = mockAuditCreate.mock.calls[0]?.[0].data;
     expect(data.action).toBe(AuditAction.EXPORT_TEAM);
     expect(data.actorUserId).toBe('u-lead');
     expect(data.targetTeamId).toBe('team-1');
@@ -212,7 +212,7 @@ describe('P3-005: audit action contract for cross-user page views', () => {
       mockAuditDb,
     );
 
-    const data = mockAuditCreate.mock.calls[0][0].data;
+    const data = mockAuditCreate.mock.calls[0]?.[0].data;
     expect(data.action).toBe(AuditAction.VIEW_SESSION);
     expect(data.targetUserId).toBe('u-member');
     expect(data.targetSessionId).toBe('s-123');
@@ -233,7 +233,7 @@ describe('P3-005: audit action contract for cross-user page views', () => {
       mockAuditDb,
     );
 
-    const data = mockAuditCreate.mock.calls[0][0].data;
+    const data = mockAuditCreate.mock.calls[0]?.[0].data;
     expect(data.action).toBe(AuditAction.VIEW_TRANSCRIPT);
     expect(data.targetUserId).toBe('u-member');
     expect(data.targetSessionId).toBe('s-456');

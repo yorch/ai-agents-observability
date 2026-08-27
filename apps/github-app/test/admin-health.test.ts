@@ -10,15 +10,18 @@ const logger = pino({ level: 'silent' });
 function makeConfig(adminSecret?: string): Config {
   return {
     admin_secret: adminSecret,
+    commit_link_grace_hours: 24,
     database_url: 'postgresql://x',
     git_sha: 'test',
     github_app_id: 1,
     github_app_private_key_b64: '',
     github_app_webhook_secret: 'secret',
     github_host: 'https://github.com',
-    log_level: 'silent',
+    jira_project_keys: [],
+    log_level: 'error',
     node_env: 'test',
     port: 4001,
+    pr_link_lookback_days: 7,
   };
 }
 

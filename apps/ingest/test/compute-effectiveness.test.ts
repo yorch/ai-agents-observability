@@ -2,7 +2,7 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 import { SCORERS } from '@ai-agents-observability/schemas';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { runComputeEffectivenessBackfill } from '../src/jobs/compute-effectiveness.ts';
+import { runComputeEffectivenessBackfill } from '../src/jobs/compute-effectiveness';
 
 function asDb(mock: ReturnType<typeof makeMockDb>): PrismaClient {
   return mock as unknown as PrismaClient;

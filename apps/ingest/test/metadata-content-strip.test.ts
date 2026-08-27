@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { insertEventsBatch } from '../src/lib/insert-events';
 
+type InsertEventsDb = Parameters<typeof insertEventsBatch>[0];
+
 /**
  * The server-side half of P14-008.
  *
@@ -52,10 +54,12 @@ function stopEvent(metadata: Record<string, unknown>): Event {
 function makeDb() {
   const captured: { params: unknown[]; sql: string }[] = [];
   return {
+    // `$queryRaw` is generic in its row type (`<T>(q) => Promise<T>`) — a
+    // signature no concrete double can implement.
     $queryRaw: vi.fn(async (query: Prisma.Sql) => {
       captured.push({ params: [...query.values], sql: query.sql });
       return [];
-    }),
+    }) as unknown as InsertEventsDb['$queryRaw'],
     captured,
   };
 }

@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { upsertSessions } from '../src/lib/upsert-session';
 
+type UpsertSessionsDb = Parameters<typeof upsertSessions>[0];
+
 const PRICE_TABLE: PriceTable = {
   generated_at: '2026-05-01T00:00:00+00:00',
   prices: {
@@ -48,21 +50,35 @@ function makeEvent(overrides: Partial<Event> & Pick<Event, 'event_id' | 'event_t
     ts: '2026-05-21T12:00:00Z',
     user_id_claim: '00000000-0000-0000-0000-000000000001',
     ...overrides,
-  };
+    // `Event` is a discriminated union and `Partial<Event>` makes every
+    // variant's discriminating members optional, so the spread cannot be proven
+    // to land on one arm. Overrides are still checked against `Partial<Event>`,
+    // which is where fixture drift shows up.
+  } as Event;
 }
 
 type CapturedSql = { params: unknown[]; sql: string };
 
-function makeDb(): {
-  $executeRaw: ReturnType<typeof vi.fn>;
-  captured: CapturedSql[];
-} {
+function makeDb() {
   const captured: CapturedSql[] = [];
   const fn = vi.fn(async (query: Prisma.Sql) => {
     captured.push({ params: [...query.values], sql: query.sql });
     return captured[captured.length - 1]?.params.length ?? 0;
   });
-  return { $executeRaw: fn, captured };
+  // The run_kind escalation probe (P13-002) reads through `$queryRaw`. No batch
+  // in this file carries a non-interactive claim, so the probe never fires —
+  // but the double has to satisfy `RawDb` or it could not be handed to
+  // `upsertSessions` at all. `RawDb.$queryRaw` is generic in its row type
+  // (`<T>(q) => Promise<T>`), which no concrete double can implement.
+  const queryRaw = vi.fn(async (query: Prisma.Sql) => {
+    captured.push({ params: [...query.values], sql: query.sql });
+    return [];
+  });
+  return {
+    $executeRaw: fn,
+    $queryRaw: queryRaw as unknown as UpsertSessionsDb['$queryRaw'],
+    captured,
+  };
 }
 
 describe('upsertSessions', () => {
@@ -85,6 +101,7 @@ describe('upsertSessions', () => {
         event_id: '01906a44-0000-7000-8000-000000000003',
         event_type: 'PostToolUse',
         tool: {
+          action: null,
           category: 'read',
           duration_ms: 5,
           exit_status: 0,
@@ -97,6 +114,8 @@ describe('upsertSessions', () => {
           skill: null,
           slash_command: null,
           subagent_type: null,
+          target_hash: null,
+          tool_use_id: null,
           was_denied: false,
           was_interrupted: false,
         },
@@ -106,6 +125,7 @@ describe('upsertSessions', () => {
         event_type: 'PostToolUse',
         session_id: '01906a44-0000-7000-8000-aaaaaaaaaaaa',
         tool: {
+          action: null,
           category: 'exec',
           duration_ms: 12,
           exit_status: 1,
@@ -118,6 +138,8 @@ describe('upsertSessions', () => {
           skill: null,
           slash_command: null,
           subagent_type: null,
+          target_hash: null,
+          tool_use_id: null,
           was_denied: false,
           was_interrupted: false,
         },
@@ -308,6 +330,7 @@ describe('upsertSessions', () => {
         event_type: 'PostToolUse',
         session_context: { ...BASE_CTX, mode: 'bypass' },
         tool: {
+          action: null,
           category: 'exec',
           duration_ms: 1,
           exit_status: 0,
@@ -320,6 +343,8 @@ describe('upsertSessions', () => {
           skill: null,
           slash_command: null,
           subagent_type: null,
+          target_hash: null,
+          tool_use_id: null,
           was_denied: false,
           was_interrupted: false,
         },
