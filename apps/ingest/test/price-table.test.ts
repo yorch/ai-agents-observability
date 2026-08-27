@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
-import type { Config } from '../src/config';
-import { makeTestDeps } from './helpers';
+import { makeTestConfig, makeTestDeps } from './helpers';
 
 describe('GET /v1/price-table', () => {
   it('returns 200 with a valid price table', async () => {
-    const app = createApp({} as unknown as Config, makeTestDeps());
+    const app = createApp(makeTestConfig(), makeTestDeps());
     const res = await app.request('/v1/price-table');
 
     expect(res.status).toBe(200);
@@ -17,7 +16,7 @@ describe('GET /v1/price-table', () => {
   });
 
   it('returns 304 when ETag matches', async () => {
-    const app = createApp({} as unknown as Config, makeTestDeps());
+    const app = createApp(makeTestConfig(), makeTestDeps());
     const first = await app.request('/v1/price-table');
     const etag = first.headers.get('etag');
     expect(etag).not.toBeNull();

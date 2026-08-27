@@ -5,9 +5,8 @@ import type { S3Client } from '@aws-sdk/client-s3';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../src/app';
-import type { Config } from '../src/config';
 import { processTranscript, TranscriptTooLargeError } from '../src/lib/transcript-pipeline';
-import { makeTestDeps } from './helpers';
+import { makeTestConfig, makeTestDeps } from './helpers';
 
 const USER_ID = '00000000-0000-0000-0000-000000000001';
 const SESSION_ID = '01906a44-0000-7000-8000-000000000000';
@@ -37,7 +36,7 @@ function gzipCompress(text: string): Uint8Array {
 describe('POST /v1/transcripts/:session_id', () => {
   it('returns 415 when Content-Type is not application/x-zstd or application/gzip', async () => {
     const deps = authedDeps();
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
 
     const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
       body: 'irrelevant',
@@ -51,7 +50,7 @@ describe('POST /v1/transcripts/:session_id', () => {
     const deps = authedDeps();
     const sessionStub = deps.db.session as unknown as { findUnique: ReturnType<typeof vi.fn> };
     sessionStub.findUnique = vi.fn().mockResolvedValue(null);
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
 
     const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
       body: compress('{}\n'),
@@ -72,7 +71,7 @@ describe('POST /v1/transcripts/:session_id', () => {
       transcriptUploadedAt: null,
       userId: 'someone-else',
     });
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
 
     const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
       body: compress('{}\n'),
@@ -118,7 +117,7 @@ describe('POST /v1/transcripts/:session_id', () => {
     ].join('\n');
     const compressed = compress(payload);
 
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
       body: compressed,
       headers: { Authorization: TOKEN, 'Content-Type': 'application/x-zstd' },
@@ -176,7 +175,7 @@ describe('POST /v1/transcripts/:session_id', () => {
     ].join('\n');
     const compressed = gzipCompress(payload);
 
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
       body: compressed,
       headers: { Authorization: TOKEN, 'Content-Type': 'application/gzip' },
@@ -239,7 +238,7 @@ describe('POST /v1/transcripts/:session_id', () => {
     // The stored object came from an EARLIER, shorter upload.
     const { deps, puts, sessionStub } = uploadedSessionDeps('sha-of-an-earlier-shorter-upload');
 
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
       body: compressed,
       headers: { Authorization: TOKEN, 'Content-Type': 'application/x-zstd' },
@@ -263,7 +262,7 @@ describe('POST /v1/transcripts/:session_id', () => {
     const sha = createHash('sha256').update(compressed).digest('hex');
     const { deps, puts, sessionStub } = uploadedSessionDeps(sha);
 
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
       body: compressed,
       headers: { Authorization: TOKEN, 'Content-Type': 'application/x-zstd' },
@@ -288,7 +287,7 @@ describe('POST /v1/transcripts/:session_id', () => {
     });
 
     const chunk = new Uint8Array(64);
-    const app = createApp({} as unknown as Config, deps);
+    const app = createApp(makeTestConfig(), deps);
     const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
       body: chunk,
       headers: {
