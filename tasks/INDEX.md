@@ -351,14 +351,14 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 Closes gaps where the pipeline recorded a *plausible* value rather than a true one, then makes the corrected values usable. Sub-agent identification was dead (no adapter ever emitted the `tool_category = 'agent'` those queries filtered on); the cost on `/org/agents`, `/team/agents`, `/org/mcp` and `/team/mcp` was a `SUM(cost_usd)` over tool events that no producer populates in real telemetry, and was always seed-data fiction; and Claude Code recorded `$0` in steady state.
 
-Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. Four tasks on separate branches: P14-001 and P14-002 off `main`, P14-004 stacked on P14-001, P14-003 stacked on P14-002.
+Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. All four tasks are merged (#117, #118, #119, #120).
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P14-001](./P14-001-subagent-identification-fix.md) | Fix sub-agent identification and stop reporting fabricated tool cost | review | claude | S | — |
-| [P14-002](./P14-002-tool-category-taxonomy.md) | Derive the real tool-category taxonomy in the adapter seam | review | claude | M | — |
-| [P14-003](./P14-003-claude-code-usage-capture.md) | Claude Code per-turn usage capture + turn linkage | review | claude | M | P14-002 |
-| [P14-004](./P14-004-turn-linked-cost-attribution.md) | Turn-linked cost attribution for tools, skills and sub-agents | review | claude | L | P14-001, P14-003 |
+| [P14-001](./P14-001-subagent-identification-fix.md) | Fix sub-agent identification and stop reporting fabricated tool cost | done | claude | S | — |
+| [P14-002](./P14-002-tool-category-taxonomy.md) | Derive the real tool-category taxonomy in the adapter seam | done | claude | M | — |
+| [P14-003](./P14-003-claude-code-usage-capture.md) | Claude Code per-turn usage capture + turn linkage | done | claude | M | P14-002 |
+| [P14-004](./P14-004-turn-linked-cost-attribution.md) | Turn-linked cost attribution for tools, skills and sub-agents | done | claude | L | P14-001, P14-003 |
 
 > **Phase 14 exists because green tests are not evidence of true data.** Every task
 > here fixes a value that was written, validated, aggregated and displayed — and was

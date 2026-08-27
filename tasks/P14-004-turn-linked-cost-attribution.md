@@ -3,7 +3,7 @@ id: P14-004
 title: Turn-linked cost attribution for tools, skills and sub-agents
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P14-001, P14-003]
 blocks: []

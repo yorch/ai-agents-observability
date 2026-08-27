@@ -3,7 +3,7 @@ id: P14-002
 title: Derive the real tool-category taxonomy in the adapter seam
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: []
 blocks: []
