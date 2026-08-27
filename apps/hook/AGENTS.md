@@ -93,6 +93,19 @@ and it closed opencode's P8-004 transcript gap in P12-009.
   (WAL mode) and exits. No network, no redaction, no parsing beyond what the write
   needs — the flusher and shipper do that work out-of-process.
 
+  **The one exception is a *terminal* hook reading a side-channel file for token
+  usage**, because that is the only place three agents' usage exists: codex's
+  rollout JSONL, gemini's accumulator, and (P14-003) Claude Code's session
+  transcript at Stop. Every one of them is behind a per-session byte cursor, so
+  the read is proportional to what the agent appended since the last turn and not
+  to the session — an uncursored read is O(n²) over a session and will blow the
+  budget on a long one. The rule that stayed intact: **no tool-lifecycle hook
+  reads a file.** `PreToolUse`/`PostToolUse` fire orders of magnitude more often
+  than a terminal hook, and putting I/O there is not affordable at any cursor
+  size. That is why Claude Code's live tool events carry no turn linkage — the
+  linkage is only derivable from the transcript, and the transcript is only read
+  at Stop.
+
 ## The perf budget, stated honestly
 
 The design target is **<10 ms** added wall time on developer hardware
@@ -120,7 +133,8 @@ src/
 
 **Adapter working state goes under `agentStateDir(<agent>)`** (`lib/paths.ts`) —
 one root, so `purge-local` clears every agent's state without naming any of them.
-Codex's rollout cursors and Gemini's token accumulators live there. Putting state
+Codex's rollout cursors, Gemini's token accumulators and Claude Code's per-session
+transcript cursors all live there. Putting state
 anywhere else means `purge` silently leaves it behind, which is how unredacted
 per-session data survived a "delete all local telemetry data" once already.
 
