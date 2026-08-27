@@ -10,6 +10,17 @@
 -- IF NOT EXISTS guards are belt-and-braces for a half-applied file (a crash
 -- mid-transaction), not because the file is expected to run twice.
 --
+-- Squashed 2026-08-26, pre-deployment, folding `0003_tool_cost_attribution.sql`
+-- (P14-004) and `0004_live_turn_linkage.sql` (P14-006) back in: their three
+-- `ALTER TABLE events ADD COLUMN`s are now columns of the `CREATE TABLE` below,
+-- their `COMMENT ON COLUMN`s and the partial `events_session_tool_use_id_idx`
+-- came with them, and their `CREATE OR REPLACE VIEW interactive_events` was
+-- dropped — that statement existed only because the columns arrived *after* the
+-- view, and the view at the bottom of this file now creates with them already in
+-- place. `0002_tool_category_backfill.sql` was deleted rather than folded: it was
+-- a pure `UPDATE` over rows ingested before P14-002, and a database created from
+-- this file has no such rows.
+--
 -- Squashed 2026-08-14, pre-deployment, from nine incremental files. The previous
 -- chain created the three continuous aggregates and then dropped and recreated
 -- them twice more in the same deploy (0001 → 0005 → 0008). That was slow, it
@@ -43,6 +54,9 @@ CREATE TABLE IF NOT EXISTS events (
   tool_exit_status      INT,
   tool_was_denied       BOOLEAN,
   tool_was_interrupted  BOOLEAN,
+  -- The host agent's own identifier for one tool call (P14-006). Opaque, and
+  -- only ever compared within a single session_id — see the COMMENT below.
+  tool_use_id           TEXT,
 
   mcp_server            TEXT,
   mcp_tool              TEXT,
@@ -60,6 +74,22 @@ CREATE TABLE IF NOT EXISTS events (
   cache_read_tokens     INT,
   cache_creation_tokens INT,
   cost_usd              NUMERIC(12, 6),
+
+  -- Turn-linked cost attribution (P14-004). Real spend accrues per assistant
+  -- turn — the `Stop` carries the model and the token counts, the tool rows
+  -- carry none — so every "cost by tool / skill / sub-agent" number has to be
+  -- *redistributed* from the turn onto the calls that turn made. These two are
+  -- two lenses on the same dollars and are **NOT additive**: never sum them
+  -- together, and never let either feed `sessions.total_cost_usd`,
+  -- `pr_rollups.total_cost_usd`, or the three continuous aggregates below —
+  -- that chain already counts these dollars exactly once, at the Stop event
+  -- (see the header of `apps/ingest/src/jobs/reprice-events.ts`).
+  --
+  -- Both nullable with no default: NULL means "not attributed" — the turn
+  -- linkage is absent, or the issuing turn's model had no price row. It never
+  -- means "$0.00 of cost".
+  attributed_cost_usd   NUMERIC(12, 6),
+  downstream_cost_usd   NUMERIC(12, 6),
 
   mode                  TEXT,
   -- Why the agent interrupted the human (permission / idle / elicitation / auth).
@@ -83,6 +113,16 @@ SELECT create_hypertable('events', 'ts',
   if_not_exists => TRUE
 );
 
+-- Column comments carrying invariants a reader of `\d events` would otherwise
+-- have to find in a task file.
+
+COMMENT ON COLUMN events.attributed_cost_usd IS
+  'P14-004: the issuing turn''s cost_usd divided evenly across the PostToolUse events that turn issued. NULL = not attributed. Not additive with downstream_cost_usd, and never rolled into sessions.total_cost_usd.';
+COMMENT ON COLUMN events.downstream_cost_usd IS
+  'P14-004: the following turn''s input-side cost apportioned to this tool call by tool_output_bytes. An approximation — bytes proxy for tokens. NULL = not attributed. Not additive with attributed_cost_usd.';
+COMMENT ON COLUMN events.tool_use_id IS
+  'P14-006: the host agent''s own identifier for one tool call (Claude Code''s tool_use_id, toolu_...). The natural key the link-turn-events job joins live tool events to transcript-derived turn linkage on, within a single session_id. Opaque — never parsed. NULL for non-tool events and for agents that supply no per-call id.';
+
 CREATE UNIQUE INDEX IF NOT EXISTS events_event_id_key      ON events (event_id, ts);
 CREATE INDEX IF NOT EXISTS events_user_id_ts_idx           ON events (user_id, ts DESC);
 CREATE INDEX IF NOT EXISTS events_session_id_ts_idx        ON events (session_id, ts);
@@ -104,6 +144,24 @@ CREATE INDEX IF NOT EXISTS events_run_kind_idx
 CREATE INDEX IF NOT EXISTS events_tool_action_ts_idx
   ON events (tool_action, ts DESC)
   WHERE tool_action IS NOT NULL;
+
+-- The linkage job (`apps/ingest/src/jobs/link-turn-events.ts`) looks up a batch
+-- of sessions' unlinked tool rows by `(session_id, tool_use_id)`;
+-- `events_session_id_ts_idx` gets it to the session, and without this it then
+-- scans every event in that session. Partial because the column is NULL on every
+-- non-tool event and on every agent that has not adopted the key — today six of
+-- the seven — so a full index would be mostly dead entries on the largest table
+-- in the schema. The predicate is one the job's own WHERE clause states, so the
+-- planner can use it.
+--
+-- The two attribution columns above deliberately get **no** index: every read of
+-- them is a `SUM()` bolted onto a scan the tool / MCP / skill / sub-agent
+-- indexes above already serve, and the attribution job joins its results back by
+-- `(event_id, ts)`, which `events_event_id_key` covers. Add one when a query
+-- plan says so, not before.
+CREATE INDEX IF NOT EXISTS events_session_tool_use_id_idx
+  ON events (session_id, tool_use_id)
+  WHERE tool_use_id IS NOT NULL;
 
 ALTER TABLE events SET (
   timescaledb.compress,
@@ -329,6 +387,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS scores_subject_scorer_period_key
 -- `SELECT *` is deliberate. These views must track their base tables as columns
 -- are added — `events` in particular gains them regularly — and an explicit
 -- column list would silently stop exposing anything new.
+--
+-- **The star is expanded once, at view-creation time**, and the resolved column
+-- list is frozen into the rewrite rule. Every column of `events` and `sessions`
+-- exists before these two statements run, so a fresh database sees all of them.
+-- A *later* numbered migration that adds an `events` column must therefore carry
+-- its own `CREATE OR REPLACE VIEW interactive_events AS SELECT * FROM events
+-- WHERE run_kind = 'INTERACTIVE';` in the same file, or the column is invisible
+-- to every human-facing read in `apps/web`, which names the view rather than the
+-- base table. That is not hypothetical — it is why the folded 0003 and 0004 each
+-- carried one.
+--
+-- The three continuous aggregates above name explicit aggregates rather than
+-- `*`, so they are unaffected by a new column, and must stay that way: a cagg
+-- that picked up an attribution column would be the double count P14-004 exists
+-- to avoid.
 
 CREATE OR REPLACE VIEW interactive_sessions AS
   SELECT * FROM sessions WHERE run_kind = 'INTERACTIVE';
