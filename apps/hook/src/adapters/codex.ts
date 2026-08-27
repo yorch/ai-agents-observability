@@ -157,6 +157,9 @@ function toolInfo(call: {
     slash_command: null,
     subagent_type: null,
     target_hash: null,
+    // No per-call join key adopted for this agent — see the note in
+    // `stdin-hook-factory.ts`'s buildGenericToolInfo (P14-006).
+    tool_use_id: null,
     was_denied: call.wasDenied,
     was_interrupted: false,
   };

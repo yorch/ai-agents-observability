@@ -95,12 +95,47 @@ export function llmFromEntry(entry: ClaudeEntry): NonNullable<Event['llm']> | nu
   };
 }
 
+/**
+ * The `tool_use` block ids this assistant turn issued, in transcript order.
+ *
+ * IDS ONLY — never the block's `name` or `input`. This is the same content-free
+ * rule the rest of this module keeps, and it is what lets the list ride on a
+ * Stop event's metadata without passing `packages/redaction`.
+ *
+ * These are the ids Claude Code also hands the live `PreToolUse`/`PostToolUse`
+ * hooks as `tool_use_id`, which is the entire basis of P14-006: the turn that
+ * issued a call is knowable at Stop, the call itself is knowable at the tool
+ * hook, and the two name it identically, so ingest can join them on
+ * `(session_id, tool_use_id)` with no heuristic and no hot-path I/O.
+ */
+export function toolUseIdsOf(entry: ClaudeEntry): string[] {
+  const content = entry.message?.content;
+  if (!Array.isArray(content)) {
+    return [];
+  }
+  const ids: string[] = [];
+  for (const block of content) {
+    if (
+      typeof block === 'object' &&
+      block !== null &&
+      (block as { type?: unknown }).type === 'tool_use' &&
+      typeof (block as { id?: unknown }).id === 'string' &&
+      (block as { id: string }).id.length > 0
+    ) {
+      ids.push((block as { id: string }).id);
+    }
+  }
+  return ids;
+}
+
 /** One assistant turn, as both derivation paths see it. */
 export type AssistantTurn = {
   /** Deterministic id of this turn's Stop event. */
   eventId: string;
   /** Token usage, or null when the entry reported none. */
   llm: NonNullable<Event['llm']> | null;
+  /** Ids of the tool calls this turn issued. See {@link toolUseIdsOf}. */
+  toolUseIds: string[];
   /** Normalized entry timestamp — the Stop event's `ts`. */
   ts: string;
 };
@@ -118,5 +153,29 @@ export function isAssistantEntry(entry: unknown): entry is ClaudeEntry {
 /** Derive the turn an assistant entry represents. Callers own the ordinal. */
 export function assistantTurn(entry: ClaudeEntry): AssistantTurn {
   const ts = normalizeTs(entry.timestamp);
-  return { eventId: stopEventId(entry, ts), llm: llmFromEntry(entry), ts };
+  return {
+    eventId: stopEventId(entry, ts),
+    llm: llmFromEntry(entry),
+    toolUseIds: toolUseIdsOf(entry),
+    ts,
+  };
+}
+
+/**
+ * The metadata key a Stop event carries its turn's {@link toolUseIdsOf} under.
+ *
+ * Named here rather than spelled inline in the two producers and the one
+ * consumer, because it is a cross-workspace contract: `apps/hook` writes it and
+ * `apps/ingest`'s `link-turn-events` job reads it. Ingest cannot import this
+ * constant (the hook is a CLI, not a library), so the string is restated there
+ * with a pointer back — and pinned from both sides by a test.
+ *
+ * Absent when the turn issued no tools. An empty array and a missing key mean
+ * the same thing, so the smaller one is written.
+ */
+export const TOOL_USE_IDS_METADATA_KEY = 'tool_use_ids';
+
+/** `{ tool_use_ids: [...] }` for a turn that issued tools, `{}` for one that did not. */
+export function toolUseIdsMetadata(toolUseIds: string[]): Record<string, string[]> {
+  return toolUseIds.length > 0 ? { [TOOL_USE_IDS_METADATA_KEY]: toolUseIds } : {};
 }

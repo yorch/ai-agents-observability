@@ -29,6 +29,9 @@ export type ClaudeCodeHookPayload = {
   tool_input?: unknown;
   tool_name?: unknown;
   tool_response?: unknown;
+  // Claude Code's own per-call id (`toolu_…`), REQUIRED on PreToolUse and
+  // PostToolUse in the hook input contract. It is the join key P14-006 uses.
+  tool_use_id?: unknown;
   transcript_path?: unknown;
 } & Record<string, unknown>;
 
@@ -45,6 +48,10 @@ export const CLAUDE_KNOWN_KEYS = [
   'tool_input',
   'tool_name',
   'tool_response',
+  // Captured structurally onto the tool block since P14-006. Before that it fell
+  // through to `metadata` as an unknown key — which is how the join key turned
+  // out to have been on the wire all along, simply unpromoted.
+  'tool_use_id',
   'transcript_path',
 ];
 
@@ -135,6 +142,11 @@ export function buildClaudeToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
     slash_command: skill,
     subagent_type: subagentType,
     target_hash: toolTargetHash(raw.tool_input),
+    // Claude Code's own id for this call. Copied verbatim, never parsed — it is
+    // matched against the SAME string on the transcript's `tool_use` block, so
+    // any normalization here would break the one thing it is for (P14-006).
+    tool_use_id:
+      typeof raw.tool_use_id === 'string' && raw.tool_use_id.length > 0 ? raw.tool_use_id : null,
     // Best-effort from the raw payload (absent → false). Unknown payload fields
     // are also preserved verbatim in `metadata`, so nothing is lost.
     was_denied: raw.tool_denied === true || raw.was_denied === true,

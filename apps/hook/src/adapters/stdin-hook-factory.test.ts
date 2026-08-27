@@ -52,6 +52,10 @@ describe('claude-code through the factory — golden output', () => {
         slash_command: null,
         subagent_type: null,
         target_hash: null,
+        // P14-006 added this field to the tool block. Null here because this
+        // fixture's payload carries no `tool_use_id` — a real Claude Code
+        // PostToolUse always does, and `turn-linkage.test.ts` covers that.
+        tool_use_id: null,
         was_denied: false,
         was_interrupted: false,
       },

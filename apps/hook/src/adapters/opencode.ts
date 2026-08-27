@@ -135,6 +135,9 @@ function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
     slash_command: null,
     subagent_type: null,
     target_hash: toolTargetHash(input),
+    // No per-call join key adopted for this agent — see the note in
+    // `stdin-hook-factory.ts`'s buildGenericToolInfo (P14-006).
+    tool_use_id: null,
     was_denied: raw.denied === true || raw.was_denied === true,
     was_interrupted: raw.was_interrupted === true,
   };

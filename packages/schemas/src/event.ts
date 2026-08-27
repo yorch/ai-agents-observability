@@ -55,6 +55,15 @@ const ToolInfoSchema = z.object({
   // command) — never the value itself. Lets "the same file was edited five
   // times" be counted server-side without the path ever being transmitted.
   target_hash: z.string().nullable().default(null),
+  // The HOST AGENT's own identifier for this one tool call — Claude Code's
+  // `tool_use_id` (`toolu_…`), which its PreToolUse/PostToolUse payloads carry
+  // and which the transcript repeats on the `tool_use` block that issued the
+  // call. That shared spelling is the whole point: it is the natural key ingest
+  // joins live tool events to transcript-derived turn linkage on (P14-006).
+  //
+  // Opaque and agent-scoped — never parsed, only compared, and only ever within
+  // one `session_id`. Null for agents that supply no per-call id.
+  tool_use_id: z.string().nullable().default(null),
   was_denied: z.boolean().default(false),
   was_interrupted: z.boolean().default(false),
 });

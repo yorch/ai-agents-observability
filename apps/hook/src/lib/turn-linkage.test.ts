@@ -18,10 +18,25 @@ import type { ClaudeEntry } from './transcript-parser';
 //                    the Stop itself and on non-tool events.
 //
 // SCOPE, stated once so a reader is not left guessing: the tool half of this
-// contract is honoured on the IMPORT path only. A live PreToolUse/PostToolUse
-// hook fires in its own process BEFORE the turn's Stop exists and has no way to
-// name the assistant entry that issued it, so live tool events carry NULL
-// linkage. See tasks/P14-003-claude-code-usage-capture.md.
+// contract is written INLINE on the import path only. A live PreToolUse /
+// PostToolUse hook fires in its own process BEFORE the turn's Stop exists and
+// has no way to name the assistant entry that issued it, so a live tool event
+// still leaves this binary with NULL linkage — that part of P14-003 has not
+// changed and cannot.
+//
+// What P14-006 added is the other half of a SERVER-SIDE join, and the pieces of
+// it that live in this binary are what the last describe block pins:
+//
+//   tool event  .tool.tool_use_id     Claude Code's own id for the call, off the
+//                                     hook payload (it was always on the wire —
+//                                     it just fell through to metadata).
+//   Stop event  .metadata.tool_use_ids the ids that turn issued, read off the
+//                                     transcript lines the Stop hook was already
+//                                     parsing for token usage.
+//
+// Ingest joins those on `(session_id, tool_use_id)` and writes the same
+// `turn_number` / `parent_event_id` the import path writes directly. See
+// tasks/P14-006-live-turn-linkage.md and apps/ingest/src/lib/turn-linkage.ts.
 
 const SESSION_ID = '3f8c2a1e-9d47-4b6a-8c25-1e7f0a9b4d63';
 const MODEL = 'claude-opus-4-5-20251101';
@@ -215,5 +230,113 @@ describe('turn linkage — live and import paths agree', () => {
       imported.map((e) => [e.event_id, e.ts, e.turn_number]),
     );
     expect(live?.map((e) => e.llm)).toEqual(imported.map((e) => e.llm));
+  });
+});
+
+describe('P14-006 — the join key both sides of the wire spell identically', () => {
+  let home: string;
+  let transcript: string;
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'claude-joinkey-test-'));
+    process.env.CLAUDE_TELEMETRY_HOME = home;
+    transcript = join(home, 'session.jsonl');
+    writeFileSync(transcript, CONVERSATION.map((e) => `${JSON.stringify(e)}\n`).join(''));
+  });
+
+  afterEach(() => {
+    rmSync(home, { force: true, recursive: true });
+    process.env.CLAUDE_TELEMETRY_HOME = undefined;
+  });
+
+  const liveStops = () =>
+    claudeCodeAdapter.mapBatch?.('stop', {
+      cwd: CWD,
+      hook_event_name: 'Stop',
+      session_id: SESSION_ID,
+      transcript_path: transcript,
+    }) ?? [];
+
+  it('promotes tool_use_id off a live tool payload onto the tool block', () => {
+    const event = claudeCodeAdapter.mapPayload('post-tool-use', {
+      cwd: CWD,
+      hook_event_name: 'PostToolUse',
+      session_id: SESSION_ID,
+      tool_input: { command: 'ls' },
+      tool_name: 'Bash',
+      tool_response: 'file-a',
+      tool_use_id: 'toolu_2',
+    });
+    expect(event.tool?.tool_use_id).toBe('toolu_2');
+    // Promoted means captured structurally — it must NOT also be duplicated into
+    // metadata, which is where it used to land as an unknown key.
+    expect(event.metadata.tool_use_id).toBeUndefined();
+  });
+
+  it('leaves tool_use_id null when the payload carries none', () => {
+    const event = claudeCodeAdapter.mapPayload('pre-tool-use', {
+      cwd: CWD,
+      hook_event_name: 'PreToolUse',
+      session_id: SESSION_ID,
+      tool_input: {},
+      tool_name: 'Bash',
+    });
+    expect(event.tool?.tool_use_id).toBeNull();
+  });
+
+  it('lists the ids each turn issued on that turn’s live Stop', () => {
+    const stops = liveStops();
+    expect(stops.map((s) => s.metadata.tool_use_ids)).toEqual([
+      ['toolu_1', 'toolu_2'],
+      ['toolu_3'],
+    ]);
+  });
+
+  it('omits the key entirely for a turn that issued no tools', () => {
+    writeFileSync(
+      transcript,
+      `${JSON.stringify(assistantEntry('a9', '2026-08-20T10:00:05.000Z', []))}\n`,
+    );
+    expect(liveStops()[0]?.metadata.tool_use_ids).toBeUndefined();
+  });
+
+  it('carries no transcript CONTENT alongside the ids', () => {
+    // The ids ride on metadata, which does not pass packages/redaction. Nothing
+    // but the id may go with them — not the tool name, not its input.
+    const meta = JSON.stringify(liveStops()[0]?.metadata);
+    expect(meta).toContain('toolu_1');
+    expect(meta).not.toContain('Read');
+    expect(meta).not.toContain('ls');
+  });
+
+  // The join is only sound if the two halves name the SAME string. This is the
+  // assertion that would fail if either side started normalizing the id.
+  it('matches a live tool event’s id to its own turn’s Stop list', () => {
+    const stops = liveStops();
+    const tool = claudeCodeAdapter.mapPayload('post-tool-use', {
+      cwd: CWD,
+      hook_event_name: 'PostToolUse',
+      session_id: SESSION_ID,
+      tool_input: { command: 'ls' },
+      tool_name: 'Bash',
+      tool_use_id: 'toolu_2',
+    });
+    const issuing = stops.find((s) =>
+      (s.metadata.tool_use_ids as string[] | undefined)?.includes(tool.tool?.tool_use_id ?? ''),
+    );
+    expect(issuing?.turn_number).toBe(1);
+  });
+
+  it('writes the same ids on the import path, so a re-import agrees', () => {
+    const imported = importAll().filter((e) => e.event_type === 'Stop');
+    expect(imported.map((s) => s.metadata.tool_use_ids)).toEqual(
+      liveStops().map((s) => s.metadata.tool_use_ids),
+    );
+  });
+
+  it('carries tool_use_id on import-path tool events too', () => {
+    const events = importAll();
+    expect(byTool(events, 'Bash', 'PreToolUse')?.tool?.tool_use_id).toBe('toolu_2');
+    expect(byTool(events, 'Bash', 'PostToolUse')?.tool?.tool_use_id).toBe('toolu_2');
   });
 });
