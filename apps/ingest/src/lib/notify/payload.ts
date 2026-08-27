@@ -60,7 +60,11 @@ function describe(ruleType: string, details: Record<string, unknown>): string {
     case 'autonomy_surge':
       return `${(num(details, 'share') * 100).toFixed(0)}% of sessions ran with no per-action human gate (${num(details, 'lowOversightSessions')} of ${num(details, 'totalSessions')}) over the last ${num(details, 'windowDays')} days — human oversight is eroding.`;
     case 'routing_waste':
-      return `$${num(details, 'wasteUsd').toFixed(2)} of premium-model spend went to retrieval-only tool calls over the last ${num(details, 'windowDays')} days — above the $${num(details, 'thresholdUsd').toFixed(2)} threshold. Routing these to a cheaper model would recover most of it.`;
+      // The spend is a redistribution of each issuing turn's cost onto the calls
+      // it made (P14-004/P14-005), which only exists for events carrying turn
+      // linkage — so the call coverage travels with the figure. Counts only, like
+      // every other field here.
+      return `$${num(details, 'wasteUsd').toFixed(2)} of premium-model spend went to retrieval-only tool calls over the last ${num(details, 'windowDays')} days — above the $${num(details, 'thresholdUsd').toFixed(2)} threshold. Routing these to a cheaper model would recover most of it. Attributed over ${num(details, 'attributedCalls')} of ${num(details, 'callCount')} matching calls.`;
     case 'disallowed_model':
       // Counts only — never the model names. `num()` reads specific numeric keys
       // by name, so a stray string in `details` cannot reach a channel.

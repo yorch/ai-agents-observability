@@ -39,9 +39,12 @@ describe('evalRoutingWaste query shape', () => {
     const { db, sql } = captureSql();
     await evalRoutingWaste(db, { thresholdUsd: 25 });
     const { values } = sql();
-    // Three arrays plus the window start. If this ever scales with the number
-    // of priced models, the inlined form has come back.
-    expect(values).toHaveLength(4);
+    // Three arrays plus the window start, which is bound twice — once for the
+    // tool scan and once for the issuing-turn scan it joins to (P14-005), so
+    // Postgres can prune chunks on both sides of the hypertable self-join. If
+    // this ever scales with the number of priced models, the inlined form has
+    // come back.
+    expect(values).toHaveLength(5);
     const arrays = values.filter((v) => Array.isArray(v)) as string[][];
     expect(arrays).toHaveLength(3);
     // All three arrays must be the same length — `unnest` zips them
@@ -64,6 +67,81 @@ describe('evalRoutingWaste query shape', () => {
     // argument would land values in a column that cannot hold them.
     expect(models.some((m) => knownAgents.has(m))).toBe(false);
     expect(models.some((m) => m === 'fs_read' || m === 'search')).toBe(false);
+  });
+
+  // ── P14-005 ────────────────────────────────────────────────────────────────
+  //
+  // This alert was armed and permanently silent. It joined `dm.model = e.model`
+  // on a row already restricted to `event_type = 'PostToolUse'`, and no producer
+  // has ever put a model on a tool row: `events.model` is written from an event's
+  // `llm` block and every adapter attaches that to a `Stop`. Every shape
+  // assertion above passed while the evaluator matched nothing.
+  //
+  // So the shape that matters is not just "is it fast" but "can a row satisfy
+  // it at all". These three pin the redistribution: model off the issuing turn,
+  // dollars off the tool row's attributed share, category off the tool row.
+  it('resolves the model through the issuing turn, never off the tool row', async () => {
+    const { db, sql } = captureSql();
+    await evalRoutingWaste(db, { thresholdUsd: 25 });
+    const { text } = sql();
+
+    // The turn linkage (P14-003) is what reaches the Stop that chose the model.
+    expect(text).toMatch(/turn\.event_id\s*=\s*tool\.parent_event_id/);
+    expect(text).toMatch(/turn\.event_type\s*=\s*'Stop'/);
+    expect(text).toMatch(/dm\.model\s*=\s*turn\.model/);
+
+    // The dead predicate, in either of the two forms it could come back as.
+    expect(text).not.toMatch(/dm\.model\s*=\s*(?:tool|e)\.model/);
+    expect(text).not.toMatch(/\btool\.model\b/);
+  });
+
+  it('sums the attributed turn share, not a tool row cost that is always NULL', async () => {
+    const { db, sql } = captureSql();
+    await evalRoutingWaste(db, { thresholdUsd: 25 });
+    const { text } = sql();
+
+    expect(text).toMatch(/SUM\(tool\.attributed_cost_usd\)/);
+    // `downstream_cost_usd` is the FOLLOWING turn's input-side cost, priced with
+    // the following turn's model. Charging it to this turn's model would answer
+    // a different question at the wrong rates, and adding the two double-counts.
+    expect(text).not.toContain('downstream_cost_usd');
+    // No COALESCE to 0: "nothing attributed" must not read as "no waste".
+    expect(text).not.toMatch(/COALESCE\s*\(\s*SUM\s*\(\s*tool\.attributed_cost_usd/i);
+  });
+
+  it('does not fire when nothing in the window could be attributed', async () => {
+    // A window with matching calls but no turn linkage sums to NULL. Firing on
+    // that as $0 would be harmless; treating NULL as a measurement of zero waste
+    // is what would be wrong, and the alert reports its coverage when it does
+    // fire so a quiet alert can be told apart from an uncapturable one.
+    const $queryRaw = vi.fn(async () => [{ attributed_calls: 0n, call_count: 4200n, waste: null }]);
+    const db = {
+      $queryRaw,
+      modelPolicy: { findMany: vi.fn(async () => []) },
+    } as unknown as Db;
+
+    expect(await evalRoutingWaste(db, { thresholdUsd: 1 })).toBeNull();
+  });
+
+  it('carries attribution coverage in details when it does fire', async () => {
+    const $queryRaw = vi.fn(async () => [
+      { attributed_calls: 900n, call_count: 1000n, waste: '250.5' },
+    ]);
+    const db = {
+      $queryRaw,
+      modelPolicy: { findMany: vi.fn(async () => []) },
+    } as unknown as Db;
+
+    const evaluation = await evalRoutingWaste(db, { thresholdUsd: 25 });
+    expect(evaluation?.details).toMatchObject({
+      attributedCalls: 900,
+      callCount: 1000,
+      wasteUsd: 250.5,
+    });
+    // Numbers only — the same discipline every other evaluator's details keep.
+    for (const value of Object.values(evaluation?.details ?? {})) {
+      expect(typeof value).toBe('number');
+    }
   });
 
   it('stays inert when the threshold is not positive', async () => {

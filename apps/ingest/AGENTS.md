@@ -231,6 +231,18 @@ Unlike `reprice-events` it needs **no report/apply interlock**: it assigns a
 derived value rather than rewriting a measured one, is a pure function of the
 stored rows, and re-running is a no-op.
 
+**`routing_waste` reads that attributed column, and could not read anything
+else.** Until P14-005 the evaluator joined its downgradeable `(agent, model,
+category)` triples against `e.model` on a row already restricted to
+`event_type = 'PostToolUse'`. No producer puts a model on a tool row —
+`events.model` comes from an event's `llm` block and every adapter attaches that
+to a `Stop` — so the alert was armed, enabled and permanently silent, its
+arithmetic exercised only against seeded data. It now reaches the model through
+the issuing turn (`turn.event_id = tool.parent_event_id`) and sums the tool row's
+`attributed_cost_usd`, and it carries `attributedCalls` / `callCount` in
+`details` so a fired alert says how much of the window it could measure. If you
+add a query that asks a tool row about a model, you are writing a dead query.
+
 **`reprice-events` is two job names on purpose.** The bare name reports what
 repricing would change; `reprice-events-apply` writes it. The trigger endpoint
 takes no request body, so a `dryRun` flag had nowhere to live — and rewriting
