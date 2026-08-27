@@ -32,6 +32,32 @@ export class NullBillingSource implements BillingSource {
   }
 }
 
+/**
+ * Fans one lookup out across several vendor sources and takes the first that
+ * answers. Each source already returns `null` for agent types it does not bill
+ * (Anthropic for anything but `CLAUDE_CODE`, GitHub for anything but `COPILOT`),
+ * so "first non-null wins" needs no per-agent routing table here — and two
+ * sources claiming the same agent would be a wiring mistake, not something to
+ * resolve by summing.
+ */
+export class CompositeBillingSource implements BillingSource {
+  private readonly sources: readonly BillingSource[];
+
+  constructor(sources: readonly BillingSource[]) {
+    this.sources = sources;
+  }
+
+  async fetchBilledCost(agentType: string, year: number, month: number): Promise<number | null> {
+    for (const source of this.sources) {
+      const cost = await source.fetchBilledCost(agentType, year, month);
+      if (cost != null) {
+        return cost;
+      }
+    }
+    return null;
+  }
+}
+
 export const DEFAULT_DRIFT_THRESHOLD = 0.05;
 
 type ReconcileOpts = {
@@ -46,6 +72,10 @@ type ReconcileOpts = {
  * cost for the previous full calendar month, per agent_type. Emits delta + drift
  * gauges and counts threshold breaches. Idempotent: re-running re-sets the gauges
  * for the same month. Gated by BILLING_RECONCILIATION_ENABLED at the scheduler.
+ *
+ * It records drift; it never writes cost. `events.cost_usd` and the session /
+ * PR / continuous-aggregate chain that accumulates from it are corrected only by
+ * `reprice-events`, deliberately and by operator trigger.
  */
 export async function runReconcileCost(
   db: DbWithRaw,
@@ -87,9 +117,19 @@ export async function runReconcileCost(
     // line item on their invoice -- so excluding non-interactive events here
     // would manufacture a permanent drift against a number that was never
     // supposed to match in the first place.
-    const rows = await db.$queryRaw<{ agent_type: string; client_cost: number | string }[]>(
+    const rows = await db.$queryRaw<
+      { agent_type: string; client_cost: number | string; client_tokens: number | string }[]
+    >(
       Prisma.sql`
-        SELECT agent_type, COALESCE(SUM(cost_usd), 0) AS client_cost
+        SELECT
+          agent_type,
+          COALESCE(SUM(cost_usd), 0) AS client_cost,
+          COALESCE(SUM(
+            COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+            + COALESCE(cache_read_tokens, 0) + COALESCE(cache_creation_tokens, 0)
+          ), 0) AS client_tokens
+        -- run-kind-exempt: compared against a vendor invoice that bills every
+        -- token the account sent, CI and eval runs included.
         FROM events
         WHERE ts >= ${monthStart} AND ts < ${monthEnd}
         GROUP BY agent_type
@@ -98,6 +138,7 @@ export async function runReconcileCost(
 
     for (const row of rows) {
       const clientCost = Number(row.client_cost);
+      const clientTokens = Number(row.client_tokens);
       const vendorCost = await billingSource.fetchBilledCost(row.agent_type, year, month);
 
       if (vendorCost == null) {
@@ -111,6 +152,25 @@ export async function runReconcileCost(
       const driftRatio = vendorCost > 0 ? Math.abs(delta) / vendorCost : 0;
       costReconciliationDeltaUsd.set({ agent_type: row.agent_type }, delta);
       costReconciliationDriftRatio.set({ agent_type: row.agent_type }, driftRatio);
+
+      // The vendor billed for this month and not one event we stored carried a
+      // token count. `SUM(cost_usd)` is then structurally zero — cost is derived
+      // from tokens (`lib/cost.ts`), so with no tokens there is no priced
+      // measurement to be wrong. The drift here is the size of our capture gap,
+      // not the size of a pricing error, and the two must not share an alert:
+      // `COPILOT` is in exactly this state today (P14-007 — no Copilot hook
+      // payload carries tokens or a model), so counting it as a breach would
+      // fire a pricing alert every month for a hook that is working as built.
+      // Gauges are still set — the delta is real money, and hiding it would be
+      // its own dishonesty — but the *breach counter*, which is what an operator
+      // pages on, is not incremented.
+      if (vendorCost > 0 && clientTokens === 0) {
+        logger?.warn(
+          { agentType: row.agent_type, clientCost, driftRatio, month, vendorCost, year },
+          'cost.reconciliation.no_client_token_coverage',
+        );
+        continue;
+      }
 
       if (driftRatio > driftThreshold) {
         costReconciliationThresholdExceededTotal.inc({ agent_type: row.agent_type });
