@@ -101,6 +101,49 @@ import {
 // GitHub is exact that one prompt is one premium request (tool calls inside it
 // are free), so the COUNT is exact, but the multiplier needs the model and
 // spans 0.25x to 57x. See the table's `_comment` for the sourcing.
+//
+// ── P14-016: reopened by the billing change, closed again with binary-level evidence ──
+//
+// The premise that reopened this (P14-015: tokens now price correctly) is real,
+// but capturing them is still not reachable. Re-verified 2026-08-27:
+//
+//   - docs.github.com/en/copilot/reference/hooks-reference, fetched fresh: same
+//     14 events, same fields, no usage/token/model anywhere. Unchanged from the
+//     P14-007/P14-015 findings above.
+//   - **Ground truth from the shipped binary**, not just the docs website: this
+//     dev machine has GitHub Copilot CLI installed (`~/.copilot/pkg/`). Its
+//     `agentStop` hook-payload builder, read directly out of the bundled
+//     `index.js`, constructs exactly `{ timestamp, cwd, sessionId,
+//     transcriptPath, stopReason }` — confirming the docs rather than
+//     contradicting them.
+//   - The bundle's own `schemas/session-events.schema.json` defines
+//     `assistant.usage` — model, inputTokens, outputTokens, cacheReadTokens,
+//     cacheWriteTokens, cost, PER TURN — but the schema marks it
+//     `"ephemeral": true`, its own description reading "not persisted to the
+//     session event log on disk". That is the internal/SDK event bus P14-007
+//     described, confirmed from the artifact itself: real, per-turn, and
+//     structurally unreachable from a spawned hook process.
+//   - The same schema also defines `session.shutdown.data.modelMetrics`
+//     (session-TOTAL, keyed by model, `requests.{count,cost}` +
+//     `usage.{inputTokens,outputTokens,cacheReadTokens,cacheWriteTokens}`) —
+//     a formalized version of the `events.jsonl` P14-007 called undocumented.
+//     It is schema-defined, but **empirically not written**: zero
+//     `events.jsonl` files exist across ten real `~/.copilot/session-state/
+//     <id>/` directories on this machine (Jan–Aug 2026, real usage). GitHub's
+//     own github/copilot-cli#1394 (open, filed after the June 2026 billing
+//     switch) says why directly — session totals are "only shown once to the
+//     user but not persisted in events.jsonl or other files." That resolves
+//     P14-007's "two sources disagree on reliability" in the negative, not the
+//     positive: not reliably persisted **means not persisted**, on the one
+//     real install available to check it against.
+//   - github/copilot-cli#3551 (formalize events.jsonl as a public hook/
+//     integration surface) is still open, opened 2026-05-28, no GitHub
+//     response or commitment — unchanged from P14-007.
+//
+// Conclusion unchanged: no hook-reachable source of tokens or a model exists,
+// documented or otherwise. Re-open only if #3551 or #1394 close, or a hook
+// payload gains a usage field. Full writeup: `tasks/P14-016-copilot-token-
+// capture-reopened.md`.
 
 const COPILOT_EVENT_TYPE: Record<string, EventType> = {
   'agent-stop': 'Stop',
