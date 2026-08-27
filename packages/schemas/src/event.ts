@@ -40,7 +40,13 @@ const ToolInfoSchema = z.object({
   // facts and the deterministic scorers (P13-003) need to tell them apart.
   action: z.string().nullable().default(null),
   category: z.string().default('other'),
-  duration_ms: z.number().int().nonnegative().default(0),
+  // Null means "not measured" (P14-010) — most adapters' hook payloads carry no
+  // timing field at all, and defaulting this to 0 made every one of those tool
+  // calls read as an instant no-op: it dragged AVG(tool_duration_ms) down and
+  // tied every unmeasured call for fastest on a p95, rather than being excluded
+  // the way SQL treats NULL. An adapter that genuinely cannot measure duration
+  // must leave this null, never coerce absence to 0.
+  duration_ms: z.number().int().nonnegative().nullable().default(null),
   exit_status: z.number().int().nullable().default(null),
   input_bytes: z.number().int().nonnegative().default(0),
   input_hash: z.string().nullable().default(null),
