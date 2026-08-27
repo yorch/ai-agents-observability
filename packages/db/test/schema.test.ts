@@ -15,18 +15,23 @@ describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
   });
 
   afterAll(async () => {
-    // Clean up in reverse FK order
-    await prisma.pRRollup.deleteMany();
-    await prisma.sessionPRLink.deleteMany();
-    await prisma.pullRequest.deleteMany();
-    await prisma.session.deleteMany();
-    await prisma.auditLog.deleteMany();
-    await prisma.visibilityPolicy.deleteMany();
-    await prisma.authToken.deleteMany();
-    await prisma.repo.deleteMany();
-    await prisma.teamMember.deleteMany();
-    await prisma.user.deleteMany();
-    await prisma.team.deleteMany();
+    // Clean up in reverse FK order, scoped to the rows this suite created. An
+    // unscoped deleteMany() here would delete every row in `sessions` and
+    // `users` in the database — and `events.session_id` cascades on session
+    // delete, so it would silently wipe a sibling DB-gated suite's fixture
+    // data (or its own hypertable chunks) if this ever shares a database with
+    // apps/ingest's *.db.test.ts suites. See tasks/P14-014-db-test-isolation.md.
+    await prisma.pRRollup.deleteMany({ where: { repoId } });
+    await prisma.sessionPRLink.deleteMany({ where: { repoId } });
+    await prisma.pullRequest.deleteMany({ where: { repoId } });
+    await prisma.session.deleteMany({ where: { sessionId } });
+    await prisma.auditLog.deleteMany({ where: { actorUserId: userId } });
+    await prisma.visibilityPolicy.deleteMany({ where: { userId } });
+    await prisma.authToken.deleteMany({ where: { userId } });
+    await prisma.repo.deleteMany({ where: { id: repoId } });
+    await prisma.teamMember.deleteMany({ where: { teamId } });
+    await prisma.user.deleteMany({ where: { id: userId } });
+    await prisma.team.deleteMany({ where: { id: teamId } });
     await prisma.$disconnect();
   });
 
