@@ -30,8 +30,9 @@ import { runSyncTeams } from './sync-teams';
 export type SchedulerDeps = {
   appBaseUrl?: string;
   // Vendor-cost source for reconcile-cost. Undefined → NullBillingSource (the
-  // job runs but records no drift). Wired to AnthropicBillingSource in index.ts
-  // when ANTHROPIC_ADMIN_KEY is configured.
+  // job runs but records no drift). index.ts composes one from whichever vendor
+  // credentials are configured — AnthropicBillingSource (ANTHROPIC_ADMIN_KEY)
+  // and GitHubBillingSource (GITHUB_BILLING_TOKEN + GITHUB_BILLING_SCOPE).
   billingSource?: BillingSource;
   billingReconciliationEnabled?: boolean;
   bucket: string;
@@ -275,8 +276,8 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
         logger,
       );
       break;
-    // Gated cost reconciliation (P8-006). Uses the wired billing source
-    // (AnthropicBillingSource when ANTHROPIC_ADMIN_KEY is set), else the
+    // Gated cost reconciliation (P8-006). Uses the wired billing source (a
+    // composite over whichever vendor sources index.ts could build), else the
     // NullBillingSource no-op so the job still runs (records no drift).
     case 'reconcile-cost':
       await runReconcileCost(
@@ -513,7 +514,7 @@ export function startScheduler(deps: SchedulerDeps): void {
     {
       judge: deps.judge !== undefined,
       reconcileCost: deps.billingReconciliationEnabled === true,
-      reconcileCostSource: deps.billingSource ? 'anthropic' : 'null',
+      reconcileCostSource: deps.billingSource ? 'vendor' : 'null',
       syncJira: deps.jiraConfig !== undefined,
     },
     'Job scheduler started (DB-poll every 60s for the job_config cadences: sweep-retention, index-transcripts, compute-effectiveness, compute-trajectory-scores, compute-subject-scores, link-turn-events, compute-cost-attribution, evaluate-alerts, judge-sessions; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',
