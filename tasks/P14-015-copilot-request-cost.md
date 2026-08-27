@@ -3,7 +3,7 @@ id: P14-015
 title: Request-denominated cost dimension, and Copilot pricing
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P14-007]
 blocks: []

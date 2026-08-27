@@ -351,7 +351,7 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 Closes gaps where the pipeline recorded a *plausible* value rather than a true one, then makes the corrected values usable. Sub-agent identification was dead (no adapter ever emitted the `tool_category = 'agent'` those queries filtered on); the cost on `/org/agents`, `/team/agents`, `/org/mcp` and `/team/mcp` was a `SUM(cost_usd)` over tool events that no producer populates in real telemetry, and was always seed-data fiction; and Claude Code recorded `$0` in steady state.
 
-Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. All thirteen tasks are merged (#117–#120, #124–#128, #130–#132, #134).
+Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. All fifteen tasks are merged (#117–#120, #124–#128, #130–#132, #134, #136, #137).
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
@@ -368,6 +368,8 @@ Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost
 | [P14-011](./P14-011-shared-attribution.md) | One cost-attribution implementation, shared by the seed and ingest | done | claude | S | P14-004 |
 | [P14-012](./P14-012-typecheck-gate.md) | Bring the test directories inside the typecheck gate | done | claude | M | — |
 | [P14-013](./P14-013-typecheck-gaps.md) | Close the two remaining typecheck bypasses | done | claude | S | P14-012 |
+| [P14-014](./P14-014-db-test-isolation.md) | Let the DB-gated suites share a database | done | claude | S | P14-009 |
+| [P14-015](./P14-015-copilot-request-cost.md) | Request-denominated cost dimension, and Copilot pricing | done | claude | M | P14-007 |
 
 > **Phase 14 exists because green tests are not evidence of true data.** Every task
 > here fixes a value that was written, validated, aggregated and displayed — and was
@@ -393,7 +395,13 @@ P14-004 degrades rather than guesses: a tool event whose `turn_number` is NULL g
 
 The model-routing follow-up recorded here while Phase 14 was in flight became [P14-005](./P14-005-model-routing-attribution.md): six reads and the `routing_waste` alert filtered `event_type = 'PostToolUse' AND model IS NOT NULL`, a combination no producer emits, so `/org/models` and a live alert had only ever seen seed data. Those surfaces now read the issuing turn's model through `parent_event_id` and the tool row's `attributed_cost_usd`.
 
-**Two follow-ups found during Phase 14 remain open, deliberately unnumbered until each is picked up.** Two others shipped: `PostToolUse.duration_ms` as [P14-010](./P14-010-tool-durations.md), and the untypechecked migrations runner plus the `{} as unknown as Config` casts as [P14-013](./P14-013-typecheck-gaps.md).
+**Both Phase 14 follow-ups are closed** — DB-suite isolation as [P14-014](./P14-014-db-test-isolation.md), Copilot pricing as [P14-015](./P14-015-copilot-request-cost.md). Two others shipped earlier: `PostToolUse.duration_ms` as [P14-010](./P14-010-tool-durations.md), and the untypechecked migrations runner plus the `{} as unknown as Config` casts as [P14-013](./P14-013-typecheck-gaps.md).
 
-1. **The `apps/ingest` DB-gated suites cannot share a database.** `compute-cost-attribution.db.test.ts` and `reprice-events.db.test.ts` pass alone and fail together — a lock deadlock while one recompresses a chunk the other writes, and a chunk-count assertion that counts *all* compressed chunks of `events` and so sees the other suite's work. Pre-existing (reproduces against the pre-squash schema) and invisible because `bun run test` sets no `DATABASE_URL`, so all three DB suites skip. Fix is a cross-cutting choice: `fileParallelism: false` for ingest, a per-suite database, or scoping that assertion.
-2. **Copilot spend cannot be expressed.** `price-table.copilot.v1.json` is intentionally empty: Copilot bills a premium-request allowance (Pro 300/mo, Pro+ 1500, $0.04 overage), not tokens. Its spend will read `$0` forever under the per-token schema regardless of what the hook captures — see [P14-007](./P14-007-copilot-usage-capture.md). The chosen direction is a second, request-denominated cost dimension in the price-table schema.
+**P14-015 overturned a premise this phase reasoned from twice.** `price-table.copilot.v1.json` carried a dated, well-sourced `_comment` asserting that "Copilot does not bill tokens at all". That stopped being true on **2026-06-01**, when GitHub replaced premium requests with token-metered AI credits (1 credit = $0.01) and began publishing per-model USD-per-Mtok rates. The comment was written 2026-08-18 — already ~2.5 months stale — and three separate tasks treated it as settled. Premium requests survive only for "Copilot Pro and Copilot Pro+ subscribers on an existing annual plan who remained on legacy premium request-based billing after June 1, 2026". `copilot.v2` now prices 32 models and keeps request pricing for that cohort.
+
+**The standing lesson: a comment encoding a third party's commercial terms has a shelf life its retrieval date does not advertise. Re-fetch it, do not re-read it.**
+
+**Two follow-ups remain open, deliberately unnumbered until picked up.**
+
+1. **Copilot token capture is worth reopening.** [P14-007](./P14-007-copilot-usage-capture.md) closed as a documented negative and its *finding* stands — no Copilot hook payload carries token usage. But its *conclusion*, that capture would not help because tokens price at `$0`, rested on the stale v1 comment. With `copilot.v2` populated, captured tokens would price correctly. Worth re-checking whether the June billing change came with a usage surface the hooks can reach.
+2. **A reconcile job against GitHub's billing API** (`.../billing/ai_credit/usage`) is the actual ground truth for Copilot spend, in the same shape as the existing Anthropic billing reconciliation (`anthropic-billing-source.ts` → `reconcile-cost.ts`).
