@@ -31,6 +31,13 @@ export {
   UNKNOWN_MODEL_SURGE_DEFAULT,
   UNKNOWN_MODEL_WINDOW_HOURS,
 } from './alerts';
+export type { AttributionEvent, AttributionRow, PriceLookup } from './cost-attribution';
+export {
+  computeSessionAttribution,
+  inputSideCostUsd,
+  TOOL_EVENT_TYPE,
+  TURN_END_EVENT_TYPE,
+} from './cost-attribution';
 export type {
   FrictionComponents,
   FrictionInputs,

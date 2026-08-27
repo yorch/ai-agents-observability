@@ -1,28 +1,33 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import { Prisma } from '@ai-agents-observability/db';
-import type { Logger } from 'pino';
-
-import { resolveModelPrice } from '../lib/cost';
 import {
   type AttributionEvent,
   type AttributionRow,
   computeSessionAttribution,
   type PriceLookup,
-} from '../lib/cost-attribution';
+} from '@ai-agents-observability/schemas';
+import type { Logger } from 'pino';
+
+import { resolveModelPrice } from '../lib/cost';
 import { type EventChunk, listEventChunks, withDecompressedChunk } from '../lib/hypertable-chunks';
 import type { PriceTableRegistry } from '../lib/price-tables';
 import { type JobRunDb, withJobRun } from './job-run';
 
 /**
  * Writes `events.attributed_cost_usd` and `events.downstream_cost_usd` — the two
- * turn-linked cost attributions defined in `lib/cost-attribution.ts` (P14-004).
+ * turn-linked cost attributions defined in
+ * `packages/schemas/src/cost-attribution.ts` (P14-004). The arithmetic lives
+ * there, not here, because `packages/db/src/seed.ts` writes the same two
+ * columns for the demo database and cannot depend on this app (P14-011) —
+ * a seed that recomputed them locally is the exact defect Phase 14 removes.
  *
  * **The two columns are two lenses on the same dollars, not two costs. Never sum
  * them.** And nothing in this job touches `sessions.total_cost_usd`,
  * `pr_rollups.total_cost_usd` or the three continuous aggregates: that chain
  * already counts these dollars once, at the Stop event. `reprice-events` is the
  * job that has to move all four together; this one deliberately joins none of it.
- * `test/cost-attribution.test.ts` asserts the job issues no write against them.
+ * `test/compute-cost-attribution.test.ts` asserts the job issues no write
+ * against them.
  *
  * ── Shape ───────────────────────────────────────────────────────────────────
  *

@@ -1,8 +1,21 @@
-import type { ModelPrice } from '@ai-agents-observability/schemas';
+import type { ModelPrice } from './price-table';
 
 /**
  * Turn-linked cost attribution (P14-004) — the arithmetic, with no database in
  * sight so it can be tested directly.
+ *
+ * ── Why it lives in `packages/schemas` ────────────────────────────────
+ *
+ * Two callers need these numbers and neither may depend on the other:
+ * `apps/ingest/src/jobs/compute-cost-attribution.ts` writes them for real
+ * telemetry, and `packages/db/src/seed.ts` writes them for the demo database.
+ * A seed that recomputed this arithmetic locally is precisely the defect
+ * Phase 14 exists to remove — the fabricated tool cost, the invented
+ * `tool_category` taxonomy and the `model`-on-tool-rows fiction each passed
+ * review because every query was written against seeded data that agreed with
+ * nothing production emits. So the definition lives once, here, beside
+ * `toolCategory()` (P14-002) which the seed and the hook adapters share for the
+ * same reason, and `packages/db` cannot depend on `apps/ingest` to get it.
  *
  * ── Why this exists ─────────────────────────────────────────────────────────
  *
@@ -45,7 +58,7 @@ import type { ModelPrice } from '@ai-agents-observability/schemas';
  * them into a single "cost" column, and never let either feed
  * `sessions.total_cost_usd`, `pr_rollups.total_cost_usd`, or the continuous
  * aggregates — that chain already counts these dollars exactly once, at the Stop
- * event (see `jobs/reprice-events.ts` for the four-way chain).
+ * event (see `apps/ingest/src/jobs/reprice-events.ts` for the four-way chain).
  */
 
 /** The `Stop` event closes an assistant turn and carries that turn's usage. */
