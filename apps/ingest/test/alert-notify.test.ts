@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { dispatchAlert } from '../src/lib/notify/channel.ts';
-import { buildAlertPayload } from '../src/lib/notify/payload.ts';
+import { dispatchAlert } from '../src/lib/notify/channel';
+import { buildAlertPayload } from '../src/lib/notify/payload';
 
 describe('buildAlertPayload (trust guardrail — aggregate only)', () => {
   const rule = { name: 'Org spend spike', ruleType: 'spend_spike' };

@@ -12,7 +12,7 @@ import {
   type BillingSource,
   NullBillingSource,
   runReconcileCost,
-} from '../src/jobs/reconcile-cost.ts';
+} from '../src/jobs/reconcile-cost';
 
 // biome-ignore lint/suspicious/noExplicitAny: test double for PrismaClient
 function asDb(mock: ReturnType<typeof makeMockDb>): any {

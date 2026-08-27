@@ -4,8 +4,8 @@ import {
 } from '@ai-agents-observability/schemas';
 import { describe, expect, it, vi } from 'vitest';
 
-import { evalDisallowedModel } from '../src/jobs/evaluate-alerts.ts';
-import { buildAlertPayload } from '../src/lib/notify/payload.ts';
+import { evalDisallowedModel } from '../src/jobs/evaluate-alerts';
+import { buildAlertPayload } from '../src/lib/notify/payload';
 
 // Model governance enforcement (P10-005). Prisma-free: the evaluator's only DB
 // access is one $queryRaw, so canned rows exercise every branch without a live

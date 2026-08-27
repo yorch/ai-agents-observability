@@ -2,12 +2,12 @@ import type { PrismaClient } from '@ai-agents-observability/db';
 import { SCORERS, TRAJECTORY_MIN_TOOL_CALLS } from '@ai-agents-observability/schemas';
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildSubjectScoreInputs } from '../src/jobs/compute-subject-scores.ts';
+import { buildSubjectScoreInputs } from '../src/jobs/compute-subject-scores';
 import {
   loadStepBaselines,
   MAX_EVENTS_PER_SESSION,
   processTrajectoryBatch,
-} from '../src/jobs/compute-trajectory-scores.ts';
+} from '../src/jobs/compute-trajectory-scores';
 
 // The batch processor's contract is what this file checks: which `scores` rows a
 // batch produces, and — more importantly — which it *declines* to produce. The
@@ -310,7 +310,11 @@ describe('loadStepBaselines', () => {
       expect(values).toContain(TRAJECTORY_MIN_TOOL_CALLS);
       return [];
     });
-    await loadStepBaselines({ $queryRaw: query });
+    await loadStepBaselines({
+      // `$queryRaw` returns a `PrismaPromise<T>`, a branded generic no plain
+      // async double can produce.
+      $queryRaw: query as unknown as Parameters<typeof loadStepBaselines>[0]['$queryRaw'],
+    });
     expect(query).toHaveBeenCalledTimes(1);
   });
 });

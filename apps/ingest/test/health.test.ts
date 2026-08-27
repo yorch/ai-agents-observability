@@ -2,29 +2,20 @@ import pino from 'pino';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppDeps } from '../src/app';
 import { createApp } from '../src/app';
-import type { Config } from '../src/config';
+import { makeTestConfig, makeTestDeps } from './helpers';
 
-const testConfig: Config = {
-  database_url: 'postgresql://test:test@localhost:5432/test',
-  git_sha: 'abc1234',
-  log_level: 'silent',
-  node_env: 'test',
-  port: 4000,
-  s3_access_key_id: 'test',
-  s3_bucket: 'test',
-  s3_endpoint: 'http://localhost:9000',
-  s3_force_path_style: true,
-  s3_region: 'us-east-1',
-  s3_secret_access_key: 'test',
-};
+const testConfig = makeTestConfig();
 
 const logger = pino({ level: 'silent' });
 
-function makeApp(overrides?: Partial<AppDeps>) {
+function makeApp(overrides?: Partial<Pick<AppDeps, 'checkDb' | 'checkS3'>>) {
   const deps: AppDeps = {
+    ...makeTestDeps(),
     checkDb: vi.fn().mockResolvedValue(undefined),
     checkS3: vi.fn().mockResolvedValue(undefined),
-    db: { authToken: { findFirst: vi.fn().mockResolvedValue(null) } } as AppDeps['db'],
+    db: {
+      authToken: { findFirst: vi.fn().mockResolvedValue(null) },
+    } as unknown as AppDeps['db'],
     logger,
     ...overrides,
   };

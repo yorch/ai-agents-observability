@@ -1,9 +1,9 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import { describe, expect, it, vi } from 'vitest';
 
-import { applyAlertTransition } from '../src/jobs/alert-transition.ts';
-import { effectiveRetentionDays } from '../src/jobs/retention-policy.ts';
-import { buildAlertPayload } from '../src/lib/notify/payload.ts';
+import { applyAlertTransition } from '../src/jobs/alert-transition';
+import { effectiveRetentionDays } from '../src/jobs/retention-policy';
+import { buildAlertPayload } from '../src/lib/notify/payload';
 
 // Consolidated Phase 9 invariant suite (P9-006). Uses the Prisma-free policy
 // helpers + property-style loops so it runs in CI without a live database.

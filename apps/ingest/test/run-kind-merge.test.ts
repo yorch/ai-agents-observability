@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { insertEventsBatch } from '../src/lib/insert-events';
 import { upsertSessions } from '../src/lib/upsert-session';
 
+type UpsertSessionsDb = Parameters<typeof upsertSessions>[0];
+
 /**
  * P13-002: a session's `run_kind` and its events' `run_kind` must not disagree.
  *
@@ -62,7 +64,11 @@ function makeEvent(
     ts: '2026-05-21T12:00:00Z',
     user_id_claim: USER_ID,
     ...overrides,
-  };
+    // `Event` is a discriminated union and `Partial<Event>` makes every
+    // variant's discriminating members optional, so the spread cannot be proven
+    // to land on one arm. Overrides are still checked against `Partial<Event>`,
+    // which is where fixture drift shows up.
+  } as Event;
 }
 
 type Captured = { params: unknown[]; sql: string };
@@ -78,10 +84,14 @@ function makeDb(settled: string[] = []) {
       captured.push({ params: [...query.values], sql: query.sql });
       return 1;
     }),
+    // `RawDb.$queryRaw` is generic in its row type (`<T>(q) => Promise<T>`),
+    // a signature no concrete double can implement. The single caller — the
+    // run_kind escalation probe — reads `{ session_id }[]`, which is what this
+    // returns.
     $queryRaw: vi.fn(async (query: Prisma.Sql) => {
       captured.push({ params: [...query.values], sql: query.sql });
       return settled.map((session_id) => ({ session_id }));
-    }),
+    }) as unknown as UpsertSessionsDb['$queryRaw'],
     captured,
   };
 }

@@ -10,9 +10,9 @@ import {
   judgeOneSession,
   runJudgeSessions,
   selectJudgeCandidates,
-} from '../src/jobs/judge-sessions.ts';
-import { AnthropicJudgeClient, type JudgeModelClient } from '../src/lib/judge-client.ts';
-import { judgeRationaleKey, purgeJudgeRationales } from '../src/lib/judge-rationales.ts';
+} from '../src/jobs/judge-sessions';
+import { AnthropicJudgeClient, type JudgeModelClient } from '../src/lib/judge-client';
+import { judgeRationaleKey, purgeJudgeRationales } from '../src/lib/judge-rationales';
 
 /**
  * The guardrails are the acceptance criteria of P13-009, so they are what this
@@ -32,10 +32,16 @@ const STRANGER = '22222222-2222-2222-2222-222222222222';
 const OWN_SESSION = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const STRANGER_SESSION = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 
-const REVISION = resolveJudgeRevision('claude-opus-5');
-if (!REVISION) {
-  throw new Error('test fixture: claude-opus-5 must be a registered judge revision');
+// Narrowed through a helper rather than a top-level guard: control-flow
+// narrowing of a module const does not reach into the closures below.
+function requireRevision() {
+  const revision = resolveJudgeRevision('claude-opus-5');
+  if (!revision) {
+    throw new Error('test fixture: claude-opus-5 must be a registered judge revision');
+  }
+  return revision;
 }
+const REVISION = requireRevision();
 
 const VERDICT = JSON.stringify({
   plan_coherence: { label: 'mixed', rationale: 'Two approaches before one stuck.' },

@@ -4,22 +4,10 @@ import pino from 'pino';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppDeps } from '../src/app';
 import { createApp } from '../src/app';
-import type { Config } from '../src/config';
 import { verifyIdentityClaim } from '../src/lib/identity';
+import { makeTestConfig, makeTestDeps } from './helpers';
 
-const testConfig: Config = {
-  database_url: 'postgresql://test:test@localhost:5432/test',
-  git_sha: 'test',
-  log_level: 'silent',
-  node_env: 'test',
-  port: 4000,
-  s3_access_key_id: 'test',
-  s3_bucket: 'test',
-  s3_endpoint: 'http://localhost:9000',
-  s3_force_path_style: true,
-  s3_region: 'us-east-1',
-  s3_secret_access_key: 'test',
-};
+const testConfig = makeTestConfig();
 
 const logger = pino({ level: 'silent' });
 
@@ -63,9 +51,10 @@ function makeDb(store: Map<string, FakeToken>) {
 
 function makeApp(store: Map<string, FakeToken>) {
   const deps: AppDeps = {
+    ...makeTestDeps(),
     checkDb: vi.fn().mockResolvedValue(undefined),
     checkS3: vi.fn().mockResolvedValue(undefined),
-    db: makeDb(store) as AppDeps['db'],
+    db: makeDb(store) as unknown as AppDeps['db'],
     logger,
   };
   const app = createApp(testConfig, deps);
@@ -139,9 +128,10 @@ describe('authRequired', () => {
     const store = makeTokenStore();
     const db = makeDb(store);
     const deps: AppDeps = {
+      ...makeTestDeps(),
       checkDb: vi.fn().mockResolvedValue(undefined),
       checkS3: vi.fn().mockResolvedValue(undefined),
-      db: db as AppDeps['db'],
+      db: db as unknown as AppDeps['db'],
       logger,
     };
     const app = createApp(testConfig, deps);
