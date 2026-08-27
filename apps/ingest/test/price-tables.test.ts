@@ -1,7 +1,12 @@
+import {
+  ADAPTER_AGENT_TYPES,
+  isRequestPriced,
+  requestCostUsd,
+} from '@ai-agents-observability/schemas';
 import { describe, expect, it } from 'vitest';
 
-import rawCopilot from '../src/data/price-table.copilot.v1.json' with { type: 'json' };
-import { buildPriceTableRegistry } from '../src/lib/price-tables';
+import rawCopilot from '../src/data/price-table.copilot.v2.json' with { type: 'json' };
+import { buildPriceTableRegistry, pricedAgentTypes } from '../src/lib/price-tables';
 
 describe('price-table registry', () => {
   const registry = buildPriceTableRegistry();
@@ -30,27 +35,39 @@ describe('price-table registry', () => {
     expect(registry.forAgentParam('codex')).toBe(t);
   });
 
-  // Every agent that ships an adapter and bills per token needs priced models,
-  // or its sessions silently read $0. Copilot is the deliberate exception: it
-  // bills premium requests, not tokens, so a per-mtok row would be invented.
-  const TOKEN_BILLED = ['claude_code', 'codex', 'gemini_cli', 'omp', 'opencode', 'pi'] as const;
+  // Every agent that ships an adapter needs priced models, or its sessions
+  // silently read $0. Copilot joined this list in P14-015: it was the deliberate
+  // exception while it billed premium requests, and stopped being one on
+  // 2026-06-01 when GitHub moved Copilot to token-metered AI credits and started
+  // publishing a per-model per-Mtok rate.
+  const TOKEN_BILLED = [
+    'claude_code',
+    'codex',
+    'copilot',
+    'gemini_cli',
+    'omp',
+    'opencode',
+    'pi',
+  ] as const;
 
   it.each(TOKEN_BILLED)('%s prices at least one model', (agent) => {
     expect(Object.keys(registry.resolve(agent).prices).length).toBeGreaterThan(0);
   });
 
-  it('leaves the copilot table empty on purpose, and says why', () => {
-    const t = registry.resolve('copilot');
-    expect(Object.keys(t.prices)).toHaveLength(0);
-    // The comment is the only place the reasoning lives; losing it turns a
-    // decision back into an oversight. Read the file, not the parsed table —
-    // PriceTableSchema strips `_comment`.
-    expect(rawCopilot._comment).toMatch(/premium request/i);
+  it('leaves no shipped adapter unpriced', () => {
+    // Anti-vacuity for the list above: every agent with a capture adapter must
+    // appear in it, so adding an adapter without a table fails here rather than
+    // billing $0 in silence. `copilot` is spelled out because its inclusion is
+    // the whole point of P14-015 and a regression would be easy to miss.
+    expect([...TOKEN_BILLED].sort()).toEqual(
+      ADAPTER_AGENT_TYPES.map((a) => a.toLowerCase()).sort(),
+    );
+    expect(TOKEN_BILLED).toContain('copilot');
   });
 
-  // The three hand-maintained tables, each transcribed from one vendor's own
+  // The four hand-maintained tables, each transcribed from one vendor's own
   // pricing page — so their cache semantics are known and can be asserted tightly.
-  const HAND_MAINTAINED = ['claude_code', 'codex', 'gemini_cli'] as const;
+  const HAND_MAINTAINED = ['claude_code', 'codex', 'copilot', 'gemini_cli'] as const;
   // Generated from the models.dev catalog by `bun run gen:price-tables`, spanning
   // twenty vendors whose cache conventions differ.
   const GENERATED = ['omp', 'opencode', 'pi'] as const;
@@ -152,6 +169,73 @@ describe('price-table registry', () => {
         expect(other.output_per_mtok, `${agent}:${model} output`).toBe(price.output_per_mtok);
       }
     }
+  });
+
+  // ── P14-015: the request-denominated dimension ────────────────────────────
+  //
+  // Copilot is the one agent with both denominators, which is what makes it the
+  // test case: `prices` is its CURRENT billing (tokens → AI credits, since
+  // 2026-06-01), `request_pricing` is the LEGACY premium-request model that
+  // survives only for annual-plan Pro/Pro+ holdovers.
+
+  it('prices Copilot from GitHub-published rates, not the vendors’ direct ones', () => {
+    const p = registry.resolve('copilot').prices;
+    expect(registry.resolve('copilot').version).toBe('copilot.v2');
+    // Spot-checks across all six vendors GitHub resells, so a partial
+    // transcription cannot pass by covering only the Anthropic block.
+    expect(p['claude-opus-5']).toMatchObject({ input_per_mtok: 5, output_per_mtok: 25 });
+    expect(p['gpt-5.4']).toMatchObject({ input_per_mtok: 2.5, output_per_mtok: 15 });
+    expect(p['gemini-3.1-pro']).toMatchObject({ input_per_mtok: 2, output_per_mtok: 12 });
+    expect(p['grok-4.6']).toMatchObject({ input_per_mtok: 2, output_per_mtok: 6 });
+    expect(p['kimi-k3']).toMatchObject({ input_per_mtok: 3, output_per_mtok: 15 });
+    expect(p['mai-code-1.1-flash']).toMatchObject({ input_per_mtok: 0.2, output_per_mtok: 1.2 });
+    expect(p['raptor-mini']).toMatchObject({ input_per_mtok: 0.25, output_per_mtok: 2 });
+    // The two slugs GitHub itself documents for COPILOT_MODEL / --model. If the
+    // key convention ever drifts, these are the two that can be checked.
+    expect(p['claude-haiku-4.5']).toBeDefined();
+    expect(p['claude-sonnet-4.5']).toBeDefined();
+  });
+
+  it('carries request pricing for Copilot and for nobody else', () => {
+    const copilot = registry.resolve('copilot');
+    expect(isRequestPriced(copilot)).toBe(true);
+    // Anti-vacuity: assert over the whole shipped set, not just one absence, so
+    // a table that quietly grows a request_pricing block is caught.
+    const others = pricedAgentTypes().filter((a) => a !== 'copilot');
+    expect(others.length).toBeGreaterThan(4);
+    for (const agent of others) {
+      expect(isRequestPriced(registry.resolve(agent)), agent).toBe(false);
+    }
+  });
+
+  it('reproduces GitHub’s legacy multipliers at the published overage rate', () => {
+    const t = registry.resolve('copilot');
+    if (!isRequestPriced(t)) {
+      throw new Error('copilot table lost its request_pricing block');
+    }
+    const rp = t.request_pricing;
+    expect(rp.overage_usd_per_request).toBe(0.04);
+    expect(rp.included_requests_per_seat_month).toMatchObject({ pro: 300, pro_plus: 1500 });
+    // The published spread, both ends. 0.25x to 57x is why a request COUNT is
+    // exact for Copilot while a request COST is not — see the file's _comment.
+    expect(rp.multipliers['mai-code-1.1-flash']).toBe(0.25);
+    expect(rp.multipliers['gpt-5.5']).toBe(57);
+    expect(requestCostUsd('claude-sonnet-4.5', rp)).toBeCloseTo(6 * 0.04, 10);
+    expect(requestCostUsd('gpt-5.5', rp)).toBeCloseTo(57 * 0.04, 10);
+    // No multiplier is 1: GitHub's own table has no unit-cost model, so "one
+    // prompt is one premium request" cannot be turned into dollars by defaulting.
+    expect(Object.values(rp.multipliers)).not.toContain(1);
+    expect(Object.keys(rp.multipliers).length).toBeGreaterThan(20);
+  });
+
+  it('records why the Copilot table changed shape', () => {
+    // The comments are the only place the 2026-06-01 billing change and the
+    // derived-key caveat live; losing them turns a decision back into an
+    // oversight. Read the file, not the parsed table — the schema strips both.
+    expect(rawCopilot._comment).toMatch(/AI credits/i);
+    expect(rawCopilot._comment).toMatch(/DERIVED, NOT VERIFIED/);
+    expect(rawCopilot.request_pricing._comment).toMatch(/LEGACY/);
+    expect(rawCopilot.request_pricing._comment).toMatch(/tool calls, do not/);
   });
 
   it('returns an empty table for an unknown agent (so models bill $0)', () => {

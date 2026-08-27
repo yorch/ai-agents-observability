@@ -3,7 +3,7 @@ import { PriceTableSchema } from '@ai-agents-observability/schemas';
 
 import rawClaudeCode from '../data/price-table.claude_code.v1.json' with { type: 'json' };
 import rawCodex from '../data/price-table.codex.v1.json' with { type: 'json' };
-import rawCopilot from '../data/price-table.copilot.v1.json' with { type: 'json' };
+import rawCopilot from '../data/price-table.copilot.v2.json' with { type: 'json' };
 import rawGeminiCli from '../data/price-table.gemini_cli.v1.json' with { type: 'json' };
 import rawOmp from '../data/price-table.omp.v1.json' with { type: 'json' };
 import rawOpencode from '../data/price-table.opencode.v1.json' with { type: 'json' };
@@ -14,6 +14,11 @@ import rawPi from '../data/price-table.pi.v1.json' with { type: 'json' };
 // agent's models price correctly without colliding with Anthropic model names.
 // Keep old v<N> files when a table's structure changes so historical events stay
 // reproducible against the version they were priced with.
+//
+// `copilot.v1` is the one deletion (P14-015), and only because there is provably
+// nothing to reproduce: it was the empty table, so every event it ever touched
+// was priced at exactly $0 by an empty `prices` map. Keeping a file that encodes
+// "no prices" would preserve no number the git history does not already hold.
 
 export const DEFAULT_AGENT = 'claude_code';
 

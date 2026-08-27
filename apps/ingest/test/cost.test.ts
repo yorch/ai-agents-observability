@@ -59,4 +59,32 @@ describe('computeCostUsd', () => {
     computeCostUsd('groq/llama-4', 1e6, 0, 0, 0, TABLE, unknown, 'pi');
     expect(unknown).toContain('pi:groq/llama-4');
   });
+
+  // P14-015. The request-denominated dimension is additive: `computeCostUsd`
+  // never reads it, so a table that grows one prices its tokens identically, and
+  // a model priced ONLY by request stays unknown rather than being quietly
+  // costed on the wrong denominator. Which denominator a seat is billed on is a
+  // property of its plan, which no event carries — so ingest must not choose.
+  it('ignores request pricing when costing tokens', () => {
+    const withRequests: PriceTable = {
+      ...TABLE,
+      request_pricing: {
+        included_requests_per_seat_month: { pro: 300 },
+        multipliers: { 'claude-opus-5': 27, 'request-only-model': 6 },
+        overage_usd_per_request: 0.04,
+      },
+    };
+    // Same table, same tokens, same dollars — the whole point of "unaffected".
+    expect(computeCostUsd('claude-opus-5', 1e6, 1e6, 1e6, 1e6, withRequests)).toBe(
+      computeCostUsd('claude-opus-5', 1e6, 1e6, 1e6, 1e6, TABLE),
+    );
+    // Anti-vacuity: that equality would also hold if both were zero.
+    expect(computeCostUsd('claude-opus-5', 1e6, 1e6, 1e6, 1e6, TABLE)).toBeGreaterThan(0);
+
+    const unknown = new Set<string>();
+    expect(
+      computeCostUsd('request-only-model', 1e6, 0, 0, 0, withRequests, unknown, 'copilot'),
+    ).toBe(0);
+    expect(unknown).toContain('copilot:request-only-model');
+  });
 });

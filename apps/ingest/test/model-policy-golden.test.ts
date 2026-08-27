@@ -22,8 +22,8 @@ import { pricedAgentTypes, priceTableFor } from '../src/lib/price-tables';
 //     `bun run gen:price-tables` rewrites wholesale from the models.dev catalog;
 //     pinning a specific model's tier there would fail on every regeneration for
 //     no useful reason.
-//   - SPECIFIC pins — only against the hand-maintained `claude_code` table and
-//     the intentionally-empty `copilot` one, which change by deliberate edit.
+//   - SPECIFIC pins — only against the hand-maintained `claude_code` and
+//     `copilot` tables, which change by deliberate edit.
 
 const TIER_RANK: Record<ModelTier, number> = { economy: 0, premium: 2, standard: 1 };
 
@@ -85,10 +85,21 @@ describe('model policy against the shipped price tables', () => {
     }
   });
 
-  it('copilot ships an intentionally empty table and tiers nothing', () => {
-    // Copilot bills a seat allowance, not tokens. Empty must mean "unpriced",
-    // never "everything is the cheapest model".
-    expect(deriveModelTiers(priceTableFor('copilot')?.prices ?? {})).toEqual({});
+  it('tiers copilot now that it is token-priced (P14-015)', () => {
+    // Copilot's table was empty while it billed premium requests, so it tiered
+    // nothing and /org/models could make it no recommendation. GitHub moved
+    // Copilot to token-metered AI credits on 2026-06-01 and publishes a per-model
+    // rate, so it now tiers like any other agent — and pinning that is what makes
+    // the change visible if the table is ever emptied again.
+    const tiers = deriveModelTiers(priceTableFor('copilot')?.prices ?? {});
+    expect(Object.keys(tiers).length).toBeGreaterThan(20);
+    expect(tiers['gpt-5-mini']).toBe('economy');
+    expect(tiers['gemini-3.7-flash']).toBe('economy');
+    expect(tiers['claude-sonnet-5']).toBe('standard');
+    expect(tiers['claude-opus-5']).toBe('premium');
+    // All three tiers are populated — a table that collapsed into one tier would
+    // still satisfy the pins above if they all moved together.
+    expect(new Set(Object.values(tiers)).size).toBe(3);
   });
 
   it('pins the tier of the models the product actually reasons about', () => {

@@ -1,0 +1,233 @@
+{
+  "_comment": "GitHub Copilot. SUPERSEDES copilot.v1, which was empty by design on the belief that 'Copilot does not bill tokens at all'. That stopped being true on 2026-06-01: GitHub replaced premium requests with token-metered 'AI credits' (1 credit = $0.01 USD) and now publishes a per-model, per-million-token USD rate. `prices` below is transcribed from that published table, so it is GitHub's own resale rate for Copilot — not the underlying vendor's direct rate, which is a different number and may differ (compare Grok 4.6 here against the models.dev-generated tables). Source: https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing (retrieved 2026-08-27). Request-denominated billing survives as `request_pricing`, for the one cohort still on it. THREE LIMITS, all deliberate. (1) Context tiers: GitHub lists a '(Default)' and a '(Long context)' rate for several models; per DESIGN_DOC §11.6 one rate per model, so only the Default tier is recorded. (2) Cache write: where GitHub prints an em-dash the tokens still cost the ordinary input rate, so cache_write_per_mtok mirrors input_per_mtok — the same convention the codex and gemini_cli tables use. (3) Keys are DERIVED, NOT VERIFIED. No Copilot CLI hook payload carries a model identifier (P14-007, re-verified 2026-08-27 against docs.github.com/en/copilot/reference/hooks-reference), so nothing in our event stream has ever exercised these keys. They are GitHub's published display names lowercased with spaces hyphenated, which reproduces the two model slugs GitHub does document for COPILOT_MODEL / --model (claude-haiku-4.5, claude-sonnet-4.5). Re-key against reality the day an adapter reports a Copilot model. Also unmodelled: code completions and next edit suggestions are not billed in AI credits at all, and auto model selection earns a documented 10% discount.",
+  "generated_at": "2026-08-27T00:00:00Z",
+  "prices": {
+    "claude-fable-5": {
+      "cache_read_per_mtok": 1.0,
+      "cache_write_per_mtok": 12.5,
+      "input_per_mtok": 10.0,
+      "output_per_mtok": 50.0
+    },
+    "claude-haiku-4.5": {
+      "cache_read_per_mtok": 0.1,
+      "cache_write_per_mtok": 1.25,
+      "input_per_mtok": 1.0,
+      "output_per_mtok": 5.0
+    },
+    "claude-opus-4.5": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 6.25,
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0
+    },
+    "claude-opus-4.6": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 6.25,
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0
+    },
+    "claude-opus-4.7": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 6.25,
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0
+    },
+    "claude-opus-4.8": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 6.25,
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0
+    },
+    "claude-opus-4.8-fast-mode": {
+      "cache_read_per_mtok": 1.0,
+      "cache_write_per_mtok": 12.5,
+      "input_per_mtok": 10.0,
+      "output_per_mtok": 50.0
+    },
+    "claude-opus-5": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 6.25,
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0
+    },
+    "claude-sonnet-4": {
+      "cache_read_per_mtok": 0.3,
+      "cache_write_per_mtok": 3.75,
+      "input_per_mtok": 3.0,
+      "output_per_mtok": 15.0
+    },
+    "claude-sonnet-4.5": {
+      "cache_read_per_mtok": 0.3,
+      "cache_write_per_mtok": 3.75,
+      "input_per_mtok": 3.0,
+      "output_per_mtok": 15.0
+    },
+    "claude-sonnet-4.6": {
+      "cache_read_per_mtok": 0.3,
+      "cache_write_per_mtok": 3.75,
+      "input_per_mtok": 3.0,
+      "output_per_mtok": 15.0
+    },
+    "claude-sonnet-5": {
+      "cache_read_per_mtok": 0.2,
+      "cache_write_per_mtok": 2.5,
+      "input_per_mtok": 2.0,
+      "output_per_mtok": 10.0
+    },
+    "gemini-3.1-pro": {
+      "cache_read_per_mtok": 0.2,
+      "cache_write_per_mtok": 2.0,
+      "input_per_mtok": 2.0,
+      "output_per_mtok": 12.0
+    },
+    "gemini-3.5-flash": {
+      "cache_read_per_mtok": 0.15,
+      "cache_write_per_mtok": 1.5,
+      "input_per_mtok": 1.5,
+      "output_per_mtok": 9.0
+    },
+    "gemini-3.6-flash": {
+      "cache_read_per_mtok": 0.075,
+      "cache_write_per_mtok": 0.75,
+      "input_per_mtok": 0.75,
+      "output_per_mtok": 3.75
+    },
+    "gemini-3.7-flash": {
+      "cache_read_per_mtok": 0.075,
+      "cache_write_per_mtok": 0.75,
+      "input_per_mtok": 0.75,
+      "output_per_mtok": 3.75
+    },
+    "gpt-5-mini": {
+      "cache_read_per_mtok": 0.025,
+      "cache_write_per_mtok": 0.25,
+      "input_per_mtok": 0.25,
+      "output_per_mtok": 2.0
+    },
+    "gpt-5.3-codex": {
+      "cache_read_per_mtok": 0.175,
+      "cache_write_per_mtok": 1.75,
+      "input_per_mtok": 1.75,
+      "output_per_mtok": 14.0
+    },
+    "gpt-5.4": {
+      "cache_read_per_mtok": 0.25,
+      "cache_write_per_mtok": 2.5,
+      "input_per_mtok": 2.5,
+      "output_per_mtok": 15.0
+    },
+    "gpt-5.4-mini": {
+      "cache_read_per_mtok": 0.075,
+      "cache_write_per_mtok": 0.75,
+      "input_per_mtok": 0.75,
+      "output_per_mtok": 4.5
+    },
+    "gpt-5.4-nano": {
+      "cache_read_per_mtok": 0.02,
+      "cache_write_per_mtok": 0.2,
+      "input_per_mtok": 0.2,
+      "output_per_mtok": 1.25
+    },
+    "gpt-5.5": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 5.0,
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 30.0
+    },
+    "gpt-5.6-luna": {
+      "cache_read_per_mtok": 0.02,
+      "cache_write_per_mtok": 0.25,
+      "input_per_mtok": 0.2,
+      "output_per_mtok": 1.2
+    },
+    "gpt-5.6-sol": {
+      "cache_read_per_mtok": 0.2,
+      "cache_write_per_mtok": 2.5,
+      "input_per_mtok": 2.0,
+      "output_per_mtok": 10.0
+    },
+    "gpt-5.6-terra": {
+      "cache_read_per_mtok": 0.2,
+      "cache_write_per_mtok": 2.5,
+      "input_per_mtok": 2.0,
+      "output_per_mtok": 12.0
+    },
+    "grok-4.5": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 2.0,
+      "input_per_mtok": 2.0,
+      "output_per_mtok": 6.0
+    },
+    "grok-4.6": {
+      "cache_read_per_mtok": 0.5,
+      "cache_write_per_mtok": 2.0,
+      "input_per_mtok": 2.0,
+      "output_per_mtok": 6.0
+    },
+    "kimi-k2.7-code": {
+      "cache_read_per_mtok": 0.19,
+      "cache_write_per_mtok": 0.95,
+      "input_per_mtok": 0.95,
+      "output_per_mtok": 4.0
+    },
+    "kimi-k3": {
+      "cache_read_per_mtok": 0.3,
+      "cache_write_per_mtok": 3.0,
+      "input_per_mtok": 3.0,
+      "output_per_mtok": 15.0
+    },
+    "mai-code-1-flash": {
+      "cache_read_per_mtok": 0.075,
+      "cache_write_per_mtok": 0.75,
+      "input_per_mtok": 0.75,
+      "output_per_mtok": 4.5
+    },
+    "mai-code-1.1-flash": {
+      "cache_read_per_mtok": 0.02,
+      "cache_write_per_mtok": 0.2,
+      "input_per_mtok": 0.2,
+      "output_per_mtok": 1.2
+    },
+    "raptor-mini": {
+      "cache_read_per_mtok": 0.025,
+      "cache_write_per_mtok": 0.25,
+      "input_per_mtok": 0.25,
+      "output_per_mtok": 2.0
+    }
+  },
+  "request_pricing": {
+    "_comment": "LEGACY, and narrow: since 2026-06-01 request-denominated billing applies only to 'Copilot Pro and Copilot Pro+ subscribers on an existing annual plan who remained on legacy premium request-based billing'. Everyone else is on the token rates above. Sources: https://docs.github.com/en/copilot/reference/copilot-billing/request-based-billing-legacy/copilot-requests and .../model-multipliers-for-annual-plans (both retrieved 2026-08-27). The event-to-request mapping this denominates is EXACT where GitHub documents it — 'Each prompt to Copilot CLI uses one premium request with the default model', and 'only the prompts you send count as premium requests; actions Copilot takes autonomously to complete your task, such as tool calls, do not' — so one prompt is one request, and a whole agentic tool loop inside it is still one. Our UserPromptSubmit event is exactly that prompt. What is NOT determined is the MULTIPLIER: no Copilot hook payload carries a model, the multipliers below span 0.25x to 57x, and GitHub does not name the CLI's default model, so a request COUNT is exact while a request COST is not. Nothing here is wired into the ingest cost path for that reason. The multiplier table is also frozen — it lists no Opus 5, Sonnet 5, Fable 5, Grok or Kimi, all of which the token table above prices. Unmodelled: Copilot code review costs 13, and auto model selection earns a 10% discount.",
+    "included_requests_per_seat_month": {
+      "pro": 300,
+      "pro_plus": 1500
+    },
+    "multipliers": {
+      "claude-haiku-4.5": 0.33,
+      "claude-opus-4.5": 15,
+      "claude-opus-4.6": 27,
+      "claude-opus-4.7": 27,
+      "claude-opus-4.8": 27,
+      "claude-sonnet-4.5": 6,
+      "claude-sonnet-4.6": 9,
+      "gemini-3-pro": 6,
+      "gemini-3.1-pro": 6,
+      "gemini-3.5-flash": 14,
+      "gpt-4o": 0.33,
+      "gpt-4o-mini": 0.33,
+      "gpt-5-mini": 0.33,
+      "gpt-5.1": 3,
+      "gpt-5.1-codex": 3,
+      "gpt-5.1-codex-max": 3,
+      "gpt-5.1-codex-mini": 0.33,
+      "gpt-5.3-codex": 6,
+      "gpt-5.4": 6,
+      "gpt-5.4-mini": 6,
+      "gpt-5.5": 57,
+      "mai-code-1-flash": 0.33,
+      "mai-code-1.1-flash": 0.25,
+      "raptor-mini": 0.33
+    },
+    "overage_usd_per_request": 0.04
+  },
+  "version": "copilot.v2"
+}
