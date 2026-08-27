@@ -66,35 +66,98 @@ the custom layer — not folded into the Prisma migration, where the next
 regeneration would drop it. The custom layer started as one file and **grows by
 appending a new numbered file**; `0001_init.sql` is closed.
 
-Current files:
+Current files — **one**:
 
 - `0001_init.sql` — everything Prisma cannot model, in one file: the `events`
   hypertable (all columns, including `run_kind`, `notification_kind`,
-  `tool_target_hash` and `tool_action`) with its indexes, compression and retention
-  policies; the three continuous aggregates, each defined **once** and already
-  filtered to `run_kind = 'INTERACTIVE'`; the `transcript_index` FTS table with its
+  `tool_target_hash`, `tool_action`, the two P14-004 attribution columns
+  `attributed_cost_usd` / `downstream_cost_usd`, and P14-006's `tool_use_id`)
+  with its indexes — among them the partial `events_session_tool_use_id_idx` the
+  turn-linkage job reads — its compression and retention policies; the three
+  continuous aggregates, each defined **once** and already filtered to
+  `run_kind = 'INTERACTIVE'`; the `transcript_index` FTS table with its
   generated `tsvector`; two things Prisma cannot express on a Prisma-managed table
   (the partial `sessions_run_kind_idx`, and `NOT NULL` on the `redaction_flags`
   scalar list); the built-in alert-rule seeds; the `scores` unique index, which
   needs `NULLS NOT DISTINCT` (P13-013) and so has no `@@unique` in
   `schema.prisma` at all; and the `interactive_sessions` / `interactive_events`
   views that carry the `run_kind` guard (P13-012).
-- `0003_tool_cost_attribution.sql` — the two nullable `events` columns that carry
-  turn-linked cost attribution (P14-004), `attributed_cost_usd` and
-  `downstream_cost_usd`. It also **redefines `interactive_events`**: that view is
-  `SELECT *`, which Postgres expands at creation time, so a column added to
-  `events` is invisible through the view until the view is replaced. Any future
-  migration that adds an `events` column has to do the same.
-- `0004_live_turn_linkage.sql` — `events.tool_use_id`, the host agent's own
-  per-call identifier, plus a **partial** index on `(session_id, tool_use_id)
-  WHERE tool_use_id IS NOT NULL`. It is the natural key
-  `apps/ingest/src/jobs/link-turn-events.ts` joins live tool events to their
-  issuing turn on (P14-006). It redefines `interactive_events` for exactly the
-  reason 0003 did — which makes that a rule with two instances rather than one
-  piece of advice: **a migration that adds an `events` column replaces that view
-  in the same file**, or the column is invisible to every read in `apps/web`.
 
-**Squashed three times, all pre-deployment.** 2026-08-21 folded the
+**The `SELECT *` rule survives the squash, and still binds.** `interactive_events`
+is `SELECT * FROM events WHERE run_kind = 'INTERACTIVE'`, and Postgres expands the
+star **at view-creation time**, freezing the column list into the rewrite rule. In
+`0001_init.sql` every column exists before the view is created, so a fresh
+database is fine. But **a new numbered migration that adds an `events` column must
+carry its own `CREATE OR REPLACE VIEW interactive_events …` in the same file**, or
+the column is invisible to every human-facing read in `apps/web`, which names the
+view rather than the base table. That rule is not advice: it is why the folded
+`0003_tool_cost_attribution.sql` and `0004_live_turn_linkage.sql` each carried
+one, and why folding them let both of those statements go away.
+
+**Squashed four times, all pre-deployment.** 2026-08-26 (P14-009) folded
+`0003_tool_cost_attribution.sql` (P14-004) and `0004_live_turn_linkage.sql`
+(P14-006) back into `0001_init.sql` — three `ALTER TABLE events ADD COLUMN`s
+became columns of the `CREATE TABLE`, their `COMMENT ON COLUMN`s and the partial
+`events_session_tool_use_id_idx` came with them, and both files'
+`CREATE OR REPLACE VIEW interactive_events` was **dropped**: that statement
+existed only because the columns arrived after the view, and `0001`'s own
+`CREATE VIEW` now creates with them in place.
+`0002_tool_category_backfill.sql` was **deleted rather than folded** — it was a
+pure `UPDATE events SET tool_category = CASE …` over rows ingested before
+P14-002, every producer now stamps the real category at write time, and a
+database created from `0001` has no such rows; folding a data backfill into a
+schema file leaves dead SQL that runs on every fresh database forever. (Checked
+against the seed rather than assumed: after `db:seed`, every `PostToolUse` row
+with a `tool_name` already carries a real taxonomy value — `exec`, `fs_write`,
+`search`, `mcp`, … — and the only NULL `tool_category` rows have no `tool_name`,
+so they fall outside the deleted file's `WHERE` clause anyway.)
+Verified against a real database, not by reading:
+  - **Both layers applied to a completely empty database from scratch**, and again
+    on a second empty database for the pre-squash chain, so the two could be
+    compared.
+  - **`pg_dump --schema-only` diff, pre-squash vs post-squash: 2465 lines, 26
+    changed lines, and every one of them accounted for.** Two are pg_dump's own
+    per-run `\restrict`/`\unrestrict` nonce. The rest are *position only*: the
+    three folded columns now sit in their logical groups inside `events`
+    (`tool_use_id` with the other `tool_*` columns, the two attribution columns
+    after `cost_usd`) instead of appended after `metadata`, `interactive_events`
+    mirrors that order, and the three `COMMENT ON COLUMN` statements are emitted
+    in the new attnum order with byte-identical text. That is exactly what
+    folding an `ALTER TABLE ADD COLUMN` into a `CREATE TABLE` does. **No index,
+    constraint, default, nullability, type, view definition or continuous
+    aggregate differed.** Nothing depends on physical position: every writer
+    (`apps/ingest/src/lib/insert-events.ts`, `src/seed.ts`, the DB-gated tests)
+    names its columns explicitly, and every reader goes through Prisma or a named
+    `SELECT`.
+  - **TimescaleDB state compared separately**, because `pg_dump` does not carry
+    it: `timescaledb_information.hypertables`, `.compression_settings`, `.jobs`
+    and `.continuous_aggregates` (including each cagg's stored `view_definition`)
+    are **identical** across the two databases — same segmentby/orderby, same
+    7-day compression policy, same three refresh policies.
+  - **The views were checked through `information_schema.columns`, not by reading
+    the SQL** — the failure mode here ships columns nothing can read.
+    `interactive_events` has 38 columns, exactly as many as `events`, and carries
+    `attributed_cost_usd`, `downstream_cost_usd` and `tool_use_id`.
+  - **Prisma layer untouched and still regenerating identically**: `prisma migrate
+    diff --from-migrations ./prisma/migrations --to-schema ./prisma/schema.prisma`
+    against a shadow database reports an **empty** diff, and regenerating from
+    scratch (`--from-empty --to-schema`) produces **118 statements, matching the
+    committed `20260814000000_init` exactly** — same count, and byte-identical
+    once normalized for statement order.
+  - **The three DB-gated suites that had never run anywhere all pass**:
+    `packages/db/test/schema.test.ts` (11), plus
+    `apps/ingest/test/reprice-events.db.test.ts` (6) and
+    `compute-cost-attribution.db.test.ts` (6). **Run them one file at a time.**
+    Given one database they interfere — both ingest suites decompress and
+    recompress chunks of the same `events` hypertable and refresh the same
+    continuous aggregates, so in parallel they either deadlock or read each
+    other's compressed-chunk counts. That is pre-existing and unrelated to the
+    squash: it reproduces identically against the pre-squash schema. `bun run
+    test` never hits it, because these suites skip with no `DATABASE_URL`.
+  - `bun run db:seed` completes cleanly against the consolidated schema, and the
+    three new columns are selectable through `interactive_events`.
+
+2026-08-21 folded the
 `disallowed_model` alert seed (P10-005) into `0001_init.sql`'s existing
 disabled-by-default seed block rather than leaving it as a second numbered file,
 and verified the Prisma layer against a regenerated one: pushing `schema.prisma`
@@ -124,11 +187,33 @@ rebuild. Defining each aggregate once removed all three problems, and the result
 schema was verified byte-identical to the one the old chain produced.
 
 Add a **new numbered file** for any future change rather than editing this one or
-re-dropping anything in it. That both squashes happened is not a standing licence:
+re-dropping anything in it. That four squashes happened is not a standing licence:
 each was an explicit owner decision, taken while nothing was deployed anywhere.
 The moment this schema exists in an environment, folding stops being free — an
 edit to an applied file is invisible to Prisma's name-based idempotency check and
 never runs.
+
+### ⚠️ After a squash, every existing local database MUST be reset
+
+**This is not optional and it fails silently.** `applySqlMigrations()` skips any
+filename already recorded in `_db_sql_migrations`. An existing database has
+`0001_init.sql` recorded, so the rewritten file **will not re-run**, and the
+deleted `0002`/`0003`/`0004` are already recorded too. The result of *not*
+resetting is a database that still has the right columns (from the old `0003` /
+`0004`) but is now indistinguishable, to the migration runner, from a fresh one —
+and any future edit to `0001` will silently never reach it. Do not try to repair
+this by deleting rows from `_db_sql_migrations`: that re-runs the whole init file
+against a populated database. **Reset:**
+
+```bash
+bun run docker:infra:down:v   # DESTRUCTIVE — wipes ./data (Postgres + MinIO + Grafana)
+bun run docker:infra:up
+bun run db:deploy
+bun run db:seed               # optional
+```
+
+The same applies to any database not managed by the compose stack: drop it and
+re-run `bun run db:deploy` against an empty one.
 
 `sql/prototypes/` is **not applied by anything** — `prototype_semantic_search.sql` is
 the gated pgvector spike declined in P7-007. Leave it out of the numbered sequence.
