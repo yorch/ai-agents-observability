@@ -418,6 +418,7 @@ CREATE TABLE events (
   tool_was_denied       BOOLEAN,
   tool_was_interrupted  BOOLEAN,
   tool_target_hash      TEXT,                     -- non-reversible digest of WHAT was acted on
+  tool_use_id           TEXT,                     -- the agent's own per-call id; the turn-linkage join key (P14-006)
   tool_action           TEXT,                     -- coarse class for shell commands ('test','vcs',…)
 
   -- MCP detail
@@ -719,7 +720,7 @@ Local queue: SQLite database at `~/.claude-telemetry/queue.db`. Survives crashes
 
 Send only relevant blocks per event type. `tool` is null on `UserPromptSubmit`. `llm` is null on `SessionStart`. Empty blocks omitted.
 
-**Turn linkage** (P14-003). `turn_number` is 1-based, increases monotonically within a `session_id`, and increments once per assistant turn; it is carried by the turn's `Stop` — which is where that turn's `llm` block lives — and by the tool events for the calls that turn issued. `parent_event_id` on a tool event is the `event_id` of its turn's `Stop`; it is NULL on the `Stop` itself and on non-tool events. Both are optional: an agent that cannot derive a turn correctly emits neither, and NULL means "not attributed", never zero. See §6.4 for which paths can populate them.
+**Turn linkage** (P14-003, completed for live sessions by P14-006). `turn_number` is 1-based, increases monotonically within a `session_id`, and increments once per assistant turn; it is carried by the turn's `Stop` — which is where that turn's `llm` block lives — and by the tool events for the calls that turn issued. `parent_event_id` on a tool event is the `event_id` of its turn's `Stop`; it is NULL on the `Stop` itself and on non-tool events. Both are optional: an agent that cannot derive a turn correctly emits neither, and NULL means "not attributed", never zero. There is **one** definition of both, whether a row was captured live, joined server-side, or imported. See §6.4 for which paths populate them and how.
 
 ### 6.4 Transcript Shipping
 
@@ -739,7 +740,9 @@ Two properties of that read are load-bearing:
 - **It is incremental.** Stop fires once per response cycle, so re-reading the whole transcript each time is O(n²) over a session. A per-session `{ path, offset, turns }` cursor under `agentStateDir('claude-code')` keeps each Stop's cost flat in session length. The *first* Stop of a session reads from the top on purpose, so the turn ordinal is counted from entry one.
 - **Its event ids and timestamps are derived from the transcript entry**, identically to what `import` synthesizes for the same turn (`apps/hook/src/lib/claude-turns.ts` is the single definition). Both paths can produce events for the same session, so this is what lets ingest's `ON CONFLICT (event_id, ts) DO NOTHING` dedupe them — without it, a session captured live and later imported would be billed twice, permanently, since `sessions.total_cost_usd` accumulates and is never recomputed.
 
-`turn_number` and `parent_event_id` (§6.3) are populated from the same read. **On the live path only the Stop carries them**: `PreToolUse`/`PostToolUse` hooks are separate processes that fire *before* their turn's Stop exists, and Claude Code's Stop hook fires per response cycle rather than per assistant turn, so no correct live turn number is derivable without transcript I/O on the hottest path. Imported sessions carry the full linkage; live tool rows carry NULL, which downstream reads as "not attributed" rather than `$0`.
+`turn_number` and `parent_event_id` (§6.3) are populated from the same read. **On the live path the hook can only put them on the Stop**: `PreToolUse`/`PostToolUse` hooks are separate processes that fire *before* their turn's Stop exists, and Claude Code's Stop hook fires per response cycle rather than per assistant turn, so no correct live turn number is derivable in the hook without transcript I/O on the hottest path.
+
+**A server-side join closes that for live tool rows (P14-006), on a natural key rather than a heuristic.** Claude Code's tool-hook payloads carry `tool_use_id`, and the transcript repeats the same id on the `tool_use` block of the turn that issued the call — so the hook promotes that id onto the tool event (`events.tool_use_id`), and the Stop it already derives from the transcript also lists the ids that turn issued (`metadata.tool_use_ids`). Ingest's `link-turn-events` job (§6.5) joins the two on `(session_id, tool_use_id)` over settled sessions and writes exactly the linkage the import path writes inline, so live and imported sessions mean the same thing. Nothing consults a clock: a `ts`-nearest-Stop heuristic was considered three times and rejected each time, because parallel tool calls, the cycle/turn cadence mismatch and clock skew each put a call in the wrong turn's divisor and the symptom is a plausible dollar figure on the wrong tool. A call whose issuing turn is absent — a truncated transcript, a hook older than P14-006, another agent — stays NULL, which downstream reads as "not attributed" rather than `$0`.
 
 Every failure mode of the read — missing, truncated, locked or malformed transcript — degrades to a usage-less Stop. The always-exit-0 rule (§6.2) is not weakened by it.
 

@@ -114,6 +114,17 @@ exactly as a full import of the same session does.
 
 ## The part of the contract that could NOT be honoured
 
+> **Closed by [P14-006](P14-006-live-turn-linkage.md).** Both reasons below stand
+> — nothing in the hook can produce this linkage at capture time, and the
+> `ts`-nearest-`Stop` heuristic is still rejected. What P14-006 found is that the
+> linkage does not have to be *produced*; it can be *joined*. Claude Code's tool
+> hooks carry `tool_use_id` (required, verified against the shipped binary's own
+> schema), the transcript repeats the same id on the issuing turn's `tool_use`
+> block, and ingest joins the two on `(session_id, tool_use_id)`. Live tool rows
+> now carry the same `turn_number` / `parent_event_id` imported ones do. The rest
+> of this section is kept as written, because it is the record of why the obvious
+> answers were wrong.
+
 **Live `PreToolUse` / `PostToolUse` events carry NULL `turn_number` and NULL
 `parent_event_id`.** This was reported rather than approximated, and agreed with
 the P14-004 owner before implementation.
