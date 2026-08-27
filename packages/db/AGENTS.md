@@ -137,6 +137,15 @@ the gated pgvector spike declined in P7-007. Leave it out of the numbered sequen
   edited-after-applied migration (see the drift trap above). **Append** new values;
   reordering rewrites the on-disk Postgres enum.
 - **Forward-only.** Never edit a merged migration; backfills are their own file.
+- **The seed may only write columns a producer writes.** `src/seed.ts` is the
+  data almost every review, demo and screenshot is taken against, so a column it
+  fabricates makes a query filtered on that column look alive right up until it
+  meets real telemetry. That is not hypothetical: seeding `model` onto
+  `PostToolUse` rows kept six routing reads — including an enabled alert — dead
+  and unnoticed for the whole life of the feature (P14-005). The per-turn LLM
+  columns (`model`, the four token counts, `cost_usd`) belong on the `Stop` that
+  closes a turn and nowhere else; `test/seed-event-shape.test.ts` fails if one
+  reappears elsewhere.
 - `prisma migrate dev` needs the Prisma engine download, which is **egress-blocked in
   CI sandboxes**. Regenerate locally, commit the result.
 - Scripts take `--env-file=../../.env`; `db:generate` deliberately runs with
