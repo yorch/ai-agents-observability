@@ -1,12 +1,11 @@
-import type { ModelPrice } from '@ai-agents-observability/schemas';
 import { describe, expect, it } from 'vitest';
-
 import {
   type AttributionEvent,
   computeSessionAttribution,
   inputSideCostUsd,
   type PriceLookup,
-} from '../src/lib/cost-attribution';
+} from './cost-attribution';
+import type { ModelPrice } from './price-table';
 
 /**
  * The arithmetic behind `attributed_cost_usd` and `downstream_cost_usd`
@@ -153,7 +152,7 @@ describe('downstream inflation', () => {
 
     const downstream = rows.map((r) => r.downstreamCostUsd);
     expect(downstream).toEqual([1, 3]);
-    expect(downstream.reduce((s, d) => s + (d ?? 0), 0)).toBeCloseTo(4, 10);
+    expect(downstream.reduce((s: number, d) => s + (d ?? 0), 0)).toBeCloseTo(4, 10);
   });
 
   it('counts cache reads and cache writes', () => {

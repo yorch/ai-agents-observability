@@ -236,10 +236,16 @@ appears once as its own tools' issuing share and again as turn N's tools'
 downstream inflation — so summing them double-counts, and neither may feed
 `sessions.total_cost_usd`, `pr_rollups.total_cost_usd` or the cost caggs, which
 already count these dollars once. The arithmetic is a pure function in
-`src/lib/cost-attribution.ts` precisely so the definitions have tests; the job is
-the plumbing. NULL means *not attributed*, never $0.00 — a session with no
-`turn_number` linkage gets nothing, which is why the dashboards show a coverage
-indicator rather than a confident zero.
+**`packages/schemas/src/cost-attribution.ts`** precisely so the definitions have
+tests; the job is the plumbing. It lives in `packages/schemas` rather than here
+because `packages/db/src/seed.ts` writes the same two columns for the demo
+database and cannot depend on this app (P14-011) — a seed that recomputed the
+arithmetic locally is the defect Phase 14 exists to remove. If you change a
+definition, you are changing what both the demo database and production show;
+`packages/schemas/src/cost-attribution.test.ts` is where it is pinned. NULL means
+*not attributed*, never $0.00 — a session with no `turn_number` linkage gets
+nothing, which is why the dashboards show a coverage indicator rather than a
+confident zero.
 
 **`link-turn-events` is what fills that linkage in for live sessions, and it must
 run first** (P14-006). It is scheduled at 06:10, immediately before the
@@ -260,8 +266,9 @@ stays NULL and is counted into the run's `unresolvedIds`, so the residue is
 visible rather than guessed at.
 
 The definition lives in `src/lib/turn-linkage.ts` as a pure function, for the same
-reason `cost-attribution.ts` does. It restates one string —
-`TOOL_USE_IDS_METADATA_KEY` — that `apps/hook` also declares; ingest cannot import
+reason `cost-attribution.ts` does (it stays app-local because ingest is its only
+caller). It restates one string — `TOOL_USE_IDS_METADATA_KEY` — that `apps/hook`
+also declares; ingest cannot import
 from the hook, so `test/turn-linkage.test.ts` reads the hook's source as text and
 fails if the two drift. Without that, a rename on either side leaves the join
 silently matching nothing.

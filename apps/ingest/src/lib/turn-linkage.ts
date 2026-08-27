@@ -2,9 +2,9 @@
  * Resolving live tool events to the assistant turn that issued them (P14-006).
  *
  * The arithmetic-free half of `jobs/link-turn-events.ts`, split out for the same
- * reason `lib/cost-attribution.ts` is: the definition of "which turn issued this
- * call" is the thing worth testing, and it should be testable without a
- * database. The job is the plumbing.
+ * reason `packages/schemas/src/cost-attribution.ts` is: the definition of
+ * "which turn issued this call" is the thing worth testing, and it should be
+ * testable without a database. The job is the plumbing.
  *
  * This is a **lookup, not an estimate**. It consults no clock and assumes no
  * ordering. An id it cannot place is left alone.
