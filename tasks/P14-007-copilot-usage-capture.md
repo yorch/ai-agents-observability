@@ -155,6 +155,46 @@ bun run --cwd apps/hook test src/adapters/copilot.test.ts             # 15 tests
 bun run --cwd apps/hook bench                                         # unchanged vs main (see PR body)
 ```
 
+## Reopened and re-closed (P14-016, 2026-08-27)
+
+The billing premise this task relied on — "Copilot does not bill tokens at
+all" — stopped being true on 2026-06-01 (P14-015): GitHub now bills
+token-metered AI credits and publishes per-model rates, so a captured token
+count would price correctly today. That reopened the question of whether
+capture is reachable. It re-closed negative, on stronger evidence than this
+task had:
+
+- GitHub's hooks reference, re-fetched 2026-08-27: unchanged — same 14
+  events, no usage/token/model field anywhere.
+- **New**: ground truth from the shipped Copilot CLI binary itself (installed
+  on the machine that did this investigation), not just the docs website. Its
+  `agentStop` hook-payload builder, read out of the bundled `index.js`,
+  constructs exactly `{ timestamp, cwd, sessionId, transcriptPath,
+  stopReason }` — confirming the docs.
+- **New**: the bundle's own `schemas/session-events.schema.json` defines the
+  rich per-turn `assistant.usage` event (model, input/output/cache tokens,
+  cost) this task inferred belonged to the SDK — and the schema itself marks
+  it `"ephemeral": true`, "not persisted to the session event log on disk".
+  Confirmed structurally unreachable from a hook subprocess, not merely
+  believed to be.
+- **This task's 4th reason for declining `events.jsonl` — "two sources
+  disagree on whether it's reliably persisted" — is now resolved, in the
+  negative.** The same schema file defines `session.shutdown.data
+  .modelMetrics` (a formalized version of what this task called
+  undocumented), but it is empirically not written: zero `events.jsonl` files
+  exist across ten real `~/.copilot/session-state/<id>/` directories on the
+  investigating machine, spanning January–August 2026 of real use. GitHub's
+  own `github/copilot-cli#1394` (opened after the June 2026 billing switch,
+  still open) says directly why: session totals are "only shown once to the
+  user but not persisted in events.jsonl or other files."
+- `github/copilot-cli#3551` (formalize `events.jsonl`) is still open, no
+  GitHub commitment — unchanged from this task's finding.
+
+**Conclusion unchanged, evidence strengthened**: no hook-reachable source of
+tokens or a model exists. Full writeup: `tasks/P14-016-copilot-token-capture-
+reopened.md`. `apps/hook/src/adapters/copilot.ts` carries the same evidence in
+a code comment for the next person who reopens this.
+
 ## What could not be verified here
 
 - **Anything needing a live Copilot CLI session or its local files
