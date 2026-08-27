@@ -133,6 +133,17 @@ describe('copilot adapter', () => {
     expect(ev.tool?.exit_status).toBeNull();
   });
 
+  // P14-010: Copilot's postToolUse payload (docs.github.com/en/copilot/reference/
+  // hooks-reference, checked live) documents no duration field — null, never 0.
+  it('leaves duration_ms null — Copilot documents no timing field on postToolUse', () => {
+    const ev = copilotAdapter.mapPayload('post-tool-use', {
+      sessionId: SESSION_ID,
+      toolName: 'bash',
+      toolResult: 'a\nb\n',
+    });
+    expect(ev.tool?.duration_ms).toBe(null);
+  });
+
   it('normalizes the non-UUID sessionId consistently across a session', () => {
     const start = copilotAdapter.mapPayload('session-start', { sessionId: SESSION_ID });
     const stop = copilotAdapter.mapPayload('agent-stop', { sessionId: SESSION_ID });

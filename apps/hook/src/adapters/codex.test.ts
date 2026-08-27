@@ -91,6 +91,8 @@ describe('codex adapter — rollout-backed mapBatch', () => {
     expect(tools[0]?.tool?.name).toBe('shell');
     expect(tools[0]?.agent_type).toBe('CODEX');
     expect(tools[0]?.session_id).toBe(sessionId);
+    // P14-010: the rollout records byte counts, not per-call timing.
+    expect(tools[0]?.tool?.duration_ms).toBe(null);
     expect(stops).toHaveLength(1);
     expect(stops[0]?.llm?.model).toBe('gpt-5-codex');
     expect(stops[0]?.llm?.input_tokens).toBe(1000);
@@ -296,6 +298,17 @@ describe('codex adapter — native lifecycle hooks', () => {
     expect(ev.tool?.category).toBe('mcp');
     expect(ev.tool?.mcp_server).toBe('github');
     expect(ev.tool?.mcp_tool).toBe('list_issues');
+  });
+
+  // P14-010: Codex's PostToolUse hook input (learn.chatgpt.com/docs/hooks,
+  // checked live) documents no duration field — null, never a fabricated 0.
+  it('leaves duration_ms null on a native-hooks PostToolUse — Codex documents no timing field', () => {
+    const ev = codexAdapter.mapPayload('post-tool-use', {
+      session_id: sessionId,
+      tool_name: 'shell',
+      tool_response: 'ok',
+    });
+    expect(ev.tool?.duration_ms).toBe(null);
   });
 
   it('maps PermissionRequest to a classified Notification, not a new event type', () => {

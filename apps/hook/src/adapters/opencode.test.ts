@@ -39,6 +39,31 @@ describe('opencode adapter', () => {
     expect(ev.session_context.cwd).toBe('/home/dev/proj');
   });
 
+  // P14-010: no documented duration field on tool.execute.after, so this is a
+  // defensive read; absence must stay null, never fall back to 0.
+  it('reads duration_ms when present and stays null when absent or malformed', () => {
+    const withDuration = opencodeAdapter.mapPayload('post-tool-use', {
+      duration_ms: 120,
+      sessionID: SESSION_ID,
+      tool: 'bash',
+    });
+    expect(withDuration.tool?.duration_ms).toBe(120);
+
+    const absent = opencodeAdapter.mapPayload('post-tool-use', {
+      sessionID: SESSION_ID,
+      tool: 'bash',
+    });
+    expect(absent.tool?.duration_ms).toBe(null);
+
+    const malformed = opencodeAdapter.mapPayload('post-tool-use', {
+      duration_ms: -5,
+      sessionID: SESSION_ID,
+      tool: 'bash',
+    });
+    expect(malformed.tool?.duration_ms).toBe(null);
+    expect(conformanceErrors(malformed)).toEqual([]);
+  });
+
   it('attaches an llm block (with model) so ingest can price via the opencode table', () => {
     const ev = opencodeAdapter.mapPayload('session-idle', {
       model: 'claude-sonnet-4-5-20250929',

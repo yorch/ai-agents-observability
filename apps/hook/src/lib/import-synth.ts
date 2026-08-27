@@ -135,7 +135,17 @@ function buildImportToolInfo(
     action: toolActionFor(input),
     // Import synthesizes events from a Claude Code transcript only.
     category: toolCategory('CLAUDE_CODE', name, isMcp),
-    duration_ms: 0,
+    // The transcript carries no duration field to read (P14-010) — the live hook
+    // path gets it straight from PostToolUse; a transcript entry never repeats
+    // it. Deriving one from entry timestamps was considered and rejected as
+    // unsound rather than merely imprecise: a `tool_result` block's timestamp is
+    // the WHOLE batched user entry's, so N tool calls issued in parallel by one
+    // assistant turn and resolved into one entry would all receive the identical
+    // (issuing-turn → that entry) gap as their "duration", regardless of how long
+    // each actually ran — a fast Read sharing a batch with a slow test run would
+    // be stamped with the slow run's time. Null, matching every other
+    // capture-time-unknowable field here, rather than a plausible wrong number.
+    duration_ms: null,
     exit_status: null,
     input_bytes: inputBytes,
     input_hash: null,

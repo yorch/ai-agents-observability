@@ -306,6 +306,16 @@ describe('entryToEvents — user (tool_result content)', () => {
     expect(events[0]?.tool?.name).toBe('unknown');
   });
 
+  // P14-010: a transcript carries no duration field, and deriving one from entry
+  // timestamps was rejected as unsound (see the comment in import-synth.ts) — so
+  // an imported tool event's duration is unknown, never a fabricated 0.
+  it('leaves duration_ms null — a transcript exposes no timing to read', () => {
+    const ctx = makeCtx();
+    ctx.toolNameMap.set(TOOL_USE_ID, 'Read');
+    const events = entryToEvents(makeUserToolResultEntry(), ctx);
+    expect(events[0]?.tool?.duration_ms).toBe(null);
+  });
+
   it('emits multiple PostToolUse events for multiple tool_result blocks', () => {
     const ctx = makeCtx();
     ctx.toolNameMap.set('tool-id-1', 'Read');
