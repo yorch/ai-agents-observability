@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
+import type { Config } from '../src/config';
 import type { AppDb } from '../src/types';
 
 const SECRET = 'test-webhook-secret';
@@ -25,16 +26,19 @@ const stubDb = {
   },
 } as unknown as AppDb;
 
-const config = {
+const config: Config = {
+  commit_link_grace_hours: 24,
   database_url: 'postgresql://x',
   git_sha: 'test',
   github_app_id: 1,
   github_app_private_key_b64: '',
   github_app_webhook_secret: SECRET,
   github_host: 'https://github.com',
-  log_level: 'silent' as const,
-  node_env: 'test' as const,
+  jira_project_keys: [],
+  log_level: 'error',
+  node_env: 'test',
   port: 4001,
+  pr_link_lookback_days: 7,
 };
 
 const logger = pino({ level: 'silent' });

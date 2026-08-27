@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import pino from 'pino';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app';
+import type { Config } from '../src/config';
 import type { PrUpsertDb } from '../src/lib/pr-upsert';
 import { upsertPullRequest } from '../src/lib/pr-upsert';
 import type { AppDb } from '../src/types';
@@ -9,7 +10,9 @@ import closedMergedFixture from './fixtures/ghes/pull_request.closed.merged.json
 import openedFixture from './fixtures/ghes/pull_request.opened.json';
 import synchronizeFixture from './fixtures/ghes/pull_request.synchronize.json';
 
-const stubDb: PrUpsertDb = {
+// Deliberately partial test double — `upsertPullRequest` touches only these
+// three methods, while each generated Prisma delegate carries ~18.
+const stubDb = {
   pullRequest: {
     upsert: vi.fn().mockResolvedValue({}),
   },
@@ -19,7 +22,7 @@ const stubDb: PrUpsertDb = {
   user: {
     findUnique: vi.fn().mockResolvedValue(null),
   },
-};
+} as unknown as PrUpsertDb;
 
 describe('GHES payload compatibility', () => {
   it('pull_request.opened: upserts PR with correct fields', async () => {
@@ -75,16 +78,19 @@ function sign(body: string): string {
   return `sha256=${createHmac('sha256', SECRET).update(body).digest('hex')}`;
 }
 
-const appConfig = {
+const appConfig: Config = {
+  commit_link_grace_hours: 24,
   database_url: 'postgresql://x',
   git_sha: 'test',
   github_app_id: 1,
   github_app_private_key_b64: '',
   github_app_webhook_secret: SECRET,
   github_host: 'https://github.com',
-  log_level: 'silent' as const,
-  node_env: 'test' as const,
+  jira_project_keys: [],
+  log_level: 'error',
+  node_env: 'test',
   port: 4001,
+  pr_link_lookback_days: 7,
 };
 
 const logger = pino({ level: 'silent' });
