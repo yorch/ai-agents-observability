@@ -351,7 +351,7 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 Closes gaps where the pipeline recorded a *plausible* value rather than a true one, then makes the corrected values usable. Sub-agent identification was dead (no adapter ever emitted the `tool_category = 'agent'` those queries filtered on); the cost on `/org/agents`, `/team/agents`, `/org/mcp` and `/team/mcp` was a `SUM(cost_usd)` over tool events that no producer populates in real telemetry, and was always seed-data fiction; and Claude Code recorded `$0` in steady state.
 
-Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. All twelve tasks are merged (#117–#120, #124–#128, #130–#132).
+Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. All thirteen tasks are merged (#117–#120, #124–#128, #130–#132, #134).
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
@@ -367,6 +367,7 @@ Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost
 | [P14-010](./P14-010-tool-durations.md) | Capture real per-tool durations | done | claude | M | — |
 | [P14-011](./P14-011-shared-attribution.md) | One cost-attribution implementation, shared by the seed and ingest | done | claude | S | P14-004 |
 | [P14-012](./P14-012-typecheck-gate.md) | Bring the test directories inside the typecheck gate | done | claude | M | — |
+| [P14-013](./P14-013-typecheck-gaps.md) | Close the two remaining typecheck bypasses | done | claude | S | P14-012 |
 
 > **Phase 14 exists because green tests are not evidence of true data.** Every task
 > here fixes a value that was written, validated, aggregated and displayed — and was
@@ -392,9 +393,7 @@ P14-004 degrades rather than guesses: a tool event whose `turn_number` is NULL g
 
 The model-routing follow-up recorded here while Phase 14 was in flight became [P14-005](./P14-005-model-routing-attribution.md): six reads and the `routing_waste` alert filtered `event_type = 'PostToolUse' AND model IS NOT NULL`, a combination no producer emits, so `/org/models` and a live alert had only ever seen seed data. Those surfaces now read the issuing turn's model through `parent_event_id` and the tool row's `attributed_cost_usd`.
 
-**Four follow-ups found during Phase 14, still open and deliberately unnumbered until each is picked up.** The `PostToolUse.duration_ms` item shipped as [P14-010](./P14-010-tool-durations.md).
+**Two follow-ups found during Phase 14 remain open, deliberately unnumbered until each is picked up.** Two others shipped: `PostToolUse.duration_ms` as [P14-010](./P14-010-tool-durations.md), and the untypechecked migrations runner plus the `{} as unknown as Config` casts as [P14-013](./P14-013-typecheck-gaps.md).
 
 1. **The `apps/ingest` DB-gated suites cannot share a database.** `compute-cost-attribution.db.test.ts` and `reprice-events.db.test.ts` pass alone and fail together — a lock deadlock while one recompresses a chunk the other writes, and a chunk-count assertion that counts *all* compressed chunks of `events` and so sees the other suite's work. Pre-existing (reproduces against the pre-squash schema) and invisible because `bun run test` sets no `DATABASE_URL`, so all three DB suites skip. Fix is a cross-cutting choice: `fileParallelism: false` for ingest, a per-suite database, or scoping that assertion.
 2. **Copilot spend cannot be expressed.** `price-table.copilot.v1.json` is intentionally empty: Copilot bills a premium-request allowance (Pro 300/mo, Pro+ 1500, $0.04 overage), not tokens. Its spend will read `$0` forever under the per-token schema regardless of what the hook captures — see [P14-007](./P14-007-copilot-usage-capture.md). The chosen direction is a second, request-denominated cost dimension in the price-table schema.
-3. **`infra/migrations-runner/run.ts` is typechecked by nothing.** It has no `tsconfig.json` and `infra/` is not a workspace (`workspaces` is `apps/*` + `packages/*`), so [P14-012](./P14-012-typecheck-gate.md) did not reach it. This is the one-shot container every service gates on at boot — it applies the whole SQL layer.
-4. **Two ingest tests use `{} as unknown as Config`.** They pass the widened gate while asserting nothing about config shape — the same bypass [P14-012](./P14-012-typecheck-gate.md) removed elsewhere, in a different costume. Same family: a check that runs and looks at nothing.
