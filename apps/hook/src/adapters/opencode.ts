@@ -13,7 +13,7 @@ import {
 
 import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
-import { isRecord } from '../lib/fields';
+import { isRecord, optionalNonNegativeInt } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { sessionUuid } from '../lib/session-id';
 import { uuidv7 } from '../lib/uuid';
@@ -123,7 +123,13 @@ function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
     // Claude Code's mcp__ prefix), so mcp_server/mcp_tool stay null below and
     // category is derived from the name alone.
     category: toolCategory('OPENCODE', name),
-    duration_ms: num(raw.duration_ms),
+    // Neither opencode's `tool.execute.after` bus-event properties nor its
+    // Plugin `tool.execute.after` hook (checked against the current plugin
+    // type definitions, P14-010) document a duration/timing field, so this key
+    // is read defensively rather than on documented evidence. `num()` (below)
+    // would coerce that near-certain absence to a measured 0; read it with the
+    // nullable helper instead so it stays unknown.
+    duration_ms: optionalNonNegativeInt(raw.duration_ms),
     exit_status: typeof raw.exit_status === 'number' ? raw.exit_status : null,
     input_bytes: fieldBytes(input),
     input_hash: null,

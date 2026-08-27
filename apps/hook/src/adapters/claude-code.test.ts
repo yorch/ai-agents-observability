@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
+import { eventsFor } from '../hook-entry';
 import { claudeCodeAdapter } from './claude-code';
 import { conformanceErrors } from './conformance';
 
@@ -28,6 +29,77 @@ describe('claudeCodeAdapter', () => {
     const raw = { session_id: SESSION_ID, transcript_path: '/home/dev/.claude/x.jsonl' };
     const stop = claudeCodeAdapter.mapPayload('stop', raw);
     expect(claudeCodeAdapter.transcriptTarget('stop', raw)?.sessionId).toBe(stop.session_id);
+  });
+});
+
+// P14-010: Claude Code's own PostToolUse hook-input schema carries
+// `duration_ms: o().optional()` (confirmed against the shipped binary) — the one
+// adapter with a documented, real timing field. Absence must read as unknown,
+// never as a measured 0.
+describe('claudeCodeAdapter — PostToolUse duration_ms (P14-010)', () => {
+  function postToolUse(extra: Record<string, unknown>) {
+    return claudeCodeAdapter.mapPayload('post-tool-use', {
+      cwd: '/home/dev/proj',
+      session_id: SESSION_ID,
+      tool_input: { command: 'ls' },
+      tool_name: 'Bash',
+      ...extra,
+    });
+  }
+
+  it('passes a real duration through unchanged', () => {
+    const ev = postToolUse({ duration_ms: 245 });
+    expect(ev.tool?.duration_ms).toBe(245);
+    expect(conformanceErrors(ev)).toEqual([]);
+  });
+
+  it('leaves duration_ms null rather than 0 when the payload omits it', () => {
+    const ev = postToolUse({});
+    expect(ev.tool?.duration_ms).toBe(null);
+    expect(conformanceErrors(ev)).toEqual([]);
+  });
+
+  it('PreToolUse never carries duration_ms, and reads as null too', () => {
+    const ev = claudeCodeAdapter.mapPayload('pre-tool-use', {
+      cwd: '/home/dev/proj',
+      session_id: SESSION_ID,
+      tool_input: { command: 'ls' },
+      tool_name: 'Bash',
+    });
+    expect(ev.tool?.duration_ms).toBe(null);
+  });
+
+  it('treats a malformed duration_ms as unknown rather than crashing or coercing to 0', () => {
+    const malformed = [
+      'fast',
+      -12,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      null,
+      { ms: 5 },
+      [5],
+      true,
+    ];
+    for (const value of malformed) {
+      const ev = postToolUse({ duration_ms: value });
+      expect(ev.tool?.duration_ms).toBe(null);
+      expect(conformanceErrors(ev)).toEqual([]);
+    }
+  });
+
+  it('never throws for a malformed duration_ms — the always-exit-0 guarantee', () => {
+    const malformed = ['fast', -12, Number.NaN, {}, [], Symbol('x')];
+    for (const value of malformed) {
+      expect(() =>
+        eventsFor(claudeCodeAdapter, 'post-tool-use', {
+          cwd: '/home/dev/proj',
+          duration_ms: value,
+          session_id: SESSION_ID,
+          tool_input: { command: 'ls' },
+          tool_name: 'Bash',
+        }),
+      ).not.toThrow();
+    }
   });
 });
 

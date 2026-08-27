@@ -140,9 +140,25 @@ describe('EventSchema', () => {
     expect(result.success).toBe(true);
     if (result.success && result.data.tool) {
       expect(result.data.tool.category).toBe('other');
-      expect(result.data.tool.duration_ms).toBe(0);
+      expect(result.data.tool.duration_ms).toBe(null);
       expect(result.data.tool.was_denied).toBe(false);
     }
+  });
+
+  it('rejects a negative duration_ms but accepts null (unmeasured)', () => {
+    const { tool: _tool, ...noTool } = validEvent;
+    const withNull = EventSchema.safeParse({
+      ...noTool,
+      event_type: 'PostToolUse',
+      tool: { ...validEvent.tool, duration_ms: null },
+    });
+    expect(withNull.success).toBe(true);
+    const withNegative = EventSchema.safeParse({
+      ...noTool,
+      event_type: 'PostToolUse',
+      tool: { ...validEvent.tool, duration_ms: -1 },
+    });
+    expect(withNegative.success).toBe(false);
   });
 
   it('does not require a tool block on lifecycle events', () => {

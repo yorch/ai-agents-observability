@@ -145,7 +145,10 @@ function toolInfo(call: {
     // rather than bucketing them together and inventing repeats.
     action: null,
     category: toolCategory('CODEX', call.name, isMcp),
-    duration_ms: 0,
+    // Same honesty as `action` above (P14-010): `parseRolloutRecords` tracks no
+    // per-call timestamp for a function_call/function_call_output pair, so
+    // duration is genuinely unobservable on this path, not merely unread.
+    duration_ms: null,
     exit_status: null,
     input_bytes: call.inputBytes,
     input_hash: null,

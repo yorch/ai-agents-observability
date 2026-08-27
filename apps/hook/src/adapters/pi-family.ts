@@ -22,7 +22,7 @@ import {
 
 import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
-import { isPlainRecord, isRecord, pickValue } from '../lib/fields';
+import { isPlainRecord, isRecord, optionalNonNegativeInt, pickValue } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { sessionUuid } from '../lib/session-id';
 import { uuidv7 } from '../lib/uuid';
@@ -120,7 +120,12 @@ function buildToolInfo(raw: Record<string, unknown>, agentType: string): ToolInf
     // Content-free capture (P13-003) — see the note in stdin-hook-factory.ts.
     action: toolActionFor(input),
     category: toolCategory(agentType, name, isMcp),
-    duration_ms: num(raw.durationMs ?? raw.duration_ms),
+    // Neither agent's documented `tool_result` shape carries a timing field
+    // (P14-010) — the extension forwards `...event` verbatim, so these aliases
+    // are read defensively in case a future Pi/OMP release adds one, but absence
+    // must read as unknown, not 0: `num()` (used for token counts, where a
+    // missing count really is 0) is the wrong helper here.
+    duration_ms: optionalNonNegativeInt(raw.durationMs ?? raw.duration_ms),
     exit_status: typeof raw.exitStatus === 'number' ? raw.exitStatus : null,
     input_bytes: fieldBytes(input),
     input_hash: null,

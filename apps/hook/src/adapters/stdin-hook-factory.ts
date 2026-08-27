@@ -109,8 +109,14 @@ export type StdinHookConfig = {
 
 /**
  * Tool block from a Claude-shaped payload: name, MCP split, byte sizes. Only what
- * is knowable at capture time — duration/exit are filled downstream or defaulted.
+ * is knowable at capture time — exit is filled downstream or defaulted, and
+ * duration stays null (P14-010): none of this factory's three callers document a
+ * timing field on their tool-lifecycle payload — Codex's native hooks, Gemini
+ * CLI's AfterTool, and Copilot CLI's postToolUse were each checked against
+ * current vendor docs and carry no such field, unlike Claude Code's, which does
+ * (`lib/payload.ts` reads it directly rather than through this factory).
  *
+
  * `agentType` drives the per-agent tool-category lookup (`toolCategory()`) —
  * required because this one function serves every stdin agent that doesn't
  * override `buildTool`, and their tool-name vocabularies don't overlap.
@@ -149,7 +155,7 @@ export function buildGenericToolInfo(
     // isMcp, not mcpServer: a name like `mcp__server` (no tool segment) parses
     // no server but is still an MCP tool — see payload.ts's identical rule.
     category: toolCategory(agentType, name, isMcp),
-    duration_ms: 0,
+    duration_ms: null,
     exit_status: null,
     input_bytes: fieldBytes(input),
     input_hash: null,

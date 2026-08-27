@@ -8,6 +8,7 @@ import {
 } from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from './bytes';
+import { optionalNonNegativeInt } from './fields';
 
 // Claude Code's payload specifics. Generic assembly (session id, cwd, metadata
 // passthrough, permission mode, transcript target) moved to the stdin-hook factory
@@ -20,6 +21,12 @@ import { fieldBytes } from './bytes';
 // through in `metadata` so the flusher can decide what to keep.
 export type ClaudeCodeHookPayload = {
   cwd?: unknown;
+  // PostToolUse-only, optional in Claude Code's own hook-input schema (confirmed
+  // against the shipped binary's Zod definition, P14-010): `duration_ms:
+  // o().optional()`, spelled the same as every REQUIRED field but wrapped
+  // optional — so absence is expected, not a malformed payload, and must not be
+  // coerced to 0 (see the note on ToolInfoSchema.duration_ms).
+  duration_ms?: unknown;
   hook_event_name?: unknown;
   message?: unknown;
   notification_type?: unknown;
@@ -52,6 +59,10 @@ export type ClaudeCodeHookPayload = {
 // notification `message` that used to ride through here.
 export const CLAUDE_KNOWN_KEYS = [
   'cwd',
+  // Captured structurally onto the tool block (P14-010). Numeric and provenance
+  // only — never content — so it needs no `admitsToMetadata` treatment beyond
+  // what the passthrough loop already gives every known key.
+  'duration_ms',
   'hook_event_name',
   'permission_mode',
   'prompt',
@@ -99,12 +110,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-// Translate a Claude Code tool payload into the structured `tool` block. Only the
-// cheap, capture-time-knowable fields are filled (name, mcp split, byte sizes);
-// duration/exit/denied aren't known at hook time and fall back to schema
-// defaults on the ingest side. Kept allocation-light to respect the hot-path
-// budget (the largest cost is stringifying tool_input, which stdin already caps
-// at ~1 MB).
+// Translate a Claude Code tool payload into the structured `tool` block. Most
+// fields are cheap, capture-time-knowable ones (name, mcp split, byte sizes);
+// exit/denied aren't known at hook time and fall back to schema defaults on the
+// ingest side. `duration_ms` (P14-010) is the one exception that IS on the
+// payload — PostToolUse carries it, PreToolUse never does (the call hasn't run
+// yet) — so it is read, not computed. Kept allocation-light to respect the
+// hot-path budget (the largest cost is stringifying tool_input, which stdin
+// already caps at ~1 MB).
 export function buildClaudeToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
   const name = asString(raw.tool_name, 'unknown');
 
@@ -141,7 +154,10 @@ export function buildClaudeToolInfo(raw: ClaudeCodeHookPayload): ToolInfo {
     // `mcp__server` (no tool segment) is still an MCP tool — pass `isMcp`
     // itself through rather than `mcpServer`, which is null in exactly that case.
     category: toolCategory('CLAUDE_CODE', name, isMcp),
-    duration_ms: 0,
+    // Absent on PreToolUse (the call hasn't run) and on any PostToolUse from a
+    // Claude Code build old enough not to send it — both read as "unknown" via
+    // `optionalNonNegativeInt`, never as a measured 0 (P14-010).
+    duration_ms: optionalNonNegativeInt(raw.duration_ms),
     exit_status: null,
     input_bytes: fieldBytes(raw.tool_input),
     input_hash: null,

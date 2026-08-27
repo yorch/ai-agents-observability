@@ -72,6 +72,18 @@ describe('gemini-cli adapter', () => {
     expect(failed.tool?.exit_status).toBe(1);
   });
 
+  // P14-010: Gemini's AfterTool payload (geminicli.com/docs/hooks/reference,
+  // checked live) documents no duration field — null, never a fabricated 0.
+  it('leaves duration_ms null — Gemini documents no timing field on AfterTool', () => {
+    const ev = geminiCliAdapter.mapPayload('after-tool', {
+      session_id: SESSION_ID,
+      tool_input: { file_path: '/tmp/x' },
+      tool_name: 'read_file',
+      tool_response: { llmContent: 'file contents here', returnDisplay: 'read /tmp/x' },
+    });
+    expect(ev.tool?.duration_ms).toBe(null);
+  });
+
   it('fills mcp_server / mcp_tool from mcp_context', () => {
     const ev = geminiCliAdapter.mapPayload('before-tool', {
       mcp_context: { server_name: 'github' },

@@ -81,6 +81,31 @@ describe('pi adapter', () => {
     expect(post.tool?.was_denied).toBe(true);
   });
 
+  // P14-010: neither agent's documented tool_result shape carries timing, so
+  // this is defensive read-if-present, but absence must never coerce to 0.
+  it('reads duration_ms when a payload carries one and stays null otherwise', () => {
+    const withDuration = piAdapter.mapPayload('post-tool-use', {
+      durationMs: 245,
+      sessionId: SESSION_ID,
+      toolName: 'bash',
+    });
+    expect(withDuration.tool?.duration_ms).toBe(245);
+
+    const absent = piAdapter.mapPayload('post-tool-use', {
+      sessionId: SESSION_ID,
+      toolName: 'bash',
+    });
+    expect(absent.tool?.duration_ms).toBe(null);
+
+    const malformed = piAdapter.mapPayload('post-tool-use', {
+      durationMs: 'fast',
+      sessionId: SESSION_ID,
+      toolName: 'bash',
+    });
+    expect(malformed.tool?.duration_ms).toBe(null);
+    expect(conformanceErrors(malformed)).toEqual([]);
+  });
+
   it('attaches usage forwarded on turn_end', () => {
     const ev = piAdapter.mapPayload('stop', {
       model: 'claude-sonnet-4-5-20250929',
