@@ -85,6 +85,14 @@ Current files:
   `SELECT *`, which Postgres expands at creation time, so a column added to
   `events` is invisible through the view until the view is replaced. Any future
   migration that adds an `events` column has to do the same.
+- `0004_live_turn_linkage.sql` — `events.tool_use_id`, the host agent's own
+  per-call identifier, plus a **partial** index on `(session_id, tool_use_id)
+  WHERE tool_use_id IS NOT NULL`. It is the natural key
+  `apps/ingest/src/jobs/link-turn-events.ts` joins live tool events to their
+  issuing turn on (P14-006). It redefines `interactive_events` for exactly the
+  reason 0003 did — which makes that a rule with two instances rather than one
+  piece of advice: **a migration that adds an `events` column replaces that view
+  in the same file**, or the column is invisible to every read in `apps/web`.
 
 **Squashed three times, all pre-deployment.** 2026-08-21 folded the
 `disallowed_model` alert seed (P10-005) into `0001_init.sql`'s existing
