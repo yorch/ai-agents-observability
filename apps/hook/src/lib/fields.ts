@@ -44,3 +44,19 @@ export function pickValue(raw: Record<string, unknown>, keys: readonly string[])
   }
   return null;
 }
+
+/**
+ * A non-negative integer duration, or null when `value` is missing or not a
+ * usable number (P14-010).
+ *
+ * Distinct from the `num()` helpers scattered across the adapters: those
+ * default an absent/malformed field to 0, which is correct for a token count
+ * (no tokens really is 0) but wrong for a duration a vendor's hook payload
+ * never measured — 0 there reads as "instant", not "unknown", and pollutes
+ * every AVG/percentile downstream. Absence must stay absent.
+ */
+export function optionalNonNegativeInt(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Math.trunc(value)
+    : null;
+}

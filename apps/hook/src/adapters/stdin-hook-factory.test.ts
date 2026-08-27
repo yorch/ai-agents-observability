@@ -40,7 +40,9 @@ describe('claude-code through the factory — golden output', () => {
       tool: {
         action: null,
         category: 'mcp',
-        duration_ms: 0,
+        // P14-010: null, not 0 — this fixture's payload carries no `duration_ms`,
+        // and PostToolUse omitting it means unmeasured, not instant.
+        duration_ms: null,
         exit_status: null,
         input_bytes: 7,
         input_hash: null,
