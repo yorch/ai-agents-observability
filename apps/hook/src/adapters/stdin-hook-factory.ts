@@ -160,6 +160,13 @@ export function buildGenericToolInfo(
     slash_command: null,
     subagent_type: null,
     target_hash: toolTargetHash(input),
+    // Deliberately null here rather than read from a `tool_use_id` alias.
+    // P14-006 promoted that key for Claude Code because its transcript repeats
+    // the SAME id on the `tool_use` block, which is what makes the server-side
+    // join sound. An agent whose id has no such counterpart would be shipping a
+    // key nothing can join on, so each adapter adopts it when its own side
+    // channel does — see `lib/payload.ts` for the one that has.
+    tool_use_id: null,
     was_denied: raw.tool_denied === true || raw.was_denied === true,
     was_interrupted: raw.was_interrupted === true,
   };

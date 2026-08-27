@@ -102,9 +102,24 @@ and it closed opencode's P8-004 transcript gap in P12-009.
   budget on a long one. The rule that stayed intact: **no tool-lifecycle hook
   reads a file.** `PreToolUse`/`PostToolUse` fire orders of magnitude more often
   than a terminal hook, and putting I/O there is not affordable at any cursor
-  size. That is why Claude Code's live tool events carry no turn linkage — the
-  linkage is only derivable from the transcript, and the transcript is only read
-  at Stop.
+  size. That is why a live tool event cannot carry turn linkage as it is
+  captured — the linkage is only derivable from the transcript, and the
+  transcript is only read at Stop.
+
+  **P14-006 closed that gap without weakening the rule**, and how it did is worth
+  copying rather than reinventing. It did not add a read to the tool hooks. It
+  found that the linkage has a *natural key* already present on both sides:
+  Claude Code's tool payloads carry `tool_use_id`, and the transcript repeats the
+  same id on the `tool_use` block of the issuing turn. So the tool hook does what
+  it was already doing (copy one payload field — `lib/payload.ts` promotes it
+  onto the tool block), the Stop hook lists the ids off lines it was already
+  parsing (`lib/claude-turns.ts`, `toolUseIdsOf`), and **ingest** joins them on
+  `(session_id, tool_use_id)`. Measured cost of the Stop-side addition on a real
+  323-turn transcript: 0.008 ms for the whole file. When a hook seems to need
+  data it cannot afford to compute, look for a key both ends already spell the
+  same way before you look for a heuristic — the alternative here was a
+  timestamp-nearest-Stop guess that three separate reviews rejected, because its
+  failure mode is a plausible dollar figure on the wrong tool.
 
 ## The perf budget, stated honestly
 

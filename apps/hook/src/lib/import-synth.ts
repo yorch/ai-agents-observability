@@ -6,7 +6,14 @@ import {
   toolTargetHash,
 } from '@ai-agents-observability/schemas';
 import { fieldBytes } from './bytes';
-import { assistantTurn, llmFromEntry, normalizeTs, stopIdSeed } from './claude-turns';
+import {
+  assistantTurn,
+  llmFromEntry,
+  normalizeTs,
+  stopIdSeed,
+  toolUseIdsMetadata,
+  toolUseIdsOf,
+} from './claude-turns';
 import { clientInfo } from './client-info';
 import { userIdClaim } from './identity';
 import type { ClaudeEntry, MessageContent } from './transcript-parser';
@@ -98,7 +105,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function buildImportToolInfo(name: string, input: unknown, output: unknown): ToolInfo {
+function buildImportToolInfo(
+  name: string,
+  input: unknown,
+  output: unknown,
+  toolUseId: string | null,
+): ToolInfo {
   const isMcp = name.startsWith('mcp__');
   let mcpServer: string | null = null;
   let mcpTool: string | null = null;
@@ -135,6 +147,11 @@ function buildImportToolInfo(name: string, input: unknown, output: unknown): Too
     slash_command: null,
     subagent_type: subagentType,
     target_hash: toolTargetHash(input),
+    // Carried so an imported row is shaped exactly like a live one. It is not
+    // *needed* here — import already knows the linkage and writes it inline —
+    // which is precisely why it belongs: a re-import of a live session must not
+    // produce a row that differs from the live one in a column the join reads.
+    tool_use_id: toolUseId,
     was_denied: false,
     was_interrupted: false,
   };
@@ -251,7 +268,12 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
         );
         events.push({
           ...base,
-          tool: buildImportToolInfo(toolName ?? 'unknown', undefined, toolResultBlock.content),
+          tool: buildImportToolInfo(
+            toolName ?? 'unknown',
+            undefined,
+            toolResultBlock.content,
+            toolResultBlock.tool_use_id,
+          ),
         } as Event);
       }
 
@@ -269,6 +291,11 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
       // Always emit a Stop event. `parent_event_id` is null on it by contract —
       // the Stop IS the turn; it is what the turn's tool events point at.
       const stopBase = baseEvent('Stop', stopIdSeed(entry, ts), ts, ctx, { turnNumber });
+      // The same `tool_use_ids` the live Stop path writes (P14-006). Import does
+      // not need it — its tool events already carry the linkage inline — but the
+      // two paths dedupe on `(event_id, ts)`, so whichever wins the race decides
+      // what the row's metadata says. Writing it on both makes that a non-question.
+      Object.assign(stopBase.metadata, toolUseIdsMetadata(toolUseIdsOf(entry)));
       const llm = llmFromEntry(entry);
       events.push((llm ? { ...stopBase, llm } : stopBase) as Event);
 
@@ -292,7 +319,7 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
             );
             const preEvent: Event = {
               ...preBase,
-              tool: buildImportToolInfo(toolBlock.name, toolBlock.input, undefined),
+              tool: buildImportToolInfo(toolBlock.name, toolBlock.input, undefined, toolBlock.id),
             } as Event;
             events.push(preEvent);
           }
@@ -311,7 +338,16 @@ export function entryToEvents(entry: ClaudeEntry, ctx: SynthCtx): Event[] {
       return [
         {
           ...base,
-          tool: buildImportToolInfo(toolName, undefined, entry.output),
+          // `toolUseId` above falls back to `ts` purely to key the lookup maps
+          // for an entry that carries no id. That fallback must NOT reach the
+          // column: it is not an id any other row will ever name, and writing it
+          // would put a timestamp in the join key's namespace.
+          tool: buildImportToolInfo(
+            toolName,
+            undefined,
+            entry.output,
+            typeof entry.tool_use_id === 'string' ? entry.tool_use_id : null,
+          ),
         } as Event,
       ];
     }

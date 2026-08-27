@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 
 import type { Event } from '@ai-agents-observability/schemas';
 
-import { assistantTurn, isAssistantEntry } from '../lib/claude-turns';
+import { assistantTurn, isAssistantEntry, toolUseIdsMetadata } from '../lib/claude-turns';
 import { log } from '../lib/log';
 import { agentStateDir } from '../lib/paths';
 import {
@@ -251,7 +251,17 @@ function stopWithUsage(raw: Record<string, unknown>): ConformantEvent[] | null {
         // Marks the derivation, matching what `import` writes, so the row reads
         // the same whichever path inserted it first. No transcript CONTENT is
         // copied here — see lib/claude-turns.ts.
-        metadata: { ...template.metadata, source: 'claude-jsonl' },
+        //
+        // `tool_use_ids` is the P14-006 half: the ids of the calls THIS turn
+        // issued, read off lines this Stop was already parsing for usage. It is
+        // the only new information the linkage needs, and it costs no extra I/O
+        // — which is why the linkage is derived here and not on the tool hooks,
+        // where reading a file is forbidden (apps/hook/AGENTS.md).
+        metadata: {
+          ...template.metadata,
+          source: 'claude-jsonl',
+          ...toolUseIdsMetadata(turn.toolUseIds),
+        },
         ts: turn.ts,
         turn_number: turns,
       } as ConformantEvent);

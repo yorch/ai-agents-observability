@@ -60,6 +60,11 @@ export async function insertEventsBatch(
       : null;
 
     // Tool names stored raw; disambiguate by (agent_type, tool_name) at query time when needed.
+    //
+    // `tool_use_id` is persisted as its own column rather than left in the
+    // metadata jsonb it used to ride in: `jobs/link-turn-events.ts` joins on
+    // `(session_id, tool_use_id)`, and a jsonb extraction over the events
+    // hypertable cannot use an index (P14-006).
     return Prisma.sql`(
       ${e.event_id}::uuid,
       ${e.session_id}::uuid,
@@ -83,6 +88,7 @@ export async function insertEventsBatch(
       ${e.tool?.mcp_server ?? null},
       ${e.tool?.mcp_tool ?? null},
       ${e.tool?.subagent_type ?? null},
+      ${e.tool?.tool_use_id ?? null},
       ${e.tool?.skill ?? null},
       ${null},
       ${e.tool?.slash_command ?? (typeof e.metadata.slash_command === 'string' ? e.metadata.slash_command : null)},
@@ -111,7 +117,7 @@ export async function insertEventsBatch(
         tool_target_hash, tool_action,
         tool_input_bytes, tool_output_bytes, tool_duration_ms,
         tool_exit_status, tool_was_denied, tool_was_interrupted,
-        mcp_server, mcp_tool, subagent_type,
+        mcp_server, mcp_tool, subagent_type, tool_use_id,
         skill_name, skill_path, slash_command,
         model, input_tokens, output_tokens,
         cache_read_tokens, cache_creation_tokens, cost_usd,

@@ -133,6 +133,9 @@ function buildToolInfo(raw: Record<string, unknown>, agentType: string): ToolInf
     // when the event carries one.
     subagent_type: typeof raw.subagentType === 'string' ? raw.subagentType : null,
     target_hash: toolTargetHash(input),
+    // No per-call join key adopted for this agent — see the note in
+    // `stdin-hook-factory.ts`'s buildGenericToolInfo (P14-006).
+    tool_use_id: null,
     was_denied: raw.denied === true || raw.blocked === true,
     was_interrupted: raw.interrupted === true || raw.aborted === true,
   };
