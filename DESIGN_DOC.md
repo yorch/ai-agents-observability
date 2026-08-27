@@ -447,7 +447,7 @@ CREATE TABLE events (
   notification_kind     TEXT,                     -- why the agent interrupted the human
   run_kind              TEXT NOT NULL DEFAULT 'INTERACTIVE',  -- INTERACTIVE | CI | EVAL (§5.2b)
 
-  metadata              JSONB,
+  metadata              JSONB,                    -- provenance only; never raw content (§9.3)
 
   PRIMARY KEY (session_id, event_id, ts)
 );
@@ -916,7 +916,25 @@ Matches are replaced with `[REDACTED:type]` placeholders (square brackets, not a
 
 - Raw tool inputs and outputs (only hashes and sizes go to `events`)
 - Raw prompts in the events table (full prompts only in the transcript blob, post-redaction)
+- Assistant prose in the events table — same rule, other direction (P14-008)
 - Unredacted secrets that match day-one patterns
+
+**`events.metadata` is provenance, not content, and that is now enforced rather than
+assumed.** Every adapter copies payload keys it did not model structurally into
+`metadata` so an unmodelled field is preserved rather than lost. That passthrough was
+*unknown ⇒ verbatim*, which held only for as long as no vendor added a prose field —
+and they did: Claude Code's `Stop` / `SubagentStop` grew `last_assistant_message`
+("Text content of the last assistant message before stopping"), and Copilot CLI's
+`userPromptSubmitted` carries the user's whole `prompt`. Both landed in Postgres
+unredacted, because `packages/redaction` runs on the transcript path and nothing runs
+on this column. The rule is now *unknown ⇒ bounded scalar*
+(`packages/schemas/src/metadata-safety.ts`): a shared agent-neutral list of
+content-bearing key names is refused outright, and so is any value that is not a JSON
+scalar or is a string longer than 200 characters — the shape half being the part that
+does not need to know the name of a field nobody has invented yet. Derived values the
+platform computes (`slash_command`, `notification_kind`, `tool_use_ids`, `source`) are
+added after the filter and are unaffected. Ingest applies the name half again on
+receipt, because the hook is a binary developers upgrade on their own schedule.
 
 ---
 

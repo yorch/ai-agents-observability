@@ -61,6 +61,20 @@ Rules the seam has accumulated, every one of them learned the hard way:
   do); passing the provider's number straight through bills the cached tokens
   twice. Same trap in the other direction: Gemini's thinking tokens bill as output
   but sit *outside* `candidatesTokenCount`, so they have to be added in.
+- **`metadata` is provenance, never content.** An adapter's known-key list is
+  "captured elsewhere, don't duplicate" — it is *not* the privacy boundary. The
+  boundary is `admitsToMetadata()` (`packages/schemas/src/metadata-safety.ts`),
+  which every passthrough loop must go through: it refuses a shared agent-neutral
+  list of content-bearing key names, and refuses any value that is not a JSON
+  scalar or is a string over 200 chars. Reading the known-key list as the boundary
+  is exactly what put Claude Code's `last_assistant_message` — assistant prose —
+  and Copilot CLI's `prompt` into an unredacted Postgres column (P14-008); the
+  vendors added those fields after the lists were written, and *unknown ⇒
+  verbatim* did the rest. Nothing redacts `events.metadata`: `packages/redaction`
+  runs on the transcript path only. `adapters/metadata-content-free.test.ts`
+  sweeps every registered adapter over every hook kind and fails if any of them
+  passes content through, so a new agent is enrolled the moment it lands in
+  `ADAPTERS`.
 - **Don't re-implement the payload primitives.** `lib/fields.ts` owns `isRecord`
   and the "first usable value among these keys" readers. Both had drifted into
   several copies with *different* answers about whether an empty string counts —

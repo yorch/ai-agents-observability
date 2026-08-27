@@ -29,6 +29,18 @@ If you add an endpoint that accepts user-pasted content, it either goes through 
 pipeline or it doesn't ship. New content shapes need their own rule in
 `packages/redaction`, not a local regex here.
 
+**`events.metadata` is the surface that is not redacted, and cannot be.** It is a
+JSONB column written straight through by `lib/insert-events.ts`; running the
+transcript pipeline over it would be the wrong tool anyway, since redaction scrubs
+secrets, not prose. So the rule is exclusion, applied at capture — and applied
+*again* here, because the hook is a binary developers upgrade on their own
+schedule and an un-upgraded machine keeps sending the old shape. `insertEventsBatch`
+runs `stripContentBearingKeys()` (`packages/schemas/src/metadata-safety.ts`) over
+every incoming metadata object: the NAME half of the rule only, never the shape half
+— that one refuses arrays, and `metadata.tool_use_ids` is a legitimate derived array
+the turn-linkage join depends on. `test/metadata-content-strip.test.ts` pins both
+directions (P14-008).
+
 ## Transcripts are re-shipped, and must re-store
 
 Agents ship a **growing** transcript: Claude Code on every Stop, opencode on every
