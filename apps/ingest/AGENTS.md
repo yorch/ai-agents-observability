@@ -157,7 +157,8 @@ channel wires up only when `SMTP_HOST` and `SMTP_FROM` are both set
 recorded in `job_runs`. Registered: `sync-teams`, `sync-jira`, `sweep-abandoned`,
 `sweep-scratch`, `run-deletions`, `sweep-retention`, `index-transcripts`,
 `compute-effectiveness`, `compute-effectiveness-backfill`,
-`compute-trajectory-scores`, `compute-subject-scores`, `compute-cost-attribution`,
+`compute-trajectory-scores`, `compute-subject-scores`, `link-turn-events`,
+`compute-cost-attribution`,
 `evaluate-alerts`,
 `backfill-redaction`, `reconcile-cost`, `reprice-events` / `reprice-events-apply`,
 `judge-sessions`, plus the two operator-triggered rescore entries
@@ -198,7 +199,8 @@ Leave it that way unless the semantic-search decision is revisited.
 **Three tiers, and they are not interchangeable.** `CONFIGURABLE_JOBS` is the set with
 an editable hour+minute cadence in `job_config` (`sweep-retention`,
 `index-transcripts`, `compute-effectiveness`, `compute-trajectory-scores`,
-`compute-subject-scores`, `compute-cost-attribution`, `evaluate-alerts`,
+`compute-subject-scores`, `link-turn-events`, `compute-cost-attribution`,
+`evaluate-alerts`,
 `judge-sessions`); the scheduler DB-polls
 those every 60s. `ALL_KNOWN_JOBS` adds the fixed-timer and operator-drain jobs that
 `POST /admin/jobs/:name/run` accepts (`sync-teams`, `sync-jira`, `sweep-abandoned`,
@@ -226,6 +228,31 @@ already count these dollars once. The arithmetic is a pure function in
 the plumbing. NULL means *not attributed*, never $0.00 — a session with no
 `turn_number` linkage gets nothing, which is why the dashboards show a coverage
 indicator rather than a confident zero.
+
+**`link-turn-events` is what fills that linkage in for live sessions, and it must
+run first** (P14-006). It is scheduled at 06:10, immediately before the
+attribution job at 06:15, because attribution selects on the very columns this
+one writes; inverting them costs a full day of coverage. It joins a live tool
+event to its issuing turn on `(session_id, tool_use_id)` — a **natural key**, not
+a timestamp guess: Claude Code's tool-hook payload carries `tool_use_id`, and the
+Stop the hook derives from the transcript lists the ids that turn issued under
+`metadata.tool_use_ids`. Both halves are already rows in `events` by the time the
+job runs, so it reads no transcript and no S3 object.
+
+Three properties to keep if you touch it. It writes **only** `turn_number` and
+`parent_event_id`, and only where `turn_number IS NULL` — an imported session's
+captured linkage can never be overwritten by a derived one. It consults **no
+clock**; a `ts`-nearest-Stop heuristic is the thing this replaced, and its failure
+mode was a plausible dollar figure on the wrong tool. And an id no Stop claims
+stays NULL and is counted into the run's `unresolvedIds`, so the residue is
+visible rather than guessed at.
+
+The definition lives in `src/lib/turn-linkage.ts` as a pure function, for the same
+reason `cost-attribution.ts` does. It restates one string —
+`TOOL_USE_IDS_METADATA_KEY` — that `apps/hook` also declares; ingest cannot import
+from the hook, so `test/turn-linkage.test.ts` reads the hook's source as text and
+fails if the two drift. Without that, a rename on either side leaves the join
+silently matching nothing.
 
 Unlike `reprice-events` it needs **no report/apply interlock**: it assigns a
 derived value rather than rewriting a measured one, is a pure function of the

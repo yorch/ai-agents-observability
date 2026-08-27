@@ -17,6 +17,7 @@ import { runComputeTrajectoryScores, runRescoreTrajectory } from './compute-traj
 import { runEvaluateAlerts } from './evaluate-alerts';
 import { runIndexTranscripts } from './index-transcripts';
 import { type JudgeRunConfig, runJudgeSessions } from './judge-sessions';
+import { runLinkTurnEvents } from './link-turn-events';
 import { type BillingSource, NullBillingSource, runReconcileCost } from './reconcile-cost';
 import { runRepriceEvents } from './reprice-events';
 import { runDeletions } from './run-deletions';
@@ -68,6 +69,13 @@ const CONFIGURABLE_JOBS = [
   // (correctly) no step-efficiency row, but it would then wait a whole day.
   'compute-trajectory-scores',
   'compute-subject-scores',
+  // Live turn linkage (P14-006). MUST be scheduled before
+  // compute-cost-attribution: it writes the `turn_number` / `parent_event_id`
+  // that job selects on, so running it after would leave every live session's
+  // tool calls unattributed for a further day. Configurable rather than
+  // fixed-timer for the same reason the attribution job is — the two are one
+  // pipeline and an operator moving one should be able to move the other.
+  'link-turn-events',
   // Turn-linked cost attribution (P14-004). Scheduled after the scorers so it
   // runs on a quiet part of the night; it depends on nothing they write. It is
   // configurable rather than fixed-timer because how far behind "yesterday's
@@ -171,6 +179,16 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
         db as Parameters<typeof runComputeTrajectoryScores>[0],
         logger,
       );
+      break;
+    // Live turn linkage (P14-006): joins live tool events to the assistant turn
+    // that issued them on `(session_id, tool_use_id)`, the natural key both the
+    // hook payload and the transcript spell identically. Writes `turn_number`
+    // and `parent_event_id` and nothing else, only ever onto rows where they are
+    // NULL — so an imported session's captured linkage is never overwritten.
+    // Needs no price-table registry: it moves no money, it only says which turn
+    // a call belongs to.
+    case 'link-turn-events':
+      await runLinkTurnEvents(db as Parameters<typeof runLinkTurnEvents>[0], { logger });
       break;
     // Turn-linked cost attribution (P14-004): redistributes each assistant
     // turn's cost onto the tool calls that turn issued, and the following turn's
@@ -303,6 +321,9 @@ export function startScheduler(deps: SchedulerDeps): void {
           ('compute-effectiveness', true, 5, 0),
           ('compute-trajectory-scores', true, 5, 30),
           ('compute-subject-scores',    true, 6, 0),
+          -- P14-006 before P14-004: the attribution job selects on the linkage
+          -- this one writes.
+          ('link-turn-events',           true, 6, 10),
           ('compute-cost-attribution',   true, 6, 15),
           ('evaluate-alerts',       true, 1, 0),
           -- P13-009: off by default. Enabling it is an operator decision taken
@@ -495,6 +516,6 @@ export function startScheduler(deps: SchedulerDeps): void {
       reconcileCostSource: deps.billingSource ? 'anthropic' : 'null',
       syncJira: deps.jiraConfig !== undefined,
     },
-    'Job scheduler started (DB-poll every 60s for the job_config cadences: sweep-retention, index-transcripts, compute-effectiveness, compute-trajectory-scores, compute-subject-scores, compute-cost-attribution, evaluate-alerts, judge-sessions; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',
+    'Job scheduler started (DB-poll every 60s for the job_config cadences: sweep-retention, index-transcripts, compute-effectiveness, compute-trajectory-scores, compute-subject-scores, link-turn-events, compute-cost-attribution, evaluate-alerts, judge-sessions; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',
   );
 }
