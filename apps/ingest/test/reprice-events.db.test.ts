@@ -27,6 +27,11 @@ const DATABASE_URL = process.env.DATABASE_URL;
 // transaction), and whether Postgres' NUMERIC arithmetic lands on the number we
 // expect. So this suite runs against a real Postgres-Timescale, and skips when
 // DATABASE_URL is unset — the same gate packages/db/test/schema.test.ts uses.
+//
+// Shares the `events` hypertable with compute-cost-attribution.db.test.ts — see
+// that file's header and tasks/P14-014-db-test-isolation.md for why the two
+// must never decompress/recompress chunks concurrently, and how
+// apps/ingest/vitest.config.ts now makes that automatic.
 describe.skipIf(!DATABASE_URL)('runRepriceEvents (against a real Timescale)', () => {
   let prisma: PrismaClient;
 

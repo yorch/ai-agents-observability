@@ -147,13 +147,27 @@ Verified against a real database, not by reading:
   - **The three DB-gated suites that had never run anywhere all pass**:
     `packages/db/test/schema.test.ts` (11), plus
     `apps/ingest/test/reprice-events.db.test.ts` (6) and
-    `compute-cost-attribution.db.test.ts` (6). **Run them one file at a time.**
-    Given one database they interfere — both ingest suites decompress and
-    recompress chunks of the same `events` hypertable and refresh the same
-    continuous aggregates, so in parallel they either deadlock or read each
-    other's compressed-chunk counts. That is pre-existing and unrelated to the
-    squash: it reproduces identically against the pre-squash schema. `bun run
-    test` never hits it, because these suites skip with no `DATABASE_URL`.
+    `compute-cost-attribution.db.test.ts` (6). At the time, they had to be run
+    one file at a time — given one database they interfered, because both
+    ingest suites decompress and recompress chunks of the same `events`
+    hypertable and refresh the same continuous aggregates, so in parallel they
+    either deadlocked or read each other's compressed-chunk counts. That was
+    pre-existing and unrelated to the squash: it reproduced identically
+    against the pre-squash schema, and `bun run test` never hit it because
+    these suites skip with no `DATABASE_URL`.
+    **[P14-014](../../tasks/P14-014-db-test-isolation.md) fixed this.**
+    `apps/ingest/vitest.config.ts` puts the two `*.db.test.ts` files in their
+    own vitest project with `fileParallelism: false`, so they always run
+    serialized against each other — under `bun run test`, `bun run test:db`,
+    or any other invocation — while the ~30 non-DB ingest files keep running
+    at full parallelism. `schema.test.ts` was also found to run an *unscoped*
+    `deleteMany()` in its cleanup (no `where` clause on `sessions`/`users`/…),
+    which would have cascade-deleted a sibling suite's `events` fixture rows
+    (`events.session_id` cascades on session delete) had the three ever shared
+    a database; it is now scoped to the rows the suite itself created. CI now
+    runs all three: a `db-tests` job in `.github/workflows/ci.yml` boots a
+    `timescale/timescaledb` service container, runs `bun run db:deploy`, then
+    `packages/db`'s `test` and `apps/ingest`'s `test:db`.
   - `bun run db:seed` completes cleanly against the consolidated schema, and the
     three new columns are selectable through `interactive_events`.
 

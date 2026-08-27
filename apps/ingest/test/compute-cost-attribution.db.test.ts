@@ -18,10 +18,17 @@ import type { PriceTableRegistry } from '../src/lib/price-tables';
  * recompressed, and that Postgres' NUMERIC(12,6) stores the number JS computed.
  *
  * Skips when `DATABASE_URL` is unset — the same gate
- * `reprice-events.db.test.ts` and `packages/db/test/schema.test.ts` use. Run
- * those three one file at a time: they share one `events` hypertable and its
- * continuous aggregates, and in parallel they deadlock or read each other's
- * compressed-chunk counts (see `tasks/P14-009-migration-consolidation.md`).
+ * `reprice-events.db.test.ts` and `packages/db/test/schema.test.ts` use. This
+ * file and `reprice-events.db.test.ts` share one `events` hypertable and its
+ * continuous aggregates: run concurrently, they decompress/recompress
+ * overlapping chunks and deadlock, or read each other's compressed-chunk
+ * counts (first hit in `tasks/P14-009-migration-consolidation.md`). Fixed in
+ * `tasks/P14-014-db-test-isolation.md` by `apps/ingest/vitest.config.ts`,
+ * which puts every `*.db.test.ts` file in its own vitest project with
+ * `fileParallelism: false` — so `bun run test` and `bun run test:db` both
+ * serialize this file against `reprice-events.db.test.ts` automatically.
+ * `packages/db/test/schema.test.ts` never touches `events` or its chunks, so
+ * it runs safely alongside either, in parallel or not.
  */
 
 const errors: unknown[] = [];
