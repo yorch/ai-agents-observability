@@ -1,3 +1,4 @@
+import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { FrictionDistributionChart } from '@/components/me/FrictionDistributionChart';
 import { ModelMixChart } from '@/components/me/ModelMix';
 import { OversightPanel } from '@/components/me/OversightPanel';
@@ -6,6 +7,7 @@ import { TopTools } from '@/components/me/TopTools';
 import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { Card, CardEmpty, EmptyState, Stat } from '@/components/ui';
+import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import {
   getTeamEffectivenessDistribution,
   getTeamFrictionTrend,
@@ -50,6 +52,7 @@ export default async function TeamOverviewPage({
     effectiveness,
     frictionTrend,
     oversight,
+    coverage,
   ] = await Promise.all([
     getTeamSummaryWithDelta(range, visibleIds, totalCount),
     getTeamTopTools(since, visibleIds),
@@ -58,6 +61,10 @@ export default async function TeamOverviewPage({
     getTeamEffectivenessDistribution(visibleIds, { since }),
     getTeamFrictionTrend(visibleIds, { since }),
     getTeamOversight(visibleIds, since),
+    // The routing card's dollars are the P14-005 redistribution, which exists
+    // only for events that carry turn linkage — so the card states its coverage
+    // rather than letting a short list read as efficient routing.
+    getAttributionCoverage(visibleIds, since),
   ]);
 
   const policies = await getModelPolicies(routing.map((r) => r.agentType));
@@ -118,7 +125,10 @@ export default async function TeamOverviewPage({
           <div className="grid gap-6 md:grid-cols-2">
             <Card title="Team routing opportunities" caption={`Trailing ${range} days`}>
               {routingRecs.length === 0 ? (
-                <CardEmpty>No high-confidence routing opportunities in this period.</CardEmpty>
+                <div className="space-y-3">
+                  <CardEmpty>No high-confidence routing opportunities in this period.</CardEmpty>
+                  <CostAttributionNote coverage={coverage} />
+                </div>
               ) : (
                 <div className="space-y-2">
                   <p className="text-xs text-text-2">
@@ -142,6 +152,7 @@ export default async function TeamOverviewPage({
                       </p>
                     </div>
                   ))}
+                  <CostAttributionNote coverage={coverage} />
                 </div>
               )}
             </Card>

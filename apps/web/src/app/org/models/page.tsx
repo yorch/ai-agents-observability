@@ -3,18 +3,21 @@ import {
   type ModelTier,
   resolveModelTier,
 } from '@ai-agents-observability/schemas';
+import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { ProjectionRealization } from '@/components/team-org/ProjectionRealization';
 import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import type { RegisteredRoutingClaim } from '@/components/team-org/RoutingRecommendations';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
 import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
+import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import { fmtTokens } from '@/lib/fmt';
 import { getModelPolicies } from '@/lib/model-policy';
 import {
   getOrgModelDetail,
   getOrgModelRoutingBreakdown,
   getRoutingSpendByTeam,
+  orgVisibleUserIds,
 } from '@/lib/org-queries';
 import { getGuardMetrics, getRoutingActuals } from '@/lib/projection-queries';
 import {
@@ -84,9 +87,17 @@ export default async function OrgModelsPage({
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
-  const [models, routing] = await Promise.all([
+  const visibleIds = await orgVisibleUserIds(since);
+  const [models, routing, coverage] = await Promise.all([
     getOrgModelDetail(since),
     getOrgModelRoutingBreakdown(since),
+    // Every dollar in the routing half of this page is a P14-005
+    // redistribution, and a redistribution needs the per-turn linkage the agent
+    // adapter reports. Where that is missing the figures are absent rather than
+    // zero, so the same coverage line the tool / skill / sub-agent surfaces
+    // carry belongs here too — this is the page whose numbers were fiction the
+    // longest.
+    getAttributionCoverage(visibleIds, since),
   ]);
 
   // Resolve policy once per agent that actually has routing spend, then reuse it
@@ -227,6 +238,7 @@ export default async function OrgModelsPage({
         <>
           {/* Routing recommendations */}
           <RoutingRecommendations claims={routingClaims} unpricedModels={unpricedModels} />
+          <CostAttributionNote coverage={coverage} />
 
           {/* Did the recommendations work? (P13-006, supersedes P10-006) */}
           <ProjectionRealization

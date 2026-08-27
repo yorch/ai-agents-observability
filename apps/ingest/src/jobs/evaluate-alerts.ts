@@ -224,6 +224,35 @@ async function evalBudgetThreshold(db: AlertsDb, params: unknown): Promise<Evalu
 // visibility-scoped like the other evaluators. Fires on absolute wasted spend
 // (params.thresholdUsd overrides the default); critical at 2x.
 //
+// P14-005 — WHAT THIS ALERT SUMS, AND WHY IT WAS DEAD.
+//
+// The join used to be `dm.model = e.model` on a row already restricted to
+// `event_type = 'PostToolUse'`, summing that row's `cost_usd`. `events.model` is
+// written only from an event's `llm` block (lib/insert-events.ts) and every
+// producer attaches that block to a `Stop` event — so the predicate matched zero
+// rows in real telemetry and this alert was armed and permanently silent, its
+// arithmetic exercised only against seeded data. Nothing failed; it just never
+// fired.
+//
+// The model therefore comes from the issuing turn's `Stop` row, reached through
+// `parent_event_id` (the P14-003 turn linkage), and the dollars come from the
+// tool row's `attributed_cost_usd` — the issuing turn's cost split across the
+// calls it made (P14-004). `tool_category` stays on the tool row. That is the
+// same redistribution the web surfaces perform; it is documented at length on
+// `getOrgModelRoutingBreakdown` in apps/web/src/lib/org-queries.ts.
+//
+// NOT `downstream_cost_usd`: that is the *following* turn's input-side cost,
+// priced with the following turn's model, so charging it to this turn's model
+// would answer a different question at the wrong rates. The two columns are two
+// lenses on the same dollars and are never summed.
+//
+// Coverage travels in `details`. A window whose events carry no turn linkage
+// attributes nothing, and an alert that stays quiet for that reason looks
+// identical to one that stays quiet because routing is healthy. `attributedCalls`
+// / `callCount` let an operator tell those apart from the notification itself.
+// Both are counts, so `details` stays numbers-only as documented on
+// evalDisallowedModel below.
+//
 // Exported for the query-shape regression test only — see the sibling
 // routing-waste-shape.test.ts. Its siblings stay module-private; this one carries
 // a policy-derived join whose parameter count must not grow with the size of the
@@ -253,26 +282,40 @@ export async function evalRoutingWaste(db: AlertsDb, params: unknown): Promise<E
   const agentTypes = triples.map((t) => t.agentType);
   const models = triples.map((t) => t.model);
   const categories = triples.map((t) => t.toolCategory);
-  const rows = await db.$queryRaw<{ waste: number }[]>(Prisma.sql`
-    SELECT COALESCE(SUM(e.cost_usd), 0) AS waste
-    FROM interactive_events e
-    JOIN users u ON u.id = e.user_id AND u.deactivated_at IS NULL
+  const rows = await db.$queryRaw<
+    { attributed_calls: bigint; call_count: bigint; waste: string | null }[]
+  >(Prisma.sql`
+    SELECT SUM(tool.attributed_cost_usd)::text AS waste,
+           COUNT(*) AS call_count,
+           COUNT(*) FILTER (WHERE tool.attributed_cost_usd IS NOT NULL) AS attributed_calls
+    FROM interactive_events tool
+    JOIN users u ON u.id = tool.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    JOIN interactive_events turn
+      ON turn.session_id  = tool.session_id
+     AND turn.event_id    = tool.parent_event_id
+     AND turn.ts         >= ${windowStart}
+     AND turn.event_type  = 'Stop'
     JOIN unnest(${agentTypes}::text[], ${models}::text[], ${categories}::text[])
       AS dm(agent_type, model, tool_category)
-      ON dm.agent_type = e.agent_type
-     AND dm.model = e.model
-     AND dm.tool_category = e.tool_category
-    WHERE e.ts >= ${windowStart}
-      AND e.event_type = 'PostToolUse'
+      ON dm.agent_type = turn.agent_type
+     AND dm.model = turn.model
+     AND dm.tool_category = tool.tool_category
+    WHERE tool.ts >= ${windowStart}
+      AND tool.event_type = 'PostToolUse'
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
-  const waste = Number(rows[0]?.waste ?? 0);
-  if (waste < threshold) {
+  const row = rows[0];
+  // NULL means nothing in the window could be attributed — a gap in capture, not
+  // $0 of waste. Either way there is no measured spend to fire on.
+  const waste = row?.waste != null ? Number(row.waste) : null;
+  if (waste === null || waste < threshold) {
     return null;
   }
   return {
     details: {
+      attributedCalls: Number(row?.attributed_calls ?? 0),
+      callCount: Number(row?.call_count ?? 0),
       thresholdUsd: threshold,
       wasteUsd: waste,
       windowDays: ROUTING_WASTE_WINDOW_DAYS,

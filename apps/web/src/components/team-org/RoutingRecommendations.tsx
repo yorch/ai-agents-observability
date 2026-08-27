@@ -1,6 +1,6 @@
 import { agentDisplayName } from '@ai-agents-observability/schemas';
 import { Card, EmptyState } from '@/components/ui';
-import { fmtUsd } from '@/lib/fmt';
+import { fmtUsd, fmtUsdOrDash } from '@/lib/fmt';
 import type { RegisteredProjection } from '@/lib/projections';
 import type { RoutingRecommendation } from '@/lib/routing-queries';
 
@@ -93,7 +93,7 @@ export function RoutingRecommendations({ claims, unpricedModels }: RoutingRecomm
                       {rec.topCategories.map((c) => (
                         <li key={c.category}>
                           <span className="font-mono">{c.category}</span> —{' '}
-                          {c.callCount.toLocaleString()} calls, {fmtUsd(c.costUsd)}
+                          {c.callCount.toLocaleString()} calls, {fmtUsdOrDash(c.costUsd)}
                         </li>
                       ))}
                     </ul>

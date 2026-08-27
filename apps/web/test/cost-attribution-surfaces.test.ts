@@ -136,10 +136,13 @@ describe('the attributed queries keep the visibility and run-kind guards', () =>
   }
 
   it('reads only the filtered view, never the base table', () => {
+    // `FROM` or `JOIN`: the routing-by-team read (P14-005) drives off `teams`
+    // and reaches the hypertable through two joins, so requiring the view in
+    // the FROM clause alone would reject a correctly-guarded query.
     for (const file of QUERY_FILES) {
       for (const sql of attributedSqlBlocks(file)) {
-        expect(sql).toMatch(/FROM\s+interactive_events/);
-        expect(sql).not.toMatch(/\bFROM\s+events\b/);
+        expect(sql).toMatch(/(?:FROM|JOIN)\s+interactive_events/);
+        expect(sql).not.toMatch(/\b(?:FROM|JOIN)\s+events\b/);
       }
     }
   });
@@ -152,14 +155,28 @@ describe('the attributed queries keep the visibility and run-kind guards', () =>
   });
 
   it('scopes every attributed read to an explicit user set', () => {
-    // `user_id IN (${uuids})` for the org/team surfaces, `user_id = ${userId}`
-    // for own-data. Either way the population comes from the caller, which is
-    // where `orgVisibleUserIds` / `resolveTeamVisibility` applied the policy.
+    // Three admissible forms, and no fourth:
+    //   `user_id IN (${uuids})`        org/team surfaces — the caller passed the
+    //                                  population from orgVisibleUserIds /
+    //                                  resolveTeamVisibility.
+    //   `user_id = ${userId}`          own-data surfaces.
+    //   a `visibility_policies` join   `getRoutingSpendByTeam` (P14-005), which
+    //                                  builds its own population by walking
+    //                                  teams → members → users and applies
+    //                                  `share_metadata_with_org` in the query.
+    // Cost is per-user data; a new column must never become the reason a lead
+    // sees through a member's privacy setting.
+    const byUserList = /user_id\s+IN\s*\(|user_id\s*=\s*\$\{userId\}/;
+    const byPolicyJoin = /visibility_policies/;
     for (const file of QUERY_FILES) {
       const blocks = attributedSqlBlocks(file);
       expect(blocks.length).toBeGreaterThan(0);
       for (const sql of blocks) {
-        expect(sql).toMatch(/user_id\s+IN\s*\(|user_id\s*=\s*\$\{userId\}/);
+        const scoped = byUserList.test(sql) || byPolicyJoin.test(sql);
+        expect(scoped, sql).toBe(true);
+        if (byPolicyJoin.test(sql)) {
+          expect(sql).toMatch(/share_metadata_with_org/);
+        }
       }
     }
   });

@@ -9,6 +9,7 @@ import {
   type SavingsRange,
 } from '@ai-agents-observability/schemas';
 import type { OrgModelRoutingRow } from '@/lib/org-queries';
+import { addNullable } from './attribution-coverage';
 
 // Pure recommendation logic layered on top of getOrgModelRoutingBreakdown's
 // already-visibility-scoped rows (see org-queries.ts). No DB/network access here —
@@ -56,7 +57,7 @@ export type RoutingRecommendation = {
   model: string;
   targetTier: ModelTier;
   tier: ModelTier;
-  topCategories: { callCount: number; category: string; costUsd: number }[];
+  topCategories: { callCount: number; category: string; costUsd: number | null }[];
 };
 
 type Grouped = {
@@ -64,7 +65,8 @@ type Grouped = {
   calls: number;
   model: string;
   rows: OrgModelRoutingRow[];
-  spend: number;
+  /** NULL until at least one of this group's rows carries an attribution. */
+  spend: number | null;
 };
 
 /**
@@ -98,7 +100,9 @@ export function computeRoutingRecommendations(
     const existing = grouped.get(key);
     if (existing) {
       existing.calls += row.callCount;
-      existing.spend += row.totalCostUsd;
+      // `addNullable`, never `+`: a row with no turn linkage must not contribute
+      // a zero to a total that a savings claim is later multiplied out of.
+      existing.spend = addNullable(existing.spend, row.attributedCostUsd);
       existing.rows.push(row);
     } else {
       grouped.set(key, {
@@ -106,7 +110,7 @@ export function computeRoutingRecommendations(
         calls: row.callCount,
         model: row.model,
         rows: [row],
-        spend: row.totalCostUsd,
+        spend: row.attributedCostUsd,
       });
     }
   }
@@ -116,7 +120,14 @@ export function computeRoutingRecommendations(
   const unpricedModels: { agentType: string; model: string }[] = [];
 
   for (const group of grouped.values()) {
-    if (group.spend < MIN_ROUTING_CHEAP_SPEND_USD || group.calls < MIN_ROUTING_CHEAP_CALLS) {
+    // A null spend is "we cannot attribute these calls", not "$0". Either way
+    // there is no dollar figure to project a saving from, so no recommendation
+    // is raised — the page's CostAttributionNote is what explains the absence.
+    const spend = group.spend;
+    if (spend === null || spend < MIN_ROUTING_CHEAP_SPEND_USD) {
+      continue;
+    }
+    if (group.calls < MIN_ROUTING_CHEAP_CALLS) {
       continue;
     }
     const policy = policies.get(group.agentType);
@@ -146,21 +157,25 @@ export function computeRoutingRecommendations(
     }
 
     const topCategories = group.rows
-      .map((r) => ({ callCount: r.callCount, category: r.toolCategory, costUsd: r.totalCostUsd }))
-      .sort((a, b) => b.costUsd - a.costUsd);
+      .map((r) => ({
+        callCount: r.callCount,
+        category: r.toolCategory,
+        costUsd: r.attributedCostUsd,
+      }))
+      .sort((a, b) => (b.costUsd ?? 0) - (a.costUsd ?? 0));
 
     recommendations.push({
       agentType: group.agentType,
       cheapCategoryCalls: group.calls,
-      cheapCategorySpend: group.spend,
+      cheapCategorySpend: spend,
       confidence:
-        group.spend >= HIGH_CONFIDENCE_SPEND_USD && group.calls >= HIGH_CONFIDENCE_CALLS
+        spend >= HIGH_CONFIDENCE_SPEND_USD && group.calls >= HIGH_CONFIDENCE_CALLS
           ? 'high'
           : 'medium',
       exampleTargetModel: savings.bestTargetModel,
       model: group.model,
-      monthlySavingHigh: group.spend * savings.high * normalizeToMonthly,
-      monthlySavingLow: group.spend * savings.low * normalizeToMonthly,
+      monthlySavingHigh: spend * savings.high * normalizeToMonthly,
+      monthlySavingLow: spend * savings.low * normalizeToMonthly,
       targetTier: savings.targetTier,
       tier,
       topCategories,

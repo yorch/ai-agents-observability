@@ -259,6 +259,12 @@ export async function getTeamModelMix(since: Date, visibleIds: string[]): Promis
  * The team-scoped twin of `getOrgModelRoutingBreakdown`, returning the same row
  * shape so `computeRoutingRecommendations` serves both surfaces unchanged.
  * `agent_type` travels with the row because routing policy is per-agent.
+ *
+ * The redistribution it performs — model off the issuing turn's `Stop` row via
+ * `parent_event_id`, dollars off `attributed_cost_usd` on the tool row — is
+ * documented once on `getOrgModelRoutingBreakdown` (org-queries.ts). Keep the
+ * two in step: `apps/web/test/model-routing-attribution.test.ts` fails if either
+ * goes back to reading a model off a tool row.
  */
 export async function getTeamRoutingBreakdown(
   since: Date,
@@ -272,34 +278,39 @@ export async function getTeamRoutingBreakdown(
   const rows = await getPrisma().$queryRaw<
     {
       agent_type: string;
+      attributed_cost_usd: string | null;
       call_count: bigint;
       model: string;
       tool_category: string;
-      total_cost_usd: number;
     }[]
   >(Prisma.sql`
     SELECT
-      e.agent_type,
-      e.model,
-      e.tool_category,
-      COUNT(*)                     AS call_count,
-      COALESCE(SUM(e.cost_usd), 0) AS total_cost_usd
-    FROM interactive_events e
-    WHERE e.user_id IN (${uuids})
-      AND e.ts >= ${since}
-      AND e.event_type = 'PostToolUse'
-      AND e.model IS NOT NULL
-      AND e.tool_category IS NOT NULL
-    GROUP BY e.agent_type, e.model, e.tool_category
-    ORDER BY total_cost_usd DESC
+      turn.agent_type,
+      turn.model,
+      tool.tool_category,
+      COUNT(*)                             AS call_count,
+      SUM(tool.attributed_cost_usd)::text  AS attributed_cost_usd
+    FROM interactive_events tool
+    JOIN interactive_events turn
+      ON turn.session_id  = tool.session_id
+     AND turn.event_id    = tool.parent_event_id
+     AND turn.ts         >= ${since}
+     AND turn.event_type  = 'Stop'
+     AND turn.model IS NOT NULL
+    WHERE tool.user_id IN (${uuids})
+      AND tool.ts >= ${since}
+      AND tool.event_type = 'PostToolUse'
+      AND tool.tool_category IS NOT NULL
+    GROUP BY turn.agent_type, turn.model, tool.tool_category
+    ORDER BY SUM(tool.attributed_cost_usd) DESC NULLS LAST
   `);
 
   return rows.map((r) => ({
     agentType: r.agent_type,
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     callCount: Number(r.call_count),
     model: r.model,
     toolCategory: r.tool_category,
-    totalCostUsd: Number(r.total_cost_usd),
   }));
 }
 

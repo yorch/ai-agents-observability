@@ -13,6 +13,7 @@ import {
   SPEND_SPIKE_WARN_SIGMA,
   SPEND_SPIKE_WINDOW_DAYS,
 } from '@ai-agents-observability/schemas';
+import { addNullable } from './attribution-coverage';
 import {
   type EffectivenessDistribution,
   type FrictionTrendBucket,
@@ -368,16 +369,95 @@ export async function getOrgModelDetail(since: Date): Promise<OrgModelDetailRow[
   });
 }
 
+/**
+ * ── The routing redistribution (P14-005) ─────────────────────────────────────
+ *
+ * Defined once here; `getRoutingSpendByTeam` below, `getTeamRoutingBreakdown`
+ * (team-queries.ts), `getUserModelRouting` (insights-queries.ts),
+ * `getRoutingActuals` (projection-queries.ts) and the `routing_waste` evaluator
+ * (apps/ingest/src/jobs/evaluate-alerts.ts) all ask the same question and must
+ * answer it the same way.
+ *
+ * **The question.** "How much did model M cost on tool category C?" — the input
+ * to every routing recommendation, because a downgrade claim is "this work did
+ * not need that model".
+ *
+ * **Why the obvious query was dead.** Until this task all six sites read
+ * `SUM(cost_usd)` over rows matching
+ * `event_type = 'PostToolUse' AND model IS NOT NULL AND tool_category IS NOT NULL`.
+ * `events.model` is written only from an event's `llm` block
+ * (apps/ingest/src/lib/insert-events.ts) and every producer attaches that block
+ * to a **`Stop`** event, so `model IS NOT NULL` matched **zero** tool rows in
+ * real telemetry — the cost column was not even the binding constraint. Every
+ * number these surfaces have ever shown came from `packages/db/src/seed.ts`,
+ * which fabricated a model on `PostToolUse` rows that production never writes.
+ *
+ * **The fix is a redistribution, not a filter tweak.** Three columns, three
+ * places:
+ *
+ * - **model** comes from the issuing turn's `Stop` row, reached through
+ *   `parent_event_id` (P14-003). That is the row that *chose* the model, which
+ *   is exactly what a routing claim is about.
+ * - **cost** comes from `attributed_cost_usd` on the tool row — the issuing
+ *   turn's cost split across the calls it made (P14-004).
+ * - **tool_category** stays on the tool row, where P14-002 writes a real value.
+ *
+ * **Why the issuing-turn share and not the downstream lens.** P14-004 stores two
+ * readings of the same dollars. `downstream_cost_usd` is the *next* turn's
+ * input-side cost, priced with the *next* turn's model — attributing it to this
+ * turn's model would answer a different question with the wrong model's rates.
+ * "A premium model was used for cheap retrieval work" is a claim about the turn
+ * that issued the call, so the issuing-turn share is the only lens that supports
+ * it. The two are never summed (see apps/web/test/cost-attribution-surfaces.test.ts).
+ *
+ * **NULL is not zero.** The sum is taken bare — no `COALESCE(..., 0)` — so a
+ * window whose events carry no turn linkage returns null and the surface renders
+ * a dash beside a `CostAttributionNote` coverage line, rather than a confident
+ * `$0.00`.
+ *
+ * **Window boundary.** Both sides of the join are bounded by `since` so
+ * Postgres can prune chunks on the hypertable. A turn whose `Stop` landed just
+ * before the window while its tools landed just inside is therefore not
+ * attributed — a sub-minute edge on a windowed aggregate, and the alternative is
+ * an unbounded index probe into every chunk of the table.
+ */
 export type OrgModelRoutingRow = {
   // Routing policy is per-agent: the same model id can appear under several
   // agents at independent rates, and one agent's price ratio must never be
-  // applied to another's models (P10-001).
+  // applied to another's models (P10-001). Read off the issuing turn together
+  // with the model, so the pair is always priced from one table.
   agentType: string;
+  /** NULL = these calls carry no turn linkage. Never a stand-in for $0.00. */
+  attributedCostUsd: number | null;
   callCount: number;
   model: string;
   toolCategory: string;
-  totalCostUsd: number;
 };
+
+/** The raw shape all four web routing reads share. Cost crosses as text — see below. */
+type RoutingRawRow = {
+  agent_type: string;
+  attributed_cost_usd: string | null;
+  call_count: bigint;
+  model: string;
+  tool_category: string;
+};
+
+/**
+ * `NUMERIC(12,6)` crosses as text and is parsed here rather than being handed to
+ * the driver as a float: a bare `SUM(numeric)` comes back as a Decimal through
+ * Prisma's raw path, and the `::text` cast keeps one explicit conversion at the
+ * boundary — the same idiom `getToolPerf` uses for these columns.
+ */
+function toRoutingRow(r: RoutingRawRow): OrgModelRoutingRow {
+  return {
+    agentType: r.agent_type,
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
+    callCount: Number(r.call_count),
+    model: r.model,
+    toolCategory: r.tool_category,
+  };
+}
 
 export async function getOrgModelRoutingBreakdown(since: Date): Promise<OrgModelRoutingRow[]> {
   const userIds = await orgVisibleUserIds(since);
@@ -385,42 +465,35 @@ export async function getOrgModelRoutingBreakdown(since: Date): Promise<OrgModel
     return [];
   }
   const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
-  const rows = await getPrisma().$queryRaw<
-    {
-      agent_type: string;
-      call_count: bigint;
-      model: string;
-      tool_category: string;
-      total_cost_usd: number;
-    }[]
-  >(Prisma.sql`
+  const rows = await getPrisma().$queryRaw<RoutingRawRow[]>(Prisma.sql`
     SELECT
-      agent_type,
-      model,
-      tool_category,
-      COUNT(*)                            AS call_count,
-      COALESCE(SUM(cost_usd), 0)         AS total_cost_usd
-    FROM interactive_events
-    WHERE user_id IN (${uuids})
-      AND ts >= ${since}
-      AND event_type = 'PostToolUse'
-      AND model IS NOT NULL
-      AND tool_category IS NOT NULL
-    GROUP BY agent_type, model, tool_category
-    ORDER BY total_cost_usd DESC
+      turn.agent_type,
+      turn.model,
+      tool.tool_category,
+      COUNT(*)                             AS call_count,
+      SUM(tool.attributed_cost_usd)::text  AS attributed_cost_usd
+    FROM interactive_events tool
+    JOIN interactive_events turn
+      ON turn.session_id  = tool.session_id
+     AND turn.event_id    = tool.parent_event_id
+     AND turn.ts         >= ${since}
+     AND turn.event_type  = 'Stop'
+     AND turn.model IS NOT NULL
+    WHERE tool.user_id IN (${uuids})
+      AND tool.ts >= ${since}
+      AND tool.event_type = 'PostToolUse'
+      AND tool.tool_category IS NOT NULL
+    GROUP BY turn.agent_type, turn.model, tool.tool_category
+    ORDER BY SUM(tool.attributed_cost_usd) DESC NULLS LAST
   `);
-  return rows.map((r) => ({
-    agentType: r.agent_type,
-    callCount: Number(r.call_count),
-    model: r.model,
-    toolCategory: r.tool_category,
-    totalCostUsd: Number(r.total_cost_usd),
-  }));
+  return rows.map(toRoutingRow);
 }
 
 export type RoutingTeamRow = {
-  premiumRetrievalUsd: number; // downgradeable-model spend on retrieval categories
-  premiumTotalUsd: number; // all spend on those models (context/denominator)
+  /** Downgradeable-model spend on retrieval categories. NULL = no turn linkage. */
+  premiumRetrievalUsd: number | null;
+  /** All attributed spend on those models (context/denominator). */
+  premiumTotalUsd: number | null;
   teamName: string;
   teamSlug: string;
 };
@@ -428,7 +501,7 @@ export type RoutingTeamRow = {
 /** One (team, agent, model, category) cell — aggregated against policy in TS. */
 type TeamRoutingCell = {
   agent_type: string;
-  cost_usd: number;
+  attributed_cost_usd: string | null;
   model: string;
   team_name: string;
   team_slug: string;
@@ -449,6 +522,13 @@ type TeamRoutingCell = {
  * category) cells and the caller's per-agent policy decides which models are
  * downgradeable, so this cannot drift from the recommendations and works for
  * every agent rather than only Anthropic's (P10-001/P10-002).
+ *
+ * The model and the cost come from the redistribution documented on
+ * `getOrgModelRoutingBreakdown` above: the model off the issuing turn's `Stop`
+ * row, the dollars off `attributed_cost_usd` on the tool row. Visibility is
+ * scoped by the `users`/`visibility_policies` join rather than by a caller-
+ * supplied id list — that is this query's own explicit population, and it is
+ * applied to the tool scan, which is where the user lives.
  */
 export async function getRoutingSpendByTeam(
   since: Date,
@@ -456,22 +536,27 @@ export async function getRoutingSpendByTeam(
 ): Promise<RoutingTeamRow[]> {
   const cells = await getPrisma().$queryRaw<TeamRoutingCell[]>(Prisma.sql`
     SELECT
-      t.name                       AS team_name,
-      t.github_slug                AS team_slug,
-      e.agent_type,
-      e.model,
-      e.tool_category,
-      COALESCE(SUM(e.cost_usd), 0) AS cost_usd
+      t.name                                AS team_name,
+      t.github_slug                         AS team_slug,
+      turn.agent_type,
+      turn.model,
+      tool.tool_category,
+      SUM(tool.attributed_cost_usd)::text   AS attributed_cost_usd
     FROM teams t
     JOIN team_members tm ON tm.team_id = t.id AND tm.left_at IS NULL
     JOIN users u ON u.id = tm.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    JOIN interactive_events e ON e.user_id = u.id AND e.ts >= ${since}
-      AND e.event_type = 'PostToolUse'
-      AND e.model IS NOT NULL
-      AND e.tool_category IS NOT NULL
+    JOIN interactive_events tool ON tool.user_id = u.id AND tool.ts >= ${since}
+      AND tool.event_type = 'PostToolUse'
+      AND tool.tool_category IS NOT NULL
+    JOIN interactive_events turn
+      ON turn.session_id  = tool.session_id
+     AND turn.event_id    = tool.parent_event_id
+     AND turn.ts         >= ${since}
+     AND turn.event_type  = 'Stop'
+     AND turn.model IS NOT NULL
     WHERE COALESCE(vp.share_metadata_with_org, true) = true
-    GROUP BY t.id, t.name, t.github_slug, e.agent_type, e.model, e.tool_category
+    GROUP BY t.id, t.name, t.github_slug, turn.agent_type, turn.model, tool.tool_category
   `);
 
   const byTeam = new Map<string, RoutingTeamRow>();
@@ -486,22 +571,27 @@ export async function getRoutingSpendByTeam(
       continue;
     }
     const row = byTeam.get(cell.team_slug) ?? {
-      premiumRetrievalUsd: 0,
-      premiumTotalUsd: 0,
+      premiumRetrievalUsd: null,
+      premiumTotalUsd: null,
       teamName: cell.team_name,
       teamSlug: cell.team_slug,
     };
-    const cost = Number(cell.cost_usd);
-    row.premiumTotalUsd += cost;
+    // `addNullable`, not `+`: an unattributed cell must leave the running total
+    // null rather than silently contributing a zero.
+    const cost = cell.attributed_cost_usd != null ? Number(cell.attributed_cost_usd) : null;
+    row.premiumTotalUsd = addNullable(row.premiumTotalUsd, cost);
     if (isCheapCategory(policy, cell.tool_category)) {
-      row.premiumRetrievalUsd += cost;
+      row.premiumRetrievalUsd = addNullable(row.premiumRetrievalUsd, cost);
     }
     byTeam.set(cell.team_slug, row);
   }
 
+  // A team whose retrieval calls carry no attribution has nothing to say on an
+  // accountability table about dollars, so it is omitted rather than listed at
+  // "—". The page's coverage note is what explains an unexpectedly short table.
   return [...byTeam.values()]
-    .filter((r) => r.premiumRetrievalUsd > 0)
-    .sort((a, b) => b.premiumRetrievalUsd - a.premiumRetrievalUsd)
+    .filter((r) => (r.premiumRetrievalUsd ?? 0) > 0)
+    .sort((a, b) => (b.premiumRetrievalUsd ?? 0) - (a.premiumRetrievalUsd ?? 0))
     .slice(0, 20);
 }
 

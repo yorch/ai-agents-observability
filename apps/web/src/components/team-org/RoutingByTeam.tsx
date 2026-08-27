@@ -1,5 +1,5 @@
 import { Cell, EmptyState, Row, Table } from '@/components/ui';
-import { fmtUsd } from '@/lib/fmt';
+import { fmtPctOrDash, fmtUsdOrDash } from '@/lib/fmt';
 import type { RoutingTeamRow } from '@/lib/org-queries';
 
 // Presentational only — the page fetches getRoutingSpendByTeam and passes rows
@@ -44,22 +44,28 @@ export function RoutingByTeam({ rows }: RoutingByTeamProps) {
           ]}
         >
           {rows.map((r) => {
-            const share = r.premiumTotalUsd > 0 ? r.premiumRetrievalUsd / r.premiumTotalUsd : 0;
-            const highShare = share > HIGH_SHARE_THRESHOLD;
+            // A share needs both halves measured. Where the denominator is
+            // unattributed the cell shows a dash rather than a percentage of a
+            // number that does not exist.
+            const share =
+              r.premiumTotalUsd !== null && r.premiumTotalUsd > 0 && r.premiumRetrievalUsd !== null
+                ? r.premiumRetrievalUsd / r.premiumTotalUsd
+                : null;
+            const highShare = share !== null && share > HIGH_SHARE_THRESHOLD;
             return (
               <Row key={r.teamSlug}>
                 <Cell className="text-text">{r.teamName}</Cell>
                 <Cell num className="text-text">
-                  {fmtUsd(r.premiumRetrievalUsd)}
+                  {fmtUsdOrDash(r.premiumRetrievalUsd)}
                 </Cell>
                 <Cell num className="text-text-2">
-                  {fmtUsd(r.premiumTotalUsd)}
+                  {fmtUsdOrDash(r.premiumTotalUsd)}
                 </Cell>
                 <Cell
                   num
                   className={`px-4 py-3 text-right font-mono font-medium ${highShare ? 'text-warn' : 'text-text-2'}`}
                 >
-                  {(share * 100).toFixed(0)}%
+                  {fmtPctOrDash(share)}
                 </Cell>
               </Row>
             );

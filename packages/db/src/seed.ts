@@ -624,6 +624,17 @@ async function insertEvents(
   //
   // Every tool event in a turn then points at that turn's Stop via
   // `parent_event_id` — the linkage P14-004's cost attribution reads.
+  //
+  // `model` LIVES ON THE Stop ROW AND NOWHERE ELSE (P14-005). `events.model` is
+  // written from an event's `llm` block (apps/ingest/src/lib/insert-events.ts),
+  // and every adapter attaches that block to a Stop — so a `PostToolUse`,
+  // `UserPromptSubmit`, `Notification` or `SessionStart` row with a non-NULL
+  // model has never existed in production. Seeding one made six routing reads
+  // (`/org/models`, the recommendations, the projection-realization panel, the
+  // per-user routing hint and the `routing_waste` alert) look alive for the
+  // entire life of the feature while they matched nothing real. A seed that can
+  // produce a row no producer emits is how a dead query survives review;
+  // `packages/db/test/seed-event-shape.test.ts` now fails if one comes back.
   const eventTurn = (index: number): number => Math.ceil(index / 4);
   const maxTurn = Math.max(1, eventTurn(eventCount - 1));
   const stopIdByTurn = new Map<number, string>();
@@ -663,18 +674,17 @@ async function insertEvents(
 
     if (e === 0) {
       await db.$executeRaw`
-        INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type, model, mode)
+        INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type, mode)
         VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
-                ${agentType}, 'SessionStart', ${model}, ${evtMode})
+                ${agentType}, 'SessionStart', ${evtMode})
         ON CONFLICT (session_id, event_id, ts) DO NOTHING
       `;
     } else if (e % 4 === 1) {
-      const inputToks = faker.number.int({ max: 2000, min: 50 });
       const turnNum = Math.ceil(e / 4);
       await db.$executeRaw`
-        INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type, model, input_tokens, turn_number, mode)
+        INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type, turn_number, mode)
         VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
-                ${agentType}, 'UserPromptSubmit', ${model}, ${inputToks}, ${turnNum}, ${evtMode})
+                ${agentType}, 'UserPromptSubmit', ${turnNum}, ${evtMode})
         ON CONFLICT (session_id, event_id, ts) DO NOTHING
       `;
     } else if (e % 6 === 3) {
@@ -683,9 +693,9 @@ async function insertEvents(
       const turnNum = Math.ceil(e / 4);
       await db.$executeRaw`
         INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
-                            notification_kind, turn_number, model, mode)
+                            notification_kind, turn_number, mode)
         VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
-                ${agentType}, 'Notification', ${kind}, ${turnNum}, ${model}, ${evtMode})
+                ${agentType}, 'Notification', ${kind}, ${turnNum}, ${evtMode})
         ON CONFLICT (session_id, event_id, ts) DO NOTHING
       `;
     } else {
@@ -708,12 +718,12 @@ async function insertEvents(
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_category, skill_name, slash_command, skill_path,
                               tool_duration_ms, tool_exit_status,
-                              turn_number, parent_event_id, model, mode)
+                              turn_number, parent_event_id, mode)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
                   'Skill', ${toolCategory(agentType, 'Skill')}, ${skillName}, ${skillName}, ${skillPath},
                   ${toolDurMs}, 0,
-                  ${turnNum}, ${parentEventId}::uuid, ${model}, ${evtMode})
+                  ${turnNum}, ${parentEventId}::uuid, ${evtMode})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else if (useMcp) {
@@ -728,14 +738,14 @@ async function insertEvents(
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_category, tool_duration_ms, tool_exit_status,
                               tool_was_denied, tool_was_interrupted,
-                              mcp_server, mcp_tool, turn_number, parent_event_id, model, mode)
+                              mcp_server, mcp_tool, turn_number, parent_event_id, mode)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
                   ${`mcp__${mcpServer}__${mcpTool}`},
                   ${toolCategory(agentType, `mcp__${mcpServer}__${mcpTool}`, mcpServer)},
                   ${toolDurMs}, ${exitStatus},
                   ${wasDenied}, ${wasInterrupted},
-                  ${mcpServer}, ${mcpTool}, ${turnNum}, ${parentEventId}::uuid, ${model}, ${evtMode})
+                  ${mcpServer}, ${mcpTool}, ${turnNum}, ${parentEventId}::uuid, ${evtMode})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else if (toolName === 'Task') {
@@ -745,12 +755,12 @@ async function insertEvents(
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_category, subagent_type, tool_duration_ms,
                               tool_exit_status, tool_was_denied,
-                              turn_number, parent_event_id, model, mode)
+                              turn_number, parent_event_id, mode)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
                   'Task', ${toolCategory(agentType, 'Task')}, ${subagentType}, ${subagentDurMs},
                   ${exitStatus}, ${wasDenied},
-                  ${turnNum}, ${parentEventId}::uuid, ${model}, ${evtMode})
+                  ${turnNum}, ${parentEventId}::uuid, ${evtMode})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else {
@@ -763,13 +773,13 @@ async function insertEvents(
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_category, tool_duration_ms, tool_exit_status,
                               tool_was_denied, tool_was_interrupted,
-                              turn_number, parent_event_id, model, mode,
+                              turn_number, parent_event_id, mode,
                               tool_target_hash, tool_action)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
                   ${toolName}, ${toolCategory(agentType, toolName)}, ${toolDurMs}, ${exitStatus},
                   ${wasDenied}, ${wasInterrupted},
-                  ${turnNum}, ${parentEventId}::uuid, ${model}, ${evtMode},
+                  ${turnNum}, ${parentEventId}::uuid, ${evtMode},
                   ${targetHash}, ${toolAction})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
@@ -1024,26 +1034,45 @@ async function basicSeed() {
       sessions.push(session.sessionId);
 
       const eventCount = faker.number.int({ max: 10, min: 5 });
+      // A turn's usage lands on the Stop that closes it and NOWHERE else
+      // (P14-005) — the long note in insertEvents says why. Two statements
+      // rather than one with a ternary per column: the split is what makes
+      // "LLM columns only on a Stop" checkable by reading the seed, which is
+      // exactly what packages/db/test/seed-event-shape.test.ts does.
       for (let e = 0; e < eventCount; e++) {
         const ts = new Date(startedAt.getTime() + e * Math.floor(durationMs / eventCount));
+        const eventId = crypto.randomUUID();
+        if (e % 3 === 0) {
+          await db.$executeRaw`
+            INSERT INTO events (
+              event_id, session_id, user_id, ts, agent_type, event_type,
+              model, input_tokens, output_tokens, cost_usd, turn_number, mode
+            ) VALUES (
+              ${eventId}::uuid, ${session.sessionId}::uuid, ${user.id}::uuid, ${ts},
+              'CLAUDE_CODE', 'Stop',
+              'claude-sonnet-4-6',
+              ${faker.number.int({ max: 2000, min: 100 })},
+              ${faker.number.int({ max: 500, min: 50 })},
+              ${faker.number.float({ fractionDigits: 6, max: 0.05, min: 0.001 })},
+              ${Math.floor(e / 3) + 1},
+              'normal'
+            )
+            ON CONFLICT (session_id, event_id, ts) DO NOTHING
+          `;
+          continue;
+        }
         const eventType = faker.helpers.arrayElement([
           'PreToolUse',
           'PostToolUse',
           'UserPromptSubmit',
           'SessionStart',
         ]);
-        const eventId = crypto.randomUUID();
         await db.$executeRaw`
           INSERT INTO events (
-            event_id, session_id, user_id, ts, agent_type, event_type,
-            model, input_tokens, output_tokens, cost_usd, mode
+            event_id, session_id, user_id, ts, agent_type, event_type, mode
           ) VALUES (
             ${eventId}::uuid, ${session.sessionId}::uuid, ${user.id}::uuid, ${ts},
             'CLAUDE_CODE', ${eventType},
-            'claude-sonnet-4-6',
-            ${faker.number.int({ max: 2000, min: 100 })},
-            ${faker.number.int({ max: 500, min: 50 })},
-            ${faker.number.float({ fractionDigits: 6, max: 0.05, min: 0.001 })},
             'normal'
           )
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
@@ -1069,13 +1098,11 @@ async function basicSeed() {
         await db.$executeRaw`
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_category, skill_name, slash_command, skill_path,
-                              tool_duration_ms, output_tokens, cost_usd, mode)
+                              tool_duration_ms, mode)
           VALUES (${skillEventId}::uuid, ${session.sessionId}::uuid, ${user.id}::uuid, ${skillTs},
                   'CLAUDE_CODE', 'PostToolUse',
                   'Skill', ${toolCategory('CLAUDE_CODE', 'Skill')}, ${skillName}, ${skillName}, ${skillPath},
                   ${faker.number.int({ max: 5000, min: 100 })},
-                  ${faker.number.int({ max: 300, min: 10 })},
-                  ${faker.number.float({ fractionDigits: 6, max: 0.02, min: 0.001 })},
                   'normal')
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
@@ -3216,7 +3243,7 @@ async function seedNonInteractiveRuns() {
       await db.$executeRaw`
         INSERT INTO events (
           event_id, session_id, user_id, ts, agent_type, event_type, run_kind, mode,
-          model, tool_name, tool_category, tool_duration_ms, tool_exit_status,
+          tool_name, tool_category, tool_duration_ms, tool_exit_status,
           mcp_server, mcp_tool, skill_name, slash_command,
           turn_number, parent_event_id
         )
@@ -3224,7 +3251,6 @@ async function seedNonInteractiveRuns() {
           ${faker.string.uuid()}::uuid, ${sessionId}::uuid, ${owner.id}::uuid, ${ts},
           'CLAUDE_CODE', ${isTool ? 'PostToolUse' : 'SessionStart'},
           ${spec.runKind}::"RunKind", 'bypass',
-          'claude-sonnet-4-6',
           ${isTool ? 'Bash' : null}, ${isTool ? toolCategory('CLAUDE_CODE', 'Bash') : null},
           ${isTool ? faker.number.int({ max: 4000, min: 20 }) : null}, ${isTool ? 0 : null},
           ${isTool && e % 3 === 0 ? 'github' : null},

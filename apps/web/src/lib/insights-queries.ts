@@ -201,12 +201,14 @@ export type ToolPerfRow = {
 
 export type UserModelRoutingRow = {
   // Routing policy is per-agent (see packages/schemas/src/model-policy.ts), so
-  // the agent has to travel with the row.
+  // the agent has to travel with the row. Read off the issuing turn, together
+  // with the model it chose.
   agentType: string;
+  /** NULL = these calls carry no turn linkage. Never a stand-in for $0.00. */
+  attributedCostUsd: number | null;
   callCount: number;
   model: string;
   toolCategory: string;
-  totalCostUsd: number;
 };
 
 export type UserCacheSummaryRow = {
@@ -271,10 +273,10 @@ type ToolPerfRawRow = {
 
 type UserModelRoutingRawRow = {
   agent_type: string;
+  attributed_cost_usd: string | null;
   call_count: bigint;
   model: string;
   tool_category: string;
-  total_cost_usd: string;
 };
 
 type UserCacheSummaryRawRow = {
@@ -555,33 +557,44 @@ export async function getToolPerf(userId: string, since: Date): Promise<ToolPerf
   }));
 }
 
+/**
+ * The own-data twin of `getOrgModelRoutingBreakdown` (org-queries.ts), which
+ * documents the redistribution both perform: the model comes from the issuing
+ * turn's `Stop` row through `parent_event_id`, the dollars from
+ * `attributed_cost_usd` on the tool row, and the category from the tool row.
+ */
 export async function getUserModelRouting(
   userId: string,
   since: Date,
 ): Promise<UserModelRoutingRow[]> {
   const rows = await getPrisma().$queryRaw<UserModelRoutingRawRow[]>(Prisma.sql`
     SELECT
-      agent_type,
-      model,
-      tool_category,
-      COUNT(*)                    AS call_count,
-      COALESCE(SUM(cost_usd), 0)  AS total_cost_usd
-    FROM interactive_events
-    WHERE user_id = ${userId}::uuid
-      AND ts >= ${since}
-      AND event_type = 'PostToolUse'
-      AND model IS NOT NULL
-      AND tool_category IS NOT NULL
-    GROUP BY agent_type, model, tool_category
-    ORDER BY total_cost_usd DESC
+      turn.agent_type,
+      turn.model,
+      tool.tool_category,
+      COUNT(*)                             AS call_count,
+      SUM(tool.attributed_cost_usd)::text  AS attributed_cost_usd
+    FROM interactive_events tool
+    JOIN interactive_events turn
+      ON turn.session_id  = tool.session_id
+     AND turn.event_id    = tool.parent_event_id
+     AND turn.ts         >= ${since}
+     AND turn.event_type  = 'Stop'
+     AND turn.model IS NOT NULL
+    WHERE tool.user_id = ${userId}::uuid
+      AND tool.ts >= ${since}
+      AND tool.event_type = 'PostToolUse'
+      AND tool.tool_category IS NOT NULL
+    GROUP BY turn.agent_type, turn.model, tool.tool_category
+    ORDER BY SUM(tool.attributed_cost_usd) DESC NULLS LAST
     LIMIT 200
   `);
   return rows.map((r) => ({
     agentType: r.agent_type,
+    attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     callCount: Number(r.call_count),
     model: r.model,
     toolCategory: r.tool_category,
-    totalCostUsd: Number(r.total_cost_usd),
   }));
 }
 
