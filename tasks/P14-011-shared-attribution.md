@@ -3,7 +3,7 @@ id: P14-011
 title: One cost-attribution implementation, shared by the seed and ingest
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P14-004]
 blocks: []

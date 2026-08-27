@@ -3,7 +3,7 @@ id: P14-012
 title: Bring the test directories inside the typecheck gate
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: []
 blocks: []
