@@ -865,7 +865,13 @@ export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
       AND tool_name IS NOT NULL
-      AND tool_category != 'agent'
+      -- Sub-agent spawns (PostToolUse rows carrying subagent_type) are counted
+      -- by getOrgSubagentStats, not here. No adapter has ever emitted a
+      -- 'agent' tool_category (only 'mcp'/'builtin'), so filtering on it did
+      -- not exclude spawns and — because tool_category can be NULL — silently
+      -- dropped every row with no category at all. subagent_type IS NULL is
+      -- NULL-safe and keeps NULL-category rows in the result.
+      AND subagent_type IS NULL
     GROUP BY agent_type, tool_name, tool_category
     ORDER BY call_count DESC
     LIMIT ${limit}
@@ -901,7 +907,9 @@ export async function getToolCategoryBreakdown(since: Date): Promise<CategorySta
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
-      AND tool_category != 'agent'
+      -- See getToolStats above: subagent_type IS NULL excludes sub-agent
+      -- spawns without dropping NULL-category rows.
+      AND subagent_type IS NULL
     GROUP BY COALESCE(tool_category, 'other')
     ORDER BY call_count DESC
   `);
@@ -2413,7 +2421,12 @@ export async function getOrgSubagentStats(since: Date): Promise<SubagentStatRow[
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
-      AND tool_category = 'agent'
+      -- No adapter has ever emitted a 'agent' tool_category (only
+      -- 'mcp'/'builtin' — see apps/hook/src/lib/payload.ts and friends).
+      -- A sub-agent spawn is identified by carrying a subagent_type instead,
+      -- same as getSubagentUsage (insights-queries.ts) and the per-session
+      -- breakdown in sessions-queries.ts.
+      AND subagent_type IS NOT NULL
     GROUP BY subagent_type
     ORDER BY spawn_count DESC
   `);

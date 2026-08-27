@@ -344,3 +344,15 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 > **Workstream D is split, not deferred.** The runner and every guardrail (consent gating, audit writes, owner-only display, versioned prompt registry, cost recording) are built now and exercised against the operator's own sessions — those are the things that never get retrofitted. The irreversible act, pointing the judge at another person's transcript, is isolated in [`P13-011`](./P13-011-arm-judge-for-other-users.md) behind a calibrated judge **and** an explicit owner decision taken with developers consulted in advance.
 >
 > **Overlap with `P10-006` — settled 2026-08-18.** [`P13-006`](./P13-006-projection-validation-pattern.md) ships the projected-vs-realized check as a general mechanism (projection registry, pure realization function, outcome guard, volume gating) and applies it to the `/org/models` routing recommendations that [`P10-006`](./P10-006-recommendation-validation-loop.md) specifies. `P10-006` is now `cancelled` as superseded, by owner decision taken with the rest of the Phase 10 reconciliation — `cancelled` rather than `done` because its own spec was never implemented as written. The criterion-by-criterion mapping is in that task file. This branch had asserted the same conclusion unilaterally once and withdrew it; the difference now is that Phase 10's state was audited against the code first.
+
+---
+
+## Phase 14 — Tool, Skill & Agent Cost Attribution
+
+Fixes sub-agent identification (dead since no adapter ever emitted the `tool_category = 'agent'` these queries filtered on) and stops the org/agents, team/agents, org/mcp, and team/mcp pages from presenting a computed `SUM(cost_usd)` over tool events as real cost when no producer populates it in real telemetry — the number was always seed-data fiction. Three tasks running in parallel on separate branches: P14-001 (this fix), P14-002 (the tool-category taxonomy gap the same investigation surfaced), and P14-003 (the real cost attribution P14-001 deliberately does not build, stacked on it).
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P14-001](./P14-001-subagent-identification-fix.md) | Fix sub-agent identification and stop reporting fabricated tool cost | review | claude | S | — |
+| [P14-002](./P14-002-tool-category-taxonomy.md) | Tool-category taxonomy in the hook adapters | in-progress | claude | M | — |
+| [P14-003](./P14-003-turn-linked-cost-attribution.md) | Turn-linked cost attribution for tool events | blocked | — | L | P14-001 |
