@@ -34,6 +34,46 @@ import {
 //   notification                 → Notification
 // userPromptTransformed, permissionRequest, subagentStart and errorOccurred have
 // no canonical equivalent and are dropped rather than mapped to an invented type.
+//
+// ── P14-007: why there is no usage capture here ─────────────────────────────
+//
+// Claude Code, Codex and Gemini CLI each fold per-turn token usage onto their
+// turn-completion event via `mapBatch`, reading a side channel their hook
+// payload points at (P14-003). Copilot CLI has NO equivalent, checked against
+// GitHub's current hooks reference (docs.github.com/en/copilot/reference/
+// hooks-reference, re-verified 2026-08-26) rather than assumed from P12-006:
+//
+//   - No hook payload — agentStop included — carries any token, usage, or
+//     model field. The documented `agentStop` shape is exactly
+//     `{ sessionId, timestamp, cwd, transcriptPath, stopReason,
+//     stop_hook_active }`. (`transcriptPath` is new since P12-006 — see the
+//     note on `transcriptTarget` below — but it does not change this.)
+//   - The rich per-call usage event Copilot DOES emit internally
+//     (`assistant.usage`: model, inputTokens, outputTokens, cacheReadTokens,
+//     cacheWriteTokens, reasoningTokens, cost) is real, but it is part of the
+//     separate Copilot **SDK**'s opt-in streaming/RPC surface for custom
+//     built-on-Copilot applications (docs.github.com/en/copilot/how-tos/
+//     copilot-sdk/features/{streaming-events,usage-and-billing}) — a
+//     different integration point the CLI's own hook process cannot reach.
+//   - The CLI does write its own internal per-session log
+//     (`~/.copilot/session-state/<id>/events.jsonl`) that some third-party
+//     tools reverse-engineer for a session-total (not per-turn) usage
+//     aggregate on a `session.shutdown` entry. That is not a foundation this
+//     adapter builds on: it is undocumented (GitHub's own
+//     github/copilot-cli#3551 asks GitHub to formalize it as public API,
+//     which as of this writing it is not), community sources directly
+//     disagree on whether it is reliably persisted at all, and — even where
+//     present — it is scoped to the whole CLI session (one entry, at
+//     terminal exit) rather than to a turn, which would not satisfy the
+//     per-turn granularity every other adapter provides.
+//   - Separately, and regardless of the above: `apps/ingest/src/data/
+//     price-table.copilot.v1.json` is INTENTIONALLY empty. Copilot bills
+//     seats against a premium-request allowance, not per-token, so even a
+//     captured token count would price at `$0` today — a request-denominated
+//     cost model is its own task, not this one.
+//
+// Net: this is a well-evidenced negative, not an oversight. Re-open this if
+// GitHub documents usage on a CLI hook payload, or formalizes events.jsonl.
 
 const COPILOT_EVENT_TYPE: Record<string, EventType> = {
   'agent-stop': 'Stop',
@@ -138,7 +178,12 @@ export const copilotAdapter: HookAdapter = createStdinHookAdapter({
     settingsHint: 'Write this to ~/.copilot/hooks/claude-telemetry.json:',
   },
   nativeEvents: HOOK_KIND_TO_COPILOT_EVENT,
-  // Copilot's documented payload carries no transcript path, so nothing to ship —
-  // the opencode precedent. If a session log location turns out to be
-  // discoverable, that is a follow-up, not a blocker.
+  // No `transcriptKinds`, so `transcriptTarget` stays the factory default (null)
+  // for every kind — deliberately, not for lack of a path. UPDATE (P14-007):
+  // `agentStop` / `preCompact` / `subagentStop` now document a `transcriptPath`
+  // field (they did not at P12-006), but wiring transcript shipping off it is a
+  // separate decision from usage capture — it needs its own look at what that
+  // path actually names and at packages/redaction's obligations before this
+  // adapter starts uploading it. See the P14-007 note above for why it would not
+  // carry usage even if shipped.
 });

@@ -141,8 +141,37 @@ describe('copilot adapter', () => {
     expect(conformanceErrors(start)).toEqual([]);
   });
 
-  it('ships no transcript (Copilot documents no transcript path)', () => {
-    expect(copilotAdapter.transcriptTarget('agent-stop', { sessionId: SESSION_ID })).toBeNull();
+  it('ships no transcript (a separate decision from usage capture, P14-007)', () => {
+    // `agentStop` now documents a `transcriptPath` field (it did not at P12-006),
+    // so this asserts the current choice, not an absence of one to wire up: see
+    // the P14-007 note in copilot.ts for why shipping it is deliberately deferred.
+    expect(
+      copilotAdapter.transcriptTarget('agent-stop', {
+        sessionId: SESSION_ID,
+        transcriptPath: '/home/dev/.copilot/session-state/abc/events.jsonl',
+      }),
+    ).toBeNull();
+  });
+
+  it('never attaches usage — Copilot documents no token/usage field on any hook (P14-007)', () => {
+    // Claude Code, Codex and Gemini CLI each fold per-turn usage onto their
+    // turn-completion event (P14-003); Copilot has no side channel a hook can
+    // reach (see the P14-007 note in copilot.ts). This pins the current, verified
+    // absence rather than letting it drift back unnoticed: a payload carrying
+    // usage-shaped fields Copilot does not actually send must still produce no
+    // `llm` block, because inventing one from an undocumented field would be
+    // exactly the fabrication P14-007 stopped short of.
+    const ev = copilotAdapter.mapPayload('agent-stop', {
+      inputTokens: 123,
+      model: 'claude-opus-4.7',
+      outputTokens: 45,
+      sessionId: SESSION_ID,
+      tokens: { input: 123, output: 45 },
+      usage: { input_tokens: 123, output_tokens: 45 },
+    });
+    expect(ev.llm).toBeUndefined();
+    expect(copilotAdapter.mapBatch).toBeUndefined();
+    expect(conformanceErrors(ev)).toEqual([]);
   });
 
   it('renders a versioned hooks document in cross-platform exec form', () => {
