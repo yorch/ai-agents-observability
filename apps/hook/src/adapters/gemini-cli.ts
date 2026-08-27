@@ -92,7 +92,7 @@ function serverFromMcpContext(mcpContext: unknown): string | null {
 }
 
 function buildGeminiToolInfo(raw: Record<string, unknown>, aliases: FieldAliases): ToolInfo {
-  const tool = buildGenericToolInfo(raw, aliases);
+  const tool = buildGenericToolInfo(raw, aliases, undefined, 'GEMINI_CLI');
   const response = raw.tool_response;
 
   // AfterTool's tool_response is { llmContent, returnDisplay, error? }. Size the

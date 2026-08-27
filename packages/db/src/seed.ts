@@ -6,6 +6,7 @@ import {
   PRE_RUBRIC_VERSION,
   RUBRIC_SHAPES,
   SESSION_RUBRIC_VERSION,
+  toolCategory,
 } from '@ai-agents-observability/schemas';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { faker } from '@faker-js/faker';
@@ -103,7 +104,11 @@ const TOOL_NAMES = [
   { value: 'Grep', weight: 9 },
   { value: 'Glob', weight: 5 },
   { value: 'Write', weight: 3 },
-  { value: 'Agent', weight: 8 },
+  // Claude Code's real subagent-spawning tool is named 'Task', not 'Agent' — see
+  // apps/hook/src/lib/payload.ts and the fixtures in
+  // apps/hook/src/adapters/claude-code-mapping.test.ts. Seeding the real name
+  // keeps this on the same path toolCategory() uses in production.
+  { value: 'Task', weight: 8 },
   { value: 'MultiEdit', weight: 5 },
   { value: 'WebFetch', weight: 3 },
   { value: 'WebSearch', weight: 2 },
@@ -679,7 +684,7 @@ async function insertEvents(
                               cache_read_tokens, cache_creation_tokens, cost_usd, turn_number, model, mode)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
-                  'Skill', 'builtin', ${skillName}, ${skillName}, ${skillPath},
+                  'Skill', ${toolCategory(agentType, 'Skill')}, ${skillName}, ${skillName}, ${skillPath},
                   ${toolDurMs}, 0, ${outputToks},
                   ${cacheRead}, ${cacheCreation}, ${costVal}, ${turnNum}, ${model}, ${evtMode})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
@@ -700,13 +705,15 @@ async function insertEvents(
                               mcp_server, mcp_tool, turn_number, model, mode)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
-                  ${`mcp__${mcpServer}__${mcpTool}`}, 'mcp', ${toolDurMs}, ${exitStatus},
+                  ${`mcp__${mcpServer}__${mcpTool}`},
+                  ${toolCategory(agentType, `mcp__${mcpServer}__${mcpTool}`, mcpServer)},
+                  ${toolDurMs}, ${exitStatus},
                   ${wasDenied}, ${wasInterrupted}, ${outputToks},
                   ${cacheRead}, ${cacheCreation}, ${costVal},
                   ${mcpServer}, ${mcpTool}, ${turnNum}, ${model}, ${evtMode})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
-      } else if (toolName === 'Agent') {
+      } else if (toolName === 'Task') {
         const subagentType = faker.helpers.weightedArrayElement(SUBAGENT_TYPES);
         const subagentDurMs = faker.number.int({ max: 120_000, min: 5_000 });
         const subagentOutputToks = faker.number.int({ max: 4000, min: 200 });
@@ -718,7 +725,7 @@ async function insertEvents(
                               cache_read_tokens, cache_creation_tokens, cost_usd, turn_number, model, mode)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
-                  'Agent', 'builtin', ${subagentType}, ${subagentDurMs},
+                  'Task', ${toolCategory(agentType, 'Task')}, ${subagentType}, ${subagentDurMs},
                   ${exitStatus}, ${wasDenied}, ${subagentOutputToks},
                   ${cacheRead}, ${cacheCreation}, ${subagentCost}, ${turnNum}, ${model}, ${evtMode})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
@@ -737,7 +744,7 @@ async function insertEvents(
                               tool_target_hash, tool_action)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
-                  ${toolName}, 'builtin', ${toolDurMs}, ${exitStatus},
+                  ${toolName}, ${toolCategory(agentType, toolName)}, ${toolDurMs}, ${exitStatus},
                   ${wasDenied}, ${wasInterrupted}, ${outputToks},
                   ${cacheRead}, ${cacheCreation}, ${costVal}, ${turnNum}, ${model}, ${evtMode},
                   ${targetHash}, ${toolAction})
@@ -1038,11 +1045,11 @@ async function basicSeed() {
         const skillEventId = crypto.randomUUID();
         await db.$executeRaw`
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
-                              tool_name, skill_name, slash_command, skill_path,
+                              tool_name, tool_category, skill_name, slash_command, skill_path,
                               tool_duration_ms, output_tokens, cost_usd, mode)
           VALUES (${skillEventId}::uuid, ${session.sessionId}::uuid, ${user.id}::uuid, ${skillTs},
                   'CLAUDE_CODE', 'PostToolUse',
-                  'Skill', ${skillName}, ${skillName}, ${skillPath},
+                  'Skill', ${toolCategory('CLAUDE_CODE', 'Skill')}, ${skillName}, ${skillName}, ${skillPath},
                   ${faker.number.int({ max: 5000, min: 100 })},
                   ${faker.number.int({ max: 300, min: 10 })},
                   ${faker.number.float({ fractionDigits: 6, max: 0.02, min: 0.001 })},
@@ -2973,32 +2980,19 @@ async function seedGovernance(opts: {
 // ── Post-seed telemetry finalization ────────────────────────────────────────
 // Backfills columns/aggregates that the newer dashboards read but that the
 // per-row inserts don't populate, so a freshly seeded DB drives every surface:
-// granular tool categories + byte volumes (security & insights), transcript
-// pointers + redaction classes (security secret-exposure), and the continuous
-// aggregates the org cost rollups now read. Idempotent-ish: safe to re-run after
-// a reseed. Operates on whatever basic/extensive seeded, so it runs once in main.
+// byte volumes (security & insights), transcript pointers + redaction classes
+// (security secret-exposure), and the continuous aggregates the org cost
+// rollups now read. Idempotent-ish: safe to re-run after a reseed. Operates on
+// whatever basic/extensive seeded, so it runs once in main.
+//
+// tool_category is NOT backfilled here (P14-002) — every per-row insert above
+// already stamps the real category via the shared toolCategory() (the same
+// function apps/hook's adapters call), so seed data and production data come
+// from one code path rather than a fabricated reclassification pass.
 async function finalizeTelemetry() {
-  console.log('  Finalizing telemetry (tool categories, byte volumes, redaction, aggregates)…');
+  console.log('  Finalizing telemetry (byte volumes, redaction, aggregates)…');
 
-  // 1. Granular tool_category from tool_name. The hook emits fs_read/exec/web/…;
-  //    the per-row seed inserts a flat 'builtin'/'mcp'. Reclassify so the
-  //    tool-category exposure, routing, and tool-usage views reflect the real
-  //    taxonomy (DESIGN_DOC §5.3).
-  await db.$executeRawUnsafe(`
-    UPDATE events SET tool_category = CASE
-      WHEN mcp_server IS NOT NULL THEN 'mcp'
-      WHEN tool_name = 'Bash' THEN 'exec'
-      WHEN tool_name = 'Read' THEN 'fs_read'
-      WHEN tool_name IN ('Edit','Write','MultiEdit') THEN 'fs_write'
-      WHEN tool_name IN ('Grep','Glob') THEN 'search'
-      WHEN tool_name IN ('WebFetch','WebSearch') THEN 'web'
-      WHEN tool_name = 'Agent' THEN 'task'
-      ELSE 'other'
-    END
-    WHERE event_type = 'PostToolUse' AND tool_name IS NOT NULL
-  `);
-
-  // 2. Tool byte volumes — captured per event in prod, absent from the seed.
+  // 1. Tool byte volumes — captured per event in prod, absent from the seed.
   //    web/mcp/fs_read carry larger outputs; a rare multi-MB spike feeds the
   //    "largest data movements" exfil-shaped signal on /org/security and the
   //    per-tool byte columns on /me/insights.
@@ -3015,7 +3009,7 @@ async function finalizeTelemetry() {
     WHERE event_type = 'PostToolUse' AND tool_name IS NOT NULL
   `);
 
-  // 3. Transcript pointers on a realistic fraction of sessions that lack one. The
+  // 2. Transcript pointers on a realistic fraction of sessions that lack one. The
   //    showcase transcript is a real S3 upload; these are synthetic pointers so
   //    the transcript-dependent COUNTs (secret-exposure denominator) are coherent.
   //    (Their transcript *viewer* won't resolve in dev — the search/knowledge
@@ -3028,7 +3022,7 @@ async function finalizeTelemetry() {
     WHERE transcript_s3_key IS NULL AND random() < 0.4
   `);
 
-  // 4. Redaction classes on ~30% of transcripted sessions — the secret-exposure
+  // 3. Redaction classes on ~30% of transcripted sessions — the secret-exposure
   //    signal /org/security groups by class. Each flagged session gets 1–2 classes.
   await db.$executeRawUnsafe(`
     UPDATE sessions s SET redaction_flags = sub.flags
@@ -3045,7 +3039,7 @@ async function finalizeTelemetry() {
     WHERE s.session_id = sub.session_id
   `);
 
-  // 5. Materialize the continuous aggregates the org cost rollups now read
+  // 4. Materialize the continuous aggregates the org cost rollups now read
   //    (getWeeklyCostTrend / getCostByTeam / getCostPerDeveloper). A cagg created
   //    WITH NO DATA is otherwise empty until the hourly policy runs. Refresh can't
   //    run inside a txn; guarded so a non-Timescale dev DB doesn't fail the seed.
@@ -3182,7 +3176,7 @@ async function seedNonInteractiveRuns() {
           ${faker.string.uuid()}::uuid, ${sessionId}::uuid, ${owner.id}::uuid, ${ts},
           'CLAUDE_CODE', ${eventType}, ${spec.runKind}::"RunKind", 'bypass',
           'claude-sonnet-4-6',
-          ${isTool ? 'Bash' : null}, ${isTool ? 'exec' : null},
+          ${isTool ? 'Bash' : null}, ${isTool ? toolCategory('CLAUDE_CODE', 'Bash') : null},
           ${isTool ? faker.number.int({ max: 4000, min: 20 }) : null}, ${isTool ? 0 : null},
           ${isTool && e % 3 === 0 ? 'github' : null},
           ${isTool && e % 3 === 0 ? 'create_issue' : null},

@@ -87,7 +87,7 @@ function buildCopilotToolInfo(
   aliases: FieldAliases,
   kind: string,
 ): ToolInfo {
-  const tool = buildGenericToolInfo(raw, aliases, kind);
+  const tool = buildGenericToolInfo(raw, aliases, kind, 'COPILOT');
   // postToolUseFailure carries the same tool fields plus an error; fold it into
   // PostToolUse with a non-zero exit rather than inventing an event type.
   //

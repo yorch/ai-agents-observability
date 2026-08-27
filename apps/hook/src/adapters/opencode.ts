@@ -7,6 +7,7 @@ import {
   type EventType,
   type ToolInfo,
   toolActionFor,
+  toolCategory,
   toolTargetHash,
 } from '@ai-agents-observability/schemas';
 
@@ -118,7 +119,10 @@ function buildToolInfo(raw: Record<string, unknown>): ToolInfo {
     // opencode's tool args carry `path` / `command` under the same names Claude
     // Code uses, so the shared capture helpers apply unchanged (P13-003).
     action: toolActionFor(input),
-    category: 'builtin',
+    // opencode's own MCP-provided tools carry no reliable name marker (unlike
+    // Claude Code's mcp__ prefix), so mcp_server/mcp_tool stay null below and
+    // category is derived from the name alone.
+    category: toolCategory('OPENCODE', name),
     duration_ms: num(raw.duration_ms),
     exit_status: typeof raw.exit_status === 'number' ? raw.exit_status : null,
     input_bytes: fieldBytes(input),

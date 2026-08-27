@@ -1,9 +1,9 @@
 ---
 id: P14-002
-title: Tool-category taxonomy in the hook adapters
+title: Derive the real tool-category taxonomy in the adapter seam
 phase: 14
 workstream: A
-status: in-progress
+status: review
 owner: claude
 depends_on: []
 blocks: []
@@ -12,73 +12,111 @@ estimate: M
 
 ## Goal
 
-Every adapter classifies a `PostToolUse` event's `tool_category` into the finer
-taxonomy the web layer already assumes (`fs_read` / `fs_write` / `exec` / `web`
-/ `search`, alongside the existing `mcp`), rather than the two coarse values
-(`'mcp'` / `'builtin'`) every producer emits today.
-
-> **Stub written by the P14-001 agent, running in parallel.** This file records
-> what P14-001's investigation surfaced about the gap so the index entry it was
-> asked to add has something to link to; it is not a claim on how P14-002 should
-> be scoped or implemented. Whoever owns this task should treat the acceptance
-> criteria below as a starting hypothesis, not a spec, and correct this file
-> freely.
+Every producer of telemetry events (all seven adapters, the transcript importer,
+and the seed) stamps a real `tool_category` — `fs_read` / `fs_write` / `exec` /
+`search` / `web` / `task` / `mcp` / `other`, per `DESIGN_DOC.md` §5.3 — instead of
+the flat `'builtin'` / `'mcp'` every producer wrote before this task.
 
 ## Context
 
-`apps/hook/src/lib/payload.ts:123`, `import-synth.ts:57`, and
-`stdin-hook-factory.ts:142` (reused by `codex.ts`, `pi-family.ts`, and
-`gemini-cli.ts` via `buildGenericToolInfo`) all set `category: isMcp ? 'mcp' :
-'builtin'`; `opencode.ts:121` hardcodes `'builtin'`. No adapter emits anything
-finer.
+`DESIGN_DOC.md:412` has always specified the eight-value taxonomy. The hook never
+emitted it: every producer (`apps/hook/src/lib/payload.ts`,
+`apps/hook/src/lib/import-synth.ts`, `apps/hook/src/adapters/codex.ts`,
+`pi-family.ts`, `stdin-hook-factory.ts`, `opencode.ts`, `gemini-cli.ts`) wrote only
+`'mcp'` or `'builtin'`. The only place the real taxonomy existed was
+`packages/db/src/seed.ts`'s post-seed `finalizeTelemetry()` pass, which
+reclassified seeded rows via a hand-written `CASE` under a comment asserting "the
+hook emits fs_read/exec/web/…" — true of this design doc, never true of the code.
 
-Several web queries already read `tool_category` as if the finer taxonomy
-existed: `apps/web/src/lib/security-queries.ts` filters on `'exec'` / `'web'` /
-`'fs_write'` / `'fs_read'`; `packages/schemas/src/model-policy.ts` and
-`trajectory.ts` define categories including those values for routing/pricing
-policy. In production these predicates currently match nothing, because the
-column never holds those values — the only place the finer taxonomy exists
-today is `packages/db/src/seed.ts`'s `finalizeTelemetry`, which reclassifies
-seeded rows from `tool_name` after the fact (`UPDATE events SET tool_category =
-CASE WHEN tool_name = 'Bash' THEN 'exec' WHEN tool_name = 'Read' THEN 'fs_read'
-...`) purely so seed data exercises those surfaces.
+Consequences, all silently inert while looking healthy against seed data because
+seed data was independently fabricated to the correct shape:
+
+- `/org/tools` and `/team/[slug]/tools` "by category" collapsed to builtin/mcp.
+- `/org/security`'s risk classification
+  (`apps/web/src/lib/security-queries.ts:253`) keys on `fs_read`/`web`/`mcp` and
+  found nothing.
+- The Phase 10 routing-recommendation engine was inert end to end:
+  `DEFAULT_CHEAP_CATEGORIES = ['fs_read', 'search']`
+  (`packages/schemas/src/model-policy.ts:21`) fed `apps/web/src/lib/routing-queries.ts`,
+  the `/org/models` dashboard, and `apps/ingest/src/jobs/evaluate-alerts.ts`'s
+  cheap-category job — none of them could ever match a real row.
 
 ## Acceptance criteria
 
-- [ ] Every adapter classifies `tool_category` at ingest time using the same
-      mapping seed's `finalizeTelemetry` approximates (tool name → `exec` /
-      `fs_read` / `fs_write` / `search` / `web` / `mcp` / `other`), so real
-      telemetry populates the values the web layer already reads.
-- [ ] The mapping lives in one shared place adapters call into, not
-      re-implemented per adapter (same shape as `buildGenericToolInfo`).
-- [ ] `packages/schemas` documents (or enumerates) the taxonomy so a future
-      adapter can't silently emit an unrecognized value the way `'agent'` was
-      never recognized.
-- [ ] Existing consumers (`security-queries.ts`, `routing-queries.ts`,
-      `model-policy`) are re-verified against the new real values, not just
-      seed's synthetic ones.
+- [x] `toolCategory(agentType, toolName, mcp)` in `packages/schemas` is the single
+      source of the taxonomy, with a per-agent tool-name table for every agent with
+      a shipped adapter (Claude Code, Codex, Gemini CLI, Copilot, opencode, Pi,
+      omp). O(1) — no regex, no scanning — to hold the hook's `<10ms` perf budget.
+- [x] Every adapter, `payload.ts`, and `import-synth.ts` call it; no producer still
+      writes a bare `'builtin'`.
+- [x] MCP detection stays exactly where each adapter already had it (the `mcp__`
+      prefix rule, including the `mcp__server`-with-no-tool-segment edge case, plus
+      Gemini's `mcp_context` field and Pi/omp's broader `__`-anywhere rule) — the
+      shared function takes the already-resolved signal rather than re-deriving it.
+- [x] Unknown tool names, and every agent with no shipped adapter, fall back to
+      `'other'` — never throw.
+- [x] `packages/db/sql/migrations/0002_tool_category_backfill.sql` reclassifies
+      existing `PostToolUse` rows from `(agent_type, tool_name, mcp_server)`.
+- [x] The seed inserts the true category at row-creation time via the same shared
+      function; `finalizeTelemetry()`'s fabricated `CASE` and its false comment are
+      removed.
+- [x] Unit tests per agent (including MCP edge cases and the unknown-tool
+      fallback), a test pinning the taxonomy union itself, and a conformance test
+      (in the spirit of `apps/hook/src/adapters/conformance.ts`) asserting every
+      adapter's `tool.category` stays inside the declared union.
 
 ## Implementation notes
 
-Non-binding — the owning agent should replace this section.
+Per-agent tool-name tables are sourced from each adapter's own test fixtures (the
+ids/spellings the agent actually emits) plus each agent's publicly documented tool
+set where fixtures don't cover a name — see `packages/schemas/src/tool-category.ts`
+for the citations. `omp`'s fuller ~32-tool surface (LSP/DAP among them) is not
+individually confirmed against a real session; unmapped names fall back to
+`'other'` rather than guessing.
 
 ## Files touched
 
-- `apps/hook/src/lib/**`
-- `apps/hook/src/adapters/**`
-- `packages/schemas/src/**`
+- `packages/schemas/src/tool-category.ts`, `tool-category.test.ts`, `index.ts`
+- `apps/hook/src/lib/payload.ts`, `import-synth.ts`
+- `apps/hook/src/adapters/{codex,copilot,gemini-cli,opencode,pi-family,stdin-hook-factory}.ts`
+- `apps/hook/src/adapters/tool-category-conformance.test.ts` (new)
+- `apps/hook/src/adapters/stdin-hook-factory.test.ts`, `apps/hook/src/lib/queue.test.ts`
+  (golden-output assertions updated from `'builtin'` to the real category)
+- `packages/db/src/seed.ts`
+- `packages/db/sql/migrations/0002_tool_category_backfill.sql` (new)
 
 ## Out of scope
 
-- Sub-agent identification (`subagent_type`) — that was P14-001, already
-  fixed and independent of this taxonomy.
-- Turn-linked cost attribution — P14-003.
+- `apps/web/src/lib/org-queries.ts` and `team-queries.ts` — owned by a sibling PR
+  in flight during this task. **Found but not fixed**: both already query
+  `tool_category = 'agent'` for their subagent-spawn panels
+  (`getSubagentUsage`/equivalent). `'agent'` is not in the `DESIGN_DOC.md` §5.3
+  taxonomy and nothing has ever produced it — not the old fabricated seed
+  (`'builtin'`), not `finalizeTelemetry()`'s CASE (which mapped `Agent` →
+  `'task'`), not this task's `toolCategory()` (which also returns `'task'` for
+  Claude Code's `Task` tool). That panel has been silently empty since it was
+  written; the fix is to filter on `'task'`, not `'agent'`.
+- Cost attribution — separate PR.
+- Making the seed's synthetic tool names agent-aware (Codex/opencode seeded
+  sessions still draw from the Claude-Code-shaped `TOOL_NAMES` list, so most of
+  those rows resolve to `'other'`) — seed's tool-name generation was never
+  agent-aware; that is a larger, separate change than wiring the categorization
+  function through.
 
 ## Verification
 
 ```bash
 bun install
-bun run --cwd apps/hook test
-bun run --cwd packages/schemas test
-bun run check && bun run typecheck && bun run build && bun run test
+bun run check
+bun run typecheck
+bun run build
+bun run test
+bun run --cwd apps/hook bench   # perf budget, on real hardware — not CI
 ```
+
+The SQL backfill was reviewed by reading it and by running the migration runner's
+own `parseSqlStatements()` against the file to confirm it parses to exactly one
+statement. It has **not** been executed against a live database this session —
+two sibling agents were running concurrently against the same local machine and
+`docker:*` / `db:deploy` / `db:seed` were off-limits. Needs that check at review
+time.
