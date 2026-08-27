@@ -25,6 +25,23 @@ const ConfigSchema = z.object({
     .default(false),
   database_url: z.string().min(1),
   git_sha: z.string().default('dev'),
+  // ── GitHub AI-credit billing source for reconcile-cost (P14-017) ──────────
+  // Wired only when github_billing_token AND github_billing_scope are both set,
+  // mirroring the Anthropic path: absent config leaves NullBillingSource alone.
+  // Optional `product` filter — unset means every AI-credit product on the
+  // account, which over-counts against our CLI-only event stream. GHES host
+  // override; unset → github.com (or the shared client's GITHUB_HOST default).
+  github_billing_host: z.string().url().optional(),
+  github_billing_product: z.string().optional(),
+  // Organization login, enterprise slug, or username — matching the scope kind.
+  github_billing_scope: z.string().optional(),
+  github_billing_scope_kind: z.enum(['organization', 'enterprise', 'user']).default('organization'),
+  // Classic PAT with billing read access. GitHub's billing usage endpoints do
+  // not accept fine-grained PATs; only the enterprise scope also takes a
+  // GitHub App token. Deliberately separate from GITHUB_SYNC_TOKEN — team sync
+  // needs org:read, this needs the bill, and one credential doing both is a
+  // blast radius nobody chose.
+  github_billing_token: z.string().optional(),
   github_sync_token: z.string().optional(),
   // Jira issue-metadata sync (full P5-004 integration). The sync-jira job runs
   // only when jira_base_url AND jira_api_token are both set. With jira_email
@@ -128,6 +145,11 @@ export function loadConfig(): Config {
     billing_reconciliation_enabled: process.env.BILLING_RECONCILIATION_ENABLED,
     database_url: process.env.DATABASE_URL,
     git_sha: process.env.GIT_SHA ?? process.env.COMMIT_SHA,
+    github_billing_host: process.env.GITHUB_BILLING_HOST,
+    github_billing_product: process.env.GITHUB_BILLING_PRODUCT,
+    github_billing_scope: process.env.GITHUB_BILLING_SCOPE,
+    github_billing_scope_kind: process.env.GITHUB_BILLING_SCOPE_KIND,
+    github_billing_token: process.env.GITHUB_BILLING_TOKEN,
     github_sync_token: process.env.GITHUB_SYNC_TOKEN,
     jira_api_token: process.env.JIRA_API_TOKEN,
     jira_base_url: process.env.JIRA_BASE_URL,

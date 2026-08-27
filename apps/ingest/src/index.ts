@@ -6,6 +6,8 @@ import type { AppDeps } from './app';
 import { createApp } from './app';
 import { loadConfig } from './config';
 import { AnthropicBillingSource } from './jobs/anthropic-billing-source';
+import { GitHubBillingSource } from './jobs/github-billing-source';
+import { type BillingSource, CompositeBillingSource } from './jobs/reconcile-cost';
 import { startScheduler } from './jobs/scheduler';
 import { AnthropicJudgeClient } from './lib/judge-client';
 import { createLogger } from './lib/logger';
@@ -79,19 +81,39 @@ const jiraConfig =
       }
     : undefined;
 
-// Vendor-cost source for reconcile-cost — the Anthropic Cost Report client when
-// an admin key is configured; otherwise undefined (scheduler falls back to the
-// NullBillingSource no-op). Reconciliation still requires BILLING_RECONCILIATION_ENABLED.
-const billingSource = config.anthropic_admin_key
-  ? new AnthropicBillingSource({
+// Vendor-cost sources for reconcile-cost, each wired only when its own
+// credential is configured. With none configured this is undefined and the
+// scheduler falls back to the NullBillingSource no-op, exactly as before either
+// existed. Reconciliation still requires BILLING_RECONCILIATION_ENABLED.
+const vendorBillingSources: BillingSource[] = [];
+if (config.anthropic_admin_key) {
+  vendorBillingSources.push(
+    new AnthropicBillingSource({
       adminKey: config.anthropic_admin_key,
       baseUrl: config.anthropic_base_url,
       logger,
       ...(config.anthropic_cost_workspace_id
         ? { workspaceId: config.anthropic_cost_workspace_id }
         : {}),
-    })
-  : undefined;
+    }),
+  );
+}
+// GitHub's AI-credit usage report (P14-017) — needs both a billing-read token
+// and the account it should read, since there is no sensible default account.
+if (config.github_billing_token && config.github_billing_scope) {
+  vendorBillingSources.push(
+    new GitHubBillingSource({
+      logger,
+      scope: config.github_billing_scope,
+      scopeKind: config.github_billing_scope_kind,
+      token: config.github_billing_token,
+      ...(config.github_billing_host ? { host: config.github_billing_host } : {}),
+      ...(config.github_billing_product ? { product: config.github_billing_product } : {}),
+    }),
+  );
+}
+const billingSource =
+  vendorBillingSources.length > 0 ? new CompositeBillingSource(vendorBillingSources) : undefined;
 
 // LLM-as-judge (P13-009). Wired only when all three of an API key, an operator
 // user id, and a *registered* revision for the configured model are present.

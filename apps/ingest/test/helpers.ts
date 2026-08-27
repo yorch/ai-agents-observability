@@ -53,6 +53,7 @@ export function makeTestConfig(): Config {
     billing_reconciliation_enabled: false,
     database_url: 'postgresql://test:test@localhost:5432/test',
     git_sha: 'abc1234',
+    github_billing_scope_kind: 'organization',
     jira_project_keys: [],
     judge_high_cost_usd: 5,
     judge_max_sessions_per_run: 25,
