@@ -3,7 +3,7 @@ id: P14-003
 title: Claude Code per-turn usage capture + turn linkage
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P14-002]
 blocks: [P14-004]

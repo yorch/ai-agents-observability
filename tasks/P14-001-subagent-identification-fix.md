@@ -3,7 +3,7 @@ id: P14-001
 title: Fix sub-agent identification and stop reporting fabricated tool cost
 phase: 14
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: []
 blocks: [P14-003]
