@@ -9,15 +9,19 @@ import {
 import type { PriceTableRegistry } from '../src/lib/price-tables';
 
 /**
- * The parts of P14-004 a mock cannot reach: that
- * `0003_tool_cost_attribution.sql` actually applied, that the two new columns
- * are visible through the `interactive_events` view (they are not, unless that
- * migration redefined it — `SELECT *` is expanded at view-creation time), that a
- * compressed chunk can be decompressed / written / recompressed, and that
- * Postgres' NUMERIC(12,6) stores the number JS computed.
+ * The parts of P14-004 a mock cannot reach: that the two attribution columns
+ * actually applied (they arrived in `0003_tool_cost_attribution.sql` and were
+ * folded into `0001_init.sql` by the 2026-08-26 pre-deployment squash), that
+ * they are visible through the `interactive_events` view (`SELECT *` is
+ * expanded at view-creation time, so a view created before the columns would
+ * not carry them), that a compressed chunk can be decompressed / written /
+ * recompressed, and that Postgres' NUMERIC(12,6) stores the number JS computed.
  *
  * Skips when `DATABASE_URL` is unset — the same gate
- * `reprice-events.db.test.ts` and `packages/db/test/schema.test.ts` use.
+ * `reprice-events.db.test.ts` and `packages/db/test/schema.test.ts` use. Run
+ * those three one file at a time: they share one `events` hypertable and its
+ * continuous aggregates, and in parallel they deadlock or read each other's
+ * compressed-chunk counts (see `tasks/P14-009-migration-consolidation.md`).
  */
 
 const errors: unknown[] = [];
