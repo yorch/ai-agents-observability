@@ -47,10 +47,10 @@ function cacheSummary(overrides: Partial<UserCacheSummaryRow> = {}): UserCacheSu
 function modelRouting(overrides: Partial<UserModelRoutingRow> = {}): UserModelRoutingRow {
   return {
     agentType: 'CLAUDE_CODE',
+    attributedCostUsd: 8,
     callCount: 40,
     model: 'claude-opus-4-8',
     toolCategory: 'fs_read',
-    totalCostUsd: 8,
     ...overrides,
   };
 }
@@ -205,22 +205,22 @@ describe('buildRecommendations', () => {
       mcp: [],
       modelRouting: [
         modelRouting({
+          attributedCostUsd: 9,
           callCount: 30,
           model: 'claude-opus-4-8',
           toolCategory: 'fs_read',
-          totalCostUsd: 9,
         }),
         modelRouting({
+          attributedCostUsd: 7,
           callCount: 20,
           model: 'claude-opus-4-8',
           toolCategory: 'search',
-          totalCostUsd: 7,
         }),
         modelRouting({
+          attributedCostUsd: 2,
           callCount: 10,
           model: 'claude-opus-4-8',
           toolCategory: 'exec',
-          totalCostUsd: 2,
         }),
       ],
       policies: POLICIES,
@@ -253,7 +253,7 @@ describe('buildRecommendations', () => {
       cacheSummary: cacheSummary(),
       mcp: [],
       // Spend clears the floor, call count does not.
-      modelRouting: [modelRouting({ callCount: 24, totalCostUsd: 40 })],
+      modelRouting: [modelRouting({ attributedCostUsd: 40, callCount: 24 })],
       policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,
@@ -265,7 +265,7 @@ describe('buildRecommendations', () => {
       cacheSummary: cacheSummary(),
       mcp: [],
       // Call count clears the floor, spend does not.
-      modelRouting: [modelRouting({ callCount: 400, totalCostUsd: 4.99 })],
+      modelRouting: [modelRouting({ attributedCostUsd: 4.99, callCount: 400 })],
       policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,
@@ -278,7 +278,9 @@ describe('buildRecommendations', () => {
     const recs = buildRecommendations({
       cacheSummary: cacheSummary(),
       mcp: [],
-      modelRouting: [modelRouting({ callCount: 500, model: 'claude-haiku-4-5', totalCostUsd: 90 })],
+      modelRouting: [
+        modelRouting({ attributedCostUsd: 90, callCount: 500, model: 'claude-haiku-4-5' }),
+      ],
       policies: POLICIES,
       scoredSessionCount: 8,
       sources: NO_FRICTION,

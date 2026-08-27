@@ -50,10 +50,10 @@ const POLICIES = new Map([
 function row(over: Partial<OrgModelRoutingRow> = {}): OrgModelRoutingRow {
   return {
     agentType: 'CLAUDE_CODE',
+    attributedCostUsd: 50,
     callCount: 120,
     model: 'claude-opus-4-1',
     toolCategory: 'fs_read',
-    totalCostUsd: 50,
     ...over,
   };
 }
@@ -99,19 +99,19 @@ describe('computeRoutingRecommendations', () => {
 
   it('reports confidence from the spend and call thresholds together', () => {
     const high = computeRoutingRecommendations(
-      [row({ callCount: 120, totalCostUsd: 50 })],
+      [row({ attributedCostUsd: 50, callCount: 120 })],
       30,
       POLICIES,
     );
     expect(high.recommendations[0]?.confidence).toBe('high');
     const fewCalls = computeRoutingRecommendations(
-      [row({ callCount: 99, totalCostUsd: 50 })],
+      [row({ attributedCostUsd: 50, callCount: 99 })],
       30,
       POLICIES,
     );
     expect(fewCalls.recommendations[0]?.confidence).toBe('medium');
     const lowSpend = computeRoutingRecommendations(
-      [row({ callCount: 120, totalCostUsd: 19 })],
+      [row({ attributedCostUsd: 19, callCount: 120 })],
       30,
       POLICIES,
     );
@@ -121,8 +121,8 @@ describe('computeRoutingRecommendations', () => {
   it('orders top categories by spend, since that array is persisted and rendered', () => {
     const { recommendations } = computeRoutingRecommendations(
       [
-        row({ callCount: 60, toolCategory: 'fs_read', totalCostUsd: 10 }),
-        row({ callCount: 60, toolCategory: 'search', totalCostUsd: 40 }),
+        row({ attributedCostUsd: 10, callCount: 60, toolCategory: 'fs_read' }),
+        row({ attributedCostUsd: 40, callCount: 60, toolCategory: 'search' }),
       ],
       30,
       POLICIES,
@@ -150,9 +150,9 @@ describe('computeRoutingRecommendations', () => {
   it('counts only the policy cheap categories', () => {
     const { recommendations } = computeRoutingRecommendations(
       [
-        row({ callCount: 100, toolCategory: 'fs_read', totalCostUsd: 40 }),
-        row({ callCount: 100, toolCategory: 'search', totalCostUsd: 10 }),
-        row({ callCount: 900, toolCategory: 'exec', totalCostUsd: 900 }),
+        row({ attributedCostUsd: 40, callCount: 100, toolCategory: 'fs_read' }),
+        row({ attributedCostUsd: 10, callCount: 100, toolCategory: 'search' }),
+        row({ attributedCostUsd: 900, callCount: 900, toolCategory: 'exec' }),
       ],
       30,
       POLICIES,
@@ -163,14 +163,14 @@ describe('computeRoutingRecommendations', () => {
 
   it('suppresses rows under the call or spend floor', () => {
     const thinCalls = computeRoutingRecommendations(
-      [row({ callCount: MIN_ROUTING_CHEAP_CALLS - 1, totalCostUsd: 500 })],
+      [row({ attributedCostUsd: 500, callCount: MIN_ROUTING_CHEAP_CALLS - 1 })],
       30,
       POLICIES,
     );
     expect(thinCalls.recommendations).toHaveLength(0);
 
     const thinSpend = computeRoutingRecommendations(
-      [row({ callCount: 5000, totalCostUsd: MIN_ROUTING_CHEAP_SPEND_USD - 0.01 })],
+      [row({ attributedCostUsd: MIN_ROUTING_CHEAP_SPEND_USD - 0.01, callCount: 5000 })],
       30,
       POLICIES,
     );

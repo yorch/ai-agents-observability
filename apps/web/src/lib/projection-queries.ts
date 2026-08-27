@@ -157,6 +157,17 @@ export async function getSpendActuals(
  * The category set comes from `routing-queries.ts` rather than being restated,
  * so the projection and its check can never disagree about what "retrieval-only"
  * means.
+ *
+ * It measures the SAME quantity the claim was registered from — the P14-005
+ * redistribution documented on `getOrgModelRoutingBreakdown` (org-queries.ts):
+ * the model off the issuing turn's `Stop`, the dollars off the tool row's
+ * `attributed_cost_usd`. If the baseline and the actual ever came from two
+ * different lenses, every realization would report a saving or a regression that
+ * is purely a change of measure.
+ *
+ * `actualValue` stays a number rather than going nullable: `realizeProjection`
+ * takes a measurement, and a window with no attribution is reported through
+ * `volume` (the call count), which is zero exactly when nothing was measured.
  */
 export async function getRoutingActuals(
   model: string,
@@ -164,17 +175,23 @@ export async function getRoutingActuals(
   to: Date,
 ): Promise<PostPeriodActuals> {
   const categories = Prisma.join([...CHEAP_SUITABLE_CATEGORIES]);
-  const rows = await getPrisma().$queryRaw<{ call_count: bigint; cheap_cost: number }[]>(
+  const rows = await getPrisma().$queryRaw<{ call_count: bigint; cheap_cost: string | null }[]>(
     Prisma.sql`
       SELECT
-        COALESCE(SUM(cost_usd), 0) AS cheap_cost,
-        COUNT(*)                   AS call_count
-      FROM interactive_events
-      WHERE ts >= ${from}
-        AND ts < ${to}
-        AND event_type = 'PostToolUse'
-        AND model = ${model}
-        AND tool_category IN (${categories})
+        SUM(tool.attributed_cost_usd)::text AS cheap_cost,
+        COUNT(*)                            AS call_count
+      FROM interactive_events tool
+      JOIN interactive_events turn
+        ON turn.session_id  = tool.session_id
+       AND turn.event_id    = tool.parent_event_id
+       AND turn.ts         >= ${from}
+       AND turn.ts         <  ${to}
+       AND turn.event_type  = 'Stop'
+       AND turn.model       = ${model}
+      WHERE tool.ts >= ${from}
+        AND tool.ts < ${to}
+        AND tool.event_type = 'PostToolUse'
+        AND tool.tool_category IN (${categories})
     `,
   );
 

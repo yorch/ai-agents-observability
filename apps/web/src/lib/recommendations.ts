@@ -4,6 +4,7 @@ import {
   MIN_SAVINGS_RATIO,
   type ModelPolicySnapshot,
 } from '@ai-agents-observability/schemas';
+import { addNullable } from './attribution-coverage';
 import type { FrictionSources } from './effectiveness-queries';
 import type {
   McpUsageRow,
@@ -81,9 +82,20 @@ function buildRoutingRecommendation(
 ): Recommendation[] {
   // Keyed by (agent, model): the same model id under two agents prices from two
   // different tables, so they must never be summed together.
+  // Spend is `number | null` throughout: the rows carry the P14-005 attributed
+  // cost, which is NULL wherever the events have no turn linkage. Adding with
+  // `addNullable` keeps that null from turning into a $0 that would read as
+  // "this model costs nothing on retrieval" and suppress the very hint this
+  // function exists to raise.
   const byModel = new Map<
     string,
-    { agentType: string; cheapCalls: number; cheapSpend: number; model: string; totalSpend: number }
+    {
+      agentType: string;
+      cheapCalls: number;
+      cheapSpend: number | null;
+      model: string;
+      totalSpend: number | null;
+    }
   >();
   for (const row of rows) {
     const policy = policies.get(row.agentType);
@@ -94,14 +106,14 @@ function buildRoutingRecommendation(
     const agg = byModel.get(key) ?? {
       agentType: row.agentType,
       cheapCalls: 0,
-      cheapSpend: 0,
+      cheapSpend: null,
       model: row.model,
-      totalSpend: 0,
+      totalSpend: null,
     };
-    agg.totalSpend += row.totalCostUsd;
+    agg.totalSpend = addNullable(agg.totalSpend, row.attributedCostUsd);
     if (isCheapCategory(policy, row.toolCategory)) {
       agg.cheapCalls += row.callCount;
-      agg.cheapSpend += row.totalCostUsd;
+      agg.cheapSpend = addNullable(agg.cheapSpend, row.attributedCostUsd);
     }
     byModel.set(key, agg);
   }
@@ -109,9 +121,17 @@ function buildRoutingRecommendation(
   const candidates = [...byModel.values()]
     .filter(
       (agg) =>
-        agg.cheapCalls >= MIN_ROUTING_CHEAP_CALLS && agg.cheapSpend >= MIN_ROUTING_CHEAP_SPEND_USD,
+        agg.cheapCalls >= MIN_ROUTING_CHEAP_CALLS &&
+        agg.cheapSpend !== null &&
+        agg.cheapSpend >= MIN_ROUTING_CHEAP_SPEND_USD,
     )
     .flatMap((agg) => {
+      const cheapSpend = agg.cheapSpend;
+      const totalSpend = agg.totalSpend;
+      // Re-asserted for the type checker; the filter above already dropped it.
+      if (cheapSpend === null) {
+        return [];
+      }
       const policy = policies.get(agg.agentType);
       const savings = policy ? estimateRoutingSavings(policy, agg.model) : null;
       // No price entry, or nothing cheaper to route to → no tip, never a
@@ -122,9 +142,9 @@ function buildRoutingRecommendation(
       return [
         {
           ...agg,
-          cheapShare: agg.totalSpend > 0 ? agg.cheapSpend / agg.totalSpend : 0,
-          savingHigh: agg.cheapSpend * savings.high,
-          savingLow: agg.cheapSpend * savings.low,
+          cheapShare: totalSpend !== null && totalSpend > 0 ? cheapSpend / totalSpend : 0,
+          savingHigh: cheapSpend * savings.high,
+          savingLow: cheapSpend * savings.low,
           target: savings.bestTargetModel,
         },
       ];
