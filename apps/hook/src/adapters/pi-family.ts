@@ -11,6 +11,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  admitsToMetadata,
   type Event,
   type EventType,
   type ToolInfo,
@@ -375,9 +376,14 @@ export function createPiFamilyAdapter(config: PiFamilyConfig): HookAdapter {
       : eventType === 'Stop'
         ? STOP_KNOWN_KEYS
         : OTHER_KNOWN_KEYS;
+    // Content-free passthrough (P14-008). The installed extension forwards
+    // `...event` — the WHOLE native event object — so whatever Pi or OMP puts on
+    // `before_agent_start` or `turn_end` arrives here; anything not admitted is
+    // dropped rather than written to `events.metadata`. See
+    // packages/schemas/src/metadata-safety.ts.
     const metadata: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(raw)) {
-      if (!knownKeys.has(key)) {
+      if (!knownKeys.has(key) && admitsToMetadata(key, value)) {
         metadata[key] = value;
       }
     }

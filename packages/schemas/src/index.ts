@@ -95,6 +95,12 @@ export {
   parseJudgeVerdict,
   resolveJudgeRevision,
 } from './judge';
+export {
+  admitsToMetadata,
+  CONTENT_BEARING_KEYS,
+  MAX_METADATA_STRING,
+  stripContentBearingKeys,
+} from './metadata-safety';
 export type {
   ModelPolicyOverrides,
   ModelPolicySnapshot,

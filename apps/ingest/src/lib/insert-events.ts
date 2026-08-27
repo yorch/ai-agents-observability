@@ -4,6 +4,7 @@ import {
   mergeRunKind,
   type RunKindDb,
   runKindToDbEnum,
+  stripContentBearingKeys,
 } from '@ai-agents-observability/schemas';
 
 import { computeCostUsd } from './cost';
@@ -65,6 +66,17 @@ export async function insertEventsBatch(
     // metadata jsonb it used to ride in: `jobs/link-turn-events.ts` joins on
     // `(session_id, tool_use_id)`, and a jsonb extraction over the events
     // hypertable cannot use an index (P14-006).
+    //
+    // Server-side half of P14-008. The capture-side fix is in the hook, but the
+    // hook is a binary developers install and upgrade on their own schedule, so
+    // an un-upgraded machine keeps sending the pre-fix shape for as long as it
+    // runs. This is the choke point an operator controls, and the last one before
+    // the value becomes a durable, unredacted JSONB row. NAME rule only
+    // (packages/schemas/src/metadata-safety.ts) — the shape rule would strip
+    // legitimate derived values, including the `tool_use_ids` array the
+    // turn-linkage join above depends on.
+    const metadataJson = JSON.stringify(stripContentBearingKeys(e.metadata));
+
     return Prisma.sql`(
       ${e.event_id}::uuid,
       ${e.session_id}::uuid,
@@ -101,7 +113,7 @@ export async function insertEventsBatch(
       ${e.session_context.mode},
       ${runKindBySession.get(e.session_id) ?? runKindToDbEnum(e.session_context.run_kind)},
       ${typeof e.metadata.notification_kind === 'string' ? e.metadata.notification_kind : null},
-      ${JSON.stringify(e.metadata)}::jsonb
+      ${metadataJson}::jsonb
     )`;
   });
 

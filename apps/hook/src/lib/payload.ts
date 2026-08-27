@@ -36,9 +36,20 @@ export type ClaudeCodeHookPayload = {
 } & Record<string, unknown>;
 
 // `permission_mode` is captured structurally into session_context.mode, so it is
-// a known key (not duplicated into metadata). `notification_type` / `message` are
-// intentionally left out of KNOWN_KEYS so they pass through to metadata as the raw
-// record alongside the derived `notification_kind`.
+// a known key (not duplicated into metadata). `notification_type` is intentionally
+// left out so it passes through to metadata as the raw record alongside the derived
+// `notification_kind`.
+//
+// This list is NOT the privacy boundary and never was — it is "captured elsewhere,
+// don't duplicate". The boundary is `admitsToMetadata`
+// (packages/schemas/src/metadata-safety.ts), applied to every key this list does
+// not name. Reading it as the boundary is what let Claude Code's
+// `last_assistant_message` — a Stop/SubagentStop field its own hook schema
+// describes as "Text content of the last assistant message before stopping" —
+// land in `events.metadata` unredacted (P14-008). Its stablemates on the same
+// hooks (`custom_instructions`, `session_title`, `compact_summary`,
+// `background_tasks[].description`) are refused by the same rule, and so is the
+// notification `message` that used to ride through here.
 export const CLAUDE_KNOWN_KEYS = [
   'cwd',
   'hook_event_name',
