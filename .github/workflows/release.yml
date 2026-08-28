@@ -96,13 +96,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Check if the branch already exists
-          if git ls-remote --exit-code --heads origin "${BRANCH}" >/dev/null 2>&1; then
-            echo "Release branch ${BRANCH} already exists — updating."
-            git checkout "${BRANCH}" || git checkout -b "${BRANCH}"
-          else
-            git checkout -b "${BRANCH}"
-          fi
+          # The release branch is bot-managed and regenerated from the
+          # current HEAD each time, so force-push is safe — the CHANGELOG
+          # content is deterministic for a given commit.
+          git checkout -B "${BRANCH}"
 
           git add CHANGELOG.md
           git commit -m "chore: release ${TAG}" || {
@@ -110,7 +107,7 @@ jobs:
             exit 0
           }
 
-          git push origin "${BRANCH}"
+          git push --force origin "${BRANCH}"
 
           # Check if a PR already exists for this branch
           PR_NUMBER=$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
