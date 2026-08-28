@@ -98,6 +98,22 @@ points at a **directory** is collated into one JSONL by the shipper
 (`lib/transcript-collate.ts`), out of the hot path. That rule is agent-neutral,
 and it closed opencode's P8-004 transcript gap in P12-009.
 
+## Historical import
+
+`commands/import.ts` owns the shared auth, readiness, batching, upload, and summary
+flow. Agent-specific discovery and synthesis live behind `lib/import-source.ts`:
+Claude Code JSONL, Codex rollout JSONL, OpenCode's read-only SQLite store, and the
+Pi/OMP session JSONL family. Imported events use deterministic IDs and original
+timestamps so reruns deduplicate; imports must still walk skipped history to preserve
+turn ordinals and cumulative token baselines. Never put prompt, response, or tool
+content into event metadata. Transcript sources pass through the same client-side
+redaction and compression as live uploads; temporary OpenCode JSONL is owner-only,
+removed after upload, and stale staging is cleared on the next import or `purge-local`.
+
+Endpoint resolution belongs in `lib/config.ts`: environment overrides persisted
+configuration, which overrides localhost defaults. Resolve URLs at call/startup time,
+not module import time, so daemon restarts and tests observe config changes.
+
 ## Two hard invariants
 
 - **`hook <kind>` always exits 0.** A broken hook must never interrupt the host agent.
@@ -156,8 +172,8 @@ src/
   flusher.ts       # long-running: drains queue, batches → POST /v1/events
   shipper.ts       # long-running: redacts + zstd + chunk-uploads transcripts
   adapters/        # per-agent capture (the seam)
-  commands/        # login install uninstall status pause resume purge import
-  lib/             # queue (WAL), git, identity, payload, transcript parsing, backoff
+  commands/        # login config install uninstall status pause resume purge import
+  lib/             # queue, persisted config, import sources, adapters' shared parsing
 ```
 
 **Adapter working state goes under `agentStateDir(<agent>)`** (`lib/paths.ts`) —

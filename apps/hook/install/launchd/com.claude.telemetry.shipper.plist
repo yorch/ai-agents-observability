@@ -17,10 +17,5 @@
   <string>__TELEMETRY_HOME__/shipper.log</string>
   <key>StandardErrorPath</key>
   <string>__TELEMETRY_HOME__/shipper.log</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>INGEST_BASE_URL</key>
-    <string>__INGEST_BASE_URL__</string>
-  </dict>
 </dict>
 </plist>

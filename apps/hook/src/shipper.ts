@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { createZstdCompress } from 'node:zlib';
 
 import { loadHookToken } from './lib/identity';
-import { INGEST_BASE_URL } from './lib/ingest';
+import { getIngestBaseUrl } from './lib/ingest';
 import { log } from './lib/log';
 import { shipQueueDir } from './lib/paths';
 import {
@@ -291,7 +291,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
     discardCollated(sourcePath);
   }
 
-  const url = `${INGEST_BASE_URL}/v1/transcripts/${session_id}`;
+  const url = `${getIngestBaseUrl()}/v1/transcripts/${session_id}`;
   try {
     const res = await throttledUpload(url, body, {
       Authorization: `Bearer ${jwt}`,
@@ -365,7 +365,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
 }
 
 export async function runShipper(): Promise<void> {
-  log('info', 'shipper.start', { ingestBaseUrl: INGEST_BASE_URL });
+  log('info', 'shipper.start', { ingestBaseUrl: getIngestBaseUrl() });
 
   // A staged collation is an unredacted plaintext copy of an agent's history,
   // normally deleted the moment its upload finishes. One that survived a kill

@@ -1,4 +1,5 @@
 import { type HookAdapter, selectAdapter } from './adapters';
+import { runConfig } from './commands/config';
 import { runImport } from './commands/import';
 import { runInstall } from './commands/install';
 import { runLogin } from './commands/login';
@@ -33,11 +34,12 @@ Usage: claude-telemetry <command> [options]
 
 Commands:
   login         Authenticate with the observability server (device-code flow)
+  config        Persist or show web and ingest service URLs
   status        Show auth status, queue depth, and service state
   pause         Pause telemetry collection (writes a marker file)
   resume        Resume telemetry collection (removes the marker)
   purge-local   Remove all local data (queue, logs, identity) — use --yes to confirm
-  import         Import historical Claude Code sessions from ~/.claude/projects
+  import         Import historical Claude Code, Codex, OpenCode, Pi, or OMP sessions
   install       Write launchd/systemd service files and print the hook snippet
   uninstall     Remove service files (does not remove local data)
 
@@ -48,6 +50,7 @@ Commands:
   shipper       Watch for transcript files and upload them to /v1/transcripts (long-running)
 
 Options:
+  --agent <name> Select the agent for install, hook, or historical import
   --quiet        Suppress non-fatal output (errors still logged to file)
   -V, --version  Show version
   -h, --help     Show help
@@ -95,6 +98,10 @@ async function main(): Promise<number> {
 
   if (cmd === 'login') {
     return runLogin();
+  }
+
+  if (cmd === 'config' || cmd === 'configure') {
+    return runConfig(positional);
   }
 
   if (cmd === 'status') {

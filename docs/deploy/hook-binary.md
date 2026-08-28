@@ -70,9 +70,20 @@ sudo mv claude-telemetry-linux-x64 /usr/local/bin/claude-telemetry
 ## Authenticate and install hooks
 
 ```bash
+# Persist these first when the platform is not running on localhost.
+claude-telemetry config set web-url https://observability.example.com
+claude-telemetry config set ingest-url https://ingest.example.com
+
 claude-telemetry login      # GitHub device-code OAuth flow
 claude-telemetry install    # writes launchd/systemd services + prints hook snippet
 claude-telemetry status     # verify everything is healthy
+```
+
+After login, historical sessions can be previewed without uploading:
+
+```bash
+claude-telemetry import --agent codex --dry-run
+# Also supported: claude-code, opencode, pi, omp
 ```
 
 See [`apps/hook/README.md`](../../apps/hook/README.md) for the full CLI reference.

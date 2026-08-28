@@ -156,6 +156,7 @@ let tmpProjects: string;
 beforeEach(() => {
   tmpHome = mkdtempSync(join(tmpdir(), 'import-test-home-'));
   tmpProjects = mkdtempSync(join(tmpdir(), 'import-test-projects-'));
+  process.env.CLAUDE_TELEMETRY_CONFIG = join(tmpHome, 'config.json');
   process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
   process.env.CLAUDE_PROJECTS_DIR = tmpProjects;
 });
@@ -163,9 +164,11 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(tmpHome, { force: true, recursive: true });
   rmSync(tmpProjects, { force: true, recursive: true });
+  delete process.env.CLAUDE_TELEMETRY_CONFIG;
   delete process.env.CLAUDE_TELEMETRY_HOME;
   delete process.env.CLAUDE_PROJECTS_DIR;
   delete process.env.INGEST_BASE_URL;
+  delete process.env.PI_HOME;
 });
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -205,6 +208,29 @@ describe('runImport — auth checks', () => {
     } finally {
       globalThis.fetch = origFetch;
     }
+  });
+});
+
+describe('runImport — agent dispatch', () => {
+  it('rejects agents without a historical import source', async () => {
+    expect(await runImport(['import', '--agent', 'copilot', '--dry-run', '--quiet'])).toBe(1);
+  });
+
+  it('imports a Pi session through the shared dry-run pipeline', async () => {
+    process.env.PI_HOME = join(tmpHome, 'pi');
+    const sessionDir = join(process.env.PI_HOME, 'agent', 'sessions', 'project');
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(
+      join(sessionDir, '2026-08-27T17-22-00Z_01a0443e-2b70-7000-b3b2-e6b8283f80b5.jsonl'),
+      `${JSON.stringify({
+        cwd: '/repo',
+        id: '01a0443e-2b70-7000-b3b2-e6b8283f80b5',
+        timestamp: '2026-08-27T17:22:00.000Z',
+        type: 'session',
+      })}\n`,
+    );
+
+    expect(await runImport(['import', '--agent', 'pi', '--dry-run', '--quiet'])).toBe(0);
   });
 });
 

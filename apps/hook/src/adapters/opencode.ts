@@ -165,7 +165,7 @@ function buildLlm(raw: Record<string, unknown>): Event['llm'] | undefined {
     cost_usd: 0, // computed ingest-side from the opencode price table
     input_tokens: num(usage.input),
     model,
-    output_tokens: num(usage.output),
+    output_tokens: num(usage.output) + num(usage.reasoning),
   };
 }
 

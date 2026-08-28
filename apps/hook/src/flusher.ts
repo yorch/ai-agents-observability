@@ -9,7 +9,7 @@ import type { PrSnapshot } from './lib/github-pr';
 import { fetchOpenPrNumber, fetchPrSnapshot } from './lib/github-pr';
 import { fetchGitHubLogin, fetchUserTeam } from './lib/github-user';
 import { loadHookToken } from './lib/identity';
-import { INGEST_BASE_URL } from './lib/ingest';
+import { getIngestBaseUrl } from './lib/ingest';
 import { log } from './lib/log';
 import { flusherStatePath, telemetryHome } from './lib/paths';
 import { getProjectName } from './lib/project';
@@ -295,7 +295,8 @@ export async function runFlusher(): Promise<void> {
   const dbPath = `${telemetryHome()}/queue.db`;
   const reader = openQueueReader(dbPath);
 
-  log('info', 'flusher.start', { ingestBaseUrl: INGEST_BASE_URL });
+  const ingestBaseUrl = getIngestBaseUrl();
+  log('info', 'flusher.start', { ingestBaseUrl });
 
   // Bump the per-row attempt counter, then prune any row that just crossed the
   // cap. Pruning only here (right after a bump) avoids a full table scan on
@@ -348,7 +349,7 @@ export async function runFlusher(): Promise<void> {
       const attempt = consecutiveFailures;
 
       try {
-        const res = await fetch(`${INGEST_BASE_URL}/v1/events`, {
+        const res = await fetch(`${ingestBaseUrl}/v1/events`, {
           body,
           headers: {
             Authorization: `Bearer ${jwt}`,

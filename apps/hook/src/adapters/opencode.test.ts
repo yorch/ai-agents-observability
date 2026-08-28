@@ -68,12 +68,12 @@ describe('opencode adapter', () => {
     const ev = opencodeAdapter.mapPayload('session-idle', {
       model: 'claude-sonnet-4-5-20250929',
       sessionID: SESSION_ID,
-      tokens: { input: 1000, output: 200 },
+      tokens: { input: 1000, output: 200, reasoning: 25 },
     });
     expect(ev.event_type).toBe('Stop');
     expect(ev.llm?.model).toBe('claude-sonnet-4-5-20250929');
     expect(ev.llm?.input_tokens).toBe(1000);
-    expect(ev.llm?.output_tokens).toBe(200);
+    expect(ev.llm?.output_tokens).toBe(225);
   });
 
   // The regression test for P12-002: before normalization, a real `ses_` id failed

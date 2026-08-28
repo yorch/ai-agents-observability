@@ -2,11 +2,7 @@ import type { Event } from '@ai-agents-observability/schemas';
 
 import { buildBatchEnvelope } from '../flusher';
 import { buildZstdBody } from '../shipper';
-
-// Read at call time so test env overrides applied in beforeEach take effect.
-function ingestBaseUrl(): string {
-  return process.env.INGEST_BASE_URL ?? 'http://localhost:4000';
-}
+import { getIngestBaseUrl } from './config';
 
 export type ServerReadyResult = { ok: true } | { ok: false; message: string };
 
@@ -15,9 +11,11 @@ export type ServerReadyResult = { ok: true } | { ok: false; message: string };
  * Call before starting a large import to fail fast rather than processing thousands of events
  * only to have them rejected at the network layer.
  */
-export async function checkServerReady(): Promise<ServerReadyResult> {
+export async function checkServerReady(
+  ingestBaseUrl: string = getIngestBaseUrl(),
+): Promise<ServerReadyResult> {
   try {
-    const res = await fetch(`${ingestBaseUrl()}/readyz`, {
+    const res = await fetch(`${ingestBaseUrl}/readyz`, {
       signal: AbortSignal.timeout(5000),
     });
     if (res.ok) {
@@ -38,7 +36,7 @@ export async function checkServerReady(): Promise<ServerReadyResult> {
     }
   } catch (err) {
     return {
-      message: `Cannot reach ingest server at ${ingestBaseUrl()}: ${(err as Error).message}`,
+      message: `Cannot reach ingest server at ${ingestBaseUrl}: ${(err as Error).message}`,
       ok: false,
     };
   }
@@ -58,9 +56,13 @@ export type BatchResult = {
  * On 4xx (non-401): returns { accepted:0, deduped:0, rejected: events.length }
  *   (bad data the server won't accept — log and continue).
  */
-export async function postEventBatch(events: Event[], jwt: string): Promise<BatchResult> {
+export async function postEventBatch(
+  events: Event[],
+  jwt: string,
+  ingestBaseUrl: string = getIngestBaseUrl(),
+): Promise<BatchResult> {
   const body = JSON.stringify(buildBatchEnvelope(events));
-  const res = await fetch(`${ingestBaseUrl()}/v1/events`, {
+  const res = await fetch(`${ingestBaseUrl}/v1/events`, {
     body,
     headers: {
       Authorization: `Bearer ${jwt}`,
@@ -123,6 +125,7 @@ export async function uploadTranscript(
   sessionId: string,
   transcriptPath: string,
   jwt: string,
+  ingestBaseUrl: string = getIngestBaseUrl(),
 ): Promise<UploadResult> {
   let body: Uint8Array;
   let hash: string;
@@ -145,7 +148,7 @@ export async function uploadTranscript(
   }
 
   try {
-    const res = await fetch(`${ingestBaseUrl()}/v1/transcripts/${sessionId}`, {
+    const res = await fetch(`${ingestBaseUrl}/v1/transcripts/${sessionId}`, {
       body,
       headers: {
         Authorization: `Bearer ${jwt}`,

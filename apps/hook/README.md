@@ -41,6 +41,7 @@ claude-telemetry <command> [options]
 
 Commands:
   login         Authenticate with the observability server (device-code flow)
+  config        Persist or show web and ingest service URLs
   status        Show auth status, queue depth, and service state
   pause         Pause telemetry collection (writes a marker file)
   resume        Resume telemetry collection (removes the marker)
@@ -48,7 +49,7 @@ Commands:
   install       Write launchd/systemd service files and print the hook snippet
   uninstall     Remove service files (does not remove local data)
 
-  import        Import historical sessions from ~/.claude/projects into the server
+  import        Import historical Claude Code, Codex, OpenCode, Pi, or OMP sessions
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
   flusher       Drain the SQLite queue and POST batches to /v1/events (long-running)
   shipper       Watch for transcript files and upload them to /v1/transcripts (long-running)
@@ -62,13 +63,17 @@ Options:
 ## Quickstart
 
 ```bash
-# 1. Authenticate (prints a URL + code to complete the GitHub device flow)
+# 1. For a remote deployment, persist its endpoints (localhost is the default)
+claude-telemetry config set web-url https://observability.example.com
+claude-telemetry config set ingest-url https://ingest.example.com
+
+# 2. Authenticate (prints a URL + code to complete the GitHub device flow)
 claude-telemetry login
 
-# 2. Install background services and get the settings.json snippet
+# 3. Install background services and get the settings.json snippet
 claude-telemetry install
 
-# 3. Check everything looks healthy
+# 4. Check everything looks healthy
 claude-telemetry status
 ```
 
@@ -78,7 +83,26 @@ claude-telemetry status
 
 Runs a GitHub device-code OAuth flow via the observability web app. Prompts you to visit a URL and enter a short code. On success, writes a hook token to `~/.claude-telemetry/identity.json`.
 
-Reads `CLAUDE_TELEMETRY_API` (default: `http://localhost:3000`).
+Uses the persisted `web-url`, defaulting to `http://localhost:3000`.
+`CLAUDE_TELEMETRY_API` remains a higher-precedence override.
+
+### `config`
+
+Persists server endpoints in
+`${XDG_CONFIG_HOME:-~/.config}/claude-telemetry/config.json`. The flusher and
+shipper read this file at startup, so changing an endpoint does not require
+reinstalling their launchd/systemd services.
+
+```bash
+claude-telemetry config show
+claude-telemetry config path
+claude-telemetry config set web-url https://observability.example.com
+claude-telemetry config set ingest-url https://ingest.example.com
+claude-telemetry config unset ingest-url
+```
+
+Environment variables take precedence over persisted values, which take
+precedence over the localhost defaults.
 
 ### `status`
 
@@ -129,31 +153,40 @@ Removes the service files written by `install`. Does **not** remove local data (
 
 ### `import`
 
-Reads all `.jsonl` session files from `~/.claude/projects/` (or `$CLAUDE_PROJECTS_DIR`), synthesizes telemetry events, and POSTs them to the ingest server. Events are deduplicated server-side — safe to re-run.
+Imports historical sessions from the selected agent's local data store, synthesizes
+content-free telemetry events, and uploads client-redacted transcripts. Event IDs are
+deterministic and the server also deduplicates them, so imports are safe to re-run.
 
 ```bash
-# Import everything
-claude-telemetry import
-
-# Dry run (no network calls, no auth required)
+# Claude Code is the default
 claude-telemetry import --dry-run
+claude-telemetry import --since 2026-01-01
 
-# Only sessions on or after a date
-claude-telemetry import --since 2025-01-01
+# Other supported historical sources
+claude-telemetry import --agent codex --dry-run
+claude-telemetry import --agent opencode --since 2026-01-01
+claude-telemetry import --agent pi
+claude-telemetry import --agent omp
 
-# One specific session
-claude-telemetry import --session <session-id>
-
-# Events only, skip transcript uploads
-claude-telemetry import --no-transcripts
+# One native or normalized session ID; events only
+claude-telemetry import --agent codex --session <session-id> --no-transcripts
 ```
 
 Requires authentication (`claude-telemetry login`) unless `--dry-run` is passed.
 
+| Agent | Historical source |
+|---|---|
+| `claude-code` | `~/.claude/projects/**/*.jsonl` |
+| `codex` | `~/.codex/sessions/**/rollout-*.jsonl` |
+| `opencode` | `~/.local/share/opencode/opencode.db` |
+| `pi` | `~/.pi/agent/sessions/**/*.jsonl` |
+| `omp` | `~/.omp/agent/sessions/**/*.jsonl` (also probes `~/.oh-omp`) |
+
 | Flag | Description |
 |------|-------------|
-| `--since YYYY-MM-DD` | Skip entries older than this date |
-| `--session <id>` | Import only one session |
+| `--agent <name>` | Select `claude-code`, `codex`, `opencode`, `pi`, or `omp` |
+| `--since YYYY-MM-DD` | Skip events older than this date |
+| `--session <id>` | Import only one native or normalized session ID |
 | `--no-transcripts` | Skip transcript uploads |
 | `--dry-run` | Parse + count without posting anything |
 | `--quiet` | Suppress per-session progress output |
@@ -201,10 +234,15 @@ Hook entrypoints (`hook <kind>`) always exit 0 regardless of errors — a broken
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CLAUDE_TELEMETRY_API` | `http://localhost:3000` | Web app base URL (used by `login` and `purge-local`) |
-| `INGEST_BASE_URL` | `http://localhost:4000` | Ingest API base URL (used by `flusher`, `shipper`, and `import`) |
+| `CLAUDE_TELEMETRY_API` | persisted `web-url`, then `http://localhost:3000` | Highest-precedence web app URL override |
+| `INGEST_BASE_URL` | persisted `ingest-url`, then `http://localhost:4000` | Highest-precedence ingest URL override |
+| `CLAUDE_TELEMETRY_CONFIG` | `${XDG_CONFIG_HOME:-~/.config}/claude-telemetry/config.json` | Override the persisted config file path |
 | `CLAUDE_TELEMETRY_HOME` | `~/.claude-telemetry` | Override the local data directory (useful for tests) |
-| `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Override the Claude Code projects directory (used by `import`) |
+| `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Override the Claude Code import source |
+| `CODEX_HOME` | `~/.codex` | Override the Codex import source |
+| `OPENCODE_DATA` | `${XDG_DATA_HOME:-~/.local/share}/opencode/storage` | Override the OpenCode storage root or database path |
+| `PI_HOME` | `~/.pi` | Override the Pi import source |
+| `OMP_HOME` | `~/.omp` / `~/.oh-omp` | Override the OMP import source |
 
 ## Local data layout
 
@@ -217,3 +255,7 @@ Hook entrypoints (`hook <kind>`) always exit 0 regardless of errors — a broken
   hook.log            — Append-only structured JSON log
   paused              — Pause marker (presence = paused)
 ```
+
+Persistent endpoint configuration is stored separately at
+`${XDG_CONFIG_HOME:-~/.config}/claude-telemetry/config.json`; `purge-local` removes
+telemetry state and identity but intentionally keeps server configuration.

@@ -2,9 +2,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createInterface } from 'node:readline';
 
+import { getWebBaseUrl } from '../lib/config';
 import { identityPath } from '../lib/paths';
 
-const DEFAULT_API = 'http://localhost:3000';
 const POLL_TIMEOUT_MS = 15 * 60 * 1_000;
 
 type StartResult = {
@@ -134,7 +134,7 @@ async function runDeviceLogin(api: string): Promise<number> {
     startResult = (await res.json()) as StartResult;
   } catch (err) {
     process.stderr.write(`Cannot reach ${api}: ${(err as Error).message}\n`);
-    process.stderr.write('Set CLAUDE_TELEMETRY_API to the correct URL and try again.\n');
+    process.stderr.write('Run `claude-telemetry config set web-url <url>` and try again.\n');
     return 1;
   }
 
@@ -214,6 +214,10 @@ function saveIdentity(token: string, userIdClaim: string): void {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 export async function runLogin(): Promise<number> {
-  const api = (process.env.CLAUDE_TELEMETRY_API ?? DEFAULT_API).replace(/\/$/, '');
-  return runDeviceLogin(api);
+  try {
+    return runDeviceLogin(getWebBaseUrl());
+  } catch (err) {
+    process.stderr.write(`Configuration error: ${(err as Error).message}\n`);
+    return 1;
+  }
 }

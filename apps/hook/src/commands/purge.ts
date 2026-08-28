@@ -1,5 +1,6 @@
 import { existsSync, rmSync } from 'node:fs';
 
+import { getWebBaseUrl } from '../lib/config';
 import { logPath } from '../lib/log';
 import {
   agentStateRoot,
@@ -12,11 +13,9 @@ import {
 } from '../lib/paths';
 import { collatedDir } from '../lib/transcript-collate';
 
-const DEFAULT_API = 'http://localhost:3000';
-
 export async function runPurge(args: string[]): Promise<number> {
   const yes = args.includes('--yes') || args.includes('-y');
-  const privacyUrl = `${(process.env.CLAUDE_TELEMETRY_API ?? DEFAULT_API).replace(/\/$/, '')}/me/privacy`;
+  const privacyUrl = `${getWebBaseUrl()}/me/privacy`;
 
   if (!yes) {
     process.stdout.write(

@@ -14,11 +14,15 @@ let tmpHome: string;
 
 beforeEach(() => {
   tmpHome = mkdtempSync(join(tmpdir(), 'claude-tel-cli-test-'));
+  process.env.CLAUDE_TELEMETRY_CONFIG = join(tmpHome, 'config.json');
   process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
+  delete process.env.CLAUDE_TELEMETRY_API;
 });
 
 afterEach(() => {
   rmSync(tmpHome, { force: true, recursive: true });
+  delete process.env.CLAUDE_TELEMETRY_API;
+  delete process.env.CLAUDE_TELEMETRY_CONFIG;
   delete process.env.CLAUDE_TELEMETRY_HOME;
 });
 
