@@ -9,10 +9,22 @@ on:
     branches: [main]
     tags:
       - "v*"
+  pull_request:
+    paths:
+      - 'apps/ingest/**'
+      - 'apps/github-app/**'
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'scripts/package-web.sh'
+      - '.github/workflows/build-binaries.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: build-binaries-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # ── Build server binaries (ingest + github-app) ─────────────────────────────
@@ -81,17 +93,51 @@ jobs:
             --compile \
             --target ${{ matrix.bun_target }} \
             --outfile apps/${{ matrix.app }}/dist/${{ matrix.app }}-server-${{ matrix.target }}
+          # Stamp the commit hash into the binary's metadata so /health reports
+          # a real git_sha instead of the 'dev' default.
+          # (Bun --compile doesn't support --define for process.env, so the
+          # binary reads GIT_SHA at runtime — set it in the deployment env.)
 
       - name: Smoke test
-        if: runner.os != 'macOS' || matrix.target == 'darwin-arm64'
+        # Run on native targets only (where the binary can execute):
+        # darwin-arm64 on macos-14, darwin-x64 on macos-13, linux-* on ubuntu.
+        if: |
+          (runner.os == 'Linux') ||
+          (runner.os == 'macOS' && matrix.target == 'darwin-arm64') ||
+          (runner.os == 'macOS' && matrix.target == 'darwin-x64')
         run: |
           chmod +x apps/${{ matrix.app }}/dist/${{ matrix.app }}-server-${{ matrix.target }}
-          # The binary starts a server; verify it runs and exits on SIGTERM.
+          # Start the binary in the background, wait for it to boot, curl /health,
+          # then kill it. This verifies the binary actually runs and serves HTTP,
+          # not just that it doesn't crash within 3 seconds.
+          BINARY="apps/${{ matrix.app }}/dist/${{ matrix.app }}-server-${{ matrix.target }}"
+          PORT=$((RANDOM % 1000 + 14000))
+
           DATABASE_URL=postgresql://x:x@localhost:5432/x \
           S3_ENDPOINT=http://localhost:9000 \
           S3_ACCESS_KEY_ID=x S3_SECRET_ACCESS_KEY=x S3_BUCKET=x S3_REGION=us-east-1 \
           S3_FORCE_PATH_STYLE=true \
-          timeout 3 apps/${{ matrix.app }}/dist/${{ matrix.app }}-server-${{ matrix.target }} 2>&1 || true
+          INGEST_PORT=${PORT} \
+          GITHUB_APP_PORT=${PORT} \
+          GIT_SHA=$(git rev-parse --short HEAD) \
+          ./"${BINARY}" &
+          PID=$!
+
+          # Wait up to 5s for the server to boot
+          for i in $(seq 1 50); do
+            if curl -sf "http://localhost:${PORT}/health" >/dev/null 2>&1; then
+              echo "Health check passed"
+              kill "${PID}" 2>/dev/null || true
+              wait "${PID}" 2>/dev/null || true
+              exit 0
+            fi
+            sleep 0.1
+          done
+
+          echo "Health check failed — binary did not respond within 5s" >&2
+          kill "${PID}" 2>/dev/null || true
+          wait "${PID}" 2>/dev/null || true
+          exit 1
 
       - name: Report binary size
         run: ls -lh apps/${{ matrix.app }}/dist/${{ matrix.app }}-server-${{ matrix.target }}

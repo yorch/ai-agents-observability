@@ -91,6 +91,7 @@ export S3_BUCKET=transcripts
 export S3_REGION=us-east-1
 export S3_FORCE_PATH_STYLE=true
 export INGEST_PORT=4000
+export GIT_SHA=v1.0.0   # or $(git rev-parse --short HEAD) if deployed from a clone
 
 # Run
 ./ingest-server-linux-x64
@@ -107,6 +108,7 @@ export GITHUB_APP_PRIVATE_KEY=...
 export GITHUB_APP_WEBHOOK_SECRET=...
 export GITHUB_HOST=github.com
 export GITHUB_APP_PORT=4001
+export GIT_SHA=v1.0.0
 
 ./github-app-server-linux-x64
 ```
@@ -125,6 +127,12 @@ export JWT_ED25519_PUBLIC_KEY=...
 export GITHUB_OAUTH_CLIENT_ID=...
 export GITHUB_OAUTH_CLIENT_SECRET=...
 export GITHUB_HOST=github.com
+export S3_ENDPOINT=http://minio:9000
+export S3_ACCESS_KEY_ID=minioadmin
+export S3_SECRET_ACCESS_KEY=minioadmin
+export S3_BUCKET=transcripts
+export S3_REGION=us-east-1
+export S3_FORCE_PATH_STYLE=true
 export PORT=3000
 
 # Run (requires Node >= 24)
@@ -152,6 +160,7 @@ Environment=S3_BUCKET=transcripts
 Environment=S3_REGION=us-east-1
 Environment=S3_FORCE_PATH_STYLE=true
 Environment=INGEST_PORT=4000
+Environment=GIT_SHA=v1.0.0
 Restart=always
 RestartSec=5
 
@@ -176,6 +185,7 @@ Environment=GITHUB_APP_PRIVATE_KEY=...
 Environment=GITHUB_APP_WEBHOOK_SECRET=...
 Environment=GITHUB_HOST=github.com
 Environment=GITHUB_APP_PORT=4001
+Environment=GIT_SHA=v1.0.0
 Restart=always
 RestartSec=5
 
@@ -201,6 +211,12 @@ Environment=JWT_ED25519_PUBLIC_KEY=...
 Environment=GITHUB_OAUTH_CLIENT_ID=...
 Environment=GITHUB_OAUTH_CLIENT_SECRET=...
 Environment=GITHUB_HOST=github.com
+Environment=S3_ENDPOINT=http://localhost:9000
+Environment=S3_ACCESS_KEY_ID=minioadmin
+Environment=S3_SECRET_ACCESS_KEY=minioadmin
+Environment=S3_BUCKET=transcripts
+Environment=S3_REGION=us-east-1
+Environment=S3_FORCE_PATH_STYLE=true
 Environment=PORT=3000
 Restart=always
 RestartSec=5
@@ -253,4 +269,5 @@ Run migrations before starting the server binaries. The migration runner is idem
 - **No auto-update.** Updates are a manual download + replace. This is by design for governance-controlled environments.
 - **Migrations still need Docker or Bun.** The migration runner can't be compiled as a binary because it reads migration files from disk at runtime.
 - **Web requires Node >= 24.** The web tarball is a Next.js standalone bundle, not a compiled binary. Node must be installed on the target machine.
+- **Web tarball is built for linux-x64 in CI.** The standalone bundle includes a native `keytar.node` binding compiled for the CI runner's platform. On macOS or ARM Linux, keytar fails to load — the web app falls back to file-based token storage (`packages/auth/src/keychain.ts` has a try/catch). This is transparent but undocumented in the tarball itself.
 - **No health check built into systemd units.** The units above use `Type=simple` with `Restart=always`. For active health checks, add a `ExecStartPost` or use an external monitor.
