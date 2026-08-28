@@ -67,7 +67,8 @@ Note the image names Docker reports after each load (they'll be the original GHC
 
 ### 2. Clone the repo (if not already present)
 
-You need the compose files and `.env.example`. If git is unavailable, transfer the repo archive alongside the images.
+You need the Compose files and `.env.production.example`. If git is unavailable,
+transfer the repo archive alongside the images.
 
 ```bash
 git clone https://github.com/yorch/ai-agents-observability.git   # on the connected machine
@@ -79,15 +80,15 @@ git checkout v1.0.0
 ### 3. Configure environment
 
 ```bash
-cp .env.example .env
-# Edit .env: set POSTGRES_PASSWORD, MINIO_ROOT_PASSWORD, JWT keys, GitHub OAuth, etc.
-bun run gen:keys   # if bun is available; otherwise generate keys on a connected machine
+cp .env.production.example .env.production
+# Fill every required value in .env.production.
+bun run gen:keys -- --env-file=.env.production  # if Bun is available
 ```
 
 Set the `APP_IMAGE_*` variables to the loaded image names. If you loaded the images with their original GHCR refs, the defaults in `docker-compose.prod.yml` already match — but set them explicitly for clarity:
 
 ```bash
-# .env
+# .env.production
 APP_IMAGE_WEB=ghcr.io/yorch/ai-agents-observability/web:v1.0.0
 APP_IMAGE_INGEST=ghcr.io/yorch/ai-agents-observability/ingest:v1.0.0
 APP_IMAGE_GITHUB=ghcr.io/yorch/ai-agents-observability/github-app:v1.0.0
@@ -97,8 +98,8 @@ APP_IMAGE_MIGRATIONS=ghcr.io/yorch/ai-agents-observability/migrations-runner:v1.
 ### 4. Deploy
 
 ```bash
-docker compose -f docker-compose.infra.yml \
-               -f docker-compose.prod.yml up -d
+APP_ENV_FILE=.env.production docker compose --env-file .env.production \
+  -f docker-compose.infra.yml -f docker-compose.prod.yml up -d
 ```
 
 The prod compose has `pull_policy: always` by default. Since the images are already loaded locally and there's no outbound network, set `pull_policy: never` via an override or edit the compose file. Alternatively, use the build-from-source overlay with `pull_policy: never` already set (but you'd need to build, not load):
@@ -117,9 +118,9 @@ services:
     pull_policy: never
 EOF
 
-docker compose -f docker-compose.infra.yml \
-               -f docker-compose.prod.yml \
-               -f docker-compose.airgap.yml up -d
+APP_ENV_FILE=.env.production docker compose --env-file .env.production \
+  -f docker-compose.infra.yml -f docker-compose.prod.yml \
+  -f docker-compose.airgap.yml up -d
 ```
 
 ### 5. Verify
@@ -136,7 +137,7 @@ There is no auto-update. To update:
 1. On the connected machine: download the new tag's release bundle.
 2. Transfer to the air-gapped machine.
 3. `docker load` the new images.
-4. Update `APP_IMAGE_*` in `.env` to the new tag.
+4. Update `APP_IMAGE_*` in `.env.production` to the new tag.
 5. `docker compose ... up -d` (the migration runner handles schema changes).
 
 ## Tradeoffs

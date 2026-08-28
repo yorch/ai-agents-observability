@@ -68,24 +68,31 @@ export function upsertEnv(
   return `${base}${sep}${block(keys)}`;
 }
 
+export function envFileFromArgs(args: string[]): string {
+  const envFileArg = args.find((arg) => arg.startsWith('--env-file='));
+  return envFileArg?.slice('--env-file='.length) || '.env';
+}
+
 async function main(): Promise<void> {
   const force = process.argv.includes('--force');
+  const envFile = envFileFromArgs(process.argv);
   // gen-keys.ts lives at packages/auth/src/ — the repo root is three levels up.
-  const envPath = resolve(import.meta.dirname, '..', '..', '..', '.env');
+  const repoRoot = resolve(import.meta.dirname, '..', '..', '..');
+  const envPath = resolve(repoRoot, envFile);
   const keys = generateKeypairPem();
 
   if (existsSync(envPath)) {
     const updated = upsertEnv(readFileSync(envPath, 'utf8'), keys, { force });
     if (updated === null) {
-      console.log(`JWT signing keys already set in .env — pass --force to regenerate.`);
+      console.log(`JWT signing keys already set in ${envFile} — pass --force to regenerate.`);
       return;
     }
     writeFileSync(envPath, updated);
-    console.log(`✓ Wrote ${PRIVATE_VAR} / ${PUBLIC_VAR} to .env`);
+    console.log(`✓ Wrote ${PRIVATE_VAR} / ${PUBLIC_VAR} to ${envFile}`);
     return;
   }
 
-  console.error('No .env found — add these lines to your environment:\n');
+  console.error(`No ${envFile} found — add these lines to your environment:\n`);
   console.log(block(keys).trimEnd());
 }
 

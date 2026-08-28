@@ -39,13 +39,13 @@ bun run --cwd apps/ingest dev       # Hono server (telemetry ingestion)
 bun run --cwd apps/github-app dev   # Hono server (GitHub webhooks)
 bun run --cwd apps/hook dev         # the developer-installed CLI; use during hook authoring
 
-# Docker
-bun run docker:infra:up             # Postgres-Timescale + MinIO + migrations-runner
-bun run docker:infra:down           # stop (preserves volumes)
-bun run docker:infra:down:v         # stop + remove volumes (DESTRUCTIVE — wipes the DB)
-bun run docker:app:up               # full stack (build + run all 4 apps + infra)
-bun run docker:app:down             # stop
-bun run docker:app:logs             # tail logs across all services
+# Docker (Justfile is the preferred interface; run `just` to list all recipes)
+just dev-infra-up                   # backing services for native app development
+just dev-up                         # fully Dockerized development stack
+just prod-config                    # validate production configuration
+just prod-up                        # production with pre-built images
+just prod-source-up                 # production built from source
+bun run docker:infra:down:v         # DESTRUCTIVE — wipes the DB; no Just recipe by design
 
 # Hook CLI — cross-compile single-binary artifacts for distribution
 bun run --cwd apps/hook build:all   # darwin-arm64 + darwin-x64 + linux-arm64 + linux-x64

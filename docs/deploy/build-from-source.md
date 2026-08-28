@@ -10,7 +10,8 @@ Deploy the full stack by building all four application images from source on you
 
 ## Prerequisites
 
-- Docker with Compose v2
+- Docker with Compose v2.30 or newer
+- `just` 1.43 or newer
 - ~2 GB RAM available for the build (Bun + Next.js compilation)
 - Network access to pull base images on first build (`oven/bun:1.3.14-alpine`, `node:24-alpine`, `timescale/timescaledb`, `quay.io/minio/minio`, `quay.io/minio/mc`). For fully offline builds, mirror these to a local registry first.
 
@@ -27,17 +28,16 @@ git checkout v1.0.0   # replace with the tag you want
 ### 2. Configure environment
 
 ```bash
-cp .env.example .env
-# Edit .env: set POSTGRES_PASSWORD, MINIO_ROOT_PASSWORD, JWT keys, GitHub OAuth, etc.
-bun run gen:keys   # generates JWT_ED25519_PRIVATE_KEY / PUBLIC_KEY into .env
+just prod-init
+# Edit .env.production: fill required credentials and deployment settings.
+just prod-keys
+just prod-config
 ```
 
 ### 3. Build and start the stack
 
 ```bash
-docker compose -f docker-compose.infra.yml \
-               -f docker-compose.prod.yml \
-               -f docker-compose.self-hosted.yml up -d --build
+just prod-source-up
 ```
 
 This single command:
@@ -60,9 +60,7 @@ There is no auto-update with this path. To update:
 ```bash
 git pull
 git checkout v1.1.0   # new tag
-docker compose -f docker-compose.infra.yml \
-               -f docker-compose.prod.yml \
-               -f docker-compose.self-hosted.yml up -d --build
+just prod-source-up
 ```
 
 The migration runner is idempotent (`prisma migrate deploy` + `applySqlMigrations`), so schema changes ship with the code that needs them.
@@ -72,13 +70,11 @@ The migration runner is idempotent (`prisma migrate deploy` + `applySqlMigration
 Layer the Traefik overlay on top:
 
 ```bash
-docker compose -f docker-compose.infra.yml \
-               -f docker-compose.prod.yml \
-               -f docker-compose.self-hosted.yml \
-               -f docker-compose.traefik.yml up -d --build
+just prod-source-traefik-up
 ```
 
-Set `DOMAIN_APP` and `DOMAIN_GITHUB` in your `.env`. See `docker-compose.traefik.yml` for requirements.
+Set `DOMAIN_APP` and `DOMAIN_GITHUB` in `.env.production`. See
+`docker-compose.traefik.yml` for requirements.
 
 ## Tradeoffs
 

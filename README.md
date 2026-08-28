@@ -2,79 +2,87 @@
 
 Self-hosted observability platform for AI coding agents. Captures per-event telemetry from Claude Code, opencode, Codex CLI, Gemini CLI, GitHub Copilot CLI, Pi and omp sessions, stores events in TimescaleDB, redacts transcripts before object storage, and serves personal, team, org, and admin dashboards.
 
+## Environment files
+
+The repository has separate templates because host-native development and production
+containers need different network addresses and security defaults:
+
+| File | Create with | Used for |
+|---|---|---|
+| `.env.example` → `.env` | `just dev-init` | Native app development and the Dockerized development stack |
+| `.env.production.example` → `.env.production` | `just prod-init` | Production Compose with pre-built or locally-built images |
+
+Do not use `.env` for a production deployment. In particular, its S3 and database URLs
+use `localhost`, which means the host during native development but the application
+container itself under Compose.
+
 ## Local development
 
 ### Prerequisites
 
 - [Bun](https://bun.sh) 1.3.14
-- [Docker](https://docs.docker.com/get-docker/) with Compose v2
+- [Docker](https://docs.docker.com/get-docker/) with Compose v2.30 or newer
+- [just](https://just.systems/) 1.43 or newer
 
 ### Setup
 
 ```bash
-# 1. Install dependencies
 bun install
-
-# 2. Copy environment file and fill in values
-cp .env.example .env
-
-# 3. Generate the Ed25519 JWT signing keypair (required for login)
-bun run gen:keys
-
-# 4. Start the data stack (Postgres + TimescaleDB + MinIO + migrations)
-bun run docker:infra:up
+just dev-init
+just dev-keys
+just dev-infra-up
 ```
 
-The stack brings up:
-
-| Service        | URL / port                                      | Purpose                          |
-| -------------- | ----------------------------------------------- | -------------------------------- |
-| PostgreSQL     | `localhost:5432`                                | Primary datastore (TimescaleDB)  |
-| MinIO          | `localhost:9000` (API) / `localhost:9001` (UI)  | S3-compatible transcript storage |
-| createbuckets  | one-shot                                        | Creates `transcripts` bucket     |
-| migrations     | one-shot                                        | Applies Prisma + Timescale DDL   |
-
-### Useful commands
+Run the apps natively after the backing services start:
 
 ```bash
-bun run docker:infra:up      # Start stack in background
-bun run docker:infra:logs    # Tail all service logs
-bun run docker:infra:down    # Stop stack (preserves volumes)
-bun run docker:infra:down:v  # Stop stack and delete volumes
-
-# App services (run after docker:infra:up)
-bun --filter '@ai-agents-observability/ingest' dev   # Ingest API on :4000 (Bun, watch mode)
-bun --filter '@ai-agents-observability/web' dev      # Web dashboard on :3000 (Next.js, Turbopack)
-bun --filter '@ai-agents-observability/github-app' dev # GitHub webhooks on :4001
-
-# Hook binary
-bun --filter '@ai-agents-observability/hook' dev     # Hook CLI in watch mode (for development)
-bun --filter '@ai-agents-observability/hook' build   # Compile native binary → apps/hook/dist/claude-telemetry
-bun --filter '@ai-agents-observability/hook' build:all  # Compile all 4 platform targets
-
-# Database
-bun --filter '@ai-agents-observability/db' db:migrate   # Run Prisma migrations
-bun --filter '@ai-agents-observability/db' db:generate  # Regenerate Prisma client
-bun --filter '@ai-agents-observability/db' db:studio    # Open Prisma Studio
-
-# Quality
-bun run check       # Lint + format check (Biome)
-bun run format      # Auto-format
-bun run typecheck   # TypeScript type check (all packages)
-bun run test        # Run all tests
-bun run build       # Build all packages and apps
+bun run --cwd apps/ingest dev
+bun run --cwd apps/web dev
+bun run --cwd apps/github-app dev  # requires the GitHub App values in .env
 ```
 
-### Verifying the stack
+Alternatively, `just dev-up` builds and runs ingest and web in containers. Use
+`just dev-pr-loop-up` to include the credential-gated GitHub App service.
+
+The backing stack exposes PostgreSQL on `localhost:5432`, MinIO on ports `9000` and
+`9001`, Prometheus on `9090`, and Grafana on `3001` by default.
+
+### Common commands
 
 ```bash
-# PostgreSQL + TimescaleDB
-psql "postgresql://postgres:postgres@localhost:5432/ai_agents_observability" \
-  -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb';"
+just                 # List every recipe with its description
+just dev-infra-up    # Backing services for native app development
+just dev-infra-logs
+just dev-infra-down  # Preserves data under ./data
+just dev-up          # Fully Dockerized development stack
+just dev-down
 
-# MinIO
-curl -sf http://localhost:9000/minio/health/live && echo "MinIO OK"
+bun run check
+bun run typecheck
+bun run build
+bun run test
 ```
+
+The existing `bun run docker:*` commands remain available for compatibility. The
+`Justfile` is the preferred interface because each recipe selects the correct Compose
+files and env file explicitly.
+
+## Production deployment
+
+Production setup starts from the dedicated template and pins all application images to
+one release:
+
+```bash
+just prod-init
+# Edit .env.production and fill every required blank value.
+just prod-keys
+just prod-config
+just prod-up
+```
+
+Set `ENV_FILE=/path/to/env` to use another production env filename. Additional recipes
+cover source builds, Traefik, and Watchtower; run `just --list` for the full matrix.
+See [`docs/deploy/README.md`](./docs/deploy/README.md) for deployment details.
 
 ## Status
 

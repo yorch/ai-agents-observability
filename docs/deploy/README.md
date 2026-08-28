@@ -19,12 +19,28 @@ ai-agents-observability can be deployed several ways depending on your security,
 
 ### 1. Pre-built images + Docker Compose (default)
 
-The standard path. Images are published to `ghcr.io/yorch/ai-agents-observability/*` for each approved release. `docker-compose.prod.yml` pulls them at runtime.
+The standard path. Images are published to `ghcr.io/yorch/ai-agents-observability/*`
+for each approved release. Production uses `.env.production`, never the host-native
+`.env` development file.
 
 ```bash
-docker compose -f docker-compose.infra.yml -f docker-compose.prod.yml up -d
+just prod-init
+# Fill the required values and choose one release tag in .env.production.
+just prod-keys
+just prod-config
+just prod-up
 ```
 
+The equivalent command without `just` is:
+
+```bash
+APP_ENV_FILE=.env.production docker compose --env-file .env.production \
+  -f docker-compose.infra.yml -f docker-compose.prod.yml up -d
+```
+
+Compose v2.30 or newer is required for raw service env files, which preserve literal
+`$` characters in application secrets. Values Compose interpolates into the model
+(such as bundled database and MinIO credentials) must represent a literal `$` as `$$`.
 See [README.md](../../README.md) for the full setup guide.
 
 ### 2. Build from source
@@ -32,9 +48,7 @@ See [README.md](../../README.md) for the full setup guide.
 Clone the repo at a pinned tag and build all four images locally. No external image trust required.
 
 ```bash
-docker compose -f docker-compose.infra.yml \
-               -f docker-compose.prod.yml \
-               -f docker-compose.self-hosted.yml up -d --build
+just prod-source-up
 ```
 
 See [build-from-source.md](./build-from-source.md).
@@ -110,7 +124,7 @@ done
 
 Then point your deployment at the internal registry:
 
-- **Docker Compose**: set `APP_IMAGE_WEB=harbor.internal.corp.com/ai-agents-observability/web:v1.0.0` (etc.) in `.env`
+- **Docker Compose**: set `APP_IMAGE_WEB=harbor.internal.corp.com/ai-agents-observability/web:v1.0.0` (etc.) in `.env.production`
 - **Helm**: set `image.registry: harbor.internal.corp.com/ai-agents-observability` in `values.yaml`
 
 Note: cosign signatures don't follow images through a re-push. Re-sign in your internal registry, or verify the source image's signature before re-pushing.
@@ -148,6 +162,8 @@ gh release download v1.0.0 --repo yorch/ai-agents-observability --pattern "sbom-
 
 | File | Purpose |
 |---|---|
+| `.env.production.example` | Production-only environment template |
+| `Justfile` | Named local-development and production Compose workflows |
 | `docker-compose.prod.yml` | Pre-built image deployment (default) |
 | `docker-compose.self-hosted.yml` | Build-from-source overlay |
 | `docker-compose.traefik.yml` | Traefik reverse proxy overlay |
