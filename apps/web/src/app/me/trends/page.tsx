@@ -44,7 +44,12 @@ export default async function MeTrendsPage({
           Install an adapter and run a session to start seeing trends.
         </EmptyState>
       ) : (
-        <ScopedTrendCharts concurrency={concurrency} heatmap={heatmap} points={points} scatter={scatter} />
+        <ScopedTrendCharts
+          concurrency={concurrency}
+          heatmap={heatmap}
+          points={points}
+          scatter={scatter}
+        />
       )}
     </div>
   );

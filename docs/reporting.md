@@ -2,12 +2,19 @@
 
 `/me/report`, `/team/[slug]/report`, and `/org/report` render a trailing-period
 agent digest with readout highlights, daily spend/session trends, and a 90-day
-activity calendar. They expose the same aggregate payload as Markdown, CSV, JSON,
-or a portable report bundle.
+activity calendar. They also include a cost-versus-duration scatter, concurrency
+signals, a UTC weekday/hour heatmap, and a complete-week digest table. They expose
+the same aggregate payload as Markdown, CSV, JSON, or a portable report bundle.
 
 The corresponding scoped trend pages are `/me/trends`, `/team/[slug]/trends`, and
 `/org/trends`. They use the same visibility boundaries as their dashboards and are
 intended for exploration; reports are the compact planning/readout surface.
+
+Trend and report charts include exact-data tables. The scatter shows session cost
+against duration (with aggregate scopes bucketed to preserve privacy), concurrency
+reports peak overlap and the share of sessions that ran in parallel, and the
+heatmap groups starts by UTC weekday and hour. Weekly digest rows use complete
+Monday–Sunday UTC weeks, excluding the current partial week.
 
 Each report compares a trailing 7-, 30-, or 90-day period with the immediately
 preceding period of equal length. A zero prior value is rendered as **new**, not as

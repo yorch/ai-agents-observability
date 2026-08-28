@@ -1,10 +1,9 @@
 import { BarChart, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { fmtDayShort, fmtUsd } from '@/lib/fmt';
 import type { CostDurationPoint } from '@/lib/scatter-queries';
-import type { ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
-import type { ActivityHeatmapCell } from '@/lib/trend-queries';
-import { CostDurationScatter } from './CostDurationScatter';
+import type { ActivityHeatmapCell, ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
 import { ActivityHeatmap } from './ActivityHeatmap';
+import { CostDurationScatter } from './CostDurationScatter';
 import { WeeklyDigestTable } from './WeeklyDigestTable';
 
 const MIN_POINTS = 2;

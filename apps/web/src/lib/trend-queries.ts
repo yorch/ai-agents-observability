@@ -244,7 +244,9 @@ export async function getTeamActivityHeatmap(
   since: Date,
   until = new Date(),
 ): Promise<ActivityHeatmapCell[]> {
-  if (visibleIds.length === 0) return [];
+  if (visibleIds.length === 0) {
+    return [];
+  }
   const ids = Prisma.join(visibleIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<HeatmapRow[]>(Prisma.sql`
     SELECT EXTRACT(DOW FROM started_at AT TIME ZONE 'UTC')::int AS day_of_week,
