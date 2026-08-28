@@ -4,7 +4,7 @@ import { currentUser } from '@/lib/auth';
 import { getMyReport } from '@/lib/reporting-queries';
 import { reportDays } from '@/lib/reporting-route';
 import { getUserCostDuration } from '@/lib/scatter-queries';
-import { getUserConcurrency, getUserTrends } from '@/lib/trend-queries';
+import { getUserActivityHeatmap, getUserConcurrency, getUserTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,11 +20,12 @@ export default async function MyReportPage({
   const { range } = await searchParams;
   const days = reportDays(range ?? null);
   const since = new Date(Date.now() - days * 86_400_000);
-  const [report, trends, scatter, concurrency] = await Promise.all([
+  const [report, trends, scatter, concurrency, heatmap] = await Promise.all([
     getMyReport(user.id, days),
     getUserTrends(user.id, since),
     getUserCostDuration(user.id, since),
     getUserConcurrency(user.id, since),
+    getUserActivityHeatmap(user.id, since),
   ]);
   return (
     <div className="space-y-6">
@@ -38,6 +39,7 @@ export default async function MyReportPage({
         trends={trends}
         scatter={scatter}
         concurrency={concurrency}
+        heatmap={heatmap}
       />
     </div>
   );

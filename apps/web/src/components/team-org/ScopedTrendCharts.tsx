@@ -2,7 +2,10 @@ import { BarChart, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { fmtDayShort, fmtUsd } from '@/lib/fmt';
 import type { CostDurationPoint } from '@/lib/scatter-queries';
 import type { ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
+import type { ActivityHeatmapCell } from '@/lib/trend-queries';
 import { CostDurationScatter } from './CostDurationScatter';
+import { ActivityHeatmap } from './ActivityHeatmap';
+import { WeeklyDigestTable } from './WeeklyDigestTable';
 
 const MIN_POINTS = 2;
 
@@ -89,11 +92,13 @@ export function ScopedTrendCharts({
   scatter,
   aggregateScatter = false,
   concurrency = [],
+  heatmap = [],
 }: {
   points: ScopedTrendPoint[];
   scatter?: CostDurationPoint[];
   aggregateScatter?: boolean;
   concurrency?: ConcurrencyPoint[];
+  heatmap?: ActivityHeatmapCell[];
 }) {
   const models = modelSeries(points);
   const namedModels = new Set(models.filter((model) => model !== 'Other'));
@@ -168,6 +173,8 @@ export function ScopedTrendCharts({
         )}
       </Card>
       <ActivityCalendar points={points} />
+      <ActivityHeatmap cells={heatmap} />
+      <WeeklyDigestTable points={points} />
       {concurrency.length > 0 && <ConcurrencyCharts points={concurrency} />}
     </div>
   );

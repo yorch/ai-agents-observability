@@ -199,3 +199,78 @@ export async function getOrgConcurrency(since: Date): Promise<ConcurrencyPoint[]
   `);
   return computeConcurrency(mapIntervals(rows), since);
 }
+
+export type ActivityHeatmapCell = {
+  dayOfWeek: number;
+  hour: number;
+  costUsd: number;
+  sessionCount: number;
+};
+
+type HeatmapRow = {
+  day_of_week: number;
+  hour: number;
+  cost_usd: string | number;
+  session_count: bigint;
+};
+
+function mapHeatmapRows(rows: HeatmapRow[]): ActivityHeatmapCell[] {
+  return rows.map((row) => ({
+    costUsd: Number(row.cost_usd ?? 0),
+    dayOfWeek: Number(row.day_of_week),
+    hour: Number(row.hour),
+    sessionCount: Number(row.session_count ?? 0),
+  }));
+}
+
+export async function getUserActivityHeatmap(
+  userId: string,
+  since: Date,
+  until = new Date(),
+): Promise<ActivityHeatmapCell[]> {
+  const rows = await getPrisma().$queryRaw<HeatmapRow[]>(Prisma.sql`
+    SELECT EXTRACT(DOW FROM started_at AT TIME ZONE 'UTC')::int AS day_of_week,
+           EXTRACT(HOUR FROM started_at AT TIME ZONE 'UTC')::int AS hour,
+           COALESCE(SUM(total_cost_usd), 0) AS cost_usd, COUNT(*) AS session_count
+    FROM interactive_sessions
+    WHERE user_id = ${userId}::uuid AND started_at >= ${since} AND started_at < ${until}
+    GROUP BY 1, 2 ORDER BY 1, 2
+  `);
+  return mapHeatmapRows(rows);
+}
+
+export async function getTeamActivityHeatmap(
+  visibleIds: string[],
+  since: Date,
+  until = new Date(),
+): Promise<ActivityHeatmapCell[]> {
+  if (visibleIds.length === 0) return [];
+  const ids = Prisma.join(visibleIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await getPrisma().$queryRaw<HeatmapRow[]>(Prisma.sql`
+    SELECT EXTRACT(DOW FROM started_at AT TIME ZONE 'UTC')::int AS day_of_week,
+           EXTRACT(HOUR FROM started_at AT TIME ZONE 'UTC')::int AS hour,
+           COALESCE(SUM(total_cost_usd), 0) AS cost_usd, COUNT(*) AS session_count
+    FROM interactive_sessions
+    WHERE user_id IN (${ids}) AND started_at >= ${since} AND started_at < ${until}
+    GROUP BY 1, 2 ORDER BY 1, 2
+  `);
+  return mapHeatmapRows(rows);
+}
+
+export async function getOrgActivityHeatmap(
+  since: Date,
+  until = new Date(),
+): Promise<ActivityHeatmapCell[]> {
+  const rows = await getPrisma().$queryRaw<HeatmapRow[]>(Prisma.sql`
+    SELECT EXTRACT(DOW FROM s.started_at AT TIME ZONE 'UTC')::int AS day_of_week,
+           EXTRACT(HOUR FROM s.started_at AT TIME ZONE 'UTC')::int AS hour,
+           COALESCE(SUM(s.total_cost_usd), 0) AS cost_usd, COUNT(*) AS session_count
+    FROM interactive_sessions s
+    JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    WHERE s.started_at >= ${since} AND s.started_at < ${until}
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+    GROUP BY 1, 2 ORDER BY 1, 2
+  `);
+  return mapHeatmapRows(rows);
+}

@@ -2,7 +2,7 @@ import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { ButtonLink, Card, Cell, Row, Table } from '@/components/ui';
 import { type ReportDigest as Digest, formatReportDelta } from '@/lib/reporting';
 import type { CostDurationPoint } from '@/lib/scatter-queries';
-import type { ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
+import type { ActivityHeatmapCell, ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
 
 function value(value: number, unit: Digest['metrics'][number]['unit']): string {
   if (unit === 'usd') {
@@ -24,6 +24,7 @@ export function ReportDigest({
   scatter,
   aggregateScatter = false,
   concurrency = [],
+  heatmap = [],
 }: {
   apiHref: string;
   report: Digest;
@@ -31,6 +32,7 @@ export function ReportDigest({
   scatter?: CostDurationPoint[];
   aggregateScatter?: boolean;
   concurrency?: ConcurrencyPoint[];
+  heatmap?: ActivityHeatmapCell[];
 }) {
   const topModelCost = report.topModels.reduce((sum, row) => sum + row.costUsd, 0);
   const leadModel = report.topModels[0];
@@ -106,6 +108,7 @@ export function ReportDigest({
         <ScopedTrendCharts
           aggregateScatter={aggregateScatter}
           concurrency={concurrency}
+          heatmap={heatmap}
           points={trends}
           scatter={scatter ?? []}
         />

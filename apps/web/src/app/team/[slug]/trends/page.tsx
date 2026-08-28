@@ -5,7 +5,7 @@ import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
 import { resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
-import { getTeamConcurrency, getTeamTrends } from '@/lib/trend-queries';
+import { getTeamActivityHeatmap, getTeamConcurrency, getTeamTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 export default async function TeamTrendsPage({
@@ -21,10 +21,11 @@ export default async function TeamTrendsPage({
   const { teamId, teamName } = await requireTeamLead(slug);
   const { visibleIds } = await resolveTeamVisibility(teamId);
   const since = daysAgo(range);
-  const [points, scatter, concurrency] = await Promise.all([
+  const [points, scatter, concurrency, heatmap] = await Promise.all([
     getTeamTrends(visibleIds, since),
     getTeamCostDuration(visibleIds, since),
     getTeamConcurrency(visibleIds, since),
+    getTeamActivityHeatmap(visibleIds, since),
   ]);
   return (
     <div className="space-y-6">
@@ -48,6 +49,7 @@ export default async function TeamTrendsPage({
         <ScopedTrendCharts
           aggregateScatter
           concurrency={concurrency}
+          heatmap={heatmap}
           points={points}
           scatter={scatter}
         />

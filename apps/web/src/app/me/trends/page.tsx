@@ -5,7 +5,7 @@ import { EmptyState } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserCostDuration } from '@/lib/scatter-queries';
 import { daysAgo } from '@/lib/time';
-import { getUserConcurrency, getUserTrends } from '@/lib/trend-queries';
+import { getUserActivityHeatmap, getUserConcurrency, getUserTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 export default async function MeTrendsPage({
@@ -20,10 +20,11 @@ export default async function MeTrendsPage({
   const raw = Number((await searchParams).range);
   const range = ([7, 30, 90].includes(raw) ? raw : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
-  const [points, scatter, concurrency] = await Promise.all([
+  const [points, scatter, concurrency, heatmap] = await Promise.all([
     getUserTrends(user.id, since),
     getUserCostDuration(user.id, since),
     getUserConcurrency(user.id, since),
+    getUserActivityHeatmap(user.id, since),
   ]);
   return (
     <div className="space-y-6">
@@ -43,7 +44,7 @@ export default async function MeTrendsPage({
           Install an adapter and run a session to start seeing trends.
         </EmptyState>
       ) : (
-        <ScopedTrendCharts concurrency={concurrency} points={points} scatter={scatter} />
+        <ScopedTrendCharts concurrency={concurrency} heatmap={heatmap} points={points} scatter={scatter} />
       )}
     </div>
   );

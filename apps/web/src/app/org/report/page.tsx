@@ -3,7 +3,7 @@ import { getOrgReport } from '@/lib/reporting-queries';
 import { reportDays } from '@/lib/reporting-route';
 import { requireOrgViewer } from '@/lib/roles';
 import { getOrgCostDuration } from '@/lib/scatter-queries';
-import { getOrgConcurrency, getOrgTrends } from '@/lib/trend-queries';
+import { getOrgActivityHeatmap, getOrgConcurrency, getOrgTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,11 +16,12 @@ export default async function OrgReportPage({
   const days = reportDays(range ?? null);
   await requireOrgViewer();
   const since = new Date(Date.now() - days * 86_400_000);
-  const [report, trends, scatter, concurrency] = await Promise.all([
+  const [report, trends, scatter, concurrency, heatmap] = await Promise.all([
     getOrgReport(days),
     getOrgTrends(since),
     getOrgCostDuration(since),
     getOrgConcurrency(since),
+    getOrgActivityHeatmap(since),
   ]);
   return (
     <div className="space-y-6">
@@ -39,6 +40,7 @@ export default async function OrgReportPage({
         trends={trends}
         scatter={scatter}
         concurrency={concurrency}
+        heatmap={heatmap}
         aggregateScatter
       />
     </div>
