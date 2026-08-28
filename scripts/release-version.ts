@@ -27,7 +27,12 @@ export function releaseManifestPaths(): string[] {
       throw new Error(`Workspace pattern has no manifests: ${pattern}`);
     }
     for (const path of manifests) {
-      paths.add(path);
+      const manifest = JSON.parse(readFileSync(resolve(root, path), 'utf8')) as {
+        release?: boolean;
+      };
+      if (manifest.release !== false) {
+        paths.add(path);
+      }
     }
   }
   return [...paths].sort();
