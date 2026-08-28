@@ -6,6 +6,16 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v1.1.0 (2026-08-28)
+
+### Features
+
+- web: add scoped agent reports and exports (#151)
+
+### Bug Fixes
+
+- web: stop reporting suppressed routing spend as efficient routing (#156)
+
 ## v1.0.0 (2026-08-28)
 
 ### Breaking Changes

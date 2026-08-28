@@ -1,6 +1,6 @@
 {
   "name": "@ai-agents-observability/github-app",
-  "version": "0.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "GitHub App webhook handler — PR Loop",
   "engines": {
