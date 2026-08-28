@@ -9,6 +9,17 @@ summaries back to the PR thread.
 
 See **DESIGN_DOC §7.2** for the full architecture description of the GitHub App integration layer.
 
+The web login uses a separate **GitHub OAuth App**. Its authorization callback URL is the deployed
+web origin followed by `/api/auth/callback`, for example:
+
+```text
+https://observability.example.com/api/auth/callback
+```
+
+For local development use `http://localhost:3000/api/auth/callback`. Configure this callback in the
+OAuth App settings, not in the GitHub App's webhook configuration. The callback is implemented by
+`apps/web/src/app/api/auth/callback/route.ts`.
+
 ---
 
 ## 2. Prerequisites
