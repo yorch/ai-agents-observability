@@ -21,6 +21,7 @@ import { runLinkTurnEvents } from './link-turn-events';
 import { type BillingSource, NullBillingSource, runReconcileCost } from './reconcile-cost';
 import { runRepriceEvents } from './reprice-events';
 import { runDeletions } from './run-deletions';
+import { runSendReportDigest } from './send-report-digest';
 import { runSweepAbandoned } from './sweep-abandoned';
 import { runSweepRetention } from './sweep-retention';
 import { runSweepScratch } from './sweep-scratch';
@@ -86,6 +87,7 @@ const CONFIGURABLE_JOBS = [
   // LLM-as-judge (P13-009). Seeded **disabled** — a fresh deployment never
   // sends a transcript to a model because a container booted.
   'judge-sessions',
+  'send-report-digest',
 ] as const;
 
 // All job names accepted by the manual-trigger endpoint. sync-jira is included
@@ -151,6 +153,9 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       break;
     case 'sweep-abandoned':
       await runSweepAbandoned(db, logger);
+      break;
+    case 'send-report-digest':
+      await runSendReportDigest(db, logger, appBaseUrl, emailConfig);
       break;
     case 'sweep-scratch':
       await runSweepScratch(logger);
@@ -330,6 +335,7 @@ export function startScheduler(deps: SchedulerDeps): void {
           -- P13-009: off by default. Enabling it is an operator decision taken
           -- in /admin/jobs, not a consequence of deploying.
           ('judge-sessions',        false, 6, 30)
+          ,('send-report-digest',   true, 8, 0)
         ON CONFLICT (job_name) DO NOTHING
       `;
       logger?.info('Scheduler: seeded job_config defaults');
