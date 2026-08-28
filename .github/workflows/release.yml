@@ -35,7 +35,7 @@ jobs:
   # titled "chore: release vX.Y.Z". The PR is the human approval gate —
   # merging it triggers phase 2.
   prepare-release:
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore: release v') }}
+    if: "${{ !startsWith(github.event.head_commit.message, 'chore: release v') }}"
     runs-on: ubuntu-latest
     outputs:
       has-release: ${{ steps.prepare.outputs.has-release }}
@@ -137,7 +137,7 @@ jobs:
   # four quality gates, creates the tag pinned to the merge commit, and creates
   # the GitHub Release. The tag push triggers the artifact workflows.
   publish-release:
-    if: startsWith(github.event.head_commit.message, 'chore: release v')
+    if: "${{ startsWith(github.event.head_commit.message, 'chore: release v') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
