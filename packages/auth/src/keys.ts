@@ -12,7 +12,7 @@ export async function getPrivateKey(): Promise<CryptoKey> {
   if (!pem) {
     throw new Error('JWT_ED25519_PRIVATE_KEY env var is not set');
   }
-  _privateKey = await importPKCS8(pem, 'EdDSA');
+  _privateKey = await importPKCS8(pem.replaceAll('\\n', '\n'), 'EdDSA');
   return _privateKey;
 }
 
@@ -24,7 +24,7 @@ export async function getPublicKey(): Promise<CryptoKey> {
   if (!pem) {
     throw new Error('JWT_ED25519_PUBLIC_KEY env var is not set');
   }
-  _publicKey = await importSPKI(pem, 'EdDSA');
+  _publicKey = await importSPKI(pem.replaceAll('\\n', '\n'), 'EdDSA');
   return _publicKey;
 }
 

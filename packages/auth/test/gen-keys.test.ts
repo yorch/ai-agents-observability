@@ -1,7 +1,8 @@
 import { importPKCS8, importSPKI, jwtVerify, SignJWT } from 'jose';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { envFileFromArgs, generateKeypairPem, upsertEnv } from '../src/gen-keys';
+import { getPrivateKey, getPublicKey, resetKeys } from '../src/keys';
 
 describe('envFileFromArgs', () => {
   it('defaults to the local development env file', () => {
@@ -42,22 +43,113 @@ describe('generateKeypairPem', () => {
   });
 });
 
+const originalPrivateKey = process.env.JWT_ED25519_PRIVATE_KEY;
+const originalPublicKey = process.env.JWT_ED25519_PUBLIC_KEY;
+
+afterEach(() => {
+  resetKeys();
+  if (originalPrivateKey === undefined) {
+    delete process.env.JWT_ED25519_PRIVATE_KEY;
+  } else {
+    process.env.JWT_ED25519_PRIVATE_KEY = originalPrivateKey;
+  }
+  if (originalPublicKey === undefined) {
+    delete process.env.JWT_ED25519_PUBLIC_KEY;
+  } else {
+    process.env.JWT_ED25519_PUBLIC_KEY = originalPublicKey;
+  }
+});
+
+describe('key environment loading', () => {
+  async function expectEnvKeysToRoundTrip(): Promise<void> {
+    const jwt = await new SignJWT({ sub: 'u1' })
+      .setProtectedHeader({ alg: 'EdDSA' })
+      .sign(await getPrivateKey());
+    const { payload } = await jwtVerify(jwt, await getPublicKey());
+    expect(payload.sub).toBe('u1');
+  }
+
+  it('imports keys whose PEM newlines are escaped', async () => {
+    const { privatePem, publicPem } = generateKeypairPem();
+    process.env.JWT_ED25519_PRIVATE_KEY = privatePem.trimEnd().replaceAll('\n', '\\n');
+    process.env.JWT_ED25519_PUBLIC_KEY = publicPem.trimEnd().replaceAll('\n', '\\n');
+
+    await expectEnvKeysToRoundTrip();
+  });
+
+  it('continues to import keys with real PEM newlines', async () => {
+    const { privatePem, publicPem } = generateKeypairPem();
+    process.env.JWT_ED25519_PRIVATE_KEY = privatePem;
+    process.env.JWT_ED25519_PUBLIC_KEY = publicPem;
+
+    await expectEnvKeysToRoundTrip();
+  });
+});
+
 const KEYS = {
   privatePem: '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n',
   publicPem: '-----BEGIN PUBLIC KEY-----\nBBBB\n-----END PUBLIC KEY-----\n',
 };
 
 function hasBothVars(content: string): boolean {
-  return /^JWT_ED25519_PRIVATE_KEY="/m.test(content) && /^JWT_ED25519_PUBLIC_KEY="/m.test(content);
+  return (
+    /^JWT_ED25519_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\\n/m.test(content) &&
+    /^JWT_ED25519_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\\n/m.test(content)
+  );
 }
 
 describe('upsertEnv', () => {
-  it('appends both vars (multi-line, double-quoted) when absent', () => {
+  it('appends both vars as unquoted single-line values with escaped newlines', () => {
     const out = upsertEnv('PORT=3000\n', KEYS, { force: false });
     expect(out).not.toBeNull();
     expect(hasBothVars(out as string)).toBe(true);
     expect(out).toContain('PORT=3000'); // preserves existing content
-    expect(out).toContain('JWT_ED25519_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----');
+    expect(out).toContain(
+      'JWT_ED25519_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\\nAAAA\\n-----END PRIVATE KEY-----',
+    );
+  });
+
+  it('normalizes a legacy CRLF multiline pair without rotating it', () => {
+    const legacy = [
+      'PORT=3000',
+      'JWT_ED25519_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----',
+      'AAAA',
+      '-----END PRIVATE KEY-----"',
+      'JWT_ED25519_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----',
+      'BBBB',
+      '-----END PUBLIC KEY-----"',
+      '',
+    ].join('\r\n');
+    const out = upsertEnv(
+      legacy,
+      {
+        privatePem: '-----BEGIN PRIVATE KEY-----\nCCCC\n-----END PRIVATE KEY-----\n',
+        publicPem: '-----BEGIN PUBLIC KEY-----\nDDDD\n-----END PUBLIC KEY-----\n',
+      },
+      { force: false },
+    );
+
+    expect(out).toContain(
+      'JWT_ED25519_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\\nAAAA\\n-----END PRIVATE KEY-----',
+    );
+    expect(out).toContain(
+      'JWT_ED25519_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\\nBBBB\\n-----END PUBLIC KEY-----',
+    );
+    expect(out).not.toContain('CCCC');
+    expect(out).not.toContain('DDDD');
+  });
+
+  it('replaces a partial pair without leaving duplicate assignments', () => {
+    const out = upsertEnv(
+      'JWT_ED25519_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\\nOLD\\n-----END PRIVATE KEY-----\n',
+      KEYS,
+      { force: false },
+    );
+
+    expect(out?.match(/^JWT_ED25519_PRIVATE_KEY=/gm)).toHaveLength(1);
+    expect(out?.match(/^JWT_ED25519_PUBLIC_KEY=/gm)).toHaveLength(1);
+    expect(out).not.toContain('OLD');
+    expect(hasBothVars(out as string)).toBe(true);
   });
 
   it('treats commented-out placeholders as absent and appends', () => {
