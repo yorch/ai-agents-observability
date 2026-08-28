@@ -217,7 +217,7 @@ export {
   toolTargetHash,
 } from './tool-capture';
 export type { ToolCategory } from './tool-category';
-export { TOOL_CATEGORIES, toolCategory } from './tool-category';
+export { TOOL_CATEGORIES, TOOL_NAMES_BY_AGENT, toolCategory } from './tool-category';
 export type { StepEfficiencyBaseline, ToolRole, TrajectoryEvent } from './trajectory';
 export {
   denialRetrySuccessCount,
