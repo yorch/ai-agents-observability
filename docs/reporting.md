@@ -1,6 +1,6 @@
 # Reporting and exports
 
-`/me/report`, `/team/[slug]/report`, and `/org/report` render a completed-period
+`/me/report`, `/team/[slug]/report`, and `/org/report` render a trailing-period
 agent digest and expose the same payload as Markdown, CSV, and JSON.
 
 Each report compares a trailing 7-, 30-, or 90-day period with the immediately
@@ -20,3 +20,6 @@ periods, and caveats.
 Reports never include transcript text. Their notes state that costs are derived from
 captured telemetry rather than an invoice, and that only interactive runs appear.
 CSV values are guarded against spreadsheet formula injection.
+
+Use `?range=7`, `?range=30`, or `?range=90` to select the window. Download links
+preserve the selected range; an omitted or invalid range defaults to 30 days.
