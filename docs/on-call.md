@@ -11,9 +11,9 @@ This document covers the on-call rotation, escalation paths, and quick-access li
 
 | Tool | Dev (local) | Prod |
 |---|---|---|
-| Grafana | http://localhost:3001 | `$GRAFANA_URL` (environment-specific) |
-| Prometheus | http://localhost:9090 | `$PROMETHEUS_URL` (environment-specific) |
-| MinIO Console | http://localhost:9001 | managed S3 in prod |
+| Grafana | http://localhost:3001 | `https://$DOMAIN_GRAFANA` |
+| Prometheus | http://localhost:9090 | Internal only |
+| MinIO Console | http://localhost:9001 | Internal only for bundled MinIO |
 
 ---
 
@@ -25,9 +25,9 @@ Grafana is provisioned automatically when you run `bun run docker:infra:up`. Log
 `admin` / `admin` (configurable via `GRAFANA_PASSWORD` env var). Anonymous viewer access is
 enabled, so dashboards are readable without logging in.
 
-**Prod:** The production URL is environment-specific. Set `GRAFANA_URL` in your team's runbook
-or ops wiki. Authentication in prod should be configured with a real identity provider — disable
-`GF_AUTH_ANONYMOUS_ENABLED` and set `GF_SECURITY_ADMIN_PASSWORD` to a strong secret.
+**Prod:** The Traefik deployment serves Grafana at `https://$DOMAIN_GRAFANA`, disables
+anonymous access and user sign-up, and requires the admin password from `GRAFANA_PASSWORD`.
+Keep that password in the production environment's secret store.
 
 **Available dashboards:**
 
@@ -39,13 +39,12 @@ or ops wiki. Authentication in prod should be configured with a real identity pr
 
 **Dev:** http://localhost:9090
 
-Scrapes:
-- `ingest` service at `host.docker.internal:4000/metrics` every 15 s
-- `github-app` service at `host.docker.internal:4001/metrics` every 15 s
-- `web` service at `host.docker.internal:3000/metrics` every 15 s
-- `prometheus` itself at `localhost:9090`
+In development, Prometheus scrapes the three application services through
+`host.docker.internal`. In the Traefik production deployment it instead uses internal
+Docker DNS (`ingest:4000`, `github-app:4001`, and `web:3000`) and has no public or
+host-published endpoint. Grafana remains its internal consumer.
 
-Retention: 15 days (configurable in `infra/prometheus/prometheus.yml`).
+Retention: 15 days (configurable in `docker-compose.infra.yml`).
 
 ---
 
