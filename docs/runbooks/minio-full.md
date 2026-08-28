@@ -32,7 +32,7 @@ du -sh ./data/minio
 ## Diagnose
 
 1. **Bucket missing?** — The `createbuckets` init container creates the `transcripts` bucket on first boot. If it failed, re-run: `docker compose -f docker-compose.infra.yml run --rm createbuckets`.
-2. **Credentials wrong?** — Compare `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` with `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` in your `.env`.
+2. **Credentials wrong?** — Compare the effective `S3_*` credentials with `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` in `.env` (development) or `.env.production` (production).
 3. **Volume full?** — Expand the volume or free space. In prod (real S3), check bucket quota/billing limits.
 4. **MinIO container crashed?** — `docker compose -f docker-compose.infra.yml ps minio` — restart if exited.
 5. **Network partition?** — Ingest container can't reach MinIO. Check Docker network: `docker network inspect`.

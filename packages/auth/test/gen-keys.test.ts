@@ -1,7 +1,19 @@
 import { importPKCS8, importSPKI, jwtVerify, SignJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
 
-import { generateKeypairPem, upsertEnv } from '../src/gen-keys';
+import { envFileFromArgs, generateKeypairPem, upsertEnv } from '../src/gen-keys';
+
+describe('envFileFromArgs', () => {
+  it('defaults to the local development env file', () => {
+    expect(envFileFromArgs(['bun', 'gen-keys.ts'])).toBe('.env');
+  });
+
+  it('accepts a production env file', () => {
+    expect(envFileFromArgs(['bun', 'gen-keys.ts', '--env-file=.env.production'])).toBe(
+      '.env.production',
+    );
+  });
+});
 
 describe('generateKeypairPem', () => {
   it('emits PKCS8 private + SPKI public PEM', async () => {

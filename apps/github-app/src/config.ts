@@ -1,11 +1,9 @@
 import { commaSeparatedList } from '@ai-agents-observability/schemas';
 import { z } from 'zod';
 
-// GITHUB_HOST is shared (via .env) with apps/web, which uses a BARE host
-// ("github.com"). This service needs a full origin to derive the API base, so
-// normalize: prepend https:// if no scheme is present. Without this, a shared
-// `.env` setting GITHUB_HOST=github.com would fail this service's URL validation
-// and prevent it from booting.
+// GITHUB_HOST is shared with apps/web and should be a full origin. Normalize
+// legacy bare-host values by prepending https:// so older environments continue
+// to pass this service's URL validation.
 export function normalizeHost(raw: string | undefined): string | undefined {
   if (!raw) {
     return raw;

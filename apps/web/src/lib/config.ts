@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const WebConfigSchema = z.object({
   githubAllowedOrg: z.string().optional(),
-  githubHost: z.string().default('github.com'),
+  githubHost: z.string().default('https://github.com'),
   githubOAuthClientId: z.string().optional(),
   githubOAuthClientSecret: z.string().optional(),
   ingestUrl: z.string().url().optional(),

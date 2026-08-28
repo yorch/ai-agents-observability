@@ -1,7 +1,5 @@
 # Build-from-source overlay. Layer on top of the infra + prod compose files:
-#   docker compose -f docker-compose.infra.yml \
-#                  -f docker-compose.prod.yml \
-#                  -f docker-compose.self-hosted.yml up -d --build
+#   just prod-source-up
 #
 # This overlay replaces the pre-built image references in docker-compose.prod.yml
 # with local builds from source. Use it when org policy forbids running images
