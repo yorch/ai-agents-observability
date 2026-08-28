@@ -27,6 +27,9 @@ export function ReportDigest({ apiHref, report }: { apiHref: string; report: Dig
         <ButtonLink href={`${apiHref}&format=json`} size="sm" variant="secondary">
           Download JSON
         </ButtonLink>
+        <ButtonLink href={`${apiHref}&format=bundle`} size="sm" variant="secondary">
+          Download report bundle
+        </ButtonLink>
       </div>
       <Card
         title="Period summary"
