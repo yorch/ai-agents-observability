@@ -172,6 +172,21 @@ const flow = [
     </div>
   </section>
 
+  <section class="section shell install-cta">
+    <div class="section-heading compact">
+      <p class="eyebrow">Start at the edge</p>
+      <h2 class="display">Install the hook in one command.</h2>
+      <p>
+        The maintained installer detects your platform, verifies the GitHub Release checksum,
+        and places the local <span class="mono">claude-telemetry</span> binary on your path.
+      </p>
+    </div>
+    <div class="install-command">
+      <code class="mono">curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install-hook.sh | bash</code>
+      <a class="text-link mono" href={`${base}docs/deploy/hook-binary/`}>Read the install guide <span aria-hidden="true">→</span></a>
+    </div>
+  </section>
+
   <section class="section shell final-cta">
     <p class="eyebrow">Run the measurement layer yourself</p>
     <h2 class="display">Your agents. Your infrastructure.<br />Evidence you can inspect.</h2>
@@ -555,6 +570,39 @@ const flow = [
 
   .flow p {
     margin: 0.25rem 0 0;
+  }
+
+  .install-cta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.9fr);
+    gap: clamp(2rem, 6vw, 6rem);
+    align-items: end;
+    border-block: 1px solid var(--border);
+  }
+
+  .install-command {
+    display: grid;
+    gap: 1rem;
+    padding: 1.25rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.6rem;
+    background: var(--surface);
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.16);
+  }
+
+  .install-command code {
+    display: block;
+    overflow-x: auto;
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 760px) {
+    .install-cta {
+      grid-template-columns: 1fr;
+    }
   }
 
   .final-cta {

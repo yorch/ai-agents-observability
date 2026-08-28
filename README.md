@@ -47,6 +47,26 @@ Alternatively, `just dev-up` builds and runs ingest and web in containers. Use
 The backing stack exposes PostgreSQL on `localhost:5432`, MinIO on ports `9000` and
 `9001`, Prometheus on `9090`, and Grafana on `3001` by default.
 
+### Install the hook CLI
+
+Download the latest platform-specific `claude-telemetry` binary from GitHub Releases,
+verify its checksum, and install it with the maintained installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install-hook.sh | bash
+```
+
+Use `--version v1.2.0` to pin a release or `--prefix "$HOME/.local/bin"` to install
+without `sudo`. Then authenticate and register the hooks:
+
+```bash
+claude-telemetry login
+claude-telemetry install
+```
+
+See [`docs/deploy/hook-binary.md`](./docs/deploy/hook-binary.md) for manual downloads,
+checksum verification, supported platforms, and air-gapped installation.
+
 ### Common commands
 
 ```bash
