@@ -1,6 +1,6 @@
 name: Release
 
-# Two-phase release process adapted from the colophon release process:
+# Two-phase release process:
 #
 # 1. Push to main (non-release commits) → prepare-release job analyzes
 #    conventional commits since the last tag, determines the next version,
