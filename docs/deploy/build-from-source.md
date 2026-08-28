@@ -73,8 +73,18 @@ Layer the Traefik overlay on top:
 just prod-source-traefik-up
 ```
 
-Set `DOMAIN_APP` and `DOMAIN_GITHUB` in `.env.production`. See
-`docker-compose.traefik.yml` for requirements.
+Set `DOMAIN_APP`, `DOMAIN_INGEST`, `DOMAIN_GITHUB`, and `DOMAIN_GRAFANA` in
+`.env.production`. This overlay publishes no container ports on the host. Web,
+GitHub webhooks, ingest, and Grafana are reachable only through Traefik; PostgreSQL,
+MinIO, Prometheus, and all application metrics routes remain internal. The ingest
+router exposes only `GET /health`, `POST /v1/events`, and
+`POST /v1/transcripts/:id`; the GitHub service router exposes only `GET /health` and
+`POST /webhooks/github`.
+
+Configure developer machines with `INGEST_BASE_URL=https://$DOMAIN_INGEST`. Keep
+`INGEST_URL=http://ingest:4000` inside the web container so internal traffic does not
+leave Docker. See `docker-compose.traefik.yml` for the required external network,
+entrypoint, and certificate resolver.
 
 ## Tradeoffs
 

@@ -43,6 +43,24 @@ Compose v2.30 or newer is required for raw service env files, which preserve lit
 (such as bundled database and MinIO credentials) must represent a literal `$` as `$$`.
 See [README.md](../../README.md) for the full setup guide.
 
+For an existing Traefik instance, set `DOMAIN_APP`, `DOMAIN_INGEST`, `DOMAIN_GITHUB`,
+and `DOMAIN_GRAFANA`, then run:
+
+```bash
+just prod-traefik-up
+```
+
+The Traefik overlay publishes no container ports on the host. It exposes web, GitHub
+webhooks, ingest, and Grafana through HTTPS domains; PostgreSQL, MinIO, and Prometheus
+remain internal. Metrics routes are not exposed through Traefik. Only `/health`,
+`/v1/events`, and `/v1/transcripts/:id` are routed on the ingest domain; the GitHub
+service domain similarly allows only `/health` and `/webhooks/github`. Set
+`INGEST_BASE_URL=https://$DOMAIN_INGEST` on developer machines.
+
+The external Traefik `websecure` entrypoint must not trust arbitrary client-supplied
+forwarded headers. Keep `forwardedHeaders.insecure` disabled; if another proxy is in
+front of Traefik, configure its CIDRs with `forwardedHeaders.trustedIPs` instead.
+
 ### 2. Build from source
 
 Clone the repo at a pinned tag and build all four images locally. No external image trust required.
