@@ -3,7 +3,9 @@ import {
   csvCell,
   formatReportDelta,
   type ReportDigest,
+  reportBundle,
   reportCsv,
+  reportHtml,
   reportMarkdown,
 } from '../src/lib/reporting';
 
@@ -44,5 +46,29 @@ describe('reporting renderers', () => {
     expect(reportCsv({ ...report, topTools: [{ calls: 1, name: '=SUM(A1:A2)' }] })).toContain(
       "'=SUM(A1:A2)",
     );
+  });
+
+  test('creates an aggregate-only bundle with portable report files', () => {
+    const bundle = reportBundle(report);
+    expect(bundle.manifest.visibility).toEqual({
+      includesMemberLevelData: false,
+      includesTranscripts: false,
+      policy: 'self-aggregate',
+    });
+    expect(bundle.files.map((file) => file.path)).toEqual([
+      'report.json',
+      'report.md',
+      'report.csv',
+      'report.html',
+    ]);
+    expect(bundle.files.find((file) => file.path === 'report.json')?.content).toContain(
+      '"topModels"',
+    );
+  });
+
+  test('escapes untrusted labels in the HTML snapshot', () => {
+    const html = reportHtml({ ...report, scope: { label: '<Org>', type: 'org' } });
+    expect(html).toContain('&lt;Org&gt;');
+    expect(html).not.toContain('<Org>');
   });
 });
