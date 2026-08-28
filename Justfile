@@ -1,7 +1,9 @@
-set default-list
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 prod_env := env_var_or_default("ENV_FILE", ".env.production")
+
+default:
+    @just --list
 
 # Create the local development env file without overwriting an existing one.
 dev-init:
