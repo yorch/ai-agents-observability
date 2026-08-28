@@ -351,7 +351,7 @@ See [`P13-roadmap.md`](./P13-roadmap.md). Gives every computed signal provenance
 
 Closes gaps where the pipeline recorded a *plausible* value rather than a true one, then makes the corrected values usable. Sub-agent identification was dead (no adapter ever emitted the `tool_category = 'agent'` those queries filtered on); the cost on `/org/agents`, `/team/agents`, `/org/mcp` and `/team/mcp` was a `SUM(cost_usd)` over tool events that no producer populates in real telemetry, and was always seed-data fiction; and Claude Code recorded `$0` in steady state.
 
-Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. All fifteen tasks are merged (#117–#120, #124–#128, #130–#132, #134, #136, #137).
+Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost is necessarily a redistribution of a turn's cost. P14-003 produces the per-turn linkage in the hook; P14-004 defines the redistribution and surfaces it. All seventeen tasks are merged (#117–#120, #124–#128, #130–#132, #134, #136–#140).
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
@@ -370,6 +370,8 @@ Real spend accrues per **assistant turn**, not per tool call, so a per-tool cost
 | [P14-013](./P14-013-typecheck-gaps.md) | Close the two remaining typecheck bypasses | done | claude | S | P14-012 |
 | [P14-014](./P14-014-db-test-isolation.md) | Let the DB-gated suites share a database | done | claude | S | P14-009 |
 | [P14-015](./P14-015-copilot-request-cost.md) | Request-denominated cost dimension, and Copilot pricing | done | claude | M | P14-007 |
+| [P14-016](./P14-016-copilot-token-capture-reopened.md) | Reopen Copilot CLI token capture | done | claude | S | P14-015 |
+| [P14-017](./P14-017-github-billing-reconcile.md) | Reconcile Copilot spend against GitHub's billing API | done | claude | M | P14-015 |
 
 > **Phase 14 exists because green tests are not evidence of true data.** Every task
 > here fixes a value that was written, validated, aggregated and displayed — and was
@@ -401,7 +403,14 @@ The model-routing follow-up recorded here while Phase 14 was in flight became [P
 
 **The standing lesson: a comment encoding a third party's commercial terms has a shelf life its retrieval date does not advertise. Re-fetch it, do not re-read it.**
 
-**Two follow-ups remain open, deliberately unnumbered until picked up.**
+**Both remaining follow-ups are now closed, and Phase 14 has no open items.**
 
-1. **Copilot token capture is worth reopening.** [P14-007](./P14-007-copilot-usage-capture.md) closed as a documented negative and its *finding* stands — no Copilot hook payload carries token usage. But its *conclusion*, that capture would not help because tokens price at `$0`, rested on the stale v1 comment. With `copilot.v2` populated, captured tokens would price correctly. Worth re-checking whether the June billing change came with a usage surface the hooks can reach.
-2. **A reconcile job against GitHub's billing API** (`.../billing/ai_credit/usage`) is the actual ground truth for Copilot spend, in the same shape as the existing Anthropic billing reconciliation (`anthropic-billing-source.ts` → `reconcile-cost.ts`).
+- **Copilot token capture is settled, negatively and permanently** ([P14-016](./P14-016-copilot-token-capture-reopened.md)). Reopened on the corrected billing premise, then re-closed on stronger evidence than the first close had: GitHub Copilot CLI's own shipped `schemas/session-events.schema.json` defines a rich per-turn `assistant.usage` event (model, input/output/cache tokens, cost) and pins it `"ephemeral": {"const": true}` — a property the schema documents as *"the event is transient and not persisted to the session event log on disk"*. Ten real `~/.copilot/session-state/<id>/` directories spanning Jan–Aug 2026 contain zero `events.jsonl`, which also resolves the reliability question the first investigation left open. The data is unreachable by the vendor's own design, not merely undiscovered. If GitHub ever persists that event, `copilot.v2` already prices it.
+- **GitHub's billing API is wired as a second `BillingSource`** ([P14-017](./P14-017-github-billing-reconcile.md)), which — capture being impossible — is the only remaining path to a real Copilot figure. Attribution stops at org level by necessity: the endpoint returns one aggregate per period, and AI credits meter every GitHub AI product across every seat. Drift for `COPILOT` measures our capture gap, not our arithmetic, so it sets gauges and logs `cost.reconciliation.no_client_token_coverage` without incrementing the breach counter operators page on.
+
+**Standing lessons from this phase, recorded because each cost real work to learn:**
+
+1. **A gate that reports success is not evidence it looked at anything.** `tool_category = 'agent'` matched nothing; the `routing_waste` alert could never fire; `tsc` never saw 80 test files; six green tests exercised objects the app never builds. For any gate you rely on, once, prove it fails on a deliberate violation.
+2. **A seed that reimplements production is how a fabricated number survives review** — every query gets written against it and agrees with it. A definition two workspaces must agree on lives in `packages/schemas`; adding a caller is the fix, retyping the definition is the bug.
+3. **Re-fetch a vendor's commercial terms; do not re-read them.** A dated, well-sourced comment asserting "Copilot does not bill tokens at all" was ~10 weeks stale when written and misled three consecutive tasks in two opposite directions.
+4. **The shipped artifact is the contract, not the docs.** Claude Code's `tool_use_id` and Copilot's un-persisted usage event were both settled from the binary and its bundled schema, after documentation left each ambiguous.
