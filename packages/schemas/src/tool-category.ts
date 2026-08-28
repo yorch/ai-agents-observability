@@ -158,6 +158,19 @@ const TOOL_CATEGORY_MAPS: Readonly<Partial<Record<AgentTypeKey, CategoryMap>>> =
 };
 
 /**
+ * Each agent's own tool-name vocabulary — the keys of its table above, in that
+ * agent's own spelling and casing. For callers that need the *names* an agent
+ * can emit, not just the category of a name they already have. Currently one
+ * caller: `packages/db/src/seed.ts`, which cannot fabricate a Claude-Code-shaped
+ * `tool_name` for a Codex or opencode session without producing an
+ * `<agent>:<tool>` pair no producer ever writes (P15-001).
+ */
+export const TOOL_NAMES_BY_AGENT: Readonly<Partial<Record<AgentTypeKey, readonly string[]>>> =
+  Object.fromEntries(
+    Object.entries(TOOL_CATEGORY_MAPS).map(([agent, map]) => [agent, Object.keys(map)]),
+  );
+
+/**
  * Classify a tool call into the DESIGN_DOC §5.3 taxonomy (P14-002). O(1): a
  * truthy check plus up to two hash lookups — no regex, no scanning — so it is
  * safe on the hook's <10 ms hot path (`apps/hook/AGENTS.md`).

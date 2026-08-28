@@ -121,11 +121,11 @@ export default async function OrgModelsPage({
   // resolved policy — never a substring of the model id. An agent whose price
   // table is unreachable still gets a snapshot, just an unpriced one, so its
   // models surface as `unpricedModels` rather than as a fabricated tier.
-  const { recommendations: routingRecs, unpricedModels } = computeRoutingRecommendations(
-    routing,
-    range,
-    policies,
-  );
+  const {
+    belowConfidenceThreshold,
+    recommendations: routingRecs,
+    unpricedModels,
+  } = computeRoutingRecommendations(routing, range, policies);
 
   // A claim is registered per MODEL, not per (agent, model): `getRoutingActuals`
   // measures `model = segment` across the org, so a segment of `agent:model`
@@ -237,7 +237,11 @@ export default async function OrgModelsPage({
       ) : (
         <>
           {/* Routing recommendations */}
-          <RoutingRecommendations claims={routingClaims} unpricedModels={unpricedModels} />
+          <RoutingRecommendations
+            belowConfidenceThreshold={belowConfidenceThreshold}
+            claims={routingClaims}
+            unpricedModels={unpricedModels}
+          />
           <CostAttributionNote coverage={coverage} />
 
           {/* Did the recommendations work? (P13-006, supersedes P10-006) */}

@@ -60,6 +60,11 @@ jobs:
         with:
           fetch-depth: 0  # need full history for git log since last tag
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+
       - name: Prepare release
         id: prepare
         run: |
@@ -75,6 +80,10 @@ jobs:
           BODY=$(echo "${OUTPUT}" | tail -n +2)
           TAG="v${VERSION}"
           TODAY=$(date +%Y-%m-%d)
+
+          bun scripts/release-version.ts set "${VERSION}"
+          bun scripts/release-version.ts check "${VERSION}"
+          bun install --frozen-lockfile --lockfile-only --ignore-scripts
 
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
@@ -139,7 +148,8 @@ jobs:
           # content is deterministic for a given commit.
           git checkout -B "${BRANCH}"
 
-          git add CHANGELOG.md
+          mapfile -t MANIFESTS < <(bun scripts/release-version.ts list)
+          git add CHANGELOG.md bun.lock "${MANIFESTS[@]}"
           git commit -m "chore: release ${TAG}" || {
             echo "No changes to commit — changelog already up to date."
             exit 0
@@ -228,6 +238,11 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Verify synchronized package versions
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: bun scripts/release-version.ts check "${TAG#v}"
 
       # Re-verify — publishing is irreversible (tag + release trigger artifact
       # workflows that push to GHCR and GitHub Releases), so it does not

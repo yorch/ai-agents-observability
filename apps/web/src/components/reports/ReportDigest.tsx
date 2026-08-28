@@ -1,5 +1,7 @@
+import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { ButtonLink, Card, Cell, Row, Table } from '@/components/ui';
 import { type ReportDigest as Digest, formatReportDelta } from '@/lib/reporting';
+import type { ScopedTrendPoint } from '@/lib/trend-queries';
 
 function value(value: number, unit: Digest['metrics'][number]['unit']): string {
   if (unit === 'usd') {
@@ -14,7 +16,21 @@ function value(value: number, unit: Digest['metrics'][number]['unit']): string {
   return Math.round(value).toLocaleString();
 }
 
-export function ReportDigest({ apiHref, report }: { apiHref: string; report: Digest }) {
+export function ReportDigest({
+  apiHref,
+  report,
+  trends = [],
+}: {
+  apiHref: string;
+  report: Digest;
+  trends?: ScopedTrendPoint[];
+}) {
+  const topModelCost = report.topModels.reduce((sum, row) => sum + row.costUsd, 0);
+  const leadModel = report.topModels[0];
+  const leadShare = topModelCost > 0 && leadModel ? leadModel.costUsd / topModelCost : 0;
+  const largestChange = report.metrics
+    .map((metric) => ({ delta: metric.current - metric.prior, metric }))
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0];
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
@@ -26,6 +42,9 @@ export function ReportDigest({ apiHref, report }: { apiHref: string; report: Dig
         </ButtonLink>
         <ButtonLink href={`${apiHref}&format=json`} size="sm" variant="secondary">
           Download JSON
+        </ButtonLink>
+        <ButtonLink href={`${apiHref}&format=bundle`} size="sm" variant="secondary">
+          Download report bundle
         </ButtonLink>
       </div>
       <Card
@@ -51,6 +70,32 @@ export function ReportDigest({ apiHref, report }: { apiHref: string; report: Dig
           ))}
         </Table>
       </Card>
+      <Card
+        title="Readout highlights"
+        caption="Signals worth carrying into the next planning conversation"
+      >
+        {largestChange ? (
+          <div className="grid gap-4 text-sm md:grid-cols-2">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-text-3">Largest movement</p>
+              <p className="mt-1 text-text">
+                {largestChange.metric.label}: {formatReportDelta(largestChange.metric)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-text-3">Model concentration</p>
+              <p className="mt-1 text-text">
+                {leadModel && topModelCost > 0
+                  ? `${leadModel.model} accounts for ${(leadShare * 100).toFixed(0)}% of the top-model spend.`
+                  : 'No model spend is recorded in this period.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-text-2">No changes are available for this period.</p>
+        )}
+      </Card>
+      {trends.length > 0 && <ScopedTrendCharts points={trends} />}
       <div className="grid gap-6 md:grid-cols-2">
         <Card title="Top models" flush>
           <Table

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { type ReportDigest, reportCsv, reportMarkdown } from './reporting';
+import { type ReportDigest, reportBundle, reportCsv, reportMarkdown } from './reporting';
 
 export function reportDays(raw: string | null): 7 | 30 | 90 {
   if (raw === '7') {
@@ -12,7 +12,8 @@ export function reportDays(raw: string | null): 7 | 30 | 90 {
 }
 
 export function reportResponse(report: ReportDigest, rawFormat: string | null): NextResponse {
-  const format = rawFormat === 'md' || rawFormat === 'csv' ? rawFormat : 'json';
+  const format =
+    rawFormat === 'md' || rawFormat === 'csv' || rawFormat === 'bundle' ? rawFormat : 'json';
   if (format === 'md') {
     return new NextResponse(reportMarkdown(report), {
       headers: {
@@ -26,6 +27,14 @@ export function reportResponse(report: ReportDigest, rawFormat: string | null): 
       headers: {
         'Content-Disposition': 'attachment; filename="agent-digest.csv"',
         'Content-Type': 'text/csv; charset=utf-8',
+      },
+    });
+  }
+  if (format === 'bundle') {
+    return new NextResponse(JSON.stringify(reportBundle(report), null, 2), {
+      headers: {
+        'Content-Disposition': 'attachment; filename="agent-report-bundle.json"',
+        'Content-Type': 'application/json; charset=utf-8',
       },
     });
   }
