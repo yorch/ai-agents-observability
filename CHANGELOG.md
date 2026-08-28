@@ -6,6 +6,19 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v1.2.0 (2026-08-28)
+
+### Features
+
+- web: enrich reports with scoped trends (#164)
+- web: add portable report bundle export (#162)
+- web: add session visual analysis (#161)
+- web: add scoped activity trends (#163)
+
+### Bug Fixes
+
+- seed: make seeded telemetry match what production records (#160)
+
 ## v1.1.0 (2026-08-28)
 
 ### Features
