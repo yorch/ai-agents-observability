@@ -82,7 +82,6 @@ jobs:
           TODAY=$(date +%Y-%m-%d)
 
           bun scripts/release-version.ts set "${VERSION}"
-          bun install --lockfile-only --ignore-scripts
           bun scripts/release-version.ts check "${VERSION}"
           bun install --frozen-lockfile --lockfile-only --ignore-scripts
 

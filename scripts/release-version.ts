@@ -43,21 +43,85 @@ async function readManifest(path: string): Promise<Record<string, unknown>> {
   return Bun.file(resolve(root, path)).json();
 }
 
+function workspacePaths(manifestPaths: string[]): string[] {
+  return manifestPaths.filter((path) => path !== 'package.json').map((path) => path.slice(0, -13));
+}
+
+function lockfileVersions(lockText: string): Record<string, string | undefined> {
+  const lock = Bun.JSONC.parse(lockText) as {
+    workspaces?: Record<string, { version?: string }>;
+  };
+  if (!lock.workspaces) {
+    throw new Error('bun.lock does not contain workspaces');
+  }
+  return Object.fromEntries(
+    Object.entries(lock.workspaces).map(([path, workspace]) => [path, workspace.version]),
+  );
+}
+
+export function updateLockfileWorkspaceVersions(
+  lockText: string,
+  workspaces: string[],
+  version: string,
+): string {
+  const versions = lockfileVersions(lockText);
+  let updatedLock = lockText;
+
+  for (const workspace of workspaces) {
+    if (!(workspace in versions)) {
+      throw new Error(`Workspace missing from bun.lock: ${workspace}`);
+    }
+    const start = updatedLock.indexOf(`    "${workspace}": {`);
+    if (start < 0) {
+      throw new Error(`Workspace block missing from bun.lock: ${workspace}`);
+    }
+    const end = updatedLock.indexOf('\n    "', start + 1);
+    const blockEnd = end < 0 ? updatedLock.length : end;
+    const block = updatedLock.slice(start, blockEnd);
+    const updated = block.replace(
+      /(\n {6}"version": ")[^"]+("[,])/,
+      (_match, prefix: string, suffix: string) => `${prefix}${version}${suffix}`,
+    );
+    if (updated === block && versions[workspace] !== version) {
+      throw new Error(`Workspace version missing from bun.lock: ${workspace}`);
+    }
+    updatedLock = `${updatedLock.slice(0, start)}${updated}${updatedLock.slice(blockEnd)}`;
+  }
+
+  return updatedLock;
+}
+
 async function setVersions(version: string): Promise<void> {
-  for (const path of releaseManifestPaths()) {
+  const manifestPaths = releaseManifestPaths();
+  for (const path of manifestPaths) {
     const manifest = await readManifest(path);
     manifest.version = version;
     await Bun.write(resolve(root, path), `${JSON.stringify(manifest, null, 2)}\n`);
     console.log(`${path}: ${version}`);
   }
+  const lockPath = resolve(root, 'bun.lock');
+  const lockText = readFileSync(lockPath, 'utf8');
+  await Bun.write(
+    lockPath,
+    updateLockfileWorkspaceVersions(lockText, workspacePaths(manifestPaths), version),
+  );
+  console.log(`bun.lock workspaces: ${version}`);
 }
 
 async function checkVersions(version: string): Promise<void> {
+  const manifestPaths = releaseManifestPaths();
   const mismatches: string[] = [];
-  for (const path of releaseManifestPaths()) {
+  for (const path of manifestPaths) {
     const manifest = await readManifest(path);
     if (manifest.version !== version) {
       mismatches.push(`${path}: ${String(manifest.version)}`);
+    }
+  }
+
+  const versions = lockfileVersions(readFileSync(resolve(root, 'bun.lock'), 'utf8'));
+  for (const workspace of workspacePaths(manifestPaths)) {
+    if (versions[workspace] !== version) {
+      mismatches.push(`bun.lock#${workspace}: ${String(versions[workspace])}`);
     }
   }
 
@@ -65,7 +129,7 @@ async function checkVersions(version: string): Promise<void> {
     throw new Error(`Expected every package version to be ${version}:\n${mismatches.join('\n')}`);
   }
 
-  console.log(`All ${releaseManifestPaths().length} package manifests are version ${version}.`);
+  console.log(`All ${manifestPaths.length} package manifests and bun.lock are version ${version}.`);
 }
 
 if (import.meta.main) {
