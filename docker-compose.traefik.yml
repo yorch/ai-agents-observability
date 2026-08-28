@@ -65,7 +65,7 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
       - "traefik.http.services.${TRAEFIK_NAME_INGEST:-ai-agents-ingest}.loadbalancer.server.port=4000"
-      - "traefik.http.routers.${TRAEFIK_NAME_INGEST:-ai-agents-ingest}.rule=Host(`${DOMAIN_INGEST:?DOMAIN_INGEST must be set when using docker-compose.traefik.yml}`) && ((Method(`GET`) && Path(`/health`)) || (Method(`POST`) && (Path(`/v1/events`) || PathRegexp(`^/v1/transcripts/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`))))"
+      - "traefik.http.routers.${TRAEFIK_NAME_INGEST:-ai-agents-ingest}.rule=Host(`${DOMAIN_INGEST:?DOMAIN_INGEST must be set when using docker-compose.traefik.yml}`) && ((Method(`GET`) && Path(`/health`)) || (Method(`POST`) && (Path(`/v1/events`) || PathPrefix(`/v1/transcripts/`))))"
       - "traefik.http.routers.${TRAEFIK_NAME_INGEST:-ai-agents-ingest}.entrypoints=websecure"
       - "traefik.http.routers.${TRAEFIK_NAME_INGEST:-ai-agents-ingest}.tls=true"
       - "traefik.http.routers.${TRAEFIK_NAME_INGEST:-ai-agents-ingest}.tls.certResolver=webcert"
