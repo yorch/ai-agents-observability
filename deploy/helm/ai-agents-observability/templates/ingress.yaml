@@ -1,0 +1,73 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ai-agents-observability.fullname" . }}-web
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path | quote }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "ai-agents-observability.fullname" $ }}-web
+                port:
+                  number: {{ $.Values.web.port }}
+          {{- end }}
+    {{- end }}
+{{- end -}}
+---
+{{- if .Values.githubAppIngress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ai-agents-observability.fullname" . }}-github-app
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: github-app
+  {{- with .Values.githubAppIngress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.githubAppIngress.className }}
+  ingressClassName: {{ .Values.githubAppIngress.className | quote }}
+  {{- end }}
+  {{- with .Values.githubAppIngress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.githubAppIngress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path | quote }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "ai-agents-observability.fullname" $ }}-github-app
+                port:
+                  number: {{ $.Values.githubApp.port }}
+          {{- end }}
+    {{- end }}
+{{- end -}}

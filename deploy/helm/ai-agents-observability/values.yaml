@@ -1,0 +1,223 @@
+# Default values for ai-agents-observability.
+# Copy this file, override what you need, and install with:
+#   helm install ai-agents-observability deploy/helm/ai-agents-observability/ -f my-values.yaml
+
+# ── Global image settings ────────────────────────────────────────────────────
+# All four services share these. Override per-service below if needed.
+image:
+  registry: ghcr.io/yorch/ai-agents-observability
+  # Set to your internal registry for governance-compliant deployments:
+  #   registry: harbor.internal.corp.com/ai-agents-observability
+  pullPolicy: Always
+  # For air-gapped deployments: set pullPolicy: IfNotPresent after
+  # docker-loading images onto the cluster nodes.
+  # pullSecrets: []
+  #   - name: my-registry-pull-secret
+
+# ── TimescaleDB ──────────────────────────────────────────────────────────────
+# By default, a bundled StatefulSet runs TimescaleDB. For production, prefer a
+# managed Postgres+TimescaleDB or the CloudNativePG operator — set enabled: false
+# and provide externalDatabase.url.
+timescaledb:
+  enabled: true
+  image:
+    repository: timescale/timescaledb
+    tag: latest-pg18
+    pullPolicy: IfNotPresent
+  # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB for the bundled instance.
+  auth:
+    username: postgres
+    password: postgres  # CHANGE THIS
+    database: ai_agents_observability
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 50Gi
+    accessMode: ReadWriteOnce
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+# External database — used when timescaledb.enabled is false.
+externalDatabase:
+  url: ""  # postgresql://user:pass@host:5432/dbname
+
+# ── MinIO (S3-compatible object store) ───────────────────────────────────────
+# By default, a bundled StatefulSet runs MinIO. For production, prefer external
+# S3 (AWS, Backblaze B2, etc.) — set enabled: false and provide externalS3.*.
+minio:
+  enabled: true
+  image:
+    repository: quay.io/minio/minio
+    tag: RELEASE.2025-09-07T16-13-09Z
+    pullPolicy: IfNotPresent
+  auth:
+    rootUser: minioadmin  # CHANGE THIS
+    rootPassword: minioadmin  # CHANGE THIS
+  bucket: transcripts
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 100Gi
+    accessMode: ReadWriteOnce
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# External S3 — used when minio.enabled is false.
+externalS3:
+  endpoint: ""        # https://s3.amazonaws.com
+  accessKeyId: ""
+  secretAccessKey: ""
+  bucket: transcripts
+  region: us-east-1
+  forcePathStyle: false
+
+# ── Application services ─────────────────────────────────────────────────────
+
+web:
+  enabled: true
+  image:
+    repository: web  # appended to global image.registry
+    tag: ""          # defaults to .Chart.AppVersion
+    pullPolicy: ""   # defaults to global image.pullPolicy
+  replicaCount: 1
+  port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  # Environment variables specific to web. Shared env (DATABASE_URL, etc.) is
+  # set automatically in the deployment template.
+  env: {}
+  # INGEST_URL: http://ingest:4000
+  # NEXT_PUBLIC_JIRA_BASE_URL: https://your-org.atlassian.net
+
+ingest:
+  enabled: true
+  image:
+    repository: ingest
+    tag: ""
+    pullPolicy: ""
+  replicaCount: 1
+  port: 4000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  env: {}
+
+githubApp:
+  enabled: true
+  image:
+    repository: github-app
+    tag: ""
+    pullPolicy: ""
+  replicaCount: 1
+  port: 4001
+  # The GitHub App service is optional — disable if you don't use PR enrichment.
+  # enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  env: {}
+
+migrations:
+  image:
+    repository: migrations-runner
+    tag: ""
+    pullPolicy: ""
+  # Run migrations as a Helm pre-install/pre-upgrade hook. Disable if you manage
+  # migrations manually.
+  enabled: true
+
+# ── Secrets ──────────────────────────────────────────────────────────────────
+# These are rendered as a Kubernetes Secret by the chart. For production, prefer
+# External Secrets Operator or sealed-secrets — set useExistingSecret: true and
+# point secretName at your pre-created secret.
+secrets:
+  useExistingSecret: false
+  secretName: ai-agents-observability-secrets
+  # When useExistingSecret is false, the chart creates a secret with these values.
+  # FILL THESE IN — do not use the defaults in production.
+  jwtPrivateKey: ""        # PEM PKCS8 — generate with: bun run gen:keys
+  jwtPublicKey: ""         # PEM SPKI
+  githubOAuthClientId: ""
+  githubOAuthClientSecret: ""
+  githubHost: "github.com"
+  githubAppId: ""
+  githubAppPrivateKey: ""  # base64-encoded PEM
+  githubAppWebhookSecret: ""
+  # Admin secret for /admin/health and /admin/jobs/:name/run endpoints.
+  # When set, these endpoints require a matching X-Admin-Secret header.
+  adminSecret: ""
+
+# ── Ingress ──────────────────────────────────────────────────────────────────
+# Configures Ingress for the web service. The GitHub App service is exposed
+# separately (it receives webhooks from GitHub).
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: observability.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # - secretName: observability-tls
+  #   hosts:
+  #     - observability.example.com
+
+# GitHub App webhook ingress — separate from the web UI ingress.
+githubAppIngress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: github-webhook.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# ── Service account ──────────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ── Pod security context ─────────────────────────────────────────────────────
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1001
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  readOnlyRootFilesystem: false  # Next.js standalone needs to write to /tmp
+
+# ── Node selector / tolerations / affinity ───────────────────────────────────
+nodeSelector: {}
+tolerations: []
+affinity: {}

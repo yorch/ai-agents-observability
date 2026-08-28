@@ -1,0 +1,136 @@
+{{- if .Values.githubApp.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-agents-observability.fullname" . }}-github-app
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: github-app
+spec:
+  replicas: {{ .Values.githubApp.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ai-agents-observability.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: github-app
+  template:
+    metadata:
+      labels:
+        {{- include "ai-agents-observability.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: github-app
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ai-agents-observability.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: github-app
+          image: {{ include "ai-agents-observability.image" (list . .Values.githubApp.image) }}
+          imagePullPolicy: {{ include "ai-agents-observability.pullPolicy" (list . .Values.githubApp.image) }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.githubApp.port }}
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              value: {{ include "ai-agents-observability.databaseUrl" . | quote }}
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: {{ .Values.githubApp.port | quote }}
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: GITHUB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: GITHUB_HOST
+            {{- if .Values.secrets.githubAppId }}
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: GITHUB_APP_ID
+            {{- end }}
+            {{- if .Values.secrets.githubAppPrivateKey }}
+            - name: GITHUB_APP_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: GITHUB_APP_PRIVATE_KEY
+            {{- end }}
+            {{- if .Values.secrets.githubAppWebhookSecret }}
+            - name: GITHUB_APP_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: GITHUB_APP_WEBHOOK_SECRET
+            {{- end }}
+            {{- if .Values.secrets.adminSecret }}
+            - name: ADMIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: ADMIN_SECRET
+            {{- end }}
+            {{- range $k, $v := .Values.githubApp.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- with .Values.githubApp.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-agents-observability.fullname" . }}-github-app
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: github-app
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.githubApp.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "ai-agents-observability.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: github-app
+{{- end -}}
