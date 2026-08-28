@@ -1,6 +1,10 @@
 import { BarChart, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { fmtDayShort, fmtUsd } from '@/lib/fmt';
-import type { ScopedTrendPoint } from '@/lib/trend-queries';
+import type { CostDurationPoint } from '@/lib/scatter-queries';
+import type { ActivityHeatmapCell, ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
+import { ActivityHeatmap } from './ActivityHeatmap';
+import { CostDurationScatter } from './CostDurationScatter';
+import { WeeklyDigestTable } from './WeeklyDigestTable';
 
 const MIN_POINTS = 2;
 
@@ -82,7 +86,19 @@ function modelSeries(points: ScopedTrendPoint[]) {
   return models.length <= 6 ? models : [...models.slice(0, 5), 'Other'];
 }
 
-export function ScopedTrendCharts({ points }: { points: ScopedTrendPoint[] }) {
+export function ScopedTrendCharts({
+  points,
+  scatter,
+  aggregateScatter = false,
+  concurrency = [],
+  heatmap = [],
+}: {
+  points: ScopedTrendPoint[];
+  scatter?: CostDurationPoint[];
+  aggregateScatter?: boolean;
+  concurrency?: ConcurrencyPoint[];
+  heatmap?: ActivityHeatmapCell[];
+}) {
   const models = modelSeries(points);
   const namedModels = new Set(models.filter((model) => model !== 'Other'));
   const enough = points.length >= MIN_POINTS;
@@ -99,6 +115,11 @@ export function ScopedTrendCharts({ points }: { points: ScopedTrendPoint[] }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      {scatter && (
+        <div className="lg:col-span-2">
+          <CostDurationScatter aggregate={aggregateScatter} points={scatter} />
+        </div>
+      )}
       <Card title="Daily spend" caption="Cost by session start day">
         {!enough ? (
           <CardEmpty>
@@ -151,6 +172,81 @@ export function ScopedTrendCharts({ points }: { points: ScopedTrendPoint[] }) {
         )}
       </Card>
       <ActivityCalendar points={points} />
+      <ActivityHeatmap cells={heatmap} />
+      <WeeklyDigestTable points={points} />
+      {concurrency.length > 0 && <ConcurrencyCharts points={concurrency} />}
+    </div>
+  );
+}
+
+function ConcurrencyCharts({ points }: { points: ConcurrencyPoint[] }) {
+  const active = points.filter((point) => point.sessionCount > 0);
+  const peak = Math.max(...active.map((point) => point.peakConcurrent), 0);
+  return (
+    <div className="grid gap-6 lg:col-span-2 lg:grid-cols-2">
+      <Card title="Parallel sessions" caption="Peak overlapping interactive sessions by day">
+        {active.length === 0 ? (
+          <CardEmpty>No parallel activity in this period.</CardEmpty>
+        ) : (
+          <BarChart
+            data={active.map((point) => ({
+              label: fmtDayShort(point.day),
+              values: [point.peakConcurrent],
+            }))}
+            series={['Peak concurrent sessions']}
+            format={(value) => value.toLocaleString()}
+          />
+        )}
+        <p className="mt-3 text-xs text-text-3">
+          {peak > 1
+            ? `The highest overlap was ${peak.toLocaleString()} sessions.`
+            : 'No overlapping sessions were recorded.'}
+        </p>
+      </Card>
+      <Card title="Parallel-session share" caption="Sessions that overlapped another session">
+        {active.length === 0 ? (
+          <CardEmpty>No session overlap in this period.</CardEmpty>
+        ) : (
+          <BarChart
+            data={active.map((point) => ({
+              label: fmtDayShort(point.day),
+              values: [point.parallelShare * 100],
+            }))}
+            series={['Sessions with overlap']}
+            format={(value) => `${value.toFixed(0)}%`}
+          />
+        )}
+      </Card>
+      <Card
+        title="Concurrency data"
+        caption="Exact daily values for accessible comparison"
+        className="lg:col-span-2"
+        flush
+      >
+        {active.length === 0 ? (
+          <CardEmpty>No parallel activity in this period.</CardEmpty>
+        ) : (
+          <Table
+            columns={[
+              { label: 'Day' },
+              { align: 'right', label: 'Sessions' },
+              { align: 'right', label: 'Peak concurrent' },
+              { align: 'right', label: 'Parallel sessions' },
+              { align: 'right', label: 'Share' },
+            ]}
+          >
+            {active.map((point) => (
+              <Row key={point.day.toISOString()}>
+                <Cell>{fmtDayShort(point.day)}</Cell>
+                <Cell num>{point.sessionCount.toLocaleString()}</Cell>
+                <Cell num>{point.peakConcurrent.toLocaleString()}</Cell>
+                <Cell num>{point.parallelSessionCount.toLocaleString()}</Cell>
+                <Cell num>{(point.parallelShare * 100).toFixed(1)}%</Cell>
+              </Row>
+            ))}
+          </Table>
+        )}
+      </Card>
     </div>
   );
 }

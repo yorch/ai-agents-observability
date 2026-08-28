@@ -2,7 +2,8 @@ import { ReportDigest } from '@/components/reports/ReportDigest';
 import { getOrgReport } from '@/lib/reporting-queries';
 import { reportDays } from '@/lib/reporting-route';
 import { requireOrgViewer } from '@/lib/roles';
-import { getOrgTrends } from '@/lib/trend-queries';
+import { getOrgCostDuration } from '@/lib/scatter-queries';
+import { getOrgActivityHeatmap, getOrgConcurrency, getOrgTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,9 +15,13 @@ export default async function OrgReportPage({
   const { range } = await searchParams;
   const days = reportDays(range ?? null);
   await requireOrgViewer();
-  const [report, trends] = await Promise.all([
+  const since = new Date(Date.now() - days * 86_400_000);
+  const [report, trends, scatter, concurrency, heatmap] = await Promise.all([
     getOrgReport(days),
-    getOrgTrends(new Date(Date.now() - days * 86_400_000)),
+    getOrgTrends(since),
+    getOrgCostDuration(since),
+    getOrgConcurrency(since),
+    getOrgActivityHeatmap(since),
   ]);
   return (
     <div className="space-y-6">
@@ -29,7 +34,15 @@ export default async function OrgReportPage({
           Aggregate activity, ready for a leadership readout.
         </p>
       </div>
-      <ReportDigest apiHref={`/api/org/report?range=${days}`} report={report} trends={trends} />
+      <ReportDigest
+        apiHref={`/api/org/report?range=${days}`}
+        report={report}
+        trends={trends}
+        scatter={scatter}
+        concurrency={concurrency}
+        heatmap={heatmap}
+        aggregateScatter
+      />
     </div>
   );
 }

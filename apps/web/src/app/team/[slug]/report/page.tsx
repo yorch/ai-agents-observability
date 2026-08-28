@@ -2,8 +2,9 @@ import { ReportDigest } from '@/components/reports/ReportDigest';
 import { getTeamReport } from '@/lib/reporting-queries';
 import { reportDays } from '@/lib/reporting-route';
 import { requireTeamLead } from '@/lib/roles';
+import { getTeamCostDuration } from '@/lib/scatter-queries';
 import { resolveTeamVisibility } from '@/lib/team-queries';
-import { getTeamTrends } from '@/lib/trend-queries';
+import { getTeamActivityHeatmap, getTeamConcurrency, getTeamTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,14 +19,18 @@ export default async function TeamReportPage({
   const days = reportDays(range ?? null);
   const { teamId, teamName } = await requireTeamLead(slug);
   const visibility = await resolveTeamVisibility(teamId);
-  const [report, trends] = await Promise.all([
+  const since = new Date(Date.now() - days * 86_400_000);
+  const [report, trends, scatter, concurrency, heatmap] = await Promise.all([
     getTeamReport({
       days,
       teamLabel: teamName,
       totalMemberCount: visibility.totalCount,
       visibleIds: visibility.visibleIds,
     }),
-    getTeamTrends(visibility.visibleIds, new Date(Date.now() - days * 86_400_000)),
+    getTeamTrends(visibility.visibleIds, since),
+    getTeamCostDuration(visibility.visibleIds, since),
+    getTeamConcurrency(visibility.visibleIds, since),
+    getTeamActivityHeatmap(visibility.visibleIds, since),
   ]);
   return (
     <div className="space-y-6">
@@ -42,6 +47,10 @@ export default async function TeamReportPage({
         apiHref={`/api/team/${slug}/report?range=${days}`}
         report={report}
         trends={trends}
+        scatter={scatter}
+        concurrency={concurrency}
+        heatmap={heatmap}
+        aggregateScatter
       />
     </div>
   );
