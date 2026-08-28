@@ -3,6 +3,7 @@ import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { EmptyState } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
+import { getUserCostDuration } from '@/lib/scatter-queries';
 import { daysAgo } from '@/lib/time';
 import { getUserTrends } from '@/lib/trend-queries';
 
@@ -18,7 +19,11 @@ export default async function MeTrendsPage({
   }
   const raw = Number((await searchParams).range);
   const range = ([7, 30, 90].includes(raw) ? raw : 30) as 7 | 30 | 90;
-  const points = await getUserTrends(user.id, daysAgo(range));
+  const since = daysAgo(range);
+  const [points, scatter] = await Promise.all([
+    getUserTrends(user.id, since),
+    getUserCostDuration(user.id, since),
+  ]);
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -37,7 +42,7 @@ export default async function MeTrendsPage({
           Install an adapter and run a session to start seeing trends.
         </EmptyState>
       ) : (
-        <ScopedTrendCharts points={points} />
+        <ScopedTrendCharts points={points} scatter={scatter} />
       )}
     </div>
   );

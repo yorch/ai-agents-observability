@@ -2,6 +2,7 @@ import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { EmptyState } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
+import { getTeamCostDuration } from '@/lib/scatter-queries';
 import { resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
 import { getTeamTrends } from '@/lib/trend-queries';
@@ -19,7 +20,11 @@ export default async function TeamTrendsPage({
   const range = ([7, 30, 90].includes(raw) ? raw : 30) as 7 | 30 | 90;
   const { teamId, teamName } = await requireTeamLead(slug);
   const { visibleIds } = await resolveTeamVisibility(teamId);
-  const points = await getTeamTrends(visibleIds, daysAgo(range));
+  const since = daysAgo(range);
+  const [points, scatter] = await Promise.all([
+    getTeamTrends(visibleIds, since),
+    getTeamCostDuration(visibleIds, since),
+  ]);
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -39,7 +44,7 @@ export default async function TeamTrendsPage({
           Visible team sessions will appear here once members run an adapter.
         </EmptyState>
       ) : (
-        <ScopedTrendCharts points={points} />
+        <ScopedTrendCharts points={points} scatter={scatter} aggregateScatter />
       )}
     </div>
   );

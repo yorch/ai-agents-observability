@@ -3,6 +3,7 @@ import { ReportDigest } from '@/components/reports/ReportDigest';
 import { currentUser } from '@/lib/auth';
 import { getMyReport } from '@/lib/reporting-queries';
 import { reportDays } from '@/lib/reporting-route';
+import { getUserCostDuration } from '@/lib/scatter-queries';
 import { getUserTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
@@ -18,9 +19,10 @@ export default async function MyReportPage({
   }
   const { range } = await searchParams;
   const days = reportDays(range ?? null);
-  const [report, trends] = await Promise.all([
+  const [report, trends, scatter] = await Promise.all([
     getMyReport(user.id, days),
     getUserTrends(user.id, new Date(Date.now() - days * 86_400_000)),
+    getUserCostDuration(user.id, new Date(Date.now() - days * 86_400_000)),
   ]);
   return (
     <div className="space-y-6">
@@ -28,7 +30,12 @@ export default async function MyReportPage({
         <h1 className="font-display text-2xl font-semibold tracking-tight text-text">My report</h1>
         <p className="mt-1 text-sm text-text-2">A shareable summary of your agent activity.</p>
       </div>
-      <ReportDigest apiHref={`/api/me/report?range=${days}`} report={report} trends={trends} />
+      <ReportDigest
+        apiHref={`/api/me/report?range=${days}`}
+        report={report}
+        trends={trends}
+        scatter={scatter}
+      />
     </div>
   );
 }

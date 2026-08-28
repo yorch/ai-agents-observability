@@ -1,6 +1,8 @@
 import { BarChart, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { fmtDayShort, fmtUsd } from '@/lib/fmt';
+import type { CostDurationPoint } from '@/lib/scatter-queries';
 import type { ScopedTrendPoint } from '@/lib/trend-queries';
+import { CostDurationScatter } from './CostDurationScatter';
 
 const MIN_POINTS = 2;
 
@@ -82,7 +84,15 @@ function modelSeries(points: ScopedTrendPoint[]) {
   return models.length <= 6 ? models : [...models.slice(0, 5), 'Other'];
 }
 
-export function ScopedTrendCharts({ points }: { points: ScopedTrendPoint[] }) {
+export function ScopedTrendCharts({
+  points,
+  scatter,
+  aggregateScatter = false,
+}: {
+  points: ScopedTrendPoint[];
+  scatter?: CostDurationPoint[];
+  aggregateScatter?: boolean;
+}) {
   const models = modelSeries(points);
   const namedModels = new Set(models.filter((model) => model !== 'Other'));
   const enough = points.length >= MIN_POINTS;
@@ -99,6 +109,11 @@ export function ScopedTrendCharts({ points }: { points: ScopedTrendPoint[] }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      {scatter && (
+        <div className="lg:col-span-2">
+          <CostDurationScatter points={scatter} aggregate={aggregateScatter} />
+        </div>
+      )}
       <Card title="Daily spend" caption="Cost by session start day">
         {!enough ? (
           <CardEmpty>
