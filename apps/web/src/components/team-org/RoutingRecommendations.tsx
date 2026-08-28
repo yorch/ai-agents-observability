@@ -2,7 +2,11 @@ import { agentDisplayName } from '@ai-agents-observability/schemas';
 import { Card, EmptyState } from '@/components/ui';
 import { fmtUsd, fmtUsdOrDash } from '@/lib/fmt';
 import type { RegisteredProjection } from '@/lib/projections';
-import type { RoutingRecommendation } from '@/lib/routing-queries';
+import {
+  MIN_ROUTING_CHEAP_CALLS,
+  MIN_ROUTING_CHEAP_SPEND_USD,
+  type RoutingRecommendation,
+} from '@/lib/routing-queries';
 
 /**
  * Presentational only — the page resolves each agent's policy and computes
@@ -37,9 +41,23 @@ export type RoutingRecommendationsProps = {
   claims: RegisteredRoutingClaim[];
   /** Material retrieval spend on models the agent's price table could not price. */
   unpricedModels: { agentType: string; model: string }[];
+  /**
+   * Downgradeable spend that fell under the confidence floor. Distinguishes
+   * "nothing to route" from "not enough of it to judge" in the empty state.
+   */
+  belowConfidenceThreshold?: {
+    agentType: string;
+    calls: number;
+    model: string;
+    spendUsd: number;
+  }[];
 };
 
-export function RoutingRecommendations({ claims, unpricedModels }: RoutingRecommendationsProps) {
+export function RoutingRecommendations({
+  belowConfidenceThreshold = [],
+  claims,
+  unpricedModels,
+}: RoutingRecommendationsProps) {
   // Totals are summed from the registered ranges, so the headline and the rows
   // cannot disagree, and the headline is a range for the same reason each row is.
   const totalLow = claims.reduce((sum, c) => sum + c.projection.projectedLow, 0);
@@ -52,9 +70,14 @@ export function RoutingRecommendations({ claims, unpricedModels }: RoutingRecomm
       </h2>
 
       {claims.length === 0 ? (
+        // Two different findings, deliberately not collapsed into one sentence:
+        // "there is nothing to downgrade" and "there is something, but too
+        // little to call" support different decisions, and only the first is
+        // evidence that routing is efficient.
         <EmptyState>
-          No downgradeable model spend on retrieval-only tool categories in this period — routing
-          already looks efficient.
+          {belowConfidenceThreshold.length > 0
+            ? `${belowConfidenceThreshold.length === 1 ? 'One model' : `${belowConfidenceThreshold.length} models`} ran retrieval-only work on a downgradeable tier this period, but on too little spend to project a saving from — no recommendation is made below ${fmtUsd(MIN_ROUTING_CHEAP_SPEND_USD)} or ${MIN_ROUTING_CHEAP_CALLS} calls. This is not evidence that routing is efficient.`
+            : 'No downgradeable model spend on retrieval-only tool categories in this period.'}
         </EmptyState>
       ) : (
         <div className="space-y-3">
