@@ -6,6 +6,21 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v1.3.0 (2026-08-28)
+
+### Features
+
+- ingest: schedule aggregate report digests (#177)
+- web: deepen scoped report analytics (#176)
+- launch Agentometry product and docs site (#169)
+- separate development and production setup (#171)
+- web: add advanced analytics and richer digests (#168)
+
+### Bug Fixes
+
+- exclude the Pages site from synchronized releases (#174)
+- support older just versions (#173)
+
 ## v1.2.0 (2026-08-28)
 
 ### Features
