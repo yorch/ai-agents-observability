@@ -1,6 +1,6 @@
 # Release process
 
-This project uses a two-phase release process adapted from the [colophon release process](https://github.com/yorch/colophon). The key invariant: **nothing reaches a registry without human approval of the version number.**
+This project uses a two-phase release process. The key invariant: **nothing reaches a registry without human approval of the version number.**
 
 ## How it works
 
