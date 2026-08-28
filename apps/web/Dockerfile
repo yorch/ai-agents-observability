@@ -21,6 +21,7 @@ COPY bun.lock package.json bunfig.toml ./
 COPY apps/github-app/package.json apps/github-app/
 COPY apps/hook/package.json apps/hook/
 COPY apps/ingest/package.json apps/ingest/
+COPY apps/site/package.json apps/site/
 COPY apps/web/package.json apps/web/
 COPY packages/auth/package.json packages/auth/
 COPY packages/db/package.json packages/db/

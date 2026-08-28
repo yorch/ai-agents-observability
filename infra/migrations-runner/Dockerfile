@@ -11,6 +11,7 @@ COPY --chown=runner:runner package.json bun.lock bunfig.toml ./
 COPY --chown=runner:runner apps/github-app/package.json apps/github-app/
 COPY --chown=runner:runner apps/hook/package.json apps/hook/
 COPY --chown=runner:runner apps/ingest/package.json apps/ingest/
+COPY --chown=runner:runner apps/site/package.json apps/site/
 COPY --chown=runner:runner apps/web/package.json apps/web/
 COPY --chown=runner:runner packages/auth/package.json packages/auth/
 COPY --chown=runner:runner packages/db/package.json packages/db/
