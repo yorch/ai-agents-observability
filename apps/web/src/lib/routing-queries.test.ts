@@ -175,6 +175,44 @@ describe('computeRoutingRecommendations', () => {
       POLICIES,
     );
     expect(thinSpend.recommendations).toHaveLength(0);
+
+    // Suppressed, but not discarded: the empty state has to be able to tell
+    // "too little spend to judge" from "nothing downgradeable ran at all".
+    expect(thinCalls.belowConfidenceThreshold).toHaveLength(1);
+    expect(thinSpend.belowConfidenceThreshold).toHaveLength(1);
+    expect(thinSpend.belowConfidenceThreshold[0]?.spendUsd).toBe(
+      MIN_ROUTING_CHEAP_SPEND_USD - 0.01,
+    );
+  });
+
+  it('separates "nothing downgradeable" from "suppressed as low-confidence"', () => {
+    // No rows at all: the genuinely-efficient case. Nothing to report either way.
+    const empty = computeRoutingRecommendations([], 30, POLICIES);
+    expect(empty.recommendations).toHaveLength(0);
+    expect(empty.belowConfidenceThreshold).toHaveLength(0);
+
+    // A row that clears both floors is a recommendation, not a suppression —
+    // otherwise the two lists could both be non-empty and the copy would lie.
+    const strong = computeRoutingRecommendations(
+      [row({ attributedCostUsd: 50, callCount: 200 })],
+      30,
+      POLICIES,
+    );
+    expect(strong.recommendations.length).toBeGreaterThan(0);
+    expect(strong.belowConfidenceThreshold).toHaveLength(0);
+  });
+
+  it('does not report unattributable spend as low-confidence', () => {
+    // A null spend is "we cannot attribute these calls", which the page's
+    // CostAttributionNote already explains. Counting it here would blame the
+    // routing thresholds for a coverage gap.
+    const unattributed = computeRoutingRecommendations(
+      [row({ attributedCostUsd: null, callCount: 5000 })],
+      30,
+      POLICIES,
+    );
+    expect(unattributed.recommendations).toHaveLength(0);
+    expect(unattributed.belowConfidenceThreshold).toHaveLength(0);
   });
 
   it('fires for a non-Anthropic agent, which the opus-substring rule never could', () => {

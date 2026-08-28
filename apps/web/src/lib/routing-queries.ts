@@ -87,6 +87,13 @@ export function computeRoutingRecommendations(
   recommendations: RoutingRecommendation[];
   /** Models that carried cheap-category spend but could not be priced. */
   unpricedModels: { agentType: string; model: string }[];
+  /**
+   * Models with real downgradeable spend that fell under the confidence floor.
+   * Surfaced for the same reason `unpricedModels` is: dropping them silently
+   * makes an empty recommendation list read as "routing is already efficient",
+   * which is a different claim from "too little spend to judge".
+   */
+  belowConfidenceThreshold: { agentType: string; calls: number; model: string; spendUsd: number }[];
 } {
   // Group by (agent_type, model): the same model id under two agents is two
   // different economic objects, priced from two different tables.
@@ -118,16 +125,31 @@ export function computeRoutingRecommendations(
   const normalizeToMonthly = rangeDays > 0 ? 30 / rangeDays : 0;
   const recommendations: RoutingRecommendation[] = [];
   const unpricedModels: { agentType: string; model: string }[] = [];
+  const belowConfidenceThreshold: {
+    agentType: string;
+    calls: number;
+    model: string;
+    spendUsd: number;
+  }[] = [];
 
   for (const group of grouped.values()) {
     // A null spend is "we cannot attribute these calls", not "$0". Either way
     // there is no dollar figure to project a saving from, so no recommendation
     // is raised — the page's CostAttributionNote is what explains the absence.
     const spend = group.spend;
-    if (spend === null || spend < MIN_ROUTING_CHEAP_SPEND_USD) {
+    if (spend === null) {
       continue;
     }
-    if (group.calls < MIN_ROUTING_CHEAP_CALLS) {
+    if (spend < MIN_ROUTING_CHEAP_SPEND_USD || group.calls < MIN_ROUTING_CHEAP_CALLS) {
+      // Downgradeable spend is real here, there is just too little of it to
+      // project a saving from with confidence. Recorded rather than dropped so
+      // the empty state can say which of the two situations the reader is in.
+      belowConfidenceThreshold.push({
+        agentType: group.agentType,
+        calls: group.calls,
+        model: group.model,
+        spendUsd: spend,
+      });
       continue;
     }
     const policy = policies.get(group.agentType);
@@ -185,6 +207,7 @@ export function computeRoutingRecommendations(
   recommendations.sort((a, b) => b.monthlySavingHigh - a.monthlySavingHigh);
 
   return {
+    belowConfidenceThreshold,
     estimatedMonthlySavingHigh: recommendations.reduce((s, r) => s + r.monthlySavingHigh, 0),
     estimatedMonthlySavingLow: recommendations.reduce((s, r) => s + r.monthlySavingLow, 0),
     recommendations,
