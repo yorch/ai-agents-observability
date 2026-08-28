@@ -4,8 +4,10 @@ import { NextResponse } from 'next/server';
 
 import { jsonError, withRouteLogging } from '@/lib/api-logging';
 import { getProvider } from '@/lib/auth-provider';
+import { getConfig } from '@/lib/config';
 import { ensureVisibilityPolicy } from '@/lib/ensure-visibility-policy';
 import { logger } from '@/lib/logger';
+import { oauthCallbackUrl, publicAppOrigin } from '@/lib/oauth-origin';
 import { getPrisma } from '@/lib/prisma';
 import { getRequestId } from '@/lib/request-context';
 import { consumeNextCookie, getStateCookie, hashState, setAuthCookies } from '@/lib/session-cookie';
@@ -13,6 +15,12 @@ import { syncLoginTeams } from '@/lib/sync-login-teams';
 
 export const GET = withRouteLogging('auth.callback', async (request: Request) => {
   const url = new URL(request.url);
+  const { appBaseUrl, isProduction } = getConfig();
+  const appOrigin = publicAppOrigin({
+    appBaseUrl,
+    isProduction,
+    requestUrl: request.url,
+  });
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
 
@@ -30,7 +38,7 @@ export const GET = withRouteLogging('auth.callback', async (request: Request) =>
   try {
     identity = await getProvider().completeAuthorize({
       code,
-      redirectUri: `${url.origin}/api/auth/callback`,
+      redirectUri: oauthCallbackUrl(appOrigin),
       state,
     });
   } catch (err) {
@@ -75,5 +83,5 @@ export const GET = withRouteLogging('auth.callback', async (request: Request) =>
 
   await setAuthCookies(access, refresh);
   const next = await consumeNextCookie();
-  return NextResponse.redirect(new URL(next ?? '/me', url.origin));
+  return NextResponse.redirect(new URL(next ?? '/me', appOrigin));
 });
