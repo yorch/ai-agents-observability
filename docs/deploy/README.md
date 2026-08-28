@@ -8,7 +8,7 @@ ai-agents-observability can be deployed several ways depending on your security,
 |---|---|---|---|
 | **Standard / homelab** | Pre-built images from GHCR + Docker Compose | — | [README.md](../../README.md) |
 | **Internal registry only** | Helm chart with `image.registry` set to internal | Registry sync recipe (below) | [kubernetes.md](./kubernetes.md) |
-| **Supply-chain compliance** | cosign + SBOM + SLSA on all paths | Internal registry re-scan | [Verification](#verifying-supply-chain-attestations) |
+| **Supply-chain compliance** | cosign + SBOM + GitHub build provenance | Internal registry re-scan | [Verification](#verifying-supply-chain-attestations) |
 | **Air-gapped / no outbound** | OCI tarball release + `docker load` | Helm chart with `pullPolicy: IfNotPresent` | [air-gapped.md](./air-gapped.md) |
 | **Kubernetes mandate** | Helm chart | — | [kubernetes.md](./kubernetes.md) |
 | **No external image trust** | Build from source | Helm chart with locally-built images | [build-from-source.md](./build-from-source.md) |
@@ -19,7 +19,7 @@ ai-agents-observability can be deployed several ways depending on your security,
 
 ### 1. Pre-built images + Docker Compose (default)
 
-The standard path. Images are published to `ghcr.io/yorch/ai-agents-observability/*` on every push to `main` and every tag. `docker-compose.prod.yml` pulls them at runtime.
+The standard path. Images are published to `ghcr.io/yorch/ai-agents-observability/*` for each approved release. `docker-compose.prod.yml` pulls them at runtime.
 
 ```bash
 docker compose -f docker-compose.infra.yml -f docker-compose.prod.yml up -d
@@ -41,7 +41,7 @@ See [build-from-source.md](./build-from-source.md).
 
 ### 3. Air-gapped (OCI tarball release)
 
-On every tag push, CI publishes each image as an OCI archive (`.tar`) + checksums + SBOM to the GitHub Release. Download, verify, `docker load`, and deploy with no outbound network.
+For every approved release, CI publishes each image as an OCI archive (`.tar`) + checksums + SBOM to the GitHub Release. Download, verify, `docker load`, and deploy with no outbound network.
 
 See [air-gapped.md](./air-gapped.md).
 
@@ -101,7 +101,7 @@ for COMPONENT in web ingest github-app migrations-runner; do
 
   # Verify signature (if cosign is available)
   cosign verify "${SRC}" \
-    --certificate-identity "https://github.com/yorch/ai-agents-observability/.github/workflows/docker.yml@refs/tags/${TAG}" \
+    --certificate-identity "https://github.com/yorch/ai-agents-observability/.github/workflows/docker.yml@refs/heads/main" \
     --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 
   echo "Synced ${COMPONENT}:${TAG}"
@@ -117,23 +117,23 @@ Note: cosign signatures don't follow images through a re-push. Re-sign in your i
 
 ## Verifying supply-chain attestations
 
-Every image published to GHCR is signed with cosign (keyless via GitHub OIDC) and has an SBOM (CycloneDX) and SLSA build provenance attestation.
+Every image published to GHCR is signed with cosign (keyless via GitHub OIDC) and has an SBOM (CycloneDX) and a GitHub build-provenance attestation.
 
 ### Verify image signature
 
 ```bash
 cosign verify ghcr.io/yorch/ai-agents-observability/web:v1.0.0 \
-  --certificate-identity "https://github.com/yorch/ai-agents-observability/.github/workflows/docker.yml@refs/tags/v1.0.0" \
+  --certificate-identity "https://github.com/yorch/ai-agents-observability/.github/workflows/docker.yml@refs/heads/main" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
 
-### Verify SLSA provenance
+### Verify build provenance
 
 ```bash
-cosign verify-attestation --type slsaprovenance \
-  ghcr.io/yorch/ai-agents-observability/web:v1.0.0 \
-  --certificate-identity "https://github.com/yorch/ai-agents-observability/.github/workflows/docker.yml@refs/tags/v1.0.0" \
-  --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
+docker login ghcr.io
+gh attestation verify \
+  oci://ghcr.io/yorch/ai-agents-observability/web:v1.0.0 \
+  --repo yorch/ai-agents-observability
 ```
 
 ### Download SBOM

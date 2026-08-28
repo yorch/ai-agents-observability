@@ -8,10 +8,9 @@ name: Release
 #
 # 2. Merging that PR → publish-release job re-runs the four quality gates
 #    (check, typecheck, build, test), creates the vX.Y.Z tag pinned to the
-#    merge commit, and creates a GitHub Release with the changelog notes.
-#    The tag push triggers the existing artifact workflows (docker.yml,
-#    build-binaries.yml, build-hook.yml) which publish images, binaries,
-#    and tarballs to the same release.
+#    merge commit, and creates a draft GitHub Release. It explicitly dispatches
+#    the artifact workflows at that tag, waits for all of them, verifies every
+#    expected asset, and only then publishes the release.
 #
 # Key invariant: nothing reaches a registry without human approval of the
 # version number. The approval gate is merging the release PR.
@@ -19,13 +18,29 @@ name: Release
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing vX.Y.Z tag to repair and republish
+        required: true
+        type: string
+      update_floating_tags:
+        description: Update major, major.minor, latest image tags and mark this release latest
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 permissions:
+  actions: write
   contents: write
+  packages: read
   pull-requests: write
 
 jobs:
@@ -35,7 +50,7 @@ jobs:
   # titled "chore: release vX.Y.Z". The PR is the human approval gate —
   # merging it triggers phase 2.
   prepare-release:
-    if: "${{ !startsWith(github.event.head_commit.message, 'chore: release v') }}"
+    if: "${{ github.event_name == 'push' && !contains(github.event.head_commit.message, 'chore: release v') }}"
     runs-on: ubuntu-latest
     outputs:
       has-release: ${{ steps.prepare.outputs.has-release }}
@@ -70,7 +85,7 @@ jobs:
             echo "## ${TAG} (${TODAY})"
             echo ""
             echo "${BODY}"
-          } > /tmp/changelog-entry.md
+          } > ${RUNNER_TEMP}/changelog-entry.md
 
           # Insert the version entry AFTER the file header (title +
           # description) but BEFORE existing version entries. This keeps
@@ -85,7 +100,7 @@ jobs:
             {
               echo "${HEADER}"
               echo ""
-              cat /tmp/changelog-entry.md
+              cat ${RUNNER_TEMP}/changelog-entry.md
               if [[ -n "${REST}" ]]; then
                 echo ""
                 echo "${REST}"
@@ -97,13 +112,13 @@ jobs:
               echo ""
               echo "All notable changes to this project are documented in this file."
               echo ""
-              cat /tmp/changelog-entry.md
+              cat ${RUNNER_TEMP}/changelog-entry.md
             } > CHANGELOG.md
           fi
 
           # Save the tag and version for the commit
-          echo "${TAG}" > /tmp/release-tag
-          echo "${VERSION}" > /tmp/release-version
+          echo "${TAG}" > ${RUNNER_TEMP}/release-tag
+          echo "${VERSION}" > ${RUNNER_TEMP}/release-version
 
       - name: Create or update release branch
         if: steps.prepare.outputs.has-release == 'true'
@@ -111,8 +126,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG=$(cat /tmp/release-tag)
-          VERSION=$(cat /tmp/release-version)
+          TAG=$(cat ${RUNNER_TEMP}/release-tag)
+          VERSION=$(cat ${RUNNER_TEMP}/release-version)
           BRANCH="release/${TAG}"
 
           # Git identity for the release commit
@@ -139,7 +154,7 @@ jobs:
             echo "Updating existing PR #${PR_NUMBER}"
             gh pr edit "${PR_NUMBER}" --body "Merging this PR will create the ${TAG} tag and publish all release artifacts (Docker images, server binaries, hook binaries, web tarball).
 
-          See CHANGELOG.md for the full release notes." || true
+          See CHANGELOG.md for the full release notes."
           else
             gh pr create \
               --head "${BRANCH}" \
@@ -152,36 +167,51 @@ jobs:
           ### Pre-merge checklist
           - [ ] Version number is correct
           - [ ] Changelog entries are accurate
-          - [ ] CI is green on this branch" || true
+          - [ ] CI is green on this branch"
           fi
 
   # ── Phase 2: Publish the release ────────────────────────────────────────────
-  # Runs when a release PR is merged to main. The merge commit message starts
-  # with "chore: release vX.Y.Z" (squash merge uses the PR title). Re-runs the
-  # four quality gates, creates the tag pinned to the merge commit, and creates
-  # the GitHub Release. The tag push triggers the artifact workflows.
+  # Runs when a release PR is merged to main, or manually to repair an existing
+  # tag. Re-runs the four quality gates, creates a draft release, dispatches all
+  # artifact workflows at the tag, and publishes only after they succeed.
   publish-release:
-    if: "${{ startsWith(github.event.head_commit.message, 'chore: release v') }}"
+    if: "${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged && startsWith(github.event.pull_request.title, 'chore: release v') && startsWith(github.event.pull_request.head.ref, 'release/v') && github.event.pull_request.head.repo.full_name == github.repository) }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha || github.ref }}
 
-      - name: Extract version from commit message
+      - name: Resolve release tag
         id: version
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+          RELEASE_PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          # The merge commit message is "chore: release vX.Y.Z" (squash) or
-          # contains it in the body (merge commit). Extract the tag.
-          MSG="${{ github.event.head_commit.message }}"
-          TAG=$(echo "${MSG}" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-          if [[ -z "${TAG}" ]]; then
-            echo "Could not extract version tag from commit message: ${MSG}" >&2
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${REQUESTED_TAG}"
+          else
+            TAG=$(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' <<< "${RELEASE_PR_TITLE}" | head -1)
+          fi
+
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag: ${TAG}" >&2
             exit 1
           fi
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1 || {
+              echo "Repair requires an existing tag: ${TAG}" >&2
+              exit 1
+            }
+            git checkout --detach "${TAG}"
+          fi
+
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
-          echo "Extracted tag: ${TAG}"
+          echo "Resolved tag: ${TAG}"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -214,17 +244,22 @@ jobs:
       - name: Quality gate — test
         run: bun run test
 
-      - name: Create tag
+      - name: Create or verify tag
         env:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          # Idempotence: if the tag already exists, don't recreate it.
-          if git rev-parse "${TAG}" >/dev/null 2>&1; then
-            echo "Tag ${TAG} already exists — skipping."
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists."
             exit 0
           fi
-          git tag "${TAG}" "${{ github.sha }}"
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Repair requires an existing tag: ${TAG}" >&2
+            exit 1
+          fi
+
+          git tag "${TAG}" HEAD
           git push origin "${TAG}"
 
       - name: Extract changelog notes
@@ -241,34 +276,185 @@ jobs:
               if ($2 == tag) { found = 1; next }
             }
             found { print }
-          ' CHANGELOG.md > /tmp/release-notes.md
+          ' CHANGELOG.md > ${RUNNER_TEMP}/release-notes.md
 
-          if [[ ! -s /tmp/release-notes.md ]]; then
-            echo "Release ${TAG}" > /tmp/release-notes.md
+          if [[ ! -s ${RUNNER_TEMP}/release-notes.md ]]; then
+            echo "Release ${TAG}" > ${RUNNER_TEMP}/release-notes.md
           fi
 
-      - name: Create GitHub Release
+      - name: Create or prepare draft release
+        id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          # Idempotence: if the release already exists, don't recreate it.
+          TARGET_SHA=$(git rev-parse HEAD)
+
           if gh release view "${TAG}" >/dev/null 2>&1; then
-            echo "Release ${TAG} already exists — skipping."
-            exit 0
+            IS_DRAFT=$(gh release view "${TAG}" --json isDraft --jq '.isDraft')
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+              echo "Moving existing release ${TAG} back to draft for repair."
+              gh release edit "${TAG}" --draft --notes-file "${RUNNER_TEMP}/release-notes.md"
+            elif [[ "${IS_DRAFT}" == "false" ]]; then
+              echo "Release ${TAG} is already published — nothing to do."
+              echo 'skip=true' >> "${GITHUB_OUTPUT}"
+              exit 0
+            else
+              gh release edit "${TAG}" --notes-file "${RUNNER_TEMP}/release-notes.md"
+            fi
+          else
+            gh release create "${TAG}" \
+              --draft \
+              --verify-tag \
+              --target "${TARGET_SHA}" \
+              --title "${TAG}" \
+              --notes-file "${RUNNER_TEMP}/release-notes.md"
           fi
 
-          gh release create "${TAG}" \
-            --target "${{ github.sha }}" \
-            --title "${TAG}" \
-            --notes-file /tmp/release-notes.md
+          echo 'skip=false' >> "${GITHUB_OUTPUT}"
+          echo "Draft release ${TAG} is ready at ${TARGET_SHA}."
 
-          echo "Created release ${TAG} pinned to ${{ github.sha }}"
-          echo ""
-          echo "The tag push will trigger the artifact workflows:"
-          echo "  - docker.yml → Docker images + OCI bundle + SBOMs + cosign signing"
-          echo "  - build-binaries.yml → server binaries + web tarball"
-          echo "  - build-hook.yml → hook binaries"
-          echo ""
-          echo "All artifacts will be attached to this release."
+      - name: Dispatch artifact workflows
+        id: dispatch
+        if: steps.release.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          UPDATE_FLOATING_TAGS: ${{ github.event_name != 'workflow_dispatch' || inputs.update_floating_tags }}
+        run: |
+          set -euo pipefail
+          RUNS_FILE="${RUNNER_TEMP}/release-workflow-runs"
+          : > "${RUNS_FILE}"
+
+          # Dispatch the workflow definitions from main, but tell each one to
+          # check out and package the immutable release tag. This is essential
+          # when repairing an older tag whose workflow files contain a bug.
+          for workflow in docker.yml build-binaries.yml build-hook.yml; do
+            args=(
+              "${workflow}"
+              --ref main
+              -f release_tag="${TAG}"
+              -f release_run_id="${GITHUB_RUN_ID}"
+            )
+            if [[ "${workflow}" == "docker.yml" ]]; then
+              args+=(-f update_floating_tags="${UPDATE_FLOATING_TAGS}")
+            fi
+            gh workflow run "${args[@]}"
+
+            RUN_ID=""
+            for attempt in $(seq 1 30); do
+              RUN_ID=$(gh run list \
+                --workflow "${workflow}" \
+                --event workflow_dispatch \
+                --branch main \
+                --limit 20 \
+                --json databaseId,displayTitle \
+                --jq ".[] | select(.displayTitle == \"${TAG} · release ${GITHUB_RUN_ID}\") | .databaseId" \
+                | head -1)
+              [[ -n "${RUN_ID}" ]] && break
+              sleep 2
+            done
+
+            if [[ -z "${RUN_ID}" ]]; then
+              echo "Could not find dispatched run for ${workflow}." >&2
+              exit 1
+            fi
+
+            echo "${workflow} ${RUN_ID}" | tee -a "${RUNS_FILE}"
+          done
+
+      - name: Wait for artifact workflows
+        if: steps.release.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          while read -r workflow run_id; do
+            echo "Waiting for ${workflow} run ${run_id}..."
+            gh run watch "${run_id}" --exit-status
+          done < "${RUNNER_TEMP}/release-workflow-runs"
+
+      - name: Verify release assets
+        if: steps.release.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          ASSETS=$(gh release view "${TAG}" --json assets --jq '.assets[].name')
+
+          require_asset() {
+            local name="$1"
+            if ! grep -Fxq "${name}" <<< "${ASSETS}"; then
+              echo "Missing release asset: ${name}" >&2
+              return 1
+            fi
+          }
+
+          for app in ingest github-app; do
+            for target in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
+              require_asset "${app}-server-${target}"
+            done
+          done
+
+          for target in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
+            require_asset "claude-telemetry-${target}"
+          done
+
+          for component in web ingest github-app migrations-runner; do
+            require_asset "${component}-${TAG}.tar"
+            require_asset "${component}-${TAG}.tar.sha256"
+            require_asset "sbom-${component}-${TAG}.json"
+          done
+
+          require_asset SHA256SUMS-binaries
+          require_asset SHA256SUMS-hook
+          require_asset SHA256SUMS-images
+
+          if ! grep -Eq '^web-standalone-.+\.tar\.gz$' <<< "${ASSETS}"; then
+            echo "Missing release asset: web-standalone-*.tar.gz" >&2
+            exit 1
+          fi
+
+          echo "All expected release assets are present."
+
+      - name: Verify GHCR image tags
+        if: steps.release.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          UPDATE_FLOATING_TAGS: ${{ github.event_name != 'workflow_dispatch' || inputs.update_floating_tags }}
+        run: |
+          set -euo pipefail
+          VERSION=${TAG#v}
+          MAJOR_MINOR=${VERSION%.*}
+          MAJOR=${VERSION%%.*}
+          IMAGE_TAGS=("${TAG}" "${VERSION}")
+          if [[ "${UPDATE_FLOATING_TAGS}" == "true" ]]; then
+            IMAGE_TAGS+=("${MAJOR_MINOR}" "${MAJOR}" latest)
+          fi
+
+          echo "${GH_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+          for component in web ingest github-app migrations-runner; do
+            for image_tag in "${IMAGE_TAGS[@]}"; do
+              image="ghcr.io/${GITHUB_REPOSITORY}/${component}:${image_tag}"
+              echo "Verifying ${image}"
+              docker buildx imagetools inspect "${image}" >/dev/null
+            done
+          done
+
+      - name: Publish GitHub Release
+        if: steps.release.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          UPDATE_FLOATING_TAGS: ${{ github.event_name != 'workflow_dispatch' || inputs.update_floating_tags }}
+        run: |
+          set -euo pipefail
+          if [[ "${UPDATE_FLOATING_TAGS}" == "true" ]]; then
+            gh release edit "${TAG}" --draft=false --latest
+          else
+            gh release edit "${TAG}" --draft=false
+          fi
+          echo "Published ${TAG} after all artifact workflows succeeded."
