@@ -92,6 +92,10 @@ jobs:
           VERSION=$(cat /tmp/release-version)
           BRANCH="release/${TAG}"
 
+          # Git identity for the release commit
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           # Check if the branch already exists
           if git ls-remote --exit-code --heads origin "${BRANCH}" >/dev/null 2>&1; then
             echo "Release branch ${BRANCH} already exists — updating."
