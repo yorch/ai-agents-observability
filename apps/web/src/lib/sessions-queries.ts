@@ -348,6 +348,76 @@ export type SessionSubagentRow = {
   useCount: number;
 };
 
+/** One privacy-safe, per-turn aggregate used by the session visual surface. */
+export type SessionVisualPoint = {
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  costUsd: number;
+  inputTokens: number;
+  model: string | null;
+  outputTokens: number;
+  subagentCalls: number;
+  toolCalls: number;
+  toolErrors: number;
+  turn: number;
+};
+
+/**
+ * Aggregates the event firehose to one row per turn. The detail page never
+ * exposes event content, hashes, or owner-only scoring data; these are the
+ * same numeric dimensions already present in the session tabs.
+ */
+export async function getSessionVisuals(
+  userId: string,
+  sessionId: string,
+): Promise<SessionVisualPoint[]> {
+  const rows = await getPrisma().$queryRaw<
+    {
+      cache_creation_tokens: bigint;
+      cache_read_tokens: bigint;
+      cost_usd: string | null;
+      input_tokens: bigint;
+      model: string | null;
+      output_tokens: bigint;
+      subagent_calls: bigint;
+      tool_calls: bigint;
+      tool_errors: bigint;
+      turn: number;
+    }[]
+  >(Prisma.sql`
+    SELECT COALESCE(turn_number, 0) AS turn,
+           MIN(model) FILTER (WHERE model IS NOT NULL) AS model,
+           COALESCE(SUM(input_tokens), 0) AS input_tokens,
+           COALESCE(SUM(output_tokens), 0) AS output_tokens,
+           COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
+           COALESCE(SUM(cache_creation_tokens), 0) AS cache_creation_tokens,
+           COALESCE(SUM(cost_usd), 0) AS cost_usd,
+           COUNT(*) FILTER (WHERE tool_name IS NOT NULL) AS tool_calls,
+           COUNT(*) FILTER (WHERE tool_name IS NOT NULL AND tool_exit_status IS NOT NULL AND tool_exit_status != 0) AS tool_errors,
+           COUNT(*) FILTER (WHERE subagent_type IS NOT NULL) AS subagent_calls
+    -- run-kind-exempt: scoped to one session by id, for its owner. This is a
+    -- detail visualization, not a population aggregate.
+    FROM events
+    WHERE session_id = ${sessionId}::uuid
+      AND user_id = ${userId}::uuid
+    GROUP BY COALESCE(turn_number, 0)
+    ORDER BY turn ASC
+  `);
+
+  return rows.map((r) => ({
+    cacheCreationTokens: Number(r.cache_creation_tokens),
+    cacheReadTokens: Number(r.cache_read_tokens),
+    costUsd: Number(r.cost_usd ?? 0),
+    inputTokens: Number(r.input_tokens),
+    model: r.model,
+    outputTokens: Number(r.output_tokens),
+    subagentCalls: Number(r.subagent_calls),
+    toolCalls: Number(r.tool_calls),
+    toolErrors: Number(r.tool_errors),
+    turn: r.turn,
+  }));
+}
+
 export async function getSessionToolBreakdown(
   userId: string,
   sessionId: string,
