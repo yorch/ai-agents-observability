@@ -2,6 +2,7 @@ import { ReportDigest } from '@/components/reports/ReportDigest';
 import { getOrgReport } from '@/lib/reporting-queries';
 import { reportDays } from '@/lib/reporting-route';
 import { requireOrgViewer } from '@/lib/roles';
+import { getOrgTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,10 @@ export default async function OrgReportPage({
   const { range } = await searchParams;
   const days = reportDays(range ?? null);
   await requireOrgViewer();
-  const report = await getOrgReport(days);
+  const [report, trends] = await Promise.all([
+    getOrgReport(days),
+    getOrgTrends(new Date(Date.now() - days * 86_400_000)),
+  ]);
   return (
     <div className="space-y-6">
       <div>
@@ -25,7 +29,7 @@ export default async function OrgReportPage({
           Aggregate activity, ready for a leadership readout.
         </p>
       </div>
-      <ReportDigest apiHref={`/api/org/report?range=${days}`} report={report} />
+      <ReportDigest apiHref={`/api/org/report?range=${days}`} report={report} trends={trends} />
     </div>
   );
 }

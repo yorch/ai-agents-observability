@@ -102,8 +102,10 @@ See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status — it is the sou
 
 See [`DESIGN_DOC.md`](./DESIGN_DOC.md) for the full architecture specification and [`PLAN.md`](./PLAN.md) for the implementation roadmap.
 
-Reporting and exports are documented in [`docs/reporting.md`](./docs/reporting.md). The
-report pages are available at `/me/report`, `/team/[slug]/report`, and `/org/report`.
+Reporting, scoped trends, session visuals, and exports are documented in
+[`docs/reporting.md`](./docs/reporting.md). Report pages are available at `/me/report`,
+`/team/[slug]/report`, and `/org/report`; trend pages are available at `/me/trends`,
+`/team/[slug]/trends`, and `/org/trends`.
 
 ## Project structure
 
@@ -123,7 +125,7 @@ infra/
   migrations-runner/       Docker image that applies all DB migrations
 docs/
   github-app-setup.md      GitHub App registration guide
-  reporting.md             Scoped agent reports and safe exports
+  reporting.md             Scoped reports, trends, session visuals, and safe exports
   design/                  UI design direction ("Instrument") + its audit
 tasks/                     Agent-trackable task decomposition
 ```

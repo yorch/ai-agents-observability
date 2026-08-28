@@ -3,6 +3,7 @@ import { getTeamReport } from '@/lib/reporting-queries';
 import { reportDays } from '@/lib/reporting-route';
 import { requireTeamLead } from '@/lib/roles';
 import { resolveTeamVisibility } from '@/lib/team-queries';
+import { getTeamTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,12 +18,15 @@ export default async function TeamReportPage({
   const days = reportDays(range ?? null);
   const { teamId, teamName } = await requireTeamLead(slug);
   const visibility = await resolveTeamVisibility(teamId);
-  const report = await getTeamReport({
-    days,
-    teamLabel: teamName,
-    totalMemberCount: visibility.totalCount,
-    visibleIds: visibility.visibleIds,
-  });
+  const [report, trends] = await Promise.all([
+    getTeamReport({
+      days,
+      teamLabel: teamName,
+      totalMemberCount: visibility.totalCount,
+      visibleIds: visibility.visibleIds,
+    }),
+    getTeamTrends(visibility.visibleIds, new Date(Date.now() - days * 86_400_000)),
+  ]);
   return (
     <div className="space-y-6">
       <div>
@@ -34,7 +38,11 @@ export default async function TeamReportPage({
           Aggregate activity only; team privacy settings are applied.
         </p>
       </div>
-      <ReportDigest apiHref={`/api/team/${slug}/report?range=${days}`} report={report} />
+      <ReportDigest
+        apiHref={`/api/team/${slug}/report?range=${days}`}
+        report={report}
+        trends={trends}
+      />
     </div>
   );
 }
