@@ -2,6 +2,7 @@ import { promisify } from 'node:util';
 import { zstdCompress } from 'node:zlib';
 import { hashPassword } from '@ai-agents-observability/auth';
 import {
+  type AgentTypeKey,
   type AttributionEvent,
   type AttributionRow,
   buildScoreRow,
@@ -11,6 +12,7 @@ import {
   type PriceLookup,
   RUBRIC_SHAPES,
   SESSION_RUBRIC_VERSION,
+  TOOL_NAMES_BY_AGENT,
   toolCategory,
 } from '@ai-agents-observability/schemas';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -159,6 +161,24 @@ const TOOL_NAMES = [
   { value: 'WebFetch', weight: 3 },
   { value: 'WebSearch', weight: 2 },
 ];
+
+// Non-Claude-Code agents draw from their own tool vocabulary — the per-agent
+// tables in packages/schemas/src/tool-category.ts, the source of truth
+// `toolCategory()` itself reads (P14-002/P15-001). Retyping Codex's or
+// opencode's tool names here, instead of importing them, is exactly the
+// fabrication P15-001 exists to remove: a second definition that only agrees
+// with itself. CLAUDE_CODE keeps the curated, realistically-weighted `TOOL_NAMES`
+// above rather than the full (unweighted) table, since that pool was already
+// correct and this task's defect is specifically the *other* agents' names.
+function pickToolName(agentType: string): string {
+  if (agentType !== 'CLAUDE_CODE') {
+    const names = TOOL_NAMES_BY_AGENT[agentType as AgentTypeKey];
+    if (names && names.length > 0) {
+      return faker.helpers.arrayElement(names);
+    }
+  }
+  return faker.helpers.weightedArrayElement(TOOL_NAMES);
+}
 
 const SUBAGENT_TYPES = [
   { value: 'Explore', weight: 25 },
@@ -750,7 +770,7 @@ async function insertEvents(
         ON CONFLICT (session_id, event_id, ts) DO NOTHING
       `;
     } else {
-      const toolName = faker.helpers.weightedArrayElement(TOOL_NAMES);
+      const toolName = pickToolName(agentType);
       const wasDenied = faker.datatype.boolean({ probability: 0.04 });
       const toolDurMs = faker.number.int({
         max: toolName === 'Bash' ? 8000 : 300,
@@ -760,8 +780,15 @@ async function insertEvents(
       // Non-zero exit + interrupt correlate with an errored tool call.
       const exitStatus = wasDenied || faker.datatype.boolean({ probability: 0.05 }) ? 1 : 0;
       const wasInterrupted = faker.datatype.boolean({ probability: 0.03 });
-      const useSkill = faker.datatype.boolean({ probability: 0.12 });
-      const useMcp = !useSkill && faker.datatype.boolean({ probability: 0.06 });
+      // Skill invocation (skill_name/slash_command) and the mcp__server__tool
+      // decomposition into mcp_server/mcp_tool are both Claude Code payload
+      // shapes (apps/hook/src/lib/payload.ts) — Codex and opencode's adapters
+      // leave all four fields NULL even on their own MCP/skill-shaped calls
+      // (apps/hook/src/adapters/{codex,opencode}.ts), so only CLAUDE_CODE draws
+      // these two branches.
+      const useSkill = agentType === 'CLAUDE_CODE' && faker.datatype.boolean({ probability: 0.12 });
+      const useMcp =
+        agentType === 'CLAUDE_CODE' && !useSkill && faker.datatype.boolean({ probability: 0.06 });
       const toolUseId = seedToolUseId(agentType);
 
       if (useSkill) {
