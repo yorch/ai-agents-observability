@@ -1,0 +1,18 @@
+{
+  "name": "@ai-agents-observability/site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "astro build",
+    "dev": "astro dev",
+    "test": "bun test",
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit -p tsconfig.check.json"
+  },
+  "devDependencies": {
+    "@astrojs/starlight": "catalog:",
+    "astro": "catalog:",
+    "bun-types": "catalog:",
+    "js-yaml": "catalog:site",
+    "typescript": "catalog:site"
+  }
+}

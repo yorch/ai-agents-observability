@@ -1,0 +1,192 @@
+<div class="instrument" aria-label="Illustrative coding-agent telemetry field">
+  <div class="instrument-head mono">
+    <span>LIVE SIGNAL FIELD</span>
+    <span class="status"><i></i> CAPTURE ACTIVE</span>
+  </div>
+  <div class="scope">
+    <svg aria-hidden="true" viewBox="0 0 620 380" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <radialGradient id="glow">
+          <stop offset="0" stop-color="#c8ff57" stop-opacity=".18"></stop>
+          <stop offset="1" stop-color="#c8ff57" stop-opacity="0"></stop>
+        </radialGradient>
+      </defs>
+      <circle cx="310" cy="190" r="170" fill="url(#glow)"></circle>
+      <g class="grid" fill="none" stroke="currentColor">
+        <ellipse cx="310" cy="190" rx="245" ry="155"></ellipse>
+        <ellipse cx="310" cy="190" rx="180" ry="112"></ellipse>
+        <ellipse cx="310" cy="190" rx="110" ry="68"></ellipse>
+        <path d="M65 190h490M310 35v310M105 96l410 188M105 284L515 96"></path>
+      </g>
+      <path class="trace" d="M70 217C130 217 142 156 199 162S260 246 313 205 373 104 425 153 474 232 550 181" fill="none"></path>
+      <g class="points">
+        <circle cx="199" cy="162" r="5"></circle>
+        <circle cx="313" cy="205" r="5"></circle>
+        <circle cx="425" cy="153" r="5"></circle>
+        <circle cx="550" cy="181" r="4"></circle>
+      </g>
+      <g class="labels mono">
+        <text x="181" y="145">TOOL</text>
+        <text x="293" y="228">MCP</text>
+        <text x="406" y="136">MODEL</text>
+        <text x="494" y="170">OUTCOME</text>
+      </g>
+      <line class="scan" x1="310" y1="190" x2="530" y2="92"></line>
+    </svg>
+  </div>
+  <div class="readouts mono">
+    <div><span>AGENT</span><strong>claude-code</strong></div>
+    <div><span>SESSION</span><strong>4f2 · interactive</strong></div>
+    <div><span>FRICTION</span><strong class="good">0.18 · low</strong></div>
+  </div>
+</div>
+
+<style>
+  .instrument {
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.6rem;
+    background: linear-gradient(145deg, rgba(28, 28, 36, 0.94), rgba(10, 10, 14, 0.98));
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.42), inset 0 1px rgba(255, 255, 255, 0.04);
+  }
+
+  .instrument-head {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding-inline: 1rem;
+    color: var(--text-3);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--accent);
+  }
+
+  .status i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+  }
+
+  .scope {
+    position: relative;
+    padding: 1rem;
+  }
+
+  svg {
+    display: block;
+    width: 100%;
+  }
+
+  .grid {
+    color: rgba(232, 232, 242, 0.11);
+    stroke-width: 1;
+  }
+
+  .trace {
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 8px rgba(200, 255, 87, 0.55));
+    stroke-dasharray: 720;
+    stroke-dashoffset: 720;
+    animation: draw 2.2s 300ms ease-out forwards;
+  }
+
+  .points circle {
+    fill: var(--bg);
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+
+  .labels {
+    fill: var(--text-2);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+
+  .scan {
+    transform-origin: 310px 190px;
+    stroke: rgba(200, 255, 87, 0.42);
+    stroke-width: 1;
+    animation: scan 7s linear infinite;
+  }
+
+  .readouts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--border);
+  }
+
+  .readouts div {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.9rem 1rem;
+  }
+
+  .readouts div + div {
+    border-left: 1px solid var(--border);
+  }
+
+  .readouts span {
+    color: var(--text-3);
+    font-size: 0.56rem;
+    letter-spacing: 0.1em;
+  }
+
+  .readouts strong {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 0.68rem;
+    font-weight: 400;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .readouts .good {
+    color: var(--good);
+  }
+
+  @keyframes draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes scan {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .trace,
+    .scan {
+      animation: none;
+    }
+
+    .trace {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .readouts {
+      grid-template-columns: 1fr;
+    }
+
+    .readouts div + div {
+      border-top: 1px solid var(--border);
+      border-left: 0;
+    }
+  }
+</style>

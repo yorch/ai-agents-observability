@@ -1,0 +1,195 @@
+---
+import { BRAND } from '../brand';
+import '../styles/site.css';
+
+interface Props {
+  description?: string;
+  title?: string;
+}
+
+const { description = BRAND.description, title = BRAND.name } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const home = base;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0a0a0e" />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+    <link rel="canonical" href={canonical} />
+    <title>{title === BRAND.name ? `${BRAND.name} — ${BRAND.tagline}` : `${title} — ${BRAND.name}`}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="shell nav-shell">
+        <a class="brand" href={home} aria-label={`${BRAND.name} home`}>
+          <svg aria-hidden="true" viewBox="0 0 32 32">
+            <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="1.5"></circle>
+            <circle cx="16" cy="16" r="5" fill="none" stroke="currentColor" stroke-width="2"></circle>
+            <path d="M16 1v6M16 25v6M1 16h6M25 16h6" stroke="currentColor" stroke-width="1.5"></path>
+            <circle cx="16" cy="16" r="1.8" fill="currentColor"></circle>
+          </svg>
+          <span>{BRAND.name}</span>
+        </a>
+        <nav aria-label="Primary navigation">
+          <a href={`${home}#product`}>Product</a>
+          <a href={`${home}#trust`}>Trust</a>
+          <a href={`${home}#architecture`}>Architecture</a>
+          <a class="docs-link" href={`${base}docs/`}>Documentation</a>
+        </nav>
+      </div>
+    </header>
+    <main id="main">
+      <slot />
+    </main>
+    <footer>
+      <div class="shell footer-grid">
+        <div>
+          <a class="brand" href={home}>
+            <svg aria-hidden="true" viewBox="0 0 32 32">
+              <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="1.5"></circle>
+              <circle cx="16" cy="16" r="5" fill="none" stroke="currentColor" stroke-width="2"></circle>
+              <circle cx="16" cy="16" r="1.8" fill="currentColor"></circle>
+            </svg>
+            <span>{BRAND.name}</span>
+          </a>
+          <p>{BRAND.tagline}. Deployed on infrastructure you control.</p>
+        </div>
+        <div class="footer-links">
+          <a href={`${base}docs/`}>Documentation</a>
+          <a href={BRAND.repository}>GitHub</a>
+          <a href={`${base}docs/deploy/`}>Deploy</a>
+          <a href={`${base}docs/project-overview/`}>Architecture</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  .skip-link {
+    position: fixed;
+    z-index: 100;
+    top: 0.75rem;
+    left: 0.75rem;
+    transform: translateY(-200%);
+    border-radius: 0.35rem;
+    padding: 0.65rem 0.85rem;
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  .skip-link:focus {
+    transform: translateY(0);
+  }
+
+  .site-header {
+    position: sticky;
+    z-index: 20;
+    top: 0;
+    border-bottom: 1px solid rgba(53, 53, 66, 0.72);
+    background: rgba(10, 10, 14, 0.82);
+    backdrop-filter: blur(18px);
+  }
+
+  .nav-shell {
+    display: flex;
+    min-height: 72px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: var(--text);
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    letter-spacing: -0.035em;
+    text-decoration: none;
+  }
+
+  .brand svg {
+    width: 28px;
+    color: var(--accent);
+  }
+
+  nav {
+    display: flex;
+    align-items: center;
+    gap: 1.4rem;
+  }
+
+  nav a,
+  .footer-links a {
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    transition: color 160ms ease;
+  }
+
+  nav a:hover,
+  .footer-links a:hover {
+    color: var(--accent);
+  }
+
+  nav .docs-link {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.35rem;
+    padding-inline: 0.8rem;
+    color: var(--text);
+  }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding-block: 4rem;
+    background: rgba(10, 10, 14, 0.72);
+  }
+
+  .footer-grid {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 3rem;
+  }
+
+  footer p {
+    max-width: 30rem;
+    margin: 0.8rem 0 0;
+    color: var(--text-3);
+    font-size: 0.9rem;
+  }
+
+  .footer-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(7rem, 1fr));
+    gap: 0.8rem 2rem;
+  }
+
+  @media (max-width: 760px) {
+    .nav-shell {
+      min-height: 64px;
+    }
+
+    nav a:not(.docs-link) {
+      display: none;
+    }
+
+    .footer-grid {
+      flex-direction: column;
+    }
+  }
+</style>

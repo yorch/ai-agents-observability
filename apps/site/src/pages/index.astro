@@ -1,0 +1,654 @@
+---
+import SignalField from '../components/SignalField.astro';
+import SiteLayout from '../layouts/SiteLayout.astro';
+import { BRAND } from '../brand';
+
+const base = import.meta.env.BASE_URL;
+const agents = ['Claude Code', 'opencode', 'Codex', 'Gemini CLI', 'Copilot CLI', 'Pi', 'omp'];
+const perspectives = [
+  {
+    code: '01 / DEVELOPERS',
+    description:
+      'Understand your sessions, spend, friction, tool mix, and privacy settings without waiting for an organization-level report.',
+    metric: 'My Agents',
+    title: 'Make the personal view useful first.',
+  },
+  {
+    code: '02 / PLATFORM TEAMS',
+    description:
+      'Compare agent adoption, skills, MCP servers, models, and delivery outcomes across teams while keeping investigations grant-scoped.',
+    metric: 'Team signals',
+    title: 'Find friction without ranking people.',
+  },
+  {
+    code: '03 / LEADERSHIP',
+    description:
+      'Track aggregate cost, routing opportunities, delivery correlations, and realized projections without default access to individual sessions.',
+    metric: 'Org outcomes',
+    title: 'Connect investment to engineering outcomes.',
+  },
+];
+const capabilities = [
+  ['Capture', 'Seven coding-agent adapters normalize events into one versioned contract.'],
+  ['Attribute', 'Connect turns, tools, skills, MCP servers, models, pull requests, and costs.'],
+  ['Explain', 'Surface friction, trajectory, autonomy, cache efficiency, and delivery patterns.'],
+  [
+    'Govern',
+    'Apply retention, access grants, audit trails, model policy, alerts, and deletion workflows.',
+  ],
+];
+const flow = [
+  [
+    '01',
+    'Agent hooks',
+    'Fast local capture writes to a durable queue and exits without blocking the agent.',
+  ],
+  [
+    '02',
+    'Ingest',
+    'Batched events are validated, repriced, redacted again, and correlated with engineering context.',
+  ],
+  [
+    '03',
+    'Storage',
+    'TimescaleDB keeps the event stream, Postgres holds dimensions, and S3 stores redacted transcripts.',
+  ],
+  [
+    '04',
+    'Insight',
+    'Role-scoped views turn sessions into personal guidance, team signals, and aggregate outcomes.',
+  ],
+];
+---
+
+<SiteLayout>
+  <section class="hero">
+    <div class="shell hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">Self-hosted · Multi-agent · Outcome-linked</p>
+        <h1 class="display">Measure the work between prompt and pull request.</h1>
+        <p class="lede">
+          {BRAND.name} shows how engineering teams use AI coding agents—what they cost, where
+          they encounter friction, which tools help, and how sessions connect to delivery outcomes.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href={`${base}docs/`}>Explore documentation</a>
+          <a class="button" href={BRAND.repository}>View source</a>
+        </div>
+        <dl class="proof-strip">
+          <div><dt class="mono">07</dt><dd>agent adapters</dd></div>
+          <div><dt class="mono">02×</dt><dd>transcript redaction</dd></div>
+          <div><dt class="mono">04</dt><dd>role-scoped surfaces</dd></div>
+        </dl>
+      </div>
+      <SignalField />
+    </div>
+  </section>
+
+  <section class="agent-band" aria-label="Supported agents">
+    <div class="shell agent-row">
+      <span class="mono">ONE SIGNAL MODEL</span>
+      <div>
+        {agents.map((agent) => <span>{agent}</span>)}
+      </div>
+    </div>
+  </section>
+
+  <section id="product" class="section shell">
+    <div class="section-heading">
+      <p class="eyebrow">Three questions. One evidence layer.</p>
+      <h2 class="display">Useful to developers.<br />Legible to organizations.</h2>
+      <p>
+        Agentometry separates personal insight, team enablement, and aggregate governance instead
+        of turning one dashboard into an employee scorecard.
+      </p>
+    </div>
+    <div class="perspective-grid">
+      {perspectives.map((item) => (
+        <article class="perspective-card">
+          <div class="card-top"><span class="eyebrow">{item.code}</span><span class="mono metric">{item.metric}</span></div>
+          <h3>{item.title}</h3>
+          <p>{item.description}</p>
+          <div class="signal-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="capability-section">
+    <div class="shell">
+      <div class="section-heading compact">
+        <p class="eyebrow">From activity to accountability</p>
+        <h2 class="display">The full measurement chain.</h2>
+      </div>
+      <div class="capability-grid">
+        {capabilities.map(([title, description], index) => (
+          <article>
+            <span class="mono index">0{index + 1}</span>
+            <h3>{title}</h3>
+            <p>{description}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section id="trust" class="section shell trust-grid">
+    <div class="trust-copy">
+      <p class="eyebrow">Trust is part of the architecture</p>
+      <h2 class="display">Observe the system.<br />Do not surveil the person.</h2>
+      <p>
+        Transcript sharing starts off. Cross-user access is justified, approved, time-boxed, and
+        visible in the audit trail. Leadership views stay aggregate by default.
+      </p>
+      <a class="text-link mono" href={`${base}docs/project-overview/`}>Read the trust model <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="trust-panel mono">
+      <div class="panel-head"><span>ACCESS RESOLUTION</span><span>POLICY / LIVE</span></div>
+      <ol>
+        <li><span>01</span><div><strong>Owner scope</strong><small>Full access to personal sessions and privacy controls</small></div><b class="pass">PASS</b></li>
+        <li><span>02</span><div><strong>Team aggregates</strong><small>Patterns and adoption without standing transcript access</small></div><b class="pass">PASS</b></li>
+        <li><span>03</span><div><strong>Investigation grant</strong><small>Reason + approval + expiry + subject-visible audit</small></div><b class="gate">GATED</b></li>
+        <li><span>04</span><div><strong>Leadership scope</strong><small>Aggregate outcomes; individual sessions unavailable</small></div><b class="pass">PASS</b></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="architecture" class="architecture-section">
+    <div class="shell architecture-grid">
+      <div class="section-heading compact">
+        <p class="eyebrow">Architecture</p>
+        <h2 class="display">Fast at the edge.<br />Defensible at the center.</h2>
+        <p>
+          Capture stays off the critical path. Content is redacted before it leaves the machine
+          and again before object storage. Computed signals carry scorer identity and version.
+        </p>
+      </div>
+      <ol class="flow">
+        {flow.map(([number, title, description]) => (
+          <li><span class="mono">{number}</span><div><h3>{title}</h3><p>{description}</p></div></li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section shell final-cta">
+    <p class="eyebrow">Run the measurement layer yourself</p>
+    <h2 class="display">Your agents. Your infrastructure.<br />Evidence you can inspect.</h2>
+    <p>
+      Start with Docker Compose, deploy into Kubernetes, or build from source. The documentation is
+      generated directly from the same repository as the product.
+    </p>
+    <div class="hero-actions">
+      <a class="button primary" href={`${base}docs/deploy/`}>Choose a deployment path</a>
+      <a class="button" href={`${base}docs/project-overview/`}>Read the architecture</a>
+    </div>
+  </section>
+</SiteLayout>
+
+<style>
+  .hero {
+    padding-block: clamp(5rem, 11vw, 9rem) 5rem;
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(420px, 1.05fr);
+    align-items: center;
+    gap: clamp(3rem, 7vw, 7rem);
+  }
+
+  .hero-copy {
+    animation: rise 700ms ease-out both;
+  }
+
+  h1 {
+    max-width: 780px;
+    margin-top: 1.3rem;
+    font-size: clamp(3.45rem, 7vw, 6.8rem);
+  }
+
+  .lede {
+    max-width: 42rem;
+    margin: 1.7rem 0 0;
+    color: var(--text-2);
+    font-size: clamp(1.05rem, 1.5vw, 1.25rem);
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+
+  .proof-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    max-width: 35rem;
+    margin: 3rem 0 0;
+  }
+
+  .proof-strip div {
+    border-left: 1px solid var(--border-strong);
+    padding-left: 1rem;
+  }
+
+  .proof-strip dt {
+    color: var(--accent);
+    font-size: 1.15rem;
+  }
+
+  .proof-strip dd {
+    margin: 0.1rem 0 0;
+    color: var(--text-3);
+    font-size: 0.75rem;
+  }
+
+  .agent-band {
+    border-block: 1px solid var(--border);
+    background: rgba(19, 19, 25, 0.76);
+  }
+
+  .agent-row {
+    display: flex;
+    min-height: 82px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+  }
+
+  .agent-row > span {
+    color: var(--accent);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+
+  .agent-row div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.55rem;
+  }
+
+  .agent-row div span {
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 0.35rem 0.65rem;
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+  }
+
+  .section {
+    padding-block: clamp(6rem, 10vw, 10rem);
+  }
+
+  .section-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.6fr);
+    gap: 1rem 5rem;
+    align-items: end;
+    margin-bottom: 3.5rem;
+  }
+
+  .section-heading .eyebrow {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .section-heading h2,
+  .trust-copy h2 {
+    font-size: clamp(2.8rem, 5vw, 5.2rem);
+  }
+
+  .section-heading > p:last-child,
+  .trust-copy > p,
+  .final-cta > p:not(.eyebrow) {
+    margin: 0;
+    color: var(--text-2);
+  }
+
+  .section-heading.compact {
+    display: block;
+    max-width: 54rem;
+  }
+
+  .section-heading.compact h2 {
+    margin-top: 1rem;
+  }
+
+  .section-heading.compact p:last-child {
+    max-width: 40rem;
+    margin-top: 1.5rem;
+  }
+
+  .perspective-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.6rem;
+    background: var(--border-strong);
+  }
+
+  .perspective-card {
+    min-height: 330px;
+    padding: 1.4rem;
+    background: var(--surface);
+  }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .card-top .eyebrow {
+    margin: 0;
+  }
+
+  .metric {
+    color: var(--text-3);
+    font-size: 0.62rem;
+  }
+
+  .perspective-card h3,
+  .capability-grid h3,
+  .flow h3 {
+    margin: 3.4rem 0 0;
+    color: var(--text);
+    font-family: var(--font-display);
+    font-size: 1.45rem;
+    line-height: 1.1;
+  }
+
+  .perspective-card p,
+  .capability-grid p,
+  .flow p {
+    color: var(--text-2);
+    font-size: 0.9rem;
+  }
+
+  .signal-bars {
+    display: flex;
+    height: 54px;
+    align-items: end;
+    gap: 5px;
+    margin-top: 2rem;
+  }
+
+  .signal-bars i {
+    flex: 1;
+    height: 35%;
+    background: var(--accent);
+    opacity: 0.35;
+  }
+
+  .signal-bars i:nth-child(2) { height: 72%; }
+  .signal-bars i:nth-child(3) { height: 48%; }
+  .signal-bars i:nth-child(4) { height: 90%; opacity: 0.7; }
+  .signal-bars i:nth-child(5) { height: 62%; }
+
+  .capability-section {
+    padding-block: clamp(6rem, 10vw, 9rem);
+    border-block: 1px solid var(--border);
+    background: rgba(19, 19, 25, 0.78);
+  }
+
+  .capability-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .capability-grid article {
+    padding: 1.5rem 1.5rem 0 0;
+  }
+
+  .capability-grid article + article {
+    border-left: 1px solid var(--border-strong);
+    padding-left: 1.5rem;
+  }
+
+  .capability-grid .index {
+    color: var(--accent);
+    font-size: 0.65rem;
+  }
+
+  .capability-grid h3 {
+    margin-top: 2rem;
+  }
+
+  .trust-grid,
+  .architecture-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(430px, 1.15fr);
+    align-items: center;
+    gap: clamp(3rem, 8vw, 8rem);
+  }
+
+  .trust-copy h2 {
+    margin-top: 1rem;
+  }
+
+  .text-link {
+    display: inline-flex;
+    gap: 0.6rem;
+    margin-top: 1.6rem;
+    color: var(--accent);
+    font-size: 0.75rem;
+    text-decoration: none;
+  }
+
+  .trust-panel {
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.55rem;
+    background: var(--surface);
+  }
+
+  .panel-head {
+    display: flex;
+    min-height: 45px;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding-inline: 1rem;
+    color: var(--text-3);
+    font-size: 0.6rem;
+  }
+
+  .trust-panel ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .trust-panel li {
+    display: grid;
+    grid-template-columns: 2rem 1fr auto;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 1rem;
+  }
+
+  .trust-panel li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .trust-panel li > span,
+  .trust-panel small {
+    color: var(--text-3);
+    font-size: 0.62rem;
+  }
+
+  .trust-panel li div {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .trust-panel strong {
+    color: var(--text);
+    font-size: 0.72rem;
+    font-weight: 400;
+  }
+
+  .trust-panel b {
+    font-size: 0.6rem;
+    font-weight: 400;
+  }
+
+  .pass { color: var(--good); }
+  .gate { color: var(--warn); }
+
+  .architecture-section {
+    padding-block: clamp(6rem, 10vw, 10rem);
+    border-block: 1px solid var(--border);
+    background: linear-gradient(120deg, rgba(58, 129, 215, 0.06), transparent 45%);
+  }
+
+  .flow {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .flow::before {
+    position: absolute;
+    top: 1.5rem;
+    bottom: 1.5rem;
+    left: 1.1rem;
+    width: 1px;
+    background: linear-gradient(var(--accent), var(--series-1), var(--series-4));
+    content: '';
+  }
+
+  .flow li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2.3rem 1fr;
+    gap: 1rem;
+    padding-block: 0.85rem;
+  }
+
+  .flow li > span {
+    z-index: 1;
+    display: grid;
+    width: 2.3rem;
+    height: 2.3rem;
+    place-items: center;
+    border: 1px solid var(--accent-line);
+    border-radius: 50%;
+    background: var(--bg);
+    color: var(--accent);
+    font-size: 0.6rem;
+  }
+
+  .flow h3 {
+    margin: 0;
+    font-size: 1.15rem;
+  }
+
+  .flow p {
+    margin: 0.25rem 0 0;
+  }
+
+  .final-cta {
+    text-align: center;
+  }
+
+  .final-cta h2 {
+    margin-top: 1rem;
+    font-size: clamp(3rem, 6vw, 6rem);
+  }
+
+  .final-cta > p:not(.eyebrow) {
+    max-width: 44rem;
+    margin: 1.5rem auto 0;
+  }
+
+  .final-cta .hero-actions {
+    justify-content: center;
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(22px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-copy {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 980px) {
+    .hero-grid,
+    .trust-grid,
+    .architecture-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .hero-grid {
+      gap: 4rem;
+    }
+
+    .perspective-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .capability-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .capability-grid article:nth-child(3) {
+      border-left: 0;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .section-heading {
+      display: block;
+    }
+
+    .section-heading > p:last-child {
+      margin-top: 1.5rem;
+    }
+
+    .agent-row {
+      align-items: flex-start;
+      flex-direction: column;
+      padding-block: 1.3rem;
+    }
+
+    .agent-row div {
+      justify-content: flex-start;
+    }
+
+    .capability-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .capability-grid article + article,
+    .capability-grid article:nth-child(3) {
+      border-top: 1px solid var(--border-strong);
+      border-left: 0;
+      padding-left: 0;
+    }
+  }
+
+  @media (max-width: 520px) {
+    h1 {
+      font-size: clamp(3.1rem, 16vw, 4.4rem);
+    }
+
+    .proof-strip {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+  }
+</style>
