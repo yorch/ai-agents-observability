@@ -129,14 +129,7 @@ jobs:
           cat SHA256SUMS-hook
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          draft: true
-          fail_on_unmatched_files: true
-          files: |
-            release/claude-telemetry-darwin-arm64
-            release/claude-telemetry-darwin-x64
-            release/claude-telemetry-linux-x64
-            release/claude-telemetry-linux-arm64
-            release/SHA256SUMS-hook
-          tag_name: ${{ env.RELEASE_TAG }}
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${RELEASE_TAG}" release/* --clobber
