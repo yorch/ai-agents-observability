@@ -3,7 +3,7 @@
 `/me/report`, `/team/[slug]/report`, and `/org/report` render a trailing-period
 agent digest with readout highlights, daily spend/session trends, and a 90-day
 activity calendar. They also include a cost-versus-duration scatter, concurrency
-signals, a UTC weekday/hour heatmap, and a complete-week digest table. They expose
+signals, a weekday/hour heatmap, and a complete-week digest table. They expose
 the same aggregate payload as Markdown, CSV, JSON, or a portable report bundle.
 
 The corresponding scoped trend pages are `/me/trends`, `/team/[slug]/trends`, and
@@ -13,8 +13,17 @@ intended for exploration; reports are the compact planning/readout surface.
 Trend and report charts include exact-data tables. The scatter shows session cost
 against duration (with aggregate scopes bucketed to preserve privacy), concurrency
 reports peak overlap and the share of sessions that ran in parallel, and the
-heatmap groups starts by UTC weekday and hour. Weekly digest rows use complete
-Monday–Sunday UTC weeks, excluding the current partial week.
+heatmap groups starts by the selected timezone's weekday and hour. Weekly digest
+rows use complete Monday–Sunday UTC weeks, excluding the current partial week.
+
+All report and trend surfaces accept `repo=owner/name` to scope the analysis to a
+repository. They also accept `from=YYYY-MM-DD`, `to=YYYY-MM-DD`, and `tz=Area/City`
+for a custom (maximum one-year) window and local-time heatmap grouping. Invalid
+dates/timezones fall back safely, and the default remains a trailing 30-day UTC
+window. Analytics are included in every JSON, Markdown, CSV, and bundle export;
+aggregate team and organization exports remain bucketed and omit member identity.
+Chart surfaces provide an accessible exact-data table plus a link to matching
+session records for drill-down.
 
 Each report compares a trailing 7-, 30-, or 90-day period with the immediately
 preceding period of equal length. A zero prior value is rendered as **new**, not as
@@ -39,8 +48,9 @@ and an escaped standalone `report.html`, plus a manifest recording the period,
 scope, schema version, and visibility policy. It deliberately contains no
 member-level rows or transcripts.
 
-Use `?range=7`, `?range=30`, or `?range=90` to select the window. Download links
-preserve the selected range; an omitted or invalid range defaults to 30 days.
+Use `?range=7`, `?range=30`, or `?range=90` to select a standard window, or use
+the custom `from`, `to`, and `tz` parameters. Download links preserve the active
+scope and window; an omitted or invalid range defaults to 30 days.
 
 Individual session pages also include owner-scoped visual analysis for per-turn
 cost, cumulative spend, cache efficiency, tool activity, model mix, and subagent

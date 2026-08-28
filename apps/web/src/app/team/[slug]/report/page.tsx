@@ -1,6 +1,6 @@
 import { ReportDigest } from '@/components/reports/ReportDigest';
 import { getTeamReport } from '@/lib/reporting-queries';
-import { reportDays } from '@/lib/reporting-route';
+import { parseReportRange } from '@/lib/reporting-range';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
 import { resolveTeamVisibility } from '@/lib/team-queries';
@@ -13,13 +13,15 @@ export default async function TeamReportPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string; tz?: string; repo?: string }>;
 }) {
-  const [{ slug }, { range }] = await Promise.all([params, searchParams]);
-  const days = reportDays(range ?? null);
+  const [{ slug }, search] = await Promise.all([params, searchParams]);
+  const window = parseReportRange(search);
+  const days = window.days;
   const { teamId, teamName } = await requireTeamLead(slug);
   const visibility = await resolveTeamVisibility(teamId);
-  const since = new Date(Date.now() - days * 86_400_000);
+  const since = window.start;
+  const options = { repo: search.repo, timezone: window.timezone, until: window.end };
   const [report, trends, scatter, concurrency, heatmap] = await Promise.all([
     getTeamReport({
       days,
@@ -27,11 +29,21 @@ export default async function TeamReportPage({
       totalMemberCount: visibility.totalCount,
       visibleIds: visibility.visibleIds,
     }),
-    getTeamTrends(visibility.visibleIds, since),
-    getTeamCostDuration(visibility.visibleIds, since),
-    getTeamConcurrency(visibility.visibleIds, since),
-    getTeamActivityHeatmap(visibility.visibleIds, since),
+    getTeamTrends(visibility.visibleIds, since, options),
+    getTeamCostDuration(visibility.visibleIds, since, options),
+    getTeamConcurrency(visibility.visibleIds, since, options),
+    getTeamActivityHeatmap(visibility.visibleIds, since, window.end, window.timezone, search.repo),
   ]);
+  report.analytics = {
+    concurrency: concurrency.map((p) => ({ ...p, day: p.day.toISOString().slice(0, 10) })),
+    heatmap,
+    scatter,
+    trends: trends.map((p) => ({
+      costUsd: p.costUsd,
+      day: p.day.toISOString().slice(0, 10),
+      sessionCount: p.sessionCount,
+    })),
+  };
   return (
     <div className="space-y-6">
       <div>
@@ -44,12 +56,13 @@ export default async function TeamReportPage({
         </p>
       </div>
       <ReportDigest
-        apiHref={`/api/team/${slug}/report?range=${days}`}
+        apiHref={`/api/team/${slug}/report?range=${days}${search.repo ? `&repo=${encodeURIComponent(search.repo)}` : ''}${search.from ? `&from=${search.from}` : ''}${search.to ? `&to=${search.to}` : ''}${search.tz ? `&tz=${encodeURIComponent(search.tz)}` : ''}`}
         report={report}
         trends={trends}
         scatter={scatter}
         concurrency={concurrency}
         heatmap={heatmap}
+        drilldownHref={`/team/${slug}/sessions?from=${window.from}&to=${window.to}${search.repo ? `&repo=${encodeURIComponent(search.repo)}` : ''}`}
         aggregateScatter
       />
     </div>

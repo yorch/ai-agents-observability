@@ -1,10 +1,10 @@
-import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { ReportRangeControls } from '@/components/team-org/ReportRangeControls';
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { EmptyState } from '@/components/ui';
+import { parseReportRange } from '@/lib/reporting-range';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
 import { resolveTeamVisibility } from '@/lib/team-queries';
-import { daysAgo } from '@/lib/time';
 import { getTeamActivityHeatmap, getTeamConcurrency, getTeamTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
@@ -13,19 +13,20 @@ export default async function TeamTrendsPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string; tz?: string; repo?: string }>;
 }) {
   const { slug } = await params;
-  const raw = Number((await searchParams).range);
-  const range = ([7, 30, 90].includes(raw) ? raw : 30) as 7 | 30 | 90;
+  const search = await searchParams;
+  const window = parseReportRange(search);
+  const range = ([7, 30, 90].includes(window.days) ? window.days : 30) as 7 | 30 | 90;
   const { teamId, teamName } = await requireTeamLead(slug);
   const { visibleIds } = await resolveTeamVisibility(teamId);
-  const since = daysAgo(range);
+  const since = window.start;
   const [points, scatter, concurrency, heatmap] = await Promise.all([
-    getTeamTrends(visibleIds, since),
-    getTeamCostDuration(visibleIds, since),
-    getTeamConcurrency(visibleIds, since),
-    getTeamActivityHeatmap(visibleIds, since),
+    getTeamTrends(visibleIds, since, { repo: search.repo, until: window.end }),
+    getTeamCostDuration(visibleIds, since, { repo: search.repo, until: window.end }),
+    getTeamConcurrency(visibleIds, since, { repo: search.repo, until: window.end }),
+    getTeamActivityHeatmap(visibleIds, since, window.end, window.timezone, search.repo),
   ]);
   return (
     <div className="space-y-6">
@@ -39,7 +40,13 @@ export default async function TeamTrendsPage({
             Daily activity and model mix · trailing {range} days
           </p>
         </div>
-        <DateRangePicker range={range} />
+        <ReportRangeControls
+          range={range}
+          from={search.from}
+          to={search.to}
+          timezone={window.timezone}
+          repo={search.repo}
+        />
       </div>
       {points.length === 0 ? (
         <EmptyState title="No activity in this period">

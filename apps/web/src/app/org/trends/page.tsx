@@ -1,26 +1,27 @@
-import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { ReportRangeControls } from '@/components/team-org/ReportRangeControls';
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { EmptyState } from '@/components/ui';
+import { parseReportRange } from '@/lib/reporting-range';
 import { requireOrgViewer } from '@/lib/roles';
 import { getOrgCostDuration } from '@/lib/scatter-queries';
-import { daysAgo } from '@/lib/time';
 import { getOrgActivityHeatmap, getOrgConcurrency, getOrgTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 export default async function OrgTrendsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string; tz?: string; repo?: string }>;
 }) {
   await requireOrgViewer();
-  const raw = Number((await searchParams).range);
-  const range = ([7, 30, 90].includes(raw) ? raw : 30) as 7 | 30 | 90;
-  const since = daysAgo(range);
+  const params = await searchParams;
+  const window = parseReportRange(params);
+  const range = ([7, 30, 90].includes(window.days) ? window.days : 30) as 7 | 30 | 90;
+  const since = window.start;
   const [points, scatter, concurrency, heatmap] = await Promise.all([
-    getOrgTrends(since),
-    getOrgCostDuration(since),
-    getOrgConcurrency(since),
-    getOrgActivityHeatmap(since),
+    getOrgTrends(since, { repo: params.repo, until: window.end }),
+    getOrgCostDuration(since, { repo: params.repo, until: window.end }),
+    getOrgConcurrency(since, { repo: params.repo, until: window.end }),
+    getOrgActivityHeatmap(since, window.end, window.timezone, params.repo),
   ]);
   return (
     <div className="space-y-6">
@@ -34,7 +35,13 @@ export default async function OrgTrendsPage({
             Daily activity and model mix · trailing {range} days
           </p>
         </div>
-        <DateRangePicker range={range} />
+        <ReportRangeControls
+          range={range}
+          from={params.from}
+          to={params.to}
+          timezone={window.timezone}
+          repo={params.repo}
+        />
       </div>
       {points.length === 0 ? (
         <EmptyState title="No activity in this period">

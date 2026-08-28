@@ -25,6 +25,7 @@ export function ReportDigest({
   aggregateScatter = false,
   concurrency = [],
   heatmap = [],
+  drilldownHref,
 }: {
   apiHref: string;
   report: Digest;
@@ -33,6 +34,7 @@ export function ReportDigest({
   aggregateScatter?: boolean;
   concurrency?: ConcurrencyPoint[];
   heatmap?: ActivityHeatmapCell[];
+  drilldownHref?: string | undefined;
 }) {
   const topModelCost = report.topModels.reduce((sum, row) => sum + row.costUsd, 0);
   const leadModel = report.topModels[0];
@@ -111,6 +113,7 @@ export function ReportDigest({
           heatmap={heatmap}
           points={trends}
           scatter={scatter ?? []}
+          drilldownHref={drilldownHref}
         />
       )}
       <div className="grid gap-6 md:grid-cols-2">
