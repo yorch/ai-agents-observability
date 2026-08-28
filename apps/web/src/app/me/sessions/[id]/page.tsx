@@ -7,6 +7,7 @@ import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
 import { SessionFeedbackForm } from '@/components/me/SessionFeedbackForm';
 import { SessionJudgeCard } from '@/components/me/SessionJudgeCard';
 import { SessionPRLinks } from '@/components/me/SessionPRLinks';
+import { SessionVisuals } from '@/components/me/SessionVisuals';
 import { ShareSessionButton } from '@/components/me/ShareSessionButton';
 import { currentUser } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
@@ -18,6 +19,7 @@ import type {
   SessionSkillRow,
   SessionSubagentRow,
   SessionToolRow,
+  SessionVisualPoint,
 } from '@/lib/sessions-queries';
 import {
   getSession,
@@ -25,6 +27,7 @@ import {
   getSessionModelBreakdown,
   getSessionSkills,
   getSessionToolBreakdown,
+  getSessionVisuals,
 } from '@/lib/sessions-queries';
 
 export const dynamic = 'force-dynamic';
@@ -48,25 +51,35 @@ export default async function SessionDetailPage({
   const { tab = 'timeline' } = await searchParams;
 
   const noTools = { subagents: [] as SessionSubagentRow[], tools: [] as SessionToolRow[] };
-  const [session, modelBreakdown, sessionEvents, skillRows, toolBreakdown, rawShares] =
-    await Promise.all([
-      getSession(user.id, id),
-      tab === 'models'
-        ? getSessionModelBreakdown(user.id, id)
-        : Promise.resolve([] as ModelBreakdownRow[]),
-      tab === 'timeline' ? getSessionEvents(user.id, id) : Promise.resolve([]),
-      tab === 'skills' ? getSessionSkills(user.id, id) : Promise.resolve([] as SessionSkillRow[]),
-      tab === 'tools' ? getSessionToolBreakdown(user.id, id) : Promise.resolve(noTools),
-      getPrisma().accessGrant.findMany({
-        select: { expiresAt: true, grantee: { select: { email: true } }, id: true },
-        where: {
-          expiresAt: { gt: new Date() },
-          grantedAt: { not: null },
-          revokedAt: null,
-          targetSessionId: id,
-        },
-      }),
-    ]);
+  const [
+    session,
+    modelBreakdown,
+    sessionEvents,
+    skillRows,
+    toolBreakdown,
+    visualPoints,
+    rawShares,
+  ] = await Promise.all([
+    getSession(user.id, id),
+    tab === 'models'
+      ? getSessionModelBreakdown(user.id, id)
+      : Promise.resolve([] as ModelBreakdownRow[]),
+    tab === 'timeline' ? getSessionEvents(user.id, id) : Promise.resolve([]),
+    tab === 'skills' ? getSessionSkills(user.id, id) : Promise.resolve([] as SessionSkillRow[]),
+    tab === 'tools' ? getSessionToolBreakdown(user.id, id) : Promise.resolve(noTools),
+    tab === 'timeline'
+      ? getSessionVisuals(user.id, id)
+      : Promise.resolve([] as SessionVisualPoint[]),
+    getPrisma().accessGrant.findMany({
+      select: { expiresAt: true, grantee: { select: { email: true } }, id: true },
+      where: {
+        expiresAt: { gt: new Date() },
+        grantedAt: { not: null },
+        revokedAt: null,
+        targetSessionId: id,
+      },
+    }),
+  ]);
   if (!session) {
     notFound();
   }
@@ -170,6 +183,8 @@ export default async function SessionDetailPage({
         repoName={session.repoName}
         sessionId={id}
       />
+
+      {tab === 'timeline' && <SessionVisuals points={visualPoints} />}
 
       <SessionDetailTabs
         events={sessionEvents}
