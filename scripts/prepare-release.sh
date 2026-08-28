@@ -59,6 +59,11 @@ while IFS= read -r subject; do
   fi
 
   type=$(echo "${subject}" | sed -E 's/^([a-z]+)(\(.+\))?!?:.*/\1/')
+  scope=$(echo "${subject}" | sed -E 's/^[a-z]+\(([^)]+)\)!?:.*/\1/')
+
+  if [[ "${type}" == "fix" ]] && [[ "${scope}" == "release" || "${scope}" == "ci" ]]; then
+    continue
+  fi
 
   case "${type}" in
     feat)    HAS_FEAT=1 ;;

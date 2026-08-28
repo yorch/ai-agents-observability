@@ -1,25 +1,36 @@
 name: Build and Publish Docker Images
 
+run-name: "${{ inputs.release_run_id && format('{0} · release {1}', inputs.release_tag, inputs.release_run_id) || github.event.pull_request.title || github.event.head_commit.message || github.workflow }}"
+
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
   pull_request:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Version tag whose source and draft release this run targets
+        required: true
+        type: string
+      release_run_id:
+        description: Release workflow run coordinating this build
+        required: true
+        type: string
+      update_floating_tags:
+        description: Update major, major.minor, and latest tags
+        required: true
+        type: boolean
 
 env:
   GHCR_PREFIX: ghcr.io/${{ github.repository }}
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
   # arm64 is disabled, not removed. Re-enable with:
   # BUILD_PLATFORMS: linux/amd64,linux/arm64
   BUILD_PLATFORMS: linux/amd64
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ${{ github.workflow }}-${{ inputs.release_tag || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -55,6 +66,8 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -77,13 +90,12 @@ jobs:
   publish:
     needs: setup
     if: >-
-      github.event_name != 'pull_request' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-      # cosign keyless signing uses OIDC; SLSA provenance needs attestation write.
+      # Cosign keyless signing and build provenance use GitHub OIDC.
       id-token: write
       attestations: write
     strategy:
@@ -94,6 +106,7 @@ jobs:
         uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -141,7 +154,7 @@ jobs:
           echo "branch=${GITHUB_REF_NAME}"                                                >> "${GITHUB_OUTPUT}"
           echo "build_number=${{ github.run_number }}"                                    >> "${GITHUB_OUTPUT}"
           echo "commit=$(git rev-parse --short HEAD)"                                     >> "${GITHUB_OUTPUT}"
-          echo "tag=${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${RELEASE_TAG}"                                                  >> "${GITHUB_OUTPUT}"
           echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"                                      >> "${GITHUB_OUTPUT}"
           echo "timestamp=$(git show -s --date=format:'%Y%m%d%H%M' --format=%cd)"         >> "${GITHUB_OUTPUT}"
           echo "version=$(git describe --tags --always)"                                  >> "${GITHUB_OUTPUT}"
@@ -151,16 +164,17 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ steps.images.outputs.list }}
+          flavor: latest=false
           tags: |
             type=raw,value=${{ steps.build-info.outputs.timestamp }}-${{ steps.build-info.outputs.commit }}
-            type=ref,event=branch
-            type=ref,event=tag
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ env.RELEASE_TAG }}
+            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.RELEASE_TAG }},enable=${{ inputs.update_floating_tags }}
+            type=semver,pattern={{major}},value=${{ env.RELEASE_TAG }},enable=${{ inputs.update_floating_tags }}
+            type=raw,value=latest,enable=${{ inputs.update_floating_tags }}
 
       - name: Build and push ${{ matrix.component }}
+        id: push
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context || '.' }}
@@ -183,9 +197,8 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
 
       # ── Supply-chain hardening ──────────────────────────────────────────────
-      # SBOM (CycloneDX), image signing (cosign keyless via OIDC), and SLSA
-      # build provenance. These run on every publish (main + tags). Verification
-      # instructions are in docs/deploy/README.md.
+      # SBOM (CycloneDX), image signing (cosign keyless via OIDC), and build
+      # provenance. Verification instructions are in docs/deploy/README.md.
       # See docs/deploy/air-gapped.md for the offline verification path.
 
       - name: Generate SBOM
@@ -193,9 +206,10 @@ jobs:
         with:
           image: ${{ env.GHCR_PREFIX }}/${{ matrix.component }}:${{ steps.build-info.outputs.timestamp }}-${{ steps.build-info.outputs.commit }}
           format: cyclonedx-json
-          artifact-name: sbom-${{ matrix.component }}.json
+          output-file: sbom-${{ matrix.component }}-${{ env.RELEASE_TAG }}.json
+          artifact-name: sbom-${{ matrix.component }}-${{ env.RELEASE_TAG }}.json
           upload-artifact: true
-          upload-release-assets: ${{ startsWith(github.ref, 'refs/tags/') }}
+          upload-release-assets: false
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
@@ -214,30 +228,34 @@ jobs:
             cosign sign --yes "${image}"
           done <<< "${IMAGE_LIST}"
 
-      - name: Generate SLSA provenance attestation
-        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+      - name: Generate build provenance attestation
+        uses: actions/attest@v4
         with:
-          image: ${{ env.GHCR_PREFIX }}/${{ matrix.component }}:${{ steps.build-info.outputs.timestamp }}-${{ steps.build-info.outputs.commit }}
-          registry-username: ${{ github.actor }}
-          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          subject-name: ${{ env.GHCR_PREFIX }}/${{ matrix.component }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
 
   # ── Air-gapped release bundle ───────────────────────────────────────────────
-  # On tag pushes, export each published image as an OCI archive (.tar) and
+  # On release builds, export each published image as an OCI archive (.tar) and
   # attach them + checksums + SBOMs to the GitHub Release. Air-gapped envs
   # download the bundle, verify checksums, `docker load`, and deploy with no
   # outbound network. See docs/deploy/air-gapped.md.
   release-bundle:
     needs: [setup, publish]
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
+      packages: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -251,7 +269,7 @@ jobs:
         env:
           GHCR_PREFIX: ${{ env.GHCR_PREFIX }}
           COMPONENT: ${{ matrix.component }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
           # Use the git tag ref — the publish job pushes type=ref,event=tag.
           echo "image=${GHCR_PREFIX}/${COMPONENT}:${TAG}" >> "${GITHUB_OUTPUT}"
@@ -269,54 +287,44 @@ jobs:
       - name: Download SBOM artifact
         uses: actions/download-artifact@v7
         with:
-          name: sbom-${{ matrix.component }}.json
+          name: sbom-${{ matrix.component }}-${{ env.RELEASE_TAG }}.json
           path: sbom/
-        continue-on-error: true
-
-      - name: Rename SBOM
-        run: |
-          if [[ -f sbom/sbom-${{ matrix.component }}.json ]]; then
-            mv sbom/sbom-${{ matrix.component }}.json sbom-${{ matrix.component }}-${{ github.ref_name }}.json
-          fi
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
+          draft: true
+          fail_on_unmatched_files: true
           files: |
             ${{ steps.ref.outputs.tarball }}
             ${{ steps.ref.outputs.tarball }}.sha256
-            sbom-${{ matrix.component }}-${{ github.ref_name }}.json
+            sbom/sbom-${{ matrix.component }}-${{ env.RELEASE_TAG }}.json
+          tag_name: ${{ env.RELEASE_TAG }}
 
   # ── Consolidated checksums file ─────────────────────────────────────────────
   # After all release-bundle jobs finish, produce a single SHA256SUMS-images file
   # containing all tarball checksums and attach it to the release.
   release-checksums:
     needs: [setup, release-bundle]
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download all checksum files
-        uses: actions/download-artifact@v7
-        with:
-          # The release-bundle jobs upload to the GitHub Release directly;
-          # we re-download from the release assets.
-          # This is a fallback — in practice the per-tarball .sha256 files
-          # are already on the release. This job consolidates them into one.
-          path: checksums/
-        continue-on-error: true
-
       - name: Build consolidated SHA256SUMS-images
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
-          # Download all .sha256 assets from the release and concatenate.
-          gh release download "${TAG}" --pattern "*.sha256" --dir ./all-checksums/ || true
-          cat ./all-checksums/*.sha256 > SHA256SUMS-images
+          set -euo pipefail
+          mkdir -p all-checksums/
+          gh release download "${TAG}" --pattern "*.sha256" --dir all-checksums/
+          cat all-checksums/*.sha256 > SHA256SUMS-images
 
       - name: Upload consolidated checksums
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
+          draft: true
+          fail_on_unmatched_files: true
           files: SHA256SUMS-images
+          tag_name: ${{ env.RELEASE_TAG }}

@@ -56,7 +56,7 @@ The build scripts set `NODE_ENV=production` at compile time. This is critical: B
 
 ## Downloading from GitHub Releases
 
-On every tag push, CI builds all artifacts and publishes them to the GitHub Release:
+For every approved release, CI builds all artifacts and publishes them to the GitHub Release:
 
 ```bash
 TAG=v1.0.0

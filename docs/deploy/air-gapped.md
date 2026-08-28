@@ -10,7 +10,7 @@ Deploy the full stack in an environment with no internet access at deploy time. 
 
 ## How it works
 
-On every tag push, CI publishes each image as an OCI archive (`.tar`) to the GitHub Release for that tag, alongside a SHA256 checksum and an SBOM. You download the bundle, verify it, load the images into the target Docker daemon, and deploy with the standard prod compose — pointing `APP_IMAGE_*` at the loaded image names.
+For every approved release, CI publishes each image as an OCI archive (`.tar`) to the GitHub Release for that tag, alongside a SHA256 checksum and an SBOM. You download the bundle, verify it, load the images into the target Docker daemon, and deploy with the standard prod compose — pointing `APP_IMAGE_*` at the loaded image names.
 
 ## On the internet-connected machine
 
@@ -40,10 +40,9 @@ Each `.tar` should report `OK`. Do not proceed if any file fails.
 The images are signed with cosign keyless signing via GitHub OIDC. To verify:
 
 ```bash
-# The certificate identity follows the workflow path pattern:
-# https://github.com/yorch/ai-agents-observability/.github/workflows/docker.yml@refs/tags/<TAG>
+# Release builds execute the workflow definition from main while checking out TAG.
 cosign verify ghcr.io/yorch/ai-agents-observability/web:${TAG} \
-  --certificate-identity "https://github.com/yorch/ai-agents-observability/.github/workflows/docker.yml@refs/tags/${TAG}" \
+  --certificate-identity "https://github.com/yorch/ai-agents-observability/.github/workflows/docker.yml@refs/heads/main" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
 

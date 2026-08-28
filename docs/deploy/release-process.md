@@ -20,14 +20,11 @@ Merge the release PR
 release.yml: publish-release job
   → re-runs all four quality gates (check, typecheck, build, test)
   → creates vX.Y.Z tag pinned to the merge commit
-  → creates GitHub Release with changelog notes
-        ↓
-Tag push triggers artifact workflows:
-  → docker.yml: Docker images + OCI bundle + SBOMs + cosign signing
-  → build-binaries.yml: server binaries + web tarball
-  → build-hook.yml: hook binaries
-        ↓
-All artifacts attached to the same GitHub Release
+  → creates a draft GitHub Release with changelog notes
+  → explicitly dispatches docker.yml, build-binaries.yml, and build-hook.yml
+    at the version tag and waits for all three workflows
+  → verifies every expected release asset
+  → publishes the release only when it is complete
 ```
 
 ## Versioning
@@ -39,19 +36,18 @@ Versions follow [semver](https://semver.org/), derived from [conventional commit
 | `feat!:` or `BREAKING CHANGE` | major | `feat(deploy)!: redesign Helm chart` |
 | `feat:` | minor | `feat(ingest): add cost reconciliation` |
 | `fix:`, `perf:`, `refactor:` | patch | `fix(hook): capture real tool durations` |
-| `docs:`, `chore:`, `test:`, `ci:` | none | `chore(tasks): close Phase 14` |
+| `docs:`, `chore:`, `test:`, `ci:`, `fix(release):`, `fix(ci):` | none | `chore(tasks): close Phase 14` |
 
 ## Day-to-day
 
 1. **Write conventional commits** — `feat:`, `fix:`, `refactor:`, etc. with optional scope.
 2. **Push to main** — the `prepare-release` job opens a `chore: release vX.Y.Z` PR automatically.
 3. **Review the PR** — check the version number and changelog entries in `CHANGELOG.md`.
-4. **Merge the PR** — this triggers `publish-release`, which runs quality gates, creates the tag, and creates the GitHub Release.
-5. **Tag push triggers artifacts** — Docker images, server binaries, hook binaries, and web tarball are built and attached to the release.
+4. **Merge the PR** — this triggers `publish-release`, which runs quality gates, creates the tag and draft release, dispatches all artifact workflows, verifies their assets, and publishes the completed release.
 
 ## What gets published
 
-On each release, three workflows fire on the `v*` tag push and attach artifacts to the same GitHub Release:
+On each release, `release.yml` explicitly dispatches three workflow definitions from `main`, passing the immutable `release_tag`, and waits for them to attach artifacts to the draft GitHub Release. Each workflow checks out and packages source from that tag:
 
 | Workflow | Artifacts | Checksum file |
 |---|---|---|
@@ -59,34 +55,29 @@ On each release, three workflows fire on the `v*` tag push and attach artifacts 
 | `build-binaries.yml` | Server binaries (4 platforms), web tarball | `SHA256SUMS-binaries` |
 | `build-hook.yml` | Hook binaries (4 platforms) | `SHA256SUMS-hook` |
 
-Docker images are also pushed to GHCR (`ghcr.io/yorch/ai-agents-observability/<component>:<tag>`), signed with cosign, and attested with SLSA provenance.
+Docker images are also pushed to GHCR (`ghcr.io/yorch/ai-agents-observability/<component>:<tag>`), signed with cosign, and given GitHub build-provenance attestations.
 
-## Idempotence
+## Idempotence and failure handling
 
 - **Re-running `prepare-release`** is safe — it updates the existing release PR if one is already open.
-- **Re-running `publish-release`** is safe — it checks if the tag and GitHub Release already exist before creating them.
-- **Re-running the artifact workflows** is safe — they upload to the same GitHub Release (softprops/action-gh-release appends/updates).
+- **Re-running a completed automatic `publish-release`** is a no-op when the release is already published.
+- **A manual repair deliberately rebuilds** — it moves the selected release back to draft, rebuilds and verifies every artifact without moving the tag, then republishes it without changing which release is marked latest.
+- **An artifact failure leaves a draft** — the release stays hidden until every workflow succeeds and every expected asset is present.
+- **Artifact workflows do not edit release notes** — `release.yml` exclusively owns the changelog-based release body.
 
-## Manual override
+## Repair an incomplete release
 
-If you need to create a release without the PR flow (e.g., an emergency fix):
-
-```bash
-# Run quality gates locally
-bun run check && bun run typecheck && bun run build && bun run test
-
-# Create and push the tag
-git tag v1.0.1
-git push origin v1.0.1
-```
-
-The tag push triggers the artifact workflows directly. You'll need to create the GitHub Release manually:
+Use the manual workflow input when a tag and release already exist but artifacts are incomplete:
 
 ```bash
-gh release create v1.0.1 --target <commit-sha> --title v1.0.1 --notes "..."
+gh workflow run release.yml --ref main \
+  -f tag=v1.0.0 \
+  -f update_floating_tags=true
 ```
 
-This bypasses the human-approval gate. Use sparingly.
+Set `update_floating_tags=true` only when repairing the current latest release; it updates the `1`, `1.0`, and `latest` image tags and marks the GitHub Release latest. Omit it when repairing an older release.
+
+The repair run validates the existing tag, moves the release back to draft, rebuilds and verifies every artifact at that tag, then republishes it. It never moves or recreates the tag.
 
 ## Files
 
