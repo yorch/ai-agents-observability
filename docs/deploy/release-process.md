@@ -10,6 +10,7 @@ Push to main (feat/fix/perf/refactor)
 release.yml: prepare-release job
   → scripts/prepare-release.sh analyzes conventional commits since last tag
   → determines next version (semver: breaking → major, feat → minor, fix → patch)
+  → updates root + workspace package.json versions and bun.lock
   → generates CHANGELOG.md entry
   → opens/updates "chore: release vX.Y.Z" PR
         ↓
@@ -42,8 +43,8 @@ Versions follow [semver](https://semver.org/), derived from [conventional commit
 
 1. **Write conventional commits** — `feat:`, `fix:`, `refactor:`, etc. with optional scope.
 2. **Push to main** — the `prepare-release` job opens a `chore: release vX.Y.Z` PR automatically.
-3. **Review the PR** — check the version number and changelog entries in `CHANGELOG.md`.
-4. **Merge the PR** — this triggers `publish-release`, which runs quality gates, creates the tag and draft release, dispatches all artifact workflows, verifies their assets, and publishes the completed release.
+3. **Review the PR** — check the synchronized versions in the root and every workspace `package.json`, the matching `bun.lock` update, and the changelog entries in `CHANGELOG.md`.
+4. **Merge the PR** — this triggers `publish-release`, which verifies every package version matches the tag, runs quality gates, creates the tag and draft release, dispatches all artifact workflows, verifies their assets, and publishes the completed release.
 
 ## What gets published
 
@@ -71,13 +72,13 @@ Use the manual workflow input when a tag and release already exist but artifacts
 
 ```bash
 gh workflow run release.yml --ref main \
-  -f tag=v1.0.0 \
+  -f tag=v1.1.0 \
   -f update_floating_tags=true
 ```
 
 Set `update_floating_tags=true` only when repairing the current latest release; it updates the `1`, `1.0`, and `latest` image tags and marks the GitHub Release latest. Omit it when repairing an older release.
 
-The repair run validates the existing tag, moves the release back to draft, rebuilds and verifies every artifact at that tag, then republishes it. It never moves or recreates the tag.
+The repair run validates the existing tag and its synchronized package versions, moves the release back to draft, rebuilds and verifies every artifact at that tag, then republishes it. It never moves or recreates the tag.
 
 ## Files
 
@@ -85,4 +86,5 @@ The repair run validates the existing tag, moves the release back to draft, rebu
 |---|---|
 | `.github/workflows/release.yml` | The two-phase release workflow |
 | `scripts/prepare-release.sh` | Conventional commits → version + changelog |
+| `scripts/release-version.ts` | Set and validate synchronized package versions |
 | `CHANGELOG.md` | Generated changelog (one entry per release) |
