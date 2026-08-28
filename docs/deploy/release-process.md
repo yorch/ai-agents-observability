@@ -10,7 +10,7 @@ Push to main (feat/fix/perf/refactor)
 release.yml: prepare-release job
   → scripts/prepare-release.sh analyzes conventional commits since last tag
   → determines next version (semver: breaking → major, feat → minor, fix → patch)
-  → updates root + workspace package.json versions and bun.lock
+  → updates root + release-managed workspace package.json versions and bun.lock
   → generates CHANGELOG.md entry
   → opens/updates "chore: release vX.Y.Z" PR
         ↓
@@ -43,7 +43,7 @@ Versions follow [semver](https://semver.org/), derived from [conventional commit
 
 1. **Write conventional commits** — `feat:`, `fix:`, `refactor:`, etc. with optional scope.
 2. **Push to main** — the `prepare-release` job opens a `chore: release vX.Y.Z` PR automatically.
-3. **Review the PR** — check the synchronized versions in the root and every workspace `package.json`, the matching `bun.lock` update, and the changelog entries in `CHANGELOG.md`.
+3. **Review the PR** — check the synchronized versions in the root and every release-managed workspace `package.json`, the matching `bun.lock` update, and the changelog entries in `CHANGELOG.md`. Workspaces with `"release": false` are deployed independently and excluded from version synchronization.
 4. **Merge the PR** — this triggers `publish-release`, which verifies every package version matches the tag, runs quality gates, creates the tag and draft release, dispatches all artifact workflows, verifies their assets, and publishes the completed release.
 
 ## What gets published

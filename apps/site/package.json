@@ -1,6 +1,7 @@
 {
   "name": "@ai-agents-observability/site",
   "private": true,
+  "release": false,
   "type": "module",
   "scripts": {
     "build": "astro build",
