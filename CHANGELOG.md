@@ -6,6 +6,17 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v1.4.0 (2026-08-28)
+
+### Features
+
+- hook: persist endpoints and import agent history (#179)
+
+### Bug Fixes
+
+- deploy: harden Traefik service exposure (#182)
+- auth: use canonical OAuth callback origin (#180)
+
 ## v1.3.0 (2026-08-28)
 
 ### Features
