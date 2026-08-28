@@ -1,9 +1,8 @@
-import { CostDurationScatter } from '@/components/team-org/CostDurationScatter';
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { ButtonLink, Card, Cell, Row, Table } from '@/components/ui';
 import { type ReportDigest as Digest, formatReportDelta } from '@/lib/reporting';
 import type { CostDurationPoint } from '@/lib/scatter-queries';
-import type { ScopedTrendPoint } from '@/lib/trend-queries';
+import type { ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
 
 function value(value: number, unit: Digest['metrics'][number]['unit']): string {
   if (unit === 'usd') {
@@ -24,12 +23,14 @@ export function ReportDigest({
   trends = [],
   scatter,
   aggregateScatter = false,
+  concurrency = [],
 }: {
   apiHref: string;
   report: Digest;
   trends?: ScopedTrendPoint[];
   scatter?: CostDurationPoint[];
   aggregateScatter?: boolean;
+  concurrency?: ConcurrencyPoint[];
 }) {
   const topModelCost = report.topModels.reduce((sum, row) => sum + row.costUsd, 0);
   const leadModel = report.topModels[0];
@@ -101,8 +102,14 @@ export function ReportDigest({
           <p className="text-sm text-text-2">No changes are available for this period.</p>
         )}
       </Card>
-      {trends.length > 0 && <ScopedTrendCharts points={trends} />}
-      {scatter && <CostDurationScatter points={scatter} aggregate={aggregateScatter} />}
+      {trends.length > 0 && (
+        <ScopedTrendCharts
+          aggregateScatter={aggregateScatter}
+          concurrency={concurrency}
+          points={trends}
+          scatter={scatter ?? []}
+        />
+      )}
       <div className="grid gap-6 md:grid-cols-2">
         <Card title="Top models" flush>
           <Table

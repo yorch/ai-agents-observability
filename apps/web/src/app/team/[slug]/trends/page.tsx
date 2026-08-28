@@ -5,7 +5,7 @@ import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
 import { resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
-import { getTeamTrends } from '@/lib/trend-queries';
+import { getTeamConcurrency, getTeamTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 export default async function TeamTrendsPage({
@@ -21,9 +21,10 @@ export default async function TeamTrendsPage({
   const { teamId, teamName } = await requireTeamLead(slug);
   const { visibleIds } = await resolveTeamVisibility(teamId);
   const since = daysAgo(range);
-  const [points, scatter] = await Promise.all([
+  const [points, scatter, concurrency] = await Promise.all([
     getTeamTrends(visibleIds, since),
     getTeamCostDuration(visibleIds, since),
+    getTeamConcurrency(visibleIds, since),
   ]);
   return (
     <div className="space-y-6">
@@ -44,7 +45,12 @@ export default async function TeamTrendsPage({
           Visible team sessions will appear here once members run an adapter.
         </EmptyState>
       ) : (
-        <ScopedTrendCharts points={points} scatter={scatter} aggregateScatter />
+        <ScopedTrendCharts
+          aggregateScatter
+          concurrency={concurrency}
+          points={points}
+          scatter={scatter}
+        />
       )}
     </div>
   );

@@ -4,7 +4,7 @@ import { currentUser } from '@/lib/auth';
 import { getMyReport } from '@/lib/reporting-queries';
 import { reportDays } from '@/lib/reporting-route';
 import { getUserCostDuration } from '@/lib/scatter-queries';
-import { getUserTrends } from '@/lib/trend-queries';
+import { getUserConcurrency, getUserTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,10 +19,12 @@ export default async function MyReportPage({
   }
   const { range } = await searchParams;
   const days = reportDays(range ?? null);
-  const [report, trends, scatter] = await Promise.all([
+  const since = new Date(Date.now() - days * 86_400_000);
+  const [report, trends, scatter, concurrency] = await Promise.all([
     getMyReport(user.id, days),
-    getUserTrends(user.id, new Date(Date.now() - days * 86_400_000)),
-    getUserCostDuration(user.id, new Date(Date.now() - days * 86_400_000)),
+    getUserTrends(user.id, since),
+    getUserCostDuration(user.id, since),
+    getUserConcurrency(user.id, since),
   ]);
   return (
     <div className="space-y-6">
@@ -35,6 +37,7 @@ export default async function MyReportPage({
         report={report}
         trends={trends}
         scatter={scatter}
+        concurrency={concurrency}
       />
     </div>
   );

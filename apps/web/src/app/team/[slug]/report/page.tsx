@@ -4,7 +4,7 @@ import { reportDays } from '@/lib/reporting-route';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
 import { resolveTeamVisibility } from '@/lib/team-queries';
-import { getTeamTrends } from '@/lib/trend-queries';
+import { getTeamConcurrency, getTeamTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ export default async function TeamReportPage({
   const { teamId, teamName } = await requireTeamLead(slug);
   const visibility = await resolveTeamVisibility(teamId);
   const since = new Date(Date.now() - days * 86_400_000);
-  const [report, trends, scatter] = await Promise.all([
+  const [report, trends, scatter, concurrency] = await Promise.all([
     getTeamReport({
       days,
       teamLabel: teamName,
@@ -29,6 +29,7 @@ export default async function TeamReportPage({
     }),
     getTeamTrends(visibility.visibleIds, since),
     getTeamCostDuration(visibility.visibleIds, since),
+    getTeamConcurrency(visibility.visibleIds, since),
   ]);
   return (
     <div className="space-y-6">
@@ -46,6 +47,7 @@ export default async function TeamReportPage({
         report={report}
         trends={trends}
         scatter={scatter}
+        concurrency={concurrency}
         aggregateScatter
       />
     </div>
