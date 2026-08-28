@@ -1,0 +1,250 @@
+name: Release
+
+# Two-phase release process adapted from the colophon release process:
+#
+# 1. Push to main (non-release commits) → prepare-release job analyzes
+#    conventional commits since the last tag, determines the next version,
+#    generates a changelog, and opens/updates a "chore: release vX.Y.Z" PR.
+#
+# 2. Merging that PR → publish-release job re-runs the four quality gates
+#    (check, typecheck, build, test), creates the vX.Y.Z tag pinned to the
+#    merge commit, and creates a GitHub Release with the changelog notes.
+#    The tag push triggers the existing artifact workflows (docker.yml,
+#    build-binaries.yml, build-hook.yml) which publish images, binaries,
+#    and tarballs to the same release.
+#
+# Key invariant: nothing reaches a registry without human approval of the
+# version number. The approval gate is merging the release PR.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # ── Phase 1: Prepare the release PR ─────────────────────────────────────────
+  # Runs on every push to main that is NOT itself a release merge. Analyzes
+  # conventional commits, generates a changelog, and opens or updates a PR
+  # titled "chore: release vX.Y.Z". The PR is the human approval gate —
+  # merging it triggers phase 2.
+  prepare-release:
+    if: !startsWith(github.event.head_commit.message, 'chore: release v')
+    runs-on: ubuntu-latest
+    outputs:
+      has-release: ${{ steps.prepare.outputs.has-release }}
+      version: ${{ steps.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0  # need full history for git log since last tag
+
+      - name: Prepare release
+        id: prepare
+        run: |
+          set -euo pipefail
+          OUTPUT=$(bash scripts/prepare-release.sh 2>/dev/null || true)
+          if [[ -z "${OUTPUT}" ]]; then
+            echo "Nothing to release — no feat/fix/perf/refactor commits since last tag." >&2
+            echo 'has-release=false' >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          VERSION=$(echo "${OUTPUT}" | head -1)
+          BODY=$(echo "${OUTPUT}" | tail -n +2)
+          TAG="v${VERSION}"
+          TODAY=$(date +%Y-%m-%d)
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo 'has-release=true' >> "${GITHUB_OUTPUT}"
+
+          # Build the changelog entry
+          {
+            echo "## ${TAG} (${TODAY})"
+            echo ""
+            echo "${BODY}"
+          } > /tmp/changelog-entry.md
+
+          # Prepend to CHANGELOG.md (create if it doesn't exist)
+          if [[ -f CHANGELOG.md ]]; then
+            cat CHANGELOG.md >> /tmp/changelog-entry.md
+          fi
+          mv /tmp/changelog-entry.md CHANGELOG.md
+
+          # Save the tag and version for the commit
+          echo "${TAG}" > /tmp/release-tag
+          echo "${VERSION}" > /tmp/release-version
+
+      - name: Create or update release branch
+        if: steps.prepare.outputs.has-release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=$(cat /tmp/release-tag)
+          VERSION=$(cat /tmp/release-version)
+          BRANCH="release/${TAG}"
+
+          # Check if the branch already exists
+          if git ls-remote --exit-code --heads origin "${BRANCH}" >/dev/null 2>&1; then
+            echo "Release branch ${BRANCH} already exists — updating."
+            git checkout "${BRANCH}" || git checkout -b "${BRANCH}"
+          else
+            git checkout -b "${BRANCH}"
+          fi
+
+          git add CHANGELOG.md
+          git commit -m "chore: release ${TAG}" || {
+            echo "No changes to commit — changelog already up to date."
+            exit 0
+          }
+
+          git push origin "${BRANCH}"
+
+          # Check if a PR already exists for this branch
+          PR_NUMBER=$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [[ -n "${PR_NUMBER}" ]]; then
+            echo "Updating existing PR #${PR_NUMBER}"
+            gh pr edit "${PR_NUMBER}" --body "Merging this PR will create the ${TAG} tag and publish all release artifacts (Docker images, server binaries, hook binaries, web tarball).
+
+          See CHANGELOG.md for the full release notes." || true
+          else
+            gh pr create \
+              --head "${BRANCH}" \
+              --base main \
+              --title "chore: release ${TAG}" \
+              --body "Merging this PR will create the ${TAG} tag and publish all release artifacts (Docker images, server binaries, hook binaries, web tarball).
+
+          See CHANGELOG.md for the full release notes.
+
+          ### Pre-merge checklist
+          - [ ] Version number is correct
+          - [ ] Changelog entries are accurate
+          - [ ] CI is green on this branch" || true
+          fi
+
+  # ── Phase 2: Publish the release ────────────────────────────────────────────
+  # Runs when a release PR is merged to main. The merge commit message starts
+  # with "chore: release vX.Y.Z" (squash merge uses the PR title). Re-runs the
+  # four quality gates, creates the tag pinned to the merge commit, and creates
+  # the GitHub Release. The tag push triggers the artifact workflows.
+  publish-release:
+    if: startsWith(github.event.head_commit.message, 'chore: release v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from commit message
+        id: version
+        run: |
+          # The merge commit message is "chore: release vX.Y.Z" (squash) or
+          # contains it in the body (merge commit). Extract the tag.
+          MSG="${{ github.event.head_commit.message }}"
+          TAG=$(echo "${MSG}" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          if [[ -z "${TAG}" ]]; then
+            echo "Could not extract version tag from commit message: ${MSG}" >&2
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "Extracted tag: ${TAG}"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install native build deps (keytar → libsecret)
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Re-verify — publishing is irreversible (tag + release trigger artifact
+      # workflows that push to GHCR and GitHub Releases), so it does not
+      # inherit trust from the CI run on the same commit.
+      - name: Quality gate — lint
+        run: bun run check
+
+      - name: Quality gate — typecheck
+        run: bun run typecheck
+
+      - name: Quality gate — build
+        run: bun run build
+
+      - name: Quality gate — test
+        run: bun run test
+
+      - name: Create tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Idempotence: if the tag already exists, don't recreate it.
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists — skipping."
+            exit 0
+          fi
+          git tag "${TAG}" "${{ github.sha }}"
+          git push origin "${TAG}"
+
+      - name: Extract changelog notes
+        id: notes
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Extract the section for this version from CHANGELOG.md
+          # (from the "## vX.Y.Z" heading to the next "## " heading)
+          awk -v tag="${TAG}" '
+            /^## / {
+              if (found) exit
+              if ($2 == tag) { found = 1; next }
+            }
+            found { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+
+          if [[ ! -s /tmp/release-notes.md ]]; then
+            echo "Release ${TAG}" > /tmp/release-notes.md
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Idempotence: if the release already exists, don't recreate it.
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists — skipping."
+            exit 0
+          fi
+
+          gh release create "${TAG}" \
+            --target "${{ github.sha }}" \
+            --title "${TAG}" \
+            --notes-file /tmp/release-notes.md
+
+          echo "Created release ${TAG} pinned to ${{ github.sha }}"
+          echo ""
+          echo "The tag push will trigger the artifact workflows:"
+          echo "  - docker.yml → Docker images + OCI bundle + SBOMs + cosign signing"
+          echo "  - build-binaries.yml → server binaries + web tarball"
+          echo "  - build-hook.yml → hook binaries"
+          echo ""
+          echo "All artifacts will be attached to this release."
