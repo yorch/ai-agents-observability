@@ -80,6 +80,16 @@ async function setSessionCost(sessionId: string, totalCostUsd: number): Promise<
   `;
 }
 
+// Claude Code's tool hooks carry a required per-call id, `toolu_` + an opaque
+// suffix (P14-006, sourced from the shipped binary's own hook schema and the
+// published docs' worked example `"tool_use_id": "toolu_01ABC123..."`). No other
+// seeded agent's adapter promotes one yet (apps/hook/src/lib/payload.ts sets
+// `tool_use_id: null` on every non-Claude-Code tool block), so only a
+// CLAUDE_CODE tool event gets one here — everything else stays NULL.
+function seedToolUseId(agentType: string): string | null {
+  return agentType === 'CLAUDE_CODE' ? `toolu_${faker.string.alphanumeric(24)}` : null;
+}
+
 /**
  * The same rates as a `ModelPrice`, for `computeSessionAttribution` (P14-011).
  *
@@ -752,6 +762,7 @@ async function insertEvents(
       const wasInterrupted = faker.datatype.boolean({ probability: 0.03 });
       const useSkill = faker.datatype.boolean({ probability: 0.12 });
       const useMcp = !useSkill && faker.datatype.boolean({ probability: 0.06 });
+      const toolUseId = seedToolUseId(agentType);
 
       if (useSkill) {
         const { skillName, path: skillPath } = faker.helpers.weightedArrayElement(SKILL_NAMES);
@@ -759,12 +770,12 @@ async function insertEvents(
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_category, skill_name, slash_command, skill_path,
                               tool_duration_ms, tool_exit_status,
-                              turn_number, parent_event_id, mode)
+                              turn_number, parent_event_id, mode, tool_use_id)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
                   'Skill', ${toolCategory(agentType, 'Skill')}, ${skillName}, ${skillName}, ${skillPath},
                   ${toolDurMs}, 0,
-                  ${turnNum}, ${parentEventId}::uuid, ${evtMode})
+                  ${turnNum}, ${parentEventId}::uuid, ${evtMode}, ${toolUseId})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else if (useMcp) {
@@ -779,14 +790,14 @@ async function insertEvents(
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_category, tool_duration_ms, tool_exit_status,
                               tool_was_denied, tool_was_interrupted,
-                              mcp_server, mcp_tool, turn_number, parent_event_id, mode)
+                              mcp_server, mcp_tool, turn_number, parent_event_id, mode, tool_use_id)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
                   ${`mcp__${mcpServer}__${mcpTool}`},
                   ${toolCategory(agentType, `mcp__${mcpServer}__${mcpTool}`, mcpServer)},
                   ${toolDurMs}, ${exitStatus},
                   ${wasDenied}, ${wasInterrupted},
-                  ${mcpServer}, ${mcpTool}, ${turnNum}, ${parentEventId}::uuid, ${evtMode})
+                  ${mcpServer}, ${mcpTool}, ${turnNum}, ${parentEventId}::uuid, ${evtMode}, ${toolUseId})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else if (toolName === 'Task') {
@@ -796,12 +807,12 @@ async function insertEvents(
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_category, subagent_type, tool_duration_ms,
                               tool_exit_status, tool_was_denied,
-                              turn_number, parent_event_id, mode)
+                              turn_number, parent_event_id, mode, tool_use_id)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
                   'Task', ${toolCategory(agentType, 'Task')}, ${subagentType}, ${subagentDurMs},
                   ${exitStatus}, ${wasDenied},
-                  ${turnNum}, ${parentEventId}::uuid, ${evtMode})
+                  ${turnNum}, ${parentEventId}::uuid, ${evtMode}, ${toolUseId})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       } else {
@@ -815,13 +826,13 @@ async function insertEvents(
                               tool_name, tool_category, tool_duration_ms, tool_exit_status,
                               tool_was_denied, tool_was_interrupted,
                               turn_number, parent_event_id, mode,
-                              tool_target_hash, tool_action)
+                              tool_target_hash, tool_action, tool_use_id)
           VALUES (${eventId}::uuid, ${sessionId}::uuid, ${userId}::uuid, ${ts},
                   ${agentType}, 'PostToolUse',
                   ${toolName}, ${toolCategory(agentType, toolName)}, ${toolDurMs}, ${exitStatus},
                   ${wasDenied}, ${wasInterrupted},
                   ${turnNum}, ${parentEventId}::uuid, ${evtMode},
-                  ${targetHash}, ${toolAction})
+                  ${targetHash}, ${toolAction}, ${toolUseId})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       }
@@ -1147,12 +1158,12 @@ async function basicSeed() {
         await db.$executeRaw`
           INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type,
                               tool_name, tool_category, skill_name, slash_command, skill_path,
-                              tool_duration_ms, mode)
+                              tool_duration_ms, mode, tool_use_id)
           VALUES (${skillEventId}::uuid, ${session.sessionId}::uuid, ${user.id}::uuid, ${skillTs},
                   'CLAUDE_CODE', 'PostToolUse',
                   'Skill', ${toolCategory('CLAUDE_CODE', 'Skill')}, ${skillName}, ${skillName}, ${skillPath},
                   ${faker.number.int({ max: 5000, min: 100 })},
-                  'normal')
+                  'normal', ${seedToolUseId('CLAUDE_CODE')})
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       }
@@ -3432,7 +3443,7 @@ async function seedNonInteractiveRuns() {
           event_id, session_id, user_id, ts, agent_type, event_type, run_kind, mode,
           tool_name, tool_category, tool_duration_ms, tool_exit_status,
           mcp_server, mcp_tool, skill_name, slash_command,
-          turn_number, parent_event_id
+          turn_number, parent_event_id, tool_use_id
         )
         VALUES (
           ${faker.string.uuid()}::uuid, ${sessionId}::uuid, ${owner.id}::uuid, ${ts},
@@ -3445,7 +3456,8 @@ async function seedNonInteractiveRuns() {
           ${isTool && e % 5 === 0 ? 'ci-triage' : null},
           ${isTool && e % 5 === 0 ? 'ci-triage' : null},
           ${turnOf(e)},
-          ${isTool ? (stopIdByTurn.get(turnOf(e)) ?? null) : null}::uuid
+          ${isTool ? (stopIdByTurn.get(turnOf(e)) ?? null) : null}::uuid,
+          ${isTool ? seedToolUseId('CLAUDE_CODE') : null}
         )
         ON CONFLICT (session_id, event_id, ts) DO NOTHING
       `;
