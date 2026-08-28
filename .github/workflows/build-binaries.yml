@@ -113,13 +113,29 @@ jobs:
           BINARY="apps/${{ matrix.app }}/dist/${{ matrix.app }}-server-${{ matrix.target }}"
           PORT=$((RANDOM % 1000 + 14000))
 
-          DATABASE_URL=postgresql://x:x@localhost:5432/x \
-          S3_ENDPOINT=http://localhost:9000 \
-          S3_ACCESS_KEY_ID=x S3_SECRET_ACCESS_KEY=x S3_BUCKET=x S3_REGION=us-east-1 \
-          S3_FORCE_PATH_STYLE=true \
-          INGEST_PORT=${PORT} \
-          GITHUB_APP_PORT=${PORT} \
-          GIT_SHA=$(git rev-parse --short HEAD) \
+          # Common env vars for both apps
+          export DATABASE_URL=postgresql://x:x@localhost:5432/x
+          export GIT_SHA=$(git rev-parse --short HEAD)
+
+          # ingest requires S3 config; github-app requires GitHub App config.
+          # Provide dummy values so config validation passes — the binary will
+          # start and serve /health (which does no DB or API work) even though
+          # the credentials are fake.
+          if [ "${{ matrix.app }}" = "ingest" ]; then
+            export S3_ENDPOINT=http://localhost:9000
+            export S3_ACCESS_KEY_ID=x
+            export S3_SECRET_ACCESS_KEY=x
+            export S3_BUCKET=x
+            export S3_REGION=us-east-1
+            export S3_FORCE_PATH_STYLE=true
+            export INGEST_PORT=${PORT}
+          else
+            export GITHUB_APP_ID=1
+            export GITHUB_APP_PRIVATE_KEY=dGVzdA==
+            export GITHUB_APP_WEBHOOK_SECRET=test
+            export GITHUB_APP_PORT=${PORT}
+          fi
+
           ./"${BINARY}" &
           PID=$!
 
