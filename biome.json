@@ -57,6 +57,24 @@
       "assist": {
         "actions": {
           "source": {
+            "organizeImports": "off"
+          }
+        }
+      },
+      "includes": ["apps/site/**/*.astro"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedImports": "off",
+            "noUnusedVariables": "off"
+          }
+        }
+      }
+    },
+    {
+      "assist": {
+        "actions": {
+          "source": {
             "useSortedKeys": "off"
           }
         }
