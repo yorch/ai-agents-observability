@@ -1,4 +1,4 @@
-import { BarChart, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { BarChart, ButtonLink, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
 import { fmtDayShort, fmtUsd } from '@/lib/fmt';
 import type { CostDurationPoint } from '@/lib/scatter-queries';
 import type { ActivityHeatmapCell, ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
@@ -92,12 +92,14 @@ export function ScopedTrendCharts({
   aggregateScatter = false,
   concurrency = [],
   heatmap = [],
+  drilldownHref,
 }: {
   points: ScopedTrendPoint[];
   scatter?: CostDurationPoint[];
   aggregateScatter?: boolean;
   concurrency?: ConcurrencyPoint[];
   heatmap?: ActivityHeatmapCell[];
+  drilldownHref?: string | undefined;
 }) {
   const models = modelSeries(points);
   const namedModels = new Set(models.filter((model) => model !== 'Other'));
@@ -117,7 +119,11 @@ export function ScopedTrendCharts({
     <div className="grid gap-6 lg:grid-cols-2">
       {scatter && (
         <div className="lg:col-span-2">
-          <CostDurationScatter aggregate={aggregateScatter} points={scatter} />
+          <CostDurationScatter
+            aggregate={aggregateScatter}
+            points={scatter}
+            drilldownHref={drilldownHref}
+          />
         </div>
       )}
       <Card title="Daily spend" caption="Cost by session start day">
@@ -174,6 +180,11 @@ export function ScopedTrendCharts({
       <ActivityCalendar points={points} />
       <ActivityHeatmap cells={heatmap} />
       <WeeklyDigestTable points={points} />
+      {drilldownHref && (
+        <ButtonLink href={drilldownHref} size="sm" variant="secondary">
+          Explore sessions in this period
+        </ButtonLink>
+      )}
       {concurrency.length > 0 && <ConcurrencyCharts points={concurrency} />}
     </div>
   );

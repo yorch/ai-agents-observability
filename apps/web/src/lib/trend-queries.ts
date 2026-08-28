@@ -18,6 +18,17 @@ export type ConcurrencyPoint = {
 };
 
 type SessionInterval = { startedAt: Date; endedAt: Date };
+export type TrendOptions = {
+  repo?: string | undefined;
+  until?: Date | undefined;
+  timezone?: string | undefined;
+};
+
+function repoFilter(alias: string, repo?: string) {
+  return repo
+    ? Prisma.sql`AND EXISTS (SELECT 1 FROM repos r WHERE r.id = ${Prisma.raw(`${alias}.repo_id`)} AND CONCAT(r.github_owner, '/', r.github_name) = ${repo})`
+    : Prisma.empty;
+}
 
 /** Aggregate interval overlap without exposing session identities to callers. */
 export function computeConcurrency(
@@ -87,11 +98,12 @@ function mapIntervals(rows: IntervalRow[], now = new Date()): SessionInterval[] 
 async function getConcurrency(
   where: ReturnType<typeof Prisma.sql>,
   since: Date,
+  options: TrendOptions = {},
 ): Promise<ConcurrencyPoint[]> {
   const rows = await getPrisma().$queryRaw<IntervalRow[]>(Prisma.sql`
     SELECT started_at, ended_at, last_event_at
     FROM interactive_sessions
-    WHERE started_at >= ${since} AND ${where}
+    WHERE started_at >= ${since} AND started_at < ${options.until ?? new Date()} AND ${where} ${repoFilter('interactive_sessions', options.repo)}
   `);
   return computeConcurrency(mapIntervals(rows), since);
 }
@@ -130,25 +142,34 @@ function mapRows(rows: RawRow[]): ScopedTrendPoint[] {
 }
 
 /** Daily spend, sessions, and model mix for one developer. */
-export async function getUserTrends(userId: string, since: Date): Promise<ScopedTrendPoint[]> {
+export async function getUserTrends(
+  userId: string,
+  since: Date,
+  options: TrendOptions = {},
+): Promise<ScopedTrendPoint[]> {
   const rows = await getPrisma().$queryRaw<RawRow[]>(Prisma.sql`
     SELECT date_trunc('day', started_at) AS day, primary_model AS model,
            COALESCE(SUM(total_cost_usd), 0) AS cost_usd, COUNT(*) AS session_count
     FROM interactive_sessions
-    WHERE user_id = ${userId}::uuid AND started_at >= ${since}
+    WHERE user_id = ${userId}::uuid AND started_at >= ${since} AND started_at < ${options.until ?? new Date()} ${repoFilter('interactive_sessions', options.repo)}
     GROUP BY date_trunc('day', started_at), primary_model ORDER BY day ASC
   `);
   return mapRows(rows);
 }
 
-export async function getUserConcurrency(userId: string, since: Date): Promise<ConcurrencyPoint[]> {
-  return getConcurrency(Prisma.sql`user_id = ${userId}::uuid`, since);
+export async function getUserConcurrency(
+  userId: string,
+  since: Date,
+  options: TrendOptions = {},
+): Promise<ConcurrencyPoint[]> {
+  return getConcurrency(Prisma.sql`user_id = ${userId}::uuid`, since, options);
 }
 
 /** Daily spend, sessions, and model mix for the already visibility-filtered team members. */
 export async function getTeamTrends(
   visibleIds: string[],
   since: Date,
+  options: TrendOptions = {},
 ): Promise<ScopedTrendPoint[]> {
   if (visibleIds.length === 0) {
     return [];
@@ -158,7 +179,7 @@ export async function getTeamTrends(
     SELECT date_trunc('day', started_at) AS day, primary_model AS model,
            COALESCE(SUM(total_cost_usd), 0) AS cost_usd, COUNT(*) AS session_count
     FROM interactive_sessions
-    WHERE user_id IN (${ids}) AND started_at >= ${since}
+    WHERE user_id IN (${ids}) AND started_at >= ${since} AND started_at < ${options.until ?? new Date()} ${repoFilter('interactive_sessions', options.repo)}
     GROUP BY date_trunc('day', started_at), primary_model ORDER BY day ASC
   `);
   return mapRows(rows);
@@ -167,35 +188,42 @@ export async function getTeamTrends(
 export async function getTeamConcurrency(
   visibleIds: string[],
   since: Date,
+  options: TrendOptions = {},
 ): Promise<ConcurrencyPoint[]> {
   if (visibleIds.length === 0) {
     return computeConcurrency([], since);
   }
   const ids = Prisma.join(visibleIds.map((id) => Prisma.sql`${id}::uuid`));
-  return getConcurrency(Prisma.sql`user_id IN (${ids})`, since);
+  return getConcurrency(Prisma.sql`user_id IN (${ids})`, since, options);
 }
 
 /** Daily org trend, applying the org metadata-sharing policy at the scan. */
-export async function getOrgTrends(since: Date): Promise<ScopedTrendPoint[]> {
+export async function getOrgTrends(
+  since: Date,
+  options: TrendOptions = {},
+): Promise<ScopedTrendPoint[]> {
   const rows = await getPrisma().$queryRaw<RawRow[]>(Prisma.sql`
     SELECT date_trunc('day', s.started_at) AS day, s.primary_model AS model,
            COALESCE(SUM(s.total_cost_usd), 0) AS cost_usd, COUNT(*) AS session_count
     FROM interactive_sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${since} AND COALESCE(vp.share_metadata_with_org, true) = true
+    WHERE s.started_at >= ${since} AND s.started_at < ${options.until ?? new Date()} AND COALESCE(vp.share_metadata_with_org, true) = true ${repoFilter('s', options.repo)}
     GROUP BY date_trunc('day', s.started_at), s.primary_model ORDER BY day ASC
   `);
   return mapRows(rows);
 }
 
-export async function getOrgConcurrency(since: Date): Promise<ConcurrencyPoint[]> {
+export async function getOrgConcurrency(
+  since: Date,
+  options: TrendOptions = {},
+): Promise<ConcurrencyPoint[]> {
   const rows = await getPrisma().$queryRaw<IntervalRow[]>(Prisma.sql`
     SELECT s.started_at, s.ended_at, s.last_event_at
     FROM interactive_sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= ${since} AND COALESCE(vp.share_metadata_with_org, true) = true
+    WHERE s.started_at >= ${since} AND s.started_at < ${options.until ?? new Date()} AND COALESCE(vp.share_metadata_with_org, true) = true ${repoFilter('s', options.repo)}
   `);
   return computeConcurrency(mapIntervals(rows), since);
 }
@@ -227,13 +255,15 @@ export async function getUserActivityHeatmap(
   userId: string,
   since: Date,
   until = new Date(),
+  timezone = 'UTC',
+  repo?: string,
 ): Promise<ActivityHeatmapCell[]> {
   const rows = await getPrisma().$queryRaw<HeatmapRow[]>(Prisma.sql`
-    SELECT EXTRACT(DOW FROM started_at AT TIME ZONE 'UTC')::int AS day_of_week,
-           EXTRACT(HOUR FROM started_at AT TIME ZONE 'UTC')::int AS hour,
+    SELECT EXTRACT(DOW FROM started_at AT TIME ZONE ${timezone})::int AS day_of_week,
+           EXTRACT(HOUR FROM started_at AT TIME ZONE ${timezone})::int AS hour,
            COALESCE(SUM(total_cost_usd), 0) AS cost_usd, COUNT(*) AS session_count
     FROM interactive_sessions
-    WHERE user_id = ${userId}::uuid AND started_at >= ${since} AND started_at < ${until}
+    WHERE user_id = ${userId}::uuid AND started_at >= ${since} AND started_at < ${until} ${repoFilter('interactive_sessions', repo)}
     GROUP BY 1, 2 ORDER BY 1, 2
   `);
   return mapHeatmapRows(rows);
@@ -243,17 +273,19 @@ export async function getTeamActivityHeatmap(
   visibleIds: string[],
   since: Date,
   until = new Date(),
+  timezone = 'UTC',
+  repo?: string,
 ): Promise<ActivityHeatmapCell[]> {
   if (visibleIds.length === 0) {
     return [];
   }
   const ids = Prisma.join(visibleIds.map((id) => Prisma.sql`${id}::uuid`));
   const rows = await getPrisma().$queryRaw<HeatmapRow[]>(Prisma.sql`
-    SELECT EXTRACT(DOW FROM started_at AT TIME ZONE 'UTC')::int AS day_of_week,
-           EXTRACT(HOUR FROM started_at AT TIME ZONE 'UTC')::int AS hour,
+    SELECT EXTRACT(DOW FROM started_at AT TIME ZONE ${timezone})::int AS day_of_week,
+           EXTRACT(HOUR FROM started_at AT TIME ZONE ${timezone})::int AS hour,
            COALESCE(SUM(total_cost_usd), 0) AS cost_usd, COUNT(*) AS session_count
     FROM interactive_sessions
-    WHERE user_id IN (${ids}) AND started_at >= ${since} AND started_at < ${until}
+    WHERE user_id IN (${ids}) AND started_at >= ${since} AND started_at < ${until} ${repoFilter('interactive_sessions', repo)}
     GROUP BY 1, 2 ORDER BY 1, 2
   `);
   return mapHeatmapRows(rows);
@@ -262,16 +294,18 @@ export async function getTeamActivityHeatmap(
 export async function getOrgActivityHeatmap(
   since: Date,
   until = new Date(),
+  timezone = 'UTC',
+  repo?: string,
 ): Promise<ActivityHeatmapCell[]> {
   const rows = await getPrisma().$queryRaw<HeatmapRow[]>(Prisma.sql`
-    SELECT EXTRACT(DOW FROM s.started_at AT TIME ZONE 'UTC')::int AS day_of_week,
-           EXTRACT(HOUR FROM s.started_at AT TIME ZONE 'UTC')::int AS hour,
+    SELECT EXTRACT(DOW FROM s.started_at AT TIME ZONE ${timezone})::int AS day_of_week,
+           EXTRACT(HOUR FROM s.started_at AT TIME ZONE ${timezone})::int AS hour,
            COALESCE(SUM(s.total_cost_usd), 0) AS cost_usd, COUNT(*) AS session_count
     FROM interactive_sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
     WHERE s.started_at >= ${since} AND s.started_at < ${until}
-      AND COALESCE(vp.share_metadata_with_org, true) = true
+      AND COALESCE(vp.share_metadata_with_org, true) = true ${repoFilter('s', repo)}
     GROUP BY 1, 2 ORDER BY 1, 2
   `);
   return mapHeatmapRows(rows);

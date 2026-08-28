@@ -5,9 +5,11 @@ import type { CostDurationPoint } from '@/lib/scatter-queries';
 export function CostDurationScatter({
   points,
   aggregate = false,
+  drilldownHref,
 }: {
   points: CostDurationPoint[];
   aggregate?: boolean;
+  drilldownHref?: string | undefined;
 }) {
   if (points.length === 0) {
     return (
@@ -80,6 +82,11 @@ export function CostDurationScatter({
           ))}
         </Table>
       </details>
+      {drilldownHref && (
+        <a className="mt-3 inline-block text-sm text-accent underline" href={drilldownHref}>
+          Explore matching sessions
+        </a>
+      )}
     </Card>
   );
 }

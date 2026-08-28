@@ -18,6 +18,18 @@ export type ReportDigest = {
   scope: { label: string; type: 'me' | 'org' | 'team' };
   topModels: { costUsd: number; model: string; sessions: number }[];
   topTools: { calls: number; name: string }[];
+  analytics?: {
+    trends: { day: string; costUsd: number; sessionCount: number }[];
+    scatter: { costUsd: number; durationSeconds: number; sessionCount: number }[];
+    concurrency: {
+      day: string;
+      sessionCount: number;
+      peakConcurrent: number;
+      parallelSessionCount: number;
+      parallelShare: number;
+    }[];
+    heatmap: { dayOfWeek: number; hour: number; costUsd: number; sessionCount: number }[];
+  };
 };
 
 export type ReportBundle = {
@@ -25,7 +37,7 @@ export type ReportBundle = {
     generatedAt: string;
     period: ReportDigest['period'];
     scope: ReportDigest['scope'];
-    schemaVersion: 1;
+    schemaVersion: 2;
     visibility: {
       includesMemberLevelData: false;
       includesTranscripts: false;
@@ -131,6 +143,73 @@ export function reportMarkdown(report: ReportDigest): string {
       ]),
     );
   }
+  if (report.analytics) {
+    out.push(
+      '',
+      '### Analytics data',
+      '',
+      'The following sections preserve the exact values behind the charts.',
+      '',
+    );
+    out.push(
+      '#### Daily trends',
+      '',
+      table([
+        ['Day', 'Sessions', 'Spend'],
+        ['---', '---:', '---:'],
+        ...report.analytics.trends.map((row) => [
+          row.day,
+          String(row.sessionCount),
+          `$${row.costUsd.toFixed(2)}`,
+        ]),
+      ]),
+    );
+    out.push(
+      '',
+      '#### Cost vs duration',
+      '',
+      table([
+        ['Duration (s)', 'Cost', 'Sessions'],
+        ['---:', '---:', '---:'],
+        ...report.analytics.scatter.map((row) => [
+          String(row.durationSeconds),
+          `$${row.costUsd.toFixed(2)}`,
+          String(row.sessionCount),
+        ]),
+      ]),
+    );
+    out.push(
+      '',
+      '#### Weekly concurrency',
+      '',
+      table([
+        ['Day', 'Sessions', 'Peak', 'Parallel', 'Share'],
+        ['---', '---:', '---:', '---:', '---:'],
+        ...report.analytics.concurrency.map((row) => [
+          row.day,
+          String(row.sessionCount),
+          String(row.peakConcurrent),
+          String(row.parallelSessionCount),
+          `${(row.parallelShare * 100).toFixed(1)}%`,
+        ]),
+      ]),
+    );
+    out.push(
+      '',
+      '#### Weekday/hour heatmap',
+      '',
+      table([
+        ['Day of week', 'Hour', 'Sessions', 'Spend'],
+        ['---:', '---:', '---:', '---:'],
+        ...report.analytics.heatmap.map((row) => [
+          String(row.dayOfWeek),
+          String(row.hour),
+          String(row.sessionCount),
+          `$${row.costUsd.toFixed(2)}`,
+        ]),
+      ]),
+    );
+  }
   if (report.notes.length > 0) {
     out.push('', '### Notes', '', ...report.notes.map((note) => `- ${note}`));
   }
@@ -164,6 +243,34 @@ export function reportCsv(report: ReportDigest): string {
       '',
     ]),
     ...report.topTools.map((row) => ['tool', row.name, String(row.calls), '', '']),
+    ...(report.analytics?.trends ?? []).map((row) => [
+      'trend',
+      row.day,
+      String(row.sessionCount),
+      `$${row.costUsd.toFixed(2)}`,
+      '',
+    ]),
+    ...(report.analytics?.scatter ?? []).map((row) => [
+      'scatter',
+      String(row.durationSeconds),
+      String(row.sessionCount),
+      `$${row.costUsd.toFixed(2)}`,
+      '',
+    ]),
+    ...(report.analytics?.concurrency ?? []).map((row) => [
+      'concurrency',
+      row.day,
+      String(row.peakConcurrent),
+      `${(row.parallelShare * 100).toFixed(1)}%`,
+      '',
+    ]),
+    ...(report.analytics?.heatmap ?? []).map((row) => [
+      'heatmap',
+      `${row.dayOfWeek}:${row.hour}`,
+      String(row.sessionCount),
+      `$${row.costUsd.toFixed(2)}`,
+      '',
+    ]),
   ];
   return `${rows.map((row) => row.map(csvCell).join(',')).join('\n')}\n`;
 }
@@ -229,7 +336,7 @@ export function reportBundle(report: ReportDigest): ReportBundle {
     manifest: {
       generatedAt: report.generatedAt,
       period: report.period,
-      schemaVersion: 1,
+      schemaVersion: 2,
       scope: report.scope,
       visibility: { includesMemberLevelData: false, includesTranscripts: false, policy },
     },
