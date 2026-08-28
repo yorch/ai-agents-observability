@@ -1,0 +1,15 @@
+apiVersion: v2
+name: ai-agents-observability
+description: Self-hosted observability platform for AI coding agents
+type: application
+version: 0.1.0
+# appVersion is synced with the repo version. Update on release.
+appVersion: "0.1.0"
+home: https://github.com/yorch/ai-agents-observability
+keywords:
+  - observability
+  - ai-agents
+  - claude-code
+  - telemetry
+maintainers:
+  - name: Jorge Barnaby

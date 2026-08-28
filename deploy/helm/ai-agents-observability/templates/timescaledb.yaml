@@ -1,0 +1,96 @@
+{{- if .Values.timescaledb.enabled -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ai-agents-observability.fullname" . }}-postgres
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: {{ include "ai-agents-observability.fullname" . }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ai-agents-observability.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "ai-agents-observability.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.timescaledb.image.repository }}:{{ .Values.timescaledb.image.tag }}"
+          imagePullPolicy: {{ .Values.timescaledb.image.pullPolicy }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.timescaledb.auth.username | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.timescaledb.auth.password | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.timescaledb.auth.database | quote }}
+          ports:
+            - name: tcp-pg
+              containerPort: 5432
+              protocol: TCP
+          {{- with .Values.timescaledb.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.timescaledb.auth.username | quote }}
+                - -d
+                - {{ .Values.timescaledb.auth.database | quote }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.timescaledb.auth.username | quote }}
+                - -d
+                - {{ .Values.timescaledb.auth.database | quote }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+  {{- if .Values.timescaledb.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - {{ .Values.timescaledb.persistence.accessMode | quote }}
+        {{- if .Values.timescaledb.persistence.storageClass }}
+        storageClassName: {{ .Values.timescaledb.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.timescaledb.persistence.size | quote }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-agents-observability.fullname" . }}-postgres
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: tcp-pg
+      protocol: TCP
+      name: tcp-pg
+  selector:
+    {{- include "ai-agents-observability.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+{{- end -}}

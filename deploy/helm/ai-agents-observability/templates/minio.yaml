@@ -1,0 +1,98 @@
+{{- if .Values.minio.enabled -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ai-agents-observability.fullname" . }}-minio
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  serviceName: {{ include "ai-agents-observability.fullname" . }}-minio
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ai-agents-observability.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: minio
+  template:
+    metadata:
+      labels:
+        {{- include "ai-agents-observability.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: minio
+    spec:
+      containers:
+        - name: minio
+          image: "{{ .Values.minio.image.repository }}:{{ .Values.minio.image.tag }}"
+          imagePullPolicy: {{ .Values.minio.image.pullPolicy }}
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9001"
+          env:
+            - name: MINIO_ROOT_USER
+              value: {{ .Values.minio.auth.rootUser | quote }}
+            - name: MINIO_ROOT_PASSWORD
+              value: {{ .Values.minio.auth.rootPassword | quote }}
+          ports:
+            - name: s3-api
+              containerPort: 9000
+              protocol: TCP
+            - name: s3-console
+              containerPort: 9001
+              protocol: TCP
+          {{- with .Values.minio.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: s3-api
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: s3-api
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  {{- if .Values.minio.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - {{ .Values.minio.persistence.accessMode | quote }}
+        {{- if .Values.minio.persistence.storageClass }}
+        storageClassName: {{ .Values.minio.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.minio.persistence.size | quote }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-agents-observability.fullname" . }}-minio
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  type: ClusterIP
+  ports:
+    - name: s3-api
+      port: 9000
+      targetPort: s3-api
+      protocol: TCP
+    - name: s3-console
+      port: 9001
+      targetPort: s3-console
+      protocol: TCP
+  selector:
+    {{- include "ai-agents-observability.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+{{- end -}}

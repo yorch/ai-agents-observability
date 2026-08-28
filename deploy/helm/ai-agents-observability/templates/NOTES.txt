@@ -1,0 +1,64 @@
+ai-agents-observability has been deployed!
+
+== Services ==
+
+{{- if .Values.web.enabled }}
+Web dashboard:
+  kubectl port-forward svc/{{ include "ai-agents-observability.fullname" . }}-web {{ .Values.web.port }}:{{ .Values.web.port }}
+  Then open: http://localhost:{{ .Values.web.port }}
+{{- end }}
+
+{{- if .Values.ingest.enabled }}
+Ingest API:
+  kubectl port-forward svc/{{ include "ai-agents-observability.fullname" . }}-ingest {{ .Values.ingest.port }}:{{ .Values.ingest.port }}
+{{- end }}
+
+{{- if .Values.githubApp.enabled }}
+GitHub App webhook receiver:
+  kubectl port-forward svc/{{ include "ai-agents-observability.fullname" . }}-github-app {{ .Values.githubApp.port }}:{{ .Values.githubApp.port }}
+{{- end }}
+
+== Health check ==
+
+{{- if .Values.web.enabled }}
+kubectl exec deploy/{{ include "ai-agents-observability.fullname" . }}-web -- wget -qO- http://localhost:{{ .Values.web.port }}/health
+{{- end }}
+
+== Next steps ==
+
+1. Configure your GitHub OAuth App to point at the web service URL.
+2. If using the GitHub App (PR enrichment), configure the webhook URL to point
+   at the github-app service URL.
+3. Install the claude-telemetry hook binary on developer machines — see
+   https://github.com/yorch/ai-agents-observability/releases for binaries.
+4. Run `claude-telemetry login` and `claude-telemetry install` on each dev machine.
+
+== Migration job ==
+
+{{- if .Values.migrations.enabled }}
+The migration Job ran as a Helm pre-install/pre-upgrade hook. Check its status:
+  kubectl logs job/{{ include "ai-agents-observability.fullname" . }}-migrations
+{{- else }}
+Migrations are disabled in values. Apply them manually:
+  kubectl exec deploy/{{ include "ai-agents-observability.fullname" . }}-web -- bun run db:deploy
+{{- end }}
+
+== Important notes ==
+
+{{- if .Values.timescaledb.enabled }}
+- TimescaleDB is running as a bundled StatefulSet. For production, consider a
+  managed Postgres+TimescaleDB or the CloudNativePG operator.
+{{- else }}
+- Using external database: {{ .Values.externalDatabase.url | default "(not set — check values!)" }}
+{{- end }}
+
+{{- if .Values.minio.enabled }}
+- MinIO is running as a bundled StatefulSet. For production, consider external S3.
+{{- else }}
+- Using external S3: {{ .Values.externalS3.endpoint | default "(not set — check values!)" }}
+{{- end }}
+
+{{- if not .Values.secrets.useExistingSecret }}
+- Secrets were created from values.yaml. For production, use External Secrets
+  Operator or sealed-secrets (set secrets.useExistingSecret: true).
+{{- end }}
