@@ -34,7 +34,7 @@ bun run docker:app:logs | grep 'auth\|token\|identity'
 
 2. **JWT keypair missing or rotated?** — `JWT_ED25519_PRIVATE_KEY` and `JWT_ED25519_PUBLIC_KEY` must be present for login and token verification. Generate a local pair with `bun run gen:keys`; if the keypair changes, existing sessions and hook tokens are invalidated.
 
-3. **Callback URL mismatch?** — GitHub OAuth requires the callback URL in the OAuth App settings to match the deployed web origin plus `/api/auth/callback`. Update it when the deployment URL changes.
+3. **Callback URL mismatch?** — Set `APP_BASE_URL` to the browser-facing HTTPS origin (for example, `https://agentometry.brnby.com`) and configure the GitHub OAuth App callback as that origin plus `/api/auth/callback`. Do not use a Docker bind address such as `0.0.0.0:3000`. Update both when the deployment URL changes.
 
 4. **Clock skew?** — JWT `exp` validation fails if the server clock is >5 min off. Check `date` on the host.
 

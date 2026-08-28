@@ -1,11 +1,15 @@
 import { z } from 'zod';
 
 const WebConfigSchema = z.object({
+  // The browser-facing origin. OAuth cannot infer this reliably from a request
+  // after a reverse proxy has forwarded it to the container.
+  appBaseUrl: z.url().optional(),
   githubAllowedOrg: z.string().optional(),
   githubHost: z.string().default('https://github.com'),
   githubOAuthClientId: z.string().optional(),
   githubOAuthClientSecret: z.string().optional(),
   ingestUrl: z.string().url().optional(),
+  isProduction: z.boolean(),
   jiraBaseUrl: z.string().optional(),
   s3AccessKeyId: z.string().min(1),
   s3Bucket: z.string().min(1),
@@ -28,11 +32,13 @@ let _config: WebConfig | null = null;
 export function getConfig(): WebConfig {
   if (!_config) {
     _config = WebConfigSchema.parse({
+      appBaseUrl: process.env.APP_BASE_URL,
       githubAllowedOrg: process.env.GITHUB_ALLOWED_ORG,
       githubHost: process.env.GITHUB_HOST,
       githubOAuthClientId: process.env.GITHUB_OAUTH_CLIENT_ID,
       githubOAuthClientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET,
       ingestUrl: process.env.INGEST_URL,
+      isProduction: process.env.NODE_ENV === 'production',
       jiraBaseUrl: process.env.NEXT_PUBLIC_JIRA_BASE_URL,
       s3AccessKeyId: process.env.S3_ACCESS_KEY_ID,
       s3Bucket: process.env.S3_BUCKET,

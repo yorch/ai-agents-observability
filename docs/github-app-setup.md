@@ -20,6 +20,10 @@ For local development use `http://localhost:3000/api/auth/callback`. Configure t
 OAuth App settings, not in the GitHub App's webhook configuration. The callback is implemented by
 `apps/web/src/app/api/auth/callback/route.ts`.
 
+In production, also set `APP_BASE_URL` to that same browser-facing HTTPS origin. This is required
+because a reverse proxy can present an internal container address to the web service; never use
+`0.0.0.0:3000` as an OAuth callback URL.
+
 ---
 
 ## 2. Prerequisites

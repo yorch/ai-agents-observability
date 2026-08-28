@@ -2,10 +2,19 @@ import { NextResponse } from 'next/server';
 
 import { withRouteLogging } from '@/lib/api-logging';
 import { getProvider } from '@/lib/auth-provider';
+import { getConfig } from '@/lib/config';
+import { oauthCallbackUrl, publicAppOrigin } from '@/lib/oauth-origin';
 import { hashState, sanitizeNext, setNextCookie, setStateCookie } from '@/lib/session-cookie';
 
 function buildCallbackUrl(request: Request): string {
-  return `${new URL(request.url).origin}/api/auth/callback`;
+  const { appBaseUrl, isProduction } = getConfig();
+  return oauthCallbackUrl(
+    publicAppOrigin({
+      appBaseUrl,
+      isProduction,
+      requestUrl: request.url,
+    }),
+  );
 }
 
 export const GET = withRouteLogging('auth.login', async (request: Request) => {

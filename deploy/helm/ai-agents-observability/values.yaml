@@ -101,6 +101,7 @@ web:
   # Environment variables specific to web. Shared env (DATABASE_URL, etc.) is
   # set automatically in the deployment template.
   env: {}
+  # APP_BASE_URL: https://observability.example.com  # required for production OAuth
   # INGEST_URL: http://ingest:4000
   # NEXT_PUBLIC_JIRA_BASE_URL: https://your-org.atlassian.net
 
