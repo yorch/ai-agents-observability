@@ -1,7 +1,13 @@
 # Reporting and exports
 
 `/me/report`, `/team/[slug]/report`, and `/org/report` render a trailing-period
-agent digest and expose the same payload as Markdown, CSV, and JSON.
+agent digest with readout highlights, daily spend/session trends, and a 90-day
+activity calendar. They expose the same aggregate payload as Markdown, CSV, JSON,
+or a portable report bundle.
+
+The corresponding scoped trend pages are `/me/trends`, `/team/[slug]/trends`, and
+`/org/trends`. They use the same visibility boundaries as their dashboards and are
+intended for exploration; reports are the compact planning/readout surface.
 
 Each report compares a trailing 7-, 30-, or 90-day period with the immediately
 preceding period of equal length. A zero prior value is rendered as **new**, not as
@@ -21,5 +27,15 @@ Reports never include transcript text. Their notes state that costs are derived 
 captured telemetry rather than an invoice, and that only interactive runs appear.
 CSV values are guarded against spreadsheet formula injection.
 
+The bundle format is a JSON container with `report.json`, `report.md`, `report.csv`,
+and an escaped standalone `report.html`, plus a manifest recording the period,
+scope, schema version, and visibility policy. It deliberately contains no
+member-level rows or transcripts.
+
 Use `?range=7`, `?range=30`, or `?range=90` to select the window. Download links
 preserve the selected range; an omitted or invalid range defaults to 30 days.
+
+Individual session pages also include owner-scoped visual analysis for per-turn
+cost, cumulative spend, cache efficiency, tool activity, model mix, and subagent
+bursts. These visuals include exact data tables for accessible review and never
+expose transcript content or owner-only evaluation data to aggregate views.
