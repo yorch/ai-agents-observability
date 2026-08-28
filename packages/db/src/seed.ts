@@ -68,6 +68,18 @@ function calcCost(input: number, output: number, cacheRead: number, cacheWrite: 
   );
 }
 
+// In production `sessions.total_cost_usd` is accumulated from the very `cost_usd`
+// values written onto that session's own events (upsert-session.ts, ~line 148 +
+// ~line 377). The seed writes the two independently unless a call site
+// reconciles them, so every session gets its `total_cost_usd` set here — AFTER
+// its Stop events are written, to the sum of the `cost_usd` those events
+// actually carry, never from a second, unrelated token count.
+async function setSessionCost(sessionId: string, totalCostUsd: number): Promise<void> {
+  await db.$executeRaw`
+    UPDATE sessions SET total_cost_usd = ${totalCostUsd} WHERE session_id = ${sessionId}::uuid
+  `;
+}
+
 /**
  * The same rates as a `ModelPrice`, for `computeSessionAttribution` (P14-011).
  *
@@ -635,16 +647,18 @@ async function insertEvents(
   model: string,
   sessionMode = 'normal',
   agentType = 'CLAUDE_CODE',
-) {
+): Promise<number> {
   const eventCount = faker.number.int({ max: Math.min(14, toolCallCount + 3), min: 3 });
 
   // Turn structure (P14-003). Every event but the SessionStart belongs to a turn,
   // `Math.ceil(e / 4)`, and each turn gets exactly ONE Stop that carries the
   // turn's token usage and cost. That mirrors production: a Claude Code Stop is
   // now synthesized per assistant turn from the transcript and is where the `llm`
-  // block lands, so the tokens move off the tool rows to here. Session-level
-  // totals are seeded independently of these rows, and nothing aggregates event
-  // cost by tool, so the move is invisible to every existing surface.
+  // block lands, so the tokens move off the tool rows to here. The returned
+  // total is the sum of these Stop rows' `cost_usd`, for the caller to write onto
+  // `sessions.total_cost_usd` (setSessionCost) so the two reconcile, mirroring
+  // apps/ingest's upsert-session.ts. Nothing aggregates event cost by tool, so
+  // the move is invisible to every existing surface.
   //
   // Every tool event in a turn then points at that turn's Stop via
   // `parent_event_id` — the linkage P14-004's cost attribution reads.
@@ -669,11 +683,14 @@ async function insertEvents(
     new Date(startedAt.getTime() + Math.floor((index / Math.max(1, eventCount - 1)) * durationMs));
 
   // One Stop per turn, at the end of that turn's span, holding its usage.
+  let totalCostUsd = 0;
   for (let t = 1; t <= maxTurn; t++) {
     const inputToks = faker.number.int({ max: 2000, min: 50 });
     const outputToks = faker.number.int({ max: 900, min: 20 });
     const cacheRead = faker.number.int({ max: 8000, min: 0 });
     const cacheCreation = faker.number.int({ max: 1500, min: 0 });
+    const turnCostUsd = calcCost(inputToks, outputToks, cacheRead, cacheCreation);
+    totalCostUsd += turnCostUsd;
     await db.$executeRaw`
       INSERT INTO events (event_id, session_id, user_id, ts, agent_type, event_type, model, mode,
                           input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
@@ -682,7 +699,7 @@ async function insertEvents(
               ${tsAt(Math.min(eventCount - 1, t * 4))},
               ${agentType}, 'Stop', ${model}, ${sessionMode},
               ${inputToks}, ${outputToks}, ${cacheRead}, ${cacheCreation},
-              ${calcCost(inputToks, outputToks, cacheRead, cacheCreation)}, ${t})
+              ${turnCostUsd}, ${t})
       ON CONFLICT (session_id, event_id, ts) DO NOTHING
     `;
   }
@@ -810,6 +827,7 @@ async function insertEvents(
       }
     }
   }
+  return totalCostUsd;
 }
 
 async function insertTranscript(sessionId: string, startedAt: Date, durationMs: number) {
@@ -1048,7 +1066,6 @@ async function basicSeed() {
           toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.1), min: 0 }),
           totalCacheCreation: BigInt(cacheCreation),
           totalCacheRead: BigInt(cacheRead),
-          totalCostUsd: calcCost(inputTokens, outputTokens, cacheRead, cacheCreation),
           totalInputTokens: BigInt(inputTokens),
           totalOutputTokens: BigInt(outputTokens),
           userId: user.id,
@@ -1063,10 +1080,17 @@ async function basicSeed() {
       // rather than one with a ternary per column: the split is what makes
       // "LLM columns only on a Stop" checkable by reading the seed, which is
       // exactly what packages/db/test/seed-event-shape.test.ts does.
+      // `sessions.total_cost_usd` is set below, from the sum of these Stops'
+      // `cost_usd`, so the two reconcile the way upsert-session.ts's does.
+      let sessionCostUsd = 0;
       for (let e = 0; e < eventCount; e++) {
         const ts = new Date(startedAt.getTime() + e * Math.floor(durationMs / eventCount));
         const eventId = crypto.randomUUID();
         if (e % 3 === 0) {
+          const stopInputToks = faker.number.int({ max: 2000, min: 100 });
+          const stopOutputToks = faker.number.int({ max: 500, min: 50 });
+          const stopCostUsd = calcCost(stopInputToks, stopOutputToks, 0, 0);
+          sessionCostUsd += stopCostUsd;
           await db.$executeRaw`
             INSERT INTO events (
               event_id, session_id, user_id, ts, agent_type, event_type,
@@ -1075,9 +1099,9 @@ async function basicSeed() {
               ${eventId}::uuid, ${session.sessionId}::uuid, ${user.id}::uuid, ${ts},
               'CLAUDE_CODE', 'Stop',
               'claude-sonnet-4-6',
-              ${faker.number.int({ max: 2000, min: 100 })},
-              ${faker.number.int({ max: 500, min: 50 })},
-              ${faker.number.float({ fractionDigits: 6, max: 0.05, min: 0.001 })},
+              ${stopInputToks},
+              ${stopOutputToks},
+              ${stopCostUsd},
               ${Math.floor(e / 3) + 1},
               'normal'
             )
@@ -1102,6 +1126,7 @@ async function basicSeed() {
           ON CONFLICT (session_id, event_id, ts) DO NOTHING
         `;
       }
+      await setSessionCost(session.sessionId, sessionCostUsd);
 
       await insertTranscript(session.sessionId, startedAt, durationMs);
       await uploadTranscriptToS3(
@@ -1180,7 +1205,6 @@ async function basicSeed() {
           toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.1), min: 0 }),
           totalCacheCreation: BigInt(cacheCreation),
           totalCacheRead: BigInt(cacheRead),
-          totalCostUsd: calcCost(inputTokens, outputTokens, cacheRead, cacheCreation),
           totalInputTokens: BigInt(inputTokens),
           totalOutputTokens: BigInt(outputTokens),
           userId: adminUser.id,
@@ -1189,7 +1213,7 @@ async function basicSeed() {
         },
       });
 
-      await insertEvents(
+      const adminSessionCostUsd = await insertEvents(
         adminSession.sessionId,
         adminUser.id,
         startedAt,
@@ -1198,6 +1222,7 @@ async function basicSeed() {
         model,
         mode,
       );
+      await setSessionCost(adminSession.sessionId, adminSessionCostUsd);
 
       if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.6 })) {
         await insertTranscript(adminSession.sessionId, startedAt, durationMs);
@@ -1804,7 +1829,6 @@ async function extensiveSeed() {
               toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.1), min: 0 }),
               totalCacheCreation: BigInt(cacheCreation),
               totalCacheRead: BigInt(cacheRead),
-              totalCostUsd: calcCost(inputTokens, outputTokens, cacheRead, cacheCreation),
               totalInputTokens: BigInt(inputTokens),
               totalOutputTokens: BigInt(outputTokens),
               userId: extraUser.id,
@@ -1812,7 +1836,7 @@ async function extensiveSeed() {
               ...hitlSessionFields({ mode, repoName: teamDef.repo.name, status, userMessageCount }),
             },
           });
-          await insertEvents(
+          const extraSessionCostUsd = await insertEvents(
             extraSession.sessionId,
             extraUser.id,
             startedAt,
@@ -1821,6 +1845,7 @@ async function extensiveSeed() {
             model,
             mode,
           );
+          await setSessionCost(extraSession.sessionId, extraSessionCostUsd);
           if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.4 })) {
             await insertTranscript(extraSession.sessionId, startedAt, durationMs);
             await uploadTranscriptToS3(
@@ -1990,7 +2015,6 @@ async function extensiveSeed() {
             toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.12), min: 0 }),
             totalCacheCreation: BigInt(cacheCreation),
             totalCacheRead: BigInt(cacheRead),
-            totalCostUsd: calcCost(inputTokens, outputTokens, cacheRead, cacheCreation),
             totalInputTokens: BigInt(inputTokens),
             totalOutputTokens: BigInt(outputTokens),
             userId: devId,
@@ -2002,7 +2026,16 @@ async function extensiveSeed() {
         devSessions.push(session.sessionId);
         totalSessions++;
 
-        await insertEvents(session.sessionId, devId, startedAt, durationMs, toolCalls, model, mode);
+        const devSessionCostUsd = await insertEvents(
+          session.sessionId,
+          devId,
+          startedAt,
+          durationMs,
+          toolCalls,
+          model,
+          mode,
+        );
+        await setSessionCost(session.sessionId, devSessionCostUsd);
 
         if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.35 })) {
           await insertTranscript(session.sessionId, startedAt, durationMs);
@@ -2268,7 +2301,6 @@ async function extensiveSeed() {
             toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.12), min: 0 }),
             totalCacheCreation: BigInt(cacheCreation),
             totalCacheRead: BigInt(cacheRead),
-            totalCostUsd: calcCost(inputTokens, outputTokens, cacheRead, cacheCreation),
             totalInputTokens: BigInt(inputTokens),
             totalOutputTokens: BigInt(outputTokens),
             userId: adminUser.id,
@@ -2278,7 +2310,7 @@ async function extensiveSeed() {
         });
         totalSessions++;
         adminSessionCount++;
-        await insertEvents(
+        const adminExtraSessionCostUsd = await insertEvents(
           session.sessionId,
           adminUser.id,
           startedAt,
@@ -2287,6 +2319,7 @@ async function extensiveSeed() {
           model,
           mode,
         );
+        await setSessionCost(session.sessionId, adminExtraSessionCostUsd);
         if (status === 'COMPLETED' && faker.datatype.boolean({ probability: 0.35 })) {
           await insertTranscript(session.sessionId, startedAt, durationMs);
           await uploadTranscriptToS3(session.sessionId, adminUser.id, startedAt, durationMs, model);
@@ -2538,7 +2571,6 @@ async function createRichSession(opts: {
       toolErrorCount: faker.number.int({ max: Math.floor(toolCalls * 0.12), min: 0 }),
       totalCacheCreation: BigInt(cacheCreation),
       totalCacheRead: BigInt(cacheRead),
-      totalCostUsd: calcCost(inputTokens, outputTokens, cacheRead, cacheCreation),
       totalInputTokens: BigInt(inputTokens),
       totalOutputTokens: BigInt(outputTokens),
       userId,
@@ -2546,7 +2578,7 @@ async function createRichSession(opts: {
       ...hitlSessionFields({ mode, repoName, status, userMessageCount }),
     },
   });
-  await insertEvents(
+  const richSessionCostUsd = await insertEvents(
     session.sessionId,
     userId,
     startedAt,
@@ -2556,6 +2588,7 @@ async function createRichSession(opts: {
     mode,
     agentType,
   );
+  await setSessionCost(session.sessionId, richSessionCostUsd);
   return session.sessionId;
 }
 
