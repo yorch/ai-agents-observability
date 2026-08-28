@@ -66,7 +66,7 @@ gh release download "${TAG}" --repo yorch/ai-agents-observability \
   --pattern "ingest-server-linux-x64" \
   --pattern "github-app-server-linux-x64" \
   --pattern "web-standalone-*.tar.gz" \
-  --pattern "SHA256SUMS"
+  --pattern "SHA256SUMS-binaries"
 ```
 
 Available targets: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`.
@@ -74,7 +74,7 @@ Available targets: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`.
 ## Verify
 
 ```bash
-sha256sum -c SHA256SUMS --ignore-missing
+sha256sum -c SHA256SUMS-binaries --ignore-missing
 ```
 
 ## Deploy: ingest

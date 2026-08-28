@@ -220,18 +220,18 @@ jobs:
           find dist/ -name 'web-standalone-*.tar.gz' -exec cp {} release/ \;
           ls -lh release/
 
-      - name: Generate SHA256SUMS
+      - name: Generate SHA256SUMS-binaries
         working-directory: release/
         run: |
-          sha256sum * > SHA256SUMS
-          cat SHA256SUMS
+          sha256sum * > SHA256SUMS-binaries
+          cat SHA256SUMS-binaries
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             release/*
-            release/SHA256SUMS
+            release/SHA256SUMS-binaries
           body: |
             ## Server binaries + web tarball — ${{ github.ref_name }}
 
@@ -248,7 +248,7 @@ jobs:
 
             ### Verify
             ```bash
-            sha256sum -c SHA256SUMS --ignore-missing
+            sha256sum -c SHA256SUMS-binaries --ignore-missing
             ```
 
             See [docs/deploy/binaries.md](../../docs/deploy/binaries.md) for full instructions.

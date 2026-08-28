@@ -83,6 +83,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # cosign keyless signing uses OIDC; SLSA provenance needs attestation write.
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
@@ -175,3 +178,142 @@ jobs:
             ${{ matrix.build_args }}
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+
+      # ── Supply-chain hardening ──────────────────────────────────────────────
+      # SBOM (CycloneDX), image signing (cosign keyless via OIDC), and SLSA
+      # build provenance. These run on every publish (main + tags). Verification
+      # instructions are in docs/deploy/README.md.
+      # See docs/deploy/air-gapped.md for the offline verification path.
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.GHCR_PREFIX }}/${{ matrix.component }}:${{ steps.build-info.outputs.timestamp }}-${{ steps.build-info.outputs.commit }}
+          format: cyclonedx-json
+          artifact-name: sbom-${{ matrix.component }}.json
+          upload-artifact: true
+          upload-release-assets: ${{ startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign images (keyless via OIDC)
+        env:
+          IMAGE_LIST: ${{ steps.meta.outputs.tags }}
+        run: |
+          # Sign each pushed tag. Keyless signing uses the GitHub OIDC token;
+          # no long-lived signing key is needed. Signatures land in the GHCR
+          # signature store. For external registries, the registry must support
+          # the OCI signature referrers API.
+          while IFS= read -r image; do
+            [[ -z "${image}" ]] && continue
+            echo "Signing ${image}..."
+            cosign sign --yes "${image}"
+          done <<< "${IMAGE_LIST}"
+
+      - name: Generate SLSA provenance attestation
+        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+        with:
+          image: ${{ env.GHCR_PREFIX }}/${{ matrix.component }}:${{ steps.build-info.outputs.timestamp }}-${{ steps.build-info.outputs.commit }}
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Air-gapped release bundle ───────────────────────────────────────────────
+  # On tag pushes, export each published image as an OCI archive (.tar) and
+  # attach them + checksums + SBOMs to the GitHub Release. Air-gapped envs
+  # download the bundle, verify checksums, `docker load`, and deploy with no
+  # outbound network. See docs/deploy/air-gapped.md.
+  release-bundle:
+    needs: [setup, publish]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7.0.1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine image ref
+        id: ref
+        env:
+          GHCR_PREFIX: ${{ env.GHCR_PREFIX }}
+          COMPONENT: ${{ matrix.component }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Use the git tag ref — the publish job pushes type=ref,event=tag.
+          echo "image=${GHCR_PREFIX}/${COMPONENT}:${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "tarball=${COMPONENT}-${TAG}.tar" >> "${GITHUB_OUTPUT}"
+
+      - name: Pull and save image
+        run: |
+          docker pull "${{ steps.ref.outputs.image }}"
+          docker save "${{ steps.ref.outputs.image }}" -o "${{ steps.ref.outputs.tarball }}"
+
+      - name: Generate checksum
+        run: |
+          sha256sum "${{ steps.ref.outputs.tarball }}" > "${{ steps.ref.outputs.tarball }}.sha256"
+
+      - name: Download SBOM artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: sbom-${{ matrix.component }}.json
+          path: sbom/
+        continue-on-error: true
+
+      - name: Rename SBOM
+        run: |
+          if [[ -f sbom/sbom-${{ matrix.component }}.json ]]; then
+            mv sbom/sbom-${{ matrix.component }}.json sbom-${{ matrix.component }}-${{ github.ref_name }}.json
+          fi
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.ref.outputs.tarball }}
+            ${{ steps.ref.outputs.tarball }}.sha256
+            sbom-${{ matrix.component }}-${{ github.ref_name }}.json
+
+  # ── Consolidated checksums file ─────────────────────────────────────────────
+  # After all release-bundle jobs finish, produce a single SHA256SUMS-images file
+  # containing all tarball checksums and attach it to the release.
+  release-checksums:
+    needs: [setup, release-bundle]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all checksum files
+        uses: actions/download-artifact@v7
+        with:
+          # The release-bundle jobs upload to the GitHub Release directly;
+          # we re-download from the release assets.
+          # This is a fallback — in practice the per-tarball .sha256 files
+          # are already on the release. This job consolidates them into one.
+          path: checksums/
+        continue-on-error: true
+
+      - name: Build consolidated SHA256SUMS-images
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Download all .sha256 assets from the release and concatenate.
+          gh release download "${TAG}" --pattern "*.sha256" --dir ./all-checksums/ || true
+          cat ./all-checksums/*.sha256 > SHA256SUMS-images
+
+      - name: Upload consolidated checksums
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SHA256SUMS-images
