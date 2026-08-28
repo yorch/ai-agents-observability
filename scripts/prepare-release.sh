@@ -106,11 +106,19 @@ OTHER_NOTES=""
 while IFS= read -r subject; do
   [[ -z "${subject}" ]] && continue
 
+  type=$(echo "${subject}" | sed -E 's/^([a-z]+)(\(.+\))?!?:.*/\1/')
+  scope=$(echo "${subject}" | sed -E 's/^[a-z]+\(([^)]+)\)!?:.*/\1/')
+
+  # Skip CI/infra-only fix commits — they don't affect users.
+  # Scopes: release, ci, build (when only touching .github/workflows)
+  if [[ "${type}" == "fix" ]] && [[ "${scope}" == "release" || "${scope}" == "ci" ]]; then
+    continue
+  fi
+
   # Strip the conventional-commit prefix for display, keep the scope if present.
   # "feat(deploy): add Helm chart" → "deploy: add Helm chart"
+  # "feat!: breaking change" → "breaking change"
   display=$(echo "${subject}" | sed -E 's/^[a-z]+(\(([^)]+)\))?!?: /\2: /' | sed -E 's/^: //')
-
-  type=$(echo "${subject}" | sed -E 's/^([a-z]+)(\(.+\))?!?:.*/\1/')
 
   if [[ "${subject}" =~ !: ]] || echo "${subject}" | grep -qi 'BREAKING[[:space:]]*CHANGE'; then
     BREAKING_NOTES="${BREAKING_NOTES}- ${display}\n"

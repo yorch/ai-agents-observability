@@ -72,11 +72,34 @@ jobs:
             echo "${BODY}"
           } > /tmp/changelog-entry.md
 
-          # Prepend to CHANGELOG.md (create if it doesn't exist)
+          # Insert the version entry AFTER the file header (title +
+          # description) but BEFORE existing version entries. This keeps
+          # "# Changelog" at the top and versions in reverse-chronological
+          # order.
           if [[ -f CHANGELOG.md ]]; then
-            cat CHANGELOG.md >> /tmp/changelog-entry.md
+            # Split the file: header (everything up to the first "## " heading)
+            # vs. the rest (existing version entries).
+            HEADER=$(awk '/^## / { exit } { print }' CHANGELOG.md)
+            REST=$(awk '/^## / { found=1 } found { print }' CHANGELOG.md)
+
+            {
+              echo "${HEADER}"
+              echo ""
+              cat /tmp/changelog-entry.md
+              if [[ -n "${REST}" ]]; then
+                echo ""
+                echo "${REST}"
+              fi
+            } > CHANGELOG.md
+          else
+            {
+              echo "# Changelog"
+              echo ""
+              echo "All notable changes to this project are documented in this file."
+              echo ""
+              cat /tmp/changelog-entry.md
+            } > CHANGELOG.md
           fi
-          mv /tmp/changelog-entry.md CHANGELOG.md
 
           # Save the tag and version for the commit
           echo "${TAG}" > /tmp/release-tag
