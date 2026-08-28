@@ -68,6 +68,24 @@ Run them in this order: lint → typecheck → build → test. Fix each failure 
 
 **One idiom for workspace commands.** Use `bun run --cwd <path> <script>` (e.g. `bun run --cwd apps/web typecheck`). `bun --filter '@ai-agents-observability/web' <script>` also works and appears in `README.md`; prefer `--cwd` in new docs and scripts so there is one form to learn.
 
+## Commit and PR titles (release automation)
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) for **every commit subject and PR title**. GitHub squash-merges PRs in this repository, so the PR title becomes the commit subject on `main`; that title is what `scripts/prepare-release.sh` reads to choose the next version and build the changelog.
+
+| Prefix | Release effect |
+|---|---|
+| `feat:` or `feat(scope):` | minor |
+| `fix:`, `perf:`, `refactor:` (scope optional) | patch |
+| `feat!:` or `feat(scope)!:` | major |
+| `docs:`, `chore:`, `test:`, `ci:`, `style:` | none |
+| `fix(release):`, `fix(ci):` | none |
+
+Use lowercase types, an optional concise scope, and a space after the colon: `feat(deploy): add production env template`. Choose the type from the user-visible effect, not the files touched. In particular, do not label a feature `chore:` merely because it changes configuration or infrastructure.
+
+For a breaking release, put `!` in the subject/PR title. The current parser reads commit **subjects only**, so a `BREAKING CHANGE` footer in the commit or PR body does not trigger a major bump.
+
+The release workflow owns `release/vX.Y.Z` branches and `chore: release vX.Y.Z` PRs. Do not create, rename, or repurpose those manually. See [`docs/deploy/release-process.md`](docs/deploy/release-process.md) for the full process.
+
 ## Architecture
 
 `ai-agents-observability` ingests per-event telemetry from AI coding agents on developer machines (seven have working adapters: Claude Code, opencode, Codex, Gemini CLI, Copilot CLI, Pi and omp), archives full session transcripts, correlates work to GitHub PRs/teams, and exposes dashboards for three audiences: individual devs ("My Agents"), team leads, and org-level stakeholders. See [`DESIGN_DOC.md`](DESIGN_DOC.md) for the canonical scope statement.
