@@ -56,3 +56,12 @@ Individual session pages also include owner-scoped visual analysis for per-turn
 cost, cumulative spend, cache efficiency, tool activity, model mix, and subagent
 bursts. These visuals include exact data tables for accessible review and never
 expose transcript content or owner-only evaluation data to aggregate views.
+
+## Scheduled digests
+
+The ingest scheduler includes an opt-in `send-report-digest` job. It computes a
+seven-day aggregate (interactive session count and telemetry-derived spend) and
+delivers it through enabled alert channels (webhook, Slack webhook, or SMTP
+email), reusing the existing retry and delivery audit log. The default schedule
+is 08:00 UTC and can be changed from `/admin/jobs`. The notification links to the
+organization report and contains no member identifiers or transcript content.
