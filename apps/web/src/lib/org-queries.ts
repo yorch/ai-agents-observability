@@ -2196,6 +2196,7 @@ export async function getOrgSummaryWithDelta(range: number): Promise<{
     cacheHitRate: number | null;
     sessionCount: number | null;
     totalCostUsd: number | null;
+    totalHours: number | null;
   };
 }> {
   const currentStart = daysAgo(range);
@@ -2217,6 +2218,7 @@ export async function getOrgSummaryWithDelta(range: number): Promise<{
       cacheHitRate: delta(current.cacheHitRate, prior.cacheHitRate),
       sessionCount: delta(current.sessionCount, prior.sessionCount),
       totalCostUsd: delta(current.totalCostUsd, prior.totalCostUsd),
+      totalHours: delta(current.totalHours, prior.totalHours),
     },
   };
 }
