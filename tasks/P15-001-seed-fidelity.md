@@ -3,7 +3,7 @@ id: P15-001
 title: Seed-fidelity pass — three survivors from a seed-and-verify sweep
 phase: 15
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P14-002, P14-006, P14-011]
 blocks: []

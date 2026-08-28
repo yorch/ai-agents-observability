@@ -414,3 +414,23 @@ The model-routing follow-up recorded here while Phase 14 was in flight became [P
 2. **A seed that reimplements production is how a fabricated number survives review** — every query gets written against it and agrees with it. A definition two workspaces must agree on lives in `packages/schemas`; adding a caller is the fix, retyping the definition is the bug.
 3. **Re-fetch a vendor's commercial terms; do not re-read them.** A dated, well-sourced comment asserting "Copilot does not bill tokens at all" was ~10 weeks stale when written and misled three consecutive tasks in two opposite directions.
 4. **The shipped artifact is the contract, not the docs.** Claude Code's `tool_use_id` and Copilot's un-persisted usage event were both settled from the binary and its bundled schema, after documentation left each ambiguous.
+
+---
+
+## Phase 15 — Post-release follow-ups
+
+Opened after v1.0.0. Phase 14 corrected what the pipeline records and proved it by reading code and running tests. The first task here came out of the opposite exercise — seeding a live database and querying it — which is why it exists at all.
+
+| ID | Title | Status | Owner | Est | Depends on |
+|---|---|---|---|---|---|
+| [P15-001](./P15-001-seed-fidelity.md) | Seed-fidelity pass — three survivors from a seed-and-verify sweep | done | claude | M | P14-002, P14-006, P14-011 |
+
+**Three defects, one root cause** — the seed computing a value independently instead of deriving it from what it had already written:
+
+- `sessions.total_cost_usd` disagreed with the sum of its own events' `cost_usd` in **1,384 of 1,401** sessions. Production accumulates both from one `computeCostUsd` over the same events (`upsert-session.ts`), so there they agree by construction.
+- `tool_use_id` was never populated, leaving [P14-006](./P14-006-live-turn-linkage.md)'s `link-turn-events` join unexercised by seed data.
+- Codex and opencode sessions carried Claude Code's tool vocabulary, so `CODEX:Bash` classified as `other` rather than `exec`.
+
+**One follow-up remains open, deliberately unnumbered until picked up.** `tool_action` is seeded behind a `toolName === 'Bash'` literal, while production derives it from the tool *input's* shape (`toolActionFor`, which is agent-agnostic). Codex's `shell` calls therefore get no seeded action rather than a Bash-shaped one — a narrowing in seeded richness, not an incorrectness, and worth closing only if that richness is wanted.
+
+**The standing lesson, which is the reason to keep this phase open: a correctness claim verified only by reading is a hypothesis.** Phase 14 merged seventeen tasks of fixes, each covered by tests. The first hour of actually running the system produced four further findings — the three above plus a `/org/models` empty state that reported suppressed low-confidence spend as evidence of efficient routing ([#156](https://github.com/yorch/ai-agents-observability/pull/156)) — and two of them predated Phase 14 entirely.
