@@ -1,0 +1,45 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+
+const base = import.meta.env.BASE_URL;
+---
+
+<SiteLayout title="Signal not found" description="The requested Agentometry page could not be found.">
+  <section class="shell missing">
+    <p class="eyebrow">404 / No signal</p>
+    <h1 class="display">This reading is outside the field.</h1>
+    <p>The page may have moved, or the address may point beyond the published documentation.</p>
+    <div>
+      <a class="button primary" href={base}>Return home</a>
+      <a class="button" href={`${base}docs/`}>Search documentation</a>
+    </div>
+  </section>
+</SiteLayout>
+
+<style>
+  .missing {
+    display: grid;
+    min-height: 72vh;
+    align-content: center;
+    padding-block: 6rem;
+  }
+
+  h1 {
+    max-width: 52rem;
+    margin-top: 1rem;
+    font-size: clamp(3.5rem, 8vw, 7.5rem);
+  }
+
+  .missing > p:not(.eyebrow) {
+    max-width: 38rem;
+    margin-top: 1.5rem;
+    color: var(--text-2);
+  }
+
+  .missing div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+</style>
