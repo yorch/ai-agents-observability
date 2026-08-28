@@ -1,242 +1,239 @@
 import type { Event } from '@ai-agents-observability/schemas';
 
-import { listSessionFiles } from '../lib/claude-projects';
+import { getIngestBaseUrl } from '../lib/config';
 import { loadHookToken } from '../lib/identity';
 import { AuthError, checkServerReady, postEventBatch, uploadTranscript } from '../lib/import-ship';
-import { createSynthCtx, entryToEvents, noteSkippedEntry } from '../lib/import-synth';
-import { parseSessionFile } from '../lib/transcript-parser';
+import {
+  type HistoricalSession,
+  IMPORT_AGENTS,
+  type ImportAgent,
+  importSource,
+} from '../lib/import-source';
 
 const BATCH_SIZE = 100;
 
 export type ImportOptions = {
+  agent: ImportAgent;
   dryRun: boolean;
-  since: Date | null; // --since YYYY-MM-DD
-  sessionId: string | null; // --session <id>
-  noTranscripts: boolean; // --no-transcripts
+  noTranscripts: boolean;
   quiet: boolean;
+  sessionId: string | null;
+  since: Date | null;
 };
 
 const IMPORT_HELP = `claude-telemetry import [options]
 
-Import historical Claude Code sessions from ~/.claude/projects into the
-observability server. Events and transcripts are deduplicated server-side —
-safe to re-run.
+Import historical coding-agent sessions into the observability server. Events and
+transcripts are deduplicated server-side and deterministic client-side — safe to re-run.
 
 Options:
-  --since <YYYY-MM-DD>    Only import entries on or after this date
-  --session <id>          Import only the session with this ID
+  --agent <name>          claude-code (default), codex, opencode, pi, or omp
+  --since <YYYY-MM-DD>    Only import events on or after this date
+  --session <id>          Import only this native or normalized session ID
   --no-transcripts        Import events only; skip transcript uploads
   --dry-run               Parse and count; do not POST anything (no auth required)
   --quiet                 Suppress per-session output
   -h, --help              Show this help
 
-Environment:
-  CLAUDE_PROJECTS_DIR     Override ~/.claude/projects (default)
-  INGEST_BASE_URL         Override http://localhost:4000 (default)
+Configuration:
+  claude-telemetry config set ingest-url <url>
+  INGEST_BASE_URL overrides the persisted ingest URL.
+
+Source overrides:
+  CLAUDE_PROJECTS_DIR, CODEX_HOME, OPENCODE_DATA, PI_HOME, OMP_HOME
 
 Requires \`claude-telemetry login\` first (except --dry-run).`;
 
-function parseImportArgs(args: string[]): ImportOptions | 'help' {
+function parseImportArgs(args: string[]): ImportOptions | 'help' | 'error' {
   if (args.includes('-h') || args.includes('--help')) {
     return 'help';
   }
 
+  let agent: ImportAgent = 'claude-code';
   let dryRun = false;
-  let since: Date | null = null;
-  let sessionId: string | null = null;
   let noTranscripts = false;
   let quiet = false;
+  let sessionId: string | null = null;
+  let since: Date | null = null;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
+    if (!arg) {
+      continue;
+    }
     if (arg === '--dry-run') {
       dryRun = true;
     } else if (arg === '--no-transcripts') {
       noTranscripts = true;
     } else if (arg === '--quiet') {
       quiet = true;
-    } else if (arg === '--since') {
-      const val = args[i + 1];
-      if (!val || val.startsWith('-')) {
-        process.stderr.write('Error: --since requires a date argument (YYYY-MM-DD)\n');
-        return 'help';
+    } else if (arg === '--agent') {
+      const value = args[++i];
+      if (!value || !IMPORT_AGENTS.includes(value as ImportAgent)) {
+        process.stderr.write(`Error: --agent must be one of: ${IMPORT_AGENTS.join(', ')}\n`);
+        return 'error';
       }
-      i++;
-      const parsed = new Date(val);
+      agent = value as ImportAgent;
+    } else if (arg.startsWith('--agent=')) {
+      const value = arg.slice('--agent='.length);
+      if (!IMPORT_AGENTS.includes(value as ImportAgent)) {
+        process.stderr.write(`Error: --agent must be one of: ${IMPORT_AGENTS.join(', ')}\n`);
+        return 'error';
+      }
+      agent = value as ImportAgent;
+    } else if (arg === '--since') {
+      const value = args[++i];
+      if (!value || value.startsWith('-')) {
+        process.stderr.write('Error: --since requires a date argument (YYYY-MM-DD)\n');
+        return 'error';
+      }
+      const parsed = new Date(value);
       if (Number.isNaN(parsed.getTime())) {
-        process.stderr.write(`Error: invalid --since date: ${val}\n`);
-        return 'help';
+        process.stderr.write(`Error: invalid --since date: ${value}\n`);
+        return 'error';
       }
       since = parsed;
     } else if (arg === '--session') {
-      const val = args[i + 1];
-      if (!val || val.startsWith('-')) {
+      const value = args[++i];
+      if (!value || value.startsWith('-')) {
         process.stderr.write('Error: --session requires an ID argument\n');
-        return 'help';
+        return 'error';
       }
-      i++;
-      sessionId = val;
+      sessionId = value;
     }
-    // ignore unknown flags / positionals
   }
 
-  return { dryRun, noTranscripts, quiet, sessionId, since };
+  return { agent, dryRun, noTranscripts, quiet, sessionId, since };
 }
 
 export async function runImport(args: string[]): Promise<number> {
-  const parseResult = parseImportArgs(args.slice(1)); // remove 'import' positional
-  if (parseResult === 'help') {
+  const parsed = parseImportArgs(args.slice(1));
+  if (parsed === 'help') {
     process.stdout.write(`${IMPORT_HELP}\n`);
     return 0;
   }
-  const opts: ImportOptions = parseResult;
-
-  // Auth check (skip for --dry-run)
+  if (parsed === 'error') {
+    return 1;
+  }
+  const opts = parsed;
+  let ingestBaseUrl: string | null = null;
+  if (!opts.dryRun) {
+    try {
+      ingestBaseUrl = getIngestBaseUrl();
+    } catch (err) {
+      process.stderr.write(`Configuration error: ${(err as Error).message}\n`);
+      return 1;
+    }
+  }
   const jwt = opts.dryRun ? null : loadHookToken();
   if (!jwt && !opts.dryRun) {
     process.stderr.write('Not authenticated. Run `claude-telemetry login` first.\n');
     return 1;
   }
 
-  // Pre-flight: verify server is reachable and ready before processing any files
   if (!opts.dryRun) {
-    const ready = await checkServerReady();
+    const ready = await checkServerReady(ingestBaseUrl as string);
     if (!ready.ok) {
       process.stderr.write(`Error: ${ready.message}\n`);
       return 1;
     }
   }
 
-  // Discover session files
-  const files = listSessionFiles();
-  const filtered = files.filter((f) => {
-    if (opts.sessionId && f.sessionId !== opts.sessionId) {
-      return false;
-    }
-    return true;
-  });
+  const source = importSource(opts.agent);
+  if (!source) {
+    process.stderr.write(`Historical import is not supported for ${opts.agent}.\n`);
+    return 1;
+  }
 
-  if (filtered.length === 0) {
+  let sessions: HistoricalSession[];
+  try {
+    sessions = source
+      .discover()
+      .filter(
+        (session) =>
+          !opts.sessionId ||
+          session.nativeSessionId === opts.sessionId ||
+          session.sessionId === opts.sessionId,
+      );
+  } catch (err) {
+    process.stderr.write(`Cannot discover ${opts.agent} sessions: ${(err as Error).message}\n`);
+    return 1;
+  }
+
+  if (sessions.length === 0) {
     if (!opts.quiet) {
-      process.stdout.write('No sessions found.\n');
+      process.stdout.write(`No ${opts.agent} sessions found.\n`);
     }
     return 0;
   }
-
   if (!opts.quiet) {
-    process.stdout.write(`Found ${filtered.length} session(s) to import.\n`);
+    process.stdout.write(`Discovered ${sessions.length} ${opts.agent} session candidate(s).\n`);
   }
 
-  // Per-session totals for summary
   let totalAccepted = 0;
   let totalDeduped = 0;
-  let totalRejected = 0;
-  let totalTranscripts = 0;
   let totalErrors = 0;
+  let totalRejected = 0;
+  let totalSessions = 0;
+  let totalTranscripts = 0;
 
-  for (const file of filtered) {
+  for (const session of sessions) {
     try {
-      // --- Event synthesis ---
-      const ctx = createSynthCtx(file.sessionId, process.cwd(), null);
-      const batch: Event[] = [];
+      const events = await session.events(opts.since);
+      if (events.length === 0) {
+        continue;
+      }
+      totalSessions += 1;
       let sessionAccepted = 0;
       let sessionDeduped = 0;
       let sessionRejected = 0;
 
-      async function flushBatch(force = false): Promise<void> {
-        if (batch.length === 0) {
-          return;
-        }
-        if (!force && batch.length < BATCH_SIZE) {
-          return;
-        }
-        if (opts.dryRun) {
-          sessionAccepted += batch.length;
-          batch.length = 0;
-          return;
-        }
-        // jwt is non-null here because dryRun=false was checked above
-        const token = jwt as string;
-        while (batch.length >= BATCH_SIZE) {
-          const slice = batch.splice(0, BATCH_SIZE);
-          try {
-            const result = await postEventBatch(slice, token);
-            sessionAccepted += result.accepted;
-            sessionDeduped += result.deduped;
-            sessionRejected += result.rejected;
-          } catch (err) {
-            batch.unshift(...slice); // restore on failure so events aren't lost
-            throw err;
-          }
-        }
-        if (force && batch.length > 0) {
-          const slice = batch.splice(0, batch.length);
-          try {
-            const result = await postEventBatch(slice, token);
-            sessionAccepted += result.accepted;
-            sessionDeduped += result.deduped;
-            sessionRejected += result.rejected;
-          } catch (err) {
-            batch.unshift(...slice);
-            throw err;
-          }
+      if (opts.dryRun) {
+        sessionAccepted = events.length;
+      } else {
+        const pending: Event[] = [...events];
+        while (pending.length > 0) {
+          const batch = pending.splice(0, BATCH_SIZE);
+          const result = await postEventBatch(batch, jwt as string, ingestBaseUrl as string);
+          sessionAccepted += result.accepted;
+          sessionDeduped += result.deduped;
+          sessionRejected += result.rejected;
         }
       }
-
-      for await (const entry of parseSessionFile(file.path)) {
-        // Always update ctx from entries that carry context fields (not just the first)
-        if (entry.sessionId) {
-          ctx.sessionId = entry.sessionId;
-        }
-        if (entry.cwd) {
-          ctx.cwd = entry.cwd;
-        }
-        if (entry.version) {
-          ctx.version = entry.version;
-        }
-
-        // Apply --since filter. Skipped entries still update the synth context:
-        // tool names (a tool_result inside the window can name a tool_use from
-        // before it) AND the turn ordinal, so `--since` numbers turns exactly as a
-        // full import of the same session would.
-        if (opts.since && entry.timestamp) {
-          const entryDate = new Date(entry.timestamp);
-          if (entryDate < opts.since) {
-            noteSkippedEntry(entry, ctx);
-            continue;
-          }
-        }
-
-        const events = entryToEvents(entry, ctx);
-        batch.push(...events);
-        while (batch.length >= BATCH_SIZE) {
-          await flushBatch();
-        }
-      }
-      await flushBatch(true); // flush remainder
 
       totalAccepted += sessionAccepted;
       totalDeduped += sessionDeduped;
       totalRejected += sessionRejected;
 
-      // --- Transcript upload ---
       let transcriptStatus = 'skipped';
       if (!opts.noTranscripts && !opts.dryRun && jwt) {
-        const result = await uploadTranscript(ctx.sessionId, file.path, jwt);
-        if (result.ok) {
-          transcriptStatus = `ok (${result.bytes} bytes)`;
-          totalTranscripts++;
-        } else {
-          transcriptStatus = `${result.reason}: ${result.message}`;
+        const prepared = session.prepareTranscript();
+        if (prepared) {
+          try {
+            const result = await uploadTranscript(
+              session.sessionId,
+              prepared.path,
+              jwt,
+              ingestBaseUrl as string,
+            );
+            if (result.ok) {
+              transcriptStatus = `ok (${result.bytes} bytes)`;
+              totalTranscripts += 1;
+            } else {
+              transcriptStatus = `${result.reason}: ${result.message}`;
+            }
+          } finally {
+            prepared.cleanup?.();
+          }
         }
       }
 
       if (!opts.quiet) {
         const eventSummary = opts.dryRun
-          ? `would import ~${sessionAccepted}`
+          ? `would import ${sessionAccepted}`
           : `accepted=${sessionAccepted} deduped=${sessionDeduped} rejected=${sessionRejected}`;
         process.stdout.write(
-          `  ${ctx.sessionId}  events: ${eventSummary}  transcript: ${transcriptStatus}\n`,
+          `  ${session.sessionId}  events: ${eventSummary}  transcript: ${transcriptStatus}\n`,
         );
       }
     } catch (err) {
@@ -244,19 +241,17 @@ export async function runImport(args: string[]): Promise<number> {
         process.stderr.write(`Authentication error: ${(err as Error).message}\n`);
         return 1;
       }
-      // Per-session error: warn and continue
-      totalErrors++;
+      totalErrors += 1;
       if (!opts.quiet) {
-        process.stderr.write(`  WARNING: ${file.sessionId} — ${(err as Error).message}\n`);
+        process.stderr.write(`  WARNING: ${session.sessionId} — ${(err as Error).message}\n`);
       }
     }
   }
 
-  // Summary
   if (!opts.quiet) {
     if (opts.dryRun) {
       process.stdout.write(
-        `\nDry run complete. Would import ~${totalAccepted} events from ${filtered.length} sessions.\n`,
+        `\nDry run complete. Would import ${totalAccepted} events from ${totalSessions} sessions.\n`,
       );
     } else {
       process.stdout.write(
