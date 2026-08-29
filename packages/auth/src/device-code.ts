@@ -20,7 +20,9 @@ export async function startDeviceFlow(
     method: 'POST',
   });
   if (!res.ok) {
-    throw new Error(`GitHub device/code request failed: ${res.status}`);
+    throw new Error(
+      `GitHub device/code request failed: ${res.status}${await githubErrorDetail(res)}`,
+    );
   }
   return res.json() as Promise<DeviceCodeStartResult>;
 }
@@ -48,7 +50,7 @@ export async function pollDeviceFlow(
     method: 'POST',
   });
   if (!res.ok) {
-    throw new Error(`GitHub device poll failed: ${res.status}`);
+    throw new Error(`GitHub device poll failed: ${res.status}${await githubErrorDetail(res)}`);
   }
   const body = (await res.json()) as {
     access_token?: string;
@@ -70,4 +72,25 @@ export async function pollDeviceFlow(
       : { slowDown: true, status: 'pending' };
   }
   throw new Error(`Device flow error: ${body.error}`);
+}
+
+// GitHub returns structured errors as JSON: {"error":"device_flow_disabled",
+// "error_description":"Device Flow must be explicitly enabled for this App"}.
+// Without this, the thrown error only carries the HTTP status (e.g. "400"),
+// forcing a server log dive to discover the underlying cause.
+// NOTE: consumes res.body — callers must throw immediately after.
+async function githubErrorDetail(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as unknown;
+    if (typeof body === 'object' && body !== null) {
+      const { error, error_description } = body as { error?: string; error_description?: string };
+      if (typeof error === 'string' && error) {
+        const desc = typeof error_description === 'string' ? ` — ${error_description}` : '';
+        return `: ${error}${desc}`;
+      }
+    }
+  } catch {
+    // Non-JSON body — nothing to add beyond the status code.
+  }
+  return '';
 }

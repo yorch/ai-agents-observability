@@ -128,7 +128,31 @@ async function runDeviceLogin(api: string): Promise<number> {
       return runPasswordLogin(api);
     }
     if (!res.ok) {
-      process.stderr.write(`Failed to start device flow (${res.status}). Is ${api} reachable?\n`);
+      // A JSON body with a request_id is our server's structured error
+      // (jsonError) — the server is reachable, its handler rejected the
+      // request. A non-JSON body (e.g. a reverse proxy 502/504) means the
+      // server itself is unreachable. Distinguish the two so the user knows
+      // where to look. Guard content-type and body size so a misbehaving
+      // proxy or MITM can't trick us into parsing a huge or non-JSON body.
+      let hint = `Is ${api} reachable?`;
+      const ct = res.headers.get('content-type') ?? '';
+      if (ct.includes('application/json')) {
+        try {
+          const text = await res.text();
+          if (text.length <= 4_096) {
+            const body = JSON.parse(text) as { request_id?: unknown };
+            const id = typeof body.request_id === 'string' ? body.request_id : '';
+            // Sanitize: keep only URL-safe chars, cap length.
+            const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+            if (safeId) {
+              hint = `Server returned an error (request_id: ${safeId}). Check the server logs.`;
+            }
+          }
+        } catch {
+          // Malformed JSON — keep the reachability hint.
+        }
+      }
+      process.stderr.write(`Failed to start device flow (${res.status}). ${hint}\n`);
       return 1;
     }
     startResult = (await res.json()) as StartResult;
