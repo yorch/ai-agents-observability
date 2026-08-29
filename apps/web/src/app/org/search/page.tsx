@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { FilterChips } from '@/components/FilterChips';
 import {
   Button,
@@ -13,6 +14,8 @@ import {
   Select,
   Table,
 } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { fmtDateTime, fmtUsdSession } from '@/lib/fmt';
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
 import { getAllRunsPrisma } from '@/lib/prisma';
@@ -26,6 +29,7 @@ export default async function OrgSearchPage({
 }) {
   const { orgRole } = await requireOrgViewer();
   const canView = canViewIndividuals(orgRole);
+  const { dict } = await getTranslations();
 
   const params = await searchParams;
   const query = params.q?.trim() ?? '';
@@ -162,28 +166,29 @@ export default async function OrgSearchPage({
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Org</p>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Search</h1>
-        <p className="mt-1 text-sm text-text-2">
-          Faceted session search · transcript full-text search
+        <p className="text-xs text-text-3 uppercase tracking-wider mb-1">
+          {dict.org.search.breadcrumb}
         </p>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+          {dict.org.search.title}
+        </h1>
+        <p className="mt-1 text-sm text-text-2">{dict.org.search.description}</p>
       </div>
 
       {!canView && (
         <div className="rounded-lg border border-border p-6 text-center text-sm text-text-2">
-          Individual session search is not available for your role. You can view aggregate data on
-          the dashboard.
+          {dict.org.search.noAccess}
         </div>
       )}
 
       {canView && (
         <>
           {/* Filters */}
-          <FilterPanel label="Session filters">
+          <FilterPanel label={dict.org.search.sessionFilters}>
             <div className="grid gap-3 md:grid-cols-3">
-              <Field label="Team" htmlFor="filter-team">
+              <Field label={dict.org.search.filterTeam} htmlFor="filter-team">
                 <Select id="filter-team" name="team" defaultValue={teamId ?? ''}>
-                  <option value="">All teams</option>
+                  <option value="">{dict.org.search.allTeams}</option>
                   {teams.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
@@ -192,9 +197,9 @@ export default async function OrgSearchPage({
                 </Select>
               </Field>
 
-              <Field label="Repo" htmlFor="filter-repo">
+              <Field label={dict.org.search.filterRepo} htmlFor="filter-repo">
                 <Select id="filter-repo" name="repo" defaultValue={repoId ?? ''}>
-                  <option value="">All repos</option>
+                  <option value="">{dict.org.search.allRepos}</option>
                   {repos.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.githubOwner}/{r.githubName}
@@ -203,9 +208,9 @@ export default async function OrgSearchPage({
                 </Select>
               </Field>
 
-              <Field label="Model" htmlFor="filter-model">
+              <Field label={dict.org.search.filterModel} htmlFor="filter-model">
                 <Select id="filter-model" name="model" defaultValue={model ?? ''}>
-                  <option value="">All models</option>
+                  <option value="">{dict.org.search.allModels}</option>
                   {models.map((m) => (
                     <option key={m.primaryModel ?? ''} value={m.primaryModel ?? ''}>
                       {m.primaryModel}
@@ -214,7 +219,7 @@ export default async function OrgSearchPage({
                 </Select>
               </Field>
 
-              <Field label="Tool" htmlFor="filter-tool">
+              <Field label={dict.org.search.filterTool} htmlFor="filter-tool">
                 <Input
                   id="filter-tool"
                   type="text"
@@ -224,7 +229,7 @@ export default async function OrgSearchPage({
                 />
               </Field>
 
-              <Field label="Jira ticket" htmlFor="filter-jira">
+              <Field label={dict.org.search.filterJira} htmlFor="filter-jira">
                 <Input
                   id="filter-jira"
                   type="text"
@@ -234,7 +239,7 @@ export default async function OrgSearchPage({
                 />
               </Field>
 
-              <Field label="From" htmlFor="filter-from">
+              <Field label={dict.org.search.filterFrom} htmlFor="filter-from">
                 <Input
                   id="filter-from"
                   type="date"
@@ -243,7 +248,7 @@ export default async function OrgSearchPage({
                 />
               </Field>
 
-              <Field label="To" htmlFor="filter-to">
+              <Field label={dict.org.search.filterTo} htmlFor="filter-to">
                 <Input
                   id="filter-to"
                   type="date"
@@ -252,9 +257,9 @@ export default async function OrgSearchPage({
                 />
               </Field>
 
-              <Field label="Session shape" htmlFor="filter-shape">
+              <Field label={dict.org.search.filterShape} htmlFor="filter-shape">
                 <Select id="filter-shape" name="shape" defaultValue={shape ?? ''}>
-                  <option value="">All shapes</option>
+                  <option value="">{dict.org.search.allShapes}</option>
                   {shapeFacets.map((f) => (
                     <option key={f.shapeLabel ?? ''} value={f.shapeLabel ?? ''}>
                       {f.shapeLabel} ({f._count._all})
@@ -263,18 +268,18 @@ export default async function OrgSearchPage({
                 </Select>
               </Field>
 
-              <Field label="Friction band" htmlFor="filter-band">
+              <Field label={dict.org.search.filterFriction} htmlFor="filter-band">
                 <Select id="filter-band" name="band" defaultValue={frictionBand ?? ''}>
-                  <option value="">Any friction</option>
-                  <option value="low">Low (&lt; 0.3)</option>
-                  <option value="medium">Medium (0.3–0.6)</option>
-                  <option value="high">High (&gt; 0.6)</option>
+                  <option value="">{dict.org.search.frictionAny}</option>
+                  <option value="low">{dict.org.search.frictionLow}</option>
+                  <option value="medium">{dict.org.search.frictionMedium}</option>
+                  <option value="high">{dict.org.search.frictionHigh}</option>
                 </Select>
               </Field>
 
-              <Field label="Agent" htmlFor="filter-agent">
+              <Field label={dict.org.search.filterAgent} htmlFor="filter-agent">
                 <Select id="filter-agent" name="agent" defaultValue={agent ?? ''}>
-                  <option value="">All agents</option>
+                  <option value="">{dict.org.search.allAgents}</option>
                   {agentFacets.map((f) => (
                     <option key={f.agentType} value={f.agentType}>
                       {f.agentType} ({f._count._all})
@@ -290,10 +295,10 @@ export default async function OrgSearchPage({
                 type="text"
                 name="q"
                 defaultValue={query}
-                placeholder="Search transcript content (users with org sharing enabled)"
+                placeholder={dict.org.search.transcriptPlaceholder}
                 className="flex-1"
               />
-              <Button type="submit">Search</Button>
+              <Button type="submit">{dict.org.search.submit}</Button>
             </div>
           </FilterPanel>
 
@@ -303,16 +308,15 @@ export default async function OrgSearchPage({
           {query && (
             <section className="space-y-3">
               <h2 className="font-display text-sm font-semibold text-text">
-                Transcript matches for &quot;{query}&quot;
+                {format(dict.org.search.transcriptMatches, { query })}
                 {transcriptResults.length >= 20 && (
-                  <span className="ml-2 font-body text-xs font-normal text-text-3">top 20</span>
+                  <span className="ml-2 font-body text-xs font-normal text-text-3">
+                    {dict.org.search.top20}
+                  </span>
                 )}
               </h2>
               {transcriptResults.length === 0 ? (
-                <EmptyState>
-                  No transcript matches. Only sessions from users who have enabled org transcript
-                  sharing are searched.
-                </EmptyState>
+                <EmptyState>{dict.org.search.emptyTranscript}</EmptyState>
               ) : (
                 <div className="space-y-3">
                   {transcriptResults.map((r) => (
@@ -320,12 +324,12 @@ export default async function OrgSearchPage({
                       <div className="flex items-center gap-2 text-xs text-text-3">
                         <span className="font-semibold text-text-2">{r.githubLogin}</span>
                         <span>·</span>
-                        <a
+                        <Link
                           href={`/org/sessions/${r.sessionId}`}
                           className="text-accent hover:underline font-mono"
                         >
                           {r.sessionId.slice(0, 8)}…
-                        </a>
+                        </Link>
                         <span>· {r.role}</span>
                         {r.ts && <span>· {fmtDateTime(new Date(r.ts))}</span>}
                       </div>
@@ -343,44 +347,44 @@ export default async function OrgSearchPage({
           {/* Session results */}
           <section className="space-y-3">
             <h2 className="font-display text-sm font-semibold text-text">
-              Sessions {sessionResults.total > 0 && `(${sessionResults.total})`}
+              {dict.org.search.sessions} {sessionResults.total > 0 && `(${sessionResults.total})`}
             </h2>
 
             {sessionResults.results.length === 0 ? (
               <EmptyState
-                title="No sessions match these filters"
+                title={dict.org.search.emptyFilters}
                 action={
                   chips.length > 0 ? (
                     <ButtonLink variant="secondary" href="/org/search">
-                      Clear filters
+                      {dict.org.search.clearFilters}
                     </ButtonLink>
                   ) : undefined
                 }
               >
-                Try removing a filter or widening the date range.
+                {dict.org.search.emptyFiltersBody}
               </EmptyState>
             ) : (
               <Table
                 columns={[
-                  { label: 'User' },
-                  { label: 'Session' },
-                  { label: 'Repo' },
-                  { label: 'Status' },
-                  { align: 'right', label: 'Tools' },
-                  { align: 'right', label: 'Cost' },
-                  { align: 'right', label: 'Started (UTC)' },
+                  { label: dict.org.search.colUser },
+                  { label: dict.org.search.colSession },
+                  { label: dict.org.search.colRepo },
+                  { label: dict.org.search.colStatus },
+                  { align: 'right', label: dict.org.search.colTools },
+                  { align: 'right', label: dict.org.search.colCost },
+                  { align: 'right', label: dict.org.search.colStarted },
                 ]}
               >
                 {sessionResults.results.map((s) => (
                   <Row key={s.sessionId}>
                     <Cell>{s.githubLogin}</Cell>
                     <Cell>
-                      <a
+                      <Link
                         href={`/org/sessions/${s.sessionId}`}
                         className="font-mono text-xs text-accent hover:underline"
                       >
                         {s.sessionId.slice(0, 8)}…
-                      </a>
+                      </Link>
                     </Cell>
                     <Cell className="text-text-2 text-xs">{s.repoName ?? '—'}</Cell>
                     <Cell>
@@ -404,6 +408,7 @@ export default async function OrgSearchPage({
               pageSize={sessionResults.pageSize}
               total={sessionResults.total}
               hrefFor={(n) => buildUrl(params, { page: n })}
+              dict={dict}
             />
           </section>
         </>

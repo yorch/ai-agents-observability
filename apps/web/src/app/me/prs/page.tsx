@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { PrStateBadge } from '@/components/me/PrStateBadge';
 import {
@@ -12,6 +13,8 @@ import {
   Stat,
   Table,
 } from '@/components/ui';
+import type { Dictionary } from '@/i18n/dictionary';
+import { getTranslations } from '@/i18n/server';
 import { fmtDate } from '@/lib/fmt';
 import { ExternalLinkIcon, WarningIcon } from '../../../components/icons';
 import { JiraLink } from '../../../components/JiraLink';
@@ -36,36 +39,34 @@ function PRsTable({
   currentPage,
   stateFilter,
   jiraBase,
+  dict,
 }: {
   items: PRListItem[];
   total: number;
   currentPage: number;
   stateFilter: string;
   jiraBase: string | null;
+  dict: Dictionary;
 }) {
   const stateParam = stateFilter && stateFilter !== 'all' ? `&state=${stateFilter}` : '';
 
   if (items.length === 0) {
-    return (
-      <EmptyState title="No PRs yet.">
-        PRs appear here after the GitHub App is installed and you merge a PR.
-      </EmptyState>
-    );
+    return <EmptyState title={dict.me.prs.empty}>{dict.me.prs.emptyBody}</EmptyState>;
   }
 
   return (
     <div className="space-y-4">
       <Table
         columns={[
-          { label: 'PR' },
-          { label: 'Repo' },
-          { label: 'State' },
-          { align: 'right', label: 'Merged' },
-          { align: 'right', label: 'Sessions' },
-          { align: 'right', label: 'Cost' },
-          { align: 'right', label: 'Cost/LOC' },
-          { align: 'right', label: 'Checks' },
-          { align: 'right', label: 'Jira' },
+          { label: dict.me.prs.colPr },
+          { label: dict.me.prs.colRepo },
+          { label: dict.me.prs.colState },
+          { align: 'right', label: dict.me.prs.colMerged },
+          { align: 'right', label: dict.me.prs.colSessions },
+          { align: 'right', label: dict.me.prs.colCost },
+          { align: 'right', label: dict.me.prs.colCostPerLoc },
+          { align: 'right', label: dict.me.prs.colChecks },
+          { align: 'right', label: dict.me.prs.colJira },
         ]}
       >
         {items.map((pr) => {
@@ -75,12 +76,12 @@ function PRsTable({
             <Row key={`${pr.repoOwner}/${pr.repoName}#${pr.prNumber}`}>
               <Cell className="max-w-[300px]">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <a href={detailHref} className="text-text hover:text-text line-clamp-1">
+                  <Link href={detailHref} className="text-text hover:text-text line-clamp-1">
                     {pr.title ?? `#${pr.prNumber}`}
-                  </a>
+                  </Link>
                   {pr.revertedAt && (
                     <span className="rounded-full bg-crit-soft px-1.5 py-0.5 text-[10px] font-medium text-crit shrink-0">
-                      reverted
+                      {dict.me.prs.reverted}
                     </span>
                   )}
                 </div>
@@ -139,6 +140,7 @@ function PRsTable({
         pageSize={PAGE_SIZE}
         total={total}
         hrefFor={(n) => `?page=${n}${stateParam}`}
+        dict={dict}
       />
     </div>
   );
@@ -150,6 +152,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
     redirect('/login');
   }
 
+  const { dict } = await getTranslations();
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? '1', 10));
   const stateParam = params.state;
@@ -168,33 +171,33 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
   return (
     <div className="space-y-6">
       <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-        Pull Requests
+        {dict.me.prs.title}
       </h1>
 
       {/* Summary stats */}
       {total > 0 && (
         <div className="grid gap-4 sm:grid-cols-3">
-          <Stat label="Total PRs" value={String(total)} />
-          <Stat label="Total cost" value={`$${totalCost.toFixed(2)}`} />
-          <Stat label="Total sessions" value={String(totalSessions)} />
+          <Stat label={dict.me.prs.statTotalPrs} value={String(total)} />
+          <Stat label={dict.me.prs.statTotalCost} value={`$${totalCost.toFixed(2)}`} />
+          <Stat label={dict.me.prs.statTotalSessions} value={String(totalSessions)} />
         </div>
       )}
 
       {/* Filter bar */}
       <form method="GET" className="flex flex-wrap items-end gap-3">
-        <Field label="State" htmlFor="state-filter">
+        <Field label={dict.common.filterStatus} htmlFor="state-filter">
           <Select id="state-filter" name="state" defaultValue={stateFilter}>
-            <option value="all">All states</option>
-            <option value="open">Open</option>
-            <option value="merged">Merged</option>
+            <option value="all">{dict.me.prs.allStates}</option>
+            <option value="open">{dict.me.prs.stateOpen}</option>
+            <option value="merged">{dict.me.prs.stateMerged}</option>
           </Select>
         </Field>
 
-        <Button type="submit">Filter</Button>
+        <Button type="submit">{dict.me.prs.filter}</Button>
 
         {stateFilter !== 'all' && (
           <ButtonLink variant="secondary" href="/me/prs">
-            Clear
+            {dict.me.sessions.clear}
           </ButtonLink>
         )}
       </form>
@@ -205,6 +208,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
         currentPage={page}
         stateFilter={stateFilter}
         jiraBase={jiraBase}
+        dict={dict}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { TeamPrRollupTable } from '@/components/team-org/TeamPrRollupTable';
 import { Stat } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { fmtHoursShort } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
 import {
@@ -24,6 +25,7 @@ export default async function TeamPrsPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
 
   const { teamId, teamName } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
   const since = daysAgo(range);
 
   const { visibleIds } = await resolveTeamVisibility(teamId);
@@ -42,11 +44,14 @@ export default async function TeamPrsPage({
       />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat label="PRs opened" value={delivery.totalPRs.toString()} />
-        <Stat label="Merge rate" value={`${Math.round(delivery.mergeRate * 100)}%`} />
-        <Stat label="Median time to merge" value={fmtHoursShort(delivery.medianTimeToMergeHours)} />
+        <Stat label={dict.team.prs.prsOpened} value={delivery.totalPRs.toString()} />
+        <Stat label={dict.team.prs.mergeRate} value={`${Math.round(delivery.mergeRate * 100)}%`} />
         <Stat
-          label="Avg cost / PR"
+          label={dict.team.prs.medianTimeToMerge}
+          value={fmtHoursShort(delivery.medianTimeToMergeHours)}
+        />
+        <Stat
+          label={dict.team.prs.avgCostPerPr}
           value={delivery.avgCostPerPR > 0 ? `$${delivery.avgCostPerPR.toFixed(2)}` : '—'}
         />
       </div>

@@ -2,6 +2,8 @@ import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, CardEmpty, Cell, Row, SeriesBadge, Stat, Table } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import { fmtDayShort, fmtUsdOrDash } from '@/lib/fmt';
 import {
@@ -35,6 +37,7 @@ export default async function OrgToolsPage({
   searchParams: Promise<{ range?: string }>;
 }) {
   await requireOrgViewer();
+  const { dict } = await getTranslations();
 
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
@@ -79,22 +82,25 @@ export default async function OrgToolsPage({
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Org"
-        description={`Trailing ${range} days · tool usage across the org`}
+        description={format(dict.org.tools.description, { range })}
         range={range}
-        title="Tools & Skills"
+        title={dict.org.tools.title}
       />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat label={`Tool calls (${range}d)`} value={totalCalls.toLocaleString()} />
-        <Stat label="Unique tools" value={uniqueTools.toString()} />
         <Stat
-          label="Denial rate"
+          label={format(dict.org.tools.toolCalls, { range })}
+          value={totalCalls.toLocaleString()}
+        />
+        <Stat label={dict.org.tools.uniqueTools} value={uniqueTools.toString()} />
+        <Stat
+          label={dict.org.tools.denialRate}
           value={totalCalls > 0 ? `${(overallDenyRate * 100).toFixed(1)}%` : '—'}
           accent={overallDenyRate > 0.05 ? 'warn' : undefined}
         />
         <Stat
-          label="Avg duration"
+          label={dict.org.tools.avgDuration}
           value={overallAvgDuration !== null ? `${overallAvgDuration.toLocaleString()} ms` : '—'}
         />
       </div>
@@ -103,7 +109,7 @@ export default async function OrgToolsPage({
       {dailyVolume.length > 0 && (
         <Card>
           <h2 className="mb-4 font-display text-sm font-semibold text-text">
-            Daily tool call volume ({range}d)
+            {format(dict.org.tools.dailyVolume, { range })}
           </h2>
           <DailyVolumeBars volume={dailyVolume} />
         </Card>
@@ -111,9 +117,11 @@ export default async function OrgToolsPage({
 
       {/* Top tools table */}
       <Card contentClassName="space-y-3">
-        <h2 className="font-display text-sm font-semibold text-text">Top tools ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          {format(dict.org.tools.topTools, { range })}
+        </h2>
         {tools.length === 0 ? (
-          <CardEmpty>No tool activity in this period.</CardEmpty>
+          <CardEmpty>{dict.org.tools.empty}</CardEmpty>
         ) : (
           <>
             <ToolsTable tools={tools} />
@@ -124,18 +132,18 @@ export default async function OrgToolsPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Category breakdown */}
-        <Card title="By category" contentClassName="space-y-3">
+        <Card title={dict.org.tools.byCategory} contentClassName="space-y-3">
           {categories.length === 0 ? (
-            <CardEmpty>No tool activity in this period.</CardEmpty>
+            <CardEmpty>{dict.org.tools.emptyCategory}</CardEmpty>
           ) : (
             <CategoryBreakdown categories={categories} />
           )}
         </Card>
 
         {/* MCP servers */}
-        <Card title="MCP servers" contentClassName="space-y-3">
+        <Card title={dict.org.tools.mcpServers} contentClassName="space-y-3">
           {mcpServers.length === 0 ? (
-            <CardEmpty>No MCP usage in this period.</CardEmpty>
+            <CardEmpty>{dict.org.tools.emptyMcp}</CardEmpty>
           ) : (
             <McpTable servers={mcpServers} />
           )}
@@ -143,11 +151,12 @@ export default async function OrgToolsPage({
       </div>
 
       {/* Skills & slash commands — always rendered so the section is visible even before data */}
-      <Card title="Skills & slash commands" contentClassName="space-y-3">
+      <Card title={dict.org.tools.skillsSlash} contentClassName="space-y-3">
         {skills.length === 0 ? (
           <CardEmpty>
-            No skill or slash command invocations in this period. Skills are captured when the{' '}
-            <span className="font-mono text-text-2">Skill</span> tool fires (e.g.{' '}
+            {dict.org.tools.emptySkillsPrefix}{' '}
+            <span className="font-mono text-text-2">{dict.org.tools.skill}</span>{' '}
+            {dict.org.tools.emptySkillsSuffix}{' '}
             <span className="font-mono text-text-2">/code-review</span>,{' '}
             <span className="font-mono text-text-2">/commit</span>).
           </CardEmpty>
@@ -163,10 +172,15 @@ export default async function OrgToolsPage({
       {teamSkillMatrix.length > 0 && (
         <Card contentClassName="space-y-3">
           <div>
-            <h2 className="font-display text-sm font-semibold text-text">Skill adoption by team</h2>
-            <p className="text-xs text-text-3 mt-0.5">Which skills each team uses most</p>
+            <h2 className="font-display text-sm font-semibold text-text">
+              {dict.org.tools.skillAdoption}
+            </h2>
+            <p className="text-xs text-text-3 mt-0.5">{dict.org.tools.skillAdoptionCaption}</p>
           </div>
-          <TeamSkillMatrix rows={teamSkillMatrix} />
+          <TeamSkillMatrix
+            rows={teamSkillMatrix}
+            emptyMembership={dict.org.tools.emptyMembership}
+          />
         </Card>
       )}
 
@@ -174,10 +188,10 @@ export default async function OrgToolsPage({
       {skillSequences.length > 0 && (
         <Card contentClassName="space-y-3">
           <div>
-            <h2 className="font-display text-sm font-semibold text-text">Skill workflows</h2>
-            <p className="text-xs text-text-3 mt-0.5">
-              Most common consecutive skill pairs within sessions
-            </p>
+            <h2 className="font-display text-sm font-semibold text-text">
+              {dict.org.tools.skillWorkflows}
+            </h2>
+            <p className="text-xs text-text-3 mt-0.5">{dict.org.tools.skillWorkflowsCaption}</p>
           </div>
           <SkillSequences rows={skillSequences} />
         </Card>
@@ -187,10 +201,10 @@ export default async function OrgToolsPage({
       {skillRoi.length > 0 && (
         <Card contentClassName="space-y-3">
           <div>
-            <h2 className="font-display text-sm font-semibold text-text">Skill × PR CI status</h2>
-            <p className="text-xs text-text-3 mt-0.5">
-              Sessions using each skill, broken down by PR CI outcome
-            </p>
+            <h2 className="font-display text-sm font-semibold text-text">
+              {dict.org.tools.skillPrCi}
+            </h2>
+            <p className="text-xs text-text-3 mt-0.5">{dict.org.tools.skillPrCiCaption}</p>
           </div>
           <SkillRoiTable rows={skillRoi} />
         </Card>
@@ -307,8 +321,8 @@ function CategoryBreakdown({ categories }: { categories: CategoryStatRow[] }) {
         const pct = totalCalls > 0 ? (c.callCount / totalCalls) * 100 : 0;
         return (
           <div key={c.category} className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="font-mono text-text">{c.category}</span>
+            <div className="flex flex-wrap justify-between text-xs">
+              <span className="min-w-0 truncate font-mono text-text">{c.category}</span>
               <span className="text-text-2">
                 {c.callCount.toLocaleString()}
                 {c.denyCount > 0 && <span className="text-warn ml-1">({c.denyCount} denied)</span>}
@@ -348,8 +362,10 @@ function McpTable({ servers }: { servers: McpServerRow[] }) {
     <div className="space-y-4">
       {[...grouped.entries()].map(([server, data]) => (
         <div key={server} className="space-y-2">
-          <div className="flex justify-between items-baseline">
-            <span className="font-mono text-xs font-semibold text-text">{server}</span>
+          <div className="flex flex-wrap justify-between items-baseline">
+            <span className="min-w-0 truncate font-mono text-xs font-semibold text-text">
+              {server}
+            </span>
             <span className="text-xs text-text-3">{data.totalCalls.toLocaleString()} calls</span>
           </div>
           <div className="pl-3 space-y-1 border-l border-border">
@@ -449,7 +465,13 @@ function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skill
   );
 }
 
-function TeamSkillMatrix({ rows }: { rows: TeamSkillRow[] }) {
+function TeamSkillMatrix({
+  emptyMembership,
+  rows,
+}: {
+  emptyMembership: string;
+  rows: TeamSkillRow[];
+}) {
   // Group skills by name, collect teams
   const bySkill = new Map<string, { kind: string; teams: Map<string, number> }>();
   for (const r of rows) {
@@ -462,7 +484,7 @@ function TeamSkillMatrix({ rows }: { rows: TeamSkillRow[] }) {
   const allTeams = Array.from(new Set(rows.map((r) => r.teamName))).sort();
 
   if (allTeams.length === 0) {
-    return <CardEmpty>No team membership recorded yet.</CardEmpty>;
+    return <CardEmpty>{emptyMembership}</CardEmpty>;
   }
 
   return (
@@ -509,8 +531,8 @@ function SkillSequences({ rows }: { rows: OrgSkillSequenceRow[] }) {
     <div className="space-y-2">
       {rows.map((r) => (
         <div key={`${r.fromSkill}→${r.toSkill}`} className="space-y-1">
-          <div className="flex items-center justify-between text-xs">
-            <span className="flex items-center gap-1.5 font-mono">
+          <div className="flex flex-wrap items-center justify-between text-xs">
+            <span className="flex min-w-0 items-center gap-1.5 font-mono">
               <span className="text-text-2">{r.fromSkill}</span>
               <ArrowRightIcon size={11} className="text-text-3" />
               <span className="text-accent">{r.toSkill}</span>
@@ -553,8 +575,8 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
         const passRate = total > 0 ? (successCount / total) * 100 : 0;
         return (
           <div key={skill} className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-mono text-text">{skill}</span>
+            <div className="flex flex-wrap items-center justify-between text-xs">
+              <span className="min-w-0 truncate font-mono text-text">{skill}</span>
               <span className="text-good font-mono">{passRate.toFixed(0)}% pass</span>
             </div>
             <div className="flex gap-1">

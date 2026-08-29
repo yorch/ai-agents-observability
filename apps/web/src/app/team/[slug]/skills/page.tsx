@@ -7,6 +7,7 @@ import {
   SubjectQualityPanel,
 } from '@/components/team-org/SubjectQualityPanel';
 import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import { fmtUsdOrDash } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
@@ -37,6 +38,7 @@ export default async function TeamSkillsPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
 
   const { teamId, teamName } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
   const since = daysAgo(range);
 
   const { visibleIds } = await resolveTeamVisibility(teamId);
@@ -69,9 +71,9 @@ export default async function TeamSkillsPage({
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Unique skills" value={skills.length.toString()} />
-        <Stat label="Total invocations" value={totalInvocations.toLocaleString()} />
-        <Stat label="Active adopters" value={uniqueAdopters.toString()} />
+        <Stat label={dict.team.skills.uniqueSkills} value={skills.length.toString()} />
+        <Stat label={dict.team.skills.totalInvocations} value={totalInvocations.toLocaleString()} />
+        <Stat label={dict.team.skills.activeAdopters} value={uniqueAdopters.toString()} />
       </div>
 
       <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />
@@ -81,14 +83,14 @@ export default async function TeamSkillsPage({
         rows={quality}
         series={qualitySeries}
         subjectNoun="Skill"
-        title="Effectiveness"
+        title={dict.team.skills.effectiveness}
       />
 
       <DeprecationCandidates candidates={deprecation} windowDays={range} />
 
       {skills.length > 0 ? (
         <Card>
-          <SectionHeader>All skills</SectionHeader>
+          <SectionHeader>{dict.team.skills.allSkills}</SectionHeader>
           <Table
             columns={[
               { label: 'Name' },
@@ -136,12 +138,12 @@ export default async function TeamSkillsPage({
           <CostAttributionNote className="mt-3" coverage={coverage} />
         </Card>
       ) : (
-        <EmptyState>No skill activity in this period</EmptyState>
+        <EmptyState>{dict.team.skills.empty}</EmptyState>
       )}
 
       {funnel.length > 0 && (
         <Card>
-          <SectionHeader>Adoption — new vs returning users</SectionHeader>
+          <SectionHeader>{dict.team.skills.adoptionNewReturning}</SectionHeader>
           <Table
             columns={[
               { label: 'Skill' },

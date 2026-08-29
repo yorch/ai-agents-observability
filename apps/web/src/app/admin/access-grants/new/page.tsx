@@ -1,4 +1,5 @@
 import { ActionForm, Button, ButtonLink, Field, Input, Select, Textarea } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { requireGrantRequester } from '@/lib/roles';
 import { requestGrant } from '../actions';
 
@@ -6,6 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function NewAccessGrantPage() {
   await requireGrantRequester();
+  const { dict } = await getTranslations();
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -21,14 +23,14 @@ export default async function NewAccessGrantPage() {
       </div>
 
       <ActionForm action={requestGrant} className="space-y-4">
-        <Field label="Scope" htmlFor="scope">
+        <Field label={dict.admin.accessGrants.scope} htmlFor="scope">
           <Select id="scope" name="scope" defaultValue="SINGLE_SESSION">
-            <option value="SINGLE_SESSION">A single session</option>
-            <option value="USER_SESSIONS">All sessions for one user</option>
+            <option value="SINGLE_SESSION">{dict.admin.accessGrants.singleSession}</option>
+            <option value="USER_SESSIONS">{dict.admin.accessGrants.userSessions}</option>
           </Select>
         </Field>
 
-        <Field label="Target session id (for single-session scope)" htmlFor="targetSessionId">
+        <Field label={dict.admin.accessGrants.targetSession} htmlFor="targetSessionId">
           <Input
             id="targetSessionId"
             name="targetSessionId"
@@ -37,7 +39,7 @@ export default async function NewAccessGrantPage() {
           />
         </Field>
 
-        <Field label="Target user id (for user-sessions scope)" htmlFor="targetUserId">
+        <Field label={dict.admin.accessGrants.targetUser} htmlFor="targetUserId">
           <Input
             id="targetUserId"
             name="targetUserId"
@@ -46,7 +48,7 @@ export default async function NewAccessGrantPage() {
           />
         </Field>
 
-        <Field label="Justification (required)" htmlFor="justification">
+        <Field label={dict.admin.accessGrants.justification} htmlFor="justification">
           <Textarea
             id="justification"
             name="justification"
@@ -57,7 +59,7 @@ export default async function NewAccessGrantPage() {
         </Field>
 
         <div className="flex gap-2">
-          <Button type="submit">Submit request</Button>
+          <Button type="submit">{dict.admin.accessGrants.submit}</Button>
           <ButtonLink variant="secondary" href="/admin/access-grants">
             Cancel
           </ButtonLink>

@@ -1,5 +1,7 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { fmtDayShort, fmtHoursShort } from '@/lib/fmt';
 import {
   getOrgCheckHealth,
@@ -18,6 +20,7 @@ export default async function OrgDeliveryPage({
   searchParams: Promise<{ range?: string }>;
 }) {
   await requireOrgViewer();
+  const { dict } = await getTranslations();
 
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 90) as 7 | 30 | 90;
@@ -40,7 +43,7 @@ export default async function OrgDeliveryPage({
         breadcrumb="Org"
         description={`PR throughput, cycle time, and cost · trailing ${range} days`}
         range={range}
-        title="Delivery"
+        title={dict.org.delivery.title}
       />
 
       {/* Summary cards */}
@@ -51,17 +54,17 @@ export default async function OrgDeliveryPage({
           sub={`${stats.mergedPRs} merged`}
         />
         <Stat
-          label="Merge rate"
+          label={dict.org.delivery.mergeRate}
           value={`${(stats.mergeRate * 100).toFixed(0)}%`}
           {...(stats.totalPRs > 0 ? { sub: `${stats.totalPRs - stats.mergedPRs} unmerged` } : {})}
         />
         <Stat
-          label="Median time-to-merge"
+          label={dict.org.delivery.medianTimeToMerge}
           value={fmtHoursShort(stats.medianTimeToMergeHours)}
           sub="from open to merge"
         />
         <Stat
-          label="Avg cost / PR"
+          label={dict.org.delivery.avgCostPerPr}
           value={stats.avgCostPerPR > 0 ? `$${stats.avgCostPerPR.toFixed(2)}` : '—'}
           {...(stats.medianCostPerPR != null
             ? { sub: `median $${stats.medianCostPerPR.toFixed(2)}` }
@@ -78,8 +81,9 @@ export default async function OrgDeliveryPage({
               : 'border-border bg-surface text-text-2'
           }`}
         >
-          <span className="font-semibold">Revert rate:</span> {(stats.revertRate * 100).toFixed(1)}%
-          ({stats.revertedPRs} of {stats.mergedPRs} merged PRs reverted)
+          <span className="font-semibold">{dict.org.delivery.revertRate}</span>{' '}
+          {(stats.revertRate * 100).toFixed(1)}% ({stats.revertedPRs} of {stats.mergedPRs} merged
+          PRs reverted)
           {stats.revertRate > 0.05 && ' — above 5% threshold, worth investigating.'}
         </div>
       )}
@@ -112,7 +116,9 @@ export default async function OrgDeliveryPage({
 
       {/* Review health */}
       <Card contentClassName="space-y-3">
-        <h2 className="font-display text-sm font-semibold text-text">Review health ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          {format(dict.org.delivery.reviewHealth, { range })}
+        </h2>
         {reviews.reviewedPrs === 0 ? (
           <CardEmpty>
             No submitted reviews recorded in this period. Review data arrives via the
@@ -121,17 +127,17 @@ export default async function OrgDeliveryPage({
         ) : (
           <div className="grid gap-4 sm:grid-cols-3">
             <Stat
-              label="Median time to first review"
+              label={dict.org.delivery.medianTimeToFirstReview}
               value={fmtHoursShort(reviews.medianHoursToFirstReview)}
               sub="from PR open to first submitted review"
             />
             <Stat
-              label="Reviews / PR"
+              label={dict.org.delivery.reviewsPerPr}
               value={reviews.avgReviewsPerPr.toFixed(1)}
               sub={`${reviews.totalReviews} reviews on ${reviews.reviewedPrs} PRs`}
             />
             <Stat
-              label="Reviewed PRs"
+              label={dict.org.delivery.reviewedPrs}
               value={String(reviews.reviewedPrs)}
               sub="PRs with at least one submitted review"
             />
@@ -191,7 +197,7 @@ export default async function OrgDeliveryPage({
           Top repos by merged PRs ({range}d)
         </h2>
         {topRepos.length === 0 ? (
-          <CardEmpty>No merged PRs in this period.</CardEmpty>
+          <CardEmpty>{dict.org.delivery.empty}</CardEmpty>
         ) : (
           <Table
             columns={[

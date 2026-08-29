@@ -21,7 +21,7 @@ export function SessionDetailHeader({
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="space-y-2">
+      <div className="min-w-0 space-y-2">
         <div className="flex items-center gap-3">
           <h1 className="font-display text-xl font-semibold tracking-tight text-text">
             {session.repoName ?? 'Unknown repo'}
@@ -51,7 +51,7 @@ export function SessionDetailHeader({
           />
         </div>
       </div>
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex flex-wrap items-center gap-3 shrink-0">
         <span className="text-sm font-mono text-text-2">{fmtUsdSession(session.costUsd)}</span>
         {extra}
         {transcriptHref && (

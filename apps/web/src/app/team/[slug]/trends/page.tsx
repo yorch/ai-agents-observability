@@ -1,6 +1,7 @@
 import { ReportRangeControls } from '@/components/team-org/ReportRangeControls';
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { EmptyState } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { parseReportRange } from '@/lib/reporting-range';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
@@ -20,6 +21,7 @@ export default async function TeamTrendsPage({
   const window = parseReportRange(search);
   const range = ([7, 30, 90].includes(window.days) ? window.days : 30) as 7 | 30 | 90;
   const { teamId, teamName } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
   const { visibleIds } = await resolveTeamVisibility(teamId);
   const since = window.start;
   const [points, scatter, concurrency, heatmap] = await Promise.all([
@@ -30,9 +32,11 @@ export default async function TeamTrendsPage({
   ]);
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team</p>
+          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">
+            {dict.team.trends.breadcrumb}
+          </p>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
             {teamName} trends
           </h1>
@@ -49,7 +53,7 @@ export default async function TeamTrendsPage({
         />
       </div>
       {points.length === 0 ? (
-        <EmptyState title="No activity in this period">
+        <EmptyState title={dict.team.trends.empty}>
           Visible team sessions will appear here once members run an adapter.
         </EmptyState>
       ) : (

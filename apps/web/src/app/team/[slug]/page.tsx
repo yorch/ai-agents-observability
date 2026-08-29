@@ -7,6 +7,8 @@ import { TopTools } from '@/components/me/TopTools';
 import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { Card, CardEmpty, EmptyState, Stat } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import {
   getTeamEffectivenessDistribution,
@@ -41,6 +43,7 @@ export default async function TeamOverviewPage({
   const since = daysAgo(range);
 
   const { teamId, teamName } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
 
   const { totalCount, visibleIds } = await resolveTeamVisibility(teamId);
 
@@ -78,13 +81,17 @@ export default async function TeamOverviewPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team</p>
+          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">
+            {dict.team.overview.breadcrumb}
+          </p>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
             {teamName}
           </h1>
-          <p className="mt-1 text-sm text-text-2">Trailing {range} days</p>
+          <p className="mt-1 text-sm text-text-2">
+            {format(dict.team.overview.trailing, { range })}
+          </p>
         </div>
         <DateRangePicker range={range} />
       </div>
@@ -92,31 +99,35 @@ export default async function TeamOverviewPage({
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <Stat
-          label="Sessions"
+          label={dict.team.overview.sessions}
           value={summary.sessionCount.toString()}
           delta={deltas.sessionCount}
         />
         <Stat
-          label="Cost (USD)"
+          label={dict.team.overview.cost}
           value={`$${summary.totalCostUsd.toFixed(2)}`}
           delta={deltas.totalCostUsd}
           deltaInverted
         />
-        <Stat label="Hours" value={summary.totalHours.toFixed(1)} delta={deltas.totalHours} />
         <Stat
-          label="Active members"
+          label={dict.team.overview.hours}
+          value={summary.totalHours.toFixed(1)}
+          delta={deltas.totalHours}
+        />
+        <Stat
+          label={dict.team.overview.activeMembers}
           value={summary.activeMembers.toString()}
           delta={deltas.activeMembers}
         />
         <Stat
-          label="Cache hit rate"
+          label={dict.team.overview.cacheHitRate}
           value={`${summary.cacheHitRate.toFixed(1)}%`}
           delta={deltas.cacheHitRate}
         />
       </div>
 
       {!hasData ? (
-        <EmptyState title="No activity yet">
+        <EmptyState title={dict.team.overview.empty}>
           Sessions will appear here once team members install the hook and run Claude Code.
         </EmptyState>
       ) : (

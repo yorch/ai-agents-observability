@@ -1,4 +1,5 @@
 import { ReportDigest } from '@/components/reports/ReportDigest';
+import { getTranslations } from '@/i18n/server';
 import { getTeamReport } from '@/lib/reporting-queries';
 import { parseReportRange } from '@/lib/reporting-range';
 import { requireTeamLead } from '@/lib/roles';
@@ -19,6 +20,7 @@ export default async function TeamReportPage({
   const window = parseReportRange(search);
   const days = window.days;
   const { teamId, teamName } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
   const visibility = await resolveTeamVisibility(teamId);
   const since = window.start;
   const options = { repo: search.repo, timezone: window.timezone, until: window.end };
@@ -47,7 +49,9 @@ export default async function TeamReportPage({
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-wider text-text-3">Team</p>
+        <p className="text-xs uppercase tracking-wider text-text-3">
+          {dict.team.report.breadcrumb}
+        </p>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
           {teamName} report
         </h1>

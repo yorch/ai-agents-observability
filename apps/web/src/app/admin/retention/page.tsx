@@ -1,4 +1,5 @@
 import { ActionForm, Button, Cell, Input, Row, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setTeamRetention } from './actions';
@@ -17,6 +18,7 @@ function effectiveDays(override: number | null): number {
 
 export default async function RetentionAdminPage() {
   await requireOrgAdmin();
+  const { dict } = await getTranslations();
 
   const teams = await getPrisma().team.findMany({
     orderBy: { name: 'asc' },
@@ -36,7 +38,7 @@ export default async function RetentionAdminPage() {
         </p>
       </div>
 
-      {teams.length === 0 && <p className="text-sm text-text-3">No teams synced yet.</p>}
+      {teams.length === 0 && <p className="text-sm text-text-3">{dict.admin.retention.empty}</p>}
 
       <Table
         columns={[

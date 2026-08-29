@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { ReportRangeControls } from '@/components/team-org/ReportRangeControls';
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { EmptyState } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { currentUser } from '@/lib/auth';
 import { parseReportRange } from '@/lib/reporting-range';
 import { getUserCostDuration } from '@/lib/scatter-queries';
@@ -17,6 +18,7 @@ export default async function MeTrendsPage({
   if (!user) {
     redirect('/login');
   }
+  const { dict } = await getTranslations();
   const params = await searchParams;
   const window = parseReportRange(params);
   const range = ([7, 30, 90].includes(window.days) ? window.days : 30) as 7 | 30 | 90;
@@ -29,7 +31,7 @@ export default async function MeTrendsPage({
   ]);
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
             My trends
@@ -47,7 +49,7 @@ export default async function MeTrendsPage({
         />
       </div>
       {points.length === 0 ? (
-        <EmptyState title="No activity in this period">
+        <EmptyState title={dict.me.trends.empty}>
           Install an adapter and run a session to start seeing trends.
         </EmptyState>
       ) : (

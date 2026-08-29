@@ -13,6 +13,7 @@ import {
   Select,
   Table,
 } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { fmtDateTime } from '@/lib/fmt';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -31,6 +32,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function AlertsAdminPage() {
   await requireOrgAdmin();
+  const { dict } = await getTranslations();
 
   const db = getPrisma();
   const [rules, channels, history, failures] = await Promise.all([
@@ -52,7 +54,9 @@ export default async function AlertsAdminPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-1">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-text">Alerts</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+          {dict.admin.alerts.title}
+        </h1>
         <p className="text-sm text-text-2">
           Rules, notification channels, and history. Notifications carry aggregate signals only —
           never session ids, user handles, or transcript content.
@@ -61,7 +65,7 @@ export default async function AlertsAdminPage() {
 
       {/* Rules */}
       <section className="space-y-2">
-        <h2 className="text-sm font-medium text-text">Rules</h2>
+        <h2 className="text-sm font-medium text-text">{dict.admin.alerts.rules}</h2>
         <div className="space-y-2">
           {rules.map((r) => {
             const isBudget = r.ruleType === 'budget_threshold';
@@ -128,7 +132,11 @@ export default async function AlertsAdminPage() {
                     className="flex flex-wrap items-end gap-2"
                   >
                     <input type="hidden" name="id" value={r.id} />
-                    <Field label="Budget (USD)" htmlFor={`budget-${r.id}`} className="w-32">
+                    <Field
+                      label={dict.admin.alerts.budget}
+                      htmlFor={`budget-${r.id}`}
+                      className="w-32"
+                    >
                       <Input
                         size="sm"
                         id={`budget-${r.id}`}
@@ -140,7 +148,11 @@ export default async function AlertsAdminPage() {
                         placeholder="e.g. 5000"
                       />
                     </Field>
-                    <Field label="Window (days)" htmlFor={`window-${r.id}`} className="w-24">
+                    <Field
+                      label={dict.admin.alerts.window}
+                      htmlFor={`window-${r.id}`}
+                      className="w-24"
+                    >
                       <Input
                         size="sm"
                         id={`window-${r.id}`}
@@ -155,7 +167,7 @@ export default async function AlertsAdminPage() {
                       Save budget
                     </Button>
                     {budgetUsd === undefined && (
-                      <span className="text-xs text-warn">Set a budget to activate this rule.</span>
+                      <span className="text-xs text-warn">{dict.admin.alerts.activateHint}</span>
                     )}
                   </ActionForm>
                 )}
@@ -167,7 +179,7 @@ export default async function AlertsAdminPage() {
 
       {/* Channels */}
       <section className="space-y-2">
-        <h2 className="text-sm font-medium text-text">Channels</h2>
+        <h2 className="text-sm font-medium text-text">{dict.admin.alerts.channels}</h2>
         {channels.map((c) => (
           <div
             key={c.id}
@@ -197,17 +209,22 @@ export default async function AlertsAdminPage() {
           </div>
         ))}
         <ActionForm action={addChannel} className="flex flex-wrap items-end gap-2 pt-2">
-          <Select size="sm" name="channelType" defaultValue="webhook" aria-label="Channel type">
-            <option value="webhook">webhook</option>
-            <option value="slack_webhook">slack_webhook</option>
-            <option value="email">email</option>
+          <Select
+            size="sm"
+            name="channelType"
+            defaultValue="webhook"
+            aria-label={dict.admin.alerts.channelType}
+          >
+            <option value="webhook">{dict.admin.alerts.webhook}</option>
+            <option value="slack_webhook">{dict.admin.alerts.slackWebhook}</option>
+            <option value="email">{dict.admin.alerts.email}</option>
           </Select>
           <Input
             size="sm"
             name="target"
             placeholder="https://… or email@…"
-            aria-label="Channel target"
-            className="min-w-64 flex-1"
+            aria-label={dict.admin.alerts.channelTarget}
+            className="w-full min-w-0 sm:min-w-64 flex-1"
           />
           <Button size="sm" type="submit">
             Add channel
@@ -218,7 +235,7 @@ export default async function AlertsAdminPage() {
       {/* Recent delivery failures */}
       {failures.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-sm font-medium text-warn">Recent delivery failures</h2>
+          <h2 className="text-sm font-medium text-warn">{dict.admin.alerts.recentFailures}</h2>
           {failures.map((f) => (
             <p key={f.id.toString()} className="text-xs text-text-2">
               {fmtDateTime(new Date(f.attemptedAt))} UTC · {f.channelType} · {f.error}
@@ -229,9 +246,9 @@ export default async function AlertsAdminPage() {
 
       {/* History (aggregate only) */}
       <section className="space-y-2">
-        <h2 className="text-sm font-medium text-text">History</h2>
+        <h2 className="text-sm font-medium text-text">{dict.admin.alerts.history}</h2>
         {history.length === 0 ? (
-          <p className="text-sm text-text-3">No alerts have fired.</p>
+          <p className="text-sm text-text-3">{dict.admin.alerts.emptyHistory}</p>
         ) : (
           <Table
             columns={[
@@ -252,7 +269,7 @@ export default async function AlertsAdminPage() {
                 </Cell>
                 <Cell>
                   {e.acknowledgedAt ? (
-                    <span className="text-text-3">acknowledged</span>
+                    <span className="text-text-3">{dict.admin.alerts.acknowledged}</span>
                   ) : e.resolvedAt ? (
                     <span className="text-text-3">—</span>
                   ) : (

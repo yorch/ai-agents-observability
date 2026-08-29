@@ -1,6 +1,8 @@
+import Link from 'next/link';
 import { TriangleDownIcon, TriangleUpIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, Cell, EmptyState, Row, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getTeamBenchmarks } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -52,6 +54,7 @@ export default async function OrgBenchmarksPage({
 }) {
   const { orgRole } = await requireOrgViewer();
   const isAdmin = isOrgAdmin(orgRole);
+  const { dict } = await getTranslations();
 
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
@@ -65,7 +68,7 @@ export default async function OrgBenchmarksPage({
         breadcrumb="Org"
         description={`Cross-team efficiency comparison · trailing ${weeks} week${weeks !== 1 ? 's' : ''} · teams with ≥5 sessions`}
         range={range}
-        title="Team Benchmarks"
+        title={dict.org.benchmarks.title}
       />
 
       {/* Org median reference */}
@@ -75,19 +78,19 @@ export default async function OrgBenchmarksPage({
         </h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <MedianCard
-            label="Cost / session"
+            label={dict.org.benchmarks.costPerSession}
             value={medians.avgCostPerSession > 0 ? `$${medians.avgCostPerSession.toFixed(3)}` : '—'}
           />
           <MedianCard
-            label="Friction p50"
+            label={dict.org.benchmarks.frictionP50}
             value={medians.frictionP50 != null ? medians.frictionP50.toFixed(2) : '—'}
           />
           <MedianCard
-            label="Sessions / user / wk"
+            label={dict.org.benchmarks.sessionsPerUser}
             value={medians.sessionsPerUserPerWeek.toFixed(1)}
           />
           <MedianCard
-            label="Tool success rate"
+            label={dict.org.benchmarks.toolSuccessRate}
             value={`${(medians.toolSuccessRate * 100).toFixed(1)}%`}
           />
         </div>
@@ -107,7 +110,7 @@ export default async function OrgBenchmarksPage({
           {weeks} weeks to appear here.
         </EmptyState>
       ) : (
-        <Card title="Team comparison" contentClassName="space-y-3">
+        <Card title={dict.org.benchmarks.teamComparison} contentClassName="space-y-3">
           <Table
             columns={[
               { label: 'Team' },
@@ -123,9 +126,9 @@ export default async function OrgBenchmarksPage({
               <Row key={t.teamSlug}>
                 <Cell>
                   {isAdmin ? (
-                    <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
+                    <Link href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
                       {t.teamName}
-                    </a>
+                    </Link>
                   ) : (
                     t.teamName
                   )}
@@ -179,24 +182,24 @@ export default async function OrgBenchmarksPage({
       )}
 
       <Card className="text-xs text-text-3" contentClassName="space-y-2">
-        <p className="font-semibold text-text-2">Metric definitions</p>
+        <p className="font-semibold text-text-2">{dict.org.benchmarks.metricDefinitions}</p>
         <ul className="space-y-1 list-disc list-inside">
           <li>
-            <strong className="text-text-2">Sessions/user/wk</strong> — average sessions per team
-            member per week. Higher = more active use.
+            <strong className="text-text-2">{dict.org.benchmarks.metricSessions}</strong> — average
+            sessions per team member per week. Higher = more active use.
           </li>
           <li>
-            <strong className="text-text-2">Cost/session</strong> — mean LLM cost per session. Lower
-            = more efficient prompting or lighter workloads.
+            <strong className="text-text-2">{dict.org.benchmarks.metricCost}</strong> — mean LLM
+            cost per session. Lower = more efficient prompting or lighter workloads.
           </li>
           <li>
-            <strong className="text-text-2">Friction p50</strong> — median friction score (0–1):
-            composite of deny rate, error rate, interrupt rate. Lower = smoother sessions. Null =
-            fewer than 2 scored sessions.
+            <strong className="text-text-2">{dict.org.benchmarks.metricFriction}</strong> — median
+            friction score (0–1): composite of deny rate, error rate, interrupt rate. Lower =
+            smoother sessions. Null = fewer than 2 scored sessions.
           </li>
           <li>
-            <strong className="text-text-2">Tool success rate</strong> — 1 − (tool errors / tool
-            calls). Higher = fewer tool failures.
+            <strong className="text-text-2">{dict.org.benchmarks.metricToolSuccess}</strong> — 1 −
+            (tool errors / tool calls). Higher = fewer tool failures.
           </li>
         </ul>
         <p className="pt-1">

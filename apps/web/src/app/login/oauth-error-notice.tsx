@@ -1,13 +1,16 @@
+import type { Dictionary } from '@/i18n/dictionary';
 import { oauthErrorDetails } from '@/lib/oauth-errors';
 
 export function OAuthErrorNotice({
   errorCode,
   requestId,
+  dict,
 }: {
   errorCode: string | string[] | undefined;
   requestId: string | string[] | undefined;
+  dict: Dictionary;
 }) {
-  const details = oauthErrorDetails(errorCode, requestId);
+  const details = oauthErrorDetails(errorCode, requestId, dict);
   if (!details) {
     return null;
   }
@@ -17,7 +20,7 @@ export function OAuthErrorNotice({
       <p className="text-sm text-crit">{details.message}</p>
       {details.requestId ? (
         <p className="mt-2 text-xs text-text-3">
-          Support reference: <code className="font-mono">{details.requestId}</code>
+          {dict.common.supportReference}: <code className="font-mono">{details.requestId}</code>
         </p>
       ) : null}
     </div>

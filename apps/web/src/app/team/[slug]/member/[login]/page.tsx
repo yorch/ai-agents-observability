@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { SessionsTable } from '@/components/me/SessionsTable';
+import { getTranslations } from '@/i18n/server';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
 import { listSessions } from '@/lib/sessions-queries';
@@ -20,6 +21,7 @@ export default async function TeamMemberSessionsPage({
 }) {
   const { login, slug } = await params;
   const { teamId, user } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
 
   const member = await getMemberForTeam(teamId, login);
   if (!member?.canViewStats) {
@@ -52,7 +54,9 @@ export default async function TeamMemberSessionsPage({
       </div>
 
       <div>
-        <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team member</p>
+        <p className="text-xs text-text-3 uppercase tracking-wider mb-1">
+          {dict.team.member.breadcrumb}
+        </p>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
           {displayName}
         </h1>

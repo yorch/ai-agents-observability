@@ -27,7 +27,10 @@ export function HBars({ rows, tinted = false }: { rows: HBarDatum[]; tinted?: bo
   return (
     <ul className="space-y-2.5">
       {rows.map((row, i) => (
-        <li key={row.label} className="grid grid-cols-[minmax(0,7rem)_1fr_auto] items-center gap-3">
+        <li
+          key={row.label}
+          className="grid grid-cols-[minmax(4rem,7rem)_1fr_auto] items-center gap-3"
+        >
           <span className="truncate text-xs text-text-2" title={row.label}>
             {row.label}
           </span>

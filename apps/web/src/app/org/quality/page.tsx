@@ -1,6 +1,7 @@
 import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getJiraBase } from '@/lib/config';
 import { fmtDate, fmtPct, fmtUsd } from '@/lib/fmt';
 import { getDefectAttributions, getOutcomesByFrictionBand } from '@/lib/quality-queries';
@@ -31,6 +32,7 @@ export default async function OrgQualityPage({
   searchParams: Promise<{ range?: string }>;
 }) {
   await requireOrgViewer();
+  const { dict } = await getTranslations();
 
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 90) as 7 | 30 | 90;
@@ -56,7 +58,7 @@ export default async function OrgQualityPage({
         breadcrumb="Org"
         description={`Session characteristics joined to PR outcomes · trailing ${range} days`}
         range={range}
-        title="Quality"
+        title={dict.org.quality.title}
       />
 
       {/* Outcome rates by friction band */}
@@ -104,7 +106,11 @@ export default async function OrgQualityPage({
                 <Row key={b.band}>
                   <Cell className="align-top text-text">
                     {BAND_LABELS[b.band]}
-                    {smallSample && <span className="ml-2 text-xs text-text-3">small sample</span>}
+                    {smallSample && (
+                      <span className="ml-2 text-xs text-text-3">
+                        {dict.org.quality.smallSample}
+                      </span>
+                    )}
                   </Cell>
                   <Cell num className="align-top text-text-2">
                     {b.mergedPrs}

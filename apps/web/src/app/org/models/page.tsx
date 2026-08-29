@@ -10,6 +10,8 @@ import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import type { RegisteredRoutingClaim } from '@/components/team-org/RoutingRecommendations';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
 import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import { fmtTokens } from '@/lib/fmt';
 import { getModelPolicies } from '@/lib/model-policy';
@@ -83,6 +85,7 @@ export default async function OrgModelsPage({
   searchParams: Promise<{ range?: string }>;
 }) {
   await requireOrgViewer();
+  const { dict } = await getTranslations();
 
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
@@ -209,7 +212,7 @@ export default async function OrgModelsPage({
         breadcrumb="Org"
         description={`Trailing ${range} days · model spend, cache efficiency, and routing guidance`}
         range={range}
-        title="Model Cost Optimization"
+        title={dict.org.models.title}
       />
 
       {/* Summary cards */}
@@ -219,21 +222,24 @@ export default async function OrgModelsPage({
           value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
         />
         <Stat
-          label="Cache hit rate"
+          label={dict.org.models.cacheHitRate}
           value={totalInput > 0 ? `${(orgCacheEfficiency * 100).toFixed(1)}%` : '—'}
           note="target: 40–60%"
           accent={orgCacheEfficiency < 0.2 ? 'crit' : orgCacheEfficiency < 0.4 ? 'warn' : 'good'}
         />
         <Stat
-          label="Est. cache savings"
+          label={dict.org.models.estCacheSavings}
           value={estimatedCacheSavings > 0 ? `$${estimatedCacheSavings.toFixed(2)}` : '—'}
           note="vs. paying full input price"
         />
-        <Stat label="Active models" value={models.length > 0 ? models.length.toString() : '—'} />
+        <Stat
+          label={dict.org.models.activeModels}
+          value={models.length > 0 ? models.length.toString() : '—'}
+        />
       </div>
 
       {models.length === 0 ? (
-        <EmptyState>No model usage recorded in the last {range} days.</EmptyState>
+        <EmptyState>{format(dict.org.models.empty, { range })}</EmptyState>
       ) : (
         <>
           {/* Routing recommendations */}
@@ -248,7 +254,7 @@ export default async function OrgModelsPage({
           <ProjectionRealization
             caption="Every routing recommendation is recorded when it is shown, then compared against the retrieval spend that actually followed — with an outcome guard, so a saving that came with more friction, tool errors or reverts is flagged rather than celebrated."
             realizations={realizations}
-            title="Recommendations vs what happened"
+            title={dict.org.models.recommendationsVsReality}
           />
 
           {/* Routing accountability by team */}
@@ -319,17 +325,17 @@ export default async function OrgModelsPage({
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <GuidanceCard
                 accent="good"
-                title="What cache hit rate means"
+                title={dict.org.models.cacheHelp1}
                 body="Prompt caching reuses previous context at a fraction of the input token price — around a tenth, on most providers' tables. A 40–60% cache hit rate is typical for iterative coding sessions. Below 20% suggests sessions are starting fresh each time."
               />
               <GuidanceCard
                 accent="warn"
-                title="How to improve cache efficiency"
+                title={dict.org.models.cacheHelp2}
                 body="Keep system prompts and file context stable across turns. Avoid regenerating tool outputs that haven't changed. Long-running sessions naturally accumulate cache — encourage fewer session restarts."
               />
               <GuidanceCard
                 accent="series1"
-                title="Model routing quick wins"
+                title={dict.org.models.routingQuickWins}
                 body="File reads, grep, and web searches don't require premium-tier reasoning. Routing them to a cheaper tier typically cuts cost several-fold per call with no quality loss. The recommendations above name the target tier and an example model for each agent, derived from that agent's own price table."
               />
             </div>
