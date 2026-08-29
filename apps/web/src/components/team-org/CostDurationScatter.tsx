@@ -1,8 +1,10 @@
+import Link from 'next/link';
 import { Card, CardEmpty, Cell, ChartHover, Row, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { fmtDurationSec, fmtUsdSession } from '@/lib/fmt';
 import type { CostDurationPoint } from '@/lib/scatter-queries';
 
-export function CostDurationScatter({
+export async function CostDurationScatter({
   points,
   aggregate = false,
   drilldownHref,
@@ -11,10 +13,11 @@ export function CostDurationScatter({
   aggregate?: boolean;
   drilldownHref?: string | undefined;
 }) {
+  const { dict } = await getTranslations();
   if (points.length === 0) {
     return (
-      <Card title="Cost vs duration" caption="Completed sessions in this period">
-        <CardEmpty>No completed sessions in this period.</CardEmpty>
+      <Card title={dict.org.scatter.title} caption={dict.org.scatter.caption}>
+        <CardEmpty>{dict.org.scatter.empty}</CardEmpty>
       </Card>
     );
   }
@@ -22,23 +25,17 @@ export function CostDurationScatter({
   const maxDuration = Math.max(...points.map((p) => p.durationSeconds), 60);
   return (
     <Card
-      title="Cost vs duration"
-      caption={
-        aggregate
-          ? 'Aggregate buckets · each mark represents one or more sessions'
-          : 'Completed sessions · longer or more expensive sessions sit higher and farther right'
-      }
+      title={dict.org.scatter.title}
+      caption={aggregate ? dict.org.scatter.aggregateCaption : dict.org.scatter.sessionCaption}
     >
       <ChartHover>
         <div
-          className="relative h-64 border-b border-l border-border"
+          className="relative h-64 border-b border-l border-border pl-8"
           role="img"
-          aria-label="Scatter plot of session cost against duration"
+          aria-label={dict.org.scatter.aria}
         >
-          <span className="absolute -left-1 bottom-1 -translate-x-full text-[10px] text-text-3">
-            $0
-          </span>
-          <span className="absolute -left-1 top-0 -translate-x-full text-[10px] text-text-3">
+          <span className="absolute left-0 bottom-1 text-[10px] text-text-3">$0</span>
+          <span className="absolute left-0 top-0 text-[10px] text-text-3">
             {fmtUsdSession(maxCost)}
           </span>
           <span className="absolute bottom-[-1.25rem] left-0 text-[10px] text-text-3">0m</span>
@@ -65,7 +62,7 @@ export function CostDurationScatter({
         </div>
       </ChartHover>
       <details className="mt-8 text-sm text-text-2">
-        <summary className="cursor-pointer text-text-3">View scatter data</summary>
+        <summary className="cursor-pointer text-text-3">{dict.org.scatter.viewData}</summary>
         <Table
           columns={[
             { label: aggregate ? 'Duration bucket' : 'Duration' },
@@ -83,9 +80,9 @@ export function CostDurationScatter({
         </Table>
       </details>
       {drilldownHref && (
-        <a className="mt-3 inline-block text-sm text-accent underline" href={drilldownHref}>
-          Explore matching sessions
-        </a>
+        <Link className="mt-3 inline-block text-sm text-accent underline" href={drilldownHref}>
+          {dict.org.scatter.exploreMatching}
+        </Link>
       )}
     </Card>
   );

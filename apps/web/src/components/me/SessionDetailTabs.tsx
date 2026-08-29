@@ -36,13 +36,13 @@ export function SessionDetailTabs({
   return (
     <>
       <div className="border-b border-border">
-        <nav className="flex gap-6 text-sm">
+        <nav className="flex gap-4 overflow-x-auto pb-1 text-sm">
           {TABS.map((t) => (
             <a
               key={t.id}
               href={t.href}
               aria-current={tab === t.id ? 'page' : undefined}
-              className={`pb-3 border-b-2 transition-colors ${
+              className={`whitespace-nowrap pb-3 border-b-2 transition-colors ${
                 tab === t.id
                   ? 'border-accent text-text'
                   : 'border-transparent text-text-2 hover:text-text'

@@ -1,6 +1,7 @@
 import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import { fmtUsdOrDash } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
@@ -26,6 +27,7 @@ export default async function TeamToolsPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
 
   const { teamId, teamName } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
   const since = daysAgo(range);
 
   const { visibleIds } = await resolveTeamVisibility(teamId);
@@ -50,14 +52,14 @@ export default async function TeamToolsPage({
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Tool calls" value={totalCalls.toLocaleString()} />
-        <Stat label="Unique tools" value={tools.length.toString()} />
-        <Stat label="Denial rate" value={`${(denyRate * 100).toFixed(1)}%`} />
+        <Stat label={dict.team.tools.toolCalls} value={totalCalls.toLocaleString()} />
+        <Stat label={dict.team.tools.uniqueTools} value={tools.length.toString()} />
+        <Stat label={dict.team.tools.denialRate} value={`${(denyRate * 100).toFixed(1)}%`} />
       </div>
 
       {categories.length > 0 && (
         <Card>
-          <SectionHeader>By category</SectionHeader>
+          <SectionHeader>{dict.team.tools.byCategory}</SectionHeader>
           <div className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <div
@@ -76,7 +78,7 @@ export default async function TeamToolsPage({
 
       {tools.length > 0 ? (
         <Card>
-          <SectionHeader>Top tools</SectionHeader>
+          <SectionHeader>{dict.team.tools.topTools}</SectionHeader>
           <Table
             columns={[
               { label: 'Tool' },
@@ -120,12 +122,12 @@ export default async function TeamToolsPage({
           <CostAttributionNote className="mt-3" coverage={coverage} />
         </Card>
       ) : (
-        <EmptyState>No tool activity in this period</EmptyState>
+        <EmptyState>{dict.team.tools.empty}</EmptyState>
       )}
 
       {skills.length > 0 && (
         <Card>
-          <SectionHeader>Skills &amp; slash commands</SectionHeader>
+          <SectionHeader>{dict.team.tools.skillsSlash}</SectionHeader>
           <Table
             columns={[
               { label: 'Name' },

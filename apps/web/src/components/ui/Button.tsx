@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react';
 import { cx } from './cx';
 
@@ -60,13 +61,20 @@ export function Button({
 export function ButtonLink({
   children,
   className,
+  href,
   size = 'md',
   variant = 'primary',
   ...rest
-}: Common & { children: ReactNode } & AnchorHTMLAttributes<HTMLAnchorElement>) {
+}: Common & { children: ReactNode } & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {
+    href: string;
+  }) {
   return (
-    <a className={buttonClasses(variant, size, className)} {...rest}>
+    <Link
+      href={href}
+      className={buttonClasses(variant, size, className)}
+      {...(rest as Record<string, unknown>)}
+    >
       {children}
-    </a>
+    </Link>
   );
 }

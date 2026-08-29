@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { ArrowRightIcon } from '@/components/icons';
 import { buttonClasses, Card, EmptyState } from '@/components/ui';
+import { format } from '@/i18n/config';
+import type { Dictionary } from '@/i18n/dictionary';
+import { getTranslations } from '@/i18n/server';
 import { fmtDate, fmtDateTime } from '@/lib/fmt';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
@@ -47,6 +50,7 @@ type Grant = {
 
 export default async function GrantsPage() {
   const { orgRole, user } = await requireGrantRequester();
+  const { dict } = await getTranslations();
   const isAdmin = orgRole === 'ORG_ADMIN';
 
   const rawGrants = await getPrisma().accessGrant.findMany({
@@ -77,7 +81,7 @@ export default async function GrantsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="font-display text-xl font-semibold tracking-tight text-text">
             My access grants
@@ -95,7 +99,7 @@ export default async function GrantsPage() {
       </div>
 
       {grants.length === 0 && (
-        <EmptyState title="No access grants yet.">
+        <EmptyState title={dict.me.grants.empty}>
           Request a grant above to gain time-boxed access to a specific user&apos;s sessions or a
           single session.
         </EmptyState>
@@ -103,9 +107,11 @@ export default async function GrantsPage() {
 
       {active.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Active</h2>
+          <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
+            {dict.me.grants.active}
+          </h2>
           {active.map((g) => (
-            <GrantCard key={g.id} grant={g} status="active" />
+            <GrantCard key={g.id} grant={g} status="active" dict={dict} />
           ))}
         </section>
       )}
@@ -116,16 +122,18 @@ export default async function GrantsPage() {
             Pending approval
           </h2>
           {pending.map((g) => (
-            <GrantCard key={g.id} grant={g} status="pending" />
+            <GrantCard key={g.id} grant={g} status="pending" dict={dict} />
           ))}
         </section>
       )}
 
       {past.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">Past</h2>
+          <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
+            {dict.me.grants.past}
+          </h2>
           {past.map((g) => (
-            <GrantCard key={g.id} grant={g} status={grantStatus(g)} />
+            <GrantCard key={g.id} grant={g} status={grantStatus(g)} dict={dict} />
           ))}
         </section>
       )}
@@ -136,9 +144,11 @@ export default async function GrantsPage() {
 function GrantCard({
   grant: g,
   status,
+  dict,
 }: {
   grant: Grant;
   status: 'active' | 'expired' | 'pending' | 'revoked';
+  dict: Dictionary;
 }) {
   const sessionLink =
     status === 'active' && g.scope === 'SINGLE_SESSION' && g.targetSessionId
@@ -182,12 +192,16 @@ function GrantCard({
           Approved {fmtDateTime(new Date(g.grantedAt))} UTC
           {g.expiresAt && ` · expires ${fmtDateTime(new Date(g.expiresAt))} UTC`}
           {status === 'active' && isGrantExpiringSoon(g.expiresAt) && (
-            <span className="ml-2 rounded bg-warn-soft px-1.5 py-0.5 text-warn">expiring soon</span>
+            <span className="ml-2 rounded bg-warn-soft px-1.5 py-0.5 text-warn">
+              {dict.me.grants.expiringSoon}
+            </span>
           )}
         </div>
       )}
       {g.revokedAt && (
-        <div className="text-xs text-crit">Revoked {fmtDateTime(new Date(g.revokedAt))} UTC</div>
+        <div className="text-xs text-crit">
+          {format(dict.me.grants.revoked, { date: fmtDateTime(new Date(g.revokedAt)) })}
+        </div>
       )}
     </Card>
   );

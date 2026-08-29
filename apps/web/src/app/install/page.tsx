@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { ArrowLeftIcon, CheckIcon } from '@/components/icons';
 import { Card, Cell, Row, Table } from '@/components/ui';
 import { Segmented, SegmentedLink } from '@/components/ui/Segmented';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 
 /**
  * Adapter-specific info not in the agent registry: the `--agent` CLI flag, where
@@ -59,6 +61,7 @@ export default async function InstallPage({
 }: {
   searchParams: Promise<{ agent?: string }>;
 }) {
+  const { dict } = await getTranslations();
   const { agent: selectedFlag } = await searchParams;
   const fallback = AGENT_INFO[0];
   const selected = AGENT_INFO.find((a) => a.flag === selectedFlag) ?? fallback;
@@ -84,13 +87,13 @@ export default async function InstallPage({
           href="/me"
           className="inline-flex items-center gap-1 text-sm text-text-2 hover:text-text"
         >
-          <ArrowLeftIcon /> Back
+          <ArrowLeftIcon /> {dict.common.back}
         </Link>
       </div>
 
       <div className="space-y-2">
         <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-          Install the telemetry hook
+          {dict.install.title}
         </h1>
         <p className="text-sm text-text-2">
           The hook is a lightweight CLI that runs on your machine alongside your AI coding agent,
@@ -111,20 +114,20 @@ export default async function InstallPage({
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             1
           </span>
-          <h2 className="text-base font-medium">Download the binary</h2>
+          <h2 className="text-base font-medium">{dict.install.step1}</h2>
         </div>
 
         <p className="text-sm text-text-2">
-          Pick the binary for your platform from the{' '}
+          {dict.install.step1PickBinaryPrefix}{' '}
           <a
             href={`${REPO_URL}/releases/latest`}
             className="text-accent hover:underline"
             target="_blank"
             rel="noopener noreferrer"
           >
-            GitHub releases page
+            {dict.install.step1ReleasesLink}
           </a>
-          , or use the installer script:
+          {dict.install.step1PickBinarySuffix}
         </p>
 
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
@@ -132,7 +135,13 @@ export default async function InstallPage({
         </pre>
 
         <Card flush>
-          <Table columns={[{ label: 'Platform' }, { label: 'Launcher' }, { label: 'Runtime' }]}>
+          <Table
+            columns={[
+              { label: dict.install.tablePlatform },
+              { label: dict.install.tableLauncher },
+              { label: dict.install.tableRuntime },
+            ]}
+          >
             {targets.map((t) => (
               <Row key={t.launcher}>
                 <Cell className="text-text-2">{t.os}</Cell>
@@ -143,9 +152,7 @@ export default async function InstallPage({
           </Table>
         </Card>
 
-        <p className="text-sm text-text-2">
-          Then make both executable and install them to the same directory:
-        </p>
+        <p className="text-sm text-text-2">{dict.install.step1MakeExecutable}</p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           {`chmod +x aiot-<os>-<arch> aiot-runtime-<os>-<arch>
 mkdir -p ~/.local/bin
@@ -160,21 +167,17 @@ mv aiot-runtime-<os>-<arch> ~/.local/bin/aiot-runtime`}
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             2
           </span>
-          <h2 className="text-base font-medium">Configure and authenticate</h2>
+          <h2 className="text-base font-medium">{dict.install.step2}</h2>
         </div>
 
-        <p className="text-sm text-text-2">
-          If the server is not on localhost, point the hook at it, then log in:
-        </p>
+        <p className="text-sm text-text-2">{dict.install.step2Description}</p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           {`aiot config set web-url https://observability.example.com
 aiot config set ingest-url https://ingest.example.com
 aiot login`}
         </pre>
         <p className="text-xs text-text-3">
-          This prints a URL and a short device code — open the URL in your browser and enter the
-          code to authorize. Your auth token is stored locally in{' '}
-          <code className="font-mono">~/.aiot/identity.json</code>.
+          {format(dict.install.step2Note, { path: '~/.aiot/identity.json' })}
         </p>
       </section>
 
@@ -184,17 +187,13 @@ aiot login`}
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             3
           </span>
-          <h2 className="text-base font-medium">Install hooks for your agent</h2>
+          <h2 className="text-base font-medium">{dict.install.step3}</h2>
         </div>
 
-        <p className="text-sm text-text-2">
-          Select your agent to see the install command. It auto-detects and auto-wires supported
-          agent harnesses it finds on your machine. Config snippets are printed only for agents it
-          could not detect, so you can wire them by hand.
-        </p>
+        <p className="text-sm text-text-2">{dict.install.step3Description}</p>
 
         <div className="overflow-x-auto">
-          <Segmented label="Agent">
+          <Segmented label={dict.install.agentSelectorLabel}>
             {AGENT_INFO.map((a) => (
               <SegmentedLink
                 key={a.flag}
@@ -213,11 +212,15 @@ aiot login`}
             : `aiot install --agent ${selected.flag}`}
         </pre>
 
-        <p className="text-sm text-text-2">
-          Choose how delivery runs. Both modes redact, enrich and ship the same data.
-        </p>
+        <p className="text-sm text-text-2">{dict.install.deliveryModesDescription}</p>
         <Card>
-          <Table columns={[{ label: 'Mode' }, { label: 'Command' }, { label: 'What runs' }]}>
+          <Table
+            columns={[
+              { label: dict.install.tableMode },
+              { label: dict.install.tableCommand },
+              { label: dict.install.tableRuns },
+            ]}
+          >
             {DELIVERY_MODES.map((m) => (
               <Row key={m.mode}>
                 <Cell className="text-text">{m.mode}</Cell>
@@ -292,41 +295,39 @@ aiot import --agent ${selected.flag} --since 2026-01-01`}
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface text-text-3 border border-border">
             <CheckIcon size={12} />
           </span>
-          <h2 className="text-base font-medium text-text-2">Verify</h2>
+          <h2 className="text-base font-medium text-text-2">{dict.install.verify}</h2>
         </div>
         <p className="text-sm text-text-2">
-          Run <code className="font-mono text-xs">aiot status</code> to check everything is healthy.
-          Then start a session in your agent. After it ends, refresh your{' '}
+          {dict.install.verifyDescriptionPrefix}{' '}
           <Link href="/me" className="text-accent hover:underline">
-            My Agents
+            {dict.install.verifyMyAgentsLink}
           </Link>{' '}
-          page — you should see the session appear within a few seconds (in on-demand mode, once the
-          drainer started by the session&apos;s last hook has run).
+          {dict.install.verifyDescriptionSuffix}
         </p>
       </section>
 
       {/* Pause / uninstall */}
-      <Card title="Other commands" contentClassName="space-y-3">
+      <Card title={dict.install.otherCommands} contentClassName="space-y-3">
         <div className="space-y-2 text-sm">
           <div>
             <code className="font-mono text-xs text-text-2">aiot pause</code>
-            <span className="ml-3 text-text-3">— temporarily stop sending telemetry</span>
+            <span className="ml-3 text-text-3">{dict.install.pauseDescription}</span>
           </div>
           <div>
             <code className="font-mono text-xs text-text-2">aiot resume</code>
-            <span className="ml-3 text-text-3">— re-enable telemetry</span>
+            <span className="ml-3 text-text-3">{dict.install.resumeDescription}</span>
           </div>
           <div>
             <code className="font-mono text-xs text-text-2">aiot uninstall</code>
-            <span className="ml-3 text-text-3">— remove hooks and any background services</span>
+            <span className="ml-3 text-text-3">{dict.install.uninstallDescription}</span>
           </div>
         </div>
         <p className="text-xs text-text-3">
-          You can also manage privacy settings from the{' '}
+          {dict.install.privacyNotePrefix}{' '}
           <Link href="/me/settings/privacy" className="text-accent hover:underline">
-            Privacy
+            {dict.install.privacyLink}
           </Link>{' '}
-          page.
+          {dict.install.privacyNoteSuffix}
         </p>
       </Card>
     </div>

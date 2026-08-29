@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, CardEmpty, EmptyState } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getKnowledgeTopics, type KnowledgeTopicRow } from '@/lib/knowledge-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -23,6 +24,7 @@ export default async function OrgKnowledgePage({
   searchParams: Promise<{ range?: string }>;
 }) {
   await requireOrgViewer();
+  const { dict } = await getTranslations();
 
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 90) as 7 | 30 | 90;
@@ -40,11 +42,11 @@ export default async function OrgKnowledgePage({
         breadcrumb="Org"
         description={`What developers asked agents about · trailing ${range} days · aggregate topic counts, no individual content`}
         range={range}
-        title="Knowledge gaps"
+        title={dict.org.knowledge.title}
       />
 
       {totalSessions === 0 ? (
-        <EmptyState title="No indexed transcripts in this window.">
+        <EmptyState title={dict.org.knowledge.empty}>
           Topic clustering runs over the transcript full-text index, populated by the
           <span className="font-mono"> index-transcripts</span> ingest job. It appears here once
           transcripts have been shipped and indexed.

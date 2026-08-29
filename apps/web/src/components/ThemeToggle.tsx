@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { MoonIcon, SunIcon } from '@/components/icons';
+import { useDict } from '@/i18n/provider';
 
 /**
  * `html.light` is the single source of truth, not per-instance state — the rail
@@ -21,6 +22,7 @@ export function ThemeToggle() {
   // The server has no DOM, so the SSR snapshot reports the default theme; the
   // observer corrects it on mount.
   const light = useSyncExternalStore(subscribe, isLight, () => false);
+  const dict = useDict();
 
   const toggle = () => {
     const next = !isLight();
@@ -32,10 +34,10 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={toggle}
-      aria-label="Toggle light/dark mode"
+      aria-label={dict.common.themeToggle}
       aria-pressed={light}
-      className="text-text-3 transition-colors hover:text-text-2"
-      title={light ? 'Switch to dark' : 'Switch to light'}
+      className="min-h-11 min-w-11 text-text-3 transition-colors hover:text-text-2"
+      title={light ? dict.common.themeDark : dict.common.themeLight}
     >
       {light ? <MoonIcon size={15} /> : <SunIcon size={15} />}
     </button>

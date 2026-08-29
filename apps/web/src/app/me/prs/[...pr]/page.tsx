@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon, ExternalLinkIcon } from '@/components/icons';
 import { PrStateBadge } from '@/components/me/PrStateBadge';
 import { Card, EmptyState } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { currentUser } from '@/lib/auth';
 import { fmtDate } from '@/lib/fmt';
 import { getPRDetail } from '@/lib/pr-queries';
@@ -30,6 +31,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
     redirect('/login');
   }
 
+  const { dict } = await getTranslations();
   const { pr: segments } = await params;
 
   // Expect at least 3 segments: owner, repo, prNumber
@@ -102,7 +104,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
 
         {/* Diff stats */}
         {(pr.linesAdded !== null || pr.linesRemoved !== null || pr.filesChanged !== null) && (
-          <div className="flex gap-4 text-xs">
+          <div className="flex flex-wrap gap-4 text-xs">
             {pr.filesChanged !== null && (
               <span className="text-text-3">{pr.filesChanged} files changed</span>
             )}
@@ -113,9 +115,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       </div>
 
       {/* No rollup state */}
-      {!hasRollup && (
-        <EmptyState>Rollup computed at merge time. Check back after this PR is merged.</EmptyState>
-      )}
+      {!hasRollup && <EmptyState>{dict.me.prs.rollupPending}</EmptyState>}
 
       {/* Summary cards */}
       {hasRollup && (

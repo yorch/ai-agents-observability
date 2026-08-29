@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { Cell, EmptyState, Row, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamRoster } from '@/lib/team-queries';
@@ -26,6 +27,7 @@ export default async function TeamRosterPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
 
   const { teamId, teamName, user } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
 
   const since = daysAgo(range);
 
@@ -39,9 +41,11 @@ export default async function TeamRosterPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team</p>
+          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">
+            {dict.team.roster.breadcrumb}
+          </p>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
             {teamName}
           </h1>
@@ -53,7 +57,7 @@ export default async function TeamRosterPage({
       </div>
 
       {members.length === 0 ? (
-        <EmptyState>No members in this team yet.</EmptyState>
+        <EmptyState>{dict.team.roster.empty}</EmptyState>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
           <Table
@@ -68,16 +72,18 @@ export default async function TeamRosterPage({
               <Row key={m.userId}>
                 <Cell>
                   <div className="flex items-center gap-3">
-                    <div>
+                    <div className="min-w-0">
                       {m.canViewStats ? (
                         <Link
                           href={`/team/${slug}/member/${m.githubLogin}`}
-                          className="font-medium text-text hover:text-text-2"
+                          className="truncate font-medium text-text hover:text-text-2"
                         >
                           {m.displayName ?? m.githubLogin}
                         </Link>
                       ) : (
-                        <p className="font-medium text-text">{m.displayName ?? m.githubLogin}</p>
+                        <p className="truncate font-medium text-text">
+                          {m.displayName ?? m.githubLogin}
+                        </p>
                       )}
                       {m.displayName && <p className="text-xs text-text-3">@{m.githubLogin}</p>}
                     </div>

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
 import { EmptyState } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { fmtDateTime } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
@@ -20,6 +21,7 @@ export default async function TeamMemberTranscriptPage({
 }) {
   const { id, login, slug } = await params;
   const { teamId, user } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
 
   const member = await getMemberForTeam(teamId, login);
   if (!member?.canViewStats) {
@@ -42,7 +44,7 @@ export default async function TeamMemberTranscriptPage({
             <ArrowLeftIcon /> Session
           </Link>
         </div>
-        <EmptyState>This member has not shared transcripts with the team.</EmptyState>
+        <EmptyState>{dict.team.member.transcriptEmpty}</EmptyState>
       </div>
     );
   }

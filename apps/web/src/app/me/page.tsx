@@ -9,6 +9,8 @@ import { SummaryCards } from '@/components/me/SummaryCards';
 import { TopTools } from '@/components/me/TopTools';
 import { DateRangePicker, LONG_RANGES } from '@/components/team-org/DateRangePicker';
 import { ButtonLink, EmptyState, SkeletonCard } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { currentUser } from '@/lib/auth';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
 import { getModelMix, getRecentSessions, getTopTools, getUsageSummary } from '@/lib/me-queries';
@@ -46,11 +48,12 @@ async function EffectivenessSection({
   days: number;
   effectiveness: ReturnType<typeof getUserEffectiveness>;
 }) {
+  const { dict } = await getTranslations();
   const effectiveness = await effectivenessPromise;
   return (
     <div>
       <p className="mb-3 text-xs text-text-3 uppercase tracking-widest">
-        Effectiveness · trailing {days} days
+        {format(dict.me.effectivenessTrailing, { days })}
       </p>
       <div className="grid gap-6 md:grid-cols-2">
         <FrictionTrendChart
@@ -92,6 +95,7 @@ export default async function MePage({
     redirect('/login');
   }
 
+  const { dict } = await getTranslations();
   const params = await searchParams;
   // `range`, not `days`: /me and /me/insights were the app's only pages using a
   // second parameter name and a different default (7) behind an identical-looking
@@ -128,10 +132,10 @@ export default async function MePage({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-            My Agents
+            {dict.me.pageTitle}
           </h1>
           <p className="mt-1 text-sm text-text-2">{user.displayName ?? user.githubLogin}</p>
         </div>
@@ -139,10 +143,10 @@ export default async function MePage({
       </div>
       {!hasData ? (
         <EmptyState
-          title="No sessions yet"
-          action={<ButtonLink href="/install">Install instructions</ButtonLink>}
+          title={dict.me.noSessionsTitle}
+          action={<ButtonLink href="/install">{dict.me.noSessionsAction}</ButtonLink>}
         >
-          Install the hook to start tracking your AI coding agent sessions.
+          {dict.me.noSessionsBody}
         </EmptyState>
       ) : (
         <>

@@ -1,5 +1,6 @@
 import { OrgRole } from '@ai-agents-observability/db';
 import { ActionForm, Button, Cell, Row, Select, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setOrgRole } from './actions';
@@ -15,6 +16,7 @@ const ROLES: OrgRole[] = [
 
 export default async function OrgRolesAdminPage() {
   await requireOrgAdmin();
+  const { dict } = await getTranslations();
 
   const users = await getPrisma().user.findMany({
     orderBy: [{ orgRole: 'asc' }, { githubLogin: 'asc' }],
@@ -26,11 +28,12 @@ export default async function OrgRolesAdminPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-text">Org roles</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+          {dict.admin.orgRoles.title}
+        </h1>
         <p className="text-sm text-text-2">
-          Assign org-level roles. <span className="text-text-2">investigator</span> grants aggregate
-          access plus the ability to request time-boxed access grants — never standing access to
-          individual sessions. Changes are audited.
+          {dict.admin.orgRoles.description} access plus the ability to request time-boxed access
+          grants — never standing access to individual sessions. Changes are audited.
         </p>
       </div>
 

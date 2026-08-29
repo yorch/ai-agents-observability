@@ -1,4 +1,6 @@
 import { Card, Stat } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { fmtUsd } from '@/lib/fmt';
 import type { RegisteredProjection } from '@/lib/projections';
 
@@ -31,13 +33,13 @@ const BUDGET_CRITICAL_RATIO = 1.0;
 const BUDGET_LEVEL = {
   critical: {
     bar: 'bg-crit',
-    copy: 'On track to exceed the configured budget this window.',
+    copyKey: 'budgetCritical' as const,
     text: 'text-crit',
   },
-  ok: { bar: 'bg-good', copy: '', text: 'text-good' },
+  ok: { bar: 'bg-good', copyKey: null, text: 'text-good' },
   warn: {
     bar: 'bg-warn',
-    copy: 'Approaching the configured budget for this window.',
+    copyKey: 'budgetWarn' as const,
     text: 'text-warn',
   },
 } as const;
@@ -65,13 +67,14 @@ export type SpendForecastProps = {
   teamClaims: { projection: RegisteredProjection; teamName: string; teamSlug: string }[];
 };
 
-export function SpendForecast({
+export async function SpendForecast({
   budgetClaim,
   dailyRunRate,
   monthClaim,
   rolling30dClaim,
   teamClaims,
 }: SpendForecastProps) {
+  const { dict } = await getTranslations();
   const budgetRatio =
     budgetClaim && budgetClaim.budgetUsd > 0
       ? budgetClaim.projection.projectedHigh / budgetClaim.budgetUsd
@@ -80,25 +83,33 @@ export function SpendForecast({
 
   return (
     <Card
-      title="Spend forecast"
-      caption="Run-rate projection from recent spend — a planning estimate, not a guarantee. Each projection is recorded when it is shown and checked once its period closes."
+      title={dict.org.forecast.title}
+      caption={dict.org.forecast.caption}
       contentClassName="space-y-4"
     >
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <Stat
-          label="Projected 30-day spend"
+          label={dict.org.forecast.projected30d}
           value={fmtRange(rolling30dClaim)}
-          sub="trailing run rate vs month-to-date pace"
+          sub={dict.org.forecast.projected30dSub}
         />
-        <Stat label="This month (projected)" value={fmtRange(monthClaim)} sub="to month end" />
-        <Stat label="Daily run rate" value={fmtUsd(dailyRunRate)} sub="avg / day, last 7d" />
+        <Stat
+          label={dict.org.forecast.thisMonthProjected}
+          value={fmtRange(monthClaim)}
+          sub={dict.org.forecast.thisMonthSub}
+        />
+        <Stat
+          label={dict.org.forecast.dailyRunRate}
+          value={fmtUsd(dailyRunRate)}
+          sub={dict.org.forecast.avgPerDay}
+        />
       </div>
 
       {budgetClaim && (
         <div className="space-y-1.5 rounded-lg border border-border bg-surface p-3">
           <div className="flex items-baseline justify-between text-xs">
             <span className="text-text-2">
-              Projected vs budget ({budgetClaim.windowDays}-day window)
+              {format(dict.org.forecast.budgetVsProjected, { windowDays: budgetClaim.windowDays })}
             </span>
             <span className={`font-mono font-semibold ${level.text}`}>
               {fmtRange(budgetClaim.projection)} / {fmtUsd(budgetClaim.budgetUsd)}
@@ -110,19 +121,21 @@ export function SpendForecast({
               style={{ width: `${Math.min(100, budgetRatio * 100)}%` }}
             />
           </div>
-          {level.copy && <p className={`text-xs ${level.text}`}>{level.copy}</p>}
+          {level.copyKey && (
+            <p className={`text-xs ${level.text}`}>{dict.org.forecast[level.copyKey]}</p>
+          )}
         </div>
       )}
 
       {teamClaims.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-xs font-medium uppercase tracking-widest text-text-3">
-            Projected 30-day spend by team
+            {dict.org.forecast.projected30dByTeam}
           </p>
           <div className="space-y-1">
             {teamClaims.map((t) => (
               <div key={t.teamSlug} className="flex items-center justify-between text-xs">
-                <span className="text-text-2">{t.teamName}</span>
+                <span className="min-w-0 truncate text-text-2">{t.teamName}</span>
                 <span className="font-mono text-text-2">{fmtRange(t.projection)}</span>
               </div>
             ))}

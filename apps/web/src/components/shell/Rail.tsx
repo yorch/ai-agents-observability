@@ -6,8 +6,10 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select } from '@/components/ui/Field';
+import { useDict } from '@/i18n/provider';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { CommandPalette } from './CommandPalette';
+import { LocaleSwitcher } from './LocaleSwitcher';
 import {
   ADMIN_NAV,
   isActive,
@@ -31,11 +33,11 @@ type RailProps = {
   userLabel: string;
 };
 
-const SCOPE_LABEL: Record<Scope, string> = {
-  admin: 'Admin',
-  me: 'Me',
-  org: 'Org',
-  team: 'Team',
+const SCOPE_LABEL_KEY: Record<Scope, keyof ReturnType<typeof useDict>['rail']> = {
+  admin: 'scopeAdmin',
+  me: 'scopeMe',
+  org: 'scopeOrg',
+  team: 'scopeTeam',
 };
 
 function initials(name: string): string {
@@ -50,6 +52,7 @@ function initials(name: string): string {
 
 export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: RailProps) {
   const pathname = usePathname();
+  const dict = useDict();
   const [open, setOpen] = useState(false);
   const drawerId = useId();
   const drawerRef = useRef<HTMLElement>(null);
@@ -99,7 +102,7 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
       {/* Mobile bar — the rail collapses to a single control below `lg`. */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3 lg:hidden">
         <Link href="/me" className="font-display text-sm font-semibold tracking-tight text-text">
-          Observability
+          {dict.rail.productName}
         </Link>
         <div className="flex items-center gap-4">
           <button
@@ -107,9 +110,9 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
             aria-expanded={open}
             aria-controls={drawerId}
             onClick={() => setOpen((v) => !v)}
-            className="rounded-md border border-border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest text-text-2 transition-colors hover:text-text"
+            className="min-h-11 rounded-md border border-border px-3 py-2.5 font-mono text-[10px] uppercase tracking-widest text-text-2 transition-colors hover:text-text"
           >
-            {open ? 'Close' : 'Menu'}
+            {open ? dict.common.close : dict.common.menu}
           </button>
         </div>
       </div>
@@ -117,7 +120,7 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
       <nav
         id={drawerId}
         ref={drawerRef}
-        aria-label="Primary"
+        aria-label={dict.common.primaryNav}
         className={`${
           open ? 'flex' : 'hidden'
         } shrink-0 flex-col gap-6 border-border bg-surface px-3 py-4 max-lg:border-b lg:flex lg:w-56 lg:border-r`}
@@ -126,7 +129,7 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
           href="/me"
           className="hidden items-center gap-2 px-2 font-display text-sm font-semibold tracking-tight text-text lg:flex"
         >
-          Observability
+          {dict.rail.productName}
         </Link>
 
         <CommandPalette
@@ -143,11 +146,11 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
                 key={s.scope}
                 href={s.href}
                 aria-current={scope === s.scope ? 'page' : undefined}
-                className={`flex-1 rounded-md py-1.5 text-center font-mono text-[10px] uppercase tracking-widest transition-colors ${
+                className={`min-h-11 flex-1 rounded-md py-2.5 text-center font-mono text-[10px] uppercase tracking-widest transition-colors ${
                   scope === s.scope ? 'bg-surface text-text' : 'text-text-3 hover:text-text'
                 }`}
               >
-                {SCOPE_LABEL[s.scope]}
+                {dict.rail[SCOPE_LABEL_KEY[s.scope]]}
               </Link>
             ))}
           </div>
@@ -156,9 +159,9 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
         {scope === 'team' && teams.length > 1 && <TeamPicker current={activeTeam} teams={teams} />}
 
         {groups.map((group) => (
-          <div key={group.label} className="flex flex-col gap-0.5">
+          <div key={group.labelKey} className="flex flex-col gap-0.5">
             <p className="px-2 pb-1.5 font-mono text-[9.5px] uppercase tracking-widest text-text-3">
-              {group.label}
+              {dict.nav[group.labelKey]}
             </p>
             {group.items.map((item) => {
               const active = isActive(pathname, item);
@@ -168,14 +171,14 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
                   key={item.href}
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
-                  className={`relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                  className={`relative flex min-h-11 items-center gap-2.5 rounded-md px-2 py-2 text-sm transition-colors ${
                     active
                       ? 'bg-accent-dim font-medium text-text before:absolute before:top-1.5 before:bottom-1.5 before:-left-3 before:w-0.5 before:rounded-r-sm before:bg-accent'
                       : 'text-text-2 hover:bg-surface-2 hover:text-text'
                   }`}
                 >
                   <Icon size={14} className="shrink-0 opacity-80" />
-                  {item.label}
+                  {dict.nav[item.labelKey]}
                 </Link>
               );
             })}
@@ -192,6 +195,7 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
           <span className="min-w-0 flex-1 truncate text-xs text-text-2" title={userLabel}>
             {userLabel}
           </span>
+          <LocaleSwitcher />
           <ThemeToggle />
           <SignOutButton />
         </div>
@@ -201,12 +205,13 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
 }
 
 function TeamPicker({ current, teams }: { current: string | null; teams: RailTeam[] }) {
+  const dict = useDict();
   return (
     <div className="px-1">
       <Select
         size="sm"
         className="w-full"
-        aria-label="Team"
+        aria-label={dict.common.team}
         value={current ?? ''}
         onChange={(e) => {
           window.location.href = `/team/${e.target.value}`;

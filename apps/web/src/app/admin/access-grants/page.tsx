@@ -1,4 +1,5 @@
 import { ActionForm, Button, ButtonLink, Card, ConfirmButton, Input } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { fmtDateTime } from '@/lib/fmt';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
@@ -36,30 +37,38 @@ function expiringSoon(g: Grant): boolean {
 }
 
 /** The grant-lifetime box, identical on the per-row and bulk approve forms. */
-function HoursInput({ label }: { label: string }) {
+function HoursInput({
+  dict,
+  label,
+}: {
+  dict: import('@/i18n/dictionary').Dictionary;
+  label: string;
+}) {
   return (
     <Input
       size="sm"
       type="number"
       name="hours"
       min={1}
-      placeholder="48"
+      placeholder={dict.admin.accessGrants.hoursPlaceholder}
       aria-label={label}
       className="w-20 text-right"
     />
   );
 }
 
-function GrantCard({ g }: { g: Grant }) {
+function GrantCard({ dict, g }: { dict: import('@/i18n/dictionary').Dictionary; g: Grant }) {
   const st = status(g);
   return (
     <Card className="text-sm" contentClassName="space-y-2">
-      <div className="flex items-center gap-2 text-xs text-text-3">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-text-3">
         <span className="rounded bg-surface-2 px-1.5 py-0.5 text-text-2">{st}</span>
         <span>· scope: {g.scope}</span>
         {g.expiresAt && <span>· expires {fmtDateTime(new Date(g.expiresAt))} UTC</span>}
         {expiringSoon(g) && (
-          <span className="rounded bg-warn-soft px-1.5 py-0.5 text-warn">expiring soon</span>
+          <span className="rounded bg-warn-soft px-1.5 py-0.5 text-warn">
+            {dict.admin.accessGrants.expiringSoon}
+          </span>
         )}
       </div>
       <p className="text-text-2">{g.justification}</p>
@@ -72,7 +81,7 @@ function GrantCard({ g }: { g: Grant }) {
         {st === 'pending' && (
           <ActionForm action={approveGrant} className="inline-flex flex-wrap items-center gap-2">
             <input type="hidden" name="id" value={g.id} />
-            <HoursInput label="Grant lifetime (hours)" />
+            <HoursInput dict={dict} label={dict.admin.accessGrants.grantLifetime} />
             <Button size="sm" type="submit">
               Approve (h)
             </Button>
@@ -96,6 +105,7 @@ function GrantCard({ g }: { g: Grant }) {
 
 export default async function AccessGrantsPage() {
   await requireOrgAdmin();
+  const { dict } = await getTranslations();
 
   const grants = await getPrisma().accessGrant.findMany({
     orderBy: { requestedAt: 'desc' },
@@ -107,7 +117,7 @@ export default async function AccessGrantsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="font-display text-xl font-semibold tracking-tight text-text">
             Access grants
@@ -136,7 +146,7 @@ export default async function AccessGrantsPage() {
               action={approveAllPending}
               className="inline-flex flex-wrap items-center gap-2"
             >
-              <HoursInput label="Bulk grant lifetime (hours)" />
+              <HoursInput dict={dict} label={dict.admin.accessGrants.bulkLifetime} />
               {/* Secondary, not the accent: a bulk approve should not outweigh
                   the per-row approvals it stands next to. */}
               <ConfirmButton
@@ -150,11 +160,11 @@ export default async function AccessGrantsPage() {
           )}
         </div>
         {pending.length === 0 ? (
-          <p className="text-sm text-text-3">No requests awaiting approval.</p>
+          <p className="text-sm text-text-3">{dict.admin.accessGrants.emptyPending}</p>
         ) : (
           <div className="space-y-3">
             {pending.map((g) => (
-              <GrantCard key={g.id} g={g} />
+              <GrantCard key={g.id} dict={dict} g={g} />
             ))}
           </div>
         )}
@@ -162,13 +172,13 @@ export default async function AccessGrantsPage() {
 
       {/* All other grants. */}
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-text">All grants</h2>
+        <h2 className="text-sm font-medium text-text">{dict.admin.accessGrants.allGrants}</h2>
         {rest.length === 0 ? (
-          <p className="text-sm text-text-3">No active or past grants.</p>
+          <p className="text-sm text-text-3">{dict.admin.accessGrants.emptyAll}</p>
         ) : (
           <div className="space-y-3">
             {rest.map((g) => (
-              <GrantCard key={g.id} g={g} />
+              <GrantCard key={g.id} dict={dict} g={g} />
             ))}
           </div>
         )}

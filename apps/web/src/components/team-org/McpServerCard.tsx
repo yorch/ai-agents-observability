@@ -50,7 +50,7 @@ export function McpServerCard({
   return (
     <Card contentClassName="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span
             className={`h-2 w-2 flex-shrink-0 rounded-full ${health.dotCls}`}
             title={health.label}
@@ -58,7 +58,7 @@ export function McpServerCard({
           <span className="font-mono text-sm font-semibold text-text">{server}</span>
           <span className={`text-[10px] font-mono ${health.textCls}`}>{health.label}</span>
         </div>
-        <div className="flex items-center gap-4 text-xs text-text-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-4 text-xs text-text-3">
           <span>{data.totalCalls.toLocaleString()} calls</span>
           <span>
             {data.distinctUsers} user{data.distinctUsers !== 1 ? 's' : ''}
@@ -166,7 +166,7 @@ export function MetricPill({
   const valueCls =
     accent === 'crit' ? 'text-crit' : accent === 'warn' ? 'text-warn' : 'text-text-2';
   return (
-    <div className="flex items-center gap-1.5 rounded border border-border bg-surface px-2 py-0.5">
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5 rounded border border-border bg-surface px-2 py-0.5">
       <span className="text-[10px] uppercase tracking-wide text-text-3">{label}</span>
       <span className={`text-xs font-mono font-medium ${valueCls}`}>{value}</span>
     </div>

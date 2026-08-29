@@ -365,7 +365,7 @@ export function TranscriptViewer({
     <div className="space-y-3">
       {(stats.userTurns > 0 || stats.toolCalls > 0) && <TranscriptStatsBar stats={stats} />}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Input
           type="search"
           value={query}

@@ -1,4 +1,6 @@
 import { BarChart, ButtonLink, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { fmtDayShort, fmtUsd } from '@/lib/fmt';
 import type { CostDurationPoint } from '@/lib/scatter-queries';
 import type { ActivityHeatmapCell, ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
@@ -9,7 +11,8 @@ import { WeeklyDigestTable } from './WeeklyDigestTable';
 const MIN_POINTS = 2;
 
 /** A compact, aggregate-only 90-day view of when sessions were active. */
-function ActivityCalendar({ points }: { points: ScopedTrendPoint[] }) {
+async function ActivityCalendar({ points }: { points: ScopedTrendPoint[] }) {
+  const { dict } = await getTranslations();
   const byDay = new Map(points.map((point) => [point.day.toISOString().slice(0, 10), point]));
   const end = new Date();
   end.setUTCHours(0, 0, 0, 0);
@@ -23,12 +26,15 @@ function ActivityCalendar({ points }: { points: ScopedTrendPoint[] }) {
   });
 
   return (
-    <Card title="Activity calendar" caption="Sessions by day · darker cells indicate more activity">
+    <Card
+      title={dict.org.trends.activityCalendar}
+      caption={dict.org.trends.activityCalendarCaption}
+    >
       <div
         className="grid gap-1"
         style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}
         role="img"
-        aria-label="90-day activity calendar"
+        aria-label={dict.org.trends.activityCalendarAria}
       >
         {days.map((day) => {
           const key = day.toISOString().slice(0, 10);
@@ -46,7 +52,7 @@ function ActivityCalendar({ points }: { points: ScopedTrendPoint[] }) {
         })}
       </div>
       <details className="mt-4 text-sm text-text-2">
-        <summary className="cursor-pointer text-text-3">View calendar data</summary>
+        <summary className="cursor-pointer text-text-3">{dict.org.trends.viewCalendarData}</summary>
         <Table
           columns={[
             { label: 'Day' },
@@ -86,7 +92,7 @@ function modelSeries(points: ScopedTrendPoint[]) {
   return models.length <= 6 ? models : [...models.slice(0, 5), 'Other'];
 }
 
-export function ScopedTrendCharts({
+export async function ScopedTrendCharts({
   points,
   scatter,
   aggregateScatter = false,
@@ -101,6 +107,7 @@ export function ScopedTrendCharts({
   heatmap?: ActivityHeatmapCell[];
   drilldownHref?: string | undefined;
 }) {
+  const { dict } = await getTranslations();
   const models = modelSeries(points);
   const namedModels = new Set(models.filter((model) => model !== 'Other'));
   const enough = points.length >= MIN_POINTS;
@@ -126,20 +133,16 @@ export function ScopedTrendCharts({
           />
         </div>
       )}
-      <Card title="Daily spend" caption="Cost by session start day">
+      <Card title={dict.org.trends.dailySpend} caption={dict.org.trends.dailySpendCaption}>
         {!enough ? (
-          <CardEmpty>
-            No spend trend in this period. At least two active days are needed to show a trend.
-          </CardEmpty>
+          <CardEmpty>{dict.org.trends.dailySpendEmpty}</CardEmpty>
         ) : (
           <BarChart data={chartData} series={models} format={fmtUsd} />
         )}
       </Card>
-      <Card title="Session burn" caption="Sessions by day">
+      <Card title={dict.org.trends.sessionBurn} caption={dict.org.trends.sessionBurnCaption}>
         {!enough ? (
-          <CardEmpty>
-            No session trend in this period. At least two active days are needed to show a trend.
-          </CardEmpty>
+          <CardEmpty>{dict.org.trends.noSessionTrend}</CardEmpty>
         ) : (
           <BarChart
             data={points.map((point) => ({
@@ -152,13 +155,13 @@ export function ScopedTrendCharts({
         )}
       </Card>
       <Card
-        title="Trend data"
-        caption="Exact daily values for accessible comparison"
+        title={dict.org.trends.trendData}
+        caption={dict.org.trends.trendDataCaption}
         className="lg:col-span-2"
         flush
       >
         {points.length === 0 ? (
-          <CardEmpty>No activity in this period.</CardEmpty>
+          <CardEmpty>{dict.org.trends.empty}</CardEmpty>
         ) : (
           <Table
             columns={[
@@ -182,7 +185,7 @@ export function ScopedTrendCharts({
       <WeeklyDigestTable points={points} />
       {drilldownHref && (
         <ButtonLink href={drilldownHref} size="sm" variant="secondary">
-          Explore sessions in this period
+          {dict.org.trends.exploreSessions}
         </ButtonLink>
       )}
       {concurrency.length > 0 && <ConcurrencyCharts points={concurrency} />}
@@ -190,14 +193,18 @@ export function ScopedTrendCharts({
   );
 }
 
-function ConcurrencyCharts({ points }: { points: ConcurrencyPoint[] }) {
+async function ConcurrencyCharts({ points }: { points: ConcurrencyPoint[] }) {
+  const { dict } = await getTranslations();
   const active = points.filter((point) => point.sessionCount > 0);
   const peak = Math.max(...active.map((point) => point.peakConcurrent), 0);
   return (
     <div className="grid gap-6 lg:col-span-2 lg:grid-cols-2">
-      <Card title="Parallel sessions" caption="Peak overlapping interactive sessions by day">
+      <Card
+        title={dict.org.trends.parallelSessions}
+        caption={dict.org.trends.parallelSessionsCaption}
+      >
         {active.length === 0 ? (
-          <CardEmpty>No parallel activity in this period.</CardEmpty>
+          <CardEmpty>{dict.org.trends.noParallelActivity}</CardEmpty>
         ) : (
           <BarChart
             data={active.map((point) => ({
@@ -210,13 +217,13 @@ function ConcurrencyCharts({ points }: { points: ConcurrencyPoint[] }) {
         )}
         <p className="mt-3 text-xs text-text-3">
           {peak > 1
-            ? `The highest overlap was ${peak.toLocaleString()} sessions.`
-            : 'No overlapping sessions were recorded.'}
+            ? format(dict.org.trends.peakOverlap, { peak: peak.toLocaleString() })
+            : dict.org.trends.noOverlap}
         </p>
       </Card>
-      <Card title="Parallel-session share" caption="Sessions that overlapped another session">
+      <Card title={dict.org.trends.parallelShare} caption={dict.org.trends.parallelShareCaption}>
         {active.length === 0 ? (
-          <CardEmpty>No session overlap in this period.</CardEmpty>
+          <CardEmpty>{dict.org.trends.noSessionOverlap}</CardEmpty>
         ) : (
           <BarChart
             data={active.map((point) => ({
@@ -229,13 +236,13 @@ function ConcurrencyCharts({ points }: { points: ConcurrencyPoint[] }) {
         )}
       </Card>
       <Card
-        title="Concurrency data"
-        caption="Exact daily values for accessible comparison"
+        title={dict.org.trends.concurrencyData}
+        caption={dict.org.trends.concurrencyDataCaption}
         className="lg:col-span-2"
         flush
       >
         {active.length === 0 ? (
-          <CardEmpty>No parallel activity in this period.</CardEmpty>
+          <CardEmpty>{dict.org.trends.noParallelActivity}</CardEmpty>
         ) : (
           <Table
             columns={[

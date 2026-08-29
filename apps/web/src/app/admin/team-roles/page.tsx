@@ -1,4 +1,5 @@
 import { ActionForm, Button, Card, ConfirmButton } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getPrisma } from '@/lib/prisma';
 import { LEAD_ROLES, requireOrgAdmin } from '@/lib/roles';
 
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function TeamRolesAdminPage() {
   await requireOrgAdmin();
+  const { dict } = await getTranslations();
 
   const db = getPrisma();
   const teams = await db.team.findMany({
@@ -24,14 +26,18 @@ export default async function TeamRolesAdminPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-text">Team roles</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
+          {dict.admin.teamRoles.title}
+        </h1>
         <p className="text-sm text-text-2">
           Grant or revoke team-lead access. Leads can view their team&apos;s sessions and cost.
           Access is assigned explicitly here — it is never inferred from GitHub team roles.
         </p>
       </div>
 
-      {teams.length === 0 && <p className="text-sm text-text-3">No teams synced yet.</p>}
+      {teams.length === 0 && (
+        <p className="text-sm text-text-3">{dict.admin.teamRoles.emptyTeams}</p>
+      )}
 
       <div className="space-y-8">
         {teams.map((team) => (
@@ -40,7 +46,7 @@ export default async function TeamRolesAdminPage() {
               {team.name} <span className="text-text-3">{team.githubSlug}</span>
             </h2>
             {team.members.length === 0 ? (
-              <p className="text-xs text-text-3">No active members.</p>
+              <p className="text-xs text-text-3">{dict.admin.teamRoles.emptyMembers}</p>
             ) : (
               <Card flush contentClassName="divide-y divide-border-subtle">
                 {team.members.map((m) => {

@@ -1,5 +1,6 @@
 import { ADAPTER_AGENT_TYPES, agentDisplayName } from '@ai-agents-observability/schemas';
 import { Badge, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getAllRunsPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -48,6 +49,7 @@ const BADGE_TONE = {
 
 export default async function AdaptersPage() {
   await requireOrgAdmin();
+  const { dict } = await getTranslations();
 
   // run-kind-exempt: adapter inventory is about the fleet, not about people —
   // "which agents are reporting at all" must count a CI runner's sessions too,
@@ -201,7 +203,7 @@ export default async function AdaptersPage() {
           </p>
         </div>
         {versionAgents.length === 0 ? (
-          <CardEmpty>No sessions in this period.</CardEmpty>
+          <CardEmpty>{dict.admin.adapters.empty}</CardEmpty>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {versionAgents.map((agent) => {
@@ -209,15 +211,15 @@ export default async function AdaptersPage() {
               const total = versions.reduce((s, v) => s + v.count, 0);
               return (
                 <Card key={agent} contentClassName="space-y-2">
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-medium text-text">{agentDisplayName(agent)}</span>
+                  <div className="flex min-w-0 flex-wrap items-baseline justify-between">
+                    <span className="min-w-0 font-medium text-text">{agentDisplayName(agent)}</span>
                     <span className="font-mono text-xs text-text-3">{total} sessions</span>
                   </div>
                   <div className="space-y-1.5">
                     {versions.slice(0, 6).map((v) => (
                       <div key={v.version} className="space-y-0.5">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-mono text-text-2">{v.version}</span>
+                        <div className="flex min-w-0 flex-wrap items-center justify-between text-xs">
+                          <span className="min-w-0 font-mono text-text-2">{v.version}</span>
                           <span className="text-text-3">
                             {v.count} · {total > 0 ? ((v.count / total) * 100).toFixed(0) : '0'}%
                           </span>
