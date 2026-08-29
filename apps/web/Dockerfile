@@ -3,7 +3,7 @@
 # ^ BETTER_AUTH_SECRET below is a literal build-time placeholder ("build-time-
 #   placeholder") that next build requires to exist but never uses; the real
 #   secret is injected at runtime. The lint rule cannot tell the two apart.
-# Next.js production runtime is Node 24 (Next-on-Bun is unofficial — see PLAN.md §4).
+# Next.js production runtime is Node 26 (Next-on-Bun is unofficial — see PLAN.md §4).
 # We still use Bun for package management to stay aligned with the rest of the monorepo.
 
 # ── Base ──────────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ RUN cd packages/db && bunx prisma generate
 RUN cd apps/web && bunx next build
 
 # ── Production ────────────────────────────────────────────────────────────────
-FROM node:24-alpine AS production
+FROM node:26-alpine AS production
 WORKDIR /app
 
 ARG APP_VERSION=dev

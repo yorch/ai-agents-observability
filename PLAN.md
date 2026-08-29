@@ -33,12 +33,12 @@ New pins are only taken once they clear `bunfig.toml`'s `minimumReleaseAge` (5-d
 
 | Tool | Exact version | Why this pin |
 |---|---|---|
-| Node.js | >=24 | Active LTS. The Next.js prod runtime is Node 24. Bun runs everything else. `package.json` uses `"node": ">=24"`; CI uses `actions/setup-node@v7` reading `.node-version` (major pin, not exact patch). |
+| Node.js | >=26 | Active LTS. The Next.js prod runtime is Node 26. Bun runs everything else. `package.json` uses `"node": ">=26"`; CI uses `actions/setup-node@v7` reading `.node-version` (major pin, not exact patch). |
 | Bun | 1.3.14 | **Package manager + workspace tool + script runner + ingest/hook runtime.** Replaces pnpm. Use HOISTED installs, not isolated — Bun 1.3.0's isolated + catalogs combo has known dedup/cache bugs ([oven-sh/bun#23615](https://github.com/oven-sh/bun/issues/23615)). Revisit when fixed. Lockfile is text `bun.lock` (v3 format). |
 | Turborepo | 2.10.9 | Works correctly with Bun workspaces in practice. Upgrade to 3.x when it stabilises. |
 | TypeScript | 7.0.2 | The native Go ("tsgo") compiler. Adopted across every workspace; `tsc --noEmit` is the typecheck gate and `apps/web` typechecks clean against Next.js 16.3. |
 | Biome | 2.5.8 | v2 unified lint + format; type-aware rules + GritQL plugins. `linter.rules.recommended` migrated to `preset` (`recommended` deprecated in 2.5). |
-| Next.js | 16.3.1 | App Router default, Turbopack default for `dev` + `build`, pins React 19.2. Runs under Node 24 in prod (not Bun — Next on Bun is unofficial). 16.3 adds the Turbopack filesystem build cache and native Node streams for SSR; no app-code migration was required. |
+| Next.js | 16.3.1 | App Router default, Turbopack default for `dev` + `build`, pins React 19.2. Runs under Node 26 in prod (not Bun — Next on Bun is unofficial). 16.3 adds the Turbopack filesystem build cache and native Node streams for SSR; no app-code migration was required. |
 | React | 19.2.8 | Don't drift past what Next.js 16 pins. |
 | react-dom | 19.2.8 | Lockstep with React. |
 | Tailwind CSS | 4.3.3 | Oxide engine + CSS-first config (`@theme`, no JS config file). |
@@ -248,11 +248,11 @@ These apply to every task. Don't restate in each task file.
   2. `bunfig.toml` sets `[install] exact = true` so `bun add` writes exact versions by default.
   3. `bun.lock` is the source of truth for what gets installed and is required to match `package.json`. CI runs `bun install --frozen-lockfile`; out-of-band edits fail the build.
   4. Docker image tags should be exact before production use. MinIO is already pinned (`RELEASE.2025-09-07T16-13-09Z`); the local TimescaleDB image currently uses `timescale/timescaledb:latest-pg18` and is called out as a hardening risk in §6. SHA256-digest pinning (`@sha256:...`) is acceptable for prod overlays.
-  5. Engine pins: `engines.node = ">=24"` in `package.json`; CI uses `actions/setup-node@v7` reading `.node-version` (major pin). `engines.bun = "1.3.14"` exact; CI uses `oven-sh/setup-bun@v2.2.0` with `bun-version: '1.3.14'` (exact).
+  5. Engine pins: `engines.node = ">=26"` in `package.json`; CI uses `actions/setup-node@v7` reading `.node-version` (major pin). `engines.bun = "1.3.14"` exact; CI uses `oven-sh/setup-bun@v2.2.0` with `bun-version: '1.3.14'` (exact).
   6. Bumps are deliberate: open a PR per dependency (or per coordinated group — e.g., React + react-dom + Next.js), update the catalog entry, regenerate `bun.lock`, run the full CI suite. No mass-bump PRs.
   7. Renovate/Dependabot may *propose* bumps but never auto-merges. Schedule weekly so PRs don't pile up.
   8. Security patches are an exception to (6): cherry-pick the patch version, ship same-day.
-- **Runtimes**: ingest + hook run on Bun 1.3. Next.js prod runtime is Node 24 LTS (Next-on-Bun is not officially supported; revisit when it is).
+- **Runtimes**: ingest + hook run on Bun 1.3. Next.js prod runtime is Node 26 LTS (Next-on-Bun is not officially supported; revisit when it is).
 - **Style**: Biome 2 at the root in `P1-001` — single binary for lint + format. No ESLint, no Prettier, no per-package overrides without justification.
 - **Tests**: Vitest 4. Each `packages/*` ships with unit tests. Each app ships with at least one happy-path integration test. Coverage gates not enforced numerically — judgment-based code review.
 - **Migrations**: Forward-only. Backfills written as separate migrations. Never edit a merged migration.
@@ -288,7 +288,7 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 | Bun 1.3 isolated installs + catalogs has dedup/cache bugs ([#23615](https://github.com/oven-sh/bun/issues/23615)) | Use HOISTED installs (`linker = "hoisted"` in `bunfig.toml`) until fixed | Cross-cutting |
 | Watchtower is a third-party fork with `docker.sock` access | The upstream `containrrr/watchtower` is archived; `nickfedor/watchtower` is pinned to an exact tag (never `:latest`) and the overlay stays opt-in — it is not part of `docker:app` or `docker:infra`. Re-audit the fork before enabling it in production. | Platform/SRE |
 | Bun Rust-rewrite branch regressions on native modules | Pin Bun 1.3.14 (stable JS impl), not bleeding-edge | Systems |
-| Next.js on Bun is unofficial | Run Next.js prod under Node 24; only use Bun for `apps/web` package management + script execution | Frontend |
+| Next.js on Bun is unofficial | Run Next.js prod under Node 26; only use Bun for `apps/web` package management + script execution | Frontend |
 
 ---
 

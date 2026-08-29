@@ -8,7 +8,7 @@ Deploy the server components as standalone binaries or a portable tarball instea
 |---|---|---|---|
 | **ingest** | Bun compiled binary | ~70 MB | None (Bun runtime is bundled) |
 | **github-app** | Bun compiled binary | ~67 MB | None (Bun runtime is bundled) |
-| **web** | Node.js tarball | ~16 MB | Node >= 24 |
+| **web** | Node.js tarball | ~16 MB | Node >= 26 |
 | **migrations-runner** | Not available as binary | — | Docker or Bun + source (reads migration files from disk at runtime) |
 | **hook** | Bun compiled binary | ~50-80 MB | None (already distributed this way — see [hook-binary.md](./hook-binary.md)) |
 
@@ -135,7 +135,7 @@ export S3_REGION=us-east-1
 export S3_FORCE_PATH_STYLE=true
 export PORT=3000
 
-# Run (requires Node >= 24)
+# Run (requires Node >= 26)
 ./run.sh
 ```
 
@@ -268,6 +268,6 @@ Run migrations before starting the server binaries. The migration runner is idem
 
 - **No auto-update.** Updates are a manual download + replace. This is by design for governance-controlled environments.
 - **Migrations still need Docker or Bun.** The migration runner can't be compiled as a binary because it reads migration files from disk at runtime.
-- **Web requires Node >= 24.** The web tarball is a Next.js standalone bundle, not a compiled binary. Node must be installed on the target machine.
+- **Web requires Node >= 26.** The web tarball is a Next.js standalone bundle, not a compiled binary. Node must be installed on the target machine.
 - **Web tarball is built for linux-x64 in CI.** The standalone bundle includes a native `keytar.node` binding compiled for the CI runner's platform. On macOS or ARM Linux, keytar fails to load — the web app falls back to file-based token storage (`packages/auth/src/keychain.ts` has a try/catch). This is transparent but undocumented in the tarball itself.
 - **No health check built into systemd units.** The units above use `Type=simple` with `Restart=always`. For active health checks, add a `ExecStartPost` or use an external monitor.

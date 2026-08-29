@@ -4,7 +4,7 @@
   "private": true,
   "description": "Prisma schema + migrations + Timescale SQL + Prisma client export",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "exports": {
     ".": "./src/index.ts"

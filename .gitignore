@@ -71,3 +71,4 @@ infra/.minio-data/
 # TLS-intercepting proxy CA, injected into locally patched Dockerfiles only.
 # Never commit or reference it from a real Dockerfile.
 /.agentproxy-ca.crt
+.vercel

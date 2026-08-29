@@ -13,7 +13,7 @@ Deploy the full stack by building all four application images from source on you
 - Docker with Compose v2.30 or newer
 - `just` 1.43 or newer
 - ~2 GB RAM available for the build (Bun + Next.js compilation)
-- Network access to pull base images on first build (`oven/bun:1.3.14-alpine`, `node:24-alpine`, `timescale/timescaledb`, `quay.io/minio/minio`, `quay.io/minio/mc`). For fully offline builds, mirror these to a local registry first.
+- Network access to pull base images on first build (`oven/bun:1.3.14-alpine`, `node:26-alpine`, `timescale/timescaledb`, `quay.io/minio/minio`, `quay.io/minio/mc`). For fully offline builds, mirror these to a local registry first.
 
 ## Steps
 
@@ -90,4 +90,4 @@ entrypoint, and certificate resolver.
 
 - **No auto-update.** Updates require a `git pull` + rebuild. This is by design — the point is full control over what runs.
 - **Build time.** The first build takes 5–10 minutes depending on hardware. Subsequent builds use Docker layer cache and are faster.
-- **Base images still pulled.** The Dockerfiles use `oven/bun:1.3.14-alpine`, `node:24-alpine`, etc. For a fully air-gapped build, mirror these base images to a local registry and update the `FROM` lines (or use Docker's registry mirror config).
+- **Base images still pulled.** The Dockerfiles use `oven/bun:1.3.14-alpine`, `node:26-alpine`, etc. For a fully air-gapped build, mirror these base images to a local registry and update the `FROM` lines (or use Docker's registry mirror config).

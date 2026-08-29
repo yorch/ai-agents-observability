@@ -4,7 +4,7 @@
   "private": true,
   "description": "Host-agnostic Octokit wrappers (github.com / GHES)",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "exports": {
     ".": "./src/index.ts"
@@ -19,7 +19,7 @@
     "@octokit/plugin-enterprise-compatibility": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "24.13.3",
+    "@types/node": "26.4.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
