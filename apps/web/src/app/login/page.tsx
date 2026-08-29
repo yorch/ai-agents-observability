@@ -1,12 +1,17 @@
 import { getConfig } from '@/lib/config';
 import { sanitizeNext } from '@/lib/session-cookie';
 
+import { OAuthErrorNotice } from './oauth-error-notice';
 import { PasswordForm } from './password-form';
 
 export const dynamic = 'force-dynamic';
 
 type Props = {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{
+    auth_error?: string | string[];
+    next?: string;
+    request_id?: string | string[];
+  }>;
 };
 
 export default async function LoginPage({ searchParams }: Props) {
@@ -24,6 +29,8 @@ export default async function LoginPage({ searchParams }: Props) {
           </h1>
           <p className="text-sm text-text-2">Personal telemetry for your Claude Code sessions.</p>
         </div>
+
+        <OAuthErrorNotice errorCode={params.auth_error} requestId={params.request_id} />
 
         <div className="space-y-4">
           <a

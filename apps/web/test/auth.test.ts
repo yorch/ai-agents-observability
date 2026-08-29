@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const cookieStore = new Map<string, { value: string }>();
+const cookieStore = new Map<
+  string,
+  { options: Record<string, unknown> | undefined; value: string }
+>();
 
 vi.mock('next/headers', () => ({
   cookies: async () => ({
     get: (name: string) => cookieStore.get(name),
-    set: (name: string, value: string) => cookieStore.set(name, { value }),
+    set: (name: string, value: string, options?: Record<string, unknown>) =>
+      cookieStore.set(name, { options, value }),
   }),
 }));
 
@@ -71,6 +75,29 @@ describe('sanitizeNext', () => {
     expect(sanitizeNext('')).toBeNull();
     expect(sanitizeNext(undefined)).toBeNull();
     expect(sanitizeNext(null)).toBeNull();
+  });
+});
+
+describe('clearOAuthCookies', () => {
+  it('expires the callback state and next cookies', async () => {
+    const { clearOAuthCookies, COOKIE_NEXT, COOKIE_STATE } = await import(
+      '../src/lib/session-cookie.js'
+    );
+    const headers = await import('next/headers');
+    const jar = await headers.cookies();
+    jar.set(COOKIE_STATE, 'state');
+    jar.set(COOKIE_NEXT, '/me');
+
+    await clearOAuthCookies();
+
+    expect(jar.get(COOKIE_STATE)).toMatchObject({
+      options: { httpOnly: true, maxAge: 0, path: '/api/auth/callback', sameSite: 'lax' },
+      value: '',
+    });
+    expect(jar.get(COOKIE_NEXT)).toMatchObject({
+      options: { httpOnly: true, maxAge: 0, path: '/api/auth/callback', sameSite: 'lax' },
+      value: '',
+    });
   });
 });
 
