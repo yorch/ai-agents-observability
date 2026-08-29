@@ -6,6 +6,14 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v1.4.1 (2026-08-29)
+
+### Bug Fixes
+
+- auth: show OAuth callback errors on login (#186)
+- auth: make generated JWT keys Compose-safe (#185)
+- deploy: support Traefik v2 ingest routing (#183)
+
 ## v1.4.0 (2026-08-28)
 
 ### Features
