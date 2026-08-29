@@ -1,13 +1,63 @@
+import { type AgentTypeKey, agentDisplayName } from '@ai-agents-observability/schemas';
 import Link from 'next/link';
 import { ArrowLeftIcon, CheckIcon } from '@/components/icons';
 import { Card, Cell, Row, Table } from '@/components/ui';
+import { Segmented, SegmentedLink } from '@/components/ui/Segmented';
 
-export default function InstallPage() {
+/**
+ * Adapter-specific info not in the agent registry: the `--agent` CLI flag, where
+ * the config snippet goes, and whether `import` supports this agent. Labels come
+ * from `agentDisplayName()` so they never drift from `AGENT_REGISTRY`.
+ */
+const AGENT_INFO: {
+  configPath: string;
+  flag: string;
+  importable: boolean;
+  type: AgentTypeKey;
+}[] = [
+  {
+    configPath: '~/.claude/settings.json',
+    flag: 'claude-code',
+    importable: true,
+    type: 'CLAUDE_CODE',
+  },
+  { configPath: '~/.codex/hooks.json', flag: 'codex', importable: true, type: 'CODEX' },
+  {
+    configPath: '~/.gemini/settings.json',
+    flag: 'gemini-cli',
+    importable: false,
+    type: 'GEMINI_CLI',
+  },
+  { configPath: '~/.copilot/hooks/', flag: 'copilot', importable: false, type: 'COPILOT' },
+  { configPath: '~/.pi/agent/extensions/', flag: 'pi', importable: true, type: 'PI' },
+  { configPath: '~/.omp/agent/hooks/', flag: 'omp', importable: true, type: 'OMP' },
+  {
+    configPath: '~/.config/opencode/plugin/',
+    flag: 'opencode',
+    importable: true,
+    type: 'OPENCODE',
+  },
+];
+
+const REPO_URL = 'https://github.com/yorch/ai-agents-observability';
+
+export default async function InstallPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ agent?: string }>;
+}) {
+  const { agent: selectedFlag } = await searchParams;
+  const fallback = AGENT_INFO[0];
+  const selected = AGENT_INFO.find((a) => a.flag === selectedFlag) ?? fallback;
+  if (!selected) {
+    return null;
+  }
+
   const targets = [
-    { arch: 'arm64', binary: 'claude-telemetry-darwin-arm64', os: 'macOS (Apple Silicon)' },
-    { arch: 'x64', binary: 'claude-telemetry-darwin-x64', os: 'macOS (Intel)' },
-    { arch: 'arm64', binary: 'claude-telemetry-linux-arm64', os: 'Linux (ARM64)' },
-    { arch: 'x64', binary: 'claude-telemetry-linux-x64', os: 'Linux (x86-64)' },
+    { binary: 'claude-telemetry-darwin-arm64', os: 'macOS (Apple Silicon)' },
+    { binary: 'claude-telemetry-darwin-x64', os: 'macOS (Intel)' },
+    { binary: 'claude-telemetry-linux-arm64', os: 'Linux (ARM64)' },
+    { binary: 'claude-telemetry-linux-x64', os: 'Linux (x86-64)' },
   ];
 
   return (
@@ -26,8 +76,15 @@ export default function InstallPage() {
           Install the telemetry hook
         </h1>
         <p className="text-sm text-text-2">
-          The hook is a lightweight CLI that runs on your machine alongside Claude Code, capturing
-          session events and shipping them to this dashboard.
+          The hook is a lightweight CLI that runs on your machine alongside your AI coding agent,
+          capturing session events and shipping them to this dashboard. It supports{' '}
+          {AGENT_INFO.map((a, i) => (
+            <span key={a.flag}>
+              {i > 0 && ', '}
+              {agentDisplayName(a.type)}
+            </span>
+          ))}
+          .
         </p>
       </div>
 
@@ -43,17 +100,21 @@ export default function InstallPage() {
         <p className="text-sm text-text-2">
           Pick the binary for your platform from the{' '}
           <a
-            href="https://github.com/ai-agents-observability/releases/latest"
+            href={`${REPO_URL}/releases/latest`}
             className="text-accent hover:underline"
             target="_blank"
             rel="noopener noreferrer"
           >
             GitHub releases page
           </a>
-          :
+          , or use the installer script:
         </p>
 
-        <div className="rounded-lg border border-border overflow-hidden">
+        <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
+          {`curl -fsSL ${REPO_URL}/raw/main/scripts/install-hook.sh | bash`}
+        </pre>
+
+        <Card flush>
           <Table columns={[{ label: 'Platform' }, { label: 'Binary name' }]}>
             {targets.map((t) => (
               <Row key={t.binary}>
@@ -62,7 +123,7 @@ export default function InstallPage() {
               </Row>
             ))}
           </Table>
-        </div>
+        </Card>
 
         <p className="text-sm text-text-2">Then make it executable:</p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
@@ -71,44 +132,103 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
         </pre>
       </section>
 
-      {/* Step 2 — Install hooks */}
+      {/* Step 2 — Configure & authenticate */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             2
           </span>
-          <h2 className="text-base font-medium">Install Claude Code hooks</h2>
+          <h2 className="text-base font-medium">Configure and authenticate</h2>
         </div>
 
         <p className="text-sm text-text-2">
-          Run the install command. This registers the hook with Claude Code so it fires
-          automatically for every session:
+          If the server is not on localhost, point the hook at it, then log in:
         </p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
-          claude-telemetry install
+          {`claude-telemetry config set web-url https://observability.example.com
+claude-telemetry config set ingest-url https://ingest.example.com
+claude-telemetry login`}
         </pre>
+        <p className="text-xs text-text-3">
+          This prints a URL and a short device code — open the URL in your browser and enter the
+          code to authorize. Your auth token is stored locally in{' '}
+          <code className="font-mono">~/.claude-telemetry/identity.json</code>.
+        </p>
       </section>
 
-      {/* Step 3 — Log in */}
+      {/* Step 3 — Install hooks for your agent */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             3
           </span>
-          <h2 className="text-base font-medium">Authenticate</h2>
+          <h2 className="text-base font-medium">Install hooks for your agent</h2>
         </div>
 
         <p className="text-sm text-text-2">
-          Link the hook to your account so telemetry is routed to your dashboard:
+          Select your agent to see the install command. The hook writes background service files and
+          prints the config snippet to paste into your agent&apos;s settings.
         </p>
+
+        <div className="overflow-x-auto">
+          <Segmented label="Agent">
+            {AGENT_INFO.map((a) => (
+              <SegmentedLink
+                key={a.flag}
+                href={`/install?agent=${a.flag}`}
+                selected={a.flag === selected.flag}
+              >
+                {agentDisplayName(a.type)}
+              </SegmentedLink>
+            ))}
+          </Segmented>
+        </div>
+
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
-          claude-telemetry login
+          {selected.flag === 'claude-code'
+            ? 'claude-telemetry install'
+            : `claude-telemetry install --agent ${selected.flag}`}
         </pre>
-        <p className="text-xs text-text-3">
-          This opens a browser window to complete the OAuth flow. Your auth token is stored locally
-          in <code className="font-mono">~/.claude-telemetry/config.json</code>.
+
+        <p className="text-sm text-text-2">
+          The command prints a config snippet to paste into{' '}
+          <code className="font-mono text-xs">{selected.configPath}</code>. For the exact snippet
+          for each agent, see the{' '}
+          <a
+            href={`${REPO_URL}/blob/main/docs/getting-started.md`}
+            className="text-accent hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Getting Started guide
+          </a>
+          .
         </p>
       </section>
+
+      {/* Step 4 — Import existing data (only for agents that support it) */}
+      {selected.importable && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
+              4
+            </span>
+            <h2 className="text-base font-medium">Import existing sessions (optional)</h2>
+          </div>
+
+          <p className="text-sm text-text-2">
+            If you have historical sessions from before the hook was installed, backfill them:
+          </p>
+          <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
+            {`claude-telemetry import --dry-run
+claude-telemetry import --agent ${selected.flag} --since 2026-01-01`}
+          </pre>
+          <p className="text-xs text-text-3">
+            Imports are safe to re-run — the server deduplicates by event ID. Import is not
+            available for all agents; see the Getting Started guide for details.
+          </p>
+        </section>
+      )}
 
       {/* Verify */}
       <section className="space-y-4">
@@ -119,7 +239,8 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
           <h2 className="text-base font-medium text-text-2">Verify</h2>
         </div>
         <p className="text-sm text-text-2">
-          Start a Claude Code session. After it ends, refresh your{' '}
+          Run <code className="font-mono text-xs">claude-telemetry status</code> to check everything
+          is healthy. Then start a session in your agent. After it ends, refresh your{' '}
           <Link href="/me" className="text-accent hover:underline">
             My Agents
           </Link>{' '}
@@ -128,8 +249,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
       </section>
 
       {/* Pause / uninstall */}
-      <Card contentClassName="space-y-3">
-        <h2 className="text-sm font-medium text-text-2">Other commands</h2>
+      <Card title="Other commands" contentClassName="space-y-3">
         <div className="space-y-2 text-sm">
           <div>
             <code className="font-mono text-xs text-text-2">claude-telemetry pause</code>
@@ -141,7 +261,7 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
           </div>
           <div>
             <code className="font-mono text-xs text-text-2">claude-telemetry uninstall</code>
-            <span className="ml-3 text-text-3">— remove hooks from Claude Code</span>
+            <span className="ml-3 text-text-3">— remove hooks and background services</span>
           </div>
         </div>
         <p className="text-xs text-text-3">

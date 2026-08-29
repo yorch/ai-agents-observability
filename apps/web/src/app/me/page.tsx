@@ -1,4 +1,3 @@
-import { agentDisplayName, DEFAULT_AGENT_TYPE } from '@ai-agents-observability/schemas';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { DaysSelector, parseDays } from '@/components/me/DaysSelector';
@@ -136,7 +135,7 @@ export default async function MePage({
           title="No sessions yet"
           action={<ButtonLink href="/install">Install instructions</ButtonLink>}
         >
-          Install the hook to start tracking your {agentDisplayName(DEFAULT_AGENT_TYPE)} sessions.
+          Install the hook to start tracking your AI coding agent sessions.
         </EmptyState>
       ) : (
         <>
