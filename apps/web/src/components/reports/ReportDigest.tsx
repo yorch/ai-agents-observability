@@ -1,5 +1,7 @@
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { ButtonLink, Card, Cell, Row, Table } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { type ReportDigest as Digest, formatReportDelta } from '@/lib/reporting';
 import type { CostDurationPoint } from '@/lib/scatter-queries';
 import type { ActivityHeatmapCell, ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
@@ -17,7 +19,7 @@ function value(value: number, unit: Digest['metrics'][number]['unit']): string {
   return Math.round(value).toLocaleString();
 }
 
-export function ReportDigest({
+export async function ReportDigest({
   apiHref,
   report,
   trends = [],
@@ -36,6 +38,7 @@ export function ReportDigest({
   heatmap?: ActivityHeatmapCell[];
   drilldownHref?: string | undefined;
 }) {
+  const { dict } = await getTranslations();
   const topModelCost = report.topModels.reduce((sum, row) => sum + row.costUsd, 0);
   const leadModel = report.topModels[0];
   const leadShare = topModelCost > 0 && leadModel ? leadModel.costUsd / topModelCost : 0;
@@ -46,21 +49,21 @@ export function ReportDigest({
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
         <ButtonLink href={`${apiHref}&format=md`} size="sm" variant="secondary">
-          Download Markdown
+          {dict.report.downloadMd}
         </ButtonLink>
         <ButtonLink href={`${apiHref}&format=csv`} size="sm" variant="secondary">
-          Download CSV
+          {dict.report.downloadCsv}
         </ButtonLink>
         <ButtonLink href={`${apiHref}&format=json`} size="sm" variant="secondary">
-          Download JSON
+          {dict.report.downloadJson}
         </ButtonLink>
         <ButtonLink href={`${apiHref}&format=bundle`} size="sm" variant="secondary">
-          Download report bundle
+          {dict.report.downloadBundle}
         </ButtonLink>
       </div>
       <Card
-        title="Period summary"
-        caption={`Trailing ${report.period.days}-day period · compared with the preceding ${report.period.days} days`}
+        title={dict.report.periodSummary}
+        caption={format(dict.report.periodSummaryCaption, { days: report.period.days })}
         flush
       >
         <Table
@@ -81,29 +84,33 @@ export function ReportDigest({
           ))}
         </Table>
       </Card>
-      <Card
-        title="Readout highlights"
-        caption="Signals worth carrying into the next planning conversation"
-      >
+      <Card title={dict.report.readoutHighlights} caption={dict.report.readoutHighlightsCaption}>
         {largestChange ? (
           <div className="grid gap-4 text-sm md:grid-cols-2">
             <div>
-              <p className="text-xs uppercase tracking-wider text-text-3">Largest movement</p>
+              <p className="text-xs uppercase tracking-wider text-text-3">
+                {dict.report.largestMovement}
+              </p>
               <p className="mt-1 text-text">
                 {largestChange.metric.label}: {formatReportDelta(largestChange.metric)}
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wider text-text-3">Model concentration</p>
+              <p className="text-xs uppercase tracking-wider text-text-3">
+                {dict.report.modelConcentration}
+              </p>
               <p className="mt-1 text-text">
                 {leadModel && topModelCost > 0
-                  ? `${leadModel.model} accounts for ${(leadShare * 100).toFixed(0)}% of the top-model spend.`
-                  : 'No model spend is recorded in this period.'}
+                  ? format(dict.report.modelConcentrationDetail, {
+                      model: leadModel.model,
+                      share: (leadShare * 100).toFixed(0),
+                    })
+                  : dict.report.noModelSpend}
               </p>
             </div>
           </div>
         ) : (
-          <p className="text-sm text-text-2">No changes are available for this period.</p>
+          <p className="text-sm text-text-2">{dict.report.noChanges}</p>
         )}
       </Card>
       {trends.length > 0 && (
@@ -117,7 +124,7 @@ export function ReportDigest({
         />
       )}
       <div className="grid gap-6 md:grid-cols-2">
-        <Card title="Top models" flush>
+        <Card title={dict.report.topModels} flush>
           <Table
             columns={[
               { label: 'Model' },
@@ -134,7 +141,7 @@ export function ReportDigest({
             ))}
           </Table>
         </Card>
-        <Card title="Top tools" flush>
+        <Card title={dict.report.topTools} flush>
           <Table columns={[{ label: 'Tool' }, { align: 'right', label: 'Calls' }]}>
             {report.topTools.map((tool) => (
               <Row key={tool.name}>
@@ -145,7 +152,7 @@ export function ReportDigest({
           </Table>
         </Card>
       </div>
-      <Card title="Report notes">
+      <Card title={dict.report.notes}>
         <ul className="list-disc space-y-1 pl-5 text-sm text-text-2">
           {report.notes.map((note) => (
             <li key={note}>{note}</li>

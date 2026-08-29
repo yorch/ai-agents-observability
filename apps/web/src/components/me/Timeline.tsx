@@ -10,7 +10,7 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs text-text-3">{label}</span>
-      <span className="text-sm text-text-2 font-mono">{value}</span>
+      <span className="break-words text-sm text-text-2 font-mono">{value}</span>
     </div>
   );
 }
@@ -176,7 +176,9 @@ export function Timeline({
                     <div className={`h-2 w-2 rounded-full ${color}`} />
                   </div>
                   <div className="min-w-0">
-                    <span className={`text-sm font-mono ${isDenied ? 'text-crit' : 'text-text-2'}`}>
+                    <span
+                      className={`text-sm font-mono break-words ${isDenied ? 'text-crit' : 'text-text-2'}`}
+                    >
                       {label}
                     </span>
                     {sublabel && <span className="ml-2 text-xs text-text-3">{sublabel}</span>}

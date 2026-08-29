@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useState } from 'react';
 
 import { savePrivacySettings } from '@/app/me/settings/privacy/actions';
@@ -153,9 +154,9 @@ export function PrivacyForm({ initialPolicy }: { initialPolicy: InitialPolicy | 
           </li>
           <li>
             Every privileged view of your data is recorded in{' '}
-            <a href="/me/settings/audit" className="underline hover:text-text-2">
+            <Link href="/me/settings/audit" className="underline hover:text-text-2">
               your audit log
-            </a>
+            </Link>
             .
           </li>
         </ul>

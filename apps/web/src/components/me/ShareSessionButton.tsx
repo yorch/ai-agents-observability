@@ -106,7 +106,7 @@ export function ShareSessionButton({
           role="dialog"
           aria-modal="true"
           aria-label="Share session"
-          className="absolute right-0 top-full mt-2 z-50 w-72 rounded-lg border border-border bg-surface shadow-xl"
+          className="absolute right-0 top-full mt-2 z-50 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface shadow-xl"
         >
           <div className="px-4 pt-3 pb-2">
             <p className="text-xs font-semibold uppercase tracking-widest text-text-3">
@@ -118,7 +118,10 @@ export function ShareSessionButton({
           {count > 0 && (
             <div className="border-t border-border px-4 py-2 space-y-1">
               {activeShares.map((share) => (
-                <div key={share.id} className="flex items-center justify-between gap-2 py-0.5">
+                <div
+                  key={share.id}
+                  className="flex min-w-0 items-center justify-between gap-2 py-0.5"
+                >
                   <div className="min-w-0">
                     <p className="truncate text-xs text-text">{share.granteeEmail ?? '—'}</p>
                     <p className="text-[10px] text-text-3">{formatExpiry(share.expiresAt)}</p>

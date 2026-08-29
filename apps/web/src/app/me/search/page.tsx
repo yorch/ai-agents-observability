@@ -1,6 +1,9 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { Button, Card, Input } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { currentUser } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/fmt';
 import { MIN_QUERY_LENGTH, searchOwnTranscripts } from '@/lib/search-queries';
@@ -17,6 +20,7 @@ export default async function MeSearchPage({
     redirect('/login');
   }
 
+  const { dict } = await getTranslations();
   const params = await searchParams;
   const rawQuery = params.q ?? '';
   const query = rawQuery.trim();
@@ -38,72 +42,74 @@ export default async function MeSearchPage({
         </p>
       </div>
 
-      <form method="GET" className="flex gap-3">
+      <form method="GET" className="flex flex-wrap gap-3">
         <Input
           type="text"
           name="q"
           defaultValue={rawQuery}
-          placeholder="Search your transcripts…"
-          aria-label="Search your transcripts"
+          placeholder={dict.me.search.placeholder}
+          aria-label={dict.me.search.ariaLabel}
           className="flex-1"
         />
-        <Button type="submit">Search</Button>
+        <Button type="submit">{dict.me.search.submit}</Button>
       </form>
 
-      {!query && <p className="text-sm text-text-3">Enter a term to search your transcripts.</p>}
+      {!query && <p className="text-sm text-text-3">{dict.me.search.hint}</p>}
 
       {tooShort && (
-        <p className="text-sm text-warn">Enter at least {MIN_QUERY_LENGTH} characters to search.</p>
+        <p className="text-sm text-warn">
+          {format(dict.me.search.minChars, { n: MIN_QUERY_LENGTH })}
+        </p>
       )}
 
       {results && (
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <h2 className="font-display text-sm font-semibold text-text">
-              Matches {results.total > 0 && `(${results.total} sessions)`}
+              {format(dict.me.search.matches, { count: results.total })}
             </h2>
             {totalPages > 1 && (
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
                 {page > 1 && (
-                  <a
+                  <Link
                     href={buildUrl(query, page - 1)}
                     className="inline-flex items-center gap-1 text-accent hover:underline"
                   >
-                    <ArrowLeftIcon /> Prev
-                  </a>
+                    <ArrowLeftIcon /> {dict.common.prev}
+                  </Link>
                 )}
                 <span className="text-text-3">
-                  {page} / {totalPages}
+                  {page} {dict.common.of} {totalPages}
                 </span>
                 {page < totalPages && (
-                  <a
+                  <Link
                     href={buildUrl(query, page + 1)}
                     className="inline-flex items-center gap-1 text-accent hover:underline"
                   >
-                    Next <ArrowRightIcon />
-                  </a>
+                    {dict.common.next} <ArrowRightIcon />
+                  </Link>
                 )}
               </div>
             )}
           </div>
 
           {results.sessions.length === 0 ? (
-            <p className="text-sm text-text-3">No matching sessions.</p>
+            <p className="text-sm text-text-3">{dict.me.search.empty}</p>
           ) : (
             <div className="space-y-3">
               {results.sessions.map((s) => (
                 <Card key={s.sessionId} contentClassName="space-y-2">
-                  <div className="flex items-center gap-2 text-xs text-text-3">
-                    <span className="text-text-2">{s.repoName ?? 'Unknown repo'}</span>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-text-3">
+                    <span className="text-text-2">{s.repoName ?? dict.me.search.unknownRepo}</span>
                     <span>·</span>
                     <span>{fmtDateTime(new Date(s.startedAt))} UTC</span>
                     <span>·</span>
-                    <a
+                    <Link
                       href={`/me/sessions/${s.sessionId}/transcript`}
                       className="font-mono text-accent hover:underline"
                     >
-                      open transcript
-                    </a>
+                      {dict.me.search.openTranscript}
+                    </Link>
                   </div>
                   <div className="space-y-1.5">
                     {s.excerpts.map((e) => (

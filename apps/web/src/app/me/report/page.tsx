@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { ReportDigest } from '@/components/reports/ReportDigest';
+import { getTranslations } from '@/i18n/server';
 import { currentUser } from '@/lib/auth';
 import { getMyReport } from '@/lib/reporting-queries';
 import { parseReportRange } from '@/lib/reporting-range';
@@ -17,6 +18,7 @@ export default async function MyReportPage({
   if (!user) {
     redirect('/login');
   }
+  const { dict } = await getTranslations();
   const params = await searchParams;
   const window = parseReportRange(params);
   const days = window.days;
@@ -42,8 +44,10 @@ export default async function MyReportPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">My report</h1>
-        <p className="mt-1 text-sm text-text-2">A shareable summary of your agent activity.</p>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+          {dict.me.report.title}
+        </h1>
+        <p className="mt-1 text-sm text-text-2">{dict.me.report.description}</p>
       </div>
       <ReportDigest
         apiHref={`/api/me/report?range=${days}${params.repo ? `&repo=${encodeURIComponent(params.repo)}` : ''}${params.from ? `&from=${params.from}` : ''}${params.to ? `&to=${params.to}` : ''}${params.tz ? `&tz=${encodeURIComponent(params.tz)}` : ''}`}

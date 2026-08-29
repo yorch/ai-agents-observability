@@ -361,7 +361,7 @@ export function TranscriptViewer({
     <div className="space-y-3">
       {(stats.userTurns > 0 || stats.toolCalls > 0) && <TranscriptStatsBar stats={stats} />}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Input
           type="search"
           value={query}
@@ -373,7 +373,7 @@ export function TranscriptViewer({
           placeholder="Search in transcript…"
           className="flex-1"
         />
-        <span className="text-xs text-text-3 font-mono whitespace-nowrap">
+        <span className="text-xs text-text-3 font-mono">
           {query.trim()
             ? `${filtered.length} / ${modeFiltered.length}`
             : `${modeFiltered.length} lines`}

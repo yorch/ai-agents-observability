@@ -19,6 +19,7 @@ import {
   Select,
   Table,
 } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { fmtUsd } from '@/lib/fmt';
 import {
   buildModelPolicy,
@@ -124,6 +125,7 @@ async function loadSection(
 
 export default async function ModelPolicyAdminPage() {
   await requireOrgAdmin();
+  const { dict } = await getTranslations();
 
   // One read of the stored overrides for the whole page; each section then only
   // pays for its own price-table fetch.
@@ -228,7 +230,7 @@ export default async function ModelPolicyAdminPage() {
               <input type="hidden" name="agentType" value={section.agentType} />
               <Field
                 htmlFor={`allowed-${section.agentType}`}
-                label="Allowed models"
+                label={dict.admin.modelPolicy.allowedModels}
                 hint="Comma-separated model ids. Leave it empty for no allow-list at all — then every model is allowed. An empty list never means deny everything."
               >
                 <Input
@@ -236,7 +238,7 @@ export default async function ModelPolicyAdminPage() {
                   name="models"
                   size="sm"
                   defaultValue={section.allowedModels.join(', ')}
-                  placeholder="empty — every model allowed"
+                  placeholder={dict.admin.modelPolicy.allowedPlaceholder}
                 />
               </Field>
               <Button size="sm" type="submit">
@@ -248,7 +250,7 @@ export default async function ModelPolicyAdminPage() {
               <input type="hidden" name="agentType" value={section.agentType} />
               <Field
                 htmlFor={`cheap-${section.agentType}`}
-                label="Cheap-work tool categories"
+                label={dict.admin.modelPolicy.cheapWork}
                 hint={`Comma-separated tool categories whose work is cheap enough to route to a lower tier. Empty falls back to the defaults (${DEFAULT_CHEAP_CATEGORIES.join(', ')}).`}
               >
                 <Input

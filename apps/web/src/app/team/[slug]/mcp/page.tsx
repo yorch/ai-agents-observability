@@ -3,6 +3,8 @@ import { McpServerCard } from '@/components/team-org/McpServerCard';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { SubjectQualityPanel } from '@/components/team-org/SubjectQualityPanel';
 import { EmptyState, Stat } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { addNullable, getAttributionCoverage, sumAttributed } from '@/lib/attribution-coverage';
 import { fmtUsdOrDash } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
@@ -24,6 +26,7 @@ export default async function TeamMcpPage({
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const { teamId, teamName } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
 
   const since = daysAgo(range);
   const { visibleIds } = await resolveTeamVisibility(teamId);
@@ -106,16 +109,16 @@ export default async function TeamMcpPage({
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat label={`MCP calls (${range}d)`} value={totalCalls.toLocaleString()} />
-        <Stat label="Active servers" value={servers.length.toString()} />
+        <Stat label={dict.team.mcp.activeServers} value={servers.length.toString()} />
         <Stat
-          label="Error / deny rate"
+          label={dict.team.mcp.errorDenyRate}
           value={totalCalls > 0 ? `${(overallErrorRate * 100).toFixed(1)}%` : '—'}
           accent={overallErrorRate > 0.05 ? 'warn' : undefined}
         />
         {/* P14-004. Two lenses on the same dollars — the tile shows the
             issuing-turn share, and the caption below names the other. */}
         <Stat
-          label="Turn-share LLM cost"
+          label={dict.team.mcp.turnShareCost}
           sub="Issuing turn's cost, split across its tool calls"
           value={fmtUsdOrDash(sumAttributed(details.map((d) => d.attributedCostUsd)))}
         />
@@ -128,11 +131,11 @@ export default async function TeamMcpPage({
         rows={quality}
         series={qualitySeries}
         subjectNoun="MCP server"
-        title="Effectiveness"
+        title={dict.team.mcp.effectiveness}
       />
 
       {servers.length === 0 ? (
-        <EmptyState>No MCP usage recorded in the last {range} days.</EmptyState>
+        <EmptyState>{format(dict.team.mcp.empty, { range })}</EmptyState>
       ) : (
         <div className="space-y-4">
           {servers.map(([server, data]) => {

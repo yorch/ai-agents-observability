@@ -60,7 +60,7 @@ export function Stat({ accent, delta, deltaInverted = false, label, note, sub, v
     <div className="space-y-1 rounded-lg border border-border bg-surface p-4">
       <p className="text-xs uppercase tracking-wider text-text-3">{label}</p>
       <p
-        className={`font-mono text-2xl font-semibold ${accent ? ACCENT_CLASS[accent] : 'text-text'}`}
+        className={`font-mono text-2xl font-semibold break-words ${accent ? ACCENT_CLASS[accent] : 'text-text'}`}
       >
         {value}
       </p>

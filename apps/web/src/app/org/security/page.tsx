@@ -1,6 +1,8 @@
 import { AuditAction } from '@ai-agents-observability/db';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Badge, type BadgeTone, Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { fmtBytes, fmtDayShort } from '@/lib/fmt';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
@@ -61,6 +63,7 @@ export default async function OrgSecurityPage({
   searchParams: Promise<{ range?: string }>;
 }) {
   await requireOrgViewer();
+  const { dict } = await getTranslations();
 
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
@@ -101,39 +104,45 @@ export default async function OrgSecurityPage({
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Org"
-        description={`AI-agent data-flow & access posture · trailing ${range} days · aggregate, no individual content`}
+        description={format(dict.org.security.description, { range })}
         range={range}
-        title="Security"
+        title={dict.org.security.title}
       />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat
-          label="High-risk tool calls"
+          label={dict.org.security.highRiskToolCalls}
           value={highRiskCalls.toLocaleString()}
-          sub="code execution + network"
+          sub={dict.org.security.highRiskToolCallsSub}
           accent={highRiskCalls > 0 ? 'warn' : undefined}
         />
         <Stat
-          label="External services (MCP)"
+          label={dict.org.security.externalServices}
           value={egress.length.toString()}
-          sub={`${totalEgressCalls.toLocaleString()} egress calls`}
+          sub={format(dict.org.security.externalServicesSub, {
+            totalEgressCalls: totalEgressCalls.toLocaleString(),
+          })}
         />
         <Stat
-          label="Privileged views"
+          label={dict.org.security.privilegedViews}
           value={(transcriptViews + sessionViews).toLocaleString()}
-          sub={`${transcriptViews} transcript · ${sessionViews} session`}
+          sub={format(dict.org.security.privilegedViewsSub, { sessionViews, transcriptViews })}
         />
-        <Stat label="Data exports" value={exports.toLocaleString()} sub="team + org" />
+        <Stat
+          label={dict.org.security.dataExports}
+          value={exports.toLocaleString()}
+          sub={dict.org.security.dataExportsSub}
+        />
       </div>
 
       {/* Tool-category exposure */}
       <Card
-        title="Tool-category exposure"
-        caption="What kinds of powerful access the agents used, and how widely."
+        title={dict.org.security.toolCategoryExposure}
+        caption={dict.org.security.toolCategoryExposureCaption}
         contentClassName="space-y-3"
       >
         {categories.length === 0 ? (
-          <CardEmpty>No tool activity in this period.</CardEmpty>
+          <CardEmpty>{dict.org.security.emptyTool}</CardEmpty>
         ) : (
           <CategoryTable rows={categories} />
         )}
@@ -141,12 +150,12 @@ export default async function OrgSecurityPage({
 
       {/* Per-repo exposure */}
       <Card
-        title="Exposure by repo"
-        caption="Repos ranked by code-execution and network egress — where a data-exposure review starts."
+        title={dict.org.security.exposureByRepo}
+        caption={dict.org.security.exposureByRepoCaption}
         contentClassName="space-y-3"
       >
         {repoExposure.length === 0 ? (
-          <CardEmpty>No exec/web/write activity in this period.</CardEmpty>
+          <CardEmpty>{dict.org.security.emptyExecWeb}</CardEmpty>
         ) : (
           <Table
             columns={[
@@ -176,12 +185,12 @@ export default async function OrgSecurityPage({
 
       {/* External egress */}
       <Card
-        title="External egress (MCP servers)"
-        caption="Each MCP server is an external service the agents reached — an egress inventory for security review."
+        title={dict.org.security.externalEgress}
+        caption={dict.org.security.externalEgressCaption}
         contentClassName="space-y-3"
       >
         {egress.length === 0 ? (
-          <CardEmpty>No MCP calls in this period.</CardEmpty>
+          <CardEmpty>{dict.org.security.emptyMcp}</CardEmpty>
         ) : (
           <Table
             columns={[
@@ -215,20 +224,21 @@ export default async function OrgSecurityPage({
 
       {/* Secret exposure by class */}
       <Card
-        title="Secret exposure by class"
-        caption="Sessions whose shipped transcript matched a redaction class before it hit storage. Forward-looking only — historical transcripts are not backfilled."
+        title={dict.org.security.secretExposure}
+        caption={dict.org.security.secretExposureCaption}
         contentClassName="space-y-3"
       >
         <p className="text-xs text-text-2">
-          <span className="font-mono text-text">{redaction.sessionsWithSecrets}</span> of{' '}
-          <span className="font-mono text-text">{redaction.totalSessionsWithTranscript}</span>{' '}
-          transcripts in this window matched a redaction class.
+          {format(dict.org.security.redactionSummary, {
+            totalWithTranscript: redaction.totalSessionsWithTranscript,
+            withSecrets: redaction.sessionsWithSecrets,
+          })}
         </p>
         {redaction.classes.length === 0 ? (
           <CardEmpty>
-            No redaction classes recorded in this period. Capture began when the{' '}
-            <code className="font-mono text-text-2">redaction_flags</code> column was added;
-            historical transcripts are not backfilled.
+            {dict.org.security.redactionNote}{' '}
+            <code className="font-mono text-text-2">{dict.org.security.redactionFlags}</code>{' '}
+            {dict.org.security.redactionNoteSuffix}
           </CardEmpty>
         ) : (
           <Table columns={[{ label: 'Class' }, { align: 'right', label: 'Sessions' }]}>
@@ -248,12 +258,12 @@ export default async function OrgSecurityPage({
 
       {/* Large data movements */}
       <Card
-        title="Largest data movements"
-        caption="Biggest single tool outputs on network / MCP / file-read — the rows to eyeball first. Sizes only; no content is stored."
+        title={dict.org.security.largestDataMovements}
+        caption={dict.org.security.largestDataMovementsCaption}
         contentClassName="space-y-3"
       >
         {largeOutputs.length === 0 ? (
-          <CardEmpty>No sized tool outputs in this period.</CardEmpty>
+          <CardEmpty>{dict.org.security.emptySized}</CardEmpty>
         ) : (
           <Table
             columns={[
@@ -280,11 +290,7 @@ export default async function OrgSecurityPage({
         )}
       </Card>
 
-      <p className="text-xs text-text-3 text-center pt-2">
-        Aggregate and visibility-scoped: only developers who share metadata with the org contribute,
-        and no tool inputs/outputs are stored — the events firehose keeps hashes and byte sizes
-        only.
-      </p>
+      <p className="text-xs text-text-3 text-center pt-2">{dict.org.security.footerNote}</p>
     </div>
   );
 }

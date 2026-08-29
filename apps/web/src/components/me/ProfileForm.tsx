@@ -5,6 +5,7 @@ import { saveProfile } from '@/app/me/settings/profile/actions';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Field, Input } from '@/components/ui/Field';
+import { useDict } from '@/i18n/provider';
 
 type Props = {
   initialDisplayName: string | null;
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: Props) {
+  const dict = useDict();
   const [isPending, startTransition] = useTransition();
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '');
   const [email, setEmail] = useState(initialEmail ?? '');
@@ -44,7 +46,7 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
         </div>
       )}
 
-      <Field label="Display name" htmlFor="displayName">
+      <Field label={dict.me.settings.profile.displayName} htmlFor="displayName">
         <Input
           id="displayName"
           type="text"
@@ -54,12 +56,12 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
             setStatus(null);
           }}
           maxLength={120}
-          placeholder="Your name"
+          placeholder={dict.me.settings.profile.displayNamePlaceholder}
         />
       </Field>
 
       <Field
-        label="Email address"
+        label={dict.me.settings.profile.email}
         htmlFor="email"
         hint="Overrides the email synced from GitHub. Leave blank to use your GitHub email."
       >
@@ -71,7 +73,7 @@ export function ProfileForm({ initialDisplayName, initialEmail, githubLogin }: P
             setEmail(e.target.value);
             setStatus(null);
           }}
-          placeholder="you@example.com"
+          placeholder={dict.me.settings.profile.emailPlaceholder}
         />
       </Field>
 

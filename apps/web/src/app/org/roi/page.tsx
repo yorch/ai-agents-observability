@@ -1,6 +1,8 @@
 import { JiraLink } from '@/components/JiraLink';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { getConfig, getJiraBase } from '@/lib/config';
 import { fmtPct, fmtUsd } from '@/lib/fmt';
 import {
@@ -32,6 +34,7 @@ export default async function OrgRoiPage({
   searchParams: Promise<{ range?: string }>;
 }) {
   await requireOrgViewer();
+  const { dict } = await getTranslations();
 
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 90) as 7 | 30 | 90;
@@ -95,7 +98,7 @@ export default async function OrgRoiPage({
         breadcrumb="Org"
         description={`Agent spend joined to delivery outcomes · trailing ${range} days`}
         range={range}
-        title="ROI"
+        title={dict.org.roi.title}
       />
 
       {/* Headline ROI cards */}
@@ -106,18 +109,18 @@ export default async function OrgRoiPage({
           sub={`${summary.mergedPrs} PRs merged`}
         />
         <Stat
-          label="Cost / merged PR"
+          label={dict.org.roi.costPerMergedPr}
           value={summary.costPerMergedPr > 0 ? fmtUsd(summary.costPerMergedPr) : '—'}
           sub="merged-PR spend ÷ merged PRs"
         />
         <Stat
-          label="Reverted spend"
+          label={dict.org.roi.revertedSpend}
           value={fmtUsd(summary.revertedSpendUsd)}
           sub={`${fmtPct(summary.revertedSpendShare)} of spend · ${summary.revertedPrs} PRs`}
           accent={summary.revertedSpendShare > HIGH_REVERT_RATE ? 'crit' : undefined}
         />
         <Stat
-          label="CI-clean merge rate"
+          label={dict.org.roi.ciCleanMergeRate}
           value={fmtPct(summary.ciCleanMergeRate)}
           sub="merged with no failing checks"
           accent={
@@ -129,20 +132,20 @@ export default async function OrgRoiPage({
       </div>
 
       {/* CI outcome cost correlation */}
-      <Card title="CI outcome vs cost" contentClassName="space-y-3">
+      <Card title={dict.org.roi.ciOutcomeVsCost} contentClassName="space-y-3">
         {ci.cleanCount === 0 && ci.failedCount === 0 ? (
-          <CardEmpty>No merged PRs with cost data in this period.</CardEmpty>
+          <CardEmpty>{dict.org.roi.emptyCost}</CardEmpty>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Stat
-                label="Clean-CI merges"
+                label={dict.org.roi.cleanCiMerges}
                 value={ci.cleanAvgCost > 0 ? fmtUsd(ci.cleanAvgCost) : '—'}
                 sub={`avg cost · ${ci.cleanCount} PRs`}
                 accent="good"
               />
               <Stat
-                label="CI-failed merges"
+                label={dict.org.roi.ciFailedMerges}
                 value={ci.failedAvgCost > 0 ? fmtUsd(ci.failedAvgCost) : '—'}
                 sub={`avg cost · ${ci.failedCount} PRs`}
                 accent={ciCostMultiplier && ciCostMultiplier > 1 ? 'warn' : undefined}
@@ -265,7 +268,9 @@ export default async function OrgRoiPage({
 
       {/* Spend by epic */}
       <Card contentClassName="space-y-3">
-        <h2 className="font-display text-sm font-semibold text-text">Spend by epic ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          {format(dict.org.roi.spendByEpic, { range })}
+        </h2>
         {epicSpend.length === 0 ? (
           <CardEmpty>
             No epic-level data recorded yet. Epics require the Jira sync job (JIRA_BASE_URL +
@@ -319,17 +324,17 @@ export default async function OrgRoiPage({
           <>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               <Stat
-                label="Cost / story point"
+                label={dict.org.roi.costPerStoryPoint}
                 value={storyPoints.costPerPoint !== null ? fmtUsd(storyPoints.costPerPoint) : '—'}
                 sub="agent spend ÷ estimated points"
               />
               <Stat
-                label="Story points delivered"
+                label={dict.org.roi.storyPointsDelivered}
                 value={storyPoints.totalStoryPoints.toLocaleString()}
                 sub={`${storyPoints.ticketCount} estimated tickets`}
               />
               <Stat
-                label="Attributed spend"
+                label={dict.org.roi.attributedSpend}
                 value={fmtUsd(storyPoints.sessionCostUsd)}
                 sub="on estimated tickets"
               />
@@ -354,7 +359,7 @@ export default async function OrgRoiPage({
           </h2>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Stat
-              label="Value delivered"
+              label={dict.org.roi.valueDelivered}
               value={fmtUsd(valueDeliveredUsd)}
               sub={
                 hasRealValue
@@ -363,18 +368,18 @@ export default async function OrgRoiPage({
               }
             />
             <Stat
-              label="Agent spend"
+              label={dict.org.roi.agentSpend}
               value={fmtUsd(valueSpendUsd)}
               sub={hasRealValue ? 'on valued tickets' : 'on estimated tickets'}
             />
             <Stat
-              label="Net value"
+              label={dict.org.roi.netValue}
               value={fmtUsd(valueDeliveredUsd - valueSpendUsd)}
               sub="value − agent spend"
               accent={valueDeliveredUsd - valueSpendUsd >= 0 ? 'good' : 'crit'}
             />
             <Stat
-              label="Return multiple"
+              label={dict.org.roi.returnMultiple}
               value={valueSpendUsd > 0 ? `${valueReturnMultiple.toFixed(1)}×` : '—'}
               sub="value ÷ agent spend"
               accent={valueSpendUsd > 0 ? (valueReturnMultiple >= 1 ? 'good' : 'warn') : undefined}
@@ -382,17 +387,12 @@ export default async function OrgRoiPage({
           </div>
           <p className="text-xs text-text-3">
             {hasRealValue ? (
-              <>
-                Value comes from the synced Jira value field (<code>JIRA_VALUE_FIELD</code>) — a
-                true external join, summed per ticket over tickets that also had agent spend in this
-                window.
-              </>
+              dict.org.roi.jiraValueNote
             ) : (
               <>
-                Value is delivered story points × the configured <code>VALUE_PER_STORY_POINT</code>{' '}
-                rate ({fmtUsd(valuePerPoint ?? 0)}/pt) — a directional business-value proxy, only as
-                good as your per-point valuation. Compares that against agent spend on the same
-                estimated tickets.
+                {dict.org.roi.valueFormula} rate ({fmtUsd(valuePerPoint ?? 0)}/pt) — a directional
+                business-value proxy, only as good as your per-point valuation. Compares that
+                against agent spend on the same estimated tickets.
               </>
             )}
           </p>
@@ -411,15 +411,15 @@ export default async function OrgRoiPage({
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Stat
-                label="Bug-work spend"
+                label={dict.org.roi.bugWorkSpend}
                 value={fmtUsd(bugSpend)}
                 sub="sessions on Bug/Defect-type tickets"
                 accent={bugShare !== null && bugShare > 0.3 ? 'warn' : undefined}
               />
               <Stat
-                label="Bug-work share"
+                label={dict.org.roi.bugWorkShare}
                 value={bugShare !== null ? fmtPct(bugShare) : '—'}
                 sub="of classified ticket spend"
               />
@@ -460,14 +460,14 @@ export default async function OrgRoiPage({
         <h2 className="font-display text-sm font-semibold text-text">
           Merged-work provenance ({range}d)
         </h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Stat
-            label="Agent-touched commits"
+            label={dict.org.roi.agentTouchedCommits}
             value={String(commits.linkedCommits)}
             sub="default-branch commits attributed to a session"
           />
           <Stat
-            label="Sessions with merged commits"
+            label={dict.org.roi.sessionsWithMergedCommits}
             value={String(commits.sessionsWithCommits)}
             sub="sessions whose work landed on the default branch"
           />
@@ -480,9 +480,11 @@ export default async function OrgRoiPage({
 
       {/* ROI by repo */}
       <Card contentClassName="space-y-3">
-        <h2 className="font-display text-sm font-semibold text-text">ROI by repo ({range}d)</h2>
+        <h2 className="font-display text-sm font-semibold text-text">
+          {format(dict.org.roi.roiByRepo, { range })}
+        </h2>
         {repoRoi.length === 0 ? (
-          <CardEmpty>No merged PRs in this period.</CardEmpty>
+          <CardEmpty>{dict.org.roi.emptyMerged}</CardEmpty>
         ) : (
           <Table
             columns={[

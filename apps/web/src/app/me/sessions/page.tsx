@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { FilterChips } from '@/components/FilterChips';
 import { SessionsTable } from '@/components/me/SessionsTable';
 import { Button, ButtonLink, EmptyState, Field, FilterPanel, Input, Select } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { currentUser } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
 import { getAllRunsPrisma } from '@/lib/prisma';
@@ -65,6 +66,14 @@ export default async function SessionsPage({
     redirect('/login');
   }
 
+  const { dict } = await getTranslations();
+  const STATUS_LABELS: Record<string, string> = {
+    ABANDONED: dict.me.sessions.statusAbandoned,
+    ACTIVE: dict.me.sessions.statusActive,
+    COMPLETED: dict.me.sessions.statusCompleted,
+    CRASHED: dict.me.sessions.statusCrashed,
+    TIMED_OUT: dict.me.sessions.statusTimedOut,
+  };
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? '1', 10));
   const repo = params.repo || undefined;
@@ -135,14 +144,14 @@ export default async function SessionsPage({
   // Chips mirror the same filter object; each one links to the URL without
   // itself, so removing a facet is one click instead of a form round-trip.
   const CHIP_LABELS: Record<string, string> = {
-    agent: 'Agent',
-    band: 'Friction',
-    from: 'From',
-    mode: 'Mode',
-    repo: 'Repo',
-    shape: 'Shape',
-    status: 'Status',
-    to: 'To',
+    agent: dict.common.filterAgent,
+    band: dict.common.filterBand,
+    from: dict.common.filterFrom,
+    mode: dict.common.filterMode,
+    repo: dict.common.filterRepo,
+    shape: dict.common.filterShape,
+    status: dict.common.filterStatus,
+    to: dict.common.filterTo,
   };
   const chips = Object.entries(filters)
     .filter(([, v]) => Boolean(v))
@@ -160,15 +169,17 @@ export default async function SessionsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Sessions</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+        {dict.me.sessions.title}
+      </h1>
 
       {/* These filters wrap badly in a row; the same grid the org search uses
           keeps the labels readable and the controls on one baseline. */}
-      <FilterPanel label="Session filters">
+      <FilterPanel label={dict.me.sessions.filterPanelLabel}>
         <div className="grid gap-3 md:grid-cols-3">
-          <Field label="Repo" htmlFor="repo-filter">
+          <Field label={dict.common.filterRepo} htmlFor="repo-filter">
             <Select id="repo-filter" name="repo" defaultValue={repo ?? ''}>
-              <option value="">All repos</option>
+              <option value="">{dict.me.sessions.allRepos}</option>
               {repos.map((r) => (
                 <option key={r} value={r}>
                   {r}
@@ -177,20 +188,20 @@ export default async function SessionsPage({
             </Select>
           </Field>
 
-          <Field label="Status" htmlFor="status-filter">
+          <Field label={dict.common.filterStatus} htmlFor="status-filter">
             <Select id="status-filter" name="status" defaultValue={status ?? ''}>
-              <option value="">All statuses</option>
+              <option value="">{dict.me.sessions.allStatuses}</option>
               {SESSION_STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {STATUS_LABELS[s]}
                 </option>
               ))}
             </Select>
           </Field>
 
-          <Field label="Shape" htmlFor="shape-filter">
+          <Field label={dict.common.filterShape} htmlFor="shape-filter">
             <Select id="shape-filter" name="shape" defaultValue={shape ?? ''}>
-              <option value="">All shapes</option>
+              <option value="">{dict.me.sessions.allShapes}</option>
               {shapeLabels.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -199,18 +210,18 @@ export default async function SessionsPage({
             </Select>
           </Field>
 
-          <Field label="Friction" htmlFor="band-filter">
+          <Field label={dict.common.filterBand} htmlFor="band-filter">
             <Select id="band-filter" name="band" defaultValue={frictionBand ?? ''}>
-              <option value="">Any</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
+              <option value="">{dict.me.sessions.frictionAny}</option>
+              <option value="low">{dict.me.sessions.frictionLow}</option>
+              <option value="medium">{dict.me.sessions.frictionMedium}</option>
+              <option value="high">{dict.me.sessions.frictionHigh}</option>
             </Select>
           </Field>
 
-          <Field label="Mode" htmlFor="mode-filter">
+          <Field label={dict.common.filterMode} htmlFor="mode-filter">
             <Select id="mode-filter" name="mode" defaultValue={mode ?? ''}>
-              <option value="">All modes</option>
+              <option value="">{dict.me.sessions.allModes}</option>
               {PERMISSION_MODES.map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -220,9 +231,9 @@ export default async function SessionsPage({
           </Field>
 
           {agentTypes.length > 1 && (
-            <Field label="Agent" htmlFor="agent-filter">
+            <Field label={dict.common.filterAgent} htmlFor="agent-filter">
               <Select id="agent-filter" name="agent" defaultValue={agent ?? ''}>
-                <option value="">All agents</option>
+                <option value="">{dict.me.sessions.allAgents}</option>
                 {agentTypes.map((a) => (
                   <option key={a} value={a}>
                     {a}
@@ -232,26 +243,26 @@ export default async function SessionsPage({
             </Field>
           )}
 
-          <Field label="From" htmlFor="from-filter">
+          <Field label={dict.common.filterFrom} htmlFor="from-filter">
             <Input id="from-filter" type="date" name="from" defaultValue={params.from ?? ''} />
           </Field>
 
-          <Field label="To" htmlFor="to-filter">
+          <Field label={dict.common.filterTo} htmlFor="to-filter">
             <Input id="to-filter" type="date" name="to" defaultValue={params.to ?? ''} />
           </Field>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          <Button type="submit">Filter</Button>
+          <Button type="submit">{dict.me.sessions.filter}</Button>
 
           {Object.values(filters).some(Boolean) && (
             <ButtonLink variant="secondary" href="/me/sessions">
-              Clear
+              {dict.me.sessions.clear}
             </ButtonLink>
           )}
 
           <ButtonLink className="ml-auto" variant="secondary" href={buildExportUrl(filters)}>
-            Export CSV
+            {dict.me.sessions.exportCsv}
           </ButtonLink>
         </div>
       </FilterPanel>
@@ -261,35 +272,35 @@ export default async function SessionsPage({
       {sessions.length === 0 ? (
         hasFilters ? (
           <EmptyState
-            title="No sessions match these filters"
+            title={dict.me.sessions.emptyFiltered}
             action={
               <ButtonLink variant="secondary" href="/me/sessions">
-                Clear filters
+                {dict.me.sessions.clearFilters}
               </ButtonLink>
             }
           >
-            Try removing a filter or widening the date range.
+            {dict.me.sessions.emptyFilteredBody}
           </EmptyState>
         ) : total > 0 ? (
           // An out-of-range ?page= (stale bookmark, pruned history) is not a
           // first run — the install CTA here would tell an onboarded user to
           // reinstall.
           <EmptyState
-            title="Nothing on this page"
+            title={dict.me.sessions.emptyPage}
             action={
               <ButtonLink variant="secondary" href="/me/sessions">
-                Back to page 1
+                {dict.me.sessions.backToPage1}
               </ButtonLink>
             }
           >
-            Your sessions start on an earlier page.
+            {dict.me.sessions.emptyPageBody}
           </EmptyState>
         ) : (
           <EmptyState
-            title="No sessions yet"
-            action={<ButtonLink href="/install">Install the hook</ButtonLink>}
+            title={dict.me.sessions.empty}
+            action={<ButtonLink href="/install">{dict.me.sessions.installHook}</ButtonLink>}
           >
-            Install the telemetry hook to start tracking your agent sessions.
+            {dict.me.sessions.emptyBody}
           </EmptyState>
         )
       ) : (

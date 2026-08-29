@@ -10,6 +10,7 @@ import {
   Select,
   Table,
 } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { fmtUsd } from '@/lib/fmt';
 import { getJudgeSpend } from '@/lib/judge-queries';
 import { getPrisma } from '@/lib/prisma';
@@ -34,6 +35,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminJobsPage() {
   await requireOrgAdmin();
+  const { dict } = await getTranslations();
 
   const db = getPrisma();
 
@@ -54,7 +56,9 @@ export default async function AdminJobsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Admin</p>
+        <p className="text-xs text-text-3 uppercase tracking-wider mb-1">
+          {dict.admin.jobs.breadcrumb}
+        </p>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
           Scheduled Jobs
         </h1>
@@ -66,7 +70,7 @@ export default async function AdminJobsPage() {
 
       {judgeSpend.scoredSessions > 0 && (
         <Card
-          title="Automated evaluation spend"
+          title={dict.admin.jobs.title}
           caption="Trailing 30 days — what the judge-sessions job cost to run"
         >
           <p className="text-sm text-text-2">
@@ -174,7 +178,7 @@ export default async function AdminJobsPage() {
                     {run || queued ? (
                       <span className="flex items-center gap-1.5">
                         {run ? <StatusBadge status={run.status} /> : null}
-                        {queued ? <Badge tone="neutral">queued</Badge> : null}
+                        {queued ? <Badge tone="neutral">{dict.admin.jobs.queued}</Badge> : null}
                       </span>
                     ) : (
                       <span className="text-text-3 text-xs">—</span>

@@ -5,14 +5,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { SearchIcon } from '@/components/icons';
+import type { Dictionary } from '@/i18n/dictionary';
+import { useDict } from '@/i18n/provider';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { ADMIN_NAV, meNav, type NavGroup, ORG_NAV, teamNav } from './nav-model';
 
 type Command = { group: string; href: string; label: string };
 
-function flatten(groups: NavGroup[], scope: string): Command[] {
+function flatten(groups: NavGroup[], scope: string, dict: Dictionary): Command[] {
   return groups.flatMap((g) =>
-    g.items.map((i) => ({ group: `${scope} · ${g.label}`, href: i.href, label: i.label })),
+    g.items.map((i) => ({
+      group: `${scope} · ${dict.nav[g.labelKey]}`,
+      href: i.href,
+      label: dict.nav[i.labelKey],
+    })),
   );
 }
 
@@ -37,6 +43,7 @@ export function CommandPalette({
   const [index, setIndex] = useState(0);
   const [isMac, setIsMac] = useState(false);
   const router = useRouter();
+  const dict = useDict();
   const dialogRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // The trap owns Escape-to-close so stacked layers (palette over drawer)
@@ -48,18 +55,18 @@ export function CommandPalette({
   }, []);
 
   const commands = useMemo(() => {
-    const all = flatten(meNav(showGrants), 'Me');
+    const all = flatten(meNav(showGrants), dict.rail.scopeMe, dict);
     if (teamSlug) {
-      all.push(...flatten(teamNav(teamSlug), 'Team'));
+      all.push(...flatten(teamNav(teamSlug), dict.rail.scopeTeam, dict));
     }
     if (canViewOrg) {
-      all.push(...flatten(ORG_NAV, 'Org'));
+      all.push(...flatten(ORG_NAV, dict.rail.scopeOrg, dict));
     }
     if (isAdmin) {
-      all.push(...flatten(ADMIN_NAV, 'Admin'));
+      all.push(...flatten(ADMIN_NAV, dict.rail.scopeAdmin, dict));
     }
     return all;
-  }, [canViewOrg, isAdmin, showGrants, teamSlug]);
+  }, [canViewOrg, isAdmin, showGrants, teamSlug, dict]);
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -126,7 +133,7 @@ export function CommandPalette({
         className="flex w-full items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs text-text-3 transition-colors hover:border-border-strong hover:text-text-2"
       >
         <SearchIcon size={12} />
-        <span>Go to…</span>
+        <span>{dict.common.goTo}</span>
         <kbd className="ml-auto rounded border border-border-subtle bg-surface-2 px-1.5 py-0.5 font-mono text-[10px]">
           {isMac ? '⌘' : 'Ctrl'} K
         </kbd>
@@ -150,7 +157,7 @@ export function CommandPalette({
               ref={dialogRef}
               role="dialog"
               aria-modal="true"
-              aria-label="Go to page"
+              aria-label={dict.common.goToPage}
               className="w-full max-w-md rounded-lg border border-border bg-surface shadow-xl"
             >
               <div className="flex items-center gap-2 border-b border-border px-3">
@@ -162,7 +169,7 @@ export function CommandPalette({
                     setIndex(0);
                   }}
                   onKeyDown={onInputKeyDown}
-                  placeholder="Go to page…"
+                  placeholder={dict.common.goToPage}
                   role="combobox"
                   aria-expanded="true"
                   aria-controls="palette-listbox"
@@ -181,11 +188,13 @@ export function CommandPalette({
                 ref={listRef}
                 id="palette-listbox"
                 role="listbox"
-                aria-label="Pages"
-                className="max-h-72 overflow-y-auto p-1.5"
+                aria-label={dict.common.pages}
+                className="max-h-[60dvh] overflow-y-auto p-1.5"
               >
                 {results.length === 0 && (
-                  <p className="px-2.5 py-6 text-center text-sm text-text-3">No matching pages.</p>
+                  <p className="px-2.5 py-6 text-center text-sm text-text-3">
+                    {dict.common.noMatchingPages}
+                  </p>
                 )}
                 {results.map((c, i) => (
                   // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard selection happens in the combobox input (ArrowUp/Down + Enter), per the ARIA combobox pattern

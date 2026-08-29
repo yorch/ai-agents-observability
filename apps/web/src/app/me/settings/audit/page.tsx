@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { AuditTable } from '@/components/me/AuditTable';
 import { Button, ButtonLink, Field, Select } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { currentUser } from '@/lib/auth';
 import { getAuditLog } from '@/lib/me-queries';
 import { daysAgo } from '@/lib/time';
@@ -41,6 +42,7 @@ export default async function SettingsAuditPage({
     redirect('/login');
   }
 
+  const { dict } = await getTranslations();
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? '1', 10));
   const actionFilter =
@@ -61,7 +63,9 @@ export default async function SettingsAuditPage({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display text-lg font-semibold text-text">Audit log</h2>
+        <h2 className="font-display text-lg font-semibold text-text">
+          {dict.me.settings.audit.title}
+        </h2>
         <p className="mt-0.5 text-sm text-text-2">
           Records of when your data was accessed by team or org members.
         </p>
@@ -70,7 +74,7 @@ export default async function SettingsAuditPage({
       <form method="GET" className="flex flex-wrap items-end gap-3">
         <Field label="Action" htmlFor="action-filter">
           <Select id="action-filter" name="action" defaultValue={actionFilter ?? ''}>
-            <option value="">All actions</option>
+            <option value="">{dict.me.settings.audit.allActions}</option>
             {Object.entries(ACTION_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}

@@ -101,7 +101,7 @@ export function SessionFeedbackForm({
 
   return (
     <Card contentClassName="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <p className="text-sm font-medium text-text">Was this session's work good?</p>
         <div className="flex gap-2">
           {btn(
@@ -180,7 +180,7 @@ export function SessionFeedbackForm({
         placeholder="Optional note (what worked, what didn't)…"
         rows={2}
       />
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button size="sm" onClick={() => save({})} disabled={isPending}>
           {isPending ? 'Saving…' : 'Save note'}
         </Button>

@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { Card, Cell, EmptyState, Pagination, Row, Table } from '@/components/ui';
+import { useDict } from '@/i18n/provider';
 import { fmtDateTime } from '@/lib/fmt';
 import type { AuditRow } from '@/lib/me-queries';
 
@@ -36,8 +39,9 @@ export function AuditTable({
   currentPage,
   hrefFor = (page) => `?page=${page}`,
 }: AuditTableProps) {
+  const dict = useDict();
   if (rows.length === 0) {
-    return <EmptyState>No one has accessed your data yet.</EmptyState>;
+    return <EmptyState>{dict.me.settings.audit.empty}</EmptyState>;
   }
 
   return (

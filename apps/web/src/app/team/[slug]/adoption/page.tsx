@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, SectionHeader, Stat } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamSessionFrequencyDistribution, resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
@@ -18,6 +19,7 @@ export default async function TeamAdoptionPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
 
   const { teamId, teamName } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
   const since = daysAgo(range);
 
   const { visibleIds, totalCount } = await resolveTeamVisibility(teamId);
@@ -32,20 +34,23 @@ export default async function TeamAdoptionPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Team"
+        breadcrumb={dict.team.adoption.breadcrumb}
         description={`Adoption · trailing ${range} days`}
         range={range}
         title={teamName}
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Total members" value={totalCount.toString()} />
+        <Stat label={dict.team.adoption.totalMembers} value={totalCount.toString()} />
         <Stat label={`Active (${range}d)`} value={activeCount.toString()} />
-        <Stat label="Adoption rate" value={`${Math.round(adoptionRate * 100)}%`} />
+        <Stat
+          label={dict.team.adoption.adoptionRate}
+          value={`${Math.round(adoptionRate * 100)}%`}
+        />
       </div>
 
       <Card>
-        <SectionHeader>Session frequency distribution</SectionHeader>
+        <SectionHeader>{dict.team.adoption.sessionFrequency}</SectionHeader>
         <div className="space-y-3">
           {distribution.map((b) => (
             <div key={b.bucket}>

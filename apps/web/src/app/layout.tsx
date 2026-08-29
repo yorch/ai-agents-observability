@@ -22,6 +22,8 @@ const ibmMono = localFont({
 
 import { Rail, type RailTeam } from '@/components/shell/Rail';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { I18nProvider } from '@/i18n/provider';
+import { getTranslations } from '@/i18n/server';
 import { currentUser } from '@/lib/auth';
 import { getPrisma } from '@/lib/prisma';
 import { canRequestGrants } from '@/lib/roles';
@@ -31,9 +33,19 @@ export const metadata = {
   title: 'ai-agents-observability',
 };
 
+export const viewport = {
+  initialScale: 1,
+  themeColor: [
+    { color: '#ffffff', media: '(prefers-color-scheme: light)' },
+    { color: '#0a0a0a', media: '(prefers-color-scheme: dark)' },
+  ],
+  width: 'device-width',
+};
+
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await currentUser();
   const canViewOrg = Boolean(user && user.orgRole !== 'MEMBER');
+  const { locale, dict } = await getTranslations();
 
   let teams: RailTeam[] = [];
   if (user) {
@@ -56,7 +68,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   }
 
   return (
-    <html lang="en" className={`${syne.variable} ${dmSans.variable} ${ibmMono.variable}`}>
+    <html lang={locale} className={`${syne.variable} ${dmSans.variable} ${ibmMono.variable}`}>
       <head>
         {/* Applies the stored theme before first paint. Without it the page
             renders dark and then snaps to light on hydration. */}
@@ -67,41 +79,47 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         />
       </head>
       <body className="bg-bg font-body text-text">
-        {/* First tab stop on every page — the rail is ~20 links deep. */}
-        <a
-          href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:border focus:border-accent-line focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:text-text"
-        >
-          Skip to content
-        </a>
-        {user ? (
-          // The rail owns navigation, so pages render straight into the canvas
-          // with no section sub-nav above them.
-          <div className="flex min-h-screen flex-col lg:flex-row">
-            <Rail
-              canViewOrg={canViewOrg}
-              isAdmin={user.orgRole === 'ORG_ADMIN'}
-              showGrants={canRequestGrants(user.orgRole)}
-              teams={teams}
-              userLabel={user.displayName ?? user.githubLogin ?? user.email ?? 'User'}
-            />
-            <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-5 py-7 outline-none lg:px-8">
-              <div className="mx-auto w-full max-w-6xl">{children}</div>
-            </main>
-          </div>
-        ) : (
-          // Signed-out routes (login, install) get no rail, but the theme
-          // toggle still has to be reachable — it is the only control that
-          // sets `html.light`.
-          <div className="flex min-h-screen flex-col">
-            <div className="flex justify-end px-6 py-4">
-              <ThemeToggle />
+        <I18nProvider dict={dict} locale={locale}>
+          {/* First tab stop on every page — the rail is ~20 links deep. */}
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:border focus:border-accent-line focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:text-text"
+          >
+            {dict.common.skipToContent}
+          </a>
+          {user ? (
+            // The rail owns navigation, so pages render straight into the canvas
+            // with no section sub-nav above them.
+            <div className="flex min-h-screen flex-col lg:flex-row">
+              <Rail
+                canViewOrg={canViewOrg}
+                isAdmin={user.orgRole === 'ORG_ADMIN'}
+                showGrants={canRequestGrants(user.orgRole)}
+                teams={teams}
+                userLabel={user.displayName ?? user.githubLogin ?? user.email ?? dict.common.user}
+              />
+              <main
+                id="main"
+                tabIndex={-1}
+                className="min-w-0 flex-1 px-5 py-7 outline-none lg:px-8"
+              >
+                <div className="mx-auto w-full max-w-6xl">{children}</div>
+              </main>
             </div>
-            <main id="main" tabIndex={-1} className="flex-1 px-6 pb-8 outline-none">
-              {children}
-            </main>
-          </div>
-        )}
+          ) : (
+            // Signed-out routes (login, install) get no rail, but the theme
+            // toggle still has to be reachable — it is the only control that
+            // sets `html.light`.
+            <div className="flex min-h-screen flex-col">
+              <div className="flex justify-end px-6 py-4">
+                <ThemeToggle />
+              </div>
+              <main id="main" tabIndex={-1} className="flex-1 px-6 pb-8 outline-none">
+                {children}
+              </main>
+            </div>
+          )}
+        </I18nProvider>
       </body>
     </html>
   );

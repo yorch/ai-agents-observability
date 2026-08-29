@@ -1,5 +1,7 @@
+import Link from 'next/link';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { fmtDayShort } from '@/lib/fmt';
 import {
   getActiveUsersTrend,
@@ -18,6 +20,7 @@ export default async function OrgAdoptionPage({
 }) {
   const { orgRole } = await requireOrgViewer();
   const isAdmin = isOrgAdmin(orgRole);
+  const { dict } = await getTranslations();
 
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
@@ -39,7 +42,7 @@ export default async function OrgAdoptionPage({
         breadcrumb="Org"
         description={`How the org is ramping on AI coding agents · trailing ${range} days`}
         range={range}
-        title="Adoption"
+        title={dict.org.adoption.title}
       />
 
       {/* Summary cards */}
@@ -68,7 +71,7 @@ export default async function OrgAdoptionPage({
           Weekly active users (trailing {range} days)
         </h2>
         {weeklyTrend.length === 0 ? (
-          <CardEmpty>No active users in this period.</CardEmpty>
+          <CardEmpty>{dict.org.adoption.emptyActiveUsers}</CardEmpty>
         ) : (
           <ActiveUsersBars trend={weeklyTrend} />
         )}
@@ -84,7 +87,7 @@ export default async function OrgAdoptionPage({
             Among org-sharing users — how often are they using Claude Code?
           </p>
           {totalUsersInDist === 0 ? (
-            <CardEmpty>No sessions in this period.</CardEmpty>
+            <CardEmpty>{dict.org.adoption.emptySessions}</CardEmpty>
           ) : (
             <div className="space-y-2 pt-1">
               {frequencyDist.map((b) => {
@@ -120,7 +123,7 @@ export default async function OrgAdoptionPage({
             Active members / total team members with sessions in the window.
           </p>
           {adoptionByTeam.length === 0 ? (
-            <CardEmpty>No team activity in this period.</CardEmpty>
+            <CardEmpty>{dict.org.adoption.emptyTeamActivity}</CardEmpty>
           ) : (
             <Table
               columns={[
@@ -134,9 +137,9 @@ export default async function OrgAdoptionPage({
                 <Row key={t.teamSlug}>
                   <Cell>
                     {isAdmin ? (
-                      <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
+                      <Link href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
                         {t.teamName}
-                      </a>
+                      </Link>
                     ) : (
                       t.teamName
                     )}

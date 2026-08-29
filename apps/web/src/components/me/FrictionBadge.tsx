@@ -66,7 +66,7 @@ export function FrictionBadge({
             <span className="opacity-50">?</span>
           </Badge>
         </summary>
-        <div className="pointer-events-none absolute left-0 top-full mt-1.5 z-50 hidden w-64 rounded-lg border border-border bg-surface p-3 shadow-lg group-hover:block group-open:block">
+        <div className="pointer-events-none absolute left-0 top-full mt-1.5 z-50 hidden w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 shadow-lg group-hover:block group-open:block">
           <p className="text-xs font-semibold text-text mb-2">How friction is calculated</p>
           <p className="text-[11px] text-text-3 mb-2">
             Composite score [0–1] from four signals. Higher = more friction.

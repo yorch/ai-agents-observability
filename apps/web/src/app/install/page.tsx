@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import { ArrowLeftIcon, CheckIcon } from '@/components/icons';
 import { Card, Cell, Row, Table } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 
-export default function InstallPage() {
+export default async function InstallPage() {
+  const { dict } = await getTranslations();
   const targets = [
     { arch: 'arm64', binary: 'claude-telemetry-darwin-arm64', os: 'macOS (Apple Silicon)' },
     { arch: 'x64', binary: 'claude-telemetry-darwin-x64', os: 'macOS (Intel)' },
@@ -17,18 +20,15 @@ export default function InstallPage() {
           href="/me"
           className="inline-flex items-center gap-1 text-sm text-text-2 hover:text-text"
         >
-          <ArrowLeftIcon /> Back
+          <ArrowLeftIcon /> {dict.common.back}
         </Link>
       </div>
 
       <div className="space-y-2">
         <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-          Install the telemetry hook
+          {dict.install.title}
         </h1>
-        <p className="text-sm text-text-2">
-          The hook is a lightweight CLI that runs on your machine alongside Claude Code, capturing
-          session events and shipping them to this dashboard.
-        </p>
+        <p className="text-sm text-text-2">{dict.install.description}</p>
       </div>
 
       {/* Step 1 — Download */}
@@ -37,24 +37,29 @@ export default function InstallPage() {
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             1
           </span>
-          <h2 className="text-base font-medium">Download the binary</h2>
+          <h2 className="text-base font-medium">{dict.install.step1}</h2>
         </div>
 
         <p className="text-sm text-text-2">
-          Pick the binary for your platform from the{' '}
+          {dict.install.step1PickBinaryPrefix}{' '}
           <a
             href="https://github.com/ai-agents-observability/releases/latest"
             className="text-accent hover:underline"
             target="_blank"
             rel="noopener noreferrer"
           >
-            GitHub releases page
+            {dict.install.step1ReleasesLink}
           </a>
-          :
+          {dict.install.step1PickBinarySuffix}
         </p>
 
         <div className="rounded-lg border border-border overflow-hidden">
-          <Table columns={[{ label: 'Platform' }, { label: 'Binary name' }]}>
+          <Table
+            columns={[
+              { label: dict.install.tablePlatform },
+              { label: dict.install.tableBinaryName },
+            ]}
+          >
             {targets.map((t) => (
               <Row key={t.binary}>
                 <Cell className="text-text-2">{t.os}</Cell>
@@ -64,7 +69,7 @@ export default function InstallPage() {
           </Table>
         </div>
 
-        <p className="text-sm text-text-2">Then make it executable:</p>
+        <p className="text-sm text-text-2">{dict.install.step1MakeExecutable}</p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           {`chmod +x claude-telemetry-<os>-<arch>
 sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
@@ -77,13 +82,10 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             2
           </span>
-          <h2 className="text-base font-medium">Install Claude Code hooks</h2>
+          <h2 className="text-base font-medium">{dict.install.step2}</h2>
         </div>
 
-        <p className="text-sm text-text-2">
-          Run the install command. This registers the hook with Claude Code so it fires
-          automatically for every session:
-        </p>
+        <p className="text-sm text-text-2">{dict.install.step2Description}</p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           claude-telemetry install
         </pre>
@@ -95,18 +97,15 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent border border-accent-line">
             3
           </span>
-          <h2 className="text-base font-medium">Authenticate</h2>
+          <h2 className="text-base font-medium">{dict.install.step3}</h2>
         </div>
 
-        <p className="text-sm text-text-2">
-          Link the hook to your account so telemetry is routed to your dashboard:
-        </p>
+        <p className="text-sm text-text-2">{dict.install.step3Description}</p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           claude-telemetry login
         </pre>
         <p className="text-xs text-text-3">
-          This opens a browser window to complete the OAuth flow. Your auth token is stored locally
-          in <code className="font-mono">~/.claude-telemetry/config.json</code>.
+          {format(dict.install.step3Note, { path: '~/.claude-telemetry/config.json' })}
         </p>
       </section>
 
@@ -116,40 +115,40 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface text-text-3 border border-border">
             <CheckIcon size={12} />
           </span>
-          <h2 className="text-base font-medium text-text-2">Verify</h2>
+          <h2 className="text-base font-medium text-text-2">{dict.install.verify}</h2>
         </div>
         <p className="text-sm text-text-2">
-          Start a Claude Code session. After it ends, refresh your{' '}
+          {dict.install.verifyDescriptionPrefix}{' '}
           <Link href="/me" className="text-accent hover:underline">
-            My Agents
+            {dict.install.verifyMyAgentsLink}
           </Link>{' '}
-          page — you should see the session appear within a few seconds.
+          {dict.install.verifyDescriptionSuffix}
         </p>
       </section>
 
       {/* Pause / uninstall */}
       <Card contentClassName="space-y-3">
-        <h2 className="text-sm font-medium text-text-2">Other commands</h2>
+        <h2 className="text-sm font-medium text-text-2">{dict.install.otherCommands}</h2>
         <div className="space-y-2 text-sm">
           <div>
             <code className="font-mono text-xs text-text-2">claude-telemetry pause</code>
-            <span className="ml-3 text-text-3">— temporarily stop sending telemetry</span>
+            <span className="ml-3 text-text-3">{dict.install.pauseDescription}</span>
           </div>
           <div>
             <code className="font-mono text-xs text-text-2">claude-telemetry resume</code>
-            <span className="ml-3 text-text-3">— re-enable telemetry</span>
+            <span className="ml-3 text-text-3">{dict.install.resumeDescription}</span>
           </div>
           <div>
             <code className="font-mono text-xs text-text-2">claude-telemetry uninstall</code>
-            <span className="ml-3 text-text-3">— remove hooks from Claude Code</span>
+            <span className="ml-3 text-text-3">{dict.install.uninstallDescription}</span>
           </div>
         </div>
         <p className="text-xs text-text-3">
-          You can also manage privacy settings from the{' '}
+          {dict.install.privacyNotePrefix}{' '}
           <Link href="/me/settings/privacy" className="text-accent hover:underline">
-            Privacy
+            {dict.install.privacyLink}
           </Link>{' '}
-          page.
+          {dict.install.privacyNoteSuffix}
         </p>
       </Card>
     </div>

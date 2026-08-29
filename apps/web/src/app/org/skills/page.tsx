@@ -7,6 +7,7 @@ import {
   SubjectQualityPanel,
 } from '@/components/team-org/SubjectQualityPanel';
 import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import { fmtUsdOrDash } from '@/lib/fmt';
 import {
@@ -32,6 +33,7 @@ export default async function OrgSkillsPage({
   searchParams: Promise<{ range?: string }>;
 }) {
   await requireOrgViewer();
+  const { dict } = await getTranslations();
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
   const since = daysAgo(range);
@@ -60,20 +62,20 @@ export default async function OrgSkillsPage({
         breadcrumb="Org"
         description={`Trailing ${range} days`}
         range={range}
-        title="Skills"
+        title={dict.org.skills.title}
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Unique skills" value={skills.length.toString()} />
-        <Stat label="Total invocations" value={totalInvocations.toLocaleString()} />
-        <Stat label="Active adopters" value={uniqueAdopters.toString()} />
+        <Stat label={dict.org.skills.uniqueSkills} value={skills.length.toString()} />
+        <Stat label={dict.org.skills.totalInvocations} value={totalInvocations.toLocaleString()} />
+        <Stat label={dict.org.skills.activeAdopters} value={uniqueAdopters.toString()} />
       </div>
 
       <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />
 
       {skills.length > 0 ? (
         <Card>
-          <SectionHeader>All skills</SectionHeader>
+          <SectionHeader>{dict.org.skills.allSkills}</SectionHeader>
           <Table
             columns={[
               { label: 'Name' },
@@ -121,7 +123,7 @@ export default async function OrgSkillsPage({
           <CostAttributionNote className="mt-3" coverage={coverage} />
         </Card>
       ) : (
-        <EmptyState>No skill activity in this period</EmptyState>
+        <EmptyState>{dict.org.skills.empty}</EmptyState>
       )}
 
       <SubjectQualityPanel
@@ -129,14 +131,14 @@ export default async function OrgSkillsPage({
         rows={quality}
         series={qualitySeries}
         subjectNoun="Skill"
-        title="Effectiveness"
+        title={dict.org.skills.effectiveness}
       />
 
       <DeprecationCandidates candidates={deprecation} windowDays={range} />
 
       {funnel.length > 0 && (
         <Card>
-          <SectionHeader>Adoption — new vs returning users</SectionHeader>
+          <SectionHeader>{dict.org.skills.adoption}</SectionHeader>
           <Table
             columns={[
               { label: 'Skill' },
@@ -159,7 +161,7 @@ export default async function OrgSkillsPage({
 
       {sequences.length > 0 && (
         <Card>
-          <SectionHeader>Common skill sequences</SectionHeader>
+          <SectionHeader>{dict.org.skills.commonSequences}</SectionHeader>
           <Table
             columns={[
               { label: 'From' },

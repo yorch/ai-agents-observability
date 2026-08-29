@@ -1,4 +1,5 @@
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { fmtUsd } from '@/lib/fmt';
 import type { ActivityHeatmapCell } from '@/lib/trend-queries';
 
@@ -10,16 +11,14 @@ function labelHour(hour: number): string {
 }
 
 /** A UTC weekday/hour activity map with an exact-data fallback for accessibility. */
-export function ActivityHeatmap({ cells }: { cells: ActivityHeatmapCell[] }) {
+export async function ActivityHeatmap({ cells }: { cells: ActivityHeatmapCell[] }) {
+  const { dict } = await getTranslations();
   const bySlot = new Map(cells.map((cell) => [`${cell.dayOfWeek}:${cell.hour}`, cell]));
   const max = Math.max(...cells.map((cell) => cell.sessionCount), 1);
   return (
-    <Card
-      title="Activity by hour"
-      caption="UTC weekday and start hour · darker cells indicate more sessions"
-    >
+    <Card title={dict.org.trends.activityByHour} caption={dict.org.trends.activityByHourCaption}>
       {cells.length === 0 ? (
-        <CardEmpty>No hourly activity in this period.</CardEmpty>
+        <CardEmpty>{dict.org.trends.emptyHourly}</CardEmpty>
       ) : (
         <>
           <div className="overflow-x-auto">
@@ -27,7 +26,7 @@ export function ActivityHeatmap({ cells }: { cells: ActivityHeatmapCell[] }) {
               className="grid min-w-[720px] gap-1 text-[10px] text-text-3"
               style={{ gridTemplateColumns: '2.5rem repeat(24, minmax(1.25rem, 1fr))' }}
               role="img"
-              aria-label="Session count by weekday and UTC hour"
+              aria-label={dict.org.trends.activityByHourAria}
             >
               <span aria-hidden="true" />
               {HOURS.map((hour) => (
@@ -55,7 +54,9 @@ export function ActivityHeatmap({ cells }: { cells: ActivityHeatmapCell[] }) {
             </div>
           </div>
           <details className="mt-4 text-sm text-text-2">
-            <summary className="cursor-pointer text-text-3">View hourly data</summary>
+            <summary className="cursor-pointer text-text-3">
+              {dict.org.trends.viewHourlyData}
+            </summary>
             <Table
               columns={[
                 { label: 'Day / hour' },

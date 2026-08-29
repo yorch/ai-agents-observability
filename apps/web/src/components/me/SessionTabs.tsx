@@ -74,7 +74,9 @@ export function ToolsTab({
           <div className="divide-y divide-border">
             {subagents.map((r) => (
               <div key={r.subagentType} className="flex items-center justify-between py-2">
-                <span className="text-sm text-text-2 font-mono">{r.subagentType}</span>
+                <span className="min-w-0 break-words text-sm text-text-2 font-mono">
+                  {r.subagentType}
+                </span>
                 <span className="text-xs font-mono text-text-3 bg-surface-2 px-2 py-0.5 rounded">
                   ×{r.useCount}
                 </span>
@@ -96,7 +98,7 @@ export function SkillsTab({ rows }: { rows: SessionSkillRow[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <div className="rounded-lg border border-border bg-surface px-4 py-3">
           <p className="text-xs text-text-3 uppercase tracking-widest">Distinct skills</p>
           <p className="text-2xl font-display font-semibold text-text mt-1">{rows.length}</p>
@@ -110,7 +112,9 @@ export function SkillsTab({ rows }: { rows: SessionSkillRow[] }) {
         {rows.map((r) => (
           <div key={r.skillName} className="flex items-center justify-between px-4 py-3">
             <div className="min-w-0">
-              <span className="text-sm text-text font-mono">/{r.skillName}</span>
+              <span className="min-w-0 break-words text-sm text-text font-mono">
+                /{r.skillName}
+              </span>
               {r.skillPath && (
                 <span className="ml-2 text-xs text-text-3 truncate">{r.skillPath}</span>
               )}

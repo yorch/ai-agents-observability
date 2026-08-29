@@ -84,7 +84,7 @@ export function ChartHover({ children }: { children: ReactNode }) {
       {tip && (
         <div
           aria-hidden
-          className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-border bg-surface px-2.5 py-1.5 whitespace-nowrap shadow-lg"
+          className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-border bg-surface px-2.5 py-1.5 max-w-[calc(100vw-2rem)] break-words shadow-lg"
           style={{ left: tip.x, top: tip.y - 6 }}
         >
           <span className="block font-mono text-[10px] uppercase tracking-widest text-text-3">

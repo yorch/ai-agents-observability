@@ -7,6 +7,8 @@ import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
 import { Card, Cell, EmptyState, Row, Sparkline, Table } from '@/components/ui';
+import type { Dictionary } from '@/i18n/dictionary';
+import { getTranslations } from '@/i18n/server';
 import { type AttributionCoverage, getAttributionCoverage } from '@/lib/attribution-coverage';
 import { currentUser } from '@/lib/auth';
 import { getUserShapeTrend } from '@/lib/cohort-queries';
@@ -62,6 +64,7 @@ export default async function InsightsPage({
     redirect('/login');
   }
 
+  const { dict } = await getTranslations();
   const params = await searchParams;
   const days = parseDays(params.days);
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -128,9 +131,11 @@ export default async function InsightsPage({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Insights</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
+            {dict.me.insights.title}
+          </h1>
           <p className="mt-1 text-sm text-text-2">
             Sessions · friction · shapes · MCP servers · tools · skills
           </p>
@@ -164,8 +169,8 @@ export default async function InsightsPage({
                 {recommendations.length > 0 && <RecommendationsSection recs={recommendations} />}
               </div>
               <div className="grid gap-6 md:grid-cols-2">
-                <ContinuitySection continuity={continuity} />
-                <NotificationKindsSection rows={notificationKinds} />
+                <ContinuitySection continuity={continuity} dict={dict} />
+                <NotificationKindsSection rows={notificationKinds} dict={dict} />
               </div>
             </>
           )}
@@ -173,11 +178,11 @@ export default async function InsightsPage({
           {hasEventData && (
             <>
               <div className="grid gap-6 md:grid-cols-2">
-                <McpSection rows={mcp} />
-                <SlashCommandsSection rows={slashCmds} />
+                <McpSection rows={mcp} dict={dict} />
+                <SlashCommandsSection rows={slashCmds} dict={dict} />
               </div>
               <div className="grid gap-6 md:grid-cols-2">
-                <SubagentsSection coverage={coverage} rows={subagents} />
+                <SubagentsSection coverage={coverage} rows={subagents} dict={dict} />
                 <ToolPerfSection coverage={coverage} rows={toolPerf} />
               </div>
 
@@ -255,7 +260,13 @@ const NOTIFICATION_KIND_META: Record<string, { color: string; label: string }> =
   permission: { color: 'bg-series-2', label: 'Permission' },
 };
 
-function ContinuitySection({ continuity: c }: { continuity: ContinuitySummaryRow }) {
+function ContinuitySection({
+  continuity: c,
+  dict,
+}: {
+  continuity: ContinuitySummaryRow;
+  dict: Dictionary;
+}) {
   const resumeShare = c.sessionCount > 0 ? c.resumedSessions / c.sessionCount : 0;
   const avgCompactions = c.sessionCount > 0 ? c.totalCompactions / c.sessionCount : 0;
   const cards = [
@@ -277,12 +288,12 @@ function ContinuitySection({ continuity: c }: { continuity: ContinuitySummaryRow
     { label: 'Clears', sub: 'context wiped', value: c.totalClears.toLocaleString() },
   ];
   return (
-    <SectionShell title="Context &amp; continuity" empty={c.sessionCount === 0}>
+    <SectionShell title={dict.me.insights.contextContinuity} empty={c.sessionCount === 0}>
       <p className="-mt-1 text-xs text-text-3">
         Frequent compactions or clears flag sessions fighting the context window.
         {resumeShare > 0.5 && ' Most of your work resumes an earlier session.'}
       </p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-2">
         {cards.map((card) => (
           <div
             key={card.label}
@@ -298,10 +309,16 @@ function ContinuitySection({ continuity: c }: { continuity: ContinuitySummaryRow
   );
 }
 
-function NotificationKindsSection({ rows }: { rows: NotificationKindRow[] }) {
+function NotificationKindsSection({
+  rows,
+  dict,
+}: {
+  rows: NotificationKindRow[];
+  dict: Dictionary;
+}) {
   const total = rows.reduce((s, r) => s + r.count, 0);
   return (
-    <SectionShell title="Attention requests" empty={rows.length === 0}>
+    <SectionShell title={dict.me.insights.attentionRequests} empty={rows.length === 0}>
       <p className="-mt-1 text-xs text-text-3">
         How often the agent stopped to get your attention, by kind.
       </p>
@@ -353,10 +370,10 @@ function SectionShell({
   );
 }
 
-function McpSection({ rows }: { rows: McpUsageRow[] }) {
+function McpSection({ rows, dict }: { rows: McpUsageRow[]; dict: Dictionary }) {
   const servers = Array.from(new Set(rows.map((r) => r.mcpServer)));
   return (
-    <SectionShell title="MCP servers" empty={rows.length === 0}>
+    <SectionShell title={dict.me.insights.mcpServers} empty={rows.length === 0}>
       {servers.map((server) => {
         const serverRows = rows.filter((r) => r.mcpServer === server);
         const totalCalls = serverRows.reduce((s, r) => s + r.callCount, 0);
@@ -558,10 +575,10 @@ function SkillSequencesSection({ rows }: { rows: SkillSequenceRow[] }) {
   );
 }
 
-function SlashCommandsSection({ rows }: { rows: SlashCommandRow[] }) {
+function SlashCommandsSection({ rows, dict }: { rows: SlashCommandRow[]; dict: Dictionary }) {
   const total = rows.reduce((s, r) => s + r.useCount, 0);
   return (
-    <SectionShell title="Slash commands" empty={rows.length === 0}>
+    <SectionShell title={dict.me.insights.slashCommands} empty={rows.length === 0}>
       <div className="space-y-1.5">
         {rows.map((r) => {
           const barPct = total > 0 ? (r.useCount / total) * 100 : 0;
@@ -588,13 +605,15 @@ function SlashCommandsSection({ rows }: { rows: SlashCommandRow[] }) {
 function SubagentsSection({
   coverage,
   rows,
+  dict,
 }: {
   coverage: AttributionCoverage;
   rows: SubagentUsageRow[];
+  dict: Dictionary;
 }) {
   const total = rows.reduce((s, r) => s + r.useCount, 0);
   return (
-    <SectionShell title="Subagents spawned" empty={rows.length === 0}>
+    <SectionShell title={dict.me.insights.subagentsSpawned} empty={rows.length === 0}>
       <div className="space-y-2">
         {rows.map((r) => (
           <div key={r.subagentType} className="flex items-center justify-between text-sm">
