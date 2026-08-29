@@ -140,12 +140,22 @@ Removed paths:
 
 ### `install`
 
-Writes background service files for the flusher and shipper:
+Writes background service files for the flusher and shipper, then loads/enables
+them by default:
 
 - **macOS**: `~/Library/LaunchAgents/com.claude-telemetry.{flusher,shipper}.plist`
 - **Linux**: `~/.config/systemd/user/claude-telemetry-{flusher,shipper}.service`
 
 Also prints the JSON snippet to paste into `~/.claude/settings.json`.
+
+| Flag | Description |
+|------|-------------|
+| `--no-start` | Write the service files but don't load/enable them (prints the commands instead) |
+| `--force` | Write service files even when running uncompiled (from the Bun runtime, not the binary) |
+
+When run over an existing install, the services are unloaded/disabled first,
+the files are rewritten, and then reloaded — so `install` is idempotent and
+serves as the upgrade path after `install-hook.sh` drops a new binary.
 
 ### `uninstall`
 

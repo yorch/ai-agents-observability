@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -6,6 +6,44 @@ import { type HookAdapter, selectAdapter } from '../adapters';
 
 const FLUSHER_LABEL = 'com.claude-telemetry.flusher';
 const SHIPPER_LABEL = 'com.claude-telemetry.shipper';
+
+/** Spawn function — injectable so tests don't actually invoke launchctl/systemd. */
+type SpawnFn = (cmd: readonly string[]) => { exitCode: number };
+
+function defaultSpawn(cmd: readonly string[]): { exitCode: number } {
+  try {
+    return Bun.spawnSync(cmd as string[]);
+  } catch {
+    // ENOENT (command not found) or EACCES — translate to a clean exit code so
+    // runInstall can report it consistently instead of throwing a stack trace.
+    return { exitCode: 127 };
+  }
+}
+
+interface InstallOptions {
+  /** Write service files even when running from the Bun runtime, not the compiled binary. */
+  force: boolean;
+  /** Load/enable the services after writing their files (default: true). */
+  start: boolean;
+}
+
+function parseArgs(args: readonly string[]): InstallOptions {
+  const opts: InstallOptions = { force: false, start: true };
+  for (const a of args) {
+    if (a === '--start') {
+      opts.start = true;
+    } else if (a === '--no-start') {
+      opts.start = false;
+    } else if (a === '--force') {
+      opts.force = true;
+    } else if (a.startsWith('--')) {
+      // --agent is consumed by cli.ts before we get here; surface anything else
+      // so typos like --nostart don't silently fall back to the default.
+      process.stderr.write(`Warning: ignoring unknown install flag: ${a}\n`);
+    }
+  }
+  return opts;
+}
 
 function xmlEscape(s: string): string {
   return s
@@ -65,29 +103,40 @@ function printHookSnippet(bin: string, adapter: HookAdapter): void {
 }
 
 function resolvedBinaryPath(): string {
-  const bin = process.execPath;
-  // When invoked via `bun run src/cli.ts`, process.execPath is the Bun runtime
-  // binary, not the compiled claude-telemetry binary. The generated service files
-  // would reference bun directly and fail to start. Warn so the user knows to
-  // build first.
-  if (!basename(bin).startsWith('claude-telemetry')) {
-    process.stderr.write(
-      'Warning: running uncompiled — process.execPath points to the Bun runtime,\n' +
-        `not the claude-telemetry binary (got: ${bin}).\n` +
-        'The generated service files will not work. Build the binary first:\n' +
-        '  bun run build\n' +
-        'then run: ./dist/claude-telemetry install\n\n',
-    );
-  }
-  return bin;
+  // The guard in runInstall already refuses uncompiled without --force and
+  // prints the explanatory message there, so no warning is needed here.
+  return process.execPath;
 }
 
-function installDarwin(bin: string, adapter: HookAdapter): number {
-  const dir = join(homedir(), 'Library', 'LaunchAgents');
+/** True when process.execPath is the compiled claude-telemetry binary. */
+function isCompiledBinary(): boolean {
+  return basename(process.execPath).startsWith('claude-telemetry');
+}
+
+function installDarwin(
+  bin: string,
+  adapter: HookAdapter,
+  opts: InstallOptions,
+  spawn: SpawnFn,
+  homeDir: string,
+): number {
+  const dir = join(homeDir, 'Library', 'LaunchAgents');
   mkdirSync(dir, { recursive: true });
 
   const flusherPath = join(dir, `${FLUSHER_LABEL}.plist`);
   const shipperPath = join(dir, `${SHIPPER_LABEL}.plist`);
+
+  // Unload existing services before overwriting so an upgrade restarts cleanly.
+  for (const path of [flusherPath, shipperPath]) {
+    if (existsSync(path)) {
+      const r = spawn(['launchctl', 'unload', path]);
+      if (r.exitCode !== 0) {
+        process.stderr.write(
+          `Warning: launchctl unload exited ${r.exitCode} for ${path} — continuing\n`,
+        );
+      }
+    }
+  }
 
   writeFileSync(flusherPath, launchdPlist(FLUSHER_LABEL, bin, 'flusher'), {
     encoding: 'utf8',
@@ -100,20 +149,60 @@ function installDarwin(bin: string, adapter: HookAdapter): number {
 
   process.stdout.write(`wrote: ${flusherPath}\n`);
   process.stdout.write(`wrote: ${shipperPath}\n\n`);
-  process.stdout.write('Load services:\n');
-  process.stdout.write(`  launchctl load ${flusherPath}\n`);
-  process.stdout.write(`  launchctl load ${shipperPath}\n\n`);
+
+  if (opts.start) {
+    let startFailed = false;
+    for (const path of [flusherPath, shipperPath]) {
+      const r = spawn(['launchctl', 'load', path]);
+      if (r.exitCode !== 0) {
+        startFailed = true;
+        process.stderr.write(
+          `Error: launchctl load exited ${r.exitCode} for ${path}\n` +
+            `  run manually: launchctl load ${path}\n`,
+        );
+      }
+    }
+    if (startFailed) {
+      process.stderr.write('Service files were written but one or more services failed to load.\n');
+      printHookSnippet(bin, adapter);
+      return 1;
+    }
+    process.stdout.write('Services loaded.\n\n');
+  } else {
+    process.stdout.write('Load services:\n');
+    process.stdout.write(`  launchctl load ${flusherPath}\n`);
+    process.stdout.write(`  launchctl load ${shipperPath}\n\n`);
+  }
 
   printHookSnippet(bin, adapter);
   return 0;
 }
 
-function installLinux(bin: string, adapter: HookAdapter): number {
-  const dir = join(homedir(), '.config', 'systemd', 'user');
+function installLinux(
+  bin: string,
+  adapter: HookAdapter,
+  opts: InstallOptions,
+  spawn: SpawnFn,
+  homeDir: string,
+): number {
+  const dir = join(homeDir, '.config', 'systemd', 'user');
   mkdirSync(dir, { recursive: true });
 
   const flusherPath = join(dir, 'claude-telemetry-flusher.service');
   const shipperPath = join(dir, 'claude-telemetry-shipper.service');
+  const services = ['claude-telemetry-flusher', 'claude-telemetry-shipper'];
+
+  // Disable existing services before overwriting so an upgrade restarts cleanly.
+  for (const svc of services) {
+    if (existsSync(join(dir, `${svc}.service`))) {
+      const r = spawn(['systemctl', '--user', 'disable', '--now', svc]);
+      if (r.exitCode !== 0) {
+        process.stderr.write(
+          `Warning: systemctl disable --now exited ${r.exitCode} for ${svc} — continuing\n`,
+        );
+      }
+    }
+  }
 
   writeFileSync(flusherPath, systemdUnit(bin, 'flusher', 'claude-telemetry flusher'), {
     encoding: 'utf8',
@@ -126,23 +215,78 @@ function installLinux(bin: string, adapter: HookAdapter): number {
 
   process.stdout.write(`wrote: ${flusherPath}\n`);
   process.stdout.write(`wrote: ${shipperPath}\n\n`);
-  process.stdout.write('Enable and start services:\n');
-  process.stdout.write('  systemctl --user daemon-reload\n');
-  process.stdout.write('  systemctl --user enable --now claude-telemetry-flusher\n');
-  process.stdout.write('  systemctl --user enable --now claude-telemetry-shipper\n\n');
+
+  if (opts.start) {
+    const reload = spawn(['systemctl', '--user', 'daemon-reload']);
+    if (reload.exitCode !== 0) {
+      process.stderr.write(
+        `Error: systemctl daemon-reload exited ${reload.exitCode}\n` +
+          '  Service files were written but systemd was not reloaded.\n',
+      );
+      printHookSnippet(bin, adapter);
+      return 1;
+    }
+    let startFailed = false;
+    for (const svc of services) {
+      const r = spawn(['systemctl', '--user', 'enable', '--now', svc]);
+      if (r.exitCode !== 0) {
+        startFailed = true;
+        process.stderr.write(
+          `Error: systemctl enable --now exited ${r.exitCode} for ${svc}\n` +
+            `  run manually: systemctl --user enable --now ${svc}\n`,
+        );
+      }
+    }
+    if (startFailed) {
+      process.stderr.write(
+        'Service files were written but one or more services failed to start.\n',
+      );
+      printHookSnippet(bin, adapter);
+      return 1;
+    }
+    process.stdout.write('Services enabled and started.\n\n');
+  } else {
+    process.stdout.write('Enable and start services:\n');
+    process.stdout.write('  systemctl --user daemon-reload\n');
+    process.stdout.write('  systemctl --user enable --now claude-telemetry-flusher\n');
+    process.stdout.write('  systemctl --user enable --now claude-telemetry-shipper\n\n');
+  }
 
   printHookSnippet(bin, adapter);
   return 0;
 }
 
-export function runInstall(adapter: HookAdapter = selectAdapter()): number {
+export function runInstall(
+  args: readonly string[] = [],
+  adapter: HookAdapter = selectAdapter(),
+  spawn: SpawnFn = defaultSpawn,
+  homeDir: string = homedir(),
+): number {
+  const opts = parseArgs(args);
+
+  // Refuse to write service files pointing at the Bun runtime unless --force
+  // is passed — they would fail to start and silently leave the user with no
+  // telemetry collection.
+  if (!isCompiledBinary() && !opts.force) {
+    process.stderr.write(
+      'Refusing to install: process.execPath is the Bun runtime, not the\n' +
+        `compiled claude-telemetry binary (got: ${process.execPath}).\n` +
+        'The generated service files would fail to start.\n\n' +
+        'Build the binary first:\n' +
+        '  bun run --cwd apps/hook build\n' +
+        'then run: ./apps/hook/dist/claude-telemetry install\n\n' +
+        'Or pass --force to write the files anyway.\n',
+    );
+    return 1;
+  }
+
   const bin = resolvedBinaryPath();
 
   if (process.platform === 'darwin') {
-    return installDarwin(bin, adapter);
+    return installDarwin(bin, adapter, opts, spawn, homeDir);
   }
   if (process.platform === 'linux') {
-    return installLinux(bin, adapter);
+    return installLinux(bin, adapter, opts, spawn, homeDir);
   }
 
   process.stderr.write(`Unsupported platform: ${process.platform}. Manual setup required.\n\n`);
