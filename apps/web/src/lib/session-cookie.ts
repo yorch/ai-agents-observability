@@ -70,6 +70,19 @@ export async function getStateCookie(): Promise<string | undefined> {
   return jar.get(COOKIE_STATE)?.value;
 }
 
+export async function clearOAuthCookies() {
+  const jar = await cookies();
+  const options = {
+    httpOnly: true,
+    maxAge: 0,
+    path: '/api/auth/callback',
+    sameSite: 'lax' as const,
+    secure: IS_PROD,
+  };
+  jar.set(COOKIE_STATE, '', options);
+  jar.set(COOKIE_NEXT, '', options);
+}
+
 export async function setNextCookie(next: string) {
   const jar = await cookies();
   jar.set(COOKIE_NEXT, next, {
