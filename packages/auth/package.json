@@ -4,7 +4,7 @@
   "private": true,
   "description": "IdentityProvider interface + GitHub impl + JWT issuance",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "exports": {
     ".": "./src/index.ts"

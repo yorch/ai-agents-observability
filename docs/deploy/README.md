@@ -89,7 +89,7 @@ See [kubernetes.md](./kubernetes.md).
 
 ### 5. Server binaries + web tarball (no container runtime)
 
-Ingest and github-app are compiled as standalone Bun binaries (~70 MB each). The web app is packaged as a Next.js standalone tarball (~16 MB, requires Node >= 24). Migrations still need Docker or Bun from source. Deploy directly on VMs, bare metal, or under systemd.
+Ingest and github-app are compiled as standalone Bun binaries (~70 MB each). The web app is packaged as a Next.js standalone tarball (~16 MB, requires Node >= 26). Migrations still need Docker or Bun from source. Deploy directly on VMs, bare metal, or under systemd.
 
 ```bash
 # Download from GitHub Releases

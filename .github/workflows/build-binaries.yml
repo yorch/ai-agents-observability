@@ -180,7 +180,7 @@ jobs:
 
   # ── Build web tarball ───────────────────────────────────────────────────────
   # Next.js standalone bundle + static assets, packaged as a .tar.gz.
-  # The target machine needs Node >= 24 — no Bun, no node_modules, no build step.
+  # The target machine needs Node >= 26 — no Bun, no node_modules, no build step.
   build-web:
     runs-on: ubuntu-24.04
     name: Build web tarball

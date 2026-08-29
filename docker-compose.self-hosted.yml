@@ -8,7 +8,7 @@
 #
 # No outbound image pulls happen — pull_policy is set to "never" and image
 # references are cleared. The only network access needed is for the base images
-# (oven/bun, node:24-alpine, timescale/timescaledb, quay.io/minio/*) during the
+# (oven/bun, node:26-alpine, timescale/timescaledb, quay.io/minio/*) during the
 # first build; cache them in a local registry mirror for fully offline builds.
 #
 # See docs/deploy/build-from-source.md for the full runbook.

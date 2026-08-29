@@ -3,6 +3,9 @@ name: Build and Publish Docker Images
 run-name: "${{ inputs.release_run_id && format('{0} · release {1}', inputs.release_tag, inputs.release_run_id) || github.event.pull_request.title || github.event.head_commit.message || github.workflow }}"
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -90,7 +93,7 @@ jobs:
   publish:
     needs: setup
     if: >-
-      github.event_name == 'workflow_dispatch'
+      github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -167,8 +170,9 @@ jobs:
           flavor: latest=false
           tags: |
             type=raw,value=${{ steps.build-info.outputs.timestamp }}-${{ steps.build-info.outputs.commit }}
-            type=raw,value=${{ env.RELEASE_TAG }}
-            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
+            type=raw,value=main,enable=${{ github.event_name == 'push' }}
+            type=raw,value=${{ env.RELEASE_TAG }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=semver,pattern={{major}}.{{minor}},value=${{ env.RELEASE_TAG }},enable=${{ inputs.update_floating_tags }}
             type=semver,pattern={{major}},value=${{ env.RELEASE_TAG }},enable=${{ inputs.update_floating_tags }}
             type=raw,value=latest,enable=${{ inputs.update_floating_tags }}
@@ -200,8 +204,11 @@ jobs:
       # SBOM (CycloneDX), image signing (cosign keyless via OIDC), and build
       # provenance. Verification instructions are in docs/deploy/README.md.
       # See docs/deploy/air-gapped.md for the offline verification path.
+      # These steps are release-only (workflow_dispatch): signing every push-to-main
+      # image is excessive and the SBOM/provenance are consumed by the release bundle.
 
       - name: Generate SBOM
+        if: github.event_name == 'workflow_dispatch'
         uses: anchore/sbom-action@v0
         with:
           image: ${{ env.GHCR_PREFIX }}/${{ matrix.component }}:${{ steps.build-info.outputs.timestamp }}-${{ steps.build-info.outputs.commit }}
@@ -212,9 +219,11 @@ jobs:
           upload-release-assets: false
 
       - name: Install cosign
+        if: github.event_name == 'workflow_dispatch'
         uses: sigstore/cosign-installer@v3
 
       - name: Sign images (keyless via OIDC)
+        if: github.event_name == 'workflow_dispatch'
         env:
           IMAGE_LIST: ${{ steps.meta.outputs.tags }}
         run: |
@@ -229,6 +238,7 @@ jobs:
           done <<< "${IMAGE_LIST}"
 
       - name: Generate build provenance attestation
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/attest@v4
         with:
           subject-name: ${{ env.GHCR_PREFIX }}/${{ matrix.component }}

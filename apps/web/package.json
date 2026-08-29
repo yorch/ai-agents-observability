@@ -4,7 +4,7 @@
   "private": true,
   "description": "Web dashboard — Next.js. Dashboard + OAuth + read API",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "scripts": {
     "dev": "bun run --env-file=../../.env next dev",
