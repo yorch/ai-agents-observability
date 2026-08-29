@@ -52,8 +52,9 @@ jobs:
         run: bun run test
 
   # The three DB-gated suites (packages/db/test/schema.test.ts,
-  # apps/ingest/test/*.db.test.ts) skip via describe.skipIf(!DATABASE_URL), and
-  # the `ci` job above never sets it — so this is the only place they execute.
+  # apps/ingest/test/*.db.test.ts) require RUN_DB_TESTS=1 plus DATABASE_URL.
+  # Their explicit test:db scripts set the opt-in, so this is the only job where
+  # they execute.
   # See tasks/P14-014-db-test-isolation.md for why they were never wired up
   # before, and packages/db/AGENTS.md for the migration layers this applies.
   db-tests:
@@ -107,7 +108,7 @@ jobs:
 
       # apps/ingest's own `test` script (via vitest.config.ts's project split)
       # is safe to run with DATABASE_URL set, but `test:db` keeps this job
-      # scoped to only the suites the `ci` job's DATABASE_URL-less run skips,
-      # rather than re-running the ~30 non-DB ingest files a second time.
+      # scoped to only the suites the `ci` job's unit run skips, rather than
+      # re-running the ~30 non-DB ingest files a second time.
       - name: Test (DB-gated suites)
-        run: bun run --cwd packages/db test && bun run --cwd apps/ingest test:db
+        run: bun run --cwd packages/db test:db && bun run --cwd apps/ingest test:db

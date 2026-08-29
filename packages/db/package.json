@@ -13,6 +13,7 @@
     "build": "bun run db:generate",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "test:db": "RUN_DB_TESTS=1 vitest run --passWithNoTests test/schema.test.ts",
     "db:generate": "DATABASE_URL=dummy prisma generate",
     "db:migrate": "bun run --env-file=../../.env prisma migrate dev",
     "db:push": "bun run --env-file=../../.env prisma db push",

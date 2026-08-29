@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient, type PrismaClient } from '../src/index';
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const RUN_DB_TESTS = process.env.RUN_DB_TESTS === '1' && !!DATABASE_URL;
 
-describe.skipIf(!DATABASE_URL)('schema round-trip', () => {
+describe.skipIf(!RUN_DB_TESTS)('schema round-trip', () => {
   let prisma: PrismaClient;
 
   // Random suffix so re-runs against the same DB don't hit unique constraints
