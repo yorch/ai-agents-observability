@@ -1,6 +1,6 @@
 {
   "name": "@ai-agents-observability/github",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "Host-agnostic Octokit wrappers (github.com / GHES)",
   "engines": {
