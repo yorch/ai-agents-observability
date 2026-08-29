@@ -17,7 +17,7 @@ import type { PriceTableRegistry } from '../src/lib/price-tables';
  * not carry them), that a compressed chunk can be decompressed / written /
  * recompressed, and that Postgres' NUMERIC(12,6) stores the number JS computed.
  *
- * Skips when `DATABASE_URL` is unset — the same gate
+ * Requires `RUN_DB_TESTS=1` plus `DATABASE_URL` — the same gate
  * `reprice-events.db.test.ts` and `packages/db/test/schema.test.ts` use. This
  * file and `reprice-events.db.test.ts` share one `events` hypertable and its
  * continuous aggregates: run concurrently, they decompress/recompress
@@ -45,8 +45,9 @@ function expectNoJobErrors(): void {
 }
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const RUN_DB_TESTS = process.env.RUN_DB_TESTS === '1' && !!DATABASE_URL;
 
-describe.skipIf(!DATABASE_URL)('runComputeCostAttribution (against a real Timescale)', () => {
+describe.skipIf(!RUN_DB_TESTS)('runComputeCostAttribution (against a real Timescale)', () => {
   let prisma: PrismaClient;
 
   const suffix = Math.random().toString(36).slice(2, 8);

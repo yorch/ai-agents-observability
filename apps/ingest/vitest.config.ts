@@ -9,9 +9,7 @@ export default defineConfig({
     // counts (tasks/P14-014-db-test-isolation.md). Splitting into two projects
     // keeps the ~30 non-DB files running at full parallelism while forcing the
     // two `*.db.test.ts` files into their own project with fileParallelism
-    // disabled, so `bun run test` itself can never reintroduce the race even if
-    // DATABASE_URL happens to be set (rather than relying on every caller to
-    // remember `bun run test:db`).
+    // disabled, so an explicitly enabled DB run can never reintroduce the race.
     projects: [
       {
         test: {

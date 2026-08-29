@@ -17,7 +17,7 @@
     "build:linux-arm64": "NODE_ENV=production bun build src/index.ts --compile --target bun-linux-arm64 --outfile dist/ingest-server-linux-arm64",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "test:db": "vitest run --no-file-parallelism test/*.db.test.ts"
+    "test:db": "RUN_DB_TESTS=1 vitest run --no-file-parallelism test/*.db.test.ts"
   },
   "dependencies": {
     "@ai-agents-observability/auth": "workspace:*",

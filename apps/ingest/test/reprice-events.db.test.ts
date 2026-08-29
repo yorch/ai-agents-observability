@@ -20,19 +20,21 @@ function expectNoJobErrors(): void {
 }
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const RUN_DB_TESTS = process.env.RUN_DB_TESTS === '1' && !!DATABASE_URL;
 
 // The reprice job is almost entirely SQL, and the parts most likely to break are
 // the ones a mock cannot reach: chunk-by-chunk decompression of a compressed
 // hypertable, `CALL refresh_continuous_aggregate` (which cannot run inside a
 // transaction), and whether Postgres' NUMERIC arithmetic lands on the number we
-// expect. So this suite runs against a real Postgres-Timescale, and skips when
-// DATABASE_URL is unset — the same gate packages/db/test/schema.test.ts uses.
+// expect. So this suite runs against a real Postgres-Timescale, and requires
+// RUN_DB_TESTS=1 plus DATABASE_URL — the same gate
+// packages/db/test/schema.test.ts uses.
 //
 // Shares the `events` hypertable with compute-cost-attribution.db.test.ts — see
 // that file's header and tasks/P14-014-db-test-isolation.md for why the two
 // must never decompress/recompress chunks concurrently, and how
 // apps/ingest/vitest.config.ts now makes that automatic.
-describe.skipIf(!DATABASE_URL)('runRepriceEvents (against a real Timescale)', () => {
+describe.skipIf(!RUN_DB_TESTS)('runRepriceEvents (against a real Timescale)', () => {
   let prisma: PrismaClient;
 
   const suffix = Math.random().toString(36).slice(2, 8);
