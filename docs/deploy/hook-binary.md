@@ -2,9 +2,43 @@
 
 The `claude-telemetry` hook binary is distributed via GitHub Releases. Each release includes four platform-specific binaries and a `SHA256SUMS-hook` checksum file.
 
-## Download
+Installation is a two-step process handled by two separate installers:
 
-### From the GitHub Releases page
+| Step | Installer | What it does |
+|------|-----------|-------------|
+| **1. Binary acquisition** | `scripts/install-hook.sh` (shell script) | Downloads, verifies, and places the compiled binary on your `PATH` |
+| **2. Service setup** | `claude-telemetry install` (CLI subcommand) | Writes launchd/systemd service files, starts the background daemons, and prints the agent hook snippet |
+
+Step 1 gets the binary onto your machine. Step 2 wires it into your system services and your coding agent's hook configuration. Both are needed for a working install.
+
+## Step 1 — Binary acquisition
+
+### Option A: Install script (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install-hook.sh | bash
+```
+
+Or to install a specific version or to a custom directory:
+
+```bash
+curl -fsSL ... | bash -s -- --version v1.0.0
+curl -fsSL ... | bash -s -- --prefix ~/.local/bin
+```
+
+**What the script does, in order:**
+
+1. **Parses args** — `--version <tag>`, `--prefix <dir>` (default `/usr/local/bin`); validates that values are present and don't start with `-`.
+2. **Detects platform** — `uname -s` + `uname -m` → one of `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`. Exits 1 on unsupported platforms.
+3. **Resolves version** — if no `--version`, queries the GitHub API for the latest release tag.
+4. **Downloads the binary** — prefers `gh release download` if `gh` is installed and authenticated, otherwise falls back to `curl`. Shows a progress bar for the 50–80 MB download.
+5. **Fetches checksums** — downloads `SHA256SUMS-hook` from the same release. A 404 (asset not published for older releases) warns and continues; any other HTTP error or network failure **aborts** — the binary is not installed without verification.
+6. **Verifies checksum** — uses `sha256sum` on Linux or `shasum -a 256` on macOS (strips CRLF from the checksums file first). Aborts on mismatch or if neither tool is available.
+7. **Detects upgrades** — if an existing binary is at the install path, runs `--version` (with a 5s timeout) and reports the old version.
+8. **Installs** — `mv` into the prefix, using `sudo` only if the prefix is not writable.
+9. **Quarantine notice** — on macOS, if the binary has the `com.apple.quarantine` xattr, prints the `xattr -d` command to remove it.
+
+### Option B: Manual download
 
 1. Go to the [releases page](https://github.com/yorch/ai-agents-observability/releases).
 2. Download the binary for your platform:
@@ -18,7 +52,7 @@ The `claude-telemetry` hook binary is distributed via GitHub Releases. Each rele
 
 3. Download `SHA256SUMS-hook` from the same release.
 
-### Via the CLI
+### Option C: Via the GitHub CLI
 
 ```bash
 TAG=v1.0.0   # replace with the tag you want
@@ -27,15 +61,7 @@ gh release download "${TAG}" --repo yorch/ai-agents-observability \
   --pattern "SHA256SUMS-hook"
 ```
 
-### Via the install script
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install-hook.sh | bash
-```
-
-This detects your platform, downloads the latest release binary, verifies the checksum, and installs to `/usr/local/bin/claude-telemetry`.
-
-## Verify
+### Verify (manual download)
 
 ```bash
 sha256sum -c SHA256SUMS-hook --ignore-missing
@@ -43,9 +69,9 @@ sha256sum -c SHA256SUMS-hook --ignore-missing
 
 The binary you downloaded should report `OK`.
 
-## Install
+### Install manually (manual download)
 
-### Mac
+**Mac:**
 
 ```bash
 chmod +x claude-telemetry-darwin-arm64
@@ -60,14 +86,16 @@ xattr -d com.apple.quarantine /usr/local/bin/claude-telemetry
 
 Signed binaries (codesigned + notarized) do not need this step — Gatekeeper will accept them.
 
-### Linux
+**Linux:**
 
 ```bash
 chmod +x claude-telemetry-linux-x64
 sudo mv claude-telemetry-linux-x64 /usr/local/bin/claude-telemetry
 ```
 
-## Authenticate and install hooks
+## Step 2 — Service setup and hook wiring
+
+Once the binary is on your `PATH`, run:
 
 ```bash
 # Persist these first when the platform is not running on localhost.
@@ -78,6 +106,22 @@ claude-telemetry login      # GitHub device-code OAuth flow
 claude-telemetry install    # writes launchd/systemd services + prints hook snippet
 claude-telemetry status     # verify everything is healthy
 ```
+
+**What `claude-telemetry install` does, in order:**
+
+1. **Guards against uncompiled use** — if `process.execPath` is the Bun runtime (not the compiled binary), refuses to write service files unless `--force` is passed. This prevents generating services that point at the wrong executable.
+2. **Writes service files:**
+   - **macOS**: `~/Library/LaunchAgents/com.claude-telemetry.{flusher,shipper}.plist` (launchd)
+   - **Linux**: `~/.config/systemd/user/claude-telemetry-{flusher,shipper}.service` (systemd user units)
+3. **Handles upgrades** — if service files already exist, unloads/disables them first, then rewrites and reloads. This makes `install` idempotent — re-running it after a binary upgrade restarts the daemons cleanly.
+4. **Starts the services** (default, `--start`): runs `launchctl load` / `systemctl --user enable --now`. If any start step fails, exits 1 with a clear error. Use `--no-start` to write files without starting (prints the commands instead).
+5. **Prints the hook snippet** — the JSON/config to paste into your coding agent's settings (`~/.claude/settings.json` for Claude Code, `~/.codex/hooks.json` for Codex, etc.). Use `--agent <name>` to select a different agent's snippet.
+
+| Flag | Description |
+|------|-------------|
+| `--no-start` | Write service files but don't load/enable them (prints the commands instead) |
+| `--force` | Write service files even when running uncompiled (from the Bun runtime, not the binary) |
+| `--agent <name>` | Select the agent whose hook snippet to print (default: `claude-code`) |
 
 After login, historical sessions can be previewed without uploading:
 
@@ -90,18 +134,28 @@ See [`apps/hook/README.md`](../../apps/hook/README.md) for the full CLI referenc
 
 ## Air-gapped distribution
 
-For air-gapped environments, download the binary and `SHA256SUMS-hook` on a connected machine, transfer via your approved mechanism, verify checksums on the target, and install as above.
+For air-gapped environments, download the binary and `SHA256SUMS-hook` on a connected machine, transfer via your approved mechanism, verify checksums on the target, and install manually as described in Step 1 Option B above. Then run Step 2 (`claude-telemetry install`) on the target machine.
 
 ## Updating
 
 ```bash
-# Download the new release, verify, and replace the binary
+# Option A: re-run the install script (detects the upgrade, replaces the binary)
+curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install-hook.sh | bash
+
+# Option B: manual
 gh release download v1.1.0 --repo yorch/ai-agents-observability \
   --pattern "claude-telemetry-darwin-arm64" \
   --pattern "SHA256SUMS-hook"
 sha256sum -c SHA256SUMS-hook --ignore-missing
 chmod +x claude-telemetry-darwin-arm64
 sudo mv claude-telemetry-darwin-arm64 /usr/local/bin/claude-telemetry
+```
+
+After replacing the binary, re-run `claude-telemetry install` to restart the daemons with the new executable:
+
+```bash
+claude-telemetry install    # unloads old services, rewrites files, reloads
+claude-telemetry status     # verify the daemons picked up the new binary
 ```
 
 The hook binary is stateless across versions — the local SQLite queue, identity, and service files are preserved.
