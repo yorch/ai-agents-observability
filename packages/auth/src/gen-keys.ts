@@ -23,27 +23,37 @@ function isVarSet(content: string, name: string): boolean {
   return new RegExp(`^${name}=.+`, 'm').test(content);
 }
 
-/** Remove an existing assignment (multi-line double-quoted, or single-line). */
+function envValue(pem: string): string {
+  return pem.trimEnd().replaceAll('\r\n', '\n').replaceAll('\r', '\n').replaceAll('\n', '\\n');
+}
+
+function normalizeLegacyVar(content: string, name: string, keyType: 'PRIVATE' | 'PUBLIC'): string {
+  const legacy = new RegExp(`^${name}="([\\s\\S]*?-----END ${keyType} KEY-----)"\\r?$`, 'm');
+  return content.replace(legacy, (_match, pem: string) => `${name}=${envValue(pem)}`);
+}
+
+/** Remove an existing assignment (legacy multi-line double-quoted, or single-line). */
 function stripVar(content: string, name: string): string {
-  const multiline = new RegExp(`^${name}="[\\s\\S]*?"\\n?`, 'm');
+  const multiline = new RegExp(`^${name}="[\\s\\S]*?"\\r?\\n?`, 'm');
   if (multiline.test(content)) {
     return content.replace(multiline, '');
   }
-  return content.replace(new RegExp(`^${name}=.*\\n?`, 'm'), '');
+  return content.replace(new RegExp(`^${name}=.*\\r?\\n?`, 'm'), '');
 }
 
 function block(keys: { privatePem: string; publicPem: string }): string {
   return [
     HEADER,
-    `${PRIVATE_VAR}="${keys.privatePem.trimEnd()}"`,
-    `${PUBLIC_VAR}="${keys.publicPem.trimEnd()}"`,
+    `${PRIVATE_VAR}=${envValue(keys.privatePem)}`,
+    `${PUBLIC_VAR}=${envValue(keys.publicPem)}`,
     '',
   ].join('\n');
 }
 
 /**
  * Return `.env` content with the keypair added. Pure — does no IO.
- * - If both vars are already set and `force` is false, returns `null` (no-op).
+ * - If both vars already use the current format and `force` is false, returns `null`.
+ * - Legacy multiline values are normalized without rotating the keypair.
  * - With `force`, strips any existing block first so there are no duplicates.
  */
 export function upsertEnv(
@@ -51,15 +61,21 @@ export function upsertEnv(
   keys: { privatePem: string; publicPem: string },
   { force }: { force: boolean },
 ): string | null {
-  const alreadySet = isVarSet(content, PRIVATE_VAR) && isVarSet(content, PUBLIC_VAR);
-  if (alreadySet && !force) {
-    return null;
+  const normalized = normalizeLegacyVar(
+    normalizeLegacyVar(content, PRIVATE_VAR, 'PRIVATE'),
+    PUBLIC_VAR,
+    'PUBLIC',
+  );
+  const hasPrivate = isVarSet(normalized, PRIVATE_VAR);
+  const hasPublic = isVarSet(normalized, PUBLIC_VAR);
+  if (hasPrivate && hasPublic && !force) {
+    return normalized === content ? null : normalized;
   }
 
-  let base = content;
-  if (force) {
+  let base = normalized;
+  if (force || hasPrivate || hasPublic) {
     base = stripVar(stripVar(base, PRIVATE_VAR), PUBLIC_VAR).replace(
-      new RegExp(`^${HEADER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n?`, 'm'),
+      new RegExp(`^${HEADER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\r?\\n?`, 'm'),
       '',
     );
   }
