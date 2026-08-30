@@ -2,7 +2,15 @@
 // These handle the common patterns: config-dir detection, backup creation,
 // and JSON merge with ownership-marker-based idempotency.
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname } from 'node:path';
 
@@ -25,7 +33,7 @@ export function homeDir(): string {
  * was installed and run at least once.
  */
 export function dirExists(path: string): boolean {
-  return existsSync(path);
+  return statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false;
 }
 
 /**
@@ -98,36 +106,56 @@ export function writeTextFile(filePath: string, content: string): void {
  * contain the marker are preserved.
  */
 export function stripOwnedEntries(entries: unknown[], marker: string): unknown[] {
-  return entries.filter((entry) => !entryReferencesMarker(entry, marker));
+  const result: unknown[] = [];
+  for (const entry of entries) {
+    const stripped = stripEntry(entry, marker);
+    if (stripped !== null) {
+      result.push(stripped);
+    }
+  }
+  return result;
 }
 
 /**
- * Check whether a hook entry references the ownership marker in any of its
- * command fields. Handles both string commands and argv-array commands.
+ * Strip aiot-owned hooks from a single entry. Returns the cleaned entry
+ * (which may be the original if nothing was owned), or null if the entire
+ * entry was aiot-owned and should be removed.
  */
-function entryReferencesMarker(entry: unknown, marker: string): boolean {
+function stripEntry(entry: unknown, marker: string): unknown | null {
   if (typeof entry !== 'object' || entry === null) {
-    return false;
+    return entry;
   }
   const e = entry as Record<string, unknown>;
 
-  // Claude Code / Gemini shape: { hooks: [{ command: string, args: string[], name?: string }] }
+  // Claude Code / Gemini shape: { hooks: [{ command, args, name? }] }
+  // Filter the nested hooks array rather than removing the whole group —
+  // a user may have their own hooks in the same group.
   if (Array.isArray(e.hooks)) {
-    return e.hooks.some(
+    const filtered = e.hooks.filter(
       (h) =>
-        typeof h === 'object' &&
-        h !== null &&
-        ((typeof (h as Record<string, unknown>).command === 'string' &&
-          ((h as Record<string, unknown>).command as string).includes(marker)) ||
-          (typeof (h as Record<string, unknown>).name === 'string' &&
-            ((h as Record<string, unknown>).name as string).includes(marker))),
+        !(
+          typeof h === 'object' &&
+          h !== null &&
+          ((typeof (h as Record<string, unknown>).command === 'string' &&
+            ((h as Record<string, unknown>).command as string).includes(marker)) ||
+            (typeof (h as Record<string, unknown>).name === 'string' &&
+              ((h as Record<string, unknown>).name as string).includes(marker)))
+        ),
     );
+    if (filtered.length === 0) {
+      // The entire group was aiot-owned.
+      return null;
+    }
+    return { ...e, hooks: filtered };
   }
 
   // Codex / Copilot shape: { command: string[] }
   if (Array.isArray(e.command)) {
-    return e.command.some((c) => typeof c === 'string' && c.includes(marker));
+    if (e.command.some((c) => typeof c === 'string' && c.includes(marker))) {
+      return null;
+    }
+    return entry;
   }
 
-  return false;
+  return entry;
 }

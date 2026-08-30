@@ -309,10 +309,22 @@ async function installDarwin(
   homeDir: string,
 ): Promise<number> {
   const dir = join(homeDir, 'Library', 'LaunchAgents');
-  mkdirSync(dir, { recursive: true });
-
   const flusherPath = join(dir, `${FLUSHER_LABEL}.plist`);
   const shipperPath = join(dir, `${SHIPPER_LABEL}.plist`);
+
+  if (opts.dryRun) {
+    process.stdout.write('[dry-run] Would write:\n');
+    process.stdout.write(`  ${flusherPath}\n`);
+    process.stdout.write(`  ${shipperPath}\n`);
+    if (opts.start) {
+      process.stdout.write('[dry-run] Would run: launchctl load for both services\n');
+    }
+    const { undetected } = await autoWire(bin, opts);
+    printUndetectedSnippets(bin, undetected);
+    return 0;
+  }
+
+  mkdirSync(dir, { recursive: true });
 
   // Unload existing services before overwriting so an upgrade restarts cleanly.
   for (const path of [flusherPath, shipperPath]) {
@@ -375,11 +387,25 @@ async function installLinux(
   homeDir: string,
 ): Promise<number> {
   const dir = join(homeDir, '.config', 'systemd', 'user');
-  mkdirSync(dir, { recursive: true });
-
   const flusherPath = join(dir, 'aiot-flusher.service');
   const shipperPath = join(dir, 'aiot-shipper.service');
   const services = ['aiot-flusher', 'aiot-shipper'];
+
+  if (opts.dryRun) {
+    process.stdout.write('[dry-run] Would write:\n');
+    process.stdout.write(`  ${flusherPath}\n`);
+    process.stdout.write(`  ${shipperPath}\n`);
+    if (opts.start) {
+      process.stdout.write(
+        '[dry-run] Would run: systemctl --user enable --now for both services\n',
+      );
+    }
+    const { undetected } = await autoWire(bin, opts);
+    printUndetectedSnippets(bin, undetected);
+    return 0;
+  }
+
+  mkdirSync(dir, { recursive: true });
 
   // Disable existing services before overwriting so an upgrade restarts cleanly.
   for (const svc of services) {

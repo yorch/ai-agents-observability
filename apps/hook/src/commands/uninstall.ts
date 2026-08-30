@@ -1,8 +1,8 @@
 import { existsSync, rmSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { ADAPTERS } from '../adapters';
+import { homeDir } from '../lib/config-wire';
 
 const FLUSHER_LABEL = 'com.brnby.aiot.flusher';
 const SHIPPER_LABEL = 'com.brnby.aiot.shipper';
@@ -32,7 +32,7 @@ function removeAgentHooks(): void {
 }
 
 function uninstallDarwin(): number {
-  const dir = join(homedir(), 'Library', 'LaunchAgents');
+  const dir = join(homeDir(), 'Library', 'LaunchAgents');
   const plists = [join(dir, `${FLUSHER_LABEL}.plist`), join(dir, `${SHIPPER_LABEL}.plist`)];
 
   for (const file of plists) {
@@ -55,7 +55,7 @@ function uninstallDarwin(): number {
 }
 
 function uninstallLinux(): number {
-  const dir = join(homedir(), '.config', 'systemd', 'user');
+  const dir = join(homeDir(), '.config', 'systemd', 'user');
   const services = ['aiot-flusher.service', 'aiot-shipper.service'];
 
   let anyRemoved = false;

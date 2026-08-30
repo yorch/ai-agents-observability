@@ -12,7 +12,13 @@ import {
 
 import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
-import { dirExists, homeDir, writeTextFile } from '../lib/config-wire';
+import {
+  createBackupIfAbsent,
+  dirExists,
+  homeDir,
+  removeBackup,
+  writeTextFile,
+} from '../lib/config-wire';
 import { isRecord, optionalNonNegativeInt } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { sessionUuid } from '../lib/session-id';
@@ -238,6 +244,7 @@ function detectOpencode(): boolean {
 function applyOpencode(bin: string): string | null {
   const pluginFile = OPENCODE_PLUGIN_FILE();
   try {
+    createBackupIfAbsent(pluginFile);
     writeTextFile(pluginFile, renderSnippet(bin));
     return `wrote ${pluginFile}`;
   } catch (err) {
@@ -252,6 +259,7 @@ function removeOpencode(): boolean {
     if (existsSync(pluginFile)) {
       rmSync(pluginFile, { force: true });
     }
+    removeBackup(pluginFile);
     return true;
   } catch (err) {
     process.stderr.write(`Error removing opencode plugin: ${(err as Error).message}\n`);

@@ -1,7 +1,13 @@
 import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { dirExists, homeDir, writeTextFile } from '../lib/config-wire';
+import {
+  createBackupIfAbsent,
+  dirExists,
+  homeDir,
+  removeBackup,
+  writeTextFile,
+} from '../lib/config-wire';
 
 import type { HookAdapter } from './index';
 import { createPiFamilyAdapter, renderExtensionSnippet } from './pi-family';
@@ -104,6 +110,7 @@ function detectOmp(): boolean {
 function applyOmp(bin: string): string | null {
   const pluginFile = ompPluginFile();
   try {
+    createBackupIfAbsent(pluginFile);
     writeTextFile(pluginFile, renderSnippet(bin));
     return `wrote ${pluginFile}`;
   } catch (err) {
@@ -118,6 +125,7 @@ function removeOmp(): boolean {
     if (existsSync(pluginFile)) {
       rmSync(pluginFile, { force: true });
     }
+    removeBackup(pluginFile);
     return true;
   } catch (err) {
     process.stderr.write(`Error removing omp hook module: ${(err as Error).message}\n`);

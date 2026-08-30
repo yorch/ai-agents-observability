@@ -1,7 +1,13 @@
 import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { homeDir as configHomeDir, dirExists, writeTextFile } from '../lib/config-wire';
+import {
+  homeDir as configHomeDir,
+  createBackupIfAbsent,
+  dirExists,
+  removeBackup,
+  writeTextFile,
+} from '../lib/config-wire';
 
 import type { HookAdapter } from './index';
 import { createPiFamilyAdapter, renderExtensionSnippet } from './pi-family';
@@ -62,6 +68,7 @@ function detectPi(): boolean {
 function applyPi(bin: string): string | null {
   const pluginFile = PI_PLUGIN_FILE();
   try {
+    createBackupIfAbsent(pluginFile);
     writeTextFile(pluginFile, renderSnippet(bin));
     return `wrote ${pluginFile}`;
   } catch (err) {
@@ -76,6 +83,7 @@ function removePi(): boolean {
     if (existsSync(pluginFile)) {
       rmSync(pluginFile, { force: true });
     }
+    removeBackup(pluginFile);
     return true;
   } catch (err) {
     process.stderr.write(`Error removing Pi extension: ${(err as Error).message}\n`);

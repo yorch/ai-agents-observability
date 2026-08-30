@@ -419,6 +419,75 @@ describe('codex auto-wire', () => {
   });
 });
 
+// ── stripOwnedEntries preserves user hooks in mixed groups ────────────────────
+
+describe('stripOwnedEntries mixed-group preservation', () => {
+  const cfg = () => cfgFor('claude-code');
+
+  it('removes only aiot hooks from a group that has both aiot and user hooks', () => {
+    mkdir('.claude');
+    // Create settings with a group that has BOTH a user hook and an aiot hook
+    writeFile(
+      '.claude/settings.json',
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            {
+              hooks: [
+                { command: 'my-user-tool', type: 'command' },
+                { command: BIN, type: 'command' },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    cfg().apply?.(BIN);
+    cfg().remove?.();
+    const settings = readJson('.claude/settings.json') as {
+      hooks: Record<string, { hooks: { command: string }[] }[]>;
+    };
+    // The user's hook should still be present in the nested array
+    const commands = settings.hooks.PreToolUse.flatMap((e) => e.hooks.map((h) => h.command));
+    expect(commands).toContain('my-user-tool');
+    // aiot's hook should be gone
+    expect(commands).not.toContain(BIN);
+  });
+});
+
+// ── Codex hooks.json path (lifecycle hooks) ──────────────────────────────────
+
+describe('codex hooks.json lifecycle path', () => {
+  const cfg = () => cfgFor('codex');
+
+  it('removes aiot entries from hooks.json when hooks feature is enabled', () => {
+    mkdir('.codex');
+    // Enable the hooks feature so applyCodex takes the hooks.json path
+    writeFile(
+      '.codex/config.toml',
+      '[features]\nhooks = true\n',
+    );
+    cfg().apply?.(BIN);
+    // Verify hooks.json was written
+    expect(exists('.codex/hooks.json')).toBe(true);
+    // Now remove and verify aiot entries are gone
+    cfg().remove?.();
+    const data = readJson('.codex/hooks.json') as {
+      hooks?: Record<string, unknown[]>;
+    };
+    if (data.hooks) {
+      for (const entries of Object.values(data.hooks)) {
+        for (const entry of entries) {
+          const e = entry as { command?: string[] };
+          if (Array.isArray(e.command)) {
+            expect(e.command[0]).not.toBe(BIN);
+          }
+        }
+      }
+    }
+  });
+});
+
 // ── All adapters have detect/apply/remove ─────────────────────────────────────
 
 describe('all adapters support auto-wire', () => {

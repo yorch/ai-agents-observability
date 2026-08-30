@@ -766,8 +766,10 @@ function renderHooksSnippet(bin: string): string {
 const CODEX_NOTIFY_WRAPPER = () => join(codexHome(), 'aiot-notify.sh');
 const CODEX_HOOKS_JSON = () => join(codexHome(), 'hooks.json');
 const CODEX_CONFIG_TOML = () => join(codexHome(), 'config.toml');
-// Ownership marker for hooks.json entries: our wrapper script name.
-const CODEX_OWNERSHIP_MARKER = 'aiot-notify.sh';
+// Ownership marker for hooks.json entries (the lifecycle-hooks path).
+// applyCodex uses this to strip old entries before re-adding; removeCodex uses
+// it to clean up. Must match in both directions.
+const CODEX_HOOKS_MARKER = 'aiot';
 
 function detectCodex(): boolean {
   return dirExists(codexHome());
@@ -793,7 +795,9 @@ function applyCodex(bin: string): string | null {
       const userHooks = (existing.hooks as Record<string, unknown[]>) ?? {};
       const merged: Record<string, unknown[]> = {};
       for (const [event, entries] of Object.entries(userHooks)) {
-        merged[event] = Array.isArray(entries) ? stripOwnedEntries(entries, 'aiot') : [];
+        merged[event] = Array.isArray(entries)
+          ? stripOwnedEntries(entries, CODEX_HOOKS_MARKER)
+          : [];
       }
       for (const [event, entries] of Object.entries(ourHooks)) {
         merged[event] = [...(merged[event] ?? []), ...entries];
@@ -846,7 +850,7 @@ function removeCodex(): boolean {
       let hadAny = false;
       for (const [event, entries] of Object.entries(hooks)) {
         const stripped = Array.isArray(entries)
-          ? stripOwnedEntries(entries, CODEX_OWNERSHIP_MARKER)
+          ? stripOwnedEntries(entries, CODEX_HOOKS_MARKER)
           : entries;
         if (Array.isArray(stripped)) {
           if (stripped.length !== entries.length) {
@@ -870,7 +874,7 @@ function removeCodex(): boolean {
     if (existsSync(configPath)) {
       const raw = readFileSync(configPath, 'utf8');
       if (raw.includes('aiot-notify.sh')) {
-        const lines = raw.split('\n').filter((l) => !l.includes('aiot-notify.sh'));
+        const lines = raw.split('\n').filter((l) => !/^notify\s*=.*aiot-notify\.sh/.test(l));
         writeFileSync(configPath, lines.join('\n'), 'utf8');
         removeBackup(configPath);
       }

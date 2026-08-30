@@ -111,7 +111,7 @@ download_file() {
   fi
 }
 
-echo "Downloading ${LAUNCHER} (launcher, ~100 KB)..."
+echo "Downloading ${LAUNCHER} (launcher, ~300 KB)..."
 download_file "${LAUNCHER}" "${LAUNCHER_URL}" || {
   echo "Failed to download ${LAUNCHER} from release ${VERSION}" >&2
   exit 1
