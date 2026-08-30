@@ -6,6 +6,18 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v1.5.0 (2026-08-30)
+
+### Features
+
+- hook: harden install scripts and activate services by default (#192)
+
+### Bug Fixes
+
+- traefik: allow GET /readyz on ingest router (#198)
+- auth: prevent premature logout by extending access token TTL and adding client-side refresh (#196)
+- auth: surface GitHub error details in device flow failures (#193)
+
 ## v1.4.1 (2026-08-29)
 
 ### Bug Fixes

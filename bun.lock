@@ -12,7 +12,7 @@
     },
     "apps/github-app": {
       "name": "@ai-agents-observability/github-app",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "dependencies": {
         "@ai-agents-observability/db": "workspace:*",
         "@ai-agents-observability/github": "workspace:*",
@@ -33,7 +33,7 @@
     },
     "apps/hook": {
       "name": "@ai-agents-observability/hook",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "dependencies": {
         "@ai-agents-observability/schemas": "workspace:*",
       },
@@ -44,7 +44,7 @@
     },
     "apps/ingest": {
       "name": "@ai-agents-observability/ingest",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "dependencies": {
         "@ai-agents-observability/auth": "workspace:*",
         "@ai-agents-observability/db": "workspace:*",
@@ -80,7 +80,7 @@
     },
     "apps/web": {
       "name": "@ai-agents-observability/web",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "dependencies": {
         "@ai-agents-observability/auth": "workspace:*",
         "@ai-agents-observability/db": "workspace:*",
@@ -104,7 +104,7 @@
     },
     "packages/auth": {
       "name": "@ai-agents-observability/auth",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "dependencies": {
         "@ai-agents-observability/db": "workspace:*",
         "@ai-agents-observability/github": "workspace:*",
@@ -119,7 +119,7 @@
     },
     "packages/db": {
       "name": "@ai-agents-observability/db",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "dependencies": {
         "@aws-sdk/client-s3": "catalog:",
         "@prisma/adapter-pg": "catalog:",
@@ -135,7 +135,7 @@
     },
     "packages/github": {
       "name": "@ai-agents-observability/github",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "dependencies": {
         "@octokit/plugin-enterprise-compatibility": "catalog:",
         "@octokit/webhooks": "catalog:",
@@ -149,7 +149,7 @@
     },
     "packages/redaction": {
       "name": "@ai-agents-observability/redaction",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "devDependencies": {
         "@types/node": "24.13.3",
         "fast-check": "catalog:",
@@ -159,7 +159,7 @@
     },
     "packages/schemas": {
       "name": "@ai-agents-observability/schemas",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "dependencies": {
         "js-yaml": "catalog:",
         "zod": "catalog:",
