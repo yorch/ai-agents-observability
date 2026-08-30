@@ -1,0 +1,5 @@
+sk-abc123def456ghi789jkl012mno345pqr
+pk_live_abc123def456ghi789jkl012mno345
+rk_test_abc123def456ghi789jkl012mno345
+Bearer dGhpcyBpcyBhIHRva2VuLXZhbHVl
+Authorization: Bearer abcdef1234567890abcdef1234567890abcd

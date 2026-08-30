@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   type S3Client,
   S3ServiceException,
+  type ServerSideEncryption,
 } from '@aws-sdk/client-s3';
 
 export type S3Deps = { bucket: string; client: S3Client };
@@ -32,6 +33,7 @@ export async function putObject(
   body: Uint8Array,
   contentType: string,
   metadata?: Record<string, string>,
+  sse?: { algorithm: ServerSideEncryption; kmsKeyId?: string },
 ): Promise<void> {
   await deps.client.send(
     new PutObjectCommand({
@@ -40,6 +42,12 @@ export async function putObject(
       ContentType: contentType,
       Key: key,
       ...(metadata ? { Metadata: metadata } : {}),
+      ...(sse
+        ? {
+            ServerSideEncryption: sse.algorithm,
+            ...(sse.kmsKeyId ? { SSEKMSKeyId: sse.kmsKeyId } : {}),
+          }
+        : {}),
     }),
   );
 }

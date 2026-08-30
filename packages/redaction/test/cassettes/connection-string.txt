@@ -1,0 +1,6 @@
+postgres://admin:secretpass@db.example.com:5432/mydb
+postgresql://user:password@localhost:5432/prod
+mongodb://root:hunter2@cluster.mongodb.net/db
+mongodb+srv://admin:s3cr3t@cluster.mongodb.net/db
+redis://:mypassword@redis.example.com:6379
+mysql://dbuser:dbpass@mysql.internal:3306/app

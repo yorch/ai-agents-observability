@@ -61,11 +61,14 @@ security issue, please report it responsibly:
 - **Double redaction:** Transcripts are redacted once client-side in the hook
   binary and again server-side in the ingest pipeline before any S3/MinIO write.
   The server does not trust that the client ran redaction.
-- **9 regex rule classes:** AWS access keys, AWS secret keys, GitHub tokens,
-  JWTs, Slack tokens, environment-secret patterns, private keys, git remote URL
-  credentials, and email addresses. Rules run in a fixed order so structural
-  secret rules fire before the git-remote-url rule (which would otherwise
-  clobber their markers).
+- **12 regex rule classes:** AWS access keys, AWS secret keys, GitHub tokens,
+  JWTs, Slack tokens, environment-secret patterns, private keys, generic API
+  key prefixes (`sk-`, `pk-`, `rk-`, `Bearer`), database connection strings
+  (postgres, mongodb, redis, mysql), high-entropy secrets (catch-all for
+  unknown token formats), git remote URL credentials, and email addresses.
+  Rules run in a fixed order so structural secret rules fire before the
+  catch-all high-entropy rule and the git-remote-url rule (which would
+  otherwise clobber their markers).
 - **`events.metadata` protection:** Content-bearing metadata keys are stripped
   server-side via `stripContentBearingKeys()` before the JSONB row is written,
   because redaction scrubs secrets, not prose.
@@ -98,7 +101,10 @@ responsibilities at the infrastructure layer:
   The application listens on plain HTTP inside the container network.
 - **Encryption at rest:** Configure Postgres and MinIO/S3 encryption at rest
   according to your infrastructure provider. The application does not manage
-  disk-level encryption.
+  disk-level encryption. For S3-backed deployments (not MinIO), set
+  `S3_SSE_ALGORITHM` (`AES256` or `aws:kms`) and optionally `S3_KMS_KEY_ID` to
+  enable server-side encryption on transcript object uploads. When unset, no
+  SSE headers are sent (MinIO default).
 - **Secret management:** No secrets are hardcoded in the codebase. All secrets
   (JWT signing keys, database credentials, S3 credentials, OAuth client
   secrets, API keys) must be provided via explicit environment variables. Use a
@@ -111,11 +117,14 @@ responsibilities at the infrastructure layer:
 
 ## Security headers
 
-Security headers (HSTS, Content-Security-Policy, X-Frame-Options,
-X-Content-Type-Options, Referrer-Policy) should be set at the **reverse proxy
-layer** (Traefik, nginx, or a CDN). The application's `next.config.ts` does not
-set these headers — this is a deliberate separation so the operator can tailor
-CSP to their deployment (allowed script sources, analytics, etc.).
+The application sets baseline security headers in `next.config.ts`:
+HSTS, Content-Security-Policy, X-Frame-Options (`DENY`), X-Content-Type-Options
+(`nosniff`), Referrer-Policy (`strict-origin-when-cross-origin`), and
+Permissions-Policy. The CSP allows `'unsafe-inline'` on `script-src` and
+`style-src` because Next.js injects inline hydration scripts and the theme
+toggle uses `dangerouslySetInnerHTML`. The reverse proxy (Traefik, nginx, or a
+CDN) can tighten these further — e.g. submit the domain to the HSTS preload
+list, or switch to a nonce-based CSP generated per-request in middleware.
 
 ## Known limitations
 
