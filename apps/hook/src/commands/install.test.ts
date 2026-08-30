@@ -232,3 +232,126 @@ describe('install — prints the agent hook snippet', () => {
     expect(stdout).toContain('settings.json');
   });
 });
+
+// ── install flags: --dry-run, --yes, --agent, --no-auto ───────────────────────
+//
+// These tests set process.env.HOME to the temp dir so adapter detect()/apply()
+// (which read HOME via lib/config-wire) operate against the sandboxed home.
+
+describe('install --dry-run', () => {
+  it('returns 0 and writes no service files', async () => {
+    const { exit } = await captureOutput(() =>
+      install(['--force', '--dry-run'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(0);
+    // No service files written in dry-run mode.
+    expect(existsSync(flusherPath())).toBe(false);
+    expect(existsSync(shipperPath())).toBe(false);
+  });
+
+  it('prints what it would write', async () => {
+    const { stdout, exit } = await captureOutput(() =>
+      install(['--force', '--dry-run', '--no-start'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(0);
+    expect(stdout).toContain('[dry-run]');
+    expect(stdout).toContain(flusherPath());
+  });
+});
+
+describe('install --yes', () => {
+  let origHome: string | undefined;
+
+  beforeEach(() => {
+    origHome = process.env.HOME;
+    process.env.HOME = tmpHome;
+    // Make Claude Code detectable so --yes has something to auto-wire.
+    mkdirSync(join(tmpHome, '.claude'), { recursive: true });
+  });
+
+  afterEach(() => {
+    if (origHome !== undefined) {
+      process.env.HOME = origHome;
+    } else {
+      delete process.env.HOME;
+    }
+  });
+
+  it('skips the interactive prompt and auto-wires all detected agents', async () => {
+    const { stdout, exit } = await captureOutput(() =>
+      install(['--force', '--yes', '--no-start'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(0);
+    // Claude Code was detected and wired without prompting.
+    expect(stdout).toContain('Wired Claude Code');
+    // The settings file should now contain our hooks.
+    const settings = JSON.parse(readFileSync(join(tmpHome, '.claude', 'settings.json'), 'utf8'));
+    expect(settings.hooks).toBeDefined();
+    expect(Object.keys(settings.hooks).length).toBeGreaterThan(0);
+  });
+});
+
+describe('install --agent <name>', () => {
+  let origHome: string | undefined;
+
+  beforeEach(() => {
+    origHome = process.env.HOME;
+    process.env.HOME = tmpHome;
+    // Make both Claude Code and Gemini detectable.
+    mkdirSync(join(tmpHome, '.claude'), { recursive: true });
+    mkdirSync(join(tmpHome, '.gemini'), { recursive: true });
+  });
+
+  afterEach(() => {
+    if (origHome !== undefined) {
+      process.env.HOME = origHome;
+    } else {
+      delete process.env.HOME;
+    }
+  });
+
+  it('wires only the specified agent, not all detected ones', async () => {
+    const { stdout, exit } = await captureOutput(() =>
+      install(['--force', '--agent', 'claude-code', '--no-start'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(0);
+    expect(stdout).toContain('Wired Claude Code');
+    // Gemini was also detectable but should NOT have been wired.
+    expect(stdout).not.toContain('Wired Gemini');
+    // Claude Code settings were written; Gemini's were not.
+    expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(true);
+    expect(existsSync(join(tmpHome, '.gemini', 'settings.json'))).toBe(false);
+  });
+});
+
+describe('install --no-auto', () => {
+  let origHome: string | undefined;
+
+  beforeEach(() => {
+    origHome = process.env.HOME;
+    process.env.HOME = tmpHome;
+    // Make Claude Code detectable — --no-auto must still skip wiring.
+    mkdirSync(join(tmpHome, '.claude'), { recursive: true });
+  });
+
+  afterEach(() => {
+    if (origHome !== undefined) {
+      process.env.HOME = origHome;
+    } else {
+      delete process.env.HOME;
+    }
+  });
+
+  it('skips auto-wiring and only prints snippets', async () => {
+    const { stdout, exit } = await captureOutput(() =>
+      install(['--force', '--no-auto', '--no-start'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(0);
+    // No agent was wired.
+    expect(stdout).not.toContain('Wired Claude Code');
+    // Snippets are printed instead.
+    expect(stdout).toContain('settings.json');
+    // No settings file was written.
+    expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(false);
+  });
+});

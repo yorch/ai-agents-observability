@@ -104,80 +104,179 @@ export async function checkboxPrompt(items: CheckboxItem[]): Promise<string[] | 
       stdin.setRawMode(false);
       stdin.pause();
       stdin.removeListener('data', onData);
+      clearEscTimer();
+    }
+
+    // Multi-byte characters and ANSI escape sequences can be split across
+    // `data` events, so we buffer input and process only complete sequences.
+    let buffer = '';
+    // Timer for a pending escape sequence that hasn't completed yet. If no
+    // more data arrives within ~100ms, treat it as a standalone ESC (abort).
+    let escTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function clearEscTimer(): void {
+      if (escTimer !== null) {
+        clearTimeout(escTimer);
+        escTimer = null;
+      }
+    }
+
+    /** Start (or reset) the pending-escape timer. Called whenever the buffer
+     *  begins with ESC but the sequence isn't complete yet. */
+    function ensureEscTimer(): void {
+      if (escTimer !== null) {
+        return;
+      }
+      escTimer = setTimeout(() => {
+        escTimer = null;
+        // If the buffer still starts with an incomplete escape sequence,
+        // treat it as a standalone ESC (abort).
+        if (buffer.charCodeAt(0) === 0x1b) {
+          buffer = '';
+          abort();
+        }
+      }, 100);
+    }
+
+    function abort(): void {
+      cleanup();
+      clearEscTimer();
+      // Clear the list lines.
+      stdout.write(`${CSI}${items.length}A`);
+      for (let i = 0; i < items.length; i++) {
+        stdout.write(`${CLEAR_LINE}\n`);
+      }
+      stdout.write(`${CSI}${items.length}A`);
+      resolve(null);
+    }
+
+    function confirm(): void {
+      cleanup();
+      clearEscTimer();
+      // Clear the list lines.
+      stdout.write(`${CSI}${items.length}A`);
+      for (let i = 0; i < items.length; i++) {
+        stdout.write(`${CLEAR_LINE}\n`);
+      }
+      stdout.write(`${CSI}${items.length}A`);
+      const selected = items.filter((_, i) => checked[i] ?? false).map((item) => item.value);
+      resolve(selected);
+    }
+
+    function processBuffer(): void {
+      // Loop: we may complete several short sequences from one data event.
+      while (buffer.length > 0) {
+        // Ctrl-C — always abort immediately.
+        if (buffer.charCodeAt(0) === 0x03) {
+          buffer = buffer.slice(1);
+          abort();
+          return;
+        }
+
+        // Escape sequence: CSI (`ESC [` ...). Wait until we have at least 3
+        // bytes and the sequence terminates with a letter.
+        if (buffer.startsWith(CSI)) {
+          if (buffer.length < 3) {
+            // Not enough bytes yet — wait for more data (or the esc timer).
+            ensureEscTimer();
+            return;
+          }
+          // Find the terminating letter (0x40–0x7E) that closes a CSI sequence.
+          const end = buffer.slice(2).search(/[\x40-\x7E]/);
+          if (end === -1) {
+            // No terminator yet — wait for more data.
+            ensureEscTimer();
+            return;
+          }
+          const seq = buffer.slice(0, 3 + end);
+          buffer = buffer.slice(3 + end);
+          clearEscTimer();
+
+          // Arrow up
+          if (seq === `${CSI}A` || seq === `${CSI}1;2A`) {
+            cursor = (cursor - 1 + items.length) % items.length;
+            render();
+            continue;
+          }
+          // Arrow down
+          if (seq === `${CSI}B` || seq === `${CSI}1;2B`) {
+            cursor = (cursor + 1) % items.length;
+            render();
+            continue;
+          }
+          // Unknown CSI sequence — ignore.
+          continue;
+        }
+
+        // Lone ESC with nothing after — wait briefly; if no more data
+        // arrives, treat it as a standalone abort.
+        if (buffer === ESC) {
+          ensureEscTimer();
+          return;
+        }
+
+        // ESC followed by something that isn't `[` — treat as standalone ESC
+        // (abort) and leave the rest in the buffer for the next pass.
+        if (buffer.charCodeAt(0) === 0x1b) {
+          buffer = buffer.slice(1);
+          abort();
+          return;
+        }
+
+        // Regular character — process immediately.
+        const ch = buffer[0] ?? '';
+        buffer = buffer.slice(1);
+        clearEscTimer();
+
+        // q — abort
+        if (ch === 'q') {
+          abort();
+          return;
+        }
+        // Enter — confirm selection
+        if (ch === '\r' || ch === '\n') {
+          confirm();
+          return;
+        }
+        // k — arrow up
+        if (ch === 'k') {
+          cursor = (cursor - 1 + items.length) % items.length;
+          render();
+          continue;
+        }
+        // j — arrow down
+        if (ch === 'j') {
+          cursor = (cursor + 1) % items.length;
+          render();
+          continue;
+        }
+        // Space — toggle current item
+        if (ch === ' ') {
+          checked[cursor] = !checked[cursor];
+          render();
+          continue;
+        }
+        // 'a' — toggle all
+        if (ch === 'a') {
+          const allOn = checked.every((c) => c);
+          for (let i = 0; i < checked.length; i++) {
+            checked[i] = !allOn;
+          }
+          render();
+        }
+        // Unknown character — ignore.
+      }
     }
 
     function onData(data: string): void {
-      const key = data;
-
-      // Ctrl-C
-      if (key === '\x03') {
-        cleanup();
-        // Clear the list lines.
-        stdout.write(`${CSI}${items.length}A`);
-        for (let i = 0; i < items.length; i++) {
-          stdout.write(`${CLEAR_LINE}\n`);
-        }
-        stdout.write(`${CSI}${items.length}A`);
-        resolve(null);
+      buffer += data;
+      // Cap buffer to prevent unbounded growth from incomplete sequences.
+      if (buffer.length > 64) {
+        buffer = '';
+        abort();
         return;
       }
-
-      // q or Esc — abort
-      if (key === 'q' || key === ESC) {
-        cleanup();
-        stdout.write(`${CSI}${items.length}A`);
-        for (let i = 0; i < items.length; i++) {
-          stdout.write(`${CLEAR_LINE}\n`);
-        }
-        stdout.write(`${CSI}${items.length}A`);
-        resolve(null);
-        return;
-      }
-
-      // Enter — confirm selection
-      if (key === '\r' || key === '\n') {
-        cleanup();
-        // Clear the list lines.
-        stdout.write(`${CSI}${items.length}A`);
-        for (let i = 0; i < items.length; i++) {
-          stdout.write(`${CLEAR_LINE}\n`);
-        }
-        stdout.write(`${CSI}${items.length}A`);
-        const selected = items.filter((_, i) => checked[i]).map((i) => i.value);
-        resolve(selected);
-        return;
-      }
-
-      // Arrow up
-      if (key === `${CSI}A` || key === 'k') {
-        cursor = (cursor - 1 + items.length) % items.length;
-        render();
-        return;
-      }
-
-      // Arrow down
-      if (key === `${CSI}B` || key === 'j') {
-        cursor = (cursor + 1) % items.length;
-        render();
-        return;
-      }
-
-      // Space — toggle current item
-      if (key === ' ') {
-        checked[cursor] = !checked[cursor];
-        render();
-        return;
-      }
-
-      // 'a' — toggle all
-      if (key === 'a') {
-        const allOn = checked.every((c) => c);
-        for (let i = 0; i < checked.length; i++) {
-          checked[i] = !allOn;
-        }
-        render();
-        return;
-      }
+      processBuffer();
     }
 
     stdin.on('data', onData);
