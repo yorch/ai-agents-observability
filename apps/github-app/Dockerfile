@@ -36,7 +36,10 @@ COPY apps/github-app/ apps/github-app/
 COPY tsconfig.base.json ./
 # Generate Prisma client before bundling
 RUN cd packages/db && bunx prisma generate
-RUN bun build apps/github-app/src/index.ts \
+# NODE_ENV=production at build time so bun build inlines the correct value
+# for process.env.NODE_ENV (Bun replaces it statically). Without this, the
+# bundle hardcodes "development" and pino tries to load pino-pretty at runtime.
+RUN NODE_ENV=production bun build apps/github-app/src/index.ts \
       --target bun \
       --outdir apps/github-app/dist \
       --external '@prisma/client'
@@ -65,7 +68,8 @@ USER github-app
 
 COPY --from=build --chown=github-app:github-app /app/apps/github-app/dist ./dist
 COPY --from=build --chown=github-app:github-app /app/packages/db/src/generated ./packages/db/src/generated
-COPY --from=deps --chown=github-app:github-app /app/node_modules ./node_modules
+COPY --from=deps --chown=github-app:github-app /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=deps --chown=github-app:github-app /app/node_modules/@prisma/client-runtime-utils ./node_modules/@prisma/client-runtime-utils
 
 ENV NODE_ENV=production
 EXPOSE 4001
