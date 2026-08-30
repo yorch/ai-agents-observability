@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
-import type { S3Client } from '@aws-sdk/client-s3';
+import type { S3Client, ServerSideEncryption } from '@aws-sdk/client-s3';
 import { Hono } from 'hono';
 import type { Logger } from 'pino';
 
@@ -81,7 +81,24 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
     '/v1/events',
     eventsRouter(deps.db, priceTables, deps.logger, config.jira_project_keys),
   );
-  app.route('/v1/transcripts', transcriptsRouter({ db: deps.db, s3: deps.s3 }, deps.logger));
+  app.route(
+    '/v1/transcripts',
+    transcriptsRouter(
+      {
+        db: deps.db,
+        s3: deps.s3,
+        ...(config.s3_sse_algorithm
+          ? {
+              sse: {
+                algorithm: config.s3_sse_algorithm as ServerSideEncryption,
+                ...(config.s3_kms_key_id ? { kmsKeyId: config.s3_kms_key_id } : {}),
+              },
+            }
+          : {}),
+      },
+      deps.logger,
+    ),
+  );
 
   // Catch-all for unhandled throws (e.g. DB errors on the events hot path).
   // Without this, Hono returns an opaque 500 with no structured log — and ingest

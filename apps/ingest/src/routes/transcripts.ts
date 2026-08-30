@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { PrismaClient } from '@ai-agents-observability/db';
-import { S3ServiceException } from '@aws-sdk/client-s3';
+import { S3ServiceException, type ServerSideEncryption } from '@aws-sdk/client-s3';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { Logger } from 'pino';
@@ -49,6 +49,7 @@ type SessionRepo = Pick<PrismaClient, 'session'>;
 export type TranscriptsDeps = {
   db: SessionRepo;
   s3: S3Deps;
+  sse?: { algorithm: ServerSideEncryption; kmsKeyId?: string };
 };
 
 // Parses a Content-Type header value into its bare MIME, dropping parameters
@@ -234,9 +235,16 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
           throw err;
         }
         try {
-          await putObject(deps.s3, key, result.recompressed, CONTENT_TYPE_ZSTD, {
-            [UPLOAD_SHA_METADATA_KEY]: sha256,
-          });
+          await putObject(
+            deps.s3,
+            key,
+            result.recompressed,
+            CONTENT_TYPE_ZSTD,
+            {
+              [UPLOAD_SHA_METADATA_KEY]: sha256,
+            },
+            deps.sse,
+          );
         } catch (err) {
           if (err instanceof S3ServiceException) {
             logger.error({ err, reqId, sessionId }, 'ingest.transcript.s3_error');

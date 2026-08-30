@@ -105,8 +105,14 @@ const ConfigSchema = z.object({
     .optional()
     .transform((v) => v !== 'false' && v !== '0')
     .default(true),
+  // KMS key ID/ARN when s3_sse_algorithm is 'aws:kms'. Ignored otherwise.
+  s3_kms_key_id: z.string().optional(),
   s3_region: z.string().default('us-east-1'),
   s3_secret_access_key: z.string().min(1),
+  // Optional server-side encryption for S3 transcript objects. Set to 'AES256'
+  // for SSE-S3 or 'aws:kms' for SSE-KMS. When unset, no SSE headers are sent
+  // (preserving current behavior for MinIO which doesn't support SSE headers).
+  s3_sse_algorithm: z.string().optional(),
   // P7-007 spike. Gates semantic-search prototype. Accepts "1" or "true". No effect on
   // production paths when unset.
   semantic_search_enabled: z
@@ -173,8 +179,10 @@ export function loadConfig(): Config {
     s3_bucket: process.env.S3_BUCKET,
     s3_endpoint: process.env.S3_ENDPOINT,
     s3_force_path_style: process.env.S3_FORCE_PATH_STYLE,
+    s3_kms_key_id: process.env.S3_KMS_KEY_ID,
     s3_region: process.env.S3_REGION,
     s3_secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
+    s3_sse_algorithm: process.env.S3_SSE_ALGORITHM,
     semantic_search_enabled: process.env.SEMANTIC_SEARCH_ENABLED,
     smtp_from: process.env.SMTP_FROM,
     smtp_host: process.env.SMTP_HOST,

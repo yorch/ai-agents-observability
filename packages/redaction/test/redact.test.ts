@@ -186,6 +186,88 @@ describe('private-key', () => {
   });
 });
 
+// ── Generic API key ───────────────────────────────────────────────────────────
+
+describe('generic-api-key', () => {
+  it('redacts all positive cassette examples', () => {
+    const lines = loadCassette('generic-api-key.txt').split('\n');
+    for (const line of lines) {
+      const { flags } = redact(line);
+      expect(flags).toContain('generic-api-key');
+    }
+  });
+
+  it('does not flag a short sk- value', () => {
+    const { flags } = redact('sk-short');
+    expect(flags).not.toContain('generic-api-key');
+  });
+
+  it('does not flag a short pk- value', () => {
+    const { flags } = redact('pk-abc123');
+    expect(flags).not.toContain('generic-api-key');
+  });
+
+  it('does not flag a short Bearer token', () => {
+    const { flags } = redact('Bearer short');
+    expect(flags).not.toContain('generic-api-key');
+  });
+});
+
+// ── Connection string ─────────────────────────────────────────────────────────
+
+describe('connection-string', () => {
+  it('redacts all positive cassette examples', () => {
+    const lines = loadCassette('connection-string.txt').split('\n');
+    for (const line of lines) {
+      const { text, flags } = redact(line);
+      expect(flags).toContain('connection-string');
+      expect(text).toContain('[REDACTED:connection-string]@');
+    }
+  });
+
+  it('preserves scheme, redacts only userinfo', () => {
+    const { text } = redact('postgres://admin:secretpass@db.example.com:5432/mydb');
+    expect(text).toBe('postgres://[REDACTED:connection-string]@db.example.com:5432/mydb');
+  });
+
+  it('does not fire on a credential-free connection string', () => {
+    const { flags } = redact('postgres://db.example.com:5432/mydb');
+    expect(flags).not.toContain('connection-string');
+  });
+});
+
+// ── High-entropy secret ───────────────────────────────────────────────────────
+
+describe('high-entropy-secret', () => {
+  it('redacts all positive cassette examples', () => {
+    const lines = loadCassette('high-entropy-secret.txt').split('\n');
+    for (const line of lines) {
+      const { flags } = redact(line);
+      expect(flags).toContain('high-entropy-secret');
+    }
+  });
+
+  it('does NOT redact low-entropy 32-char strings', () => {
+    for (const low of ['A'.repeat(32), 'AB'.repeat(16), 'a'.repeat(32)]) {
+      const { flags } = redact(low);
+      expect(flags).not.toContain('high-entropy-secret');
+    }
+  });
+
+  it('does NOT redact 40-char git SHA-1 hashes (hex < 64)', () => {
+    const sha1 = '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b';
+    const { flags } = redact(`commit ${sha1}`);
+    expect(flags).not.toContain('high-entropy-secret');
+  });
+
+  it('runs in linear time on a long base64 input', () => {
+    const evil = `${'A'.repeat(100_000)}+`;
+    const t0 = performance.now();
+    redact(evil);
+    expect(performance.now() - t0).toBeLessThan(500);
+  });
+});
+
 // ── Overlap safety ────────────────────────────────────────────────────────────
 
 describe('overlap and composition', () => {
@@ -228,6 +310,9 @@ describe('property: random alphanum never false-positives on structural rules', 
           'private-key',
           'email',
           'git-remote-url',
+          'generic-api-key',
+          'connection-string',
+          'high-entropy-secret',
         ];
         for (const rule of structuralRules) {
           expect(flags).not.toContain(rule);
