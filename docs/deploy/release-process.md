@@ -65,6 +65,7 @@ Docker images are also pushed to GHCR (`ghcr.io/yorch/ai-agents-observability/<c
 - **A manual repair deliberately rebuilds** — it moves the selected release back to draft, rebuilds and verifies every artifact without moving the tag, then republishes it without changing which release is marked latest.
 - **An artifact failure leaves a draft** — the release stays hidden until every workflow succeeds and every expected asset is present.
 - **Artifact workflows do not edit release notes** — `release.yml` exclusively owns the changelog-based release body.
+- **A failed publish (quality gate failure) does not create the tag.** The next `prepare-release` run reads the current version from `package.json` (not from the last git tag), so it correctly bumps from the unpublished version rather than re-generating it. The changelog range starts from the `chore: release vX.Y.Z` merge commit, so commits already in the failed release's changelog are not duplicated. The failed version's CHANGELOG entry remains as a historical record; the version is simply skipped (no tag, no GitHub Release).
 
 ## Repair an incomplete release
 
