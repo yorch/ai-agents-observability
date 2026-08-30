@@ -22,15 +22,63 @@ cd "$(git rev-parse --show-toplevel)"
 
 # Find the last version tag. If none, start from the first commit.
 LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-if [[ -z "${LAST_TAG}" ]]; then
+
+# Read the current version from package.json. This is authoritative: the
+# release PR sets it via release-version.ts, and it survives a failed publish
+# (the git tag does not). When the last tag's version is behind package.json,
+# a previous publish failed — we start the changelog range from the
+# "chore: release v{CURRENT}" merge commit so commits already in that
+# release's changelog are not duplicated.
+PKG_VERSION=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[0-9]+\.[0-9]+\.[0-9]+"' package.json \
+  | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' \
+  | head -1 \
+  || echo "")
+
+if [[ -n "${LAST_TAG}" ]]; then
+  LAST_TAG_VERSION=$(echo "${LAST_TAG}" | sed -E 's/^v//')
+else
+  LAST_TAG_VERSION=""
+fi
+
+# Determine the current version and the changelog range start.
+if [[ -n "${PKG_VERSION}" && "${PKG_VERSION}" != "0.0.0" ]]; then
+  CURRENT="${PKG_VERSION}"
+else
+  # No package.json version — fall back to last tag or 0.0.0.
+  CURRENT="${LAST_TAG_VERSION:-0.0.0}"
+fi
+
+# Determine the commit range for changelog and bump detection.
+if [[ -n "${LAST_TAG}" && "${LAST_TAG_VERSION}" == "${CURRENT}" ]]; then
+  # Normal case: last tag matches package.json — range is tag..HEAD.
+  RANGE="${LAST_TAG}..HEAD"
+  START_COMMIT="${LAST_TAG}"
+elif [[ -n "${PKG_VERSION}" && "${PKG_VERSION}" != "0.0.0" && -n "${LAST_TAG}" && "${LAST_TAG_VERSION}" != "${CURRENT}" ]]; then
+  # Failed publish: last tag is behind package.json. Find the
+  # "chore: release v{CURRENT}" squash-merge commit on main and start
+  # the range from there, excluding commits already in the previous
+  # release's changelog.
+  RELEASE_COMMIT=$(git log --grep="chore: release v${CURRENT}" --format='%H' --no-merges --max-count=1 2>/dev/null || echo "")
+  if [[ -n "${RELEASE_COMMIT}" ]]; then
+    RANGE="${RELEASE_COMMIT}..HEAD"
+    START_COMMIT="${RELEASE_COMMIT}"
+  else
+    # Fallback: can't find the release commit — use last tag (may
+    # duplicate some changelog entries, but better than skipping).
+    RANGE="${LAST_TAG}..HEAD"
+    START_COMMIT="${LAST_TAG}"
+  fi
+elif [[ -z "${LAST_TAG}" ]]; then
+  # No tags at all — start from the first commit.
   RANGE=""
   START_COMMIT=$(git rev-list --max-parents=0 HEAD | tail -1)
 else
+  # No package.json version — use last tag.
   RANGE="${LAST_TAG}..HEAD"
   START_COMMIT="${LAST_TAG}"
 fi
 
-# Collect conventional commit subjects since the last tag.
+# Collect conventional commit subjects in the determined range.
 # Format: <type>:<subject>  or  <type>(<scope>):<subject>
 # Skip merge commits and chore/docs/test/ci/style commits for bump detection,
 # but include all in the changelog.
@@ -41,7 +89,7 @@ else
 fi
 
 if [[ -z "${COMMITS}" ]]; then
-  echo "No commits since ${LAST_TAG:-the beginning}" >&2
+  echo "No commits since ${START_COMMIT:-the beginning}" >&2
   exit 1
 fi
 
@@ -71,13 +119,6 @@ while IFS= read -r subject; do
   esac
 done <<< "${COMMITS}"
 
-# Determine current version from the last tag, or start at 0.0.0
-if [[ -n "${LAST_TAG}" ]]; then
-  CURRENT=$(echo "${LAST_TAG}" | sed -E 's/^v//')
-else
-  CURRENT="0.0.0"
-fi
-
 MAJOR=$(echo "${CURRENT}" | cut -d. -f1)
 MINOR=$(echo "${CURRENT}" | cut -d. -f2)
 PATCH=$(echo "${CURRENT}" | cut -d. -f3)
@@ -92,7 +133,7 @@ elif [[ "${HAS_FEAT}" -eq 1 ]]; then
 elif [[ "${HAS_FIX}" -eq 1 ]]; then
   PATCH=$((PATCH + 1))
 else
-  echo "No releasable commits (feat/fix/perf/refactor) since ${LAST_TAG:-the beginning}" >&2
+  echo "No releasable commits (feat/fix/perf/refactor) since ${START_COMMIT:-the beginning}" >&2
   exit 1
 fi
 
