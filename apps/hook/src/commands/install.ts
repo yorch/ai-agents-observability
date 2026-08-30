@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
-import { type HookAdapter, selectAdapter } from '../adapters';
+import { ADAPTERS, type HookAdapter, selectAdapter } from '../adapters';
+import { type CheckboxItem, checkboxPrompt, isInteractive } from '../lib/prompt';
 
 const FLUSHER_LABEL = 'com.brnby.aiot.flusher';
 const SHIPPER_LABEL = 'com.brnby.aiot.shipper';
@@ -21,24 +22,57 @@ function defaultSpawn(cmd: readonly string[]): { exitCode: number } {
 }
 
 interface InstallOptions {
+  /** Explicit agent names to wire (--agent flag, repeatable). */
+  agents: string[];
+  /** Show what would be wired without modifying files. */
+  dryRun: boolean;
   /** Write service files even when running from the Bun runtime, not the compiled binary. */
   force: boolean;
+  /** Skip auto-wiring, print snippets only (legacy behavior). */
+  noAuto: boolean;
   /** Load/enable the services after writing their files (default: true). */
   start: boolean;
+  /** Wire all detected agents without prompting. */
+  yes: boolean;
 }
 
 function parseArgs(args: readonly string[]): InstallOptions {
-  const opts: InstallOptions = { force: false, start: true };
-  for (const a of args) {
+  const opts: InstallOptions = {
+    agents: [],
+    dryRun: false,
+    force: false,
+    noAuto: false,
+    start: true,
+    yes: false,
+  };
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (!a) {
+      continue;
+    }
     if (a === '--start') {
       opts.start = true;
     } else if (a === '--no-start') {
       opts.start = false;
     } else if (a === '--force') {
       opts.force = true;
+    } else if (a === '--no-auto') {
+      opts.noAuto = true;
+    } else if (a === '--yes' || a === '-y') {
+      opts.yes = true;
+    } else if (a === '--dry-run') {
+      opts.dryRun = true;
+    } else if (a === '--agent') {
+      // --agent is also consumed by cli.ts, but if it reaches here (e.g. multiple
+      // --agent flags for selective wiring), collect them.
+      const next = args[i + 1];
+      if (next && !next.startsWith('--')) {
+        opts.agents.push(next);
+        i++;
+      }
+    } else if (a.startsWith('--agent=')) {
+      opts.agents.push(a.slice('--agent='.length));
     } else if (a.startsWith('--')) {
-      // --agent is consumed by cli.ts before we get here; surface anything else
-      // so typos like --nostart don't silently fall back to the default.
       process.stderr.write(`Warning: ignoring unknown install flag: ${a}\n`);
     }
   }
@@ -96,16 +130,171 @@ WantedBy=default.target
 `;
 }
 
-function printHookSnippet(bin: string, adapter: HookAdapter): void {
-  const cfg = adapter.installConfig();
-  process.stdout.write(`${cfg.settingsHint}\n\n`);
-  process.stdout.write(`${cfg.renderSnippet(bin)}\n`);
+// ── Auto-wire: detect agents, prompt, apply hooks ─────────────────────────────
+
+/** Agent name → adapter key in ADAPTERS. */
+function adapterKeyFor(agentName: string): string | null {
+  const normalized = agentName.toLowerCase().replaceAll('_', '-');
+  return normalized in ADAPTERS ? normalized : null;
+}
+
+/** Detect all installed agents and return their adapter keys + display info. */
+function detectAgents(): { key: string; label: string; detail: string }[] {
+  const detected: { key: string; label: string; detail: string }[] = [];
+  for (const [key, adapter] of Object.entries(ADAPTERS)) {
+    const cfg = adapter.installConfig();
+    if (cfg.detect?.()) {
+      detected.push({
+        detail: cfg.settingsHint.replace(/^Add (to|a|an) /, '').replace(/[:].*$/, ''),
+        key,
+        label: cfg.agentName,
+      });
+    }
+  }
+  return detected;
+}
+
+/**
+ * Run the auto-wire flow: detect agents, prompt the user (or use --yes/--agent),
+ * and apply hooks to the selected agents. Returns the list of agent keys that
+ * were wired (or would be wired in dry-run mode).
+ */
+async function autoWire(
+  bin: string,
+  opts: InstallOptions,
+): Promise<{ wired: string[]; undetected: string[] }> {
+  // --no-auto: skip entirely, caller prints snippets.
+  if (opts.noAuto) {
+    return { undetected: Object.keys(ADAPTERS), wired: [] };
+  }
+
+  // --agent X: wire only the specified agents, no detection or prompt.
+  if (opts.agents.length > 0) {
+    const wired: string[] = [];
+    for (const name of opts.agents) {
+      const key = adapterKeyFor(name);
+      if (!key) {
+        process.stderr.write(`Unknown agent: ${name}\n`);
+        process.stderr.write(`Available: ${Object.keys(ADAPTERS).join(', ')}\n`);
+        continue;
+      }
+      const adapter = ADAPTERS[key];
+      if (!adapter) {
+        continue;
+      }
+      const cfg = adapter.installConfig();
+      if (!cfg.apply) {
+        process.stderr.write(`Agent ${cfg.agentName} does not support auto-wiring.\n`);
+        process.stdout.write(`\n${cfg.settingsHint}\n\n${cfg.renderSnippet(bin)}\n`);
+        continue;
+      }
+      if (opts.dryRun) {
+        process.stdout.write(`[dry-run] Would wire ${cfg.agentName}\n`);
+      } else {
+        const result = cfg.apply(bin);
+        if (result) {
+          process.stdout.write(`Wired ${cfg.agentName}: ${result}\n`);
+          wired.push(key);
+        }
+      }
+    }
+    return { undetected: [], wired };
+  }
+
+  // Detect installed agents.
+  const detected = detectAgents();
+
+  if (detected.length === 0) {
+    // No agents detected — print snippets for all.
+    return { undetected: Object.keys(ADAPTERS), wired: [] };
+  }
+
+  // Determine which agents to wire.
+  let selectedKeys: string[] | null;
+
+  if (opts.yes || !isInteractive()) {
+    // --yes or non-interactive: wire all detected agents.
+    selectedKeys = detected.map((d) => d.key);
+  } else {
+    // Interactive: show checkbox prompt.
+    process.stdout.write('\nDetected agents:\n');
+    const items: CheckboxItem[] = detected.map((d) => ({
+      detail: d.detail,
+      label: d.label,
+      selected: true,
+      value: d.key,
+    }));
+    process.stdout.write(
+      '\nWire hooks into which agents? (Space to toggle, Enter to confirm, q to skip)\n',
+    );
+    selectedKeys = await checkboxPrompt(items);
+    if (selectedKeys === null) {
+      process.stdout.write('Skipped agent wiring.\n');
+      return { undetected: Object.keys(ADAPTERS), wired: [] };
+    }
+  }
+
+  // Apply hooks to selected agents.
+  const wired: string[] = [];
+  for (const key of selectedKeys) {
+    const adapter = ADAPTERS[key];
+    if (!adapter) {
+      continue;
+    }
+    const cfg = adapter.installConfig();
+    if (!cfg.apply) {
+      continue;
+    }
+    if (opts.dryRun) {
+      process.stdout.write(`[dry-run] Would wire ${cfg.agentName}\n`);
+      wired.push(key);
+      continue;
+    }
+    const result = cfg.apply(bin);
+    if (result) {
+      process.stdout.write(`Wired ${cfg.agentName}: ${result}\n`);
+      wired.push(key);
+    }
+  }
+
+  // Undetected agents: collect for snippet printing.
+  const undetected = Object.keys(ADAPTERS).filter((k) => !detected.some((d) => d.key === k));
+
+  return { undetected, wired };
+}
+
+/** Print snippets for agents that were not auto-wired. */
+function printUndetectedSnippets(bin: string, keys: string[]): void {
+  if (keys.length === 0) {
+    return;
+  }
+  process.stdout.write('\nManual setup for undetected agents:\n');
+  for (const key of keys) {
+    const adapter = ADAPTERS[key];
+    if (!adapter) {
+      continue;
+    }
+    const cfg = adapter.installConfig();
+    process.stdout.write(`\n${cfg.agentName}:\n`);
+    process.stdout.write(`${cfg.settingsHint}\n\n`);
+    process.stdout.write(`${cfg.renderSnippet(bin)}\n`);
+  }
 }
 
 function resolvedBinaryPath(): string {
   // The guard in runInstall already refuses uncompiled without --force and
   // prints the explanatory message there, so no warning is needed here.
-  return process.execPath;
+  //
+  // When running via the Rust launcher, process.execPath is `aiot-runtime`
+  // (the Bun-compiled binary). Services and hook snippets must point at the
+  // launcher (`aiot`), not the runtime, so that macOS BTM attributes the
+  // background activity to our signature rather than Bun's.
+  const exe = process.execPath;
+  const name = basename(exe);
+  if (name === 'aiot-runtime') {
+    return exe.replace(/aiot-runtime$/, 'aiot');
+  }
+  return exe;
 }
 
 /** True when process.execPath is the compiled aiot binary. */
@@ -113,13 +302,12 @@ function isCompiledBinary(): boolean {
   return basename(process.execPath).startsWith('aiot');
 }
 
-function installDarwin(
+async function installDarwin(
   bin: string,
-  adapter: HookAdapter,
   opts: InstallOptions,
   spawn: SpawnFn,
   homeDir: string,
-): number {
+): Promise<number> {
   const dir = join(homeDir, 'Library', 'LaunchAgents');
   mkdirSync(dir, { recursive: true });
 
@@ -164,7 +352,8 @@ function installDarwin(
     }
     if (startFailed) {
       process.stderr.write('Service files were written but one or more services failed to load.\n');
-      printHookSnippet(bin, adapter);
+      const { undetected } = await autoWire(bin, opts);
+      printUndetectedSnippets(bin, undetected);
       return 1;
     }
     process.stdout.write('Services loaded.\n\n');
@@ -174,17 +363,17 @@ function installDarwin(
     process.stdout.write(`  launchctl load ${shipperPath}\n\n`);
   }
 
-  printHookSnippet(bin, adapter);
+  const { undetected } = await autoWire(bin, opts);
+  printUndetectedSnippets(bin, undetected);
   return 0;
 }
 
-function installLinux(
+async function installLinux(
   bin: string,
-  adapter: HookAdapter,
   opts: InstallOptions,
   spawn: SpawnFn,
   homeDir: string,
-): number {
+): Promise<number> {
   const dir = join(homeDir, '.config', 'systemd', 'user');
   mkdirSync(dir, { recursive: true });
 
@@ -223,7 +412,8 @@ function installLinux(
         `Error: systemctl daemon-reload exited ${reload.exitCode}\n` +
           '  Service files were written but systemd was not reloaded.\n',
       );
-      printHookSnippet(bin, adapter);
+      const { undetected } = await autoWire(bin, opts);
+      printUndetectedSnippets(bin, undetected);
       return 1;
     }
     let startFailed = false;
@@ -241,7 +431,8 @@ function installLinux(
       process.stderr.write(
         'Service files were written but one or more services failed to start.\n',
       );
-      printHookSnippet(bin, adapter);
+      const { undetected } = await autoWire(bin, opts);
+      printUndetectedSnippets(bin, undetected);
       return 1;
     }
     process.stdout.write('Services enabled and started.\n\n');
@@ -252,16 +443,17 @@ function installLinux(
     process.stdout.write('  systemctl --user enable --now aiot-shipper\n\n');
   }
 
-  printHookSnippet(bin, adapter);
+  const { undetected } = await autoWire(bin, opts);
+  printUndetectedSnippets(bin, undetected);
   return 0;
 }
 
-export function runInstall(
+export async function runInstall(
   args: readonly string[] = [],
-  adapter: HookAdapter = selectAdapter(),
+  _adapter: HookAdapter = selectAdapter(),
   spawn: SpawnFn = defaultSpawn,
   homeDir: string = homedir(),
-): number {
+): Promise<number> {
   const opts = parseArgs(args);
 
   // Refuse to write service files pointing at the Bun runtime unless --force
@@ -283,13 +475,14 @@ export function runInstall(
   const bin = resolvedBinaryPath();
 
   if (process.platform === 'darwin') {
-    return installDarwin(bin, adapter, opts, spawn, homeDir);
+    return installDarwin(bin, opts, spawn, homeDir);
   }
   if (process.platform === 'linux') {
-    return installLinux(bin, adapter, opts, spawn, homeDir);
+    return installLinux(bin, opts, spawn, homeDir);
   }
 
   process.stderr.write(`Unsupported platform: ${process.platform}. Manual setup required.\n\n`);
-  printHookSnippet(bin, adapter);
+  const { undetected } = await autoWire(bin, opts);
+  printUndetectedSnippets(bin, undetected);
   return 1;
 }

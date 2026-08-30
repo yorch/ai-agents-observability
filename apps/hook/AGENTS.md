@@ -185,9 +185,19 @@ per-session data survived a "delete all local telemetry data" once already.
 
 ## Building
 
-`bun run build` compiles for the current platform; `build:all` cross-compiles all four
-distribution targets (`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`) via
-`bun build --compile --target bun-<os>-<arch>`. The output is a standalone executable —
-no Bun or Node needed on the developer's machine. Binaries land in `dist/` at 50–80 MB
-(the Bun runtime is bundled); Mac distribution beyond dev machines needs codesigning +
-notarization (see `README.md`).
+`bun run build` compiles both parts for the current platform; `build:all` cross-compiles
+all four distribution targets (`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`).
+Each target produces two binaries:
+
+- `aiot-<target>` — a ~300 KB Rust launcher (`launcher/`) that `execv`s the runtime.
+  macOS BTM reads this binary's code signature for the "Developer Name" shown in
+  Login Items & Extensions. Without it, BTM attributes the background activity to
+  Bun's author ("Jarred Sumner") instead of our tool.
+- `aiot-runtime-<target>` — the Bun-compiled CLI (`bun build --compile --target bun-<os>-<arch>`),
+  50–80 MB (the Bun runtime is bundled).
+
+The launcher finds `aiot-runtime` by looking for it next to itself in the same directory.
+`install.ts:resolvedBinaryPath()` derives the launcher path from `process.execPath` (which
+is the runtime) by stripping the `-runtime` suffix — service files and hook snippets point
+at the launcher, not the runtime. Mac distribution beyond dev machines needs codesigning +
+notarization of the launcher (see `README.md`).

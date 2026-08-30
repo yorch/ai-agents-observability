@@ -60,6 +60,8 @@ next-env.d.ts
 # Compiled hook binaries
 apps/hook/bin/
 apps/hook/dist/
+# Rust launcher build output
+apps/hook/launcher/target/
 # MinIO local data
 infra/.minio-data/
 # Claude Code internal (worktrees, session state)

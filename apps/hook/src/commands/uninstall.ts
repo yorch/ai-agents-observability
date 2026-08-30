@@ -2,8 +2,34 @@ import { existsSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { ADAPTERS } from '../adapters';
+
 const FLUSHER_LABEL = 'com.brnby.aiot.flusher';
 const SHIPPER_LABEL = 'com.brnby.aiot.shipper';
+
+/** Remove aiot's hook config from every adapter that supports removal. */
+function removeAgentHooks(): void {
+  let removedAny = false;
+  for (const adapter of Object.values(ADAPTERS)) {
+    const cfg = adapter.installConfig();
+    if (!cfg.remove) {
+      continue;
+    }
+    try {
+      if (cfg.remove()) {
+        process.stdout.write(`removed hooks: ${cfg.agentName}\n`);
+        removedAny = true;
+      }
+    } catch (err) {
+      process.stderr.write(
+        `Warning: failed to remove hooks for ${cfg.agentName}: ${(err as Error).message}\n`,
+      );
+    }
+  }
+  if (removedAny) {
+    process.stdout.write('\n');
+  }
+}
 
 function uninstallDarwin(): number {
   const dir = join(homedir(), 'Library', 'LaunchAgents');
@@ -22,6 +48,7 @@ function uninstallDarwin(): number {
     }
   }
 
+  removeAgentHooks();
   process.stdout.write('\nServices uninstalled. Local data was not removed.\n');
   process.stdout.write('To remove local data: aiot purge-local\n');
   return 0;
@@ -54,6 +81,7 @@ function uninstallLinux(): number {
     }
   }
 
+  removeAgentHooks();
   process.stdout.write('\nServices uninstalled. Local data was not removed.\n');
   process.stdout.write('To remove local data: aiot purge-local\n');
   return 0;

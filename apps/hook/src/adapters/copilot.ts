@@ -1,4 +1,8 @@
+import { existsSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import type { EventType, ToolInfo } from '@ai-agents-observability/schemas';
+
+import { dirExists, homeDir, writeJsonFile } from '../lib/config-wire';
 
 import type { HookAdapter } from './index';
 import {
@@ -237,6 +241,51 @@ function renderSnippet(bin: string): string {
   return JSON.stringify({ disableAllHooks: false, hooks, version: 1 }, null, 2);
 }
 
+// ── Auto-wire: detect / apply / remove ────────────────────────────────────────
+
+const COPILOT_CONFIG_DIR = () => join(homeDir(), '.copilot');
+const COPILOT_HOOKS_DIR = () => join(COPILOT_CONFIG_DIR(), 'hooks');
+const COPILOT_HOOK_FILE = () => join(COPILOT_HOOKS_DIR(), 'aiot.json');
+
+function detectCopilot(): boolean {
+  return dirExists(COPILOT_CONFIG_DIR());
+}
+
+function applyCopilot(bin: string): string | null {
+  const hookFile = COPILOT_HOOK_FILE();
+  try {
+    // We own this file entirely — no merge needed, just write it.
+    const hooks: Record<string, unknown[]> = {};
+    for (const [kind, copilotEvent] of Object.entries(HOOK_KIND_TO_COPILOT_EVENT)) {
+      hooks[copilotEvent] = [
+        {
+          command: [bin, 'hook', kind, '--agent', 'copilot'],
+          timeoutSec: 5,
+          type: 'command',
+        },
+      ];
+    }
+    writeJsonFile(hookFile, { disableAllHooks: false, hooks, version: 1 });
+    return `wrote ${hookFile}`;
+  } catch (err) {
+    process.stderr.write(`Error wiring Copilot CLI: ${(err as Error).message}\n`);
+    return null;
+  }
+}
+
+function removeCopilot(): boolean {
+  const hookFile = COPILOT_HOOK_FILE();
+  try {
+    if (existsSync(hookFile)) {
+      rmSync(hookFile, { force: true });
+    }
+    return true;
+  } catch (err) {
+    process.stderr.write(`Error removing Copilot CLI hooks: ${(err as Error).message}\n`);
+    return false;
+  }
+}
+
 export const copilotAdapter: HookAdapter = createStdinHookAdapter({
   agentType: 'COPILOT',
   buildTool: buildCopilotToolInfo,
@@ -244,6 +293,9 @@ export const copilotAdapter: HookAdapter = createStdinHookAdapter({
   fields: COPILOT_FIELDS,
   install: {
     agentName: 'GitHub Copilot CLI',
+    apply: applyCopilot,
+    detect: detectCopilot,
+    remove: removeCopilot,
     renderSnippet,
     settingsHint: 'Write this to ~/.copilot/hooks/aiot.json:',
   },

@@ -19,7 +19,10 @@ afterEach(() => {
 });
 
 /** runInstall with the temp dir injected as homeDir (Bun's homedir() ignores $HOME). */
-function install(args: string[], spawn: (cmd: readonly string[]) => { exitCode: number }): number {
+async function install(
+  args: string[],
+  spawn: (cmd: readonly string[]) => { exitCode: number },
+): Promise<number> {
   return runInstall(args, claudeCodeAdapter, spawn, tmpHome);
 }
 
@@ -43,7 +46,9 @@ function failingSpawn(_cmd: readonly string[]): { exitCode: number } {
   return { exitCode: 1 };
 }
 
-function captureOutput(fn: () => number): { stdout: string; stderr: string; exit: number } {
+async function captureOutput(
+  fn: () => Promise<number> | number,
+): Promise<{ stdout: string; stderr: string; exit: number }> {
   const stdoutChunks: string[] = [];
   const stderrChunks: string[] = [];
   const origStdout = process.stdout.write.bind(process.stdout);
@@ -58,7 +63,7 @@ function captureOutput(fn: () => number): { stdout: string; stderr: string; exit
   };
   let exit = 0;
   try {
-    exit = fn();
+    exit = await fn();
   } finally {
     process.stdout.write = origStdout;
     process.stderr.write = origStderr;
@@ -95,8 +100,8 @@ describe('install — uncompiled guard', () => {
   // Under `bun test`, process.execPath is the Bun runtime, not the compiled
   // binary, so the guard fires. These tests exercise that path directly.
 
-  it('refuses without --force and writes no service files', () => {
-    const { stderr, exit } = captureOutput(() => install([], recordingSpawn().fn));
+  it('refuses without --force and writes no service files', async () => {
+    const { stderr, exit } = await captureOutput(() => install([], recordingSpawn().fn));
     expect(exit).toBe(1);
     expect(stderr).toContain('Refusing to install');
     expect(stderr).toContain('--force');
@@ -104,8 +109,10 @@ describe('install — uncompiled guard', () => {
     expect(existsSync(shipperPath())).toBe(false);
   });
 
-  it('proceeds with --force', () => {
-    const { exit } = captureOutput(() => install(['--force', '--no-start'], recordingSpawn().fn));
+  it('proceeds with --force', async () => {
+    const { exit } = await captureOutput(() =>
+      install(['--force', '--no-start'], recordingSpawn().fn),
+    );
     expect(exit).toBe(0);
     expect(existsSync(flusherPath())).toBe(true);
     expect(existsSync(shipperPath())).toBe(true);
@@ -115,9 +122,9 @@ describe('install — uncompiled guard', () => {
 // ── --no-start prints commands instead of running them ────────────────────────
 
 describe('install --no-start', () => {
-  it('writes files but does not load/enable services', () => {
+  it('writes files but does not load/enable services', async () => {
     const rec = recordingSpawn();
-    const { stdout, exit } = captureOutput(() => install(['--force', '--no-start'], rec.fn));
+    const { stdout, exit } = await captureOutput(() => install(['--force', '--no-start'], rec.fn));
     expect(exit).toBe(0);
     expect(existsSync(flusherPath())).toBe(true);
     expect(existsSync(shipperPath())).toBe(true);
@@ -134,9 +141,9 @@ describe('install --no-start', () => {
 // ── --start (default) loads/enables services ──────────────────────────────────
 
 describe('install --start (default)', () => {
-  it('loads/enables services via spawn', () => {
+  it('loads/enables services via spawn', async () => {
     const rec = recordingSpawn();
-    const { exit } = captureOutput(() => install(['--force'], rec.fn));
+    const { exit } = await captureOutput(() => install(['--force'], rec.fn));
     expect(exit).toBe(0);
     expect(rec.calls.length).toBeGreaterThan(0);
     if (isDarwin) {
@@ -149,8 +156,8 @@ describe('install --start (default)', () => {
     }
   });
 
-  it('returns 1 when a load/enable call fails', () => {
-    const { stderr, exit } = captureOutput(() => install(['--force'], failingSpawn));
+  it('returns 1 when a load/enable call fails', async () => {
+    const { stderr, exit } = await captureOutput(() => install(['--force'], failingSpawn));
     expect(exit).toBe(1);
     expect(stderr).toContain('Error');
     // Service files were still written.
@@ -162,7 +169,7 @@ describe('install --start (default)', () => {
 // ── upgrade: unloads existing services before overwriting ─────────────────────
 
 describe('install — upgrade over existing service files', () => {
-  it('unloads/disables existing services before rewriting', () => {
+  it('unloads/disables existing services before rewriting', async () => {
     // Pre-create the service files so the upgrade path detects them.
     if (isDarwin) {
       mkdirSync(launchAgentsDir(), { recursive: true });
@@ -175,7 +182,7 @@ describe('install — upgrade over existing service files', () => {
     }
 
     const rec = recordingSpawn();
-    const { exit } = captureOutput(() => install(['--force'], rec.fn));
+    const { exit } = await captureOutput(() => install(['--force'], rec.fn));
     expect(exit).toBe(0);
     if (isDarwin) {
       const unloadCalls = rec.calls.filter((c) => c[0] === 'launchctl' && c[1] === 'unload');
@@ -195,8 +202,8 @@ const darwinOnly = isDarwin ? it : it.skip;
 const linuxOnly = isLinux ? it : it.skip;
 
 describe('install — service file content', () => {
-  darwinOnly('writes a valid launchd plist on darwin', () => {
-    captureOutput(() => install(['--force', '--no-start'], recordingSpawn().fn));
+  darwinOnly('writes a valid launchd plist on darwin', async () => {
+    await captureOutput(() => install(['--force', '--no-start'], recordingSpawn().fn));
     const plist = readFileSync(flusherPath(), 'utf8');
     expect(plist).toContain('<?xml');
     expect(plist).toContain('com.brnby.aiot.flusher');
@@ -204,8 +211,8 @@ describe('install — service file content', () => {
     expect(plist).toContain('flusher');
   });
 
-  linuxOnly('writes a valid systemd unit on linux', () => {
-    captureOutput(() => install(['--force', '--no-start'], recordingSpawn().fn));
+  linuxOnly('writes a valid systemd unit on linux', async () => {
+    await captureOutput(() => install(['--force', '--no-start'], recordingSpawn().fn));
     const unit = readFileSync(flusherPath(), 'utf8');
     expect(unit).toContain('[Unit]');
     expect(unit).toContain('[Service]');
@@ -217,9 +224,9 @@ describe('install — service file content', () => {
 // ── hook snippet is printed ───────────────────────────────────────────────────
 
 describe('install — prints the agent hook snippet', () => {
-  it('includes the settings hint and snippet', () => {
-    const { stdout, exit } = captureOutput(() =>
-      install(['--force', '--no-start'], recordingSpawn().fn),
+  it('includes the settings hint and snippet', async () => {
+    const { stdout, exit } = await captureOutput(() =>
+      install(['--force', '--no-start', '--no-auto'], recordingSpawn().fn),
     );
     expect(exit).toBe(0);
     expect(stdout).toContain('settings.json');

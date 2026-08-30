@@ -75,34 +75,49 @@ echo "Installing aiot ${VERSION} for ${TARGET}..."
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR}"' EXIT
 
-BINARY="aiot-${TARGET}"
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}"
+LAUNCHER="aiot-${TARGET}"
+RUNTIME="aiot-runtime-${TARGET}"
+LAUNCHER_URL="https://github.com/${REPO}/releases/download/${VERSION}/${LAUNCHER}"
+RUNTIME_URL="https://github.com/${REPO}/releases/download/${VERSION}/${RUNTIME}"
 CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${VERSION}/SHA256SUMS-hook"
 CHECKSUMS_FILE="${TMPDIR}/SHA256SUMS-hook"
 
-# Download the binary. Prefer gh if it's installed AND authenticated (it
+# Download both binaries. Prefer gh if it's installed AND authenticated (it
 # respects API rate limits better), but fall back to plain curl — which is
 # the realistic path for most users running curl|bash.
-if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-  echo "Downloading ${BINARY} via gh..."
-  gh release download "${VERSION}" --repo "${REPO}" \
-    --pattern "${BINARY}" \
-    --pattern "SHA256SUMS-hook" \
-    --dir "${TMPDIR}" 2>/dev/null || {
-      # gh may have left partial files — clean them before the curl fallback.
-      rm -f "${TMPDIR}/${BINARY}" "${CHECKSUMS_FILE}"
-      echo "gh download failed, falling back to curl..." >&2
-      curl -fL --progress-bar "${DOWNLOAD_URL}" -o "${TMPDIR}/${BINARY}" || {
-        echo "Failed to download ${BINARY} from release ${VERSION}" >&2
-        exit 1
+download_file() {
+  local filename="$1" url="$2"
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    gh release download "${VERSION}" --repo "${REPO}" \
+      --pattern "${filename}" \
+      --dir "${TMPDIR}" 2>/dev/null || {
+        rm -f "${TMPDIR}/${filename}"
+        curl -fL --progress-bar "${url}" -o "${TMPDIR}/${filename}" || return 1
       }
-    }
-else
-  echo "Downloading ${BINARY}..."
-  curl -fL --progress-bar "${DOWNLOAD_URL}" -o "${TMPDIR}/${BINARY}" || {
-    echo "Failed to download ${BINARY} from release ${VERSION}" >&2
-    exit 1
-  }
+  else
+    curl -fL --progress-bar "${url}" -o "${TMPDIR}/${filename}" || return 1
+  fi
+}
+
+echo "Downloading ${LAUNCHER} (launcher, ~100 KB)..."
+download_file "${LAUNCHER}" "${LAUNCHER_URL}" || {
+  echo "Failed to download ${LAUNCHER} from release ${VERSION}" >&2
+  exit 1
+}
+
+echo "Downloading ${RUNTIME} (runtime, ~50–80 MB)..."
+download_file "${RUNTIME}" "${RUNTIME_URL}" || {
+  echo "Failed to download ${RUNTIME} from release ${VERSION}" >&2
+  exit 1
+}
+
+# Fetch checksums via gh (if used) or separately via curl.
+if [[ ! -f "${CHECKSUMS_FILE}" ]]; then
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    gh release download "${VERSION}" --repo "${REPO}" \
+      --pattern "SHA256SUMS-hook" \
+      --dir "${TMPDIR}" 2>/dev/null || true
+  fi
 fi
 
 # Fetch checksums separately so a fetch failure is distinguishable from
@@ -131,66 +146,77 @@ if [[ ! -f "${CHECKSUMS_FILE}" ]]; then
   esac
 fi
 
-# Verify checksum (portable: sha256sum on Linux, shasum -a 256 on macOS)
+# Verify checksums for both binaries (portable: sha256sum on Linux, shasum on macOS)
 if [[ -f "${CHECKSUMS_FILE}" ]]; then
-  echo "Verifying checksum..."
+  echo "Verifying checksums..."
   # Strip CRLF in case the checksums file was generated on Windows.
   CHECKSUMS_NORMALIZED="${TMPDIR}/SHA256SUMS-hook.unix"
   tr -d '\r' < "${CHECKSUMS_FILE}" > "${CHECKSUMS_NORMALIZED}"
-  EXPECTED_LINE="$(grep -m1 "[[:space:]]${BINARY}\$" "${CHECKSUMS_NORMALIZED}" || grep -m1 "[[:space:]]\*${BINARY}\$" "${CHECKSUMS_NORMALIZED}" || true)"
-  if [[ -z "${EXPECTED_LINE}" ]]; then
-    echo "Checksum for ${BINARY} not found in SHA256SUMS-hook." >&2
-    exit 1
-  fi
-  EXPECTED_HASH="$(echo "${EXPECTED_LINE}" | awk '{print $1}')"
-  if command -v sha256sum >/dev/null 2>&1; then
-    echo "${EXPECTED_HASH}  ${TMPDIR}/${BINARY}" | sha256sum -c - || {
-      echo "Checksum verification failed!" >&2
-      exit 1
-    }
-  elif command -v shasum >/dev/null 2>&1; then
-    (cd "${TMPDIR}" && echo "${EXPECTED_HASH}  ${BINARY}" | shasum -a 256 -c -) || {
-      echo "Checksum verification failed!" >&2
-      exit 1
-    }
-  else
-    echo "Neither sha256sum nor shasum is installed — cannot verify checksum." >&2
-    exit 1
-  fi
-  echo "Checksum OK."
+
+  verify_one() {
+    local filename="$1"
+    local expected_line
+    expected_line="$(grep -m1 "[[:space:]]${filename}\$" "${CHECKSUMS_NORMALIZED}" || grep -m1 "[[:space:]]\*${filename}\$" "${CHECKSUMS_NORMALIZED}" || true)"
+    if [[ -z "${expected_line}" ]]; then
+      echo "Checksum for ${filename} not found in SHA256SUMS-hook." >&2
+      return 1
+    fi
+    local expected_hash
+    expected_hash="$(echo "${expected_line}" | awk '{print $1}')"
+    if command -v sha256sum >/dev/null 2>&1; then
+      echo "${expected_hash}  ${TMPDIR}/${filename}" | sha256sum -c - || return 1
+    elif command -v shasum >/dev/null 2>&1; then
+      (cd "${TMPDIR}" && echo "${expected_hash}  ${filename}" | shasum -a 256 -c -) || return 1
+    else
+      echo "Neither sha256sum nor shasum is installed — cannot verify checksum." >&2
+      return 2
+    fi
+  }
+
+  verify_one "${LAUNCHER}" || exit 1
+  verify_one "${RUNTIME}" || exit 1
+  echo "Checksums OK."
 fi
 
-# Make executable
-chmod +x "${TMPDIR}/${BINARY}"
+# Make both executable
+chmod +x "${TMPDIR}/${LAUNCHER}" "${TMPDIR}/${RUNTIME}"
 
-# Install
+# Install both binaries to the prefix
 mkdir -p "${PREFIX}"
-INSTALL_PATH="${PREFIX}/${INSTALL_NAME}"
+LAUNCHER_PATH="${PREFIX}/${INSTALL_NAME}"
+RUNTIME_PATH="${PREFIX}/${INSTALL_NAME}-runtime"
 
 # Detect an existing install so we can report this as an upgrade rather
 # than a silent overwrite. Use a timeout so a broken old binary can't hang
 # the install, and capture stderr too (some binaries print version there).
-if [[ -x "${INSTALL_PATH}" ]]; then
+if [[ -x "${LAUNCHER_PATH}" ]]; then
   if command -v timeout >/dev/null 2>&1; then
-    OLD_VERSION="$(timeout 5s "${INSTALL_PATH}" --version 2>&1 | head -n1 || echo "unknown")"
+    OLD_VERSION="$(timeout 5s "${LAUNCHER_PATH}" --version 2>&1 | head -n1 || echo "unknown")"
   elif command -v gtimeout >/dev/null 2>&1; then
-    OLD_VERSION="$(gtimeout 5s "${INSTALL_PATH}" --version 2>&1 | head -n1 || echo "unknown")"
+    OLD_VERSION="$(gtimeout 5s "${LAUNCHER_PATH}" --version 2>&1 | head -n1 || echo "unknown")"
   else
-    OLD_VERSION="$("${INSTALL_PATH}" --version 2>&1 | head -n1 || echo "unknown")"
+    OLD_VERSION="$("${LAUNCHER_PATH}" --version 2>&1 | head -n1 || echo "unknown")"
   fi
   [[ -z "${OLD_VERSION}" ]] && OLD_VERSION="unknown"
   echo "Upgrading existing install (was: ${OLD_VERSION})..."
 fi
 
-if [[ -w "${PREFIX}" ]]; then
-  mv "${TMPDIR}/${BINARY}" "${INSTALL_PATH}"
-else
-  echo "Installing to ${INSTALL_PATH} (requires sudo)..."
-  sudo mv "${TMPDIR}/${BINARY}" "${INSTALL_PATH}"
-fi
+install_file() {
+  local src="$1" dest="$2"
+  if [[ -w "${PREFIX}" ]]; then
+    mv "${src}" "${dest}"
+  else
+    echo "Installing to ${dest} (requires sudo)..."
+    sudo mv "${src}" "${dest}"
+  fi
+}
+
+install_file "${TMPDIR}/${LAUNCHER}" "${LAUNCHER_PATH}"
+install_file "${TMPDIR}/${RUNTIME}" "${RUNTIME_PATH}"
 
 echo ""
-echo "Installed: ${INSTALL_PATH}"
+echo "Installed: ${LAUNCHER_PATH} (launcher)"
+echo "          ${RUNTIME_PATH} (runtime)"
 echo ""
 echo "Next steps:"
 echo "  aiot login      # authenticate via GitHub OAuth"
@@ -198,11 +224,13 @@ echo "  aiot install    # set up background services + hook snippet"
 echo "  aiot status     # check health"
 echo ""
 
-# Mac quarantine warning
+# Mac quarantine warning — check both binaries
 if [[ "${OS}" == "Darwin" ]]; then
-  if xattr "${INSTALL_PATH}" 2>/dev/null | grep -q "com.apple.quarantine"; then
-    echo "Note: macOS quarantine attribute detected. If the binary is unsigned, run:"
-    echo "  xattr -d com.apple.quarantine \"${INSTALL_PATH}\""
-    echo ""
-  fi
+  for f in "${LAUNCHER_PATH}" "${RUNTIME_PATH}"; do
+    if xattr "${f}" 2>/dev/null | grep -q "com.apple.quarantine"; then
+      echo "Note: macOS quarantine attribute detected on ${f}. If the binary is unsigned, run:"
+      echo "  xattr -d com.apple.quarantine \"${f}\""
+      echo ""
+    fi
+  done
 fi
