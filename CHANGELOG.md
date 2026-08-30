@@ -6,6 +6,27 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.0.0 (2026-08-30)
+
+### Breaking Changes
+
+- rename hook binary from claude-telemetry to aiot (#197)
+
+### Features
+
+- hook: add Rust launcher and auto-detect agent harness wiring (#202)
+- hook: harden install scripts and activate services by default (#192)
+
+### Bug Fixes
+
+- hook: harden installer and prompt, add install flag tests (#204)
+- hook: safe-quote opencode plugin path and update docs for auto-wire (#203)
+- hook: use /health instead of /readyz for import pre-flight check (#201)
+- observability: suppress successful metrics access logs (#199)
+- traefik: allow GET /readyz on ingest router (#198)
+- auth: prevent premature logout by extending access token TTL and adding client-side refresh (#196)
+- auth: surface GitHub error details in device flow failures (#193)
+
 ## v1.4.1 (2026-08-29)
 
 ### Bug Fixes
