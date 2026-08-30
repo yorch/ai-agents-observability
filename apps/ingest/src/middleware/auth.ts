@@ -10,7 +10,13 @@ type DbClient = Pick<PrismaClient, 'authToken'>;
 type CachedUser = { expiresAt: Date | null; id: string; kind: 'HOOK' };
 type CacheEntry = { expiresAt: number; value: CachedUser };
 
-const TOKEN_CACHE_TTL_MS = 30_000;
+// Token verification cache TTL. A revoked token may remain usable for up to
+// this long after revocation, since the cache stores only {id, kind, expiresAt}
+// and does not re-check revokedAt on cache hits. The TTL is deliberately short
+// (5s) so that a dashboard "Revoke" action takes effect quickly. A true
+// instant-invalidation would require inter-process pub/sub (e.g. Redis) which
+// is out of scope for this single-tenant system.
+const TOKEN_CACHE_TTL_MS = 5_000;
 const CCT_PREFIX = 'cct_';
 
 class TtlCache {
@@ -79,7 +85,7 @@ export function authRequired(db: DbClient, logger: Logger): MiddlewareHandler<Ap
       }
 
       user = { expiresAt: record.expiresAt, id: record.userId, kind: record.kind };
-      // revokedAt is intentionally not cached; revocations take effect within TOKEN_CACHE_TTL_MS.
+      // revokedAt is not cached; revocations take effect within TOKEN_CACHE_TTL_MS (5s).
       cache.set(tokenHash, user);
     } else if (user.expiresAt && user.expiresAt < now) {
       cache.delete(tokenHash);

@@ -8,6 +8,9 @@ export function makeTestDeps(): AppDeps {
   const db = {
     $executeRaw: async () => 0,
     $queryRaw: async () => [],
+    auditLog: {
+      create: async () => ({}),
+    } as unknown as AppDeps['db']['auditLog'],
     authToken: { findFirst: async () => null } as unknown as AppDeps['db']['authToken'],
     jiraIssue: {
       findMany: async () => [],

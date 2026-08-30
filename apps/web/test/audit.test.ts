@@ -32,7 +32,7 @@ vi.mock('@ai-agents-observability/db', () => ({
 
 vi.mock('next/headers', () => ({
   headers: vi.fn(
-    async () => new Headers({ 'user-agent': 'TestAgent/1.0', 'x-forwarded-for': '1.2.3.4' }),
+    async () => new Headers({ 'user-agent': 'TestAgent/1.0', 'x-real-ip': '1.2.3.4' }),
   ),
 }));
 
@@ -114,10 +114,13 @@ describe('writeAuditLog', () => {
     ).resolves.toBe(false);
   });
 
-  it('uses the first IP from x-forwarded-for when multiple are present', async () => {
+  it('uses x-real-ip when trustedProxyCount is not configured', async () => {
     const { headers } = await import('next/headers');
     vi.mocked(headers).mockResolvedValueOnce(
-      new Headers({ 'x-forwarded-for': '10.0.0.1, 172.16.0.1' }) as never,
+      new Headers({
+        'x-forwarded-for': '10.0.0.1, 172.16.0.1',
+        'x-real-ip': '192.168.1.1',
+      }) as never,
     );
     mockCreate.mockResolvedValueOnce({});
 
@@ -125,7 +128,8 @@ describe('writeAuditLog', () => {
     await writeAuditLog({ action: AuditAction.EXPORT_TEAM, actorUserId: 'u1' }, mockDb);
 
     const data = mockCreate.mock.calls[0]?.[0].data;
-    expect(data.ip).toBe('10.0.0.1');
+    // XFF is ignored when trustedProxyCount is not configured; falls back to x-real-ip.
+    expect(data.ip).toBe('192.168.1.1');
   });
 });
 

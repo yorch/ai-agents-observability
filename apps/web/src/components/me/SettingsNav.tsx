@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import { LockIcon, LogIcon, UserIcon } from '@/components/icons';
+import { KeyIcon, LockIcon, LogIcon, UserIcon } from '@/components/icons';
 
 const NAV_ITEMS = [
   { href: '/me/settings/profile', icon: UserIcon, label: 'Profile' },
   { href: '/me/settings/privacy', icon: LockIcon, label: 'Privacy' },
+  { href: '/me/settings/tokens', icon: KeyIcon, label: 'Tokens' },
   { href: '/me/settings/audit', icon: LogIcon, label: 'Audit log' },
 ];
 

@@ -137,6 +137,11 @@ const ConfigSchema = z.object({
   smtp_user: z.string().optional(),
   // Configurable transcript retention (days). Default: 365. Set to 0 to disable.
   transcript_retention_days: z.coerce.number().int().min(0).default(365),
+  // Number of trusted reverse proxies in front of ingest. When set, the
+  // rate limiter takes the Nth-from-right entry from X-Forwarded-For (the
+  // real client IP). When unset, XFF is ignored and the socket remote
+  // address is used. 0 means "no trusted proxies" (same as unset for XFF).
+  trusted_proxy_count: z.coerce.number().int().min(0).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -191,5 +196,6 @@ export function loadConfig(): Config {
     smtp_secure: process.env.SMTP_SECURE,
     smtp_user: process.env.SMTP_USER,
     transcript_retention_days: process.env.TRANSCRIPT_RETENTION_DAYS,
+    trusted_proxy_count: process.env.TRUSTED_PROXY_COUNT,
   });
 }

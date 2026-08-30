@@ -218,7 +218,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
+      attestations: write
       contents: write
+      id-token: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v7
@@ -239,6 +241,35 @@ jobs:
         run: |
           sha256sum * > SHA256SUMS-binaries
           cat SHA256SUMS-binaries
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign SHA256SUMS-binaries (keyless via OIDC)
+        working-directory: release/
+        run: |
+          cosign sign-blob --yes SHA256SUMS-binaries \
+            --output-signature SHA256SUMS-binaries.sig \
+            --output-certificate SHA256SUMS-binaries.crt
+          echo "Signature:"
+          cat SHA256SUMS-binaries.sig
+          echo "Certificate:"
+          cat SHA256SUMS-binaries.crt
+
+      - name: Compute checksum digest for attestation
+        id: digest
+        working-directory: release/
+        run: |
+          DIGEST="sha256:$(sha256sum SHA256SUMS-binaries | cut -d' ' -f1)"
+          echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"
+          echo "Digest: ${DIGEST}"
+
+      - name: Generate build provenance attestation
+        uses: actions/attest@v4
+        with:
+          subject-name: ${RELEASE_TAG}-binaries
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: false
 
       - name: Upload to GitHub Release
         env:

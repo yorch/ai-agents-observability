@@ -22,7 +22,7 @@ export type AppDeps = {
   adminSecret?: string;
   checkDb: () => Promise<void>;
   checkS3: () => Promise<void>;
-  db: Pick<PrismaClient, 'authToken' | 'jobConfig'> & EventsDb & SessionDb;
+  db: Pick<PrismaClient, 'auditLog' | 'authToken' | 'jobConfig'> & EventsDb & SessionDb;
   logger: Logger;
   s3: { bucket: string; client: S3Client };
 };
@@ -61,7 +61,10 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
     );
   });
 
-  app.route('/admin', adminRouter(deps.db, config.admin_secret, deps.logger));
+  app.route(
+    '/admin',
+    adminRouter(deps.db, config.admin_secret, deps.logger, config.trusted_proxy_count),
+  );
 
   // Prometheus metrics — accessible from Prometheus scraper only (no auth needed in dev)
   app.get('/metrics', async (_c) => {
@@ -72,7 +75,7 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
   });
 
   // Public v1 routes — registered before auth middleware so they bypass it
-  app.use('/v1/*', rateLimitMiddleware());
+  app.use('/v1/*', rateLimitMiddleware(config.trusted_proxy_count));
   app.route('/v1/price-table', priceTableRouter(priceTables));
 
   // Auth middleware applies to all remaining /v1/* routes
