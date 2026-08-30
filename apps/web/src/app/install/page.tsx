@@ -176,7 +176,8 @@ aiot login`}
 
         <p className="text-sm text-text-2">
           Select your agent to see the install command. The hook writes background service files and
-          prints the config snippet to paste into your agent&apos;s settings.
+          auto-detects and auto-wires supported agent harnesses it finds on your machine. Config
+          snippets are printed only for agents it could not detect, so you can wire them by hand.
         </p>
 
         <div className="overflow-x-auto">

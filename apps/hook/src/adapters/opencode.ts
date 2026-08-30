@@ -223,7 +223,7 @@ function renderSnippet(bin: string): string {
     '    };',
     '    const kind = map[event.type];',
     '    if (!kind) return;',
-    `    const p = Bun.spawn(['${bin}', 'hook', kind, '--agent', 'opencode'], { stdin: 'pipe' });`,
+    `    const p = Bun.spawn([${JSON.stringify(bin)}, 'hook', kind, '--agent', 'opencode'], { stdin: 'pipe' });`,
     '    p.stdin.write(JSON.stringify(event.properties ?? {}));',
     '    await p.stdin.end();',
     '  },',
