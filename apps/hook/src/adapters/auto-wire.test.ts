@@ -464,10 +464,7 @@ describe('codex hooks.json lifecycle path', () => {
   it('removes aiot entries from hooks.json when hooks feature is enabled', () => {
     mkdir('.codex');
     // Enable the hooks feature so applyCodex takes the hooks.json path
-    writeFile(
-      '.codex/config.toml',
-      '[features]\nhooks = true\n',
-    );
+    writeFile('.codex/config.toml', '[features]\nhooks = true\n');
     cfg().apply?.(BIN);
     // Verify hooks.json was written
     expect(exists('.codex/hooks.json')).toBe(true);
