@@ -324,7 +324,7 @@ deferred (`DESIGN_DOC §9.2`).
 
 ### Auth (`packages/auth`)
 GitHub OAuth + device-code + **password (scrypt)**, all GHES-capable. Tokens:
-EdDSA JWT access (15 min), rotating refresh (90 d), hook token (365 d). Grant
+EdDSA JWT access (8 h), rotating refresh (90 d), hook token (365 d). Grant
 enforcement helpers (`hasActiveGrant`, `resolveOrgSessionAccess`, …) live in
 `apps/web` and gate every org/individual session + transcript read.
 

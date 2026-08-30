@@ -20,6 +20,7 @@ const ibmMono = localFont({
   variable: '--font-ibm-mono',
 });
 
+import { SessionRefresher } from '@/components/SessionRefresher';
 import { Rail, type RailTeam } from '@/components/shell/Rail';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { currentUser } from '@/lib/auth';
@@ -78,6 +79,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           // The rail owns navigation, so pages render straight into the canvas
           // with no section sub-nav above them.
           <div className="flex min-h-screen flex-col lg:flex-row">
+            <SessionRefresher />
             <Rail
               canViewOrg={canViewOrg}
               isAdmin={user.orgRole === 'ORG_ADMIN'}
