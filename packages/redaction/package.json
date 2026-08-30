@@ -1,6 +1,6 @@
 {
   "name": "@ai-agents-observability/redaction",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Regex scrubber — client-side redaction before transcript upload",
   "engines": {
