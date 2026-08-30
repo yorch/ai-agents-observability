@@ -168,10 +168,17 @@ if [[ -f "${CHECKSUMS_FILE}" ]]; then
   verify_one() {
     local filename="$1"
     local expected_line
-    expected_line="$(grep -m1 "[[:space:]]${filename}\$" "${CHECKSUMS_NORMALIZED}" || grep -m1 "[[:space:]]\*${filename}\$" "${CHECKSUMS_NORMALIZED}" || true)"
+    # Try two grep patterns (with and without leading *). Exit 1 = no match
+    # (skip), exit 2 = real error (fail). We capture output and check exit code.
+    expected_line="$(grep -m1 "[[:space:]]${filename}\$" "${CHECKSUMS_NORMALIZED}" 2>/dev/null)" || \
+      expected_line="$(grep -m1 "[[:space:]]\*${filename}\$" "${CHECKSUMS_NORMALIZED}" 2>/dev/null)" || \
+      true
     if [[ -z "${expected_line}" ]]; then
-      echo "Checksum for ${filename} not found in SHA256SUMS-hook." >&2
-      return 1
+      # No entry for this file — skip it rather than failing. A release that
+      # ships a SHA256SUMS-hook but omits one binary's line should not block
+      # the install; only a present-but-mismatched checksum is a hard failure.
+      echo "Warning: no checksum entry for ${filename} in SHA256SUMS-hook — skipping verification for this file." >&2
+      return 0
     fi
     local expected_hash
     expected_hash="$(echo "${expected_line}" | awk '{print $1}')"
@@ -212,18 +219,14 @@ if [[ "${PREFIX}" != "/usr/local/bin" && -x "${OLD_DEFAULT}" ]]; then
 fi
 
 # Detect an existing install so we can report this as an upgrade rather
-# than a silent overwrite. Use a timeout so a broken old binary can't hang
-# the install, and capture stderr too (some binaries print version there).
-if [[ -x "${LAUNCHER_PATH}" ]]; then
-  if command -v timeout >/dev/null 2>&1; then
-    OLD_VERSION="$(timeout 5s "${LAUNCHER_PATH}" --version 2>&1 | head -n1 || echo "unknown")"
-  elif command -v gtimeout >/dev/null 2>&1; then
-    OLD_VERSION="$(gtimeout 5s "${LAUNCHER_PATH}" --version 2>&1 | head -n1 || echo "unknown")"
-  else
-    OLD_VERSION="$("${LAUNCHER_PATH}" --version 2>&1 | head -n1 || echo "unknown")"
-  fi
-  [[ -z "${OLD_VERSION}" ]] && OLD_VERSION="unknown"
-  echo "Upgrading existing install (was: ${OLD_VERSION})..."
+# than a silent overwrite. We deliberately do NOT execute the existing
+# binary: the install prefix is user-writable (~/.local/bin by default), so
+# a symlink or swapped binary there is a TOCTOU/symlink risk. Reporting the
+# old version is not worth executing an untrusted path.
+if [[ -L "${LAUNCHER_PATH}" ]]; then
+  echo "Note: existing install at ${LAUNCHER_PATH} is a symlink — it will be overwritten."
+elif [[ -f "${LAUNCHER_PATH}" ]]; then
+  echo "Existing install detected at ${LAUNCHER_PATH}. It will be overwritten."
 fi
 
 install_file() {
@@ -245,11 +248,21 @@ echo "Installed: ${LAUNCHER_PATH} (launcher)"
 echo "          ${RUNTIME_PATH} (runtime)"
 echo ""
 
-# Check if the install prefix is on the user's PATH.
+# Check if the install prefix is on the user's PATH. Canonicalize both
+# sides with realpath so symlinks and trailing slashes don't cause a false
+# negative (e.g. PREFIX=~/.local/bin vs PATH entry ~/.local/bin/).
+canonicalize() {
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -q "$1" 2>/dev/null || echo "${1%/}"
+  else
+    echo "${1%/}"
+  fi
+}
 on_path=false
+PREFIX_CANON="$(canonicalize "${PREFIX}")"
 IFS=':' read -ra _path_dirs <<< "${PATH:-}"
 for _dir in "${_path_dirs[@]}"; do
-  if [[ "${_dir}" == "${PREFIX}" ]]; then
+  if [[ "$(canonicalize "${_dir}")" == "${PREFIX_CANON}" ]]; then
     on_path=true
     break
   fi

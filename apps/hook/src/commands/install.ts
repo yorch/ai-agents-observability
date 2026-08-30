@@ -289,10 +289,15 @@ function resolvedBinaryPath(): string {
   // (the Bun-compiled binary). Services and hook snippets must point at the
   // launcher (`aiot`), not the runtime, so that macOS BTM attributes the
   // background activity to our signature rather than Bun's.
+  //
+  // Cross-compiled distribution binaries carry a target suffix
+  // (`aiot-runtime-darwin-arm64`); the sibling launcher is
+  // `aiot-darwin-arm64`, so we strip just `runtime` (keeping any target
+  // suffix) rather than replacing the whole name.
   const exe = process.execPath;
   const name = basename(exe);
-  if (name === 'aiot-runtime') {
-    return exe.replace(/aiot-runtime$/, 'aiot');
+  if (name.startsWith('aiot-runtime')) {
+    return exe.replace('aiot-runtime', 'aiot');
   }
   return exe;
 }
