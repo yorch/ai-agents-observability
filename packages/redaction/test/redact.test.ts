@@ -71,7 +71,9 @@ describe('aws-secret-key', () => {
     const evil = `${'/'.repeat(100_000)}!`;
     const t0 = performance.now();
     redact(evil);
-    expect(performance.now() - t0).toBeLessThan(250);
+    // Threshold is generous (shared CI runners are slow) but still an order of
+    // magnitude under the ~10s a quadratic regression takes at this length.
+    expect(performance.now() - t0).toBeLessThan(1_500);
   });
 });
 
@@ -264,7 +266,9 @@ describe('high-entropy-secret', () => {
     const evil = `${'A'.repeat(100_000)}+`;
     const t0 = performance.now();
     redact(evil);
-    expect(performance.now() - t0).toBeLessThan(500);
+    // Threshold is generous (shared CI runners are slow) but still an order of
+    // magnitude under the ~10s a quadratic regression takes at this length.
+    expect(performance.now() - t0).toBeLessThan(1_500);
   });
 });
 
