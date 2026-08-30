@@ -92,6 +92,10 @@ jobs:
       - name: Smoke test
         run: |
           chmod +x apps/hook/dist/aiot-${{ matrix.target }} apps/hook/dist/aiot-runtime-${{ matrix.target }}
+          # The launcher expects "aiot-runtime" beside itself. In production
+          # the install script renames the target-suffixed binary; here we
+          # symlink so the smoke test can exec the launcher directly.
+          ln -sf aiot-runtime-${{ matrix.target }} apps/hook/dist/aiot-runtime
           # The launcher execs the runtime, so this tests both in one go.
           apps/hook/dist/aiot-${{ matrix.target }} --version
 

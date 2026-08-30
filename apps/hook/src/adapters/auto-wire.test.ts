@@ -448,7 +448,8 @@ describe('stripOwnedEntries mixed-group preservation', () => {
       hooks: Record<string, { hooks: { command: string }[] }[]>;
     };
     // The user's hook should still be present in the nested array
-    const commands = settings.hooks.PreToolUse.flatMap((e) => e.hooks.map((h) => h.command));
+    const preToolUse = settings.hooks.PreToolUse ?? [];
+    const commands = preToolUse.flatMap((e) => e.hooks.map((h) => h.command));
     expect(commands).toContain('my-user-tool');
     // aiot's hook should be gone
     expect(commands).not.toContain(BIN);
