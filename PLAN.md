@@ -22,7 +22,7 @@ These were agreed during planning and are the basis for every task below. If one
 | SSO | GitHub OAuth now; `IdentityProvider` interface seam for Okta/Azure later | Avoid coupling to GitHub identity |
 | Ops handoff | Built by dev tools team; runbooks/SLOs/dashboards delivered in Phase 4 to Platform/SRE | §15 path-to-graduation |
 | Existing telemetry pipelines | None — greenfield | Confirmed with user |
-| PR bot | Opt-in per repo via `.claude-telemetry.yml` | §11 trust mechanic |
+| PR bot | Opt-in per repo via `.aiot.yml` | §11 trust mechanic |
 | Lint + format | Biome 2.x (single binary, replaces ESLint + Prettier) | One tool, faster, type-aware rules |
 
 ### Pinned tool versions (July 2026)
@@ -84,7 +84,7 @@ ai-agents-observability/
 ├── apps/
 │   ├── ingest/              # Bun + Hono. POST /v1/events, /v1/transcripts, /v1/price-table
 │   ├── web/                 # Next.js. Dashboard + OAuth + read API
-│   ├── hook/                # Bun-compiled CLI: claude-telemetry binary
+│   ├── hook/                # Bun-compiled CLI: aiot binary
 │   └── github-app/          # Phase 2. GitHub App webhook handler
 ├── packages/
 │   ├── db/                  # Prisma schema + migrations + Timescale SQL + Prisma client export
@@ -124,7 +124,7 @@ ai-agents-observability/
 - [ ] `/me` page loads in <500ms p50.
 - [ ] Hook adds <10ms wall time to a measured tool call (microbench + real-session).
 - [ ] Redaction passes the class test suite (§9.1 — seven classes at Phase 1; nine today, after `git-remote-url` and `email` landed) + manual review of one real transcript.
-- [ ] `claude-telemetry purge-local` cleanly removes queue + transcripts.
+- [ ] `aiot purge-local` cleanly removes queue + transcripts.
 - [ ] `docker compose up` produces a working local stack from a clean clone.
 
 ### Phase 2 — PR Loop (target: 3–4 weeks)

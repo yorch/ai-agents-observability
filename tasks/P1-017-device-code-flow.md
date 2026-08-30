@@ -12,7 +12,7 @@ estimate: M
 
 ## Goal
 
-`claude-telemetry login` (the hook binary subcommand) authenticates the local machine without a browser callback. After completion, the binary holds a `kind=hook` token that ingest will accept.
+`aiot login` (the hook binary subcommand) authenticates the local machine without a browser callback. After completion, the binary holds a `kind=hook` token that ingest will accept.
 
 ## Context
 
@@ -25,7 +25,7 @@ estimate: M
 - [ ] Web endpoint `POST /api/auth/device/poll` accepts `{ device_code }`, polls GitHub, and on success issues a `kind=hook` token via `issueHookToken`. Returns `{ status: 'pending' | 'authorized', hook_token? }`.
 - [ ] Rate limit poll endpoint to honor the `interval` returned by GitHub (default 5s).
 - [ ] Hook binary (P1-023 wires it up) calls `device/start`, prints the user code + URL, polls `device/poll` until authorized or expired.
-- [ ] Hook stores the token in OS keychain (libsecret/Keychain/Credential Manager) — fallback to `~/.claude-telemetry/token` 0600 if keychain unavailable.
+- [ ] Hook stores the token in OS keychain (libsecret/Keychain/Credential Manager) — fallback to `~/.aiot/token` 0600 if keychain unavailable.
 - [ ] Web also writes an `AuditLog` row: `action=hook_token_issued`, `subject_user_id=<user>`.
 - [ ] Integration test mocks GitHub device-code endpoints and verifies the full flow yields a usable hook token.
 

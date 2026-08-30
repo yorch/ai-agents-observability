@@ -2,8 +2,8 @@ import { existsSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const FLUSHER_LABEL = 'com.claude-telemetry.flusher';
-const SHIPPER_LABEL = 'com.claude-telemetry.shipper';
+const FLUSHER_LABEL = 'com.brnby.aiot.flusher';
+const SHIPPER_LABEL = 'com.brnby.aiot.shipper';
 
 function uninstallDarwin(): number {
   const dir = join(homedir(), 'Library', 'LaunchAgents');
@@ -23,13 +23,13 @@ function uninstallDarwin(): number {
   }
 
   process.stdout.write('\nServices uninstalled. Local data was not removed.\n');
-  process.stdout.write('To remove local data: claude-telemetry purge-local\n');
+  process.stdout.write('To remove local data: aiot purge-local\n');
   return 0;
 }
 
 function uninstallLinux(): number {
   const dir = join(homedir(), '.config', 'systemd', 'user');
-  const services = ['claude-telemetry-flusher.service', 'claude-telemetry-shipper.service'];
+  const services = ['aiot-flusher.service', 'aiot-shipper.service'];
 
   let anyRemoved = false;
   for (const svc of services) {
@@ -55,7 +55,7 @@ function uninstallLinux(): number {
   }
 
   process.stdout.write('\nServices uninstalled. Local data was not removed.\n');
-  process.stdout.write('To remove local data: claude-telemetry purge-local\n');
+  process.stdout.write('To remove local data: aiot purge-local\n');
   return 0;
 }
 

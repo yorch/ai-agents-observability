@@ -29,9 +29,9 @@ kubectl exec deploy/{{ include "ai-agents-observability.fullname" . }}-web -- wg
 1. Configure your GitHub OAuth App to point at the web service URL.
 2. If using the GitHub App (PR enrichment), configure the webhook URL to point
    at the github-app service URL.
-3. Install the claude-telemetry hook binary on developer machines — see
+3. Install the aiot hook binary on developer machines — see
    https://github.com/yorch/ai-agents-observability/releases for binaries.
-4. Run `claude-telemetry login` and `claude-telemetry install` on each dev machine.
+4. Run `aiot login` and `aiot install` on each dev machine.
 
 == Migration job ==
 

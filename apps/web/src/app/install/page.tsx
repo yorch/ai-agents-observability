@@ -54,10 +54,10 @@ export default async function InstallPage({
   }
 
   const targets = [
-    { binary: 'claude-telemetry-darwin-arm64', os: 'macOS (Apple Silicon)' },
-    { binary: 'claude-telemetry-darwin-x64', os: 'macOS (Intel)' },
-    { binary: 'claude-telemetry-linux-arm64', os: 'Linux (ARM64)' },
-    { binary: 'claude-telemetry-linux-x64', os: 'Linux (x86-64)' },
+    { binary: 'aiot-darwin-arm64', os: 'macOS (Apple Silicon)' },
+    { binary: 'aiot-darwin-x64', os: 'macOS (Intel)' },
+    { binary: 'aiot-linux-arm64', os: 'Linux (ARM64)' },
+    { binary: 'aiot-linux-x64', os: 'Linux (x86-64)' },
   ];
 
   return (
@@ -111,7 +111,7 @@ export default async function InstallPage({
         </p>
 
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
-          {`curl -fsSL ${REPO_URL}/raw/main/scripts/install-hook.sh | bash`}
+          {`curl -fsSL ${REPO_URL}/raw/main/scripts/install.sh | bash`}
         </pre>
 
         <Card flush>
@@ -127,8 +127,8 @@ export default async function InstallPage({
 
         <p className="text-sm text-text-2">Then make it executable:</p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
-          {`chmod +x claude-telemetry-<os>-<arch>
-sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
+          {`chmod +x aiot-<os>-<arch>
+sudo mv aiot-<os>-<arch> /usr/local/bin/aiot`}
         </pre>
       </section>
 
@@ -145,14 +145,14 @@ sudo mv claude-telemetry-<os>-<arch> /usr/local/bin/claude-telemetry`}
           If the server is not on localhost, point the hook at it, then log in:
         </p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
-          {`claude-telemetry config set web-url https://observability.example.com
-claude-telemetry config set ingest-url https://ingest.example.com
-claude-telemetry login`}
+          {`aiot config set web-url https://observability.example.com
+aiot config set ingest-url https://ingest.example.com
+aiot login`}
         </pre>
         <p className="text-xs text-text-3">
           This prints a URL and a short device code — open the URL in your browser and enter the
           code to authorize. Your auth token is stored locally in{' '}
-          <code className="font-mono">~/.claude-telemetry/identity.json</code>.
+          <code className="font-mono">~/.aiot/identity.json</code>.
         </p>
       </section>
 
@@ -186,8 +186,8 @@ claude-telemetry login`}
 
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           {selected.flag === 'claude-code'
-            ? 'claude-telemetry install'
-            : `claude-telemetry install --agent ${selected.flag}`}
+            ? 'aiot install'
+            : `aiot install --agent ${selected.flag}`}
         </pre>
 
         <p className="text-sm text-text-2">
@@ -220,8 +220,8 @@ claude-telemetry login`}
             If you have historical sessions from before the hook was installed, backfill them:
           </p>
           <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
-            {`claude-telemetry import --dry-run
-claude-telemetry import --agent ${selected.flag} --since 2026-01-01`}
+            {`aiot import --dry-run
+aiot import --agent ${selected.flag} --since 2026-01-01`}
           </pre>
           <p className="text-xs text-text-3">
             Imports are safe to re-run — the server deduplicates by event ID. Import is not
@@ -239,8 +239,8 @@ claude-telemetry import --agent ${selected.flag} --since 2026-01-01`}
           <h2 className="text-base font-medium text-text-2">Verify</h2>
         </div>
         <p className="text-sm text-text-2">
-          Run <code className="font-mono text-xs">claude-telemetry status</code> to check everything
-          is healthy. Then start a session in your agent. After it ends, refresh your{' '}
+          Run <code className="font-mono text-xs">aiot status</code> to check everything is healthy.
+          Then start a session in your agent. After it ends, refresh your{' '}
           <Link href="/me" className="text-accent hover:underline">
             My Agents
           </Link>{' '}
@@ -252,15 +252,15 @@ claude-telemetry import --agent ${selected.flag} --since 2026-01-01`}
       <Card title="Other commands" contentClassName="space-y-3">
         <div className="space-y-2 text-sm">
           <div>
-            <code className="font-mono text-xs text-text-2">claude-telemetry pause</code>
+            <code className="font-mono text-xs text-text-2">aiot pause</code>
             <span className="ml-3 text-text-3">— temporarily stop sending telemetry</span>
           </div>
           <div>
-            <code className="font-mono text-xs text-text-2">claude-telemetry resume</code>
+            <code className="font-mono text-xs text-text-2">aiot resume</code>
             <span className="ml-3 text-text-3">— re-enable telemetry</span>
           </div>
           <div>
-            <code className="font-mono text-xs text-text-2">claude-telemetry uninstall</code>
+            <code className="font-mono text-xs text-text-2">aiot uninstall</code>
             <span className="ml-3 text-text-3">— remove hooks and background services</span>
           </div>
         </div>

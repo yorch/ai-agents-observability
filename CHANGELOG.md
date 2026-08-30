@@ -128,7 +128,7 @@ release workflow (`.github/workflows/release.yml`).
 - web: add /me/profile page for self-service profile editing (#59)
 - web: add /org/tools — tool, skill & MCP usage analytics for org admins (#58)
 - db: add ORG_ADMIN seed user + gitignore tmp/
-- hook: add claude-telemetry import command for historical session import (#56)
+- hook: add aiot import command for historical session import (#56)
 - web: surface session cost, friction trend, and shape distribution in /me/insights (#57)
 - web/design: redesign the UI
 - db: seed a password-only user for immediate local login

@@ -12,7 +12,7 @@ estimate: M
 
 ## Goal
 
-The user-facing CLI surface of `claude-telemetry`. Everything a developer needs to install, observe, pause, and uninstall the agent.
+The user-facing CLI surface of `aiot`. Everything a developer needs to install, observe, pause, and uninstall the agent.
 
 ## Context
 
@@ -21,28 +21,28 @@ The user-facing CLI surface of `claude-telemetry`. Everything a developer needs 
 
 ## Acceptance criteria
 
-- [ ] `claude-telemetry login` runs the device-code flow against the configured web app (`CLAUDE_TELEMETRY_API` env), prints the user code + URL, polls until authorized, writes `{ token, user_id_claim }` to `~/.claude-telemetry/identity.json` (mode 0600).
-- [ ] `claude-telemetry status` prints:
+- [ ] `aiot login` runs the device-code flow against the configured web app (`AIOT_API` env), prints the user code + URL, polls until authorized, writes `{ token, user_id_claim }` to `~/.aiot/identity.json` (mode 0600).
+- [ ] `aiot status` prints:
   - logged-in user (from token claims) or "not logged in"
   - queue depth (events_queue row count)
   - last successful flush timestamp
   - last error message (if any)
   - whether the flusher + shipper services are running
-- [ ] `claude-telemetry pause` writes a `~/.claude-telemetry/paused` marker. Hook entrypoints check this file and exit 0 without writing anything when present. `status` reports paused state.
-- [ ] `claude-telemetry resume` deletes the marker.
-- [ ] `claude-telemetry purge-local` removes `~/.claude-telemetry/queue.db`, ship markers, log files, and tokens (with confirmation prompt unless `--yes`). Cannot remove anything already uploaded — surfaces a clear message about server-side data and links to the privacy page.
-- [ ] `claude-telemetry install` writes the launchd/systemd service files and prints the snippet to paste into `~/.claude/settings.json`:
+- [ ] `aiot pause` writes a `~/.aiot/paused` marker. Hook entrypoints check this file and exit 0 without writing anything when present. `status` reports paused state.
+- [ ] `aiot resume` deletes the marker.
+- [ ] `aiot purge-local` removes `~/.aiot/queue.db`, ship markers, log files, and tokens (with confirmation prompt unless `--yes`). Cannot remove anything already uploaded — surfaces a clear message about server-side data and links to the privacy page.
+- [ ] `aiot install` writes the launchd/systemd service files and prints the snippet to paste into `~/.claude/settings.json`:
   ```json
   {
     "hooks": {
-      "session-start": "claude-telemetry hook session-start",
-      "pre-tool-use": "claude-telemetry hook pre-tool-use",
+      "session-start": "aiot hook session-start",
+      "pre-tool-use": "aiot hook pre-tool-use",
       ...
     }
   }
   ```
-- [ ] `claude-telemetry uninstall` removes service files. Does NOT touch local data (use `purge-local` for that).
-- [ ] `claude-telemetry --help` lists all subcommands; per-subcommand `--help` works.
+- [ ] `aiot uninstall` removes service files. Does NOT touch local data (use `purge-local` for that).
+- [ ] `aiot --help` lists all subcommands; per-subcommand `--help` works.
 - [ ] Exit codes documented in README.
 
 ## Implementation notes
@@ -68,10 +68,10 @@ The user-facing CLI surface of `claude-telemetry`. Everything a developer needs 
 
 ```bash
 bun --filter '@app/hook' test
-./apps/hook/dist/claude-telemetry-<triple> --help
-./apps/hook/dist/claude-telemetry-<triple> login
-./apps/hook/dist/claude-telemetry-<triple> status
-./apps/hook/dist/claude-telemetry-<triple> pause && ./apps/hook/dist/claude-telemetry-<triple> status
-./apps/hook/dist/claude-telemetry-<triple> resume
-./apps/hook/dist/claude-telemetry-<triple> purge-local --yes
+./apps/hook/dist/aiot-<triple> --help
+./apps/hook/dist/aiot-<triple> login
+./apps/hook/dist/aiot-<triple> status
+./apps/hook/dist/aiot-<triple> pause && ./apps/hook/dist/aiot-<triple> status
+./apps/hook/dist/aiot-<triple> resume
+./apps/hook/dist/aiot-<triple> purge-local --yes
 ```

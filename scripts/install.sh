@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Install the claude-telemetry hook binary from GitHub Releases.
+# Install the aiot hook binary from GitHub Releases.
 # Detects the platform, downloads the latest release binary, verifies the
-# checksum, and installs to /usr/local/bin/claude-telemetry.
+# checksum, and installs to /usr/local/bin/aiot.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install-hook.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install.sh | bash
 #
 # Or to install a specific version:
 #   curl -fsSL ... | bash -s -- --version v1.0.0
@@ -17,7 +17,7 @@ set -euo pipefail
 REPO="yorch/ai-agents-observability"
 VERSION=""
 PREFIX="/usr/local/bin"
-INSTALL_NAME="claude-telemetry"
+INSTALL_NAME="aiot"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -69,13 +69,13 @@ if [[ -z "${VERSION}" ]]; then
   fi
 fi
 
-echo "Installing claude-telemetry ${VERSION} for ${TARGET}..."
+echo "Installing aiot ${VERSION} for ${TARGET}..."
 
 # Create temp directory
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR}"' EXIT
 
-BINARY="claude-telemetry-${TARGET}"
+BINARY="aiot-${TARGET}"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}"
 CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${VERSION}/SHA256SUMS-hook"
 CHECKSUMS_FILE="${TMPDIR}/SHA256SUMS-hook"
@@ -193,9 +193,9 @@ echo ""
 echo "Installed: ${INSTALL_PATH}"
 echo ""
 echo "Next steps:"
-echo "  claude-telemetry login      # authenticate via GitHub OAuth"
-echo "  claude-telemetry install    # set up background services + hook snippet"
-echo "  claude-telemetry status     # check health"
+echo "  aiot login      # authenticate via GitHub OAuth"
+echo "  aiot install    # set up background services + hook snippet"
+echo "  aiot status     # check health"
 echo ""
 
 # Mac quarantine warning

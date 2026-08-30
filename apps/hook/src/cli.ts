@@ -28,9 +28,9 @@ function parseAgent(args: string[]): string | undefined {
 
 const VERSION = '0.1.0';
 
-const HELP = `claude-telemetry v${VERSION}
+const HELP = `aiot v${VERSION}
 
-Usage: claude-telemetry <command> [options]
+Usage: aiot <command> [options]
 
 Commands:
   login         Authenticate with the observability server (device-code flow)
@@ -155,7 +155,7 @@ async function main(): Promise<number> {
     return runImport(args);
   }
 
-  process.stderr.write(`Unknown command: ${cmd}\nRun \`claude-telemetry --help\` for usage.\n`);
+  process.stderr.write(`Unknown command: ${cmd}\nRun \`aiot --help\` for usage.\n`);
   return 1;
 }
 

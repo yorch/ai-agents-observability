@@ -13,7 +13,7 @@ estimate: M
 ## Goal
 
 Claude Code records real token usage in steady state, per assistant turn, without
-anyone running `claude-telemetry import` — and the turns are linked, so a tool
+anyone running `aiot import` — and the turns are linked, so a tool
 call can be attributed to the turn that issued it.
 
 ## Context

@@ -25,8 +25,8 @@ function makePartFile(name: string, ageMs: number): string {
 
 describe('runSweepScratch', () => {
   it('removes stale .zst.part scratch files and keeps fresh + unrelated ones', async () => {
-    const stale = makePartFile('claude-telemetry-transcript-u1-s1.zst.part', 7 * 60 * 60 * 1_000);
-    const fresh = makePartFile('claude-telemetry-transcript-u1-s2.zst.part', 60 * 1_000);
+    const stale = makePartFile('aiot-transcript-u1-s1.zst.part', 7 * 60 * 60 * 1_000);
+    const fresh = makePartFile('aiot-transcript-u1-s2.zst.part', 60 * 1_000);
     const unrelated = makePartFile('some-other-file.txt', 7 * 60 * 60 * 1_000);
 
     const removed = await runSweepScratch(undefined, Date.now(), dir);

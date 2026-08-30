@@ -200,17 +200,17 @@ describe('turn linkage — live and import paths agree', () => {
 
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), 'claude-linkage-test-'));
-    process.env.CLAUDE_TELEMETRY_HOME = home;
+    process.env.AIOT_HOME = home;
     transcript = join(home, 'session.jsonl');
     writeFileSync(transcript, CONVERSATION.map((e) => `${JSON.stringify(e)}\n`).join(''));
   });
 
   afterEach(() => {
     rmSync(home, { force: true, recursive: true });
-    process.env.CLAUDE_TELEMETRY_HOME = undefined;
+    process.env.AIOT_HOME = undefined;
   });
 
-  // THE guarantee that makes live capture and a later `claude-telemetry import`
+  // THE guarantee that makes live capture and a later `aiot import`
   // of the same session safe. Ingest dedupes on
   // `ON CONFLICT (event_id, ts) DO NOTHING`, so identical (event_id, ts) means
   // the second path is a no-op — and `sessions.total_cost_usd` accumulates
@@ -239,14 +239,14 @@ describe('P14-006 — the join key both sides of the wire spell identically', ()
 
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), 'claude-joinkey-test-'));
-    process.env.CLAUDE_TELEMETRY_HOME = home;
+    process.env.AIOT_HOME = home;
     transcript = join(home, 'session.jsonl');
     writeFileSync(transcript, CONVERSATION.map((e) => `${JSON.stringify(e)}\n`).join(''));
   });
 
   afterEach(() => {
     rmSync(home, { force: true, recursive: true });
-    process.env.CLAUDE_TELEMETRY_HOME = undefined;
+    process.env.AIOT_HOME = undefined;
   });
 
   const liveStops = () =>

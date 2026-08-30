@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.claude.telemetry.flusher</string>
+  <string>com.brnby.aiot.flusher</string>
   <key>ProgramArguments</key>
   <array>
     <string>__BINARY_PATH__</string>

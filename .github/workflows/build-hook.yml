@@ -72,20 +72,20 @@ jobs:
           bun build apps/hook/src/cli.ts \
             --compile \
             --target ${{ matrix.bun_target }} \
-            --outfile apps/hook/dist/claude-telemetry-${{ matrix.target }}
+            --outfile apps/hook/dist/aiot-${{ matrix.target }}
 
       - name: Smoke test
         run: |
-          chmod +x apps/hook/dist/claude-telemetry-${{ matrix.target }}
-          apps/hook/dist/claude-telemetry-${{ matrix.target }} --version
+          chmod +x apps/hook/dist/aiot-${{ matrix.target }}
+          apps/hook/dist/aiot-${{ matrix.target }} --version
 
       - name: Report binary size
         run: |
-          ls -lh apps/hook/dist/claude-telemetry-${{ matrix.target }}
+          ls -lh apps/hook/dist/aiot-${{ matrix.target }}
 
       - name: Codesign (Mac only)
         if: runner.os == 'macOS'
-        run: bash apps/hook/scripts/codesign-mac.sh apps/hook/dist/claude-telemetry-${{ matrix.target }}
+        run: bash apps/hook/scripts/codesign-mac.sh apps/hook/dist/aiot-${{ matrix.target }}
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -95,8 +95,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: claude-telemetry-${{ matrix.target }}
-          path: apps/hook/dist/claude-telemetry-${{ matrix.target }}
+          name: aiot-${{ matrix.target }}
+          path: apps/hook/dist/aiot-${{ matrix.target }}
           retention-days: 30
 
   # ── Release: publish binaries to the draft GitHub Release ───────────────────
@@ -119,13 +119,13 @@ jobs:
       - name: Flatten and prepare binaries
         run: |
           mkdir -p release/
-          find dist/ -name 'claude-telemetry-*' -type f -exec cp {} release/ \;
+          find dist/ -name 'aiot-*' -type f -exec cp {} release/ \;
           ls -lh release/
 
       - name: Generate SHA256SUMS-hook
         working-directory: release/
         run: |
-          sha256sum claude-telemetry-* > SHA256SUMS-hook
+          sha256sum aiot-* > SHA256SUMS-hook
           cat SHA256SUMS-hook
 
       - name: Upload to GitHub Release

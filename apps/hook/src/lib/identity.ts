@@ -4,7 +4,7 @@ import { identityPath } from './paths';
 
 let cached: string | null = null;
 
-// Identity is written by `claude-telemetry login` (P1-023). Until that runs we
+// Identity is written by `aiot login` (P1-023). Until that runs we
 // queue events with a placeholder claim — the ingest service is authoritative
 // for identity (see DESIGN_DOC §6.5) so the claim is only a sanity check.
 export function userIdClaim(): string {
@@ -26,7 +26,7 @@ export function userIdClaim(): string {
 }
 
 /**
- * Load the hook auth token written by `claude-telemetry login` (the `token`
+ * Load the hook auth token written by `aiot login` (the `token`
  * field of the identity file). Returns null when absent/unreadable. Shared by
  * the flusher and transcript shipper so the read isn't duplicated.
  */

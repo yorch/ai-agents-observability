@@ -12,19 +12,19 @@ estimate: M
 
 ## Goal
 
-When a PR merges on an opted-in repo, the GitHub App posts a summary comment. The comment contains only aggregated numbers — no transcript content, no raw prompt text. Opt-in is per-repo via `.claude-telemetry.yml`.
+When a PR merges on an opted-in repo, the GitHub App posts a summary comment. The comment contains only aggregated numbers — no transcript content, no raw prompt text. Opt-in is per-repo via `.aiot.yml`.
 
 ## Context
 
 - `DESIGN_DOC.md` §7.4 — comment format defined there.
 - `DESIGN_DOC.md` §7.5 — uses the GitHub App installation token, not a user token.
 - `PLAN.md` §2 risks — "PR comments are public; comment format is hand-built strings, no transcript content, just numbers — keep it that way."
-- P2-007 provides `parseRepoConfig` which reads `.claude-telemetry.yml` and returns whether bot comments are enabled.
+- P2-007 provides `parseRepoConfig` which reads `.aiot.yml` and returns whether bot comments are enabled.
 
 ## Acceptance criteria
 
 - [ ] After rollup is computed (P2-005), check if the repo opts in:
-  1. Fetch the file `/.claude-telemetry.yml` from the merge commit's tree via GitHub API (contents endpoint). Use the App installation token.
+  1. Fetch the file `/.aiot.yml` from the merge commit's tree via GitHub API (contents endpoint). Use the App installation token.
   2. Parse with `parseRepoConfig` (P2-007). If `pr_bot.enabled != true` (or file absent), skip — do NOT post.
   3. If opted in, post a comment to the PR.
 - [ ] Comment format (exact):
@@ -61,7 +61,7 @@ When a PR merges on an opted-in repo, the GitHub App posts a summary comment. Th
 
 ## Out of scope
 
-- Per-user masking preferences from `.claude-telemetry.yml` (Phase 3).
+- Per-user masking preferences from `.aiot.yml` (Phase 3).
 - "Top tools" from event data (deferred — see implementation note).
 - Re-posting / updating comments if rollup is recomputed (Phase 4).
 

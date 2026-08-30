@@ -43,7 +43,7 @@ bun run docker:app:logs | grep 'auth\|token\|identity'
 
 4. **Clock skew?** — JWT `exp` validation fails if the server clock is >5 min off. Check `date` on the host.
 
-5. **Device-code flow (hook CLI)?** — The hook login command talks to the web app, defaulting to `http://localhost:3000`. Set `CLAUDE_TELEMETRY_API` to the correct web URL and check `~/.claude-telemetry/identity.json` after login.
+5. **Device-code flow (hook CLI)?** — The hook login command talks to the web app, defaulting to `http://localhost:3000`. Set `AIOT_API` to the correct web URL and check `~/.aiot/identity.json` after login.
 
 ## Mitigate
 

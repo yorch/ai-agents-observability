@@ -15,11 +15,11 @@ let dir: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'agent-import-source-'));
-  process.env.CLAUDE_TELEMETRY_HOME = join(dir, 'telemetry');
+  process.env.AIOT_HOME = join(dir, 'telemetry');
 });
 
 afterEach(() => {
-  delete process.env.CLAUDE_TELEMETRY_HOME;
+  delete process.env.AIOT_HOME;
   delete process.env.CODEX_HOME;
   delete process.env.OPENCODE_DATA;
   delete process.env.OMP_HOME;

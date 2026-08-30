@@ -1,6 +1,6 @@
 # Hook performance benchmark
 
-Measures the wall-clock latency added to a Claude Code session by the `claude-telemetry` hook binary. Two modes are measured:
+Measures the wall-clock latency added to a Claude Code session by the `aiot` hook binary. Two modes are measured:
 
 | Mode | What it tests | Budget |
 |------|--------------|--------|
@@ -27,14 +27,14 @@ bun run bench
 bun run bench          # cold-start section is skipped if dist/ binary is absent
 
 # Cold-start only (CI mode)
-PERF_COLD_ONLY=1 PERF_BINARY=./dist/claude-telemetry bun run bench
+PERF_COLD_ONLY=1 PERF_BINARY=./dist/aiot bun run bench
 ```
 
 ## Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PERF_BINARY` | `dist/claude-telemetry` | Path to the compiled binary for cold-start |
+| `PERF_BINARY` | `dist/aiot` | Path to the compiled binary for cold-start |
 | `PERF_WARM_ITERATIONS` | `1000` | Iterations per hook kind (warm-start) |
 | `PERF_COLD_ITERATIONS` | `100` | Iterations per hook kind (cold-start) |
 | `PERF_COLD_ONLY` | unset | Set to skip warm-start and run cold-start only |

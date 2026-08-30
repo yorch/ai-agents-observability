@@ -147,7 +147,7 @@ Agent hook fires (any of the seven agents, via the adapter seam)
 
 GitHub PR event → github-app webhook: upsert PR (state, is_draft, jira_key,
   revert links), backfill session↔PR links, compute rollup, count CI check
-  failures, post opt-in bot comment (.claude-telemetry.yml driven).
+  failures, post opt-in bot comment (.aiot.yml driven).
 
 Scheduled jobs (ingest, advisory-locked): team sync, abandoned sweep,
   compute-effectiveness (friction + shape + response-latency), transcript FTS

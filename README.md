@@ -57,16 +57,16 @@ opencode, and how to import existing session history — see
 Quick path:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install-hook.sh | bash
-claude-telemetry config set web-url https://observability.example.com
-claude-telemetry config set ingest-url https://ingest.example.com
-claude-telemetry login
-claude-telemetry install                  # Claude Code (default)
-claude-telemetry install --agent codex    # or any other supported agent
+curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install.sh | bash
+aiot config set web-url https://observability.example.com
+aiot config set ingest-url https://ingest.example.com
+aiot login
+aiot install                  # Claude Code (default)
+aiot install --agent codex    # or any other supported agent
 ```
 
 Historical data can be backfilled from Claude Code, Codex, OpenCode, Pi, and OMP;
-preview it without network calls using `claude-telemetry import --agent <name> --dry-run`.
+preview it without network calls using `aiot import --agent <name> --dry-run`.
 
 See [`docs/deploy/hook-binary.md`](./docs/deploy/hook-binary.md) for manual downloads,
 checksum verification, supported platforms, and air-gapped installation.

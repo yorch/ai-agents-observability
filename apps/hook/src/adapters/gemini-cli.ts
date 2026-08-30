@@ -267,7 +267,7 @@ function renderSnippet(bin: string): string {
         hooks: [
           {
             command: `${JSON.stringify(bin)} hook ${kind} --agent gemini-cli`,
-            name: `claude-telemetry-${kind}`,
+            name: `aiot-${kind}`,
             timeout: 5000,
             type: 'command',
           },

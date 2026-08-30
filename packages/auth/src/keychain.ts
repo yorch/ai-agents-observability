@@ -2,9 +2,9 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const SERVICE = 'claude-telemetry';
+const SERVICE = 'aiot';
 const ACCOUNT = 'hook-token';
-const FALLBACK_DIR = join(homedir(), '.claude-telemetry');
+const FALLBACK_DIR = join(homedir(), '.aiot');
 const FALLBACK_PATH = join(FALLBACK_DIR, 'token');
 
 async function tryKeytar(): Promise<typeof import('keytar') | null> {

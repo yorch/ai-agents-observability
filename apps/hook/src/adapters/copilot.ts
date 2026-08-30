@@ -245,7 +245,7 @@ export const copilotAdapter: HookAdapter = createStdinHookAdapter({
   install: {
     agentName: 'GitHub Copilot CLI',
     renderSnippet,
-    settingsHint: 'Write this to ~/.copilot/hooks/claude-telemetry.json:',
+    settingsHint: 'Write this to ~/.copilot/hooks/aiot.json:',
   },
   nativeEvents: HOOK_KIND_TO_COPILOT_EVENT,
   // No `transcriptKinds`, so `transcriptTarget` stays the factory default (null)

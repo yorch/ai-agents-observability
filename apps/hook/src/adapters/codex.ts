@@ -223,9 +223,9 @@ let hooksWiredMemo: boolean | null = null;
 // Matches OUR HOOK INVOCATION specifically — `--agent codex` in TOML/string form
 // and `"--agent","codex"` in a hooks.json argv array — and nothing else.
 //
-// A bare `claude-telemetry` substring test would have been catastrophic here: the
+// A bare `aiot` substring test would have been catastrophic here: the
 // notify install snippet this very file generates writes
-// `notify = ["~/.codex/claude-telemetry-notify.sh"]` INTO config.toml. A
+// `notify = ["~/.codex/aiot-notify.sh"]` INTO config.toml. A
 // notify-only install would then self-detect as hooks-wired, stand the notify
 // path down, and capture nothing at all — the exact blackout the narrow test
 // exists to prevent, on the default install.
@@ -709,19 +709,19 @@ function rolloutForHook(
 function renderSnippet(bin: string): string {
   const home = homedir();
   return [
-    '# 1. Save this wrapper as ~/.codex/claude-telemetry-notify.sh and `chmod +x` it.',
+    '# 1. Save this wrapper as ~/.codex/aiot-notify.sh and `chmod +x` it.',
     '#    Codex passes the notification JSON as the first argument:',
     '#!/bin/sh',
     `printf '%s' "$1" | ${bin} hook turn-complete --agent codex`,
     '',
     '# 2. Point Codex at the wrapper in ~/.codex/config.toml:',
-    `notify = ["${home}/.codex/claude-telemetry-notify.sh"]`,
+    `notify = ["${home}/.codex/aiot-notify.sh"]`,
     '',
     '# Richer capture (per-tool events) is available via Codex lifecycle hooks.',
     '# They are experimental and off by default; enable them in config.toml with',
     '#   [features]',
     '#   hooks = true',
-    '# then re-run `claude-telemetry install --agent codex` for the hooks snippet.',
+    '# then re-run `aiot install --agent codex` for the hooks snippet.',
     '# (Not available on Windows.)',
   ].join('\n');
 }

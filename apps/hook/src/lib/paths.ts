@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 
 export function telemetryHome(): string {
-  return process.env.CLAUDE_TELEMETRY_HOME ?? `${homedir()}/.claude-telemetry`;
+  return process.env.AIOT_HOME ?? `${homedir()}/.aiot`;
 }
 
 export function queuePath(): string {

@@ -61,14 +61,14 @@ describe('codex adapter — rollout-backed mapBatch', () => {
     codexHome = mkdtempSync(join(tmpdir(), 'codex-home-'));
     telHome = mkdtempSync(join(tmpdir(), 'codex-tel-'));
     process.env.CODEX_HOME = codexHome;
-    process.env.CLAUDE_TELEMETRY_HOME = telHome;
+    process.env.AIOT_HOME = telHome;
   });
 
   afterEach(() => {
     rmSync(codexHome, { force: true, recursive: true });
     rmSync(telHome, { force: true, recursive: true });
     delete process.env.CODEX_HOME;
-    delete process.env.CLAUDE_TELEMETRY_HOME;
+    delete process.env.AIOT_HOME;
   });
 
   it('expands a turn into per-tool PostToolUse events plus a usage-bearing Stop', () => {
@@ -229,7 +229,7 @@ describe('codex adapter — native lifecycle hooks', () => {
         hooks: {
           Stop: [
             {
-              command: ['/bin/claude-telemetry', 'hook', 'stop', '--agent', 'codex'],
+              command: ['/bin/aiot', 'hook', 'stop', '--agent', 'codex'],
               type: 'command',
             },
           ],
@@ -244,7 +244,7 @@ describe('codex adapter — native lifecycle hooks', () => {
     codexHome = mkdtempSync(join(tmpdir(), 'codex-hooks-'));
     telHome = mkdtempSync(join(tmpdir(), 'codex-tel-'));
     process.env.CODEX_HOME = codexHome;
-    process.env.CLAUDE_TELEMETRY_HOME = telHome;
+    process.env.AIOT_HOME = telHome;
     resetCodexHooksCache();
   });
 
@@ -252,7 +252,7 @@ describe('codex adapter — native lifecycle hooks', () => {
     rmSync(codexHome, { force: true, recursive: true });
     rmSync(telHome, { force: true, recursive: true });
     delete process.env.CODEX_HOME;
-    delete process.env.CLAUDE_TELEMETRY_HOME;
+    delete process.env.AIOT_HOME;
     resetCodexHooksCache();
   });
 
@@ -471,7 +471,7 @@ describe('codex adapter — native lifecycle hooks', () => {
   });
 
   it('prints the notify snippet when hooks are off and the hooks.json snippet when on', () => {
-    const bin = '/usr/local/bin/claude-telemetry';
+    const bin = '/usr/local/bin/aiot';
 
     const off = codexAdapter.installConfig();
     expect(off.settingsHint).toContain('notify');
@@ -529,20 +529,20 @@ describe('codex adapter — native lifecycle hooks', () => {
 
   it('does not mistake OUR OWN notify snippet in config.toml for a wired hook', () => {
     // The notify install snippet writes
-    // `notify = ["~/.codex/claude-telemetry-notify.sh"]` into config.toml. A
+    // `notify = ["~/.codex/aiot-notify.sh"]` into config.toml. A
     // substring test for our binary's name matches that — so the default,
     // documented install would stand the notify path down and capture NOTHING.
     // What a notify install actually puts in config.toml: the notify line only.
     // (The wrapper script, which does contain the hook invocation, lives in its
     // own .sh file — config.toml never sees it.)
-    const bin = '/usr/local/bin/claude-telemetry';
+    const bin = '/usr/local/bin/aiot';
     resetCodexHooksCache();
     const notifyLine = codexAdapter
       .installConfig()
       .renderSnippet(bin)
       .split('\n')
       .find((line) => line.startsWith('notify = ['));
-    expect(notifyLine).toContain('claude-telemetry');
+    expect(notifyLine).toContain('aiot');
     writeFileSync(join(codexHome, 'config.toml'), `${notifyLine}\n`, 'utf8');
     resetCodexHooksCache();
     expect(codexHooksWired()).toBe(false);
@@ -559,7 +559,7 @@ describe('codex adapter — native lifecycle hooks', () => {
   it('detects our hook wired via an inline [hooks] table in config.toml', () => {
     writeFileSync(
       join(codexHome, 'config.toml'),
-      '[hooks]\nStop = "claude-telemetry hook stop --agent codex"\n',
+      '[hooks]\nStop = "aiot hook stop --agent codex"\n',
       'utf8',
     );
     resetCodexHooksCache();
@@ -587,7 +587,7 @@ describe('codex adapter — native lifecycle hooks', () => {
         hooks: {
           Stop: [
             {
-              command: ['/opt/claude-telemetry', 'hook', 'stop', '--agent', 'codex'],
+              command: ['/opt/aiot', 'hook', 'stop', '--agent', 'codex'],
               type: 'command',
             },
           ],

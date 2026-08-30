@@ -11,11 +11,11 @@ export type CliConfig = {
 };
 
 export function cliConfigPath(): string {
-  if (process.env.CLAUDE_TELEMETRY_CONFIG) {
-    return process.env.CLAUDE_TELEMETRY_CONFIG;
+  if (process.env.AIOT_CONFIG) {
+    return process.env.AIOT_CONFIG;
   }
   const root = process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config');
-  return join(root, 'claude-telemetry', 'config.json');
+  return join(root, 'aiot', 'config.json');
 }
 
 export function readCliConfig(): CliConfig {
@@ -44,9 +44,7 @@ export function getIngestBaseUrl(): string {
 }
 
 export function getWebBaseUrl(): string {
-  return normalizeUrl(
-    process.env.CLAUDE_TELEMETRY_API ?? readCliConfig().web_url ?? DEFAULT_WEB_BASE_URL,
-  );
+  return normalizeUrl(process.env.AIOT_API ?? readCliConfig().web_url ?? DEFAULT_WEB_BASE_URL);
 }
 
 export function writeCliConfig(config: CliConfig): void {

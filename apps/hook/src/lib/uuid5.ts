@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-// Fixed namespace for claude-telemetry imports. NEVER change this value or
+// Fixed namespace for aiot imports. NEVER change this value or
 // re-imports will generate different IDs and create duplicates in the DB.
 export const IMPORT_NAMESPACE = '6f1a4e2c-9b3d-5a8e-bc11-2f0a9d4e7c63';
 

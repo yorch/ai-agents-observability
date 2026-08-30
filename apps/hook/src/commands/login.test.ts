@@ -11,19 +11,19 @@ let tmpHome: string;
 let origFetch: typeof fetch;
 
 beforeEach(() => {
-  tmpHome = mkdtempSync(join(tmpdir(), 'claude-tel-login-test-'));
-  process.env.CLAUDE_TELEMETRY_CONFIG = join(tmpHome, 'config.json');
-  process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
-  process.env.CLAUDE_TELEMETRY_API = 'http://localhost:9999';
+  tmpHome = mkdtempSync(join(tmpdir(), 'aiot-login-test-'));
+  process.env.AIOT_CONFIG = join(tmpHome, 'config.json');
+  process.env.AIOT_HOME = tmpHome;
+  process.env.AIOT_API = 'http://localhost:9999';
   origFetch = globalThis.fetch;
 });
 
 afterEach(() => {
   rmSync(tmpHome, { force: true, recursive: true });
   globalThis.fetch = origFetch;
-  delete process.env.CLAUDE_TELEMETRY_API;
-  delete process.env.CLAUDE_TELEMETRY_CONFIG;
-  delete process.env.CLAUDE_TELEMETRY_HOME;
+  delete process.env.AIOT_API;
+  delete process.env.AIOT_CONFIG;
+  delete process.env.AIOT_HOME;
 });
 
 async function captureStderr(fn: () => Promise<number>): Promise<{ code: number; stderr: string }> {

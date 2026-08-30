@@ -106,7 +106,7 @@ describe('omp adapter', () => {
   });
 
   it('names both documented config roots in the install snippet', () => {
-    const snippet = ompAdapter.installConfig().renderSnippet('/usr/local/bin/claude-telemetry');
+    const snippet = ompAdapter.installConfig().renderSnippet('/usr/local/bin/aiot');
     expect(snippet).toContain('.omp/agent/hooks');
     expect(snippet).toContain('.oh-omp');
   });
@@ -126,7 +126,7 @@ describe('omp adapter', () => {
   });
 
   it('documents the omp-hooks alternative without depending on it', () => {
-    const snippet = ompAdapter.installConfig().renderSnippet('/usr/local/bin/claude-telemetry');
+    const snippet = ompAdapter.installConfig().renderSnippet('/usr/local/bin/aiot');
     expect(snippet).toContain('omp-hooks');
     expect(snippet).toContain("'hook', kind, '--agent', 'omp'");
   });

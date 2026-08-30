@@ -103,10 +103,10 @@ See [binaries.md](./binaries.md).
 
 ### 6. Hook binary distribution
 
-The `claude-telemetry` hook binary is published to GitHub Releases with per-platform binaries + checksums. Mac binaries are codesigned + notarized when Apple signing secrets are configured.
+The `aiot` hook binary is published to GitHub Releases with per-platform binaries + checksums. Mac binaries are codesigned + notarized when Apple signing secrets are configured.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install-hook.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install.sh | bash
 ```
 
 See [hook-binary.md](./hook-binary.md).
@@ -187,5 +187,5 @@ gh release download v1.0.0 --repo yorch/ai-agents-observability --pattern "sbom-
 | `docker-compose.traefik.yml` | Traefik reverse proxy overlay |
 | `docker-compose.watchtower.yml` | Auto-update overlay |
 | `deploy/helm/ai-agents-observability/` | Helm chart for Kubernetes |
-| `scripts/install-hook.sh` | Hook binary install script |
+| `scripts/install.sh` | Hook binary install script |
 | `scripts/package-web.sh` | Web tarball packaging script |

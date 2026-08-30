@@ -1,5 +1,5 @@
 [Unit]
-Description=Claude Telemetry Shipper
+Description=AIOT Shipper
 After=network.target
 
 [Service]

@@ -4,8 +4,8 @@ import { basename, join } from 'node:path';
 
 import { type HookAdapter, selectAdapter } from '../adapters';
 
-const FLUSHER_LABEL = 'com.claude-telemetry.flusher';
-const SHIPPER_LABEL = 'com.claude-telemetry.shipper';
+const FLUSHER_LABEL = 'com.brnby.aiot.flusher';
+const SHIPPER_LABEL = 'com.brnby.aiot.shipper';
 
 /** Spawn function — injectable so tests don't actually invoke launchctl/systemd. */
 type SpawnFn = (cmd: readonly string[]) => { exitCode: number };
@@ -108,9 +108,9 @@ function resolvedBinaryPath(): string {
   return process.execPath;
 }
 
-/** True when process.execPath is the compiled claude-telemetry binary. */
+/** True when process.execPath is the compiled aiot binary. */
 function isCompiledBinary(): boolean {
-  return basename(process.execPath).startsWith('claude-telemetry');
+  return basename(process.execPath).startsWith('aiot');
 }
 
 function installDarwin(
@@ -188,9 +188,9 @@ function installLinux(
   const dir = join(homeDir, '.config', 'systemd', 'user');
   mkdirSync(dir, { recursive: true });
 
-  const flusherPath = join(dir, 'claude-telemetry-flusher.service');
-  const shipperPath = join(dir, 'claude-telemetry-shipper.service');
-  const services = ['claude-telemetry-flusher', 'claude-telemetry-shipper'];
+  const flusherPath = join(dir, 'aiot-flusher.service');
+  const shipperPath = join(dir, 'aiot-shipper.service');
+  const services = ['aiot-flusher', 'aiot-shipper'];
 
   // Disable existing services before overwriting so an upgrade restarts cleanly.
   for (const svc of services) {
@@ -204,11 +204,11 @@ function installLinux(
     }
   }
 
-  writeFileSync(flusherPath, systemdUnit(bin, 'flusher', 'claude-telemetry flusher'), {
+  writeFileSync(flusherPath, systemdUnit(bin, 'flusher', 'aiot flusher'), {
     encoding: 'utf8',
     mode: 0o644,
   });
-  writeFileSync(shipperPath, systemdUnit(bin, 'shipper', 'claude-telemetry shipper'), {
+  writeFileSync(shipperPath, systemdUnit(bin, 'shipper', 'aiot shipper'), {
     encoding: 'utf8',
     mode: 0o644,
   });
@@ -248,8 +248,8 @@ function installLinux(
   } else {
     process.stdout.write('Enable and start services:\n');
     process.stdout.write('  systemctl --user daemon-reload\n');
-    process.stdout.write('  systemctl --user enable --now claude-telemetry-flusher\n');
-    process.stdout.write('  systemctl --user enable --now claude-telemetry-shipper\n\n');
+    process.stdout.write('  systemctl --user enable --now aiot-flusher\n');
+    process.stdout.write('  systemctl --user enable --now aiot-shipper\n\n');
   }
 
   printHookSnippet(bin, adapter);
@@ -270,11 +270,11 @@ export function runInstall(
   if (!isCompiledBinary() && !opts.force) {
     process.stderr.write(
       'Refusing to install: process.execPath is the Bun runtime, not the\n' +
-        `compiled claude-telemetry binary (got: ${process.execPath}).\n` +
+        `compiled aiot binary (got: ${process.execPath}).\n` +
         'The generated service files would fail to start.\n\n' +
         'Build the binary first:\n' +
         '  bun run --cwd apps/hook build\n' +
-        'then run: ./apps/hook/dist/claude-telemetry install\n\n' +
+        'then run: ./apps/hook/dist/aiot install\n\n' +
         'Or pass --force to write the files anyway.\n',
     );
     return 1;

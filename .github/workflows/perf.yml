@@ -50,7 +50,7 @@ jobs:
           bun build apps/hook/src/cli.ts \
             --compile \
             --target bun-linux-x64 \
-            --outfile apps/hook/dist/claude-telemetry
+            --outfile apps/hook/dist/aiot
 
       - name: Run cold-start benchmark
         # Report-only (continue-on-error): the <15ms p99 budget targets developer
@@ -63,7 +63,7 @@ jobs:
         # PERF_COLD_ONLY=1   — skip warm-start (needs stdin patch, less meaningful in CI)
         # PERF_COLD_ITERATIONS=100 — 100 spawns per hook kind (400 total) keeps the job fast
         # No PERF_BINARY override: the bench runs with --cwd apps/hook and its
-        # default binary path (apps/hook/dist/claude-telemetry) already matches the
+        # default binary path (apps/hook/dist/aiot) already matches the
         # build step above. A repo-root-relative override resolves against the
         # apps/hook cwd and misses the binary.
         run: |

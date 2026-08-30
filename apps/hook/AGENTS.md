@@ -89,7 +89,7 @@ Two things that look like details and are not:
   `||` would fabricate a Notification per LLM call.
 - **Codex runs two capture paths** (native hooks, and the older `notify`), and
   `notify` stands down when our binary is wired as a hook. That check must stay
-  narrow: matching a bare `claude-telemetry` substring also matches the notify
+  narrow: matching a bare `aiot` substring also matches the notify
   wrapper's own path in `config.toml`, which stands the default install down and
   captures *nothing*.
 

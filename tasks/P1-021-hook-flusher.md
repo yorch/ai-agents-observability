@@ -12,7 +12,7 @@ estimate: M
 
 ## Goal
 
-A long-running background process drains the SQLite queue and POSTs batches to `/v1/events`. It runs as a launchd/systemd service installed by `claude-telemetry install`, with exponential-backoff retry and crash-safe progress.
+A long-running background process drains the SQLite queue and POSTs batches to `/v1/events`. It runs as a launchd/systemd service installed by `aiot install`, with exponential-backoff retry and crash-safe progress.
 
 ## Context
 
@@ -22,7 +22,7 @@ A long-running background process drains the SQLite queue and POSTs batches to `
 
 ## Acceptance criteria
 
-- [ ] `claude-telemetry flusher` subcommand starts a loop:
+- [ ] `aiot flusher` subcommand starts a loop:
   1. SELECT up to 100 events where `attempts < 10` ordered by ts.
   2. POST as a batch to `/v1/events` with the hook token.
   3. On 2xx: DELETE successful rows.
@@ -32,10 +32,10 @@ A long-running background process drains the SQLite queue and POSTs batches to `
 - [ ] Flush cadence: 5s idle interval; immediate flush if queue length ≥ 50.
 - [ ] Crash-safe: if killed mid-flush, retry picks up the same rows next start (no duplicate inserts because of `event_id` idempotency on the server).
 - [ ] Service files:
-  - `apps/hook/install/launchd/com.claude.telemetry.flusher.plist` (macOS).
-  - `apps/hook/install/systemd/claude-telemetry.service` (Linux).
-- [ ] `claude-telemetry install` (P1-023) installs the service files.
-- [ ] `claude-telemetry status` shows: queue depth, last flush time, last error.
+  - `apps/hook/install/launchd/com.brnby.aiot.flusher.plist` (macOS).
+  - `apps/hook/install/systemd/aiot.service` (Linux).
+- [ ] `aiot install` (P1-023) installs the service files.
+- [ ] `aiot status` shows: queue depth, last flush time, last error.
 - [ ] Test: spin up a fake ingest endpoint, generate 1000 events in the queue, run flusher for 30s, assert all events reach the fake endpoint.
 
 ## Implementation notes
@@ -63,6 +63,6 @@ A long-running background process drains the SQLite queue and POSTs batches to `
 ```bash
 bun --filter '@app/hook' test
 # Manual:
-./apps/hook/dist/claude-telemetry-<triple> flusher &
+./apps/hook/dist/aiot-<triple> flusher &
 # Generate hook events; observe events in DB and rows draining.
 ```

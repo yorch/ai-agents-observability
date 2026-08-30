@@ -27,7 +27,7 @@ Two pages that materialize the trust mechanics in `DESIGN_DOC.md` §10 and §11:
 - [ ] Defaults (per §10) shown clearly with "Default" labels next to unchanged toggles.
 - [ ] Save via a Server Action; success toast, persisted to DB.
 - [ ] Below the toggles: explanation paragraph for each, in plain English.
-- [ ] "Pause data collection" button → POSTs to `/api/me/pause-collection` which sets a server-side flag (TBD — for now, surfaces a copy-pasteable `claude-telemetry pause` command).
+- [ ] "Pause data collection" button → POSTs to `/api/me/pause-collection` which sets a server-side flag (TBD — for now, surfaces a copy-pasteable `aiot pause` command).
 - [ ] "Delete my data" button → confirmation dialog → POSTs to `/api/me/delete` which queues a delete job (Phase 4 actually runs it; this task just records the request in an `AuditLog` + `DeletionRequest` table).
 
 **Audit (`/me/audit`):**

@@ -80,13 +80,13 @@ function batch(payload = stopPayload()) {
 
 beforeEach(() => {
   home = mkdtempSync(join(tmpdir(), 'claude-usage-test-'));
-  process.env.CLAUDE_TELEMETRY_HOME = home;
+  process.env.AIOT_HOME = home;
   transcript = join(home, 'session.jsonl');
 });
 
 afterEach(() => {
   rmSync(home, { force: true, recursive: true });
-  process.env.CLAUDE_TELEMETRY_HOME = undefined;
+  process.env.AIOT_HOME = undefined;
 });
 
 describe('claudeCodeAdapter per-turn usage', () => {

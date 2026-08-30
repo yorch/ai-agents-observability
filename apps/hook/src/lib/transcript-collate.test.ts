@@ -33,13 +33,13 @@ describe('collateDirectory', () => {
   beforeEach(() => {
     src = mkdtempSync(join(tmpdir(), 'collate-src-'));
     telHome = mkdtempSync(join(tmpdir(), 'collate-tel-'));
-    process.env.CLAUDE_TELEMETRY_HOME = telHome;
+    process.env.AIOT_HOME = telHome;
   });
 
   afterEach(() => {
     rmSync(src, { force: true, recursive: true });
     rmSync(telHome, { force: true, recursive: true });
-    delete process.env.CLAUDE_TELEMETRY_HOME;
+    delete process.env.AIOT_HOME;
   });
 
   it('collates a directory of per-message JSON into one JSONL', () => {

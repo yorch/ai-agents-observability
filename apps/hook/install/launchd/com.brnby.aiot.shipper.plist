@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.claude.telemetry.shipper</string>
+  <string>com.brnby.aiot.shipper</string>
   <key>ProgramArguments</key>
   <array>
     <string>__BINARY_PATH__</string>

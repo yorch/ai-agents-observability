@@ -11,7 +11,7 @@ import { runInstall } from './install';
 let tmpHome: string;
 
 beforeEach(() => {
-  tmpHome = mkdtempSync(join(tmpdir(), 'claude-tel-install-test-'));
+  tmpHome = mkdtempSync(join(tmpdir(), 'aiot-install-test-'));
 });
 
 afterEach(() => {
@@ -80,13 +80,13 @@ function systemdDir(): string {
 
 function flusherPath(): string {
   return isDarwin
-    ? join(launchAgentsDir(), 'com.claude-telemetry.flusher.plist')
-    : join(systemdDir(), 'claude-telemetry-flusher.service');
+    ? join(launchAgentsDir(), 'com.brnby.aiot.flusher.plist')
+    : join(systemdDir(), 'aiot-flusher.service');
 }
 function shipperPath(): string {
   return isDarwin
-    ? join(launchAgentsDir(), 'com.claude-telemetry.shipper.plist')
-    : join(systemdDir(), 'claude-telemetry-shipper.service');
+    ? join(launchAgentsDir(), 'com.brnby.aiot.shipper.plist')
+    : join(systemdDir(), 'aiot-shipper.service');
 }
 
 // ── uncompiled guard ──────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ describe('install — service file content', () => {
     captureOutput(() => install(['--force', '--no-start'], recordingSpawn().fn));
     const plist = readFileSync(flusherPath(), 'utf8');
     expect(plist).toContain('<?xml');
-    expect(plist).toContain('com.claude-telemetry.flusher');
+    expect(plist).toContain('com.brnby.aiot.flusher');
     expect(plist).toContain('<key>KeepAlive</key>');
     expect(plist).toContain('flusher');
   });

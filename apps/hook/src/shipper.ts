@@ -387,7 +387,7 @@ export async function runShipper(): Promise<void> {
 
     const jwt = loadHookToken();
     if (!jwt) {
-      log('warn', 'shipper.no_token', { hint: 'Run `claude-telemetry login` to authenticate' });
+      log('warn', 'shipper.no_token', { hint: 'Run `aiot login` to authenticate' });
       await Bun.sleep(SWEEP_INTERVAL_MS);
       continue;
     }

@@ -64,15 +64,15 @@ let tmpHome: string;
 let tmpTranscriptDir: string;
 
 beforeEach(() => {
-  tmpHome = mkdtempSync(join(tmpdir(), 'claude-tel-shipper-test-'));
-  tmpTranscriptDir = mkdtempSync(join(tmpdir(), 'claude-tel-transcripts-'));
-  process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
+  tmpHome = mkdtempSync(join(tmpdir(), 'aiot-shipper-test-'));
+  tmpTranscriptDir = mkdtempSync(join(tmpdir(), 'aiot-transcripts-'));
+  process.env.AIOT_HOME = tmpHome;
 });
 
 afterEach(() => {
   rmSync(tmpHome, { force: true, recursive: true });
   rmSync(tmpTranscriptDir, { force: true, recursive: true });
-  delete process.env.CLAUDE_TELEMETRY_HOME;
+  delete process.env.AIOT_HOME;
   delete process.env.INGEST_BASE_URL;
 });
 

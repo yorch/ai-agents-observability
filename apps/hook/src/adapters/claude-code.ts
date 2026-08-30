@@ -85,7 +85,7 @@ function renderSnippet(bin: string): string {
 // 2. THE EVENT ID AND ts COME FROM THE TRANSCRIPT ENTRY, via the shared
 //    lib/claude-turns.ts, so they are IDENTICAL to what `import` synthesizes for
 //    the same turn. That is what makes live capture and a later
-//    `claude-telemetry import` of the same session safe: ingest dedupes on
+//    `aiot import` of the same session safe: ingest dedupes on
 //    `ON CONFLICT (event_id, ts) DO NOTHING`, so the second one is a no-op and
 //    the cost is counted once. Without it the two paths mint different ids for
 //    the same tokens and `sessions.total_cost_usd` — which accumulates and is

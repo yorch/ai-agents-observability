@@ -1,5 +1,5 @@
 [Unit]
-Description=Claude Telemetry Flusher
+Description=AIOT Flusher
 After=network.target
 
 [Service]

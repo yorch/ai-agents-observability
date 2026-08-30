@@ -23,7 +23,7 @@ import type { AdapterInstallConfig, ConformantEvent, HookAdapter, TranscriptTarg
 // the seam from P8-003 holds for an agent that is not Claude Code.
 //
 // opencode (https://opencode.ai, open-source) drives telemetry through its plugin
-// event bus. A thin opencode plugin shells out to `claude-telemetry hook <kind>
+// event bus. A thin opencode plugin shells out to `aiot hook <kind>
 // --agent opencode`, piping the event JSON on stdin — the same transport contract
 // the Claude Code hook uses. This adapter translates opencode's event payloads
 // into the canonical ConformantEvent shape; the transport (queue/flusher/shipper)

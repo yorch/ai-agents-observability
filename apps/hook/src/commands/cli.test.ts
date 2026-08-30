@@ -13,17 +13,17 @@ import { runStatus } from './status';
 let tmpHome: string;
 
 beforeEach(() => {
-  tmpHome = mkdtempSync(join(tmpdir(), 'claude-tel-cli-test-'));
-  process.env.CLAUDE_TELEMETRY_CONFIG = join(tmpHome, 'config.json');
-  process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
-  delete process.env.CLAUDE_TELEMETRY_API;
+  tmpHome = mkdtempSync(join(tmpdir(), 'aiot-cli-test-'));
+  process.env.AIOT_CONFIG = join(tmpHome, 'config.json');
+  process.env.AIOT_HOME = tmpHome;
+  delete process.env.AIOT_API;
 });
 
 afterEach(() => {
   rmSync(tmpHome, { force: true, recursive: true });
-  delete process.env.CLAUDE_TELEMETRY_API;
-  delete process.env.CLAUDE_TELEMETRY_CONFIG;
-  delete process.env.CLAUDE_TELEMETRY_HOME;
+  delete process.env.AIOT_API;
+  delete process.env.AIOT_CONFIG;
+  delete process.env.AIOT_HOME;
 });
 
 // Capture stdout/stderr for assertions

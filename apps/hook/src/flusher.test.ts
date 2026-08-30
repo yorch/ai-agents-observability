@@ -73,13 +73,13 @@ function startMockServer(responses: number[]): {
 let tmpHome: string;
 
 beforeEach(() => {
-  tmpHome = mkdtempSync(join(tmpdir(), 'claude-tel-flusher-test-'));
-  process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
+  tmpHome = mkdtempSync(join(tmpdir(), 'aiot-flusher-test-'));
+  process.env.AIOT_HOME = tmpHome;
 });
 
 afterEach(() => {
   rmSync(tmpHome, { force: true, recursive: true });
-  delete process.env.CLAUDE_TELEMETRY_HOME;
+  delete process.env.AIOT_HOME;
   delete process.env.INGEST_BASE_URL;
 });
 
