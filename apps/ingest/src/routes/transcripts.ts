@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -161,7 +161,7 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
           }
 
           const partPath = chunkPath(user.id, sessionId);
-          await mkdir(tmpdir(), { recursive: true });
+          await mkdir(tmpdir(), { mode: 0o700, recursive: true });
           const body = new Uint8Array(await c.req.arrayBuffer());
           const expectedLength = end - start + 1;
           if (body.byteLength !== expectedLength) {
@@ -169,7 +169,10 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
           }
 
           if (start === 0) {
-            await writeFile(partPath, body);
+            await writeFile(partPath, body, { mode: 0o600 });
+            // Explicit chmod after write: writeFile's mode is masked by the
+            // process umask, so 0o600 can silently become 0o644. chmod is not.
+            await chmod(partPath, 0o600);
           } else {
             const existing = await readFile(partPath).catch(() => null);
             if (!existing || existing.byteLength !== start) {
@@ -178,7 +181,8 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
             const merged = new Uint8Array(existing.byteLength + body.byteLength);
             merged.set(existing, 0);
             merged.set(body, existing.byteLength);
-            await writeFile(partPath, merged);
+            await writeFile(partPath, merged, { mode: 0o600 });
+            await chmod(partPath, 0o600);
           }
 
           if (end + 1 < total) {

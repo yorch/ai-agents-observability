@@ -7,17 +7,35 @@ const LIMIT = 1_000;
 
 type WindowEntry = { count: number; windowStart: number };
 
-// Reads IP from proxy-set headers. Requires a trusted proxy that strips/rewrites these headers;
-// without one, clients can spoof IPs and bypass the limit. Acceptable for v1 single-instance.
-function getClientIp(req: { header: (name: string) => string | undefined }): string {
-  return (
-    req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? req.header('x-real-ip') ?? 'unknown'
-  );
+// Resolves the client IP from the X-Forwarded-For header, taking the
+// Nth-from-right entry when trustedProxyCount is set (the standard approach for
+// trusted proxy chains). When trustedProxyCount is unset, XFF is ignored
+// entirely — a client can spoof it to bypass rate limits, so it is only trusted
+// when the operator has explicitly configured the proxy depth. Falls back to the
+// socket remote address, then 'unknown'.
+function getClientIp(
+  req: { header: (name: string) => string | undefined },
+  remoteAddr: string | undefined,
+  trustedProxyCount?: number,
+): string {
+  if (trustedProxyCount !== undefined && trustedProxyCount > 0) {
+    const fwd = req.header('x-forwarded-for');
+    if (fwd) {
+      const hops = fwd.split(',').map((s) => s.trim());
+      // The client IP is Nth-from-right, where N = trustedProxyCount.
+      // With 1 trusted proxy: "client, proxy" → hops[0] = client.
+      const idx = hops.length - trustedProxyCount - 1;
+      if (idx >= 0 && hops[idx]) {
+        return hops[idx];
+      }
+    }
+  }
+  return remoteAddr ?? 'unknown';
 }
 
 const MAX_TRACKED_IPS = 10_000;
 
-export function rateLimitMiddleware(): MiddlewareHandler<AppEnv> {
+export function rateLimitMiddleware(trustedProxyCount?: number): MiddlewareHandler<AppEnv> {
   const windows = new Map<string, WindowEntry>();
 
   function pruneStale(now: number): void {
@@ -29,7 +47,13 @@ export function rateLimitMiddleware(): MiddlewareHandler<AppEnv> {
   }
 
   return async (c, next) => {
-    const ip = getClientIp(c.req);
+    // Bun's Hono request doesn't expose the raw socket address directly in a
+    // portable way. c.env may carry it depending on the adapter; fall back to
+    // 'unknown' when unavailable (e.g. in tests).
+    const remoteAddr =
+      (c.env as { remoteAddr?: { address?: string } } | undefined)?.remoteAddr?.address ??
+      undefined;
+    const ip = getClientIp(c.req, remoteAddr, trustedProxyCount);
     const now = Date.now();
     const entry = windows.get(ip);
 
@@ -49,3 +73,6 @@ export function rateLimitMiddleware(): MiddlewareHandler<AppEnv> {
     return await next();
   };
 }
+
+// Exported for testing.
+export { getClientIp };

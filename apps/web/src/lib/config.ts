@@ -8,6 +8,9 @@ const WebConfigSchema = z.object({
   githubHost: z.string().default('https://github.com'),
   githubOAuthClientId: z.string().optional(),
   githubOAuthClientSecret: z.string().optional(),
+  // Hook token TTL in days. Default: 365 (when unset or 0). Must be a positive
+  // integer. Set to a shorter value to enforce more frequent token rotation.
+  hookTokenTtlDays: z.coerce.number().int().min(1).max(3650).optional(),
   ingestUrl: z.string().url().optional(),
   isProduction: z.boolean(),
   jiraBaseUrl: z.string().optional(),
@@ -16,6 +19,10 @@ const WebConfigSchema = z.object({
   s3Endpoint: z.string().optional(),
   s3Region: z.string().default('us-east-1'),
   s3SecretAccessKey: z.string().min(1),
+  // Number of trusted reverse proxies in front of the web app. When set,
+  // clientIp() takes the Nth-from-right entry from X-Forwarded-For. When
+  // unset, XFF is ignored and the first hop is not trusted.
+  trustedProxyCount: z.coerce.number().int().min(0).optional(),
   // Org-wide business value of one delivered Jira story point, in USD. When set
   // (> 0), /org/roi shows value-delivered vs agent-spend. Optional: the whole
   // business-value section is hidden when unset. `.catch` keeps a malformed value
@@ -37,6 +44,7 @@ export function getConfig(): WebConfig {
       githubHost: process.env.GITHUB_HOST,
       githubOAuthClientId: process.env.GITHUB_OAUTH_CLIENT_ID,
       githubOAuthClientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET,
+      hookTokenTtlDays: process.env.HOOK_TOKEN_TTL_DAYS,
       ingestUrl: process.env.INGEST_URL,
       isProduction: process.env.NODE_ENV === 'production',
       jiraBaseUrl: process.env.NEXT_PUBLIC_JIRA_BASE_URL,
@@ -45,6 +53,7 @@ export function getConfig(): WebConfig {
       s3Endpoint: process.env.S3_ENDPOINT,
       s3Region: process.env.S3_REGION,
       s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+      trustedProxyCount: process.env.TRUSTED_PROXY_COUNT,
       valuePerStoryPoint: process.env.VALUE_PER_STORY_POINT,
     });
   }

@@ -186,7 +186,7 @@ export async function getAuditLog(
 
   type RawRow = {
     action: string;
-    actor: { githubLogin: string | null };
+    actor: { githubLogin: string | null } | null;
     id: bigint;
     ip: string | null;
     justification: string | null;
@@ -210,7 +210,7 @@ export async function getAuditLog(
   return {
     rows: rawRows.map((r) => ({
       action: r.action,
-      actorLogin: r.actor.githubLogin,
+      actorLogin: r.actor?.githubLogin ?? null,
       id: r.id,
       ip: r.ip,
       justification: r.justification,

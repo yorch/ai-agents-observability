@@ -53,6 +53,8 @@ enum AuditAction {
   // the subject's own audit feed, exactly like a human's would.
   JUDGE_READ_TRANSCRIPT
   MODEL_POLICY_CHANGED
+  HOOK_TOKEN_REVOKED
+  ADMIN_JOB_TRIGGERED
 }
 
 enum GrantScope {
@@ -219,7 +221,7 @@ model VisibilityPolicy {
 model AuditLog {
   id              BigInt      @id @default(autoincrement())
   ts              DateTime    @default(now()) @db.Timestamptz(6)
-  actorUserId     String      @map("actor_user_id") @db.Uuid
+  actorUserId     String?     @map("actor_user_id") @db.Uuid
   action          AuditAction
   targetUserId    String?     @map("target_user_id") @db.Uuid
   targetSessionId String?     @map("target_session_id") @db.Uuid
@@ -228,7 +230,7 @@ model AuditLog {
   ip              String?
   userAgent       String?     @map("user_agent")
 
-  actor      User  @relation("AuditActor", fields: [actorUserId], references: [id])
+  actor      User? @relation("AuditActor", fields: [actorUserId], references: [id])
   targetUser User? @relation("AuditTarget", fields: [targetUserId], references: [id])
   targetTeam Team? @relation(fields: [targetTeamId], references: [id])
 

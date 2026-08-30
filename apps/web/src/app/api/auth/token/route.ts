@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { jsonError, withRouteLogging } from '@/lib/api-logging';
+import { getConfig } from '@/lib/config';
 import { logger } from '@/lib/logger';
 import {
   checkLoginRateLimit,
@@ -82,7 +83,8 @@ export const POST = withRouteLogging('auth.token', async (request: Request) => {
 
   let hookToken: string;
   try {
-    hookToken = await issueHookToken(db, user.id);
+    const { hookTokenTtlDays } = getConfig();
+    hookToken = await issueHookToken(db, user.id, hookTokenTtlDays);
     await Promise.all([
       db.user.update({ data: { lastSeenAt: new Date() }, where: { id: user.id } }),
       db.auditLog.create({

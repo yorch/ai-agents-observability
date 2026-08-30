@@ -86,10 +86,12 @@ async function issueOpaqueToken(
   db: DbClient,
   userId: string,
   kind: 'REFRESH' | 'HOOK',
+  customTtlDays?: number,
 ): Promise<string> {
   const plaintext = generateOpaqueToken();
   const tokenHash = hashToken(plaintext);
-  const ttlDays = kind === 'HOOK' ? HOOK_TOKEN_TTL_DAYS : REFRESH_TOKEN_TTL_DAYS;
+  const defaultTtlDays = kind === 'HOOK' ? HOOK_TOKEN_TTL_DAYS : REFRESH_TOKEN_TTL_DAYS;
+  const ttlDays = customTtlDays ?? defaultTtlDays;
   const expiresAt = addDays(new Date(), ttlDays);
 
   await db.authToken.create({
@@ -103,8 +105,12 @@ export async function issueRefreshToken(db: DbClient, userId: string): Promise<s
   return issueOpaqueToken(db, userId, 'REFRESH');
 }
 
-export async function issueHookToken(db: DbClient, userId: string): Promise<string> {
-  return issueOpaqueToken(db, userId, 'HOOK');
+export async function issueHookToken(
+  db: DbClient,
+  userId: string,
+  ttlDays?: number,
+): Promise<string> {
+  return issueOpaqueToken(db, userId, 'HOOK', ttlDays);
 }
 
 export type OpaqueTokenPayload = {

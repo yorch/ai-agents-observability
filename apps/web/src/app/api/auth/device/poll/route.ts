@@ -114,7 +114,8 @@ export const POST = withRouteLogging('auth.device.poll', async (request: Request
     });
 
     await ensureVisibilityPolicy(db, user.id);
-    hookToken = await issueHookToken(db, user.id);
+    const { hookTokenTtlDays } = getConfig();
+    hookToken = await issueHookToken(db, user.id, hookTokenTtlDays);
 
     await db.auditLog.create({
       data: {
