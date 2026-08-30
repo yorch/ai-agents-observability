@@ -12,15 +12,11 @@ export function loggerMiddleware(logger: Logger): MiddlewareHandler<AppEnv> {
 
     await next();
 
-    logger.info(
-      {
-        duration: Date.now() - start,
-        method: c.req.method,
-        path: c.req.path,
-        reqId,
-        status: c.res.status,
-      },
-      'res',
-    );
+    const method = c.req.method;
+    const path = c.req.path;
+    const status = c.res.status;
+    if (method !== 'GET' || path !== '/metrics' || status < 200 || status >= 300) {
+      logger.info({ duration: Date.now() - start, method, path, reqId, status }, 'res');
+    }
   };
 }
