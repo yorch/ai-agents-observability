@@ -36,7 +36,10 @@ COPY apps/ingest/ apps/ingest/
 COPY tsconfig.base.json ./
 # Generate Prisma client before bundling
 RUN cd packages/db && bunx prisma generate
-RUN bun build apps/ingest/src/index.ts \
+# NODE_ENV=production at build time so bun build inlines the correct value
+# for process.env.NODE_ENV (Bun replaces it statically). Without this, the
+# bundle hardcodes "development" and pino tries to load pino-pretty at runtime.
+RUN NODE_ENV=production bun build apps/ingest/src/index.ts \
       --target bun \
       --outdir apps/ingest/dist \
       --external '@prisma/client'
@@ -65,7 +68,8 @@ USER ingest
 
 COPY --from=build --chown=ingest:ingest /app/apps/ingest/dist ./dist
 COPY --from=build --chown=ingest:ingest /app/packages/db/src/generated ./packages/db/src/generated
-COPY --from=deps --chown=ingest:ingest /app/node_modules ./node_modules
+COPY --from=deps --chown=ingest:ingest /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=deps --chown=ingest:ingest /app/node_modules/@prisma/client-runtime-utils ./node_modules/@prisma/client-runtime-utils
 
 ENV NODE_ENV=production
 EXPOSE 4000
