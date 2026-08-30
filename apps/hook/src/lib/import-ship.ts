@@ -7,33 +7,26 @@ import { getIngestBaseUrl } from './config';
 export type ServerReadyResult = { ok: true } | { ok: false; message: string };
 
 /**
- * GET /readyz — verifies the ingest server is reachable and its DB + S3 dependencies are healthy.
+ * GET /health — verifies the ingest server is reachable and running.
  * Call before starting a large import to fail fast rather than processing thousands of events
  * only to have them rejected at the network layer.
+ *
+ * Uses /health (liveness, no DB work) rather than /readyz (readiness, probes DB + S3)
+ * because the hook CLI runs on untrusted developer machines and /readyz is not exposed
+ * through the production reverse proxy's allowlist. The first POST /v1/events batch
+ * will surface any DB/S3 issues.
  */
 export async function checkServerReady(
   ingestBaseUrl: string = getIngestBaseUrl(),
 ): Promise<ServerReadyResult> {
   try {
-    const res = await fetch(`${ingestBaseUrl}/readyz`, {
+    const res = await fetch(`${ingestBaseUrl}/health`, {
       signal: AbortSignal.timeout(5000),
     });
     if (res.ok) {
       return { ok: true };
     }
-    try {
-      const data = (await res.json()) as { checks?: Record<string, string> };
-      const failed = Object.entries(data.checks ?? {})
-        .filter(([, v]) => v !== 'ok')
-        .map(([k]) => k)
-        .join(', ');
-      return {
-        message: `Server not ready (${res.status}): ${failed || 'unknown check failed'}. Check server logs.`,
-        ok: false,
-      };
-    } catch {
-      return { message: `Server not ready (${res.status}). Check server logs.`, ok: false };
-    }
+    return { message: `Server not ready (${res.status}). Check server logs.`, ok: false };
   } catch (err) {
     return {
       message: `Cannot reach ingest server at ${ingestBaseUrl}: ${(err as Error).message}`,
