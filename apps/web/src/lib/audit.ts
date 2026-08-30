@@ -51,13 +51,15 @@ async function requestMeta(): Promise<{ ip: string | null; userAgent: string | n
 
 /**
  * Writes a single audit log row for a privileged cross-user data access.
- * Never throws — errors are logged via the structured logger. Callers use `void`
- * for fire-and-forget.
+ * Never throws — errors are logged via the structured logger. Returns `true`
+ * when the row was persisted, `false` when the DB insert failed. High-stakes
+ * callers (e.g. the transcript proxy) should `await` the result and fail-closed
+ * on `false`; lower-stakes call sites may still use `void` for fire-and-forget.
  */
 export async function writeAuditLog(
   params: AuditParams,
   db: Pick<PrismaClient, 'auditLog'> = getPrisma(),
-): Promise<void> {
+): Promise<boolean> {
   const { ip, userAgent } = await requestMeta();
   try {
     await db.auditLog.create({
@@ -71,10 +73,12 @@ export async function writeAuditLog(
         userAgent,
       },
     });
+    return true;
   } catch (err) {
     logger.error(
       { action: params.action, actorUserId: params.actorUserId, err, reqId: getRequestId() },
       'audit.write_failed',
     );
+    return false;
   }
 }
