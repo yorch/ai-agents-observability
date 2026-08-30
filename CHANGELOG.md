@@ -10,6 +10,21 @@ release workflow (`.github/workflows/release.yml`).
 
 ### Features
 
+- security: trusted proxy, hook token revocation, scratch perms, admin hardening, binary signing (#210)
+- security: security headers, S3 SSE support, expanded redaction rules (#207)
+
+### Bug Fixes
+
+- redaction: widen perf test thresholds to stop CI flakes (#211)
+
+### Performance / Refactors
+
+- docker: slim ingest/github-app images and multi-stage migrations runner (#208)
+
+## v2.1.0 (2026-08-30)
+
+### Features
+
 - security: security headers, S3 SSE support, expanded redaction rules (#207)
 
 ### Performance / Refactors
