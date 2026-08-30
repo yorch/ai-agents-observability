@@ -206,7 +206,7 @@ install_file() {
   if [[ -w "${PREFIX}" ]]; then
     mv "${src}" "${dest}"
   else
-    echo "Installing to ${dest} (requires sudo)..."
+    echo "Installing to ${dest} (requires sudo — ${PREFIX} is not user-writable)..."
     sudo mv "${src}" "${dest}"
   fi
 }
@@ -220,7 +220,13 @@ echo "          ${RUNTIME_PATH} (runtime)"
 echo ""
 echo "Next steps:"
 echo "  aiot login      # authenticate via GitHub OAuth"
-echo "  aiot install    # set up background services + hook snippet"
+echo "  aiot install    # set up background services + wire hooks into detected agents"
+echo ""
+echo "NOTE: 'aiot install' does NOT require sudo — it writes to user-owned dirs"
+echo "      (~/Library/LaunchAgents, ~/.config/systemd/user, ~/.claude, etc.)."
+echo "      To avoid sudo on future upgrades, re-run this script with:"
+echo "        --prefix ~/.local/bin"
+echo "      (or any user-writable directory on your PATH)"
 echo "  aiot status     # check health"
 echo ""
 

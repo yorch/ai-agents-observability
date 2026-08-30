@@ -33,6 +33,8 @@ curl -fsSL ... | bash -s -- --version v1.0.0
 curl -fsSL ... | bash -s -- --prefix ~/.local/bin
 ```
 
+> **Why sudo?** The default install prefix is `/usr/local/bin`, which is owned by root on most systems. The script uses `sudo` only to `mv` the binaries into that directory — it does not run anything as root beyond that single file move. To avoid sudo entirely, install to a user-writable directory on your `PATH` (e.g. `--prefix ~/.local/bin`). The subsequent `aiot install` command never needs sudo: it writes to user-owned directories only (`~/Library/LaunchAgents/`, `~/.config/systemd/user/`, `~/.claude/`, etc.).
+
 **What the script does, in order:**
 
 1. **Parses args** — `--version <tag>`, `--prefix <dir>` (default `/usr/local/bin`); validates that values are present and don't start with `-`.
@@ -79,7 +81,7 @@ Both binaries should report `OK`.
 
 ### Install manually (manual download)
 
-Install both binaries to the same directory — the launcher finds the runtime by looking for `aiot-runtime` next to itself.
+Install both binaries to the same directory — the launcher finds the runtime by looking for `aiot-runtime` next to itself. The `sudo` below is only needed because `/usr/local/bin` is root-owned; install to any user-writable directory on your `PATH` (e.g. `~/.local/bin`) to avoid it.
 
 **Mac:**
 
