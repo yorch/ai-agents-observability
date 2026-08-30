@@ -7,7 +7,7 @@ import { getPrivateKey, getPublicKey } from './keys';
 // A type satisfied by both PrismaClient and Prisma TransactionClient
 type DbClient = Pick<PrismaClient, 'authToken'>;
 
-const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000; // 15 min
+const ACCESS_TOKEN_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours — a work session
 const REFRESH_TOKEN_TTL_DAYS = 90;
 const HOOK_TOKEN_TTL_DAYS = 365;
 const TOKEN_PREFIX = 'cct_';
