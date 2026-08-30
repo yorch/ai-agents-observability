@@ -49,22 +49,20 @@ The backing stack exposes PostgreSQL on `localhost:5432`, MinIO on ports `9000` 
 
 ### Install the hook CLI
 
-Download the latest platform-specific `claude-telemetry` binary from GitHub Releases,
-verify its checksum, and install it with the maintained installer:
+For a complete walkthrough from zero to first telemetry event — including per-agent
+setup snippets for Claude Code, Codex CLI, Gemini CLI, Copilot CLI, Pi, omp, and
+opencode, and how to import existing session history — see
+[`docs/getting-started.md`](./docs/getting-started.md).
+
+Quick path:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install-hook.sh | bash
-```
-
-Use `--version v1.2.0` to pin a release or `--prefix "$HOME/.local/bin"` to install
-without `sudo`. Then configure the server when it is not running on localhost, authenticate, and
-register the hooks:
-
-```bash
 claude-telemetry config set web-url https://observability.example.com
 claude-telemetry config set ingest-url https://ingest.example.com
 claude-telemetry login
-claude-telemetry install
+claude-telemetry install                  # Claude Code (default)
+claude-telemetry install --agent codex    # or any other supported agent
 ```
 
 Historical data can be backfilled from Claude Code, Codex, OpenCode, Pi, and OMP;
@@ -158,6 +156,7 @@ packages/
 infra/
   migrations-runner/       Docker image that applies all DB migrations
 docs/
+  getting-started.md       End-user guide: install hook, wire up agents, import history
   github-app-setup.md      GitHub App registration guide
   reporting.md             Scoped reports, trends, session visuals, and safe exports
   design/                  UI design direction ("Instrument") + its audit
