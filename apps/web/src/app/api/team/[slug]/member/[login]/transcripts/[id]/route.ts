@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 import { withRouteLogging } from '@/lib/api-logging';
+import { AuditAction, writeAuditLog } from '@/lib/audit';
 import { currentUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { getAllRunsPrisma } from '@/lib/prisma';
@@ -58,6 +59,19 @@ export const GET = withRouteLogging(
     });
     if (!session?.transcriptS3Key) {
       return new NextResponse('Not found', { status: 404 });
+    }
+
+    // Audit the privileged cross-user transcript read before streaming any
+    // content. Fail-closed: if the audit row cannot be persisted, refuse the
+    // request rather than serving a transcript with no audit trail.
+    const auditOk = await writeAuditLog({
+      action: AuditAction.VIEW_TRANSCRIPT,
+      actorUserId: user.id,
+      targetSessionId: id,
+      targetUserId: member.userId,
+    });
+    if (!auditOk) {
+      return new NextResponse('Audit log unavailable', { status: 503 });
     }
 
     try {

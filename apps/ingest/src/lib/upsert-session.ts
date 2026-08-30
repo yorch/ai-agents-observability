@@ -1,4 +1,5 @@
 import { Prisma } from '@ai-agents-observability/db';
+import { redact } from '@ai-agents-observability/redaction';
 import {
   AUTONOMY_RANK,
   type Event,
@@ -9,9 +10,31 @@ import {
   type RunKindDb,
   runKindToDbEnum,
 } from '@ai-agents-observability/schemas';
+import pino from 'pino';
 
 import { computeCostUsd } from './cost';
 import type { PriceTableRegistry } from './price-tables';
+
+// Minimal module-level logger for the rare case where git_remote_url redaction
+// triggers. The ingest app builds its primary logger from config in logger.ts;
+// this instance is scoped to warn+ so it never produces noise below that level.
+const log = pino({ level: 'warn' });
+
+// Strips embedded credentials from a git remote URL before it is persisted to
+// sessions.git_remote_url. URLs like `https://token@github.com/...` are
+// redacted to `https://[REDACTED:git-remote-url]@github.com/...` so the remote
+// stays identifiable without leaking the credential. Returns null for null
+// input; logs a warning when redaction actually triggers.
+function redactGitRemoteUrl(url: string | null): string | null {
+  if (!url) {
+    return null;
+  }
+  const result = redact(url);
+  if (result.text !== url) {
+    log.warn({ flags: result.flags }, 'ingest.git_remote_url_redacted');
+  }
+  return result.text;
+}
 
 type RawDb = {
   $executeRaw: (query: Prisma.Sql) => Promise<number>;
@@ -91,7 +114,7 @@ function emptyAgg(sessionId: string, userId: string, event: Event): SessionAgg {
     githubLogin: event.session_context.git?.github_login ?? null,
     githubTeam: event.session_context.git?.team ?? null,
     gitIsDirty: event.session_context.git?.is_dirty ?? null,
-    gitRemoteUrl: event.session_context.git?.remote_url ?? null,
+    gitRemoteUrl: redactGitRemoteUrl(event.session_context.git?.remote_url ?? null),
     hostHash: event.client.hostname_hash,
     interruptCount: 0,
     isResume: event.session_context.is_resume,
@@ -255,7 +278,7 @@ export async function upsertSessions(
           agg.gitCommit = git.commit;
         }
         if (!agg.gitRemoteUrl && git.remote_url) {
-          agg.gitRemoteUrl = git.remote_url;
+          agg.gitRemoteUrl = redactGitRemoteUrl(git.remote_url);
         }
         if (agg.gitIsDirty === null) {
           agg.gitIsDirty = git.is_dirty;

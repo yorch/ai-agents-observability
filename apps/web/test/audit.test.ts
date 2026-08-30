@@ -111,7 +111,7 @@ describe('writeAuditLog', () => {
     const { AuditAction, writeAuditLog } = await import('../src/lib/audit.js');
     await expect(
       writeAuditLog({ action: AuditAction.VIEW_TRANSCRIPT, actorUserId: 'u1' }, mockDb),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
   });
 
   it('uses the first IP from x-forwarded-for when multiple are present', async () => {

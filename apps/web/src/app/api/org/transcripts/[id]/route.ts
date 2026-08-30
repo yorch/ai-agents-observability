@@ -53,13 +53,18 @@ export const GET = withRouteLogging(
     // Audit the privileged read before streaming any content back (§8.3). When an
     // admin reads a not-shared transcript, the justification is recorded loudly on
     // the row (§8.4); grant-based reads are tied to the approved grant instead.
-    void writeAuditLog({
+    // Privileged transcript access must fail-closed: if the audit row cannot be
+    // persisted, deny the read rather than serving content with no audit trail.
+    const auditOk = await writeAuditLog({
       action: AuditAction.VIEW_TRANSCRIPT,
       actorUserId: user.id,
       justification: access === 'admin' && !ctx.shareTranscriptsWithOrg ? justification : null,
       targetSessionId: id,
       targetUserId: ctx.ownerUserId,
     });
+    if (!auditOk) {
+      return new NextResponse('Audit log unavailable — access denied', { status: 503 });
+    }
 
     try {
       const stream = await streamTranscript(getS3Client(), ctx.transcriptS3Key);
