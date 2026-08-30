@@ -41,6 +41,7 @@ Commands:
   purge-local   Remove all local data (queue, logs, identity) — use --yes to confirm
   import         Import historical Claude Code, Codex, OpenCode, Pi, or OMP sessions
   install       Write launchd/systemd service files and print the hook snippet
+                flags: --no-start (don't load/enable), --force (allow uncompiled)
   uninstall     Remove service files (does not remove local data)
 
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
@@ -121,7 +122,29 @@ async function main(): Promise<number> {
   }
 
   if (cmd === 'install') {
-    return runInstall(adapter);
+    // Filter out global flags (--agent, --quiet) and the command name so
+    // parseArgs only sees install-specific flags.
+    const installArgs = args.filter((a, i) => {
+      if (a === cmd) {
+        return false;
+      }
+      if (a === '--quiet') {
+        return false;
+      }
+      if (a.startsWith('--agent=')) {
+        return false;
+      }
+      if (a === '--agent') {
+        // --agent and its value (next arg, if not a flag)
+        return false;
+      }
+      // Skip the value following --agent
+      if (i > 0 && args[i - 1] === '--agent' && !a.startsWith('-')) {
+        return false;
+      }
+      return true;
+    });
+    return runInstall(installArgs, adapter);
   }
 
   if (cmd === 'uninstall') {
