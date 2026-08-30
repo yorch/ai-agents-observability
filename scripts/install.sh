@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install the aiot hook binary from GitHub Releases.
 # Detects the platform, downloads the latest release binary, verifies the
-# checksum, and installs to /usr/local/bin/aiot.
+# checksum, and installs to ~/.local/bin/aiot (no sudo required).
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install.sh | bash
@@ -10,13 +10,13 @@
 #   curl -fsSL ... | bash -s -- --version v1.0.0
 #
 # Or to install to a custom directory:
-#   curl -fsSL ... | bash -s -- --prefix ~/.local/bin
+#   curl -fsSL ... | bash -s -- --prefix /usr/local/bin
 
 set -euo pipefail
 
 REPO="yorch/ai-agents-observability"
 VERSION=""
-PREFIX="/usr/local/bin"
+PREFIX=""
 INSTALL_NAME="aiot"
 
 # Parse args
@@ -33,11 +33,23 @@ while [[ $# -gt 0 ]]; do
     --help)
       echo "Usage: $0 [--version <tag>] [--prefix <dir>]"
       echo "  --version  Specific release tag (default: latest)"
-      echo "  --prefix   Install directory (default: /usr/local/bin)"
+      echo "  --prefix   Install directory (default: ~/.local/bin)"
       exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
+
+# Resolve default prefix: ~/.local/bin (user-writable, no sudo needed).
+# Expand ~ explicitly — in a piped-to-bash context, tilde expansion does
+# not always happen inside double quotes.
+if [[ -z "${PREFIX}" ]]; then
+  if [[ -z "${HOME}" || "${HOME}" == "/" ]]; then
+    echo "HOME is not set — cannot determine default install prefix." >&2
+    echo "Specify one with --prefix <dir>." >&2
+    exit 1
+  fi
+  PREFIX="${HOME}/.local/bin"
+fi
 
 # Detect platform
 OS="$(uname -s)"
@@ -182,9 +194,22 @@ fi
 chmod +x "${TMPDIR}/${LAUNCHER}" "${TMPDIR}/${RUNTIME}"
 
 # Install both binaries to the prefix
-mkdir -p "${PREFIX}"
+if [[ ! -d "${PREFIX}" ]]; then
+  echo "Creating ${PREFIX}..."
+  mkdir -p "${PREFIX}"
+fi
 LAUNCHER_PATH="${PREFIX}/${INSTALL_NAME}"
 RUNTIME_PATH="${PREFIX}/${INSTALL_NAME}-runtime"
+
+# Warn about stale installs in the old default location.
+OLD_DEFAULT="/usr/local/bin/${INSTALL_NAME}"
+if [[ "${PREFIX}" != "/usr/local/bin" && -x "${OLD_DEFAULT}" ]]; then
+  echo "WARNING: An existing aiot install was found at ${OLD_DEFAULT}." >&2
+  echo "  The new default is ~/.local/bin. The old binary will remain at ${OLD_DEFAULT}" >&2
+  echo "  until you remove it: sudo rm ${OLD_DEFAULT} /usr/local/bin/${INSTALL_NAME}-runtime" >&2
+  echo "  Or pass --prefix /usr/local/bin to keep the old location." >&2
+  echo "" >&2
+fi
 
 # Detect an existing install so we can report this as an upgrade rather
 # than a silent overwrite. Use a timeout so a broken old binary can't hang
@@ -207,6 +232,7 @@ install_file() {
     mv "${src}" "${dest}"
   else
     echo "Installing to ${dest} (requires sudo — ${PREFIX} is not user-writable)..."
+    echo "  To avoid sudo, re-run with --prefix ~/.local/bin" >&2
     sudo mv "${src}" "${dest}"
   fi
 }
@@ -218,15 +244,38 @@ echo ""
 echo "Installed: ${LAUNCHER_PATH} (launcher)"
 echo "          ${RUNTIME_PATH} (runtime)"
 echo ""
+
+# Check if the install prefix is on the user's PATH.
+on_path=false
+IFS=':' read -ra _path_dirs <<< "${PATH:-}"
+for _dir in "${_path_dirs[@]}"; do
+  if [[ "${_dir}" == "${PREFIX}" ]]; then
+    on_path=true
+    break
+  fi
+done
+
+if [[ "${on_path}" == "false" ]]; then
+  echo "WARNING: ${PREFIX} is not on your PATH."
+  echo "  Add it to your shell profile, then restart your terminal:"
+  echo ""
+  # Print shell-specific instructions based on $SHELL.
+  case "${SHELL:-}" in
+    */zsh)
+      echo "  echo 'export PATH=\"${PREFIX}:\$PATH\"' >> ~/.zshrc" ;;
+    */fish)
+      echo "  fish_add_path ${PREFIX}" ;;
+    */bash)
+      echo "  echo 'export PATH=\"${PREFIX}:\$PATH\"' >> ~/.bashrc" ;;
+    *)
+      echo "  echo 'export PATH=\"${PREFIX}:\$PATH\"' >> ~/.bashrc  # or ~/.zshrc, ~/.config/fish/config.fish" ;;
+  esac
+  echo ""
+fi
+
 echo "Next steps:"
 echo "  aiot login      # authenticate via GitHub OAuth"
 echo "  aiot install    # set up background services + wire hooks into detected agents"
-echo ""
-echo "NOTE: 'aiot install' does NOT require sudo — it writes to user-owned dirs"
-echo "      (~/Library/LaunchAgents, ~/.config/systemd/user, ~/.claude, etc.)."
-echo "      To avoid sudo on future upgrades, re-run this script with:"
-echo "        --prefix ~/.local/bin"
-echo "      (or any user-writable directory on your PATH)"
 echo "  aiot status     # check health"
 echo ""
 

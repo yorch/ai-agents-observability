@@ -51,8 +51,8 @@ for (const target of targets) {
 
 console.log('\nBuild complete.');
 console.log('Each target produces two binaries:');
-console.log('  aiot-<target>         — Rust launcher (installed as /usr/local/bin/aiot)');
-console.log('  aiot-runtime-<target> — Bun runtime  (installed as /usr/local/bin/aiot-runtime)');
+console.log('  aiot-<target>         — Rust launcher (installed as ~/.local/bin/aiot)');
+console.log('  aiot-runtime-<target> — Bun runtime  (installed as ~/.local/bin/aiot-runtime)');
 
 function detectCurrentTarget(): { bunTarget: string; name: string; rustTarget: string } {
   const platform = process.platform;

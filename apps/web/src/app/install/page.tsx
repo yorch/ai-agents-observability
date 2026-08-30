@@ -135,8 +135,9 @@ export default async function InstallPage({
         </p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           {`chmod +x aiot-<os>-<arch> aiot-runtime-<os>-<arch>
-sudo mv aiot-<os>-<arch> /usr/local/bin/aiot
-sudo mv aiot-runtime-<os>-<arch> /usr/local/bin/aiot-runtime`}
+mkdir -p ~/.local/bin
+mv aiot-<os>-<arch> ~/.local/bin/aiot
+mv aiot-runtime-<os>-<arch> ~/.local/bin/aiot-runtime`}
         </pre>
       </section>
 

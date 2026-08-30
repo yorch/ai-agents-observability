@@ -6,8 +6,8 @@ The split into a launcher and a runtime exists so that macOS Background Task Man
 
 | Binary | Size | Installed as | Purpose |
 |--------|------|-------------|---------|
-| `aiot-<target>` | ~300 KB | `/usr/local/bin/aiot` | Rust launcher — execs the runtime |
-| `aiot-runtime-<target>` | ~50–80 MB | `/usr/local/bin/aiot-runtime` | Bun-compiled CLI (all commands) |
+| `aiot-<target>` | ~300 KB | `~/.local/bin/aiot` | Rust launcher — execs the runtime |
+| `aiot-runtime-<target>` | ~50–80 MB | `~/.local/bin/aiot-runtime` | Bun-compiled CLI (all commands) |
 
 Installation is a two-step process handled by two separate installers:
 
@@ -26,18 +26,20 @@ Step 1 gets the binaries onto your machine. Step 2 wires them into your system s
 curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install.sh | bash
 ```
 
-Or to install a specific version or to a custom directory:
+Or to install a specific version or to a system-wide directory:
 
 ```bash
 curl -fsSL ... | bash -s -- --version v1.0.0
-curl -fsSL ... | bash -s -- --prefix ~/.local/bin
+curl -fsSL ... | bash -s -- --prefix /usr/local/bin   # system-wide (requires sudo)
 ```
 
-> **Why sudo?** The default install prefix is `/usr/local/bin`, which is owned by root on most systems. The script uses `sudo` only to `mv` the binaries into that directory — it does not run anything as root beyond that single file move. To avoid sudo entirely, install to a user-writable directory on your `PATH` (e.g. `--prefix ~/.local/bin`). The subsequent `aiot install` command never needs sudo: it writes to user-owned directories only (`~/Library/LaunchAgents/`, `~/.config/systemd/user/`, `~/.claude/`, etc.).
+The default prefix is `~/.local/bin` — a user-writable directory that avoids `sudo` entirely. If it's not on your `PATH`, the script prints the `export PATH=` line to add to your shell profile. The subsequent `aiot install` command never needs sudo: it writes to user-owned directories only (`~/Library/LaunchAgents/`, `~/.config/systemd/user/`, `~/.claude/`, etc.).
+
+> **Upgrading from a previous install?** If you previously installed to `/usr/local/bin` (the old default), re-running the script will install to `~/.local/bin` instead. The old binary will remain at `/usr/local/bin` until you remove it (`sudo rm /usr/local/bin/aiot /usr/local/bin/aiot-runtime`). Or pass `--prefix /usr/local/bin` to keep the old location.
 
 **What the script does, in order:**
 
-1. **Parses args** — `--version <tag>`, `--prefix <dir>` (default `/usr/local/bin`); validates that values are present and don't start with `-`.
+1. **Parses args** — `--version <tag>`, `--prefix <dir>` (default `~/.local/bin`); validates that values are present and don't start with `-`.
 2. **Detects platform** — `uname -s` + `uname -m` → one of `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`. Exits 1 on unsupported platforms.
 3. **Resolves version** — if no `--version`, queries the GitHub API for the latest release tag.
 4. **Downloads the binary** — prefers `gh release download` if `gh` is installed and authenticated, otherwise falls back to `curl`. Shows a progress bar for the 50–80 MB download.
@@ -81,20 +83,21 @@ Both binaries should report `OK`.
 
 ### Install manually (manual download)
 
-Install both binaries to the same directory — the launcher finds the runtime by looking for `aiot-runtime` next to itself. The `sudo` below is only needed because `/usr/local/bin` is root-owned; install to any user-writable directory on your `PATH` (e.g. `~/.local/bin`) to avoid it.
+Install both binaries to the same directory — the launcher finds the runtime by looking for `aiot-runtime` next to itself. The examples below use `~/.local/bin` (the default, no sudo needed). Use `/usr/local/bin` for a system-wide install (requires `sudo`).
 
 **Mac:**
 
 ```bash
+mkdir -p ~/.local/bin
 chmod +x aiot-darwin-arm64 aiot-runtime-darwin-arm64
-sudo mv aiot-darwin-arm64 /usr/local/bin/aiot
-sudo mv aiot-runtime-darwin-arm64 /usr/local/bin/aiot-runtime
+mv aiot-darwin-arm64 ~/.local/bin/aiot
+mv aiot-runtime-darwin-arm64 ~/.local/bin/aiot-runtime
 ```
 
 If the binary is unsigned (no Apple signing secrets were configured at build time), remove the quarantine attribute from both:
 
 ```bash
-xattr -d com.apple.quarantine /usr/local/bin/aiot /usr/local/bin/aiot-runtime
+xattr -d com.apple.quarantine ~/.local/bin/aiot ~/.local/bin/aiot-runtime
 ```
 
 Signed binaries (codesigned + notarized) do not need this step — Gatekeeper will accept them.
@@ -102,9 +105,10 @@ Signed binaries (codesigned + notarized) do not need this step — Gatekeeper wi
 **Linux:**
 
 ```bash
+mkdir -p ~/.local/bin
 chmod +x aiot-linux-x64 aiot-runtime-linux-x64
-sudo mv aiot-linux-x64 /usr/local/bin/aiot
-sudo mv aiot-runtime-linux-x64 /usr/local/bin/aiot-runtime
+mv aiot-linux-x64 ~/.local/bin/aiot
+mv aiot-runtime-linux-x64 ~/.local/bin/aiot-runtime
 ```
 
 ## Step 2 — Service setup and hook wiring
@@ -166,8 +170,8 @@ gh release download v1.1.0 --repo yorch/ai-agents-observability \
   --pattern "SHA256SUMS-hook"
 sha256sum -c SHA256SUMS-hook --ignore-missing
 chmod +x aiot-darwin-arm64 aiot-runtime-darwin-arm64
-sudo mv aiot-darwin-arm64 /usr/local/bin/aiot
-sudo mv aiot-runtime-darwin-arm64 /usr/local/bin/aiot-runtime
+mv aiot-darwin-arm64 ~/.local/bin/aiot
+mv aiot-runtime-darwin-arm64 ~/.local/bin/aiot-runtime
 ```
 
 After replacing the binaries, re-run `aiot install` to restart the daemons with the new executable:
