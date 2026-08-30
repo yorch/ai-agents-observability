@@ -1,6 +1,6 @@
 {
   "name": "@ai-agents-observability/ingest",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "private": true,
   "description": "Ingest API — Bun + Hono. POST /v1/events, /v1/transcripts, /v1/price-table",
   "engines": {

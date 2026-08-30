@@ -6,6 +6,12 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v1.4.2 (2026-08-30)
+
+### Bug Fixes
+
+- auth: surface GitHub error details in device flow failures (#193)
+
 ## v1.4.1 (2026-08-29)
 
 ### Bug Fixes

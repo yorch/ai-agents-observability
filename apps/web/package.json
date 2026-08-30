@@ -1,6 +1,6 @@
 {
   "name": "@ai-agents-observability/web",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "private": true,
   "description": "Web dashboard — Next.js. Dashboard + OAuth + read API",
   "engines": {
