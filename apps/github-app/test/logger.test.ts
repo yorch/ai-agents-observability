@@ -10,13 +10,14 @@ const logger = {
   info: vi.fn(),
 } as unknown as Logger;
 
-function appWithMetricsStatus(status: 200 | 500): Hono<AppEnv> {
+function appWithMetricsStatus(status: 200 | 302 | 500): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use('*', async (c, next) => {
     c.set('requestId', 'request-id');
     return await loggerMiddleware(logger)(c, next);
   });
   app.get('/metrics', (c) => c.body(null, status));
+  app.post('/metrics', (c) => c.body(null, 200));
   app.get('/health', (c) => c.body(null, 200));
   return app;
 }
@@ -26,10 +27,14 @@ beforeEach(() => {
 });
 
 describe('loggerMiddleware', () => {
-  it('does not info-log a successful metrics scrape', async () => {
+  it('debug-logs a successful metrics scrape', async () => {
     await appWithMetricsStatus(200).request('/metrics');
 
     expect(logger.info).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'GET', path: '/metrics', status: 200 }),
+      'res',
+    );
   });
 
   it('continues to info-log successful non-metrics requests', async () => {
@@ -37,6 +42,24 @@ describe('loggerMiddleware', () => {
 
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({ method: 'GET', path: '/health', status: 200 }),
+      'res',
+    );
+  });
+
+  it('info-logs a successful non-GET metrics request', async () => {
+    await appWithMetricsStatus(200).request('/metrics', { method: 'POST' });
+
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'POST', path: '/metrics', status: 200 }),
+      'res',
+    );
+  });
+
+  it('info-logs a redirected metrics request', async () => {
+    await appWithMetricsStatus(302).request('/metrics');
+
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'GET', path: '/metrics', status: 302 }),
       'res',
     );
   });

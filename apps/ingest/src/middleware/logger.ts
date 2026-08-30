@@ -28,8 +28,11 @@ export function loggerMiddleware(logger: Logger): MiddlewareHandler<AppEnv> {
     const route = c.req.routePath ?? 'unmatched';
     const status = c.res.status;
 
-    if (method !== 'GET' || path !== '/metrics' || status < 200 || status >= 300) {
-      logger.info({ duration, method, path, reqId, status }, 'res');
+    const fields = { duration, method, path, reqId, status };
+    if (method === 'GET' && path === '/metrics' && status >= 200 && status < 300) {
+      logger.debug(fields, 'res');
+    } else {
+      logger.info(fields, 'res');
     }
 
     const statusLabel = String(status);

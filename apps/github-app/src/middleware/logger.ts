@@ -15,8 +15,11 @@ export function loggerMiddleware(logger: Logger): MiddlewareHandler<AppEnv> {
     const method = c.req.method;
     const path = c.req.path;
     const status = c.res.status;
-    if (method !== 'GET' || path !== '/metrics' || status < 200 || status >= 300) {
-      logger.info({ duration: Date.now() - start, method, path, reqId, status }, 'res');
+    const fields = { duration: Date.now() - start, method, path, reqId, status };
+    if (method === 'GET' && path === '/metrics' && status >= 200 && status < 300) {
+      logger.debug(fields, 'res');
+    } else {
+      logger.info(fields, 'res');
     }
   };
 }
