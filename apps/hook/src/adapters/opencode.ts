@@ -1,5 +1,4 @@
-import { type Dirent, existsSync, readdirSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { type Dirent, existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -13,6 +12,13 @@ import {
 
 import { fieldBytes } from '../lib/bytes';
 import { clientInfo } from '../lib/client-info';
+import {
+  createBackupIfAbsent,
+  dirExists,
+  homeDir,
+  removeBackup,
+  writeTextFile,
+} from '../lib/config-wire';
 import { isRecord, optionalNonNegativeInt } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { sessionUuid } from '../lib/session-id';
@@ -57,7 +63,7 @@ function opencodeStorageRoot(): string {
   if (process.env.OPENCODE_DATA) {
     return process.env.OPENCODE_DATA;
   }
-  const dataHome = process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share');
+  const dataHome = process.env.XDG_DATA_HOME ?? join(homeDir(), '.local', 'share');
   return join(dataHome, 'opencode', 'storage');
 }
 
@@ -225,13 +231,52 @@ function renderSnippet(bin: string): string {
   ].join('\n');
 }
 
+// ── Auto-wire: detect / apply / remove ────────────────────────────────────────
+
+const OPENCODE_CONFIG_DIR = () => join(homeDir(), '.config', 'opencode');
+const OPENCODE_PLUGIN_DIR = () => join(OPENCODE_CONFIG_DIR(), 'plugin');
+const OPENCODE_PLUGIN_FILE = () => join(OPENCODE_PLUGIN_DIR(), 'telemetry.ts');
+
+function detectOpencode(): boolean {
+  return dirExists(OPENCODE_CONFIG_DIR());
+}
+
+function applyOpencode(bin: string): string | null {
+  const pluginFile = OPENCODE_PLUGIN_FILE();
+  try {
+    createBackupIfAbsent(pluginFile);
+    writeTextFile(pluginFile, renderSnippet(bin));
+    return `wrote ${pluginFile}`;
+  } catch (err) {
+    process.stderr.write(`Error wiring opencode: ${(err as Error).message}\n`);
+    return null;
+  }
+}
+
+function removeOpencode(): boolean {
+  const pluginFile = OPENCODE_PLUGIN_FILE();
+  try {
+    if (existsSync(pluginFile)) {
+      rmSync(pluginFile, { force: true });
+    }
+    removeBackup(pluginFile);
+    return true;
+  } catch (err) {
+    process.stderr.write(`Error removing opencode plugin: ${(err as Error).message}\n`);
+    return false;
+  }
+}
+
 export const opencodeAdapter: HookAdapter = {
   agentType: 'OPENCODE',
 
   installConfig(): AdapterInstallConfig {
     return {
       agentName: 'opencode',
+      apply: applyOpencode,
+      detect: detectOpencode,
       hookKinds: Object.keys(OPENCODE_EVENT_TYPE),
+      remove: removeOpencode,
       renderSnippet,
       settingsHint: 'Add an opencode plugin (~/.config/opencode/plugin/telemetry.ts):',
     };

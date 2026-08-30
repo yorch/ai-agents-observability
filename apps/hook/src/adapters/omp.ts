@@ -1,8 +1,16 @@
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
+import {
+  createBackupIfAbsent,
+  dirExists,
+  homeDir,
+  removeBackup,
+  writeTextFile,
+} from '../lib/config-wire';
+
 import type { HookAdapter } from './index';
-import { createPiFamilyAdapter, homeDir, renderExtensionSnippet } from './pi-family';
+import { createPiFamilyAdapter, renderExtensionSnippet } from './pi-family';
 
 // OMP (oh-my-pi) adapter (P12-008). OMP is a fork of Pi that went the opposite
 // direction — subagents, plan mode, LSP/DAP, a Rust core with a TypeScript
@@ -77,10 +85,61 @@ function renderSnippet(bin: string): string {
   });
 }
 
+// ── Auto-wire: detect / apply / remove ────────────────────────────────────────
+
+function ompHome(): string {
+  return process.env.OMP_HOME ?? join(homeDir(), '.omp');
+}
+
+function ompHooksDir(): string {
+  return join(ompHome(), 'agent', 'hooks');
+}
+
+function ompPluginFile(): string {
+  return join(ompHooksDir(), 'telemetry.ts');
+}
+
+function detectOmp(): boolean {
+  // Check both documented config roots.
+  if (dirExists(ompHome())) {
+    return true;
+  }
+  return dirExists(join(homeDir(), '.oh-omp'));
+}
+
+function applyOmp(bin: string): string | null {
+  const pluginFile = ompPluginFile();
+  try {
+    createBackupIfAbsent(pluginFile);
+    writeTextFile(pluginFile, renderSnippet(bin));
+    return `wrote ${pluginFile}`;
+  } catch (err) {
+    process.stderr.write(`Error wiring omp: ${(err as Error).message}\n`);
+    return null;
+  }
+}
+
+function removeOmp(): boolean {
+  const pluginFile = ompPluginFile();
+  try {
+    if (existsSync(pluginFile)) {
+      rmSync(pluginFile, { force: true });
+    }
+    removeBackup(pluginFile);
+    return true;
+  } catch (err) {
+    process.stderr.write(`Error removing omp hook module: ${(err as Error).message}\n`);
+    return false;
+  }
+}
+
 export const ompAdapter: HookAdapter = createPiFamilyAdapter({
   agentType: 'OMP',
   install: {
     agentName: 'omp (oh-my-pi)',
+    apply: applyOmp,
+    detect: detectOmp,
+    remove: removeOmp,
     renderSnippet,
     settingsHint: 'Add an OMP hook module (~/.omp/agent/hooks/telemetry.ts):',
   },

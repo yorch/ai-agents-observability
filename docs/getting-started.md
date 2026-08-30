@@ -54,7 +54,8 @@ Then make it executable and move it to your PATH:
 
 ```bash
 chmod +x aiot-<os>-<arch>
-sudo mv aiot-<os>-<arch> /usr/local/bin/aiot
+mkdir -p ~/.local/bin
+mv aiot-<os>-<arch> ~/.local/bin/aiot
 ```
 
 For checksum verification and air-gapped installation, see
@@ -122,34 +123,34 @@ Add to `~/.claude/settings.json` (merge with any existing `hooks` object):
 {
   "hooks": {
     "Notification": [
-      { "hooks": [{ "args": ["hook", "notification"], "command": "/usr/local/bin/aiot", "type": "command" }] }
+      { "hooks": [{ "args": ["hook", "notification"], "command": "~/.local/bin/aiot", "type": "command" }] }
     ],
     "PostToolUse": [
-      { "hooks": [{ "args": ["hook", "post-tool-use"], "command": "/usr/local/bin/aiot", "type": "command" }] }
+      { "hooks": [{ "args": ["hook", "post-tool-use"], "command": "~/.local/bin/aiot", "type": "command" }] }
     ],
     "PreCompact": [
-      { "hooks": [{ "args": ["hook", "pre-compact"], "command": "/usr/local/bin/aiot", "type": "command" }] }
+      { "hooks": [{ "args": ["hook", "pre-compact"], "command": "~/.local/bin/aiot", "type": "command" }] }
     ],
     "PreToolUse": [
-      { "hooks": [{ "args": ["hook", "pre-tool-use"], "command": "/usr/local/bin/aiot", "type": "command" }] }
+      { "hooks": [{ "args": ["hook", "pre-tool-use"], "command": "~/.local/bin/aiot", "type": "command" }] }
     ],
     "SessionStart": [
-      { "hooks": [{ "args": ["hook", "session-start"], "command": "/usr/local/bin/aiot", "type": "command" }] }
+      { "hooks": [{ "args": ["hook", "session-start"], "command": "~/.local/bin/aiot", "type": "command" }] }
     ],
     "Stop": [
-      { "hooks": [{ "args": ["hook", "stop"], "command": "/usr/local/bin/aiot", "type": "command" }] }
+      { "hooks": [{ "args": ["hook", "stop"], "command": "~/.local/bin/aiot", "type": "command" }] }
     ],
     "SubagentStop": [
-      { "hooks": [{ "args": ["hook", "subagent-stop"], "command": "/usr/local/bin/aiot", "type": "command" }] }
+      { "hooks": [{ "args": ["hook", "subagent-stop"], "command": "~/.local/bin/aiot", "type": "command" }] }
     ],
     "UserPromptSubmit": [
-      { "hooks": [{ "args": ["hook", "user-prompt-submit"], "command": "/usr/local/bin/aiot", "type": "command" }] }
+      { "hooks": [{ "args": ["hook", "user-prompt-submit"], "command": "~/.local/bin/aiot", "type": "command" }] }
     ]
   }
 }
 ```
 
-Replace `/usr/local/bin/aiot` with the actual path to your binary
+Replace `~/.local/bin/aiot` with the actual path to your binary
 if you installed it elsewhere.
 
 ### Codex CLI
@@ -161,7 +162,7 @@ and `chmod +x` it:
 
 ```sh
 #!/bin/sh
-printf '%s' "$1" | /usr/local/bin/aiot hook turn-complete --agent codex
+printf '%s' "$1" | ~/.local/bin/aiot hook turn-complete --agent codex
 ```
 
 Then point Codex at the wrapper in `~/.codex/config.toml`:
@@ -190,31 +191,31 @@ Add to `~/.gemini/settings.json` (or `.gemini/settings.json` in a project):
 {
   "hooks": {
     "AfterAgent": [
-      { "hooks": [{ "command": "\"/usr/local/bin/aiot\" hook after-agent --agent gemini-cli", "name": "aiot-after-agent", "timeout": 5000, "type": "command" }] }
+      { "hooks": [{ "command": "\"~/.local/bin/aiot\" hook after-agent --agent gemini-cli", "name": "aiot-after-agent", "timeout": 5000, "type": "command" }] }
     ],
     "AfterModel": [
-      { "hooks": [{ "command": "\"/usr/local/bin/aiot\" hook after-model --agent gemini-cli", "name": "aiot-after-model", "timeout": 5000, "type": "command" }] }
+      { "hooks": [{ "command": "\"~/.local/bin/aiot\" hook after-model --agent gemini-cli", "name": "aiot-after-model", "timeout": 5000, "type": "command" }] }
     ],
     "AfterTool": [
-      { "hooks": [{ "command": "\"/usr/local/bin/aiot\" hook after-tool --agent gemini-cli", "name": "aiot-after-tool", "timeout": 5000, "type": "command" }] }
+      { "hooks": [{ "command": "\"~/.local/bin/aiot\" hook after-tool --agent gemini-cli", "name": "aiot-after-tool", "timeout": 5000, "type": "command" }] }
     ],
     "BeforeAgent": [
-      { "hooks": [{ "command": "\"/usr/local/bin/aiot\" hook before-agent --agent gemini-cli", "name": "aiot-before-agent", "timeout": 5000, "type": "command" }] }
+      { "hooks": [{ "command": "\"~/.local/bin/aiot\" hook before-agent --agent gemini-cli", "name": "aiot-before-agent", "timeout": 5000, "type": "command" }] }
     ],
     "BeforeTool": [
-      { "hooks": [{ "command": "\"/usr/local/bin/aiot\" hook before-tool --agent gemini-cli", "name": "aiot-before-tool", "timeout": 5000, "type": "command" }] }
+      { "hooks": [{ "command": "\"~/.local/bin/aiot\" hook before-tool --agent gemini-cli", "name": "aiot-before-tool", "timeout": 5000, "type": "command" }] }
     ],
     "Notification": [
-      { "hooks": [{ "command": "\"/usr/local/bin/aiot\" hook notification --agent gemini-cli", "name": "aiot-notification", "timeout": 5000, "type": "command" }] }
+      { "hooks": [{ "command": "\"~/.local/bin/aiot\" hook notification --agent gemini-cli", "name": "aiot-notification", "timeout": 5000, "type": "command" }] }
     ],
     "PreCompress": [
-      { "hooks": [{ "command": "\"/usr/local/bin/aiot\" hook pre-compress --agent gemini-cli", "name": "aiot-pre-compress", "timeout": 5000, "type": "command" }] }
+      { "hooks": [{ "command": "\"~/.local/bin/aiot\" hook pre-compress --agent gemini-cli", "name": "aiot-pre-compress", "timeout": 5000, "type": "command" }] }
     ],
     "SessionEnd": [
-      { "hooks": [{ "command": "\"/usr/local/bin/aiot\" hook session-end --agent gemini-cli", "name": "aiot-session-end", "timeout": 5000, "type": "command" }] }
+      { "hooks": [{ "command": "\"~/.local/bin/aiot\" hook session-end --agent gemini-cli", "name": "aiot-session-end", "timeout": 5000, "type": "command" }] }
     ],
     "SessionStart": [
-      { "hooks": [{ "command": "\"/usr/local/bin/aiot\" hook session-start --agent gemini-cli", "name": "aiot-session-start", "timeout": 5000, "type": "command" }] }
+      { "hooks": [{ "command": "\"~/.local/bin/aiot\" hook session-start --agent gemini-cli", "name": "aiot-session-start", "timeout": 5000, "type": "command" }] }
     ]
   }
 }
@@ -228,16 +229,16 @@ Write to `~/.copilot/hooks/aiot.json`:
 {
   "disableAllHooks": false,
   "hooks": {
-    "agentStop": [{ "command": ["/usr/local/bin/aiot", "hook", "agent-stop", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
-    "notification": [{ "command": ["/usr/local/bin/aiot", "hook", "notification", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
-    "postToolUse": [{ "command": ["/usr/local/bin/aiot", "hook", "post-tool-use", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
-    "postToolUseFailure": [{ "command": ["/usr/local/bin/aiot", "hook", "post-tool-use-failure", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
-    "preCompact": [{ "command": ["/usr/local/bin/aiot", "hook", "pre-compact", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
-    "preToolUse": [{ "command": ["/usr/local/bin/aiot", "hook", "pre-tool-use", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
-    "sessionEnd": [{ "command": ["/usr/local/bin/aiot", "hook", "session-end", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
-    "sessionStart": [{ "command": ["/usr/local/bin/aiot", "hook", "session-start", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
-    "subagentStop": [{ "command": ["/usr/local/bin/aiot", "hook", "subagent-stop", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
-    "userPromptSubmitted": [{ "command": ["/usr/local/bin/aiot", "hook", "user-prompt-submitted", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }]
+    "agentStop": [{ "command": ["~/.local/bin/aiot", "hook", "agent-stop", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
+    "notification": [{ "command": ["~/.local/bin/aiot", "hook", "notification", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
+    "postToolUse": [{ "command": ["~/.local/bin/aiot", "hook", "post-tool-use", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
+    "postToolUseFailure": [{ "command": ["~/.local/bin/aiot", "hook", "post-tool-use-failure", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
+    "preCompact": [{ "command": ["~/.local/bin/aiot", "hook", "pre-compact", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
+    "preToolUse": [{ "command": ["~/.local/bin/aiot", "hook", "pre-tool-use", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
+    "sessionEnd": [{ "command": ["~/.local/bin/aiot", "hook", "session-end", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
+    "sessionStart": [{ "command": ["~/.local/bin/aiot", "hook", "session-start", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
+    "subagentStop": [{ "command": ["~/.local/bin/aiot", "hook", "subagent-stop", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }],
+    "userPromptSubmitted": [{ "command": ["~/.local/bin/aiot", "hook", "user-prompt-submitted", "--agent", "copilot"], "timeoutSec": 5, "type": "command" }]
   },
   "version": 1
 }
@@ -275,7 +276,7 @@ export default function (pi: any) {
           sessionId: ctx?.sessionManager?.sessionId ?? event?.sessionId,
           sessionFile: ctx?.sessionManager?.path ?? undefined,
         };
-        const p = spawn("/usr/local/bin/aiot", ['hook', kind, '--agent', 'pi'], {
+        const p = spawn("~/.local/bin/aiot", ['hook', kind, '--agent', 'pi'], {
           stdio: ['pipe', 'ignore', 'ignore'],
           detached: true,
         });
@@ -320,7 +321,7 @@ export default function (omp: any) {
           sessionId: ctx?.session?.id ?? event?.sessionId,
           sessionFile: ctx?.session?.path ?? undefined,
         };
-        const p = spawn("/usr/local/bin/aiot", ['hook', kind, '--agent', 'omp'], {
+        const p = spawn("~/.local/bin/aiot", ['hook', kind, '--agent', 'omp'], {
           stdio: ['pipe', 'ignore', 'ignore'],
           detached: true,
         });
@@ -337,7 +338,7 @@ export default function (omp: any) {
 
 // Alternative, if you already run the third-party `omp-hooks` plugin: it makes
 // OMP execute settings.json command hooks, so you can wire
-// "/usr/local/bin/aiot hook <kind> --agent omp" there instead. We ship the native module
+// "~/.local/bin/aiot hook <kind> --agent omp" there instead. We ship the native module
 // because it needs no third-party package to keep working.
 ```
 
@@ -358,7 +359,7 @@ export const telemetry: Plugin = async () => ({
     };
     const kind = map[event.type];
     if (!kind) return;
-    const p = Bun.spawn(['/usr/local/bin/aiot', 'hook', kind, '--agent', 'opencode'], { stdin: 'pipe' });
+    const p = Bun.spawn(['~/.local/bin/aiot', 'hook', kind, '--agent', 'opencode'], { stdin: 'pipe' });
     p.stdin.write(JSON.stringify(event.properties ?? {}));
     await p.stdin.end();
   },

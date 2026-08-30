@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   type Dirent,
   existsSync,
   mkdirSync,
@@ -8,7 +9,6 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import {
@@ -21,6 +21,16 @@ import {
 
 import { clientInfo } from '../lib/client-info';
 import { type CodexUsage, parseRolloutRecords, usageDelta } from '../lib/codex-rollout';
+import {
+  createBackupIfAbsent,
+  dirExists,
+  homeDir,
+  readJsonFile,
+  removeBackup,
+  stripOwnedEntries,
+  writeJsonFile,
+  writeTextFile,
+} from '../lib/config-wire';
 import { pickString } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { log } from '../lib/log';
@@ -197,7 +207,7 @@ function hasUsage(usage: CodexUsage | null): usage is CodexUsage {
 // ── Rollout location ──────────────────────────────────────────────────────────
 
 function codexHome(): string {
-  return process.env.CODEX_HOME ?? join(homedir(), '.codex');
+  return process.env.CODEX_HOME ?? join(homeDir(), '.codex');
 }
 
 function codexSessionsDir(): string {
@@ -707,7 +717,7 @@ function rolloutForHook(
 }
 
 function renderSnippet(bin: string): string {
-  const home = homedir();
+  const home = homeDir();
   return [
     '# 1. Save this wrapper as ~/.codex/aiot-notify.sh and `chmod +x` it.',
     '#    Codex passes the notification JSON as the first argument:',
@@ -751,6 +761,131 @@ function renderHooksSnippet(bin: string): string {
   return JSON.stringify({ hooks }, null, 2);
 }
 
+// ── Auto-wire: detect / apply / remove ────────────────────────────────────────
+
+const CODEX_NOTIFY_WRAPPER = () => join(codexHome(), 'aiot-notify.sh');
+const CODEX_HOOKS_JSON = () => join(codexHome(), 'hooks.json');
+const CODEX_CONFIG_TOML = () => join(codexHome(), 'config.toml');
+// Ownership marker for hooks.json entries (the lifecycle-hooks path).
+// applyCodex uses this to strip old entries before re-adding; removeCodex uses
+// it to clean up. Must match in both directions.
+const CODEX_HOOKS_MARKER = 'aiot';
+
+function detectCodex(): boolean {
+  return dirExists(codexHome());
+}
+
+function applyCodex(bin: string): string | null {
+  const hooksOn = codexHooksFeatureEnabled();
+  const actions: string[] = [];
+  try {
+    if (hooksOn) {
+      // Hooks path: merge into hooks.json (same shape as renderHooksSnippet).
+      const hooksJsonPath = CODEX_HOOKS_JSON();
+      const existing = readJsonFile<Record<string, unknown>>(hooksJsonPath) ?? {};
+      createBackupIfAbsent(hooksJsonPath);
+
+      const ourHooks: Record<string, { command: string[]; type: string }[]> = {};
+      for (const [kind, codexEvent] of Object.entries(HOOK_KIND_TO_CODEX_EVENT)) {
+        ourHooks[codexEvent] = [
+          { command: [bin, 'hook', kind, '--agent', 'codex'], type: 'command' },
+        ];
+      }
+
+      const userHooks = (existing.hooks as Record<string, unknown[]>) ?? {};
+      const merged: Record<string, unknown[]> = {};
+      for (const [event, entries] of Object.entries(userHooks)) {
+        merged[event] = Array.isArray(entries)
+          ? stripOwnedEntries(entries, CODEX_HOOKS_MARKER)
+          : [];
+      }
+      for (const [event, entries] of Object.entries(ourHooks)) {
+        merged[event] = [...(merged[event] ?? []), ...entries];
+      }
+
+      writeJsonFile(hooksJsonPath, { ...existing, hooks: merged });
+      actions.push(`merged into ${hooksJsonPath}`);
+    } else {
+      // Notify path: write wrapper script + point config.toml at it.
+      const wrapperPath = CODEX_NOTIFY_WRAPPER();
+      const wrapperContent = `#!/bin/sh\nprintf '%s' "$1" | ${bin} hook turn-complete --agent codex\n`;
+      writeTextFile(wrapperPath, wrapperContent);
+      chmodSync(wrapperPath, 0o755);
+      actions.push(`wrote ${wrapperPath}`);
+
+      // Patch config.toml to add the notify entry if not already present.
+      const configPath = CODEX_CONFIG_TOML();
+      if (existsSync(configPath)) {
+        createBackupIfAbsent(configPath);
+        const raw = readFileSync(configPath, 'utf8');
+        if (!raw.includes('aiot-notify.sh')) {
+          const notifyLine = `notify = ["${wrapperPath}"]\n`;
+          writeFileSync(configPath, raw + (raw.endsWith('\n') ? '' : '\n') + notifyLine, 'utf8');
+          actions.push(`patched ${configPath}`);
+        }
+      }
+    }
+    return actions.join(', ');
+  } catch (err) {
+    process.stderr.write(`Error wiring Codex: ${(err as Error).message}\n`);
+    return null;
+  }
+}
+
+function removeCodex(): boolean {
+  let ok = true;
+  try {
+    // Remove wrapper script.
+    const wrapperPath = CODEX_NOTIFY_WRAPPER();
+    if (existsSync(wrapperPath)) {
+      rmSync(wrapperPath, { force: true });
+    }
+
+    // Remove our entries from hooks.json.
+    const hooksJsonPath = CODEX_HOOKS_JSON();
+    const existing = readJsonFile<Record<string, unknown>>(hooksJsonPath);
+    if (existing) {
+      const hooks = (existing.hooks as Record<string, unknown[]>) ?? {};
+      const cleaned: Record<string, unknown[]> = {};
+      let hadAny = false;
+      for (const [event, entries] of Object.entries(hooks)) {
+        const stripped = Array.isArray(entries)
+          ? stripOwnedEntries(entries, CODEX_HOOKS_MARKER)
+          : entries;
+        if (Array.isArray(stripped)) {
+          if (stripped.length !== entries.length) {
+            hadAny = true;
+          }
+          if (stripped.length > 0) {
+            cleaned[event] = stripped;
+          }
+        } else {
+          cleaned[event] = stripped;
+        }
+      }
+      if (hadAny) {
+        writeJsonFile(hooksJsonPath, { ...existing, hooks: cleaned });
+        removeBackup(hooksJsonPath);
+      }
+    }
+
+    // Remove notify line from config.toml.
+    const configPath = CODEX_CONFIG_TOML();
+    if (existsSync(configPath)) {
+      const raw = readFileSync(configPath, 'utf8');
+      if (raw.includes('aiot-notify.sh')) {
+        const lines = raw.split('\n').filter((l) => !/^notify\s*=.*aiot-notify\.sh/.test(l));
+        writeFileSync(configPath, lines.join('\n'), 'utf8');
+        removeBackup(configPath);
+      }
+    }
+  } catch (err) {
+    process.stderr.write(`Error removing Codex hooks: ${(err as Error).message}\n`);
+    ok = false;
+  }
+  return ok;
+}
+
 export const codexAdapter: HookAdapter = {
   agentType: 'CODEX',
 
@@ -758,7 +893,10 @@ export const codexAdapter: HookAdapter = {
     const hooksOn = codexHooksFeatureEnabled();
     return {
       agentName: 'Codex CLI',
+      apply: applyCodex,
+      detect: detectCodex,
       hookKinds: Object.keys(CODEX_EVENT_TYPE),
+      remove: removeCodex,
       renderSnippet: hooksOn ? renderHooksSnippet : renderSnippet,
       settingsHint: hooksOn
         ? 'Codex lifecycle hooks are enabled ([features] hooks = true). Write this to ~/.codex/hooks.json:'

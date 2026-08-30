@@ -54,10 +54,14 @@ export default async function InstallPage({
   }
 
   const targets = [
-    { binary: 'aiot-darwin-arm64', os: 'macOS (Apple Silicon)' },
-    { binary: 'aiot-darwin-x64', os: 'macOS (Intel)' },
-    { binary: 'aiot-linux-arm64', os: 'Linux (ARM64)' },
-    { binary: 'aiot-linux-x64', os: 'Linux (x86-64)' },
+    {
+      launcher: 'aiot-darwin-arm64',
+      os: 'macOS (Apple Silicon)',
+      runtime: 'aiot-runtime-darwin-arm64',
+    },
+    { launcher: 'aiot-darwin-x64', os: 'macOS (Intel)', runtime: 'aiot-runtime-darwin-x64' },
+    { launcher: 'aiot-linux-arm64', os: 'Linux (ARM64)', runtime: 'aiot-runtime-linux-arm64' },
+    { launcher: 'aiot-linux-x64', os: 'Linux (x86-64)', runtime: 'aiot-runtime-linux-x64' },
   ];
 
   return (
@@ -115,20 +119,25 @@ export default async function InstallPage({
         </pre>
 
         <Card flush>
-          <Table columns={[{ label: 'Platform' }, { label: 'Binary name' }]}>
+          <Table columns={[{ label: 'Platform' }, { label: 'Launcher' }, { label: 'Runtime' }]}>
             {targets.map((t) => (
-              <Row key={t.binary}>
+              <Row key={t.launcher}>
                 <Cell className="text-text-2">{t.os}</Cell>
-                <Cell className="text-xs text-text-2">{t.binary}</Cell>
+                <Cell className="text-xs text-text-2">{t.launcher}</Cell>
+                <Cell className="text-xs text-text-2">{t.runtime}</Cell>
               </Row>
             ))}
           </Table>
         </Card>
 
-        <p className="text-sm text-text-2">Then make it executable:</p>
+        <p className="text-sm text-text-2">
+          Then make both executable and install them to the same directory:
+        </p>
         <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
-          {`chmod +x aiot-<os>-<arch>
-sudo mv aiot-<os>-<arch> /usr/local/bin/aiot`}
+          {`chmod +x aiot-<os>-<arch> aiot-runtime-<os>-<arch>
+mkdir -p ~/.local/bin
+mv aiot-<os>-<arch> ~/.local/bin/aiot
+mv aiot-runtime-<os>-<arch> ~/.local/bin/aiot-runtime`}
         </pre>
       </section>
 

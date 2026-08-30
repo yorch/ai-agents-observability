@@ -4,6 +4,15 @@ import { dirname, join } from 'node:path';
 import type { Event, EventType, ToolInfo } from '@ai-agents-observability/schemas';
 
 import { fieldBytes } from '../lib/bytes';
+import {
+  createBackupIfAbsent,
+  dirExists,
+  homeDir,
+  readJsonFile,
+  removeBackup,
+  stripOwnedEntries,
+  writeJsonFile,
+} from '../lib/config-wire';
 import { isRecord } from '../lib/fields';
 import { log } from '../lib/log';
 import { agentStateDir } from '../lib/paths';
@@ -278,6 +287,94 @@ function renderSnippet(bin: string): string {
   return JSON.stringify({ hooks }, null, 2);
 }
 
+// ── Auto-wire: detect / apply / remove ────────────────────────────────────────
+
+const GEMINI_CONFIG_DIR = () => join(homeDir(), '.gemini');
+const GEMINI_SETTINGS_PATH = () => join(GEMINI_CONFIG_DIR(), 'settings.json');
+const OWNERSHIP_MARKER = 'aiot-';
+
+function detectGeminiCli(): boolean {
+  return dirExists(GEMINI_CONFIG_DIR());
+}
+
+function applyGeminiCli(bin: string): string | null {
+  const settingsPath = GEMINI_SETTINGS_PATH();
+  try {
+    const existing = readJsonFile<Record<string, unknown>>(settingsPath) ?? {};
+    createBackupIfAbsent(settingsPath);
+
+    // Build our hook entries (same shape as renderSnippet).
+    const ourHooks: Record<string, unknown[]> = {};
+    for (const [kind, geminiEvent] of Object.entries(HOOK_KIND_TO_GEMINI_EVENT)) {
+      ourHooks[geminiEvent] = [
+        {
+          hooks: [
+            {
+              command: `${JSON.stringify(bin)} hook ${kind} --agent gemini-cli`,
+              name: `aiot-${kind}`,
+              timeout: 5000,
+              type: 'command',
+            },
+          ],
+        },
+      ];
+    }
+
+    // Merge: strip our old entries, then append new ones.
+    const userHooks = (existing.hooks as Record<string, unknown[]>) ?? {};
+    const merged: Record<string, unknown[]> = {};
+    for (const [event, entries] of Object.entries(userHooks)) {
+      merged[event] = Array.isArray(entries) ? stripOwnedEntries(entries, OWNERSHIP_MARKER) : [];
+    }
+    for (const [event, entries] of Object.entries(ourHooks)) {
+      merged[event] = [...(merged[event] ?? []), ...entries];
+    }
+
+    writeJsonFile(settingsPath, { ...existing, hooks: merged });
+    return `merged into ${settingsPath}`;
+  } catch (err) {
+    process.stderr.write(`Error wiring Gemini CLI: ${(err as Error).message}\n`);
+    return null;
+  }
+}
+
+function removeGeminiCli(): boolean {
+  const settingsPath = GEMINI_SETTINGS_PATH();
+  try {
+    const existing = readJsonFile<Record<string, unknown>>(settingsPath);
+    if (!existing) {
+      return true;
+    }
+    const hooks = (existing.hooks as Record<string, unknown[]>) ?? {};
+    const cleaned: Record<string, unknown[]> = {};
+    let hadAny = false;
+    for (const [event, entries] of Object.entries(hooks)) {
+      const stripped = Array.isArray(entries)
+        ? stripOwnedEntries(entries, OWNERSHIP_MARKER)
+        : entries;
+      if (Array.isArray(stripped)) {
+        if (stripped.length !== entries.length) {
+          hadAny = true;
+        }
+        if (stripped.length > 0) {
+          cleaned[event] = stripped;
+        }
+      } else {
+        cleaned[event] = stripped;
+      }
+    }
+    if (!hadAny) {
+      return true;
+    }
+    writeJsonFile(settingsPath, { ...existing, hooks: cleaned });
+    removeBackup(settingsPath);
+    return true;
+  } catch (err) {
+    process.stderr.write(`Error removing Gemini CLI hooks: ${(err as Error).message}\n`);
+    return false;
+  }
+}
+
 // ── Adapter ───────────────────────────────────────────────────────────────────
 
 const base = createStdinHookAdapter({
@@ -286,6 +383,9 @@ const base = createStdinHookAdapter({
   eventMap: GEMINI_EVENT_TYPE,
   install: {
     agentName: 'Gemini CLI',
+    apply: applyGeminiCli,
+    detect: detectGeminiCli,
+    remove: removeGeminiCli,
     renderSnippet,
     settingsHint: 'Add to ~/.gemini/settings.json (or .gemini/settings.json in a project):',
   },

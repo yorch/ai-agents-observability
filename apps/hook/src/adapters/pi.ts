@@ -1,7 +1,16 @@
+import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
+import {
+  homeDir as configHomeDir,
+  createBackupIfAbsent,
+  dirExists,
+  removeBackup,
+  writeTextFile,
+} from '../lib/config-wire';
+
 import type { HookAdapter } from './index';
-import { createPiFamilyAdapter, homeDir, renderExtensionSnippet } from './pi-family';
+import { createPiFamilyAdapter, renderExtensionSnippet } from './pi-family';
 
 // Pi adapter (P12-007). Pi (`@earendil-works/pi-coding-agent`) has no stdin
 // command hooks — it has TypeScript **extensions**: a module exporting
@@ -27,7 +36,7 @@ import { createPiFamilyAdapter, homeDir, renderExtensionSnippet } from './pi-fam
 // OpenTelemetry-style span contract for instrumenting Pi's internals, not a
 // lifecycle event stream. Wrong seam.
 
-const PI_HOME = () => process.env.PI_HOME ?? join(homeDir(), '.pi');
+const PI_HOME = () => process.env.PI_HOME ?? join(configHomeDir(), '.pi');
 
 // Which Pi events we subscribe to, and the hook kind each becomes, is
 // PI_FAMILY_NATIVE_EVENTS. `turn_end` (one LLM response + its tool calls) is the
@@ -47,10 +56,48 @@ function renderSnippet(bin: string): string {
   });
 }
 
+// ── Auto-wire: detect / apply / remove ────────────────────────────────────────
+
+const PI_EXTENSIONS_DIR = () => join(PI_HOME(), 'agent', 'extensions');
+const PI_PLUGIN_FILE = () => join(PI_EXTENSIONS_DIR(), 'telemetry.ts');
+
+function detectPi(): boolean {
+  return dirExists(PI_HOME());
+}
+
+function applyPi(bin: string): string | null {
+  const pluginFile = PI_PLUGIN_FILE();
+  try {
+    createBackupIfAbsent(pluginFile);
+    writeTextFile(pluginFile, renderSnippet(bin));
+    return `wrote ${pluginFile}`;
+  } catch (err) {
+    process.stderr.write(`Error wiring Pi: ${(err as Error).message}\n`);
+    return null;
+  }
+}
+
+function removePi(): boolean {
+  const pluginFile = PI_PLUGIN_FILE();
+  try {
+    if (existsSync(pluginFile)) {
+      rmSync(pluginFile, { force: true });
+    }
+    removeBackup(pluginFile);
+    return true;
+  } catch (err) {
+    process.stderr.write(`Error removing Pi extension: ${(err as Error).message}\n`);
+    return false;
+  }
+}
+
 export const piAdapter: HookAdapter = createPiFamilyAdapter({
   agentType: 'PI',
   install: {
     agentName: 'Pi',
+    apply: applyPi,
+    detect: detectPi,
+    remove: removePi,
     renderSnippet,
     settingsHint: 'Add a Pi extension (~/.pi/agent/extensions/telemetry.ts):',
   },

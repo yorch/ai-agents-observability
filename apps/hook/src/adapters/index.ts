@@ -34,6 +34,25 @@ export type AdapterInstallConfig = {
   settingsHint: string;
   /** Render the agent-native config that wires `<bin> hook <kind>`. */
   renderSnippet(bin: string): string;
+  /**
+   * Detect whether the agent is installed on this machine (config dir exists).
+   * Used by `aiot install` to decide which agents to offer for auto-wiring.
+   * Returns false when the agent's config directory is absent.
+   */
+  detect?: () => boolean;
+  /**
+   * Write the hook config into the agent's config file(s), merging with any
+   * existing user config. Idempotent: calling twice produces the same result.
+   * Creates a `.aiot-backup` of any existing user config file before first
+   * modification. Returns a human-readable status string on success, or null
+   * on failure (with an error written to stderr).
+   */
+  apply?(bin: string): string | null;
+  /**
+   * Remove aiot's hook config from the agent's config file(s), preserving
+   * any user-defined hooks. Returns true on success.
+   */
+  remove?(): boolean;
 };
 
 export interface HookAdapter {

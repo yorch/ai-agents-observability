@@ -40,8 +40,12 @@ Commands:
   resume        Resume telemetry collection (removes the marker)
   purge-local   Remove all local data (queue, logs, identity) — use --yes to confirm
   import         Import historical Claude Code, Codex, OpenCode, Pi, or OMP sessions
-  install       Write launchd/systemd service files and print the hook snippet
-                flags: --no-start (don't load/enable), --force (allow uncompiled)
+  install       Write launchd/systemd service files and wire hooks into detected agents
+                flags: --no-start (don't load/enable), --force (allow uncompiled),
+                       --yes (wire all detected agents without prompting),
+                       --agent <name> (wire only this agent, repeatable),
+                       --no-auto (skip auto-wiring, print snippets only),
+                       --dry-run (show what would be wired without modifying files)
   uninstall     Remove service files (does not remove local data)
 
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
@@ -122,29 +126,19 @@ async function main(): Promise<number> {
   }
 
   if (cmd === 'install') {
-    // Filter out global flags (--agent, --quiet) and the command name so
-    // parseArgs only sees install-specific flags.
-    const installArgs = args.filter((a, i) => {
+    // Filter out the command name and --quiet so parseArgs only sees
+    // install-specific flags. --agent is passed through so runInstall can
+    // collect multiple --agent flags for selective wiring.
+    const installArgs = args.filter((a) => {
       if (a === cmd) {
         return false;
       }
       if (a === '--quiet') {
         return false;
       }
-      if (a.startsWith('--agent=')) {
-        return false;
-      }
-      if (a === '--agent') {
-        // --agent and its value (next arg, if not a flag)
-        return false;
-      }
-      // Skip the value following --agent
-      if (i > 0 && args[i - 1] === '--agent' && !a.startsWith('-')) {
-        return false;
-      }
       return true;
     });
-    return runInstall(installArgs, adapter);
+    return await runInstall(installArgs, adapter);
   }
 
   if (cmd === 'uninstall') {

@@ -4,6 +4,15 @@ import { dirname, join } from 'node:path';
 import type { Event } from '@ai-agents-observability/schemas';
 
 import { assistantTurn, isAssistantEntry, toolUseIdsMetadata } from '../lib/claude-turns';
+import {
+  createBackupIfAbsent,
+  dirExists,
+  homeDir,
+  readJsonFile,
+  removeBackup,
+  stripOwnedEntries,
+  writeJsonFile,
+} from '../lib/config-wire';
 import { log } from '../lib/log';
 import { agentStateDir } from '../lib/paths';
 import {
@@ -279,6 +288,88 @@ function stopWithUsage(raw: Record<string, unknown>): ConformantEvent[] | null {
   }
 }
 
+// ── Auto-wire: detect / apply / remove ────────────────────────────────────────
+
+const CLAUDE_CONFIG_DIR = () => join(homeDir(), '.claude');
+const CLAUDE_SETTINGS_PATH = () => join(CLAUDE_CONFIG_DIR(), 'settings.json');
+// Ownership marker: the binary name in the `command` field. User hooks that
+// happen to contain "aiot" as a substring would also match, but the exec form
+// (`command: "/usr/local/bin/aiot"`) makes false positives extremely unlikely.
+const OWNERSHIP_MARKER = 'aiot';
+
+function detectClaudeCode(): boolean {
+  return dirExists(CLAUDE_CONFIG_DIR());
+}
+
+function applyClaudeCode(bin: string): string | null {
+  const settingsPath = CLAUDE_SETTINGS_PATH();
+  try {
+    const existing = readJsonFile<Record<string, unknown>>(settingsPath) ?? {};
+    createBackupIfAbsent(settingsPath);
+
+    // Build our hook entries (same shape as renderSnippet, but as an object).
+    const ourHooks: Record<string, HookGroup[]> = {};
+    for (const kind of HOOK_KINDS) {
+      ourHooks[HOOK_KIND_TO_SETTINGS_KEY[kind]] = [
+        { hooks: [{ args: ['hook', kind], command: bin, type: 'command' }] },
+      ];
+    }
+
+    // Merge: for each event key, strip our old entries then append new ones.
+    const userHooks = (existing.hooks as Record<string, unknown[]>) ?? {};
+    const merged: Record<string, unknown[]> = {};
+    for (const [event, entries] of Object.entries(userHooks)) {
+      merged[event] = Array.isArray(entries) ? stripOwnedEntries(entries, OWNERSHIP_MARKER) : [];
+    }
+    for (const [event, entries] of Object.entries(ourHooks)) {
+      merged[event] = [...(merged[event] ?? []), ...entries];
+    }
+
+    writeJsonFile(settingsPath, { ...existing, hooks: merged });
+    return `merged into ${settingsPath}`;
+  } catch (err) {
+    process.stderr.write(`Error wiring Claude Code: ${(err as Error).message}\n`);
+    return null;
+  }
+}
+
+function removeClaudeCode(): boolean {
+  const settingsPath = CLAUDE_SETTINGS_PATH();
+  try {
+    const existing = readJsonFile<Record<string, unknown>>(settingsPath);
+    if (!existing) {
+      return true;
+    }
+    const hooks = (existing.hooks as Record<string, unknown[]>) ?? {};
+    const cleaned: Record<string, unknown[]> = {};
+    let hadAny = false;
+    for (const [event, entries] of Object.entries(hooks)) {
+      const stripped = Array.isArray(entries)
+        ? stripOwnedEntries(entries, OWNERSHIP_MARKER)
+        : entries;
+      if (Array.isArray(stripped)) {
+        if (stripped.length !== entries.length) {
+          hadAny = true;
+        }
+        if (stripped.length > 0) {
+          cleaned[event] = stripped;
+        }
+      } else {
+        cleaned[event] = stripped;
+      }
+    }
+    if (!hadAny) {
+      return true;
+    }
+    writeJsonFile(settingsPath, { ...existing, hooks: cleaned });
+    removeBackup(settingsPath);
+    return true;
+  } catch (err) {
+    process.stderr.write(`Error removing Claude Code hooks: ${(err as Error).message}\n`);
+    return false;
+  }
+}
+
 const base = createStdinHookAdapter({
   agentType: 'CLAUDE_CODE',
   buildTool: (raw) => buildClaudeToolInfo(raw),
@@ -288,6 +379,9 @@ const base = createStdinHookAdapter({
   eventMap: HOOK_KIND_TO_EVENT_TYPE,
   install: {
     agentName: 'Claude Code',
+    apply: applyClaudeCode,
+    detect: detectClaudeCode,
+    remove: removeClaudeCode,
     renderSnippet,
     settingsHint: 'Add to ~/.claude/settings.json:',
   },

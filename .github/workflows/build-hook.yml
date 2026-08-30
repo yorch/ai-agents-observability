@@ -34,15 +34,19 @@ jobs:
           - target: darwin-arm64
             runner: macos-14
             bun_target: bun-darwin-arm64
+            rust_target: aarch64-apple-darwin
           - target: darwin-x64
             runner: macos-15-intel
             bun_target: bun-darwin-x64
+            rust_target: x86_64-apple-darwin
           - target: linux-x64
             runner: ubuntu-24.04
             bun_target: bun-linux-x64
+            rust_target: x86_64-unknown-linux-gnu
           - target: linux-arm64
             runner: ubuntu-24.04-arm
             bun_target: bun-linux-arm64
+            rust_target: aarch64-unknown-linux-gnu
 
     runs-on: ${{ matrix.runner }}
     name: Build (${{ matrix.target }})
@@ -56,6 +60,11 @@ jobs:
         with:
           bun-version: 1.3.14
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
       # keytar (a packages/auth dep) falls back to `node-gyp rebuild` when its
       # prebuild-install download flakes; on Linux that source build needs
       # libsecret's pkg-config headers (macOS uses the native Keychain, no dep).
@@ -66,37 +75,55 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build binary
+      - name: Build runtime (Bun) and launcher (Rust)
         run: |
           mkdir -p apps/hook/dist
+          # 1. Bun-compiled runtime (~50–80 MB)
           bun build apps/hook/src/cli.ts \
             --compile \
             --target ${{ matrix.bun_target }} \
-            --outfile apps/hook/dist/aiot-${{ matrix.target }}
+            --outfile apps/hook/dist/aiot-runtime-${{ matrix.target }}
+          # 2. Rust launcher (~100 KB)
+          cargo build --release --manifest-path apps/hook/launcher/Cargo.toml \
+            --target ${{ matrix.rust_target }}
+          cp apps/hook/launcher/target/${{ matrix.rust_target }}/release/aiot \
+            apps/hook/dist/aiot-${{ matrix.target }}
 
       - name: Smoke test
         run: |
-          chmod +x apps/hook/dist/aiot-${{ matrix.target }}
+          chmod +x apps/hook/dist/aiot-${{ matrix.target }} apps/hook/dist/aiot-runtime-${{ matrix.target }}
+          # The launcher expects "aiot-runtime" beside itself. In production
+          # the install script renames the target-suffixed binary; here we
+          # symlink so the smoke test can exec the launcher directly.
+          ln -sf aiot-runtime-${{ matrix.target }} apps/hook/dist/aiot-runtime
+          # The launcher execs the runtime, so this tests both in one go.
           apps/hook/dist/aiot-${{ matrix.target }} --version
 
-      - name: Report binary size
+      - name: Report binary sizes
         run: |
-          ls -lh apps/hook/dist/aiot-${{ matrix.target }}
+          ls -lh apps/hook/dist/aiot-${{ matrix.target }} apps/hook/dist/aiot-runtime-${{ matrix.target }}
 
       - name: Codesign (Mac only)
         if: runner.os == 'macOS'
-        run: bash apps/hook/scripts/codesign-mac.sh apps/hook/dist/aiot-${{ matrix.target }}
+        run: |
+          # Sign the launcher — this is the binary launchd invokes, so its
+          # signature is what macOS BTM reads for the "Developer Name" shown
+          # in Login Items & Extensions. The runtime doesn't need signing
+          # because it's never directly registered with launchd.
+          bash apps/hook/scripts/codesign-mac.sh apps/hook/dist/aiot-${{ matrix.target }}
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: aiot-${{ matrix.target }}
-          path: apps/hook/dist/aiot-${{ matrix.target }}
+          path: |
+            apps/hook/dist/aiot-${{ matrix.target }}
+            apps/hook/dist/aiot-runtime-${{ matrix.target }}
           retention-days: 30
 
   # ── Release: publish binaries to the draft GitHub Release ───────────────────
@@ -125,7 +152,7 @@ jobs:
       - name: Generate SHA256SUMS-hook
         working-directory: release/
         run: |
-          sha256sum aiot-* > SHA256SUMS-hook
+          sha256sum aiot-* aiot-runtime-* > SHA256SUMS-hook
           cat SHA256SUMS-hook
 
       - name: Upload to GitHub Release

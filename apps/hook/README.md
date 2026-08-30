@@ -1,18 +1,26 @@
 # aiot hook binary
 
-The `aiot` binary is a Bun-compiled CLI that installs as a Claude Code hook and ships telemetry to the observability platform.
+The `aiot` binary is a two-part executable: a Rust launcher (~300 KB) that `execv`s a Bun-compiled runtime (~50–80 MB). The launcher exists so that macOS Background Task Management attributes background processes to our code signature rather than Bun's. See [`docs/deploy/hook-binary.md`](../../docs/deploy/hook-binary.md) for the full distribution architecture.
 
 ## Building
 
+Building requires both [Bun](https://bun.sh) and [Rust](https://rustup.rs) installed.
+
 ```bash
-# Current platform
+# Current platform (builds both launcher + runtime)
 bun run build
 
-# All targets
+# All targets (cross-compiles all four platforms)
 bun run build:all
 
 # Specific target
 bun run build:darwin-arm64
+
+# Build only the runtime (Bun binary, no launcher)
+bun run build:runtime
+
+# Build only the launcher (Rust binary, no runtime)
+bun run build:launcher
 ```
 
 ## Targets
@@ -46,8 +54,8 @@ Commands:
   pause         Pause telemetry collection (writes a marker file)
   resume        Resume telemetry collection (removes the marker)
   purge-local   Remove all local data (queue, logs, identity) — use --yes to confirm
-  install       Write launchd/systemd service files and print the hook snippet
-  uninstall     Remove service files (does not remove local data)
+  install       Write launchd/systemd service files and wire hooks into detected agents
+  uninstall     Remove service files and aiot hook config (does not remove local data)
 
   import        Import historical Claude Code, Codex, OpenCode, Pi, or OMP sessions
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
@@ -70,7 +78,7 @@ aiot config set ingest-url https://ingest.example.com
 # 2. Authenticate (prints a URL + code to complete the GitHub device flow)
 aiot login
 
-# 3. Install background services and get the settings.json snippet
+# 3. Install background services and wire hooks into detected agents
 aiot install
 
 # 4. Check everything looks healthy
@@ -146,20 +154,45 @@ them by default:
 - **macOS**: `~/Library/LaunchAgents/com.brnby.aiot.{flusher,shipper}.plist`
 - **Linux**: `~/.config/systemd/user/aiot-{flusher,shipper}.service`
 
-Also prints the JSON snippet to paste into `~/.claude/settings.json`.
+After services are started, `install` **auto-detects** installed agent harnesses
+and wires aiot hooks into each one. For each detected agent:
+
+- **Claude Code**: merges hook entries into `~/.claude/settings.json`
+- **Gemini CLI**: merges hook entries into `~/.gemini/settings.json`
+- **Codex CLI**: writes `~/.codex/hooks.json` (hooks path) or `~/.codex/aiot-notify.sh` + patches `config.toml` (notify path)
+- **Copilot CLI**: writes `~/.copilot/hooks/aiot.json`
+- **Pi**: writes `~/.pi/agent/extensions/telemetry.ts`
+- **OMP**: writes `~/.omp/agent/hooks/telemetry.ts`
+- **opencode**: writes `~/.config/opencode/plugin/telemetry.ts`
+
+For shared config files (`settings.json`, `hooks.json`), aiot creates a
+`.aiot-backup` copy before the first modification and preserves all
+user-defined hooks. Repeated installs are idempotent — aiot strips its own
+previous entries before appending the current ones, so no duplicates
+accumulate. Agents that are not detected get their snippet printed for manual
+setup.
 
 | Flag | Description |
 |------|-------------|
 | `--no-start` | Write the service files but don't load/enable them (prints the commands instead) |
 | `--force` | Write service files even when running uncompiled (from the Bun runtime, not the binary) |
+| `--yes` | Wire all detected agents without prompting |
+| `--agent <name>` | Wire only this agent (repeatable); skips detection and prompting |
+| `--no-auto` | Skip auto-wiring entirely; print snippets for all agents (legacy behavior) |
+| `--dry-run` | Show what would be wired without modifying any files |
 
 When run over an existing install, the services are unloaded/disabled first,
 the files are rewritten, and then reloaded — so `install` is idempotent and
-serves as the upgrade path after `install.sh` drops a new binary.
+serves as the upgrade path after `install.sh` drops a new binary. Hook config
+is also re-applied idempotently.
 
 ### `uninstall`
 
-Removes the service files written by `install`. Does **not** remove local data (`purge-local` does that).
+Removes the service files written by `install` and strips aiot's hook entries
+from every agent config that was auto-wired. For shared config files, only
+aiot-owned entries are removed — user-defined hooks are preserved. Backups
+(`.aiot-backup`) are cleaned up after successful removal. Does **not** remove
+local data (`purge-local` does that).
 
 ### `import`
 
