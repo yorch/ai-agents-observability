@@ -18,16 +18,16 @@ let dir: string;
 let path: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'claude-telemetry-config-'));
+  dir = mkdtempSync(join(tmpdir(), 'aiot-config-'));
   path = join(dir, 'nested', 'config.json');
-  process.env.CLAUDE_TELEMETRY_CONFIG = path;
-  delete process.env.CLAUDE_TELEMETRY_API;
+  process.env.AIOT_CONFIG = path;
+  delete process.env.AIOT_API;
   delete process.env.INGEST_BASE_URL;
 });
 
 afterEach(() => {
-  delete process.env.CLAUDE_TELEMETRY_API;
-  delete process.env.CLAUDE_TELEMETRY_CONFIG;
+  delete process.env.AIOT_API;
+  delete process.env.AIOT_CONFIG;
   delete process.env.INGEST_BASE_URL;
   rmSync(dir, { force: true, recursive: true });
 });

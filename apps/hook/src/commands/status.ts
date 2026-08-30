@@ -47,11 +47,11 @@ export async function runStatus(): Promise<number> {
   let shipperRunning: string | null = null;
 
   if (process.platform === 'darwin') {
-    flusherRunning = checkLaunchctl('com.claude-telemetry.flusher');
-    shipperRunning = checkLaunchctl('com.claude-telemetry.shipper');
+    flusherRunning = checkLaunchctl('com.brnby.aiot.flusher');
+    shipperRunning = checkLaunchctl('com.brnby.aiot.shipper');
   } else if (process.platform === 'linux') {
-    flusherRunning = checkSystemctl('claude-telemetry-flusher');
-    shipperRunning = checkSystemctl('claude-telemetry-shipper');
+    flusherRunning = checkSystemctl('aiot-flusher');
+    shipperRunning = checkSystemctl('aiot-shipper');
   }
 
   // ── Output ────────────────────────────────────────────────────────────────────

@@ -156,16 +156,16 @@ let tmpProjects: string;
 beforeEach(() => {
   tmpHome = mkdtempSync(join(tmpdir(), 'import-test-home-'));
   tmpProjects = mkdtempSync(join(tmpdir(), 'import-test-projects-'));
-  process.env.CLAUDE_TELEMETRY_CONFIG = join(tmpHome, 'config.json');
-  process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
+  process.env.AIOT_CONFIG = join(tmpHome, 'config.json');
+  process.env.AIOT_HOME = tmpHome;
   process.env.CLAUDE_PROJECTS_DIR = tmpProjects;
 });
 
 afterEach(() => {
   rmSync(tmpHome, { force: true, recursive: true });
   rmSync(tmpProjects, { force: true, recursive: true });
-  delete process.env.CLAUDE_TELEMETRY_CONFIG;
-  delete process.env.CLAUDE_TELEMETRY_HOME;
+  delete process.env.AIOT_CONFIG;
+  delete process.env.AIOT_HOME;
   delete process.env.CLAUDE_PROJECTS_DIR;
   delete process.env.INGEST_BASE_URL;
   delete process.env.PI_HOME;

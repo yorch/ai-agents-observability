@@ -48,10 +48,10 @@ export default async function SettingsPrivacyPage() {
             Run the following command to temporarily pause telemetry from your local machine:
           </p>
           <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
-            claude-telemetry pause
+            aiot pause
           </pre>
           <p className="text-xs text-text-3">
-            Run <code className="font-mono">claude-telemetry resume</code> to re-enable.
+            Run <code className="font-mono">aiot resume</code> to re-enable.
           </p>
         </Card>
       </section>

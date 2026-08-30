@@ -1,6 +1,6 @@
-# claude-telemetry hook binary
+# aiot hook binary
 
-The `claude-telemetry` binary is a Bun-compiled CLI that installs as a Claude Code hook and ships telemetry to the observability platform.
+The `aiot` binary is a Bun-compiled CLI that installs as a Claude Code hook and ships telemetry to the observability platform.
 
 ## Building
 
@@ -37,7 +37,7 @@ Without these, the binary works on developer machines with `xattr -d com.apple.q
 ## Usage
 
 ```
-claude-telemetry <command> [options]
+aiot <command> [options]
 
 Commands:
   login         Authenticate with the observability server (device-code flow)
@@ -64,41 +64,41 @@ Options:
 
 ```bash
 # 1. For a remote deployment, persist its endpoints (localhost is the default)
-claude-telemetry config set web-url https://observability.example.com
-claude-telemetry config set ingest-url https://ingest.example.com
+aiot config set web-url https://observability.example.com
+aiot config set ingest-url https://ingest.example.com
 
 # 2. Authenticate (prints a URL + code to complete the GitHub device flow)
-claude-telemetry login
+aiot login
 
 # 3. Install background services and get the settings.json snippet
-claude-telemetry install
+aiot install
 
 # 4. Check everything looks healthy
-claude-telemetry status
+aiot status
 ```
 
 ## Command reference
 
 ### `login`
 
-Runs a GitHub device-code OAuth flow via the observability web app. Prompts you to visit a URL and enter a short code. On success, writes a hook token to `~/.claude-telemetry/identity.json`.
+Runs a GitHub device-code OAuth flow via the observability web app. Prompts you to visit a URL and enter a short code. On success, writes a hook token to `~/.aiot/identity.json`.
 
 Uses the persisted `web-url`, defaulting to `http://localhost:3000`.
-`CLAUDE_TELEMETRY_API` remains a higher-precedence override.
+`AIOT_API` remains a higher-precedence override.
 
 ### `config`
 
 Persists server endpoints in
-`${XDG_CONFIG_HOME:-~/.config}/claude-telemetry/config.json`. The flusher and
+`${XDG_CONFIG_HOME:-~/.config}/aiot/config.json`. The flusher and
 shipper read this file at startup, so changing an endpoint does not require
 reinstalling their launchd/systemd services.
 
 ```bash
-claude-telemetry config show
-claude-telemetry config path
-claude-telemetry config set web-url https://observability.example.com
-claude-telemetry config set ingest-url https://ingest.example.com
-claude-telemetry config unset ingest-url
+aiot config show
+aiot config path
+aiot config set web-url https://observability.example.com
+aiot config set ingest-url https://ingest.example.com
+aiot config unset ingest-url
 ```
 
 Environment variables take precedence over persisted values, which take
@@ -116,35 +116,35 @@ Prints:
 
 ### `pause`
 
-Writes `~/.claude-telemetry/paused`. All hook entrypoints check for this marker and exit 0 silently when present — no events are queued.
+Writes `~/.aiot/paused`. All hook entrypoints check for this marker and exit 0 silently when present — no events are queued.
 
 ### `resume`
 
-Deletes the `~/.claude-telemetry/paused` marker. Telemetry collection resumes on the next hook invocation.
+Deletes the `~/.aiot/paused` marker. Telemetry collection resumes on the next hook invocation.
 
 ### `purge-local`
 
 Removes all local telemetry data. Requires `--yes` to confirm.
 
 Removed paths:
-- `~/.claude-telemetry/queue.db` (pending events)
-- `~/.claude-telemetry/ship-queue/` (pending transcript markers)
-- `~/.claude-telemetry/collated/` (staged transcript collations — **unredacted**; redaction runs during upload, so a collation left behind by a killed shipper is plaintext history)
-- `~/.claude-telemetry/agent-state/` (per-agent working state: Codex rollout cursors, Gemini token accumulators, Claude Code transcript cursors)
-- `~/.claude-telemetry/hook.log` (local log file)
-- `~/.claude-telemetry/identity.json` (auth token)
-- `~/.claude-telemetry/flusher-state.json` (flusher state cache)
-- `~/.claude-telemetry/paused` (pause marker, if present)
+- `~/.aiot/queue.db` (pending events)
+- `~/.aiot/ship-queue/` (pending transcript markers)
+- `~/.aiot/collated/` (staged transcript collations — **unredacted**; redaction runs during upload, so a collation left behind by a killed shipper is plaintext history)
+- `~/.aiot/agent-state/` (per-agent working state: Codex rollout cursors, Gemini token accumulators, Claude Code transcript cursors)
+- `~/.aiot/hook.log` (local log file)
+- `~/.aiot/identity.json` (auth token)
+- `~/.aiot/flusher-state.json` (flusher state cache)
+- `~/.aiot/paused` (pause marker, if present)
 
-**This does not affect data already uploaded to the server.** Manage server-side data at `$CLAUDE_TELEMETRY_API/me/settings/privacy`.
+**This does not affect data already uploaded to the server.** Manage server-side data at `$AIOT_API/me/settings/privacy`.
 
 ### `install`
 
 Writes background service files for the flusher and shipper, then loads/enables
 them by default:
 
-- **macOS**: `~/Library/LaunchAgents/com.claude-telemetry.{flusher,shipper}.plist`
-- **Linux**: `~/.config/systemd/user/claude-telemetry-{flusher,shipper}.service`
+- **macOS**: `~/Library/LaunchAgents/com.brnby.aiot.{flusher,shipper}.plist`
+- **Linux**: `~/.config/systemd/user/aiot-{flusher,shipper}.service`
 
 Also prints the JSON snippet to paste into `~/.claude/settings.json`.
 
@@ -155,7 +155,7 @@ Also prints the JSON snippet to paste into `~/.claude/settings.json`.
 
 When run over an existing install, the services are unloaded/disabled first,
 the files are rewritten, and then reloaded — so `install` is idempotent and
-serves as the upgrade path after `install-hook.sh` drops a new binary.
+serves as the upgrade path after `install.sh` drops a new binary.
 
 ### `uninstall`
 
@@ -169,20 +169,20 @@ deterministic and the server also deduplicates them, so imports are safe to re-r
 
 ```bash
 # Claude Code is the default
-claude-telemetry import --dry-run
-claude-telemetry import --since 2026-01-01
+aiot import --dry-run
+aiot import --since 2026-01-01
 
 # Other supported historical sources
-claude-telemetry import --agent codex --dry-run
-claude-telemetry import --agent opencode --since 2026-01-01
-claude-telemetry import --agent pi
-claude-telemetry import --agent omp
+aiot import --agent codex --dry-run
+aiot import --agent opencode --since 2026-01-01
+aiot import --agent pi
+aiot import --agent omp
 
 # One native or normalized session ID; events only
-claude-telemetry import --agent codex --session <session-id> --no-transcripts
+aiot import --agent codex --session <session-id> --no-transcripts
 ```
 
-Requires authentication (`claude-telemetry login`) unless `--dry-run` is passed.
+Requires authentication (`aiot login`) unless `--dry-run` is passed.
 
 | Agent | Historical source |
 |---|---|
@@ -244,10 +244,10 @@ Hook entrypoints (`hook <kind>`) always exit 0 regardless of errors — a broken
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CLAUDE_TELEMETRY_API` | persisted `web-url`, then `http://localhost:3000` | Highest-precedence web app URL override |
+| `AIOT_API` | persisted `web-url`, then `http://localhost:3000` | Highest-precedence web app URL override |
 | `INGEST_BASE_URL` | persisted `ingest-url`, then `http://localhost:4000` | Highest-precedence ingest URL override |
-| `CLAUDE_TELEMETRY_CONFIG` | `${XDG_CONFIG_HOME:-~/.config}/claude-telemetry/config.json` | Override the persisted config file path |
-| `CLAUDE_TELEMETRY_HOME` | `~/.claude-telemetry` | Override the local data directory (useful for tests) |
+| `AIOT_CONFIG` | `${XDG_CONFIG_HOME:-~/.config}/aiot/config.json` | Override the persisted config file path |
+| `AIOT_HOME` | `~/.aiot` | Override the local data directory (useful for tests) |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Override the Claude Code import source |
 | `CODEX_HOME` | `~/.codex` | Override the Codex import source |
 | `OPENCODE_DATA` | `${XDG_DATA_HOME:-~/.local/share}/opencode/storage` | Override the OpenCode storage root or database path |
@@ -257,7 +257,7 @@ Hook entrypoints (`hook <kind>`) always exit 0 regardless of errors — a broken
 ## Local data layout
 
 ```
-~/.claude-telemetry/
+~/.aiot/
   queue.db            — SQLite queue of pending events
   ship-queue/         — JSON markers for pending transcript uploads
   identity.json       — Hook auth token + GitHub login
@@ -267,5 +267,5 @@ Hook entrypoints (`hook <kind>`) always exit 0 regardless of errors — a broken
 ```
 
 Persistent endpoint configuration is stored separately at
-`${XDG_CONFIG_HOME:-~/.config}/claude-telemetry/config.json`; `purge-local` removes
+`${XDG_CONFIG_HOME:-~/.config}/aiot/config.json`; `purge-local` removes
 telemetry state and identity but intentionally keeps server configuration.

@@ -206,7 +206,7 @@ describe('pi adapter', () => {
   });
 
   it('renders an extension that observes without blocking', () => {
-    const snippet = piAdapter.installConfig().renderSnippet('/usr/local/bin/claude-telemetry');
+    const snippet = piAdapter.installConfig().renderSnippet('/usr/local/bin/aiot');
     expect(snippet).toContain('pi.on(native');
     expect(snippet).toContain('tool_call');
     expect(snippet).toContain("'hook', kind, '--agent', 'pi'");

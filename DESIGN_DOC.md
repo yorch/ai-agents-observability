@@ -114,7 +114,7 @@ Read-only service that fronts:
        │
        │ hooks fire (PreToolUse, PostToolUse, Stop, etc.)
        ▼
-[claude-telemetry hook binary]
+[aiot hook binary]
        │ writes to local queue (sqlite or JSONL)
        │ batches every 5s / 50 events
        ▼
@@ -650,7 +650,7 @@ Responsibilities:
 - Local CLI: `install` (register hooks), `uninstall` (remove hooks), `login` (OIDC device-code flow), `status` (queue depth + connectivity), `pause` / `resume` (toggle flushing), `purge` (clear local queue + optional local transcripts), `import` (backfill historical transcripts from `~/.claude/projects/`)
 - **Hook adapter seam** (Phase 8, extended in Phase 12): each agent has its own adapter — `claude-code`, `codex`, `gemini-cli`, `copilot`, `pi`, `omp`, `opencode`. The transport (batching, queue, flushing, auth) is shared; adapters handle event translation. An optional `mapBatch` lets one hook fire expand into multiple events (used by the Codex adapter to read rollout JSONL, by Gemini to fold per-call token usage onto the turn's Stop, and by Claude Code to read per-turn usage out of the session transcript at Stop — see §6.4). Agents that speak Claude Code's stdin hook shape — Codex, Gemini CLI and Copilot CLI all do — are configuration objects over a shared factory rather than separate implementations.
 
-Local queue: SQLite database at `~/.claude-telemetry/queue.db`. Survives crashes, machine reboots, and offline periods.
+Local queue: SQLite database at `~/.aiot/queue.db`. Survives crashes, machine reboots, and offline periods.
 
 **Hook latency budget:** Telemetry hooks must add **<10ms** to any tool call on the hot path. Anything slower gets ripped out by power users. The hook writes to local queue and exits; the flusher is a separate background process.
 
@@ -832,7 +832,7 @@ A bot posts at PR merge time:
 > • Skills used: docx, pdf-reading
 > • Time-to-merge: 18h
 
-Opt-in per repo via a `.claude-telemetry.yml` file at the repo root. Devs love these comments and they make the tool's value visible without forcing dashboard visits.
+Opt-in per repo via a `.aiot.yml` file at the repo root. Devs love these comments and they make the tool's value visible without forcing dashboard visits.
 
 ### 7.5 Two GitHub App Surfaces — Why Both
 
@@ -1150,7 +1150,7 @@ Resist the urge to build all of it. The MVP that proves value:
 
 8. GitHub App for webhooks + PR enrichment
 9. PR rollup compute on session end + PR merge
-10. PR bot — post merge summary comments (opt-in via `.claude-telemetry.yml`)
+10. PR bot — post merge summary comments (opt-in via `.aiot.yml`)
 11. Self-service PR list with cost-per-PR for the dev's own PRs
 
 **Success criteria:** PR bot comments show up on real PRs and get reactions. Devs share screenshots in chat.

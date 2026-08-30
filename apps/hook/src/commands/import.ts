@@ -21,7 +21,7 @@ export type ImportOptions = {
   since: Date | null;
 };
 
-const IMPORT_HELP = `claude-telemetry import [options]
+const IMPORT_HELP = `aiot import [options]
 
 Import historical coding-agent sessions into the observability server. Events and
 transcripts are deduplicated server-side and deterministic client-side — safe to re-run.
@@ -36,13 +36,13 @@ Options:
   -h, --help              Show this help
 
 Configuration:
-  claude-telemetry config set ingest-url <url>
+  aiot config set ingest-url <url>
   INGEST_BASE_URL overrides the persisted ingest URL.
 
 Source overrides:
   CLAUDE_PROJECTS_DIR, CODEX_HOME, OPENCODE_DATA, PI_HOME, OMP_HOME
 
-Requires \`claude-telemetry login\` first (except --dry-run).`;
+Requires \`aiot login\` first (except --dry-run).`;
 
 function parseImportArgs(args: string[]): ImportOptions | 'help' | 'error' {
   if (args.includes('-h') || args.includes('--help')) {
@@ -127,7 +127,7 @@ export async function runImport(args: string[]): Promise<number> {
   }
   const jwt = opts.dryRun ? null : loadHookToken();
   if (!jwt && !opts.dryRun) {
-    process.stderr.write('Not authenticated. Run `claude-telemetry login` first.\n');
+    process.stderr.write('Not authenticated. Run `aiot login` first.\n');
     return 1;
   }
 

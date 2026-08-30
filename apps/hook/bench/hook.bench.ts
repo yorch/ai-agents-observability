@@ -13,7 +13,7 @@
  *   PERF_NO_WRITE=1 bun run bench                   # skip writing results file
  *
  * Env vars:
- *   PERF_BINARY          Path to compiled binary (default: dist/claude-telemetry)
+ *   PERF_BINARY          Path to compiled binary (default: dist/aiot)
  *   PERF_WARM_ITERATIONS Warm iterations per kind (default: 1000)
  *   PERF_COLD_ITERATIONS Cold iterations per kind (default: 100)
  *   PERF_COLD_ONLY       Skip warm-start benchmark
@@ -409,13 +409,13 @@ function buildMarkdown(
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<number> {
-  const tmpHome = mkdtempSync(join(tmpdir(), 'claude-telemetry-bench-'));
-  process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
+  const tmpHome = mkdtempSync(join(tmpdir(), 'aiot-bench-'));
+  process.env.AIOT_HOME = tmpHome;
   writeBenchTranscript(TRANSCRIPT_PATH, TRANSCRIPT_TURNS);
 
   const benchDir = dirname(fileURLToPath(import.meta.url));
   const hookDir = resolve(benchDir, '..');
-  const defaultBinary = join(hookDir, 'dist', 'claude-telemetry');
+  const defaultBinary = join(hookDir, 'dist', 'aiot');
   const binaryPath = process.env.PERF_BINARY ?? defaultBinary;
   const hasBinary = existsSync(binaryPath);
 
@@ -467,11 +467,11 @@ async function main(): Promise<number> {
 
   if (hasBinary) {
     // Pass the full environment so the spawned binary behaves like a real hook,
-    // but override CLAUDE_TELEMETRY_HOME to the temp dir.
+    // but override AIOT_HOME to the temp dir.
     const coldEnv: Record<string, string> = Object.fromEntries(
       Object.entries(process.env).filter((e): e is [string, string] => e[1] !== undefined),
     );
-    coldEnv.CLAUDE_TELEMETRY_HOME = tmpHome;
+    coldEnv.AIOT_HOME = tmpHome;
 
     process.stdout.write(
       `cold-start (spawn-per-invocation)  binary=${binaryPath}  budget p99 < ${COLD_P99_LIMIT_MS}ms\n`,

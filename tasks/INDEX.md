@@ -99,7 +99,7 @@ Source of truth for task status. Update this in the same commit as the task file
 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
-| [P2-007](./P2-007-repo-config-parser.md) | .claude-telemetry.yml repo config parser | done | claude | S | — |
+| [P2-007](./P2-007-repo-config-parser.md) | .aiot.yml repo config parser | done | claude | S | — |
 
 ### Workstream E — Web UI
 

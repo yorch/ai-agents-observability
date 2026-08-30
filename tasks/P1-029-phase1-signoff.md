@@ -25,7 +25,7 @@ Run the Phase 1 exit criteria (PLAN.md §3) end-to-end on a fresh machine and do
 - [ ] **Page perf**: `/me` p50 < 500ms measured with real (not seeded) data. Method documented.
 - [ ] **Hook perf**: p99 < 10ms on dev machine, p99 < 15ms in CI. Cite the `apps/hook/bench/results/*.md` file.
 - [ ] **Redaction**: manual review of at least one real transcript confirms no secrets leaked through. Reviewer notes recorded in `docs/phase1-redaction-review.md` (transcript can be referenced by session_id; do NOT commit transcript content).
-- [ ] **Purge**: run `claude-telemetry purge-local` after a populated session; verify `~/.claude-telemetry/` is empty (modulo log file).
+- [ ] **Purge**: run `aiot purge-local` after a populated session; verify `~/.aiot/` is empty (modulo log file).
 - [ ] **Clean-clone**: on a fresh checkout, `docker compose up` produces a working stack. Document any deviation from the README in `docs/phase1-cleanclone.md`.
 - [ ] **PR / commit retrospective**: a 1-page note in `docs/phase1-retro.md` listing what worked, what didn't, what to do differently in Phase 2.
 - [ ] All P1-* tasks in `INDEX.md` marked `done`.

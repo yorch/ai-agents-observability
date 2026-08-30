@@ -1,6 +1,6 @@
 ---
 id: P2-007
-title: .claude-telemetry.yml repo config parser
+title: .aiot.yml repo config parser
 phase: 2
 workstream: C
 status: done
@@ -12,19 +12,19 @@ estimate: S
 
 ## Goal
 
-A versioned Zod schema and parser for `.claude-telemetry.yml` — the per-repo opt-in config file. Zero external dependencies beyond Zod 4.
+A versioned Zod schema and parser for `.aiot.yml` — the per-repo opt-in config file. Zero external dependencies beyond Zod 4.
 
 ## Context
 
 - `DESIGN_DOC.md` §7.4 — opt-in is per repo via this file at the repo root.
-- `PLAN.md` §1 — "Opt-in per repo via `.claude-telemetry.yml`".
+- `PLAN.md` §1 — "Opt-in per repo via `.aiot.yml`".
 - Lives in `packages/schemas` alongside the existing event and session-context schemas.
 
 ## Acceptance criteria
 
 - [ ] `RepoConfigSchema` (Zod v4) exported from `packages/schemas` that validates:
   ```yaml
-  # .claude-telemetry.yml
+  # .aiot.yml
   version: 1                   # required; must be 1 for this schema
   pr_bot:
     enabled: true              # default: false

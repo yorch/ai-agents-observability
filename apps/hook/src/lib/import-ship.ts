@@ -72,7 +72,7 @@ export async function postEventBatch(
   });
 
   if (res.status === 401) {
-    throw new AuthError('Unauthorized (401) — re-run `claude-telemetry login`');
+    throw new AuthError('Unauthorized (401) — re-run `aiot login`');
   }
   if (res.status >= 500) {
     throw new Error(`Server error ${res.status}`);

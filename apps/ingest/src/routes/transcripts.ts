@@ -82,7 +82,7 @@ async function withSessionLock<T>(sessionId: string, fn: () => Promise<T>): Prom
 
 // Scratch-file naming, shared with the sweep job (jobs/sweep-scratch.ts) so the
 // two can't drift. Exported as the single source of truth for the pattern.
-export const SCRATCH_PREFIX = 'claude-telemetry-transcript-';
+export const SCRATCH_PREFIX = 'aiot-transcript-';
 export const SCRATCH_SUFFIX = '.zst.part';
 
 // User-scoped scratch path: a malicious request can't address another user's

@@ -7,7 +7,7 @@ import {
   updateCliConfig,
 } from '../lib/config';
 
-const CONFIG_HELP = `claude-telemetry config <command> [key] [value]
+const CONFIG_HELP = `aiot config <command> [key] [value]
 
 Persist the observability server URLs used by login, import, flusher, and shipper.
 
@@ -19,7 +19,7 @@ Commands:
   -h, --help                   Show this help
 
 Environment variables override persisted values:
-  CLAUDE_TELEMETRY_API         Web application URL
+  AIOT_API         Web application URL
   INGEST_BASE_URL              Ingest service URL`;
 
 const CONFIG_KEYS = {
@@ -41,7 +41,7 @@ export function runConfig(args: string[]): number {
       const config = readCliConfig();
       process.stdout.write(`config_file=${cliConfigPath()}\n`);
       process.stdout.write(
-        `web_url=${getWebBaseUrl()} (${sourceFor('CLAUDE_TELEMETRY_API', 'web_url', config)})\n`,
+        `web_url=${getWebBaseUrl()} (${sourceFor('AIOT_API', 'web_url', config)})\n`,
       );
       process.stdout.write(
         `ingest_url=${getIngestBaseUrl()} (${sourceFor('INGEST_BASE_URL', 'ingest_url', config)})\n`,

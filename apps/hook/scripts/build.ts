@@ -13,7 +13,7 @@ const OUT_DIR = 'dist';
 await $`mkdir -p ${OUT_DIR}`;
 
 for (const target of TARGETS) {
-  const outFile = `${OUT_DIR}/claude-telemetry-${target.name}`;
+  const outFile = `${OUT_DIR}/aiot-${target.name}`;
   console.log(`Building ${target.name}...`);
   await $`bun build ${ENTRY} --compile --target ${target.bunTarget} --outfile ${outFile}`;
   const stat = await $`wc -c < ${outFile}`.text();

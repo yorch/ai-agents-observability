@@ -186,7 +186,7 @@ describe('copilot adapter', () => {
   });
 
   it('renders a versioned hooks document in cross-platform exec form', () => {
-    const bin = '/home/jorge barnaby/.local/bin/claude-telemetry';
+    const bin = '/home/jorge barnaby/.local/bin/aiot';
     const parsed = JSON.parse(copilotAdapter.installConfig().renderSnippet(bin)) as {
       disableAllHooks: boolean;
       hooks: Record<string, { command: string[]; timeoutSec: number; type: string }[]>;

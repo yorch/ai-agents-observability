@@ -8,13 +8,13 @@ import { log, logPath } from './log';
 let tmpHome: string;
 
 beforeEach(() => {
-  tmpHome = mkdtempSync(join(tmpdir(), 'claude-tel-log-test-'));
-  process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
+  tmpHome = mkdtempSync(join(tmpdir(), 'aiot-log-test-'));
+  process.env.AIOT_HOME = tmpHome;
 });
 
 afterEach(() => {
   rmSync(tmpHome, { force: true, recursive: true });
-  delete process.env.CLAUDE_TELEMETRY_HOME;
+  delete process.env.AIOT_HOME;
 });
 
 describe('log', () => {
@@ -52,7 +52,7 @@ describe('log', () => {
     // Point the home at a path whose parent is a file, so mkdir/append fail.
     const blocker = join(tmpHome, 'blocker');
     writeFileSync(blocker, 'not-a-dir');
-    process.env.CLAUDE_TELEMETRY_HOME = join(blocker, 'nested');
+    process.env.AIOT_HOME = join(blocker, 'nested');
 
     expect(() => log('error', 'boom')).not.toThrow();
   });

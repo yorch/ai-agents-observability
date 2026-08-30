@@ -23,8 +23,8 @@ See `DESIGN_DOC.md` §7 and §12.2.
 - **P2-005 PR rollup computation**
   On merge, sum session aggregates linked to the PR into a `PRRollup` row. Idempotent; recompute on any session update.
 - **P2-006 PR bot comment**
-  Opt-in via `.claude-telemetry.yml` at the merge commit's tree. Comment format per `DESIGN_DOC.md` §7.4. Use installation token; respect rate limits.
-- **P2-007 `.claude-telemetry.yml` parser**
+  Opt-in via `.aiot.yml` at the merge commit's tree. Comment format per `DESIGN_DOC.md` §7.4. Use installation token; respect rate limits.
+- **P2-007 `.aiot.yml` parser**
   Schema for the config file (opt-in flags, masking preferences). Versioned. Tested against handwritten samples.
 - **P2-008 `/me/prs` page**
   Per-user list of PRs with cost-per-PR, deltas vs previous PRs, time spent. Links to constituent sessions.

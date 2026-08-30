@@ -4,7 +4,7 @@ import { eventsFor } from '../hook-entry';
 import { claudeCodeAdapter } from './claude-code';
 import { conformanceErrors } from './conformance';
 
-const BIN = '/usr/local/bin/claude-telemetry';
+const BIN = '/usr/local/bin/aiot';
 const SESSION_ID = '3f8c2a1e-9d47-4b6a-8c25-1e7f0a9b4d63';
 
 type HookEntry = { args: string[]; command: string; type: string };
@@ -171,7 +171,7 @@ describe('claudeCodeAdapter.installConfig().renderSnippet', () => {
   });
 
   it('binary path with spaces does not contaminate args (exec form safety)', () => {
-    const spacedBin = '/home/jorge barnaby/.local/bin/claude-telemetry';
+    const spacedBin = '/home/jorge barnaby/.local/bin/aiot';
     const result = JSON.parse(claudeCodeAdapter.installConfig().renderSnippet(spacedBin)) as {
       hooks: Record<string, HookGroup[]>;
     };

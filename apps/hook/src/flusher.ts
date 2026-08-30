@@ -325,11 +325,11 @@ export async function runFlusher(): Promise<void> {
       const jwt = loadHookToken();
       if (!jwt) {
         log('warn', 'flusher.no_token', {
-          hint: 'Run `claude-telemetry login` to authenticate',
+          hint: 'Run `aiot login` to authenticate',
         });
         writeFlusherState({
           ...readFlusherState(),
-          lastError: 'No auth token — run `claude-telemetry login`',
+          lastError: 'No auth token — run `aiot login`',
         });
         await Bun.sleep(IDLE_INTERVAL_MS);
         continue;
@@ -368,7 +368,7 @@ export async function runFlusher(): Promise<void> {
           success = true;
         } else if (res.status === 401) {
           log('error', 'flusher.unauthorized', {
-            hint: 'Run `claude-telemetry login` to re-authenticate',
+            hint: 'Run `aiot login` to re-authenticate',
             status: res.status,
           });
           writeFlusherState({

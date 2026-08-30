@@ -12,7 +12,7 @@ estimate: L
 
 ## Goal
 
-Each Claude Code hook event (`session-start`, `pre-tool-use`, `post-tool-use`, `stop`, …) is consumed via stdin, mapped to an `Event` (P1-006 schema), and written to a local SQLite queue at `~/.claude-telemetry/queue.db` in under 10ms. Reliability and speed are the only goals here.
+Each Claude Code hook event (`session-start`, `pre-tool-use`, `post-tool-use`, `stop`, …) is consumed via stdin, mapped to an `Event` (P1-006 schema), and written to a local SQLite queue at `~/.aiot/queue.db` in under 10ms. Reliability and speed are the only goals here.
 
 ## Context
 
@@ -22,7 +22,7 @@ Each Claude Code hook event (`session-start`, `pre-tool-use`, `post-tool-use`, `
 
 ## Acceptance criteria
 
-- [ ] CLI subcommand for each Claude Code hook trigger: `claude-telemetry hook session-start`, `... pre-tool-use`, etc. Stdin is JSON from Claude Code.
+- [ ] CLI subcommand for each Claude Code hook trigger: `aiot hook session-start`, `... pre-tool-use`, etc. Stdin is JSON from Claude Code.
 - [ ] Each subcommand:
   1. Reads stdin (size-bound: 1 MB max).
   2. Parses Claude Code's hook payload.
@@ -30,10 +30,10 @@ Each Claude Code hook event (`session-start`, `pre-tool-use`, `post-tool-use`, `
   4. Computes `event_id` (UUID v7), `session_id`, `user_id_claim`, agent_type, event_type, plus optional fields.
   5. Inserts into SQLite `events_queue` table.
   6. Exits 0.
-- [ ] SQLite database at `~/.claude-telemetry/queue.db` (configurable via `CLAUDE_TELEMETRY_HOME`).
+- [ ] SQLite database at `~/.aiot/queue.db` (configurable via `AIOT_HOME`).
 - [ ] `events_queue` schema: `(event_id text primary key, ts text, payload_json text, attempted_at text, attempts int default 0)`.
 - [ ] WAL mode + `synchronous=NORMAL` for speed.
-- [ ] `--quiet` flag: errors go to a log file (`~/.claude-telemetry/hook.log`) not stderr, so a broken hook never breaks the user's Claude Code session.
+- [ ] `--quiet` flag: errors go to a log file (`~/.aiot/hook.log`) not stderr, so a broken hook never breaks the user's Claude Code session.
 - [ ] Hard fail-safe: if SQLite open fails (e.g., disk full), still exit 0 within 10ms. Drop the event silently (logged to file). Reliability > completeness.
 - [ ] Benchmark in P1-028 will measure the budget; this task provides a local microbench script proving <10ms p99 over 1000 runs on the developer's machine.
 - [ ] All errors caught — no uncaught throws.
@@ -64,7 +64,7 @@ Each Claude Code hook event (`session-start`, `pre-tool-use`, `post-tool-use`, `
 
 ```bash
 bun --filter '@app/hook' test
-echo '{"session_id":"...", ...}' | ./apps/hook/dist/claude-telemetry-<triple> hook pre-tool-use
-sqlite3 ~/.claude-telemetry/queue.db 'SELECT count(*) FROM events_queue;'
+echo '{"session_id":"...", ...}' | ./apps/hook/dist/aiot-<triple> hook pre-tool-use
+sqlite3 ~/.aiot/queue.db 'SELECT count(*) FROM events_queue;'
 bun --filter '@app/hook' bench  # p99 < 10ms
 ```

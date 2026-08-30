@@ -34,7 +34,7 @@ export async function runPurge(args: string[]): Promise<number> {
         `Manage server-side data at: ${privacyUrl}`,
         '',
         'Run with --yes to confirm:',
-        '  claude-telemetry purge-local --yes',
+        '  aiot purge-local --yes',
         '',
       ].join('\n'),
     );
@@ -53,7 +53,7 @@ export async function runPurge(args: string[]): Promise<number> {
       return;
     }
     // Guard recursive deletes: refuse to remove a directory that isn't clearly
-    // under telemetryHome so a misconfigured CLAUDE_TELEMETRY_HOME can't wipe
+    // under telemetryHome so a misconfigured AIOT_HOME can't wipe
     // unrelated directory trees.
     if (recursive && !path.startsWith(`${home}/`)) {
       process.stderr.write(`skipping ${path}: not within ${home}\n`);

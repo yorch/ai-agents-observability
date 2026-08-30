@@ -10,13 +10,13 @@ import { openQueue } from './queue';
 let tmpHome: string;
 
 beforeEach(() => {
-  tmpHome = mkdtempSync(join(tmpdir(), 'claude-telemetry-test-'));
-  process.env.CLAUDE_TELEMETRY_HOME = tmpHome;
+  tmpHome = mkdtempSync(join(tmpdir(), 'aiot-test-'));
+  process.env.AIOT_HOME = tmpHome;
 });
 
 afterEach(() => {
   rmSync(tmpHome, { force: true, recursive: true });
-  delete process.env.CLAUDE_TELEMETRY_HOME;
+  delete process.env.AIOT_HOME;
 });
 
 describe('queue', () => {

@@ -14,12 +14,12 @@ describe('gemini-cli adapter', () => {
 
   beforeEach(() => {
     telHome = mkdtempSync(join(tmpdir(), 'gemini-tel-'));
-    process.env.CLAUDE_TELEMETRY_HOME = telHome;
+    process.env.AIOT_HOME = telHome;
   });
 
   afterEach(() => {
     rmSync(telHome, { force: true, recursive: true });
-    delete process.env.CLAUDE_TELEMETRY_HOME;
+    delete process.env.AIOT_HOME;
   });
 
   it('is selectable by --agent gemini-cli', () => {
@@ -234,9 +234,7 @@ describe('gemini-cli adapter', () => {
   });
 
   it('renders a settings.json hooks block keyed by Gemini event names', () => {
-    const snippet = geminiCliAdapter
-      .installConfig()
-      .renderSnippet('/usr/local/bin/claude-telemetry');
+    const snippet = geminiCliAdapter.installConfig().renderSnippet('/usr/local/bin/aiot');
     const parsed = JSON.parse(snippet) as {
       hooks: Record<string, { hooks: { command: string; type: string }[] }[]>;
     };
@@ -250,12 +248,12 @@ describe('gemini-cli adapter', () => {
   it('quotes a binary path containing spaces in the rendered command', () => {
     const snippet = geminiCliAdapter
       .installConfig()
-      .renderSnippet('/home/jorge barnaby/.local/bin/claude-telemetry');
+      .renderSnippet('/home/jorge barnaby/.local/bin/aiot');
     const parsed = JSON.parse(snippet) as {
       hooks: Record<string, { hooks: { command: string }[] }[]>;
     };
     expect(parsed.hooks.AfterTool?.[0]?.hooks[0]?.command).toContain(
-      '"/home/jorge barnaby/.local/bin/claude-telemetry"',
+      '"/home/jorge barnaby/.local/bin/aiot"',
     );
   });
 });

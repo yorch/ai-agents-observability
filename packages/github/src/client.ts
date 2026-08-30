@@ -35,7 +35,7 @@ export function createGitHubClient(options: CreateGitHubClientOptions): GitHubCl
   const ghes = isGhes(host);
 
   const version = '0.0.0';
-  const userAgent = `claude-telemetry/${version}`;
+  const userAgent = `aiot/${version}`;
 
   const plugins = ghes ? [enterpriseCompatibility] : [];
   const OctokitWithPlugins = Octokit.plugin(...plugins);

@@ -7,24 +7,24 @@
 #   1. Build the real binary:
 #        bun run build   (from apps/hook/)
 #   2. Export the path to the real binary:
-#        export REAL_BINARY="$(pwd)/dist/claude-telemetry"
-#   3. Set claude-telemetry.hookBinary in your settings.json to point to THIS
+#        export REAL_BINARY="$(pwd)/dist/aiot"
+#   3. Set aiot.hookBinary in your settings.json to point to THIS
 #      script instead of the real binary.
 #   4. Run a Claude Code session normally. Use Claude Code for a few minutes.
-#   5. When done, the timings are in /tmp/claude-hook-timings.tsv
+#   5. When done, the timings are in /tmp/aiot-hook-timings.tsv
 #   6. Run this script with --report to print the summary:
 #        bash measure-real-session.sh --report
 #
 # The settings.json snippet:
-#   "claudeTelemetry.hookBinary": "/path/to/measure-real-session.sh"
+#   "aiot.hookBinary": "/path/to/measure-real-session.sh"
 #
-# Or, if using the full claude-telemetry install path, temporarily symlink:
-#   ln -sf /path/to/measure-real-session.sh ~/.local/bin/claude-telemetry
+# Or, if using the full aiot install path, temporarily symlink:
+#   ln -sf /path/to/measure-real-session.sh ~/.local/bin/aiot
 
 set -euo pipefail
 
-TIMINGS_FILE="${CLAUDE_TELEMETRY_TIMINGS_FILE:-/tmp/claude-hook-timings.tsv}"
-REAL_BINARY="${REAL_BINARY:-$(dirname "$0")/../dist/claude-telemetry}"
+TIMINGS_FILE="${AIOT_TIMINGS_FILE:-/tmp/aiot-hook-timings.tsv}"
+REAL_BINARY="${REAL_BINARY:-$(dirname "$0")/../dist/aiot}"
 
 if [[ "${1:-}" == "--report" ]]; then
   if [[ ! -f "$TIMINGS_FILE" ]]; then

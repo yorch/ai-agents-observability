@@ -173,7 +173,7 @@ async function maybePostComment(
   const refParam = mergeCommitSha ? `?ref=${encodeURIComponent(mergeCommitSha)}` : '';
 
   const configRes = await fetch(
-    `${apiBase}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/contents/.claude-telemetry.yml${refParam}`,
+    `${apiBase}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/contents/.aiot.yml${refParam}`,
     {
       headers: {
         Accept: 'application/vnd.github.raw+json',

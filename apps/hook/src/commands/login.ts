@@ -158,7 +158,7 @@ async function runDeviceLogin(api: string): Promise<number> {
     startResult = (await res.json()) as StartResult;
   } catch (err) {
     process.stderr.write(`Cannot reach ${api}: ${(err as Error).message}\n`);
-    process.stderr.write('Run `claude-telemetry config set web-url <url>` and try again.\n');
+    process.stderr.write('Run `aiot config set web-url <url>` and try again.\n');
     return 1;
   }
 
@@ -213,7 +213,7 @@ async function runDeviceLogin(api: string): Promise<number> {
     return 0;
   }
 
-  process.stderr.write('Device code expired. Run `claude-telemetry login` to try again.\n');
+  process.stderr.write('Device code expired. Run `aiot login` to try again.\n');
   return 1;
 }
 

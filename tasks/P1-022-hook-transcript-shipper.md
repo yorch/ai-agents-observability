@@ -22,8 +22,8 @@ When a Claude Code session ends (or after a 10-min heartbeat for long-running se
 
 ## Acceptance criteria
 
-- [ ] `claude-telemetry shipper` subcommand watches for transcript files to ship:
-  - Triggered by a `stop` hook (writes a marker file `~/.claude-telemetry/ship-queue/<session_id>`).
+- [ ] `aiot shipper` subcommand watches for transcript files to ship:
+  - Triggered by a `stop` hook (writes a marker file `~/.aiot/ship-queue/<session_id>`).
   - Heartbeat every 10 min on still-active sessions (their marker contains a `partial=true` flag).
 - [ ] Pipeline per transcript:
   1. Read JSONL stream from path.
@@ -35,7 +35,7 @@ When a Claude Code session ends (or after a 10-min heartbeat for long-running se
 - [ ] Resume support: if the marker file has `bytes_uploaded`, resume from there.
 - [ ] Bandwidth ceiling: max 5 MB/s upload (configurable). Don't saturate the user's link.
 - [ ] If transcript file is missing (user deleted it), log + delete marker.
-- [ ] Same service-file pattern as flusher: launchd/systemd entries installed by `claude-telemetry install`.
+- [ ] Same service-file pattern as flusher: launchd/systemd entries installed by `aiot install`.
 - [ ] Test: 50 MB synthetic transcript ships successfully, verified end-to-end in MinIO.
 
 ## Implementation notes
@@ -48,8 +48,8 @@ When a Claude Code session ends (or after a 10-min heartbeat for long-running se
 
 - `apps/hook/src/shipper.ts`
 - `apps/hook/src/lib/transcript-stream.ts`
-- `apps/hook/install/launchd/com.claude.telemetry.shipper.plist`
-- `apps/hook/install/systemd/claude-telemetry-shipper.service`
+- `apps/hook/install/launchd/com.brnby.aiot.shipper.plist`
+- `apps/hook/install/systemd/aiot-shipper.service`
 - `apps/hook/test/shipper.test.ts`
 
 ## Out of scope

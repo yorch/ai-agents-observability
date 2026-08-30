@@ -20,7 +20,7 @@ Two honest deviations from the sketch, both because the spec's premise about
 - **`transcriptTarget(kind, raw)` instead of `transcriptPath(sessionId, cwd)`.**
   Claude Code does not compute a transcript path — it *sends* `transcript_path` in
   the Stop payload. `paths.ts` is the telemetry tool's own state dir
-  (`~/.claude-telemetry/`), which is agent-neutral and stays put. So the real seam
+  (`~/.aiot/`), which is agent-neutral and stays put. So the real seam
   is "given a terminal payload, where's the transcript" — returned from the payload.
 - **`flusher.ts` / `shipper.ts` were left untouched** — they already import only the
   neutral `paths.ts` (telemetry home) and never `payload.ts`; the transcript path

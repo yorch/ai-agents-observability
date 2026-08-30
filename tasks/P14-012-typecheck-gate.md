@@ -159,7 +159,7 @@ servers build with `bun build … --outdir dist`, `apps/web` uses `next build`,
 and `packages/db`'s build is `prisma generate`. `outDir`/`rootDir` in these
 configs are check-only. Confirmed by rebuilding with `turbo run build --force`
 and diffing the emitted layout — `apps/ingest/dist/index.js`,
-`apps/github-app/dist/index.js`, `apps/hook/dist/claude-telemetry` and
+`apps/github-app/dist/index.js`, `apps/hook/dist/aiot` and
 `apps/web/.next/standalone/` are byte-for-byte the same paths as before.
 
 ## Acceptance criteria

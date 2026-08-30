@@ -12,7 +12,7 @@ estimate: M
 
 ## Goal
 
-`apps/hook` builds to a single statically-compiled binary `claude-telemetry` for darwin-arm64, darwin-x64, linux-x64, and linux-arm64. CI produces the binaries; a release workflow can ship them.
+`apps/hook` builds to a single statically-compiled binary `aiot` for darwin-arm64, darwin-x64, linux-x64, and linux-arm64. CI produces the binaries; a release workflow can ship them.
 
 ## Context
 
@@ -23,9 +23,9 @@ estimate: M
 ## Acceptance criteria
 
 - [ ] `apps/hook/src/cli.ts` is the entrypoint (minimal placeholder — full subcommands in P1-023).
-- [ ] `apps/hook/package.json` `build` script runs `bun build --compile --target=bun-<triple> --outfile=dist/claude-telemetry-<triple>` for each target (Bun 1.3 `--target` accepts `bun-darwin-arm64`, `bun-darwin-x64`, `bun-linux-x64`, `bun-linux-x64-musl`, `bun-linux-arm64`, `bun-linux-arm64-musl`, `bun-windows-x64`).
+- [ ] `apps/hook/package.json` `build` script runs `bun build --compile --target=bun-<triple> --outfile=dist/aiot-<triple>` for each target (Bun 1.3 `--target` accepts `bun-darwin-arm64`, `bun-darwin-x64`, `bun-linux-x64`, `bun-linux-x64-musl`, `bun-linux-arm64`, `bun-linux-arm64-musl`, `bun-windows-x64`).
 - [ ] All four targets produce binaries under `apps/hook/dist/`: darwin-arm64, darwin-x64, linux-x64 (glibc), linux-arm64 (glibc). musl + windows tracked as stretch.
-- [ ] Binaries run on a clean machine (no Bun/Node) and respond to `claude-telemetry --version`.
+- [ ] Binaries run on a clean machine (no Bun/Node) and respond to `aiot --version`.
 - [ ] CI workflow `.github/workflows/build-hook.yml` matrix-builds all four; uploads artifacts.
 - [ ] Mac binary codesigning step is stubbed (env-gated): if `APPLE_SIGNING_IDENTITY` and `APPLE_TEAM_ID` env vars present, run `codesign` + notarization commands; otherwise log a warning and continue. Document in the README.
 - [ ] Binary size kept below 100MB per target (record current size in README).
@@ -55,7 +55,7 @@ estimate: M
 
 ```bash
 bun --filter '@app/hook' build
-./apps/hook/dist/claude-telemetry-darwin-arm64 --version  # or matching triple
+./apps/hook/dist/aiot-darwin-arm64 --version  # or matching triple
 # CI:
 gh workflow run build-hook.yml
 ```
