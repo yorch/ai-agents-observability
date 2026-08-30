@@ -17,7 +17,10 @@ scheduled work. Stateless per-request; all state is Postgres/Timescale + S3.
 `src/routes/` — `events.ts` (`POST /v1/events`, idempotent batch), `transcripts.ts`
 (`POST /v1/transcripts/:id`, chunked), `price-table.ts` (`GET /v1/price-table?agent=`,
 per-agent + versioned, ETag'd), `admin.ts` (`POST /admin/jobs/:name/run`).
-`/health`, `/readyz`, `/metrics` are public and do no DB work.
+`/health` and `/metrics` are public and do no DB work. `/readyz` is public but
+probes Postgres and S3 on every call — it is for internal orchestrators (Docker
+healthcheck, load balancer), not for untrusted clients, and is not exposed
+through the production Traefik allowlist.
 
 ## Redaction is not optional
 

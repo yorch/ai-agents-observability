@@ -84,8 +84,7 @@ function startMockServer(options: {
   eventsStatus?: number;
   transcriptStatus?: number;
   eventsResponse?: object;
-  readyzStatus?: number;
-  readyzChecks?: { postgres?: string; s3?: string };
+  healthStatus?: number;
 }): {
   port: number;
   received: ReceivedRequest[];
@@ -95,8 +94,7 @@ function startMockServer(options: {
     eventsStatus = 202,
     transcriptStatus = 201,
     eventsResponse,
-    readyzStatus = 200,
-    readyzChecks = { postgres: 'ok', s3: 'ok' },
+    healthStatus = 200,
   } = options;
   const received: ReceivedRequest[] = [];
 
@@ -120,11 +118,10 @@ function startMockServer(options: {
 
       received.push({ body, headers, method: req.method, url: pathname });
 
-      if (req.method === 'GET' && pathname === '/readyz') {
-        const ok = readyzStatus < 300;
-        return new Response(JSON.stringify({ checks: readyzChecks, ok }), {
+      if (req.method === 'GET' && pathname === '/health') {
+        return new Response(JSON.stringify({ ok: healthStatus < 300 }), {
           headers: { 'Content-Type': 'application/json' },
-          status: readyzStatus,
+          status: healthStatus,
         });
       }
       if (req.method === 'POST' && pathname === '/v1/events') {
@@ -429,15 +426,14 @@ describe('runImport — pre-flight server check', () => {
     }
   });
 
-  it('returns 1 when server /readyz returns 503', async () => {
+  it('returns 1 when server /health returns 503', async () => {
     const sessionId = 'session-preflight-002';
     makeSessionFile(tmpProjects, sessionId, [userEntry(sessionId, 'uuid-001')]);
 
     writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'test-token' }), 'utf8');
 
     const { port, received, server } = startMockServer({
-      readyzChecks: { postgres: 'error', s3: 'ok' },
-      readyzStatus: 503,
+      healthStatus: 503,
     });
     process.env.INGEST_BASE_URL = `http://localhost:${port}`;
 
@@ -453,7 +449,6 @@ describe('runImport — pre-flight server check', () => {
       expect(code).toBe(1);
       const stderr = stderrChunks.join('');
       expect(stderr).toMatch(/server not ready/i);
-      expect(stderr).toMatch(/postgres/);
       // No events should have been POSTed
       expect(received.filter((r) => r.url === '/v1/events').length).toBe(0);
     } finally {
