@@ -6,6 +6,16 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.1.0 (2026-08-30)
+
+### Features
+
+- security: security headers, S3 SSE support, expanded redaction rules (#207)
+
+### Performance / Refactors
+
+- docker: slim ingest/github-app images and multi-stage migrations runner (#208)
+
 ## v2.0.1 (2026-08-30)
 
 ### Bug Fixes
