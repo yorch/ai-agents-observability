@@ -58,7 +58,11 @@ elif [[ -n "${PKG_VERSION}" && "${PKG_VERSION}" != "0.0.0" && -n "${LAST_TAG}" &
   # "chore: release v{CURRENT}" squash-merge commit on main and start
   # the range from there, excluding commits already in the previous
   # release's changelog.
-  RELEASE_COMMIT=$(git log --grep="chore: release v${CURRENT}" --format='%H' --no-merges --max-count=1 2>/dev/null || echo "")
+  # Use --format='%H %s' and grep on the subject only. git log --grep
+  # searches the full commit message (subject + body), so a PR body that
+  # mentions "chore: release v..." in an explanation would match the wrong
+  # commit (e.g. #214's body explains the v2.1.0 bug and contains that string).
+  RELEASE_COMMIT=$(git log --format='%H %s' --no-merges | grep "chore: release v${CURRENT}" | head -1 | cut -d' ' -f1)
   if [[ -n "${RELEASE_COMMIT}" ]]; then
     RANGE="${RELEASE_COMMIT}..HEAD"
     START_COMMIT="${RELEASE_COMMIT}"
