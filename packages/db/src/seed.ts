@@ -2861,6 +2861,23 @@ async function seedAlertRuntime(adminUserId: string): Promise<void> {
       ruleType: 'unknown_model_surge',
       severity: 'warn',
     },
+    {
+      acknowledged: false,
+      details: {
+        classes: [
+          { class: 'github-token', sessionsWithClass: 5 },
+          { class: 'aws-access-key', sessionsWithClass: 3 },
+          { class: 'private-key', sessionsWithClass: 2 },
+        ],
+        count: 8,
+        threshold: 5,
+        windowDays: 7,
+      },
+      firedAt: new Date(now - 6 * 3_600_000),
+      resolved: false,
+      ruleType: 'secret_exposure',
+      severity: 'warn',
+    },
   ];
   for (const f of firings) {
     const ruleId = ruleByType.get(f.ruleType);
@@ -3296,7 +3313,7 @@ async function finalizeTelemetry() {
     FROM (
       SELECT session_id, ARRAY(
         SELECT c FROM unnest(
-          ARRAY['aws_key','github_pat','jwt','slack_token','generic_secret','private_key']
+          ARRAY['aws-access-key','github-token','jwt','slack-token','env-secret','private-key']
         ) AS c
         ORDER BY random() LIMIT (1 + floor(random() * 2)::int)
       ) AS flags

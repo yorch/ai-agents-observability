@@ -13,7 +13,8 @@ export type AlertRuleType =
   | 'autonomy_surge'
   | 'budget_threshold'
   | 'routing_waste'
-  | 'disallowed_model';
+  | 'disallowed_model'
+  | 'secret_exposure';
 
 export type AlertSeverity = 'warn' | 'critical';
 
@@ -100,3 +101,15 @@ export const AUTONOMY_SURGE_WINDOW_DAYS = 7;
 export const AUTONOMY_SURGE_MIN_SESSIONS = 20;
 export const AUTONOMY_SURGE_WARN = 0.5;
 export const AUTONOMY_SURGE_CRITICAL = 0.75;
+
+// Secret exposure: count of sessions with redaction_flags in the recent window.
+// Fires when the count exceeds the threshold (overridable per-rule via
+// params.threshold). Like unknown_model_surge, this is a count-based rule —
+// a sudden spike in sessions shipping secrets is a security signal worth
+// alerting on even without a configured budget.
+export const SECRET_EXPOSURE_WINDOW_DAYS = 7;
+export const SECRET_EXPOSURE_DEFAULT_THRESHOLD = 5;
+// Cap on per-class entries included in the alert details (the same reasoning as
+// UNKNOWN_MODEL_NAMES_IN_ALERT — a bounded list an operator can act on, not the
+// full distribution).
+export const SECRET_EXPOSURE_CLASSES_IN_ALERT = 5;

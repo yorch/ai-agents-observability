@@ -1,4 +1,5 @@
 import { AuditAction } from '@ai-agents-observability/db';
+import { agentDisplayName } from '@ai-agents-observability/schemas';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Badge, type BadgeTone, Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
 import { fmtBytes, fmtDayShort } from '@/lib/fmt';
@@ -9,6 +10,7 @@ import {
   getCategoryExposure,
   getEgressServers,
   getLargeOutputEvents,
+  getRecentSecretExposures,
   getRedactionExposure,
   getRepoExposure,
 } from '@/lib/security-queries';
@@ -46,10 +48,13 @@ const RISK_TONE: Record<string, BadgeTone> = {
 const REDACTION_CLASS_LABELS: Record<string, string> = {
   'aws-access-key': 'AWS access key',
   'aws-secret-key': 'AWS secret key',
+  'connection-string': 'Connection string',
   email: 'Email address',
   'env-secret': 'Generic secret / .env',
+  'generic-api-key': 'Generic API key',
   'git-remote-url': 'URL credentials',
   'github-token': 'GitHub token',
+  'high-entropy-secret': 'High-entropy secret',
   jwt: 'JWT',
   'private-key': 'Private key',
   'slack-token': 'Slack token',
@@ -73,6 +78,7 @@ export default async function OrgSecurityPage({
     egress,
     largeOutputs,
     redaction,
+    recentExposures,
     transcriptViews,
     sessionViews,
     exports,
@@ -82,6 +88,7 @@ export default async function OrgSecurityPage({
     getEgressServers(since),
     getLargeOutputEvents(since),
     getRedactionExposure(since),
+    getRecentSecretExposures(since),
     db.auditLog.count({ where: { action: AuditAction.VIEW_TRANSCRIPT, ts: { gte: since } } }),
     db.auditLog.count({ where: { action: AuditAction.VIEW_SESSION, ts: { gte: since } } }),
     db.auditLog.count({
@@ -101,7 +108,7 @@ export default async function OrgSecurityPage({
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Org"
-        description={`AI-agent data-flow & access posture · trailing ${range} days · aggregate, no individual content`}
+        description={`AI-agent data-flow & access posture · trailing ${range} days · visibility-scoped, no individual content`}
         range={range}
         title="Security"
       />
@@ -239,6 +246,37 @@ export default async function OrgSecurityPage({
                 </Cell>
                 <Cell num className="text-crit">
                   {c.sessionCount.toLocaleString()}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
+        )}
+      </Card>
+
+      {/* Recent secret exposures */}
+      <Card
+        title="Recent secret exposures"
+        caption="Sessions whose shipped transcript matched a redaction class — where a secret-exposure review starts. Classes only; no secret values are stored."
+        contentClassName="space-y-3"
+      >
+        {recentExposures.length === 0 ? (
+          <CardEmpty>No sessions with redaction flags in this period.</CardEmpty>
+        ) : (
+          <Table
+            columns={[
+              { label: 'When' },
+              { label: 'Agent' },
+              { label: 'Repo' },
+              { label: 'Classes' },
+            ]}
+          >
+            {recentExposures.map((r) => (
+              <Row key={r.sessionId}>
+                <Cell className="text-xs text-text-2">{fmtDayShort(r.startedAt)}</Cell>
+                <Cell className="text-xs text-text">{agentDisplayName(r.agentType)}</Cell>
+                <Cell className="text-xs text-text-2">{r.repoName ?? '—'}</Cell>
+                <Cell className="text-xs text-text-2">
+                  {r.redactionClasses.map((c) => REDACTION_CLASS_LABELS[c] ?? c).join(', ')}
                 </Cell>
               </Row>
             ))}
