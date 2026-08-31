@@ -191,7 +191,7 @@ recorded in `job_runs`. Registered: `sync-teams`, `sync-jira`, `sweep-abandoned`
 `compute-effectiveness`, `compute-effectiveness-backfill`,
 `compute-trajectory-scores`, `compute-subject-scores`, `link-turn-events`,
 `compute-cost-attribution`,
-`evaluate-alerts`,
+`evaluate-alerts`, `refresh-caggs`,
 `backfill-redaction`, `reconcile-cost`, `reprice-events` / `reprice-events-apply`,
 `judge-sessions`, plus the two operator-triggered rescore entries
 `rescore-effectiveness` and `rescore-trajectory`. (`alert-transition`, `anthropic-billing-source` and
@@ -225,6 +225,23 @@ deliberately absent from `CONFIGURABLE_JOBS`.
 can't get the lock, and records the `job_runs` row. The stack is single-instance
 today; the locking is what keeps that from being an assumption.
 
+**`refresh-caggs` is the only job that exists because a migration cannot do the
+work.** The three continuous aggregates' policies carry
+`start_offset => INTERVAL '32 days'`, so nothing older than that is ever
+materialized by the background refresh — which is exactly where an import lands,
+since `apps/hook`'s import preserves original transcript timestamps.
+`materialized_only = false` does not save it: real-time aggregation unions live
+rows only *after* the watermark, never before. The obvious fix, a numbered SQL
+migration, is impossible: `refresh_continuous_aggregate` does its own
+transaction control and `packages/db/src/sql-migrate.ts` wraps every migration
+file in `$transaction`. For the same reason this job takes a db type **without**
+`$transaction`. It refreshes all of history unconditionally rather than
+detecting a gap — a clean pass is invalidation-log-driven and costs ~85ms
+against ~900k events, and a `min(day)` gap check would miss a re-import that
+dirties buckets already inside the materialized range.
+[`docs/runbooks/cagg-backfill.md`](../../docs/runbooks/cagg-backfill.md) is the
+operator-facing version.
+
 `embed-transcripts` is a gated prototype and is **not scheduled** (P7-007 no-go).
 Leave it that way unless the semantic-search decision is revisited.
 
@@ -232,7 +249,7 @@ Leave it that way unless the semantic-search decision is revisited.
 an editable hour+minute cadence in `job_config` (`sweep-retention`,
 `index-transcripts`, `compute-effectiveness`, `compute-trajectory-scores`,
 `compute-subject-scores`, `link-turn-events`, `compute-cost-attribution`,
-`evaluate-alerts`,
+`evaluate-alerts`, `refresh-caggs`,
 `judge-sessions`); the scheduler DB-polls
 those every 60s. `ALL_KNOWN_JOBS` adds the fixed-timer and operator-drain jobs that
 `POST /admin/jobs/:name/run` accepts (`sync-teams`, `sync-jira`, `sweep-abandoned`,
