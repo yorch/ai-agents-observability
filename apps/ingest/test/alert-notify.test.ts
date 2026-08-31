@@ -88,6 +88,42 @@ describe('buildAlertPayload (trust guardrail — aggregate only)', () => {
     expect(serialized).not.toContain('login');
     expect(serialized).not.toContain('leak');
   });
+
+  it('names the redaction classes in a secret_exposure description', () => {
+    const p = buildAlertPayload(
+      { name: 'Secret exposure surge', ruleType: 'secret_exposure' },
+      {
+        details: {
+          classes: [
+            { class: 'github-token', sessionsWithClass: 5 },
+            { class: 'aws-access-key', sessionsWithClass: 3 },
+          ],
+          count: 8,
+          threshold: 5,
+          windowDays: 7,
+        },
+        firedAt: new Date('2026-06-24T12:00:00Z'),
+        severity: 'warn',
+      },
+    );
+    expect(p.description).toContain('8 sessions');
+    expect(p.description).toContain('7 days');
+    expect(p.description).toContain('github-token (5)');
+    expect(p.description).toContain('aws-access-key (3)');
+  });
+
+  it('still renders secret_exposure for a details blob written before `classes`', () => {
+    const p = buildAlertPayload(
+      { name: 'Secret exposure surge', ruleType: 'secret_exposure' },
+      {
+        details: { count: 6, threshold: 5, windowDays: 7 },
+        firedAt: new Date('2026-06-24T12:00:00Z'),
+        severity: 'warn',
+      },
+    );
+    expect(p.description).toContain('6 sessions');
+    expect(p.description).not.toContain('Classes:');
+  });
 });
 
 describe('dispatchAlert', () => {

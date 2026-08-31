@@ -19,6 +19,9 @@ import {
   ROUTING_WASTE_CRITICAL_MULTIPLE,
   ROUTING_WASTE_DEFAULT_USD,
   ROUTING_WASTE_WINDOW_DAYS,
+  SECRET_EXPOSURE_CLASSES_IN_ALERT,
+  SECRET_EXPOSURE_DEFAULT_THRESHOLD,
+  SECRET_EXPOSURE_WINDOW_DAYS,
   SPEND_SPIKE_BASELINE_DAYS,
   SPEND_SPIKE_CRITICAL_SIGMA,
   SPEND_SPIKE_WARN_SIGMA,
@@ -424,6 +427,63 @@ async function evalAutonomySurge(db: AlertsDb, params: unknown): Promise<Evaluat
   };
 }
 
+// Secret exposure surge: count of sessions whose shipped transcript matched a
+// redaction class (packages/redaction) in the recent window. A spike in sessions
+// shipping secrets is a security signal worth alerting on even without a
+// configured budget. Aggregate and visibility-scoped like the other evaluators.
+//
+// `details` carries a capped list of redaction-class + count pairs. Redaction
+// class names are categories (aws-access-key, github-token, …), not individuals,
+// so naming them keeps the aggregate-only guarantee alerts are held to — the
+// same reasoning as the model names in evalUnknownModelSurge.
+async function evalSecretExposure(db: AlertsDb, params: unknown): Promise<Evaluation> {
+  const threshold = Number(paramsObject(params).threshold ?? SECRET_EXPOSURE_DEFAULT_THRESHOLD);
+  const windowStart = new Date(Date.now() - SECRET_EXPOSURE_WINDOW_DAYS * 86_400_000);
+  const [totalRows, classRows] = await Promise.all([
+    db.$queryRaw<{ c: number }[]>(Prisma.sql`
+      SELECT COUNT(*) AS c
+      FROM interactive_sessions s
+      JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      WHERE s.started_at >= ${windowStart}
+        AND array_length(s.redaction_flags, 1) > 0
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+    `),
+    db.$queryRaw<{ c: number; flag: string }[]>(Prisma.sql`
+      SELECT flag, COUNT(DISTINCT s.session_id) AS c
+      FROM interactive_sessions s
+      JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      CROSS JOIN LATERAL unnest(s.redaction_flags) AS flag
+      WHERE s.started_at >= ${windowStart}
+        AND array_length(s.redaction_flags, 1) > 0
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+      GROUP BY flag
+      ORDER BY c DESC
+    `),
+  ]);
+  const count = Number(totalRows[0]?.c ?? 0);
+  if (count <= threshold) {
+    return null;
+  }
+  return {
+    details: {
+      // `count` is distinct sessions with any redaction flag; the per-class
+      // `sessionsWithClass` counts overlap (one session can carry several
+      // classes), so their sum can exceed `count`. That is expected — the
+      // threshold is on `count`, not on the sum.
+      classes: classRows.slice(0, SECRET_EXPOSURE_CLASSES_IN_ALERT).map((r) => ({
+        class: r.flag,
+        sessionsWithClass: Number(r.c),
+      })),
+      count,
+      threshold,
+      windowDays: SECRET_EXPOSURE_WINDOW_DAYS,
+    },
+    severity: 'warn',
+  };
+}
+
 async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
   switch (rule.ruleType) {
     case 'spend_spike':
@@ -440,6 +500,8 @@ async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
       return evalAutonomySurge(db, rule.params);
     case 'disallowed_model':
       return evalDisallowedModel(db, rule.params);
+    case 'secret_exposure':
+      return evalSecretExposure(db, rule.params);
     default:
       // Any future types: unimplemented evaluators never fire rather than throwing,
       // so one bad rule can't fail the whole sweep.

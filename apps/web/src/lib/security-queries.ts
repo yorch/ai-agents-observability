@@ -222,6 +222,58 @@ export async function getRedactionExposure(since: Date): Promise<RedactionSummar
   };
 }
 
+export type RecentSecretExposureRow = {
+  agentType: string;
+  redactionClasses: string[];
+  repoName: string | null;
+  sessionId: string;
+  startedAt: Date;
+};
+
+// Recent sessions whose shipped transcript matched a redaction class — the
+// detail rows behind the "Secret exposure by class" aggregate. Visibility-scoped
+// like the other security queries; ordered most-recent first.
+export async function getRecentSecretExposures(
+  since: Date,
+  limit = 15,
+): Promise<RecentSecretExposureRow[]> {
+  const rows = await getPrisma().$queryRaw<
+    {
+      agent_type: string;
+      redaction_classes: string[];
+      repo_name: string | null;
+      session_id: string;
+      started_at: Date;
+    }[]
+  >(Prisma.sql`
+    SELECT
+      s.session_id::text                                            AS session_id,
+      s.agent_type                                                  AS agent_type,
+      s.redaction_flags                                             AS redaction_classes,
+      s.started_at                                                  AS started_at,
+      CASE WHEN r.github_owner IS NOT NULL
+           THEN r.github_owner || '/' || r.github_name END          AS repo_name
+    FROM interactive_sessions s
+    JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+    LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+    LEFT JOIN repos r ON r.id = s.repo_id
+    WHERE s.started_at >= ${since}
+      AND array_length(s.redaction_flags, 1) > 0
+      AND COALESCE(vp.share_metadata_with_org, true) = true
+    ORDER BY s.started_at DESC
+    LIMIT ${limit}
+  `);
+  return rows.map((r) => ({
+    agentType: r.agent_type,
+    // Prisma's pg adapter usually deserializes text[] into string[], but
+    // defend against a raw Postgres array literal ("{a,b}") slipping through.
+    redactionClasses: Array.isArray(r.redaction_classes) ? r.redaction_classes : [],
+    repoName: r.repo_name,
+    sessionId: r.session_id,
+    startedAt: r.started_at,
+  }));
+}
+
 export async function getLargeOutputEvents(since: Date, limit = 20): Promise<LargeOutputRow[]> {
   const rows = await getPrisma().$queryRaw<
     {

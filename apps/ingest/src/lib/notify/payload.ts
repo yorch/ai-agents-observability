@@ -46,6 +46,23 @@ function unknownModelList(details: Record<string, unknown>): string {
   return named.length > 0 ? ` Unpriced: ${named.join(', ')}.` : '';
 }
 
+// Names the redaction classes a secret-exposure alert found, so the notification
+// says what kind of secret spiked rather than only that something did. Tolerates
+// a details blob written before `classes` existed (older alert_events rows).
+function secretExposureClassList(details: Record<string, unknown>): string {
+  const classes = details.classes;
+  if (!Array.isArray(classes) || classes.length === 0) {
+    return '';
+  }
+  const named = classes
+    .filter(
+      (c): c is { class: string; sessionsWithClass: number } =>
+        typeof c === 'object' && c !== null && typeof (c as { class?: unknown }).class === 'string',
+    )
+    .map((c) => `${c.class} (${c.sessionsWithClass})`);
+  return named.length > 0 ? ` Classes: ${named.join(', ')}.` : '';
+}
+
 // Human-readable, aggregate-only description per rule type.
 function describe(ruleType: string, details: Record<string, unknown>): string {
   switch (ruleType) {
@@ -69,6 +86,11 @@ function describe(ruleType: string, details: Record<string, unknown>): string {
       // Counts only — never the model names. `num()` reads specific numeric keys
       // by name, so a stray string in `details` cannot reach a channel.
       return `$${num(details, 'spendUsd').toFixed(2)} of spend went to models outside the approved allow-list over the last ${num(details, 'windowDays')} days (${num(details, 'eventCount')} events across ${num(details, 'sessionCount')} sessions, ${num(details, 'distinctModels')} non-approved models) — above the $${num(details, 'thresholdUsd').toFixed(2)} threshold.`;
+    case 'secret_exposure':
+      // Redaction class names are categories (aws-access-key, github-token, …),
+      // not individuals, so naming them keeps the aggregate-only guarantee —
+      // the same reasoning as the model names in unknown_model_surge.
+      return `${num(details, 'count')} sessions shipped transcripts containing secrets in the last ${num(details, 'windowDays')} days — above the ${num(details, 'threshold')} threshold.${secretExposureClassList(details)}`;
     default:
       return 'An alert rule fired.';
   }
