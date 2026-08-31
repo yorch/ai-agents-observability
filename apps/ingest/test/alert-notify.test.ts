@@ -124,6 +124,52 @@ describe('buildAlertPayload (trust guardrail — aggregate only)', () => {
     expect(p.description).toContain('6 sessions');
     expect(p.description).not.toContain('Classes:');
   });
+
+  it('names the teams in a team_spend_spike description', () => {
+    const p = buildAlertPayload(
+      { name: 'Team spend spike', ruleType: 'team_spend_spike' },
+      {
+        details: {
+          teams: [
+            { avgCost: 45.2, currentCost: 88.5, sigma: 2.9, stddev: 15.0, teamSlug: 'platform' },
+            { avgCost: 32.1, currentCost: 65.5, sigma: 2.7, stddev: 12.4, teamSlug: 'frontend' },
+          ],
+          windowDays: 7,
+        },
+        firedAt: new Date('2026-06-24T12:00:00Z'),
+        severity: 'warn',
+      },
+    );
+    expect(p.description).toContain('platform (2.9σ');
+    expect(p.description).toContain('frontend (2.7σ');
+    expect(p.description).toContain('7 days');
+  });
+
+  it('still renders team_spend_spike for a details blob written before `teams`', () => {
+    const p = buildAlertPayload(
+      { name: 'Team spend spike', ruleType: 'team_spend_spike' },
+      {
+        details: { windowDays: 7 },
+        firedAt: new Date('2026-06-24T12:00:00Z'),
+        severity: 'warn',
+      },
+    );
+    expect(p.description).toContain('7 days');
+    expect(p.description).not.toContain('Teams:');
+  });
+
+  it('does not throw on a partial teams entry missing numeric fields', () => {
+    const p = buildAlertPayload(
+      { name: 'Team spend spike', ruleType: 'team_spend_spike' },
+      {
+        details: { teams: [{ teamSlug: 'platform' }], windowDays: 7 },
+        firedAt: new Date('2026-06-24T12:00:00Z'),
+        severity: 'warn',
+      },
+    );
+    expect(p.description).toContain('platform (0.0σ');
+    expect(p.description).toContain('$0.00');
+  });
 });
 
 describe('dispatchAlert', () => {

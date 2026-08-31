@@ -14,7 +14,8 @@ export type AlertRuleType =
   | 'budget_threshold'
   | 'routing_waste'
   | 'disallowed_model'
-  | 'secret_exposure';
+  | 'secret_exposure'
+  | 'team_spend_spike';
 
 export type AlertSeverity = 'warn' | 'critical';
 
@@ -113,3 +114,21 @@ export const SECRET_EXPOSURE_DEFAULT_THRESHOLD = 5;
 // UNKNOWN_MODEL_NAMES_IN_ALERT — a bounded list an operator can act on, not the
 // full distribution).
 export const SECRET_EXPOSURE_CLASSES_IN_ALERT = 5;
+
+// Team spend spike (C2): per-team z-score anomaly detection on daily spend.
+// Same statistical approach as the org-wide spend_spike, but scoped to each
+// team's own baseline. A team with a small or new history has higher variance,
+// so the warn sigma is slightly above the org-wide 2σ to reduce false positives.
+// The rule fires when ANY team exceeds the warn sigma; the details carry a
+// capped list of the spiking teams with their stats (team slug, current cost,
+// avg, stddev, sigma — all aggregate, no individual identifiers).
+export const TEAM_SPEND_SPIKE_WINDOW_DAYS = 7;
+export const TEAM_SPEND_SPIKE_BASELINE_DAYS = 14;
+export const TEAM_SPEND_SPIKE_WARN_SIGMA = 2.5;
+export const TEAM_SPEND_SPIKE_CRITICAL_SIGMA = 3.5;
+// Minimum baseline days required to compute a meaningful stddev. Below this,
+// the team is too new for a z-score to be trustworthy — a 5-sample stddev is
+// too noisy. Half the baseline window is a reasonable floor.
+export const TEAM_SPEND_SPIKE_MIN_BASELINE_DAYS = 10;
+// Cap on teams listed in the alert details.
+export const TEAM_SPEND_SPIKE_TEAMS_IN_ALERT = 5;

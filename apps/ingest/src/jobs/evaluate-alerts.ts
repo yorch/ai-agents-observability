@@ -26,6 +26,12 @@ import {
   SPEND_SPIKE_CRITICAL_SIGMA,
   SPEND_SPIKE_WARN_SIGMA,
   SPEND_SPIKE_WINDOW_DAYS,
+  TEAM_SPEND_SPIKE_BASELINE_DAYS,
+  TEAM_SPEND_SPIKE_CRITICAL_SIGMA,
+  TEAM_SPEND_SPIKE_MIN_BASELINE_DAYS,
+  TEAM_SPEND_SPIKE_TEAMS_IN_ALERT,
+  TEAM_SPEND_SPIKE_WARN_SIGMA,
+  TEAM_SPEND_SPIKE_WINDOW_DAYS,
   UNKNOWN_MODEL_SURGE_DEFAULT,
   UNKNOWN_MODEL_WINDOW_HOURS,
 } from '@ai-agents-observability/schemas';
@@ -484,6 +490,121 @@ async function evalSecretExposure(db: AlertsDb, params: unknown): Promise<Evalua
   };
 }
 
+// Team spend spike (C2): per-team z-score on daily spend over a trailing
+// baseline. Same statistical approach as the org-wide evalSpendSpike, but
+// scoped to each team's own daily spend series. The rule fires when ANY team
+// exceeds the warn sigma; the details carry a capped list of spiking teams.
+//
+// Both the current window and the baseline are per-day statistics (AVG of
+// daily_cost), so the z-score compares like-for-like: a team whose average
+// daily spend in the recent window is >2.5σ above its baseline daily mean.
+// This avoids the scale mismatch of comparing a 7-day sum to a 1-day mean.
+//
+// `details` carries team slug + stats (currentCost = avg daily cost in the
+// recent window, avgCost = baseline daily mean, stddev, sigma). Team slugs are
+// GitHub-derived org identifiers, not individuals — the same category of
+// identifier as the model names in evalUnknownModelSurge, so naming them keeps
+// the aggregate-only guarantee alerts are held to.
+//
+// Known limitation: a user in multiple teams has their spend counted in each
+// team (the join goes through team_members without allocation). This is the
+// same pattern as getCostByTeam / getTeamSpendForecast — team spend is
+// overlapping, not a partition of org spend. A user with high spend can spike
+// multiple teams simultaneously, which is acceptable for an anomaly signal
+// (it surfaces the teams affected, not a budget attribution).
+async function evalTeamSpendSpike(db: AlertsDb): Promise<Evaluation> {
+  const now = Date.now();
+  const windowStart = new Date(now - TEAM_SPEND_SPIKE_WINDOW_DAYS * 86_400_000);
+  const baselineStart = new Date(
+    now - (TEAM_SPEND_SPIKE_WINDOW_DAYS + TEAM_SPEND_SPIKE_BASELINE_DAYS) * 86_400_000,
+  );
+
+  // One row per team with current-window average daily spend, baseline
+  // avg/stddev of daily spend, and the count of baseline days (to filter teams
+  // with too little history). The baseline and current windows are disjoint,
+  // like evalSpendSpike. Both `cur` and `base` are per-day statistics, so the
+  // z-score compares like-for-like (daily avg vs daily avg + daily stddev).
+  const rows = await db.$queryRaw<
+    {
+      avg_cost: number;
+      baseline_days: number;
+      current: number;
+      stddev_cost: number;
+      team_slug: string;
+    }[]
+  >(Prisma.sql`
+    WITH team_daily AS (
+      SELECT
+        t.github_slug                           AS team_slug,
+        date_trunc('day', s.started_at)         AS day,
+        SUM(s.total_cost_usd)                   AS daily_cost
+      FROM interactive_sessions s
+      JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      JOIN team_members tm ON tm.user_id = u.id AND tm.left_at IS NULL
+      JOIN teams t ON t.id = tm.team_id
+      WHERE s.started_at >= ${baselineStart}
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+      GROUP BY t.id, t.github_slug, date_trunc('day', s.started_at)
+    ),
+    cur AS (
+      SELECT team_slug, AVG(daily_cost) AS current
+      FROM team_daily
+      WHERE day >= ${windowStart}
+      GROUP BY team_slug
+    ),
+    base AS (
+      SELECT team_slug,
+             AVG(daily_cost)   AS avg_cost,
+             STDDEV(daily_cost) AS stddev_cost,
+             COUNT(*)          AS baseline_days
+      FROM team_daily
+      WHERE day >= ${baselineStart} AND day < ${windowStart}
+      GROUP BY team_slug
+    )
+    SELECT cur.team_slug, cur.current, base.avg_cost, base.stddev_cost, base.baseline_days
+    FROM cur JOIN base ON base.team_slug = cur.team_slug
+  `);
+
+  const spiking = rows
+    .filter(
+      (r) =>
+        r.baseline_days >= TEAM_SPEND_SPIKE_MIN_BASELINE_DAYS &&
+        Number(r.avg_cost) > 0 &&
+        Number(r.stddev_cost) > 0 &&
+        Number(r.current) >
+          Number(r.avg_cost) + TEAM_SPEND_SPIKE_WARN_SIGMA * Number(r.stddev_cost),
+    )
+    .map((r) => {
+      const current = Number(r.current);
+      const avg = Number(r.avg_cost);
+      const stddev = Number(r.stddev_cost);
+      const sigma = (current - avg) / stddev;
+      return {
+        avgCost: avg,
+        currentCost: current,
+        sigma,
+        stddev,
+        teamSlug: r.team_slug,
+      };
+    })
+    .sort((a, b) => b.sigma - a.sigma);
+
+  if (spiking.length === 0) {
+    return null;
+  }
+
+  const hasCritical = spiking.some((t) => t.sigma >= TEAM_SPEND_SPIKE_CRITICAL_SIGMA);
+
+  return {
+    details: {
+      teams: spiking.slice(0, TEAM_SPEND_SPIKE_TEAMS_IN_ALERT),
+      windowDays: TEAM_SPEND_SPIKE_WINDOW_DAYS,
+    },
+    severity: hasCritical ? 'critical' : 'warn',
+  };
+}
+
 async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
   switch (rule.ruleType) {
     case 'spend_spike':
@@ -502,6 +623,8 @@ async function evaluateRule(db: AlertsDb, rule: RuleRow): Promise<Evaluation> {
       return evalDisallowedModel(db, rule.params);
     case 'secret_exposure':
       return evalSecretExposure(db, rule.params);
+    case 'team_spend_spike':
+      return evalTeamSpendSpike(db);
     default:
       // Any future types: unimplemented evaluators never fire rather than throwing,
       // so one bad rule can't fail the whole sweep.

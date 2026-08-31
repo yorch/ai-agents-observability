@@ -225,7 +225,7 @@ export default async function OrgDashboardPage({
         <div className="space-y-2">
           {anomalies.map((a) => (
             <div
-              key={a.kind}
+              key={a.label}
               className={`rounded-lg border px-4 py-3 text-sm ${
                 a.severity === 'critical'
                   ? 'border-crit-line bg-crit-soft text-crit'

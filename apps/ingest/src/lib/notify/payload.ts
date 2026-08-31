@@ -56,11 +56,30 @@ function secretExposureClassList(details: Record<string, unknown>): string {
   }
   const named = classes
     .filter(
-      (c): c is { class: string; sessionsWithClass: number } =>
-        typeof c === 'object' && c !== null && typeof (c as { class?: unknown }).class === 'string',
+      (c): c is Record<string, unknown> =>
+        typeof c === 'object' && c !== null && typeof c.class === 'string',
     )
-    .map((c) => `${c.class} (${c.sessionsWithClass})`);
+    .map((c) => `${c.class} (${num(c, 'sessionsWithClass')})`);
   return named.length > 0 ? ` Classes: ${named.join(', ')}.` : '';
+}
+
+// Names the teams whose spend spiked, so the notification says which team to
+// investigate. Tolerates a details blob written before `teams` existed, and a
+// partial `teams` entry missing numeric fields (uses `num()` for safe coercion).
+function teamSpendSpikeList(details: Record<string, unknown>): string {
+  const teams = details.teams;
+  if (!Array.isArray(teams) || teams.length === 0) {
+    return '';
+  }
+  const named = teams
+    .filter(
+      (t): t is Record<string, unknown> =>
+        typeof t === 'object' && t !== null && typeof t.teamSlug === 'string',
+    )
+    .map(
+      (t) => `${t.teamSlug} (${num(t, 'sigma').toFixed(1)}σ, $${num(t, 'currentCost').toFixed(2)})`,
+    );
+  return named.length > 0 ? `Teams: ${named.join(', ')}. ` : '';
 }
 
 // Human-readable, aggregate-only description per rule type.
@@ -91,6 +110,11 @@ function describe(ruleType: string, details: Record<string, unknown>): string {
       // not individuals, so naming them keeps the aggregate-only guarantee —
       // the same reasoning as the model names in unknown_model_surge.
       return `${num(details, 'count')} sessions shipped transcripts containing secrets in the last ${num(details, 'windowDays')} days — above the ${num(details, 'threshold')} threshold.${secretExposureClassList(details)}`;
+    case 'team_spend_spike':
+      // Team slugs are GitHub-derived org identifiers, not individuals — naming
+      // them keeps the aggregate-only guarantee, like model names in
+      // unknown_model_surge. The list is capped in the evaluator.
+      return `${teamSpendSpikeList(details)}spend spiked in the last ${num(details, 'windowDays')} days across one or more teams — see /org/dashboard for per-team details.`;
     default:
       return 'An alert rule fired.';
   }
