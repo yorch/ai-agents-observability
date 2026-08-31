@@ -19,6 +19,7 @@ import { runIndexTranscripts } from './index-transcripts';
 import { type JudgeRunConfig, runJudgeSessions } from './judge-sessions';
 import { runLinkTurnEvents } from './link-turn-events';
 import { type BillingSource, NullBillingSource, runReconcileCost } from './reconcile-cost';
+import { runRefreshCaggs } from './refresh-caggs';
 import { runRepriceEvents } from './reprice-events';
 import { runDeletions } from './run-deletions';
 import { runSendReportDigest } from './send-report-digest';
@@ -84,6 +85,11 @@ const CONFIGURABLE_JOBS = [
   // cost by tool" is allowed to be is an operator's call, not a constant.
   'compute-cost-attribution',
   'evaluate-alerts',
+  // Full-history continuous-aggregate refresh. Configurable rather than
+  // fixed-timer because it is the job an operator wants to re-time (or fire by
+  // hand) right after a bulk import — see refresh-caggs.ts for why the 32-day
+  // policy cannot cover imported history on its own.
+  'refresh-caggs',
   // LLM-as-judge (P13-009). Seeded **disabled** — a fresh deployment never
   // sends a transcript to a model because a container booted.
   'judge-sessions',
@@ -159,6 +165,13 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       break;
     case 'sweep-scratch':
       await runSweepScratch(logger);
+      break;
+    // Re-materializes the three continuous aggregates over all of history. The
+    // policy on each only covers the trailing 32 days, so imported (historically
+    // timestamped) events are otherwise never materialized and never surface on
+    // any cagg-backed dashboard. Cheap when there is nothing to do.
+    case 'refresh-caggs':
+      await runRefreshCaggs(db as Parameters<typeof runRefreshCaggs>[0], logger);
       break;
     case 'run-deletions':
       await runDeletions(db, s3, bucket, logger);
@@ -332,6 +345,10 @@ export function startScheduler(deps: SchedulerDeps): void {
           ('link-turn-events',           true, 6, 10),
           ('compute-cost-attribution',   true, 6, 15),
           ('evaluate-alerts',       true, 1, 0),
+          -- Early, so an overnight import is materialized before anyone reads
+          -- an aggregate-backed dashboard. Nothing else scheduled here depends
+          -- on it — the caggs are read by apps/web, not by the other jobs.
+          ('refresh-caggs',         true, 4, 0),
           -- P13-009: off by default. Enabling it is an operator decision taken
           -- in /admin/jobs, not a consequence of deploying.
           ('judge-sessions',        false, 6, 30)

@@ -58,6 +58,10 @@ Retention: 15 days (configurable in `docker-compose.infra.yml`).
 | Postgres / TimescaleDB | 5432 | `docs/runbooks/timescale-slow.md` |
 | MinIO | 9000 / 9001 | `docs/runbooks/minio-full.md` |
 
+Not every runbook maps to a service being down. `docs/runbooks/cagg-backfill.md`
+covers imported history that is present in the sessions lists but missing from
+the aggregate-backed dashboards.
+
 ---
 
 ## Escalation Path
