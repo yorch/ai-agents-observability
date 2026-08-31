@@ -6,6 +6,17 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.3.0 (2026-08-31)
+
+### Features
+
+- effectiveness: add real-time session stream for team leads (#222)
+- effectiveness: add prompt pattern mining on /org/prompts (#221)
+- effectiveness: add session comparison/diff view (#220)
+- cost: add model routing simulation on /org/models (#219)
+- cost: add per-team cost anomaly detection and alerting (#216)
+- security: add secret-exposure alerting and recent-exposures table (#215)
+
 ## v2.2.0 (2026-08-31)
 
 ### Features
