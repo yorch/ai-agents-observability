@@ -277,3 +277,91 @@ export function estimateRoutingSavings(
     targetTier,
   };
 }
+
+// ── Routing simulation (C4) ───────────────────────────────────────────────────
+//
+// A "what if we routed X% of model A's retrieval spend to model B" simulator.
+// Unlike estimateRoutingSavings (which finds the cheapest target tier), this
+// takes an explicit source + target model pair and a traffic share, and
+// computes the projected savings from the input rate ratio alone. The output
+// is a pure function of the policy + the observed spend, so it can run
+// client-side once the inputs are fetched, or server-side in a route handler.
+
+export type RoutingSimulationInput = {
+  /** The fraction of the source model's spend to reroute, 0–1. */
+  trafficShare: number;
+  /** Observed spend on the source model's retrieval work in the window (USD). */
+  sourceSpendUsd: number;
+  /** Call count behind `sourceSpendUsd` (for display, not the math). */
+  sourceCallCount: number;
+};
+
+export type RoutingSimulationResult = {
+  /** Estimated savings if `trafficShare` of source spend moved to the target. */
+  estimatedSavingUsd: number;
+  /** What the rerouted portion would cost on the target model. */
+  projectedTargetCostUsd: number;
+  /** The rerouted portion at the source model's rate (what is being moved). */
+  reroutedSourceCostUsd: number;
+  /** Savings as a fraction of the rerouted spend, 0–MAX_SAVINGS_RATIO. */
+  savingRate: number;
+  /** The source model's input rate per Mtok (for transparency). */
+  sourceInputRate: number;
+  /** The target model's input rate per Mtok (for transparency). */
+  targetInputRate: number;
+  /** The target model's tier, or null if unpriced. */
+  targetTier: ModelTier | null;
+  /** The source model's tier, or null if unpriced. */
+  sourceTier: ModelTier | null;
+};
+
+/**
+ * Simulate routing a fraction of one model's retrieval spend to a cheaper model.
+ *
+ * Returns null when either model is unpriced, the target is not cheaper, or the
+ * traffic share is out of range — the simulator shows "no savings" rather than
+ * a misleading negative number. The saving rate is clamped to MAX_SAVINGS_RATIO
+ * for the same reason estimateRoutingSavings clamps: a retrieval turn still
+ * carries irreducible cost on the target model.
+ */
+export function simulateRouting(
+  policy: ModelPolicySnapshot,
+  sourceModel: string,
+  targetModel: string,
+  input: RoutingSimulationInput,
+): RoutingSimulationResult | null {
+  const sourceRate = policy.inputRates[sourceModel];
+  const targetRate = policy.inputRates[targetModel];
+  if (!sourceRate || sourceRate <= 0 || !targetRate || targetRate <= 0) {
+    return null;
+  }
+  if (!Number.isFinite(input.trafficShare) || input.trafficShare <= 0 || input.trafficShare > 1) {
+    return null;
+  }
+  // Only cheaper targets make sense — routing to a more expensive model is not
+  // a savings simulation, and showing a negative saving would be misleading.
+  if (targetRate >= sourceRate) {
+    return null;
+  }
+  // No spend to simulate — avoid a misleading $0 result with a positive rate.
+  if (input.sourceSpendUsd <= 0) {
+    return null;
+  }
+  const clamp = (n: number) => Math.max(0, Math.min(MAX_SAVINGS_RATIO, n));
+  const savingRate = clamp(1 - targetRate / sourceRate);
+  const reroutedSourceCost = input.sourceSpendUsd * input.trafficShare;
+  // Apply the clamped saving rate to the dollar figures too, so the "Saving
+  // rate" tile and the "Est. saving" tile can never disagree.
+  const estimatedSavingUsd = reroutedSourceCost * savingRate;
+  const projectedTargetCostUsd = reroutedSourceCost - estimatedSavingUsd;
+  return {
+    estimatedSavingUsd,
+    projectedTargetCostUsd,
+    reroutedSourceCostUsd: reroutedSourceCost,
+    savingRate,
+    sourceInputRate: sourceRate,
+    sourceTier: resolveModelTier(policy, sourceModel),
+    targetInputRate: targetRate,
+    targetTier: resolveModelTier(policy, targetModel),
+  };
+}

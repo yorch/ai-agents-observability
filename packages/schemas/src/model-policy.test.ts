@@ -8,6 +8,7 @@ import {
   MAX_SAVINGS_RATIO,
   type ModelPolicySnapshot,
   resolveModelTier,
+  simulateRouting,
 } from './model-policy';
 import type { ModelPrice } from './price-table';
 
@@ -271,5 +272,196 @@ describe('estimateRoutingSavings', () => {
       tiers: { 'gemini-2.5-flash': 'economy', 'gemini-2.5-pro': 'premium' },
     };
     expect(estimateRoutingSavings(gemini, 'claude-opus-5')).toBeNull();
+  });
+});
+
+describe('simulateRouting (C4)', () => {
+  it('computes savings for a cheaper target at 50% traffic share', () => {
+    const p = snapshot();
+    // claude-opus-5 ($5/Mtok) → claude-haiku-4-5 ($1/Mtok), 50% of $100 spend.
+    const result = simulateRouting(p, 'claude-opus-5', 'claude-haiku-4-5', {
+      sourceCallCount: 200,
+      sourceSpendUsd: 100,
+      trafficShare: 0.5,
+    });
+    expect(result).not.toBeNull();
+    // Rerouted: $50. Saving rate: 1 - 1/5 = 0.8. Saving: $50 * 0.8 = $40.
+    // Target cost: $50 - $40 = $10.
+    expect(result?.reroutedSourceCostUsd).toBe(50);
+    expect(result?.estimatedSavingUsd).toBe(40);
+    expect(result?.projectedTargetCostUsd).toBe(10);
+    expect(result?.savingRate).toBeCloseTo(0.8, 5);
+  });
+
+  it('scales linearly with traffic share', () => {
+    const p = snapshot();
+    const r50 = simulateRouting(p, 'claude-opus-5', 'claude-haiku-4-5', {
+      sourceCallCount: 100,
+      sourceSpendUsd: 200,
+      trafficShare: 0.5,
+    });
+    const r25 = simulateRouting(p, 'claude-opus-5', 'claude-haiku-4-5', {
+      sourceCallCount: 100,
+      sourceSpendUsd: 200,
+      trafficShare: 0.25,
+    });
+    expect(r25?.estimatedSavingUsd).toBeCloseTo((r50?.estimatedSavingUsd ?? 0) / 2, 5);
+  });
+
+  it('returns null when the target is not cheaper', () => {
+    const p = snapshot();
+    // haiku → opus: target is more expensive.
+    expect(
+      simulateRouting(p, 'claude-haiku-4-5', 'claude-opus-5', {
+        sourceCallCount: 100,
+        sourceSpendUsd: 50,
+        trafficShare: 0.5,
+      }),
+    ).toBeNull();
+  });
+
+  it('returns null when either model is unpriced', () => {
+    const p = snapshot();
+    expect(
+      simulateRouting(p, 'nonexistent-model', 'claude-haiku-4-5', {
+        sourceCallCount: 100,
+        sourceSpendUsd: 50,
+        trafficShare: 0.5,
+      }),
+    ).toBeNull();
+    expect(
+      simulateRouting(p, 'claude-opus-5', 'nonexistent-model', {
+        sourceCallCount: 100,
+        sourceSpendUsd: 50,
+        trafficShare: 0.5,
+      }),
+    ).toBeNull();
+  });
+
+  it('returns null for traffic share out of range', () => {
+    const p = snapshot();
+    expect(
+      simulateRouting(p, 'claude-opus-5', 'claude-haiku-4-5', {
+        sourceCallCount: 100,
+        sourceSpendUsd: 50,
+        trafficShare: 0,
+      }),
+    ).toBeNull();
+    expect(
+      simulateRouting(p, 'claude-opus-5', 'claude-haiku-4-5', {
+        sourceCallCount: 100,
+        sourceSpendUsd: 50,
+        trafficShare: 1.5,
+      }),
+    ).toBeNull();
+  });
+
+  it('clamps the saving rate to MAX_SAVINGS_RATIO', () => {
+    // A target with a near-zero rate would produce a ~1.0 saving ratio; the
+    // clamp prevents claiming more than MAX_SAVINGS_RATIO.
+    const p = snapshot({
+      inputRates: { cheap: 0.01, dear: 100 },
+      tiers: { cheap: 'economy', dear: 'premium' },
+    });
+    const result = simulateRouting(p, 'dear', 'cheap', {
+      sourceCallCount: 10,
+      sourceSpendUsd: 100,
+      trafficShare: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result?.savingRate).toBeLessThanOrEqual(MAX_SAVINGS_RATIO);
+  });
+
+  it('clamps the dollar savings to match the clamped saving rate', () => {
+    // The dollar saving must equal rerouted * savingRate, not rerouted * (1 -
+    // targetRate/sourceRate), so the "Saving rate" and "Est. saving" tiles
+    // can never disagree.
+    const p = snapshot({
+      inputRates: { cheap: 0.01, dear: 100 },
+      tiers: { cheap: 'economy', dear: 'premium' },
+    });
+    const result = simulateRouting(p, 'dear', 'cheap', {
+      sourceCallCount: 10,
+      sourceSpendUsd: 100,
+      trafficShare: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result?.estimatedSavingUsd).toBeCloseTo(
+      (result?.reroutedSourceCostUsd ?? 0) * (result?.savingRate ?? 0),
+      5,
+    );
+    expect(result?.projectedTargetCostUsd).toBeCloseTo(
+      (result?.reroutedSourceCostUsd ?? 0) - (result?.estimatedSavingUsd ?? 0),
+      5,
+    );
+  });
+
+  it('returns null for zero source spend', () => {
+    const p = snapshot();
+    expect(
+      simulateRouting(p, 'claude-opus-5', 'claude-haiku-4-5', {
+        sourceCallCount: 100,
+        sourceSpendUsd: 0,
+        trafficShare: 0.5,
+      }),
+    ).toBeNull();
+  });
+
+  it('returns null for NaN traffic share', () => {
+    const p = snapshot();
+    expect(
+      simulateRouting(p, 'claude-opus-5', 'claude-haiku-4-5', {
+        sourceCallCount: 100,
+        sourceSpendUsd: 50,
+        trafficShare: Number.NaN,
+      }),
+    ).toBeNull();
+  });
+
+  it('returns null for Infinity traffic share', () => {
+    const p = snapshot();
+    expect(
+      simulateRouting(p, 'claude-opus-5', 'claude-haiku-4-5', {
+        sourceCallCount: 100,
+        sourceSpendUsd: 50,
+        trafficShare: Number.POSITIVE_INFINITY,
+      }),
+    ).toBeNull();
+  });
+
+  it('accepts traffic share = 1 (boundary)', () => {
+    const p = snapshot();
+    const result = simulateRouting(p, 'claude-opus-5', 'claude-haiku-4-5', {
+      sourceCallCount: 100,
+      sourceSpendUsd: 100,
+      trafficShare: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result?.reroutedSourceCostUsd).toBe(100);
+  });
+
+  it('returns null for equal source and target rates', () => {
+    const p = snapshot({
+      inputRates: { a: 5, b: 5 },
+      tiers: { a: 'premium', b: 'standard' },
+    });
+    expect(
+      simulateRouting(p, 'a', 'b', {
+        sourceCallCount: 100,
+        sourceSpendUsd: 50,
+        trafficShare: 0.5,
+      }),
+    ).toBeNull();
+  });
+
+  it('resolves tiers for both source and target', () => {
+    const p = snapshot();
+    const result = simulateRouting(p, 'claude-opus-5', 'claude-haiku-4-5', {
+      sourceCallCount: 100,
+      sourceSpendUsd: 50,
+      trafficShare: 0.5,
+    });
+    expect(result?.sourceTier).not.toBeNull();
+    expect(result?.targetTier).not.toBeNull();
   });
 });

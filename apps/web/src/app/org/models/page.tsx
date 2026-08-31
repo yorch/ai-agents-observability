@@ -9,6 +9,7 @@ import { ProjectionRealization } from '@/components/team-org/ProjectionRealizati
 import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import type { RegisteredRoutingClaim } from '@/components/team-org/RoutingRecommendations';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
+import { RoutingSimulator } from '@/components/team-org/RoutingSimulator';
 import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import { fmtTokens } from '@/lib/fmt';
@@ -106,6 +107,32 @@ export default async function OrgModelsPage({
   // because both consumers need the agent list it returns.
   const policies = await getModelPolicies(routing.map((r) => r.agentType));
   const routingByTeam = await getRoutingSpendByTeam(since, policies);
+
+  // C4: Build the agent → model list for the routing simulator. Source models
+  // are those with actual retrieval-category spend in the window (from the
+  // routing breakdown); target models are the same agent's full priced model
+  // set, since the simulator filters to cheaper targets.
+  const routingModelsByAgent = new Map<string, Set<string>>();
+  for (const row of routing) {
+    const policy = policies.get(row.agentType);
+    if (!policy?.cheapCategories.includes(row.toolCategory)) {
+      continue;
+    }
+    const set = routingModelsByAgent.get(row.agentType) ?? new Set<string>();
+    set.add(row.model);
+    routingModelsByAgent.set(row.agentType, set);
+  }
+  const simulatorAgents = [...policies.entries()]
+    .map(([agentType, policy]) => ({
+      agentType,
+      // Source models: those with retrieval spend in the window.
+      sourceModels: [...(routingModelsByAgent.get(agentType) ?? [])].filter(
+        (m) => (policy.inputRates[m] ?? 0) > 0,
+      ),
+      // Target models: all priced models in the agent's table.
+      targetModels: Object.keys(policy.inputRates).filter((m) => (policy.inputRates[m] ?? 0) > 0),
+    }))
+    .filter((a) => a.sourceModels.length > 0);
 
   const totalCostUsd = models.reduce((s, m) => s + m.totalCostUsd, 0);
   const totalInput = models.reduce((s, m) => s + m.inputTokens + m.cacheReadTokens, 0);
@@ -243,6 +270,9 @@ export default async function OrgModelsPage({
             unpricedModels={unpricedModels}
           />
           <CostAttributionNote coverage={coverage} />
+
+          {/* C4: Routing simulator — what if X% of model A's retrieval spend went to model B? */}
+          <RoutingSimulator agents={simulatorAgents} range={range} />
 
           {/* Did the recommendations work? (P13-006, supersedes P10-006) */}
           <ProjectionRealization
