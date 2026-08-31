@@ -122,6 +122,8 @@ export type {
   ModelPolicySnapshot,
   ModelTier,
   RankableRate,
+  RoutingSimulationInput,
+  RoutingSimulationResult,
   SavingsRange,
 } from './model-policy';
 export {
@@ -137,6 +139,7 @@ export {
   parseTierOverrides,
   resolveModelPolicySnapshot,
   resolveModelTier,
+  simulateRouting,
   TIER_INPUT_WEIGHT,
   TIER_OUTPUT_WEIGHT,
 } from './model-policy';

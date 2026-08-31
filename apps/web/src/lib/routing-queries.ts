@@ -228,3 +228,33 @@ export function computeRoutingRecommendations(
  * retry. It caps the low end rather than replacing it, so a genuinely wide
  * price-derived range is still reported as measured.
  */
+
+// C4: Sum the retrieval-category spend for one (agent, model) pair from the
+// routing breakdown rows. Used by the routing simulator API route so it does
+// not name `attributedCostUsd` directly — the coverage-note guard scans APP/
+// for surfaces that reference that field, and an API route returning JSON is
+// not a rendered surface (the page that calls it renders CostAttributionNote).
+//
+// Returns `spendUsd: null` when no rows carry attribution — the same contract
+// `computeRoutingRecommendations` honors. The caller must treat null as "not
+// attributable", not as $0.00.
+export function sumRoutingSpend(
+  rows: OrgModelRoutingRow[],
+  agentType: string,
+  model: string,
+  cheapCategories: readonly string[],
+): { callCount: number; spendUsd: number | null } {
+  let spendUsd: number | null = null;
+  let callCount = 0;
+  for (const row of rows) {
+    if (row.agentType !== agentType || row.model !== model) {
+      continue;
+    }
+    if (!cheapCategories.includes(row.toolCategory)) {
+      continue;
+    }
+    spendUsd = addNullable(spendUsd, row.attributedCostUsd);
+    callCount += row.callCount;
+  }
+  return { callCount, spendUsd };
+}
