@@ -1,4 +1,6 @@
 import { TeamSessionsTable } from '@/components/team/TeamSessionsTable';
+import { ActiveSessionStream } from '@/components/team-org/ActiveSessionStream';
+import { Card } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
 import { listTeamSessions, resolveTeamVisibility } from '@/lib/team-queries';
 
@@ -35,6 +37,15 @@ export default async function TeamSessionsPage({
           )}
         </p>
       </div>
+
+      {/* E4: Real-time active sessions stream */}
+      <Card
+        contentClassName="space-y-3"
+        title="Active sessions"
+        caption="Live view of in-progress sessions for visible team members. Updates every few seconds."
+      >
+        <ActiveSessionStream slug={slug} />
+      </Card>
 
       <TeamSessionsTable sessions={sessions} total={total} currentPage={page} slug={slug} />
     </div>
