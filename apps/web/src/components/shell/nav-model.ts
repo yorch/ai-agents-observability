@@ -123,6 +123,7 @@ export const ORG_NAV: NavGroup[] = [
       { href: '/org/governance', icon: PolicyIcon, label: 'Governance' },
       { href: '/org/security', icon: ShieldIcon, label: 'Security' },
       { href: '/org/knowledge', icon: BookIcon, label: 'Knowledge' },
+      { href: '/org/prompts', icon: SparkleIcon, label: 'Prompts' },
       { href: '/org/search', icon: SearchIcon, label: 'Search' },
     ],
     label: 'Governance',
