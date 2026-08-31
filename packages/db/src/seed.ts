@@ -2878,6 +2878,20 @@ async function seedAlertRuntime(adminUserId: string): Promise<void> {
       ruleType: 'secret_exposure',
       severity: 'warn',
     },
+    {
+      acknowledged: false,
+      details: {
+        teams: [
+          { avgCost: 45.2, currentCost: 88.5, sigma: 2.9, stddev: 15.0, teamSlug: 'platform' },
+          { avgCost: 32.1, currentCost: 65.5, sigma: 2.7, stddev: 12.4, teamSlug: 'frontend' },
+        ],
+        windowDays: 7,
+      },
+      firedAt: new Date(now - 8 * 3_600_000),
+      resolved: false,
+      ruleType: 'team_spend_spike',
+      severity: 'warn',
+    },
   ];
   for (const f of firings) {
     const ruleId = ruleByType.get(f.ruleType);

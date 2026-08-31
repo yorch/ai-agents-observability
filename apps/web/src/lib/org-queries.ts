@@ -12,6 +12,11 @@ import {
   SPEND_SPIKE_CRITICAL_SIGMA,
   SPEND_SPIKE_WARN_SIGMA,
   SPEND_SPIKE_WINDOW_DAYS,
+  TEAM_SPEND_SPIKE_BASELINE_DAYS,
+  TEAM_SPEND_SPIKE_CRITICAL_SIGMA,
+  TEAM_SPEND_SPIKE_MIN_BASELINE_DAYS,
+  TEAM_SPEND_SPIKE_WARN_SIGMA,
+  TEAM_SPEND_SPIKE_WINDOW_DAYS,
 } from '@ai-agents-observability/schemas';
 import { addNullable } from './attribution-coverage';
 import {
@@ -69,7 +74,7 @@ export type OrgToolUsage = {
 };
 
 export type AnomalyRow = {
-  kind: 'spend_spike' | 'error_spike';
+  kind: 'spend_spike' | 'error_spike' | 'team_spend_spike';
   label: string;
   message: string;
   severity: 'warn' | 'critical';
@@ -1588,6 +1593,80 @@ export async function getAnomalies(): Promise<AnomalyRow[]> {
       label: 'High tool error rate',
       message: `${((totalErrors / totalCalls) * 100).toFixed(1)}% of tool calls failed in the last ${ERROR_RATE_WINDOW_DAYS} days (${totalErrors} errors / ${totalCalls} calls).`,
       severity: totalErrors / totalCalls > ERROR_RATE_CRITICAL ? 'critical' : 'warn',
+    });
+  }
+
+  // Per-team spend spike detection (C2): same z-score approach as the org-wide
+  // check above, but scoped to each team's own daily spend baseline. Surfaced
+  // as individual anomaly rows so a team lead can see which team spiked.
+  const teamWindowStart = new Date(
+    now.getTime() - TEAM_SPEND_SPIKE_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  );
+  const teamBaselineStart = new Date(
+    now.getTime() -
+      (TEAM_SPEND_SPIKE_WINDOW_DAYS + TEAM_SPEND_SPIKE_BASELINE_DAYS) * 24 * 60 * 60 * 1000,
+  );
+  const teamRows = await prisma.$queryRaw<
+    {
+      avg_cost: number;
+      baseline_days: number;
+      current: number;
+      stddev_cost: number;
+      team_name: string;
+      team_slug: string;
+    }[]
+  >(Prisma.sql`
+    WITH team_daily AS (
+      SELECT
+        t.name                                           AS team_name,
+        t.github_slug                                    AS team_slug,
+        date_trunc('day', s.started_at)                  AS day,
+        SUM(s.total_cost_usd)                            AS daily_cost
+      FROM interactive_sessions s
+      JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
+      JOIN team_members tm ON tm.user_id = u.id AND tm.left_at IS NULL
+      JOIN teams t ON t.id = tm.team_id
+      WHERE s.started_at >= ${teamBaselineStart}
+        AND COALESCE(vp.share_metadata_with_org, true) = true
+      GROUP BY t.id, t.name, t.github_slug, date_trunc('day', s.started_at)
+    ),
+    cur AS (
+      SELECT team_slug, team_name, AVG(daily_cost) AS current
+      FROM team_daily
+      WHERE day >= ${teamWindowStart}
+      GROUP BY team_slug, team_name
+    ),
+    base AS (
+      SELECT team_slug,
+             AVG(daily_cost)   AS avg_cost,
+             STDDEV(daily_cost) AS stddev_cost,
+             COUNT(*)          AS baseline_days
+      FROM team_daily
+      WHERE day >= ${teamBaselineStart} AND day < ${teamWindowStart}
+      GROUP BY team_slug
+    )
+    SELECT cur.team_slug, cur.team_name, cur.current, base.avg_cost, base.stddev_cost, base.baseline_days
+    FROM cur JOIN base ON base.team_slug = cur.team_slug
+  `);
+  for (const r of teamRows) {
+    const avg = Number(r.avg_cost);
+    const stddev = Number(r.stddev_cost);
+    const current = Number(r.current);
+    if (
+      r.baseline_days < TEAM_SPEND_SPIKE_MIN_BASELINE_DAYS ||
+      avg <= 0 ||
+      stddev <= 0 ||
+      current <= avg + TEAM_SPEND_SPIKE_WARN_SIGMA * stddev
+    ) {
+      continue;
+    }
+    const sigma = (current - avg) / stddev;
+    anomalies.push({
+      kind: 'team_spend_spike',
+      label: `Team spend spike: ${r.team_name}`,
+      message: `Team "${r.team_name}" avg daily cost in the last ${TEAM_SPEND_SPIKE_WINDOW_DAYS} days ($${current.toFixed(2)}/day) is ${sigma.toFixed(1)}σ above its ${TEAM_SPEND_SPIKE_BASELINE_DAYS}-day baseline ($${avg.toFixed(2)}/day ± $${stddev.toFixed(2)}/day).`,
+      severity: sigma >= TEAM_SPEND_SPIKE_CRITICAL_SIGMA ? 'critical' : 'warn',
     });
   }
 
