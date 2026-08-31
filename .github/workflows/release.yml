@@ -50,7 +50,11 @@ jobs:
   # titled "chore: release vX.Y.Z". The PR is the human approval gate —
   # merging it triggers phase 2.
   prepare-release:
-    if: "${{ github.event_name == 'push' && !contains(github.event.head_commit.message, 'chore: release v') }}"
+    # Skip when the commit subject (first line of the message) is a release
+    # merge. Using startsWith on the full message checks only the subject line,
+    # since the subject is always the first line — a PR body that mentions
+    # "chore: release v" in a code block or explanation must not skip the job.
+    if: "${{ github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore: release v') }}"
     runs-on: ubuntu-latest
     outputs:
       has-release: ${{ steps.prepare.outputs.has-release }}
