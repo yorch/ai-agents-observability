@@ -6,6 +6,16 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.2.0 (2026-08-31)
+
+### Features
+
+- security: trusted proxy, hook token revocation, scratch perms, admin hardening, binary signing (#210)
+
+### Bug Fixes
+
+- redaction: widen perf test thresholds to stop CI flakes (#211)
+
 ## v2.1.0 (2026-08-30)
 
 ### Features
