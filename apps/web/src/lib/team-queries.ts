@@ -634,6 +634,62 @@ export async function listTeamSessions(
   };
 }
 
+// ── E4: Active team sessions (real-time stream) ──────────────────────────────
+
+export type ActiveTeamSessionRow = {
+  agentType: string;
+  costUsd: number;
+  lastEventAt: Date;
+  ownerDisplayName: string | null;
+  ownerLogin: string | null;
+  primaryModel: string | null;
+  repoName: string | null;
+  sessionId: string;
+  startedAt: Date;
+  toolCallCount: number;
+  userMessageCount: number;
+};
+
+/**
+ * Returns sessions with status='ACTIVE' for the given visible user IDs, ordered
+ * by most recent activity. Used by the E4 real-time session stream SSE endpoint.
+ */
+export async function listActiveTeamSessions(
+  visibleIds: string[],
+): Promise<ActiveTeamSessionRow[]> {
+  if (visibleIds.length === 0) {
+    return [];
+  }
+  const prisma = getPrisma();
+  const rows = await prisma.session.findMany({
+    include: {
+      repo: { select: { githubName: true, githubOwner: true } },
+      user: { select: { displayName: true, githubLogin: true } },
+    },
+    orderBy: { lastEventAt: 'desc' },
+    take: 50,
+    where: {
+      runKind: 'INTERACTIVE',
+      status: 'ACTIVE',
+      userId: { in: visibleIds },
+    },
+  });
+
+  return rows.map((s) => ({
+    agentType: s.agentType,
+    costUsd: Number(s.totalCostUsd),
+    lastEventAt: s.lastEventAt,
+    ownerDisplayName: s.user.displayName,
+    ownerLogin: s.user.githubLogin,
+    primaryModel: s.primaryModel,
+    repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
+    sessionId: s.sessionId,
+    startedAt: s.startedAt,
+    toolCallCount: s.toolCallCount,
+    userMessageCount: s.userMessageCount,
+  }));
+}
+
 // ── Team-scoped tool & skill queries ─────────────────────────────────────────
 // These adapt the equivalent org-queries functions to accept a pre-resolved
 // visibleIds array (from resolveTeamVisibility) instead of querying all org users.
