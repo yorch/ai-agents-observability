@@ -30,6 +30,34 @@ function repoFilter(alias: string, repo?: string) {
     : Prisma.empty;
 }
 
+/**
+ * The repos a trends scope can filter by, as the `owner/name` strings
+ * `repoFilter` matches on.
+ *
+ * The repo filter was plumbed through every trend query and carried in a hidden
+ * form input, but nothing in the app ever produced a `?repo=` link — so it was
+ * reachable only by typing one. This is the list the picker is built from.
+ * `userIds` undefined means org scope (every org-sharing user).
+ */
+export async function listTrendRepos(userIds?: string[]): Promise<string[]> {
+  if (userIds && userIds.length === 0) {
+    return [];
+  }
+  const scope = userIds
+    ? Prisma.sql`AND s.user_id IN (${Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`))})`
+    : Prisma.sql`AND COALESCE(vp.share_metadata_with_org, true) = true`;
+  const rows = await getPrisma().$queryRaw<{ full_name: string }[]>(Prisma.sql`
+    SELECT DISTINCT CONCAT(r.github_owner, '/', r.github_name) AS full_name
+    FROM interactive_sessions s
+    JOIN repos r ON r.id = s.repo_id
+    LEFT JOIN visibility_policies vp ON vp.user_id = s.user_id
+    WHERE s.repo_id IS NOT NULL ${scope}
+    ORDER BY full_name
+    LIMIT 200
+  `);
+  return rows.map((r) => r.full_name);
+}
+
 /** Aggregate interval overlap without exposing session identities to callers. */
 export function computeConcurrency(
   rows: SessionInterval[],
