@@ -47,7 +47,9 @@ export default async function LoginPage({ searchParams }: Props) {
           <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
             ai-agents-observability
           </h1>
-          <p className="text-sm text-text-2">Personal telemetry for your Claude Code sessions.</p>
+          <p className="text-sm text-text-2">
+            Personal telemetry for your AI coding agent sessions.
+          </p>
         </div>
 
         <OAuthErrorNotice errorCode={params.auth_error} requestId={params.request_id} />
