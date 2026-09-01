@@ -1,10 +1,14 @@
+import { FilterChips } from '@/components/FilterChips';
 import { TeamSessionsTable } from '@/components/team/TeamSessionsTable';
 import { ActiveSessionStream } from '@/components/team-org/ActiveSessionStream';
-import { Card } from '@/components/ui';
+import { Button, Card, Field, FilterPanel, Input, Select } from '@/components/ui';
 import { requireTeamLead } from '@/lib/roles';
 import { listTeamSessions, resolveTeamVisibility } from '@/lib/team-queries';
+import { listTrendRepos } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
+
+const SESSION_STATUSES = ['ACTIVE', 'COMPLETED', 'CRASHED', 'TIMED_OUT', 'ABANDONED'] as const;
 
 function parseDate(raw: string | undefined): Date | undefined {
   if (!raw) {
@@ -19,42 +23,78 @@ function parsePage(raw: string | undefined): number {
   return Math.max(1, Number(raw ?? '1') || 1);
 }
 
+type SearchParams = {
+  from?: string;
+  page?: string;
+  repo?: string;
+  status?: string;
+  to?: string;
+};
+
+const CHIP_LABELS: Record<string, string> = {
+  from: 'From',
+  repo: 'Repo',
+  status: 'Status',
+  to: 'To',
+};
+
 export default async function TeamSessionsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ from?: string; page?: string; repo?: string; to?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
   const [{ slug }, search] = await Promise.all([params, searchParams]);
   const { teamId, teamName } = await requireTeamLead(slug);
 
   const { visibleIds, totalCount } = await resolveTeamVisibility(teamId);
   const page = parsePage(search.page);
-  const from = parseDate(search.from);
-  const to = parseDate(search.to);
-  const { sessions, total } = await listTeamSessions(visibleIds, {
-    from,
-    page,
-    repo: search.repo,
-    to,
-  });
+  const status = SESSION_STATUSES.includes(search.status as (typeof SESSION_STATUSES)[number])
+    ? search.status
+    : undefined;
+
+  const [{ sessions, total }, repos] = await Promise.all([
+    listTeamSessions(visibleIds, {
+      from: parseDate(search.from),
+      page,
+      repo: search.repo,
+      status,
+      to: parseDate(search.to),
+    }),
+    listTrendRepos(visibleIds),
+  ]);
 
   const hiddenCount = totalCount - visibleIds.length;
-  const filtered = Boolean(from || to || search.repo);
 
-  // The pager has to carry the active filters; dropping them on page 2 has been
-  // a shipped bug in this app before.
+  // Active filters as removable chips, and a pager that carries them — dropping
+  // filters on page 2 has shipped in this app before.
+  const active: Record<string, string | undefined> = {
+    from: search.from,
+    repo: search.repo,
+    status,
+    to: search.to,
+  };
+  const basePath = `/team/${slug}/sessions`;
+  const chips = Object.entries(active)
+    .filter(([, value]) => Boolean(value))
+    .map(([key, value]) => {
+      const query = new URLSearchParams();
+      for (const [k, v] of Object.entries(active)) {
+        if (v && k !== key) {
+          query.set(k, v);
+        }
+      }
+      const qs = query.toString();
+      return { href: qs ? `?${qs}` : basePath, label: `${CHIP_LABELS[key]}: ${value}` };
+    });
+
   const hrefFor = (nextPage: number) => {
     const query = new URLSearchParams();
-    if (search.from) {
-      query.set('from', search.from);
-    }
-    if (search.to) {
-      query.set('to', search.to);
-    }
-    if (search.repo) {
-      query.set('repo', search.repo);
+    for (const [k, v] of Object.entries(active)) {
+      if (v) {
+        query.set(k, v);
+      }
     }
     query.set('page', String(nextPage));
     return `?${query.toString()}`;
@@ -76,27 +116,44 @@ export default async function TeamSessionsPage({
         </p>
       </div>
 
-      {/* An active filter has to be visible and removable — a drill-in from the
-          report lands here with a window applied, and a count that silently
-          disagrees with an unfiltered list is worse than no drill-in at all. */}
-      {filtered && (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-text-3">Filtered to</span>
-          {search.repo && (
-            <span className="rounded-md border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs text-text-2">
-              {search.repo}
-            </span>
-          )}
-          {(from || to) && (
-            <span className="rounded-md border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs text-text-2">
-              {search.from ?? '…'} → {search.to ?? '…'}
-            </span>
-          )}
-          <a href={`/team/${slug}/sessions`} className="text-accent hover:underline">
-            Clear
-          </a>
+      {/* Leads had pagination and nothing else, while /me/sessions has a full
+          facet set over the same shape of data — and the report drilled in here
+          with a window this page then ignored. */}
+      <FilterPanel label="Session filters">
+        <div className="grid gap-3 md:grid-cols-4">
+          <Field label="Repo" htmlFor="team-repo-filter">
+            <Select id="team-repo-filter" name="repo" defaultValue={search.repo ?? ''}>
+              <option value="">All repos</option>
+              {repos.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Status" htmlFor="team-status-filter">
+            <Select id="team-status-filter" name="status" defaultValue={status ?? ''}>
+              <option value="">All statuses</option>
+              {SESSION_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="From" htmlFor="team-from-filter">
+            <Input id="team-from-filter" type="date" name="from" defaultValue={search.from} />
+          </Field>
+          <Field label="To" htmlFor="team-to-filter">
+            <Input id="team-to-filter" type="date" name="to" defaultValue={search.to} />
+          </Field>
         </div>
-      )}
+        <Button type="submit" size="sm">
+          Filter
+        </Button>
+      </FilterPanel>
+
+      <FilterChips chips={chips} clearHref={basePath} />
 
       {/* E4: Real-time active sessions stream */}
       <Card

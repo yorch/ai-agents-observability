@@ -588,7 +588,13 @@ export const TEAM_PAGE_SIZE = 50;
 
 export async function listTeamSessions(
   visibleIds: string[],
-  opts: { from?: Date | undefined; page: number; repo?: string | undefined; to?: Date | undefined },
+  opts: {
+    from?: Date | undefined;
+    page: number;
+    repo?: string | undefined;
+    status?: string | undefined;
+    to?: Date | undefined;
+  },
 ): Promise<{ sessions: TeamSessionRow[]; total: number }> {
   if (visibleIds.length === 0) {
     return { sessions: [], total: 0 };
@@ -616,6 +622,9 @@ export async function listTeamSessions(
       slash > 0
         ? { githubName: opts.repo.slice(slash + 1), githubOwner: opts.repo.slice(0, slash) }
         : { githubName: opts.repo };
+  }
+  if (opts.status) {
+    where.status = opts.status as NonNullable<Prisma.SessionWhereInput['status']>;
   }
 
   const [total, rows] = await Promise.all([
