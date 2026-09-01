@@ -1,30 +1,37 @@
 import { ReportDigest } from '@/components/reports/ReportDigest';
+import { PageHeader } from '@/components/team-org/PageHeader';
 import { getTeamReport } from '@/lib/reporting-queries';
-import { parseReportRange } from '@/lib/reporting-range';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
 import { resolveTeamVisibility } from '@/lib/team-queries';
+import { daysAgo } from '@/lib/time';
 import { getTeamActivityHeatmap, getTeamConcurrency, getTeamTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 
+// One trailing window, read by the digest, the charts and the download alike.
+// See the note on /org/report for why an arbitrary from/to has no meaning for a
+// period-over-period digest, and why those belong on the trends pages instead.
 export default async function TeamReportPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ range?: string; from?: string; to?: string; tz?: string; repo?: string }>;
+  searchParams: Promise<{ range?: string }>;
 }) {
-  const [{ slug }, search] = await Promise.all([params, searchParams]);
-  const window = parseReportRange(search);
-  const days = window.days;
+  const [{ slug }, { range: rangeParam }] = await Promise.all([params, searchParams]);
+  const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
+
   const { teamId, teamName } = await requireTeamLead(slug);
   const visibility = await resolveTeamVisibility(teamId);
-  const since = window.start;
-  const options = { repo: search.repo, timezone: window.timezone, until: window.end };
+
+  const since = daysAgo(range);
+  const until = new Date();
+  const options = { timezone: 'UTC', until };
+
   const [report, trends, scatter, concurrency, heatmap] = await Promise.all([
     getTeamReport({
-      days,
+      days: range,
       teamLabel: teamName,
       totalMemberCount: visibility.totalCount,
       visibleIds: visibility.visibleIds,
@@ -32,7 +39,7 @@ export default async function TeamReportPage({
     getTeamTrends(visibility.visibleIds, since, options),
     getTeamCostDuration(visibility.visibleIds, since, options),
     getTeamConcurrency(visibility.visibleIds, since, options),
-    getTeamActivityHeatmap(visibility.visibleIds, since, window.end, window.timezone, search.repo),
+    getTeamActivityHeatmap(visibility.visibleIds, since, until, 'UTC', undefined),
   ]);
   report.analytics = {
     concurrency: concurrency.map((p) => ({ ...p, day: p.day.toISOString().slice(0, 10) })),
@@ -44,25 +51,23 @@ export default async function TeamReportPage({
       sessionCount: p.sessionCount,
     })),
   };
+
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs uppercase tracking-wider text-text-3">Team</p>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-          {teamName} report
-        </h1>
-        <p className="mt-1 text-sm text-text-2">
-          Aggregate activity only; team privacy settings are applied.
-        </p>
-      </div>
+      <PageHeader
+        breadcrumb="Team"
+        description="Aggregate activity only; team privacy settings are applied."
+        range={range}
+        title={`${teamName} report`}
+      />
       <ReportDigest
-        apiHref={`/api/team/${slug}/report?range=${days}${search.repo ? `&repo=${encodeURIComponent(search.repo)}` : ''}${search.from ? `&from=${search.from}` : ''}${search.to ? `&to=${search.to}` : ''}${search.tz ? `&tz=${encodeURIComponent(search.tz)}` : ''}`}
+        apiHref={`/api/team/${slug}/report?range=${range}`}
         report={report}
         trends={trends}
         scatter={scatter}
         concurrency={concurrency}
         heatmap={heatmap}
-        drilldownHref={`/team/${slug}/sessions?from=${window.from}&to=${window.to}${search.repo ? `&repo=${encodeURIComponent(search.repo)}` : ''}`}
+        drilldownHref={`/team/${slug}/sessions?from=${report.period.start}&to=${report.period.end}`}
         aggregateScatter
       />
     </div>

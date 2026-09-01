@@ -1,11 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { withRouteLogging } from '@/lib/api-logging';
 import { getTeamReport } from '@/lib/reporting-queries';
-import { parseReportRange } from '@/lib/reporting-range';
 import { reportDays, reportResponse } from '@/lib/reporting-route';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
 import { resolveTeamVisibility } from '@/lib/team-queries';
+import { daysAgo } from '@/lib/time';
 import { getTeamActivityHeatmap, getTeamConcurrency, getTeamTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
@@ -16,31 +16,21 @@ export const GET = withRouteLogging(
     const { slug } = await context.params;
     const { teamId, teamName } = await requireTeamLead(slug);
     const visibility = await resolveTeamVisibility(teamId);
-    const params = Object.fromEntries(req.nextUrl.searchParams.entries());
-    const window = parseReportRange(params);
+    // One window for the digest and the analytics alike — see /api/org/report.
+    const days = reportDays(req.nextUrl.searchParams.get('range'));
+    const since = daysAgo(days);
+    const until = new Date();
     const report = await getTeamReport({
-      days: reportDays(req.nextUrl.searchParams.get('range')),
+      days,
       teamLabel: teamName,
       totalMemberCount: visibility.totalCount,
       visibleIds: visibility.visibleIds,
     });
     const [trends, scatter, concurrency, heatmap] = await Promise.all([
-      getTeamTrends(visibility.visibleIds, window.start, { repo: params.repo, until: window.end }),
-      getTeamCostDuration(visibility.visibleIds, window.start, {
-        repo: params.repo,
-        until: window.end,
-      }),
-      getTeamConcurrency(visibility.visibleIds, window.start, {
-        repo: params.repo,
-        until: window.end,
-      }),
-      getTeamActivityHeatmap(
-        visibility.visibleIds,
-        window.start,
-        window.end,
-        window.timezone,
-        params.repo,
-      ),
+      getTeamTrends(visibility.visibleIds, since, { until }),
+      getTeamCostDuration(visibility.visibleIds, since, { until }),
+      getTeamConcurrency(visibility.visibleIds, since, { until }),
+      getTeamActivityHeatmap(visibility.visibleIds, since, until, 'UTC', undefined),
     ]);
     report.analytics = {
       concurrency: concurrency.map((p) => ({ ...p, day: p.day.toISOString().slice(0, 10) })),
