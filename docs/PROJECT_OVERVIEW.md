@@ -13,15 +13,17 @@
 >
 > **Currency:** reflects `main` as of the P6–P9 work (HITL observability,
 > alerting & governance, multi-agent adapters, insight surfaces), plus P11
-> (correlation & Jira), P12 (agent adapter expansion — seven agents) and P13
+> (correlation & Jira), P12 (agent adapter expansion — seven agents), P13
 > (scoring & evaluation — the versioned `scores` substrate, `run_kind`,
-> deterministic trajectory scorers, the opt-in judge), and the post-revamp UI/UX
-> review ([`docs/design/ui-ux-review-2026-08.md`](design/ui-ux-review-2026-08.md) →
+> deterministic trajectory scorers, the opt-in judge), P14 (telemetry fidelity),
+> P15 (post-release follow-ups), and P16 (v2.3.0 shipped features —
+> secret-exposure alerting, per-team cost anomaly detection, model routing
+> simulation, session comparison/diff, prompt pattern mining, real-time session
+> stream), and the post-revamp UI/UX review
+> ([`docs/design/ui-ux-review-2026-08.md`](design/ui-ux-review-2026-08.md) →
 > the `ActionResult` contract, `CardEmpty`/`EmptyState`, the `fmt.ts` monopoly,
 > `useFocusTrap`, `FilterChips`, and the nav-model-derived command palette).
-> Phase 10 (model cost optimization) is in a contradictory state — `tasks/INDEX.md`
-> marks it `done`, every `P10-*.md` file reads `ready`, and no `model_policy` table
-> exists. If you are reading this much later, re-verify against
+> If you are reading this much later, re-verify against
 > `tasks/INDEX.md` — that file, not this one, is the source of truth for status.
 
 ---
@@ -167,9 +169,14 @@ Web reads: dev sees /me + /me/insights; lead sees /team/[slug] (audit-logged);
 ## 5. Implemented capabilities
 
 The system is **built well past its original design** — per `tasks/INDEX.md`,
-Phases 1–9, 11 and 12 are code-complete and Phase 13 is in review; open items are
-operational sign-off / manual
-integration (see §8).
+Phases 1–9, 11 and 12 are code-complete, Phase 13's implemented scope is done
+(four analysis tasks blocked on real data), Phase 14 (telemetry fidelity) is done,
+Phase 15 (post-release follow-ups) is done except one unnumbered seed gap, and
+Phase 16 (v2.3.0 shipped features) is done — six product features merged as
+stacked PRs on 2026-08-31: secret-exposure alerting (S1), per-team cost anomaly
+detection (C2), model routing simulation (C4), session comparison/diff (E2),
+prompt pattern mining (E3), and real-time session stream (E4). Open items are
+operational sign-off / manual integration (see §8).
 
 ### Hook CLI (`apps/hook`)
 Adapter-based capture (seven agents; `--agent <name>` selects one). Full command surface:
@@ -217,15 +224,19 @@ GHES-capable.
   **`/me/insights`** (friction-source decomposition + **coaching
   recommendations**), PRs, **`/me/search`** (self-service transcript FTS),
   **`/me/grants`**, settings (profile / privacy / audit).
-- **Team (`/team/[slug]/*`):** overview, roster, sessions, PRs, member drill-in
-  (audit-logged), adoption, tools, **MCP**, **agents**, **skills** (+ drill-down).
+- **Team (`/team/[slug]/*`):** overview, roster, sessions (incl. **real-time
+  active-session stream** — Phase 16 E4), PRs, member drill-in (audit-logged),
+  adoption, tools, **MCP**, **agents**, **skills** (+ drill-down).
 - **Org (`/org/*`):** dashboard (cost, trends, anomalies, friction, **spend
   forecast**, **cohort friction divergence**), adoption, delivery, benchmarks,
   teams, faceted search, tools, **MCP portfolio**, **skills analytics**,
   **agents comparison**, **models** (**routing recommendations** + cache
-  opportunities), **governance** (HITL oversight, provenance), **ROI**,
-  **security** (data-flow exposure, MCP egress, secret-exposure by redaction
-  class, audit summary), **knowledge** (aggregate transcript topic clustering).
+  opportunities + **routing simulator** — Phase 16 C4), **governance** (HITL
+  oversight, provenance), **ROI**, **security** (data-flow exposure, MCP egress,
+  secret-exposure by redaction class, **recent secret exposures table** — Phase
+  16 S1, audit summary), **knowledge** (aggregate transcript topic clustering),
+  **prompts** (aggregate prompt pattern mining — Phase 16 E3),
+  **sessions/compare** (side-by-side session diff — Phase 16 E2).
 - **Admin (`/admin/*`):** jobs, org-roles, **team-roles**, **price-tables**,
   **retention**, **access-grants** (request/approve), **adapters**, **alerts**.
 - **Time-range pickers (7/30/90d)** across all org/team analytics.
@@ -236,11 +247,15 @@ GHES-capable.
   denial rate, human-response-latency to blocking prompts, a **rubber-stamp /
   over-trust detector**, `SessionFeedback` (👍/👎 ground truth), and a
   compliance-framed governance page (EU AI Act Art. 14 / NIST AI RMF / SOC 2).
-- **Alerting & governance (P9):** six scheduled alert rules — spend spike, error
-  rate, unknown-model surge, autonomy surge, budget threshold and routing waste;
-  all six are evaluated, the last two seeded disabled pending a threshold — with
-  Slack/webhook/**SMTP email** delivery + acknowledge/silence; **time-boxed
-  access grants**; per-team retention; the **`INVESTIGATOR`** research role.
+- **Alerting & governance (P9 + Phase 16):** eight org-level scheduled alert
+  rules — spend spike, error rate, unknown-model surge, autonomy surge, budget
+  threshold, routing waste, `disallowed_model` (Phase 10), and `secret_exposure`
+  (Phase 16 S1) — plus a per-team `team_spend_spike` rule (Phase 16 C2); all are
+  evaluated, five seeded disabled (`budget_threshold`, `routing_waste`,
+  `disallowed_model`, `secret_exposure`, `team_spend_spike`) with sane defaults,
+  silent until an admin enables them — with Slack/webhook/**SMTP email** delivery
+  + acknowledge/silence; **time-boxed access grants**; per-team retention; the
+  **`INVESTIGATOR`** research role.
 - **Multi-agent & cost (P8):** `<agent>:<tool>` disambiguation, per-agent price
   tables, hook adapter seam validated against two real agents, de-Claude-ified
   copy, cost-reconciliation scaffold.
