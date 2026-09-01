@@ -37,7 +37,10 @@ once per transition — no duplicate spam.
       fired_at, resolved_at nullable, severity, details JSONB).
 - [x] `rule_type` supports at least: `spend_spike`, `high_error_rate`,
       `unknown_model_surge`. Optional: `budget_threshold` (per-team or per-user
-      spending cap in params).
+      spending cap in params). *(Later phases extended the supported set: Phase 10
+      added `routing_waste`, `autonomy_surge`, and `disallowed_model`; Phase 16
+      added `secret_exposure` (S1) and `team_spend_spike` (C2). All eight rule
+      types plus `team_spend_spike` are now evaluated by the same engine.)*
 - [x] A new job `evaluate-alerts` is registered in `job_config` and wired into
       `scheduler.ts`; it acquires a pg advisory lock before running.
 - [x] The job evaluates each enabled rule against the continuous aggregates;

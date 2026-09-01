@@ -66,7 +66,7 @@ the custom layer — not folded into the Prisma migration, where the next
 regeneration would drop it. The custom layer started as one file and **grows by
 appending a new numbered file**; `0001_init.sql` is closed.
 
-Current files — **one**:
+Current files — **three**:
 
 - `0001_init.sql` — everything Prisma cannot model, in one file: the `events`
   hypertable (all columns, including `run_kind`, `notification_kind`,
@@ -82,6 +82,11 @@ Current files — **one**:
   needs `NULLS NOT DISTINCT` (P13-013) and so has no `@@unique` in
   `schema.prisma` at all; and the `interactive_sessions` / `interactive_events`
   views that carry the `run_kind` guard (P13-012).
+- `0002_secret_exposure_rule.sql` — seeds the `secret_exposure` alert rule
+  (Phase 16 S1), disabled by default. A forward-only numbered file rather than a
+  fold into `0001_init.sql`, because `0001` is closed.
+- `0003_team_spend_spike_rule.sql` — seeds the `team_spend_spike` alert rule
+  (Phase 16 C2), disabled by default. Same rationale as `0002`.
 
 **The `SELECT *` rule survives the squash, and still binds.** `interactive_events`
 is `SELECT * FROM events WHERE run_kind = 'INTERACTIVE'`, and Postgres expands the

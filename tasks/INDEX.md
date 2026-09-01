@@ -434,3 +434,30 @@ Opened after v1.0.0. Phase 14 corrected what the pipeline records and proved it 
 **One follow-up remains open, deliberately unnumbered until picked up.** `tool_action` is seeded behind a `toolName === 'Bash'` literal, while production derives it from the tool *input's* shape (`toolActionFor`, which is agent-agnostic). Codex's `shell` calls therefore get no seeded action rather than a Bash-shaped one — a narrowing in seeded richness, not an incorrectness, and worth closing only if that richness is wanted.
 
 **The standing lesson, which is the reason to keep this phase open: a correctness claim verified only by reading is a hypothesis.** Phase 14 merged seventeen tasks of fixes, each covered by tests. The first hour of actually running the system produced four further findings — the three above plus a `/org/models` empty state that reported suppressed low-confidence spend as evidence of efficient routing ([#156](https://github.com/yorch/ai-agents-observability/pull/156)) — and two of them predated Phase 14 entirely.
+
+---
+
+## Phase 16 — v2.3.0 shipped features
+
+Six product features selected from the business-value assessment, implemented and merged as stacked PRs on 2026-08-31. Each went through research → implementation → adversarial review → fixes → quality gates → PR.
+
+| ID | Title | Status | Owner | PR | Depends on |
+|---|---|---|---|---|---|
+| S1 | Secret-exposure detection & alerting | done | claude | [#215](https://github.com/yorch/ai-agents-observability/pull/215) | P9-001 |
+| C2 | Per-team cost anomaly detection & alerting | done | claude | [#216](https://github.com/yorch/ai-agents-observability/pull/216) | P9-001 |
+| C4 | Model routing simulation on /org/models | done | claude | [#219](https://github.com/yorch/ai-agents-observability/pull/219) | P10-003 |
+| E2 | Session comparison/diff view | done | claude | [#220](https://github.com/yorch/ai-agents-observability/pull/220) | P7-004 |
+| E3 | Prompt pattern mining on /org/prompts | done | claude | [#221](https://github.com/yorch/ai-agents-observability/pull/221) | P7-004 |
+| E4 | Real-time session stream for team leads | done | claude | [#222](https://github.com/yorch/ai-agents-observability/pull/222) | P3-002 |
+
+**S1** adds a `secret_exposure` alert rule (seeded in `0002_secret_exposure_rule.sql`) evaluated by the scheduled alert engine, plus a "Recent secret exposures" table on `/org/security`. The rule fires when the count of sessions whose shipped transcript matched a redaction class in the trailing 7 days exceeds the configured threshold (default 5), surfacing the redaction classes and session counts without exposing the secrets themselves.
+
+**C2** adds a `team_spend_spike` alert rule (seeded in `0003_team_spend_spike_rule.sql`) that detects per-team cost anomalies. The rule fires when any team's 7-day average daily spend exceeds 2.5σ (critical 3.5σ) above its own 14-day baseline; the thresholds are fixed in `packages/schemas/src/alerts.ts` and are not per-rule configurable. The evaluation runs inside the existing `evaluate-alerts` job alongside the org-level `spend_spike` rule.
+
+**C4** adds a routing simulator on `/org/models` (`GET /api/org/models/simulate`) that lets an operator model the cost impact of shifting tool traffic from premium to cheaper model tiers. The pure simulation logic (`simulateRouting`) lives in `packages/schemas/src/model-policy.ts` so the seed and the API agree on the arithmetic.
+
+**E2** adds a side-by-side session comparison page at `/org/sessions/compare?left=<id>&right=<id>` showing cost, duration, friction, shape, model, tool mix, and PR/CI/review outcomes. Each session is independently access-checked and audited; both forbidden and missing sessions map to `notFound()` to avoid an existence oracle.
+
+**E3** adds a prompt pattern mining page at `/org/prompts` that clusters user prompts by intent (10-intent taxonomy matched via Postgres full-text search) and shows session reach, cost, and friction per cluster. The query drives from `interactive_sessions` with `EXISTS` subqueries so cost/friction are per-session, not multiplied by matching prompt rows. Same trust model as `/org/knowledge`: aggregate, visibility-scoped, small-n suppressed, no conversation content shown.
+
+**E4** adds a real-time SSE endpoint at `/api/team/[slug]/sessions/stream` that polls the DB every 3s for `status='ACTIVE'` sessions and streams snapshots to team leads. The client component (`ActiveSessionStream`) uses `EventSource` with a circuit breaker (5 consecutive errors → close + 10s back-off) to prevent 403/500 reconnect storms. Stream start is audit-logged with `VIEW_SESSION` and `targetTeamId`.

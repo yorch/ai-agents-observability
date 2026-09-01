@@ -10,7 +10,7 @@ These were agreed during planning and are the basis for every task below. If one
 
 | Area | Choice | Rationale (short) |
 |---|---|---|
-| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 12 (agent adapter expansion, done); Phase 10 partly shipped and reconciled per task (two `in-progress`, three `ready`, one `cancelled`); Phase 13 (scoring & evaluation) done except four tasks `blocked` on the DP-1 data precondition; remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
+| Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 12 (agent adapter expansion, done); Phase 10 done (P10-001–P10-005 done, P10-006 cancelled); Phase 13 (scoring & evaluation) done except four tasks `blocked` on the DP-1 data precondition; Phase 14 (telemetry fidelity) done; Phase 15 (post-release follow-ups) done except one unnumbered seed gap; Phase 16 (v2.3.0 shipped features) done — six product features merged 2026-08-31; remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
 | Dev environment | docker-compose locally | Single `up` from a clean clone |
 | Hook binary | Bun, compiled with `bun build --compile` | Single static binary, fast cold start |
 | Object store | MinIO (local dev + homelab prod) | S3-compatible, self-hostable |
@@ -191,7 +191,7 @@ Tasks P8-001–P8-007 are `done`. opencode transcript upload was a follow-up her
 
 Turn render-time anomaly detection into a scheduled alert-evaluation job with persisted history and channel delivery (email / Slack / webhook); make privileged transcript access **time-boxed, requested, approved, and audited** (builds the §8.4 investigation path the audit actions already imply); add per-team retention overrides; and add a narrow, grant-scoped research/investigator capability for the Audience-B persona with **no standing access**. Real-time alerting was a v1 non-goal (`DESIGN_DOC.md` §2.2) now deliberately scoped for a later phase. Trust guardrails are first-class: alerts carry no individual-identifying data; every grant and view is auditable and expiring.
 
-Tasks P9-001–P9-006 are `done`. The alert engine evaluates all six rule types — spend-spike, error-rate, unknown-model surge, autonomy surge, budget threshold and routing waste. The last two are seeded disabled: each needs an operator-chosen threshold before it means anything, and `parseBudgetThresholdParams` keeps a misconfigured budget rule silent rather than firing. Slack, generic webhook, and SMTP email delivery are all live — the email channel wires up only when `SMTP_HOST` and `SMTP_FROM` are configured (`apps/ingest/src/lib/notify/email.ts`).
+Tasks P9-001–P9-006 are `done`. The alert engine evaluates eight org-level rule types — `spend_spike`, `high_error_rate`, `unknown_model_surge`, `autonomy_surge`, `budget_threshold`, `routing_waste`, `disallowed_model` (added in Phase 10), and `secret_exposure` (added in Phase 16) — plus a per-team `team_spend_spike` rule (Phase 16 C2). Five rules are seeded disabled — `budget_threshold`, `routing_waste`, `disallowed_model`, `secret_exposure`, and `team_spend_spike` — with sane defaults, silent until an admin enables them; `parseBudgetThresholdParams` keeps a misconfigured budget rule silent rather than firing. Slack, generic webhook, and SMTP email delivery are all live — the email channel wires up only when `SMTP_HOST` and `SMTP_FROM` are configured (`apps/ingest/src/lib/notify/email.ts`).
 
 **Exit**: a spend spike fires a notification within one evaluation cycle; every privileged transcript view is the owner or a time-boxed approved grant, logged and visible to the viewed user; zero standing individual access beyond org_admin.
 
@@ -225,13 +225,34 @@ Tasks P12-001–P12-012 are `done`. Along the way it fixed a silent drop of ever
 
 ### Phase 13 — Scoring & Evaluation
 
-**In progress.** Gives every computed signal provenance and a version, adds scorers that need no transcript access, captures human labels, and — once real data exists — validates the heuristics that already ship (`friction_score`, `shape_label`) against real engineering outcomes. Decomposed from [`docs/research/2026-08-12-llm-evals-assessment.md`](./docs/research/2026-08-12-llm-evals-assessment.md) after the owner scoped `DESIGN_DOC.md` §2.2's "prompt evaluation" non-goal to *model/agent benchmarking* only.
+**Implemented scope `done`; four tasks `blocked` on data.** Gives every computed signal provenance and a version, adds scorers that need no transcript access, captures human labels, and — once real data exists — validates the heuristics that already ship (`friction_score`, `shape_label`) against real engineering outcomes. Decomposed from [`docs/research/2026-08-12-llm-evals-assessment.md`](./docs/research/2026-08-12-llm-evals-assessment.md) after the owner scoped `DESIGN_DOC.md` §2.2's "prompt evaluation" non-goal to *model/agent benchmarking* only.
 
 Sequenced against the fact that no rollout has happened: build only what pays off regardless of whether one does, and prefer what gets more expensive with time. The analysis tasks are `blocked` on a stated data precondition (DP-1) and unblock themselves when a corpus arrives. See [`tasks/P13-roadmap.md`](./tasks/P13-roadmap.md).
 
 **Exit**: no number on a dashboard is asserted without provenance, a version, and — once measurable — a published relationship to a real outcome. No individual's score is visible to anyone but them.
 
 **Overlaps Phase 10.** P13-006 implements the projected-vs-realized check that P10-006 specifies, as a general mechanism — a projection registry rather than a routing-specific panel. `P10-006` is now `cancelled` as superseded, settled by owner decision on 2026-08-18 with the rest of the Phase 10 reconciliation; the criterion-by-criterion mapping is in that task file.
+
+### Phase 14 — Telemetry Fidelity
+
+**Done.** A seventeen-task correctness pass that proved each fix by reading code and running tests rather than by asserting it. Closed silent gaps in tool-category classification, live turn linkage, cost attribution, and Copilot token capture (settled negatively — the vendor does not persist the event). See [`tasks/INDEX.md`](./tasks/INDEX.md) for the standing lessons.
+
+### Phase 15 — Post-release follow-ups
+
+**Done except one deliberately unnumbered follow-up.** Opened after v1.0.0 from a seed-and-verify sweep that found three defects where the seed recomputed a value production derives. `P15-001` is `done`; the remaining `tool_action` seed narrowing is a richness gap, not an incorrectness, and is left open until that richness is wanted.
+
+### Phase 16 — v2.3.0 shipped features
+
+**Done.** Six product features selected from the business-value assessment, implemented and merged as stacked PRs on 2026-08-31. Each went through research → implementation → adversarial review → fixes → quality gates → PR.
+
+- **S1** — Secret-exposure detection & alerting ([#215](https://github.com/yorch/ai-agents-observability/pull/215)). A `secret_exposure` alert rule and a "Recent secret exposures" table on `/org/security`.
+- **C2** — Per-team cost anomaly detection & alerting ([#216](https://github.com/yorch/ai-agents-observability/pull/216)). A `team_spend_spike` alert rule for per-team cost anomalies.
+- **C4** — Model routing simulation ([#219](https://github.com/yorch/ai-agents-observability/pull/219)). A routing simulator on `/org/models` (`GET /api/org/models/simulate`).
+- **E2** — Session comparison/diff ([#220](https://github.com/yorch/ai-agents-observability/pull/220)). A side-by-side session comparison page at `/org/sessions/compare`.
+- **E3** — Prompt pattern mining ([#221](https://github.com/yorch/ai-agents-observability/pull/221)). A prompt pattern mining page at `/org/prompts`.
+- **E4** — Real-time session stream ([#222](https://github.com/yorch/ai-agents-observability/pull/222)). A real-time SSE endpoint at `/api/team/[slug]/sessions/stream` for team leads.
+
+See [`tasks/INDEX.md`](./tasks/INDEX.md) §Phase 16 for the per-feature detail.
 
 ---
 

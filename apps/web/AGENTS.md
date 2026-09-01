@@ -55,12 +55,12 @@ Read [`/PLAN.md`](../../PLAN.md) and [`/tasks/`](../../tasks/) before picking up
 - **Routing layout**:
   - `/login`, `/install`, `/health`, `/metrics` — public.
   - `/me/*` — authenticated, own-data scope. Session list + detail + transcript viewer, PR list, insights, search, access grants, and settings (profile, privacy, audit feed).
-  - `/team/[slug]/*` — authenticated, team-scoped. Roster, sessions, member drill-down (sessions + transcript), PRs, adoption, agents, tools, skills, MCP. Gated by `team_lead` role via `requireTeamAccess()`.
-  - `/org/*` — authenticated, org-scoped. Dashboard (incl. spend forecast + cohort friction), adoption funnel, benchmarks, delivery stats, agents comparison, tools breakdown, skills and MCP effectiveness, models (routing recommendations), ROI, quality, security (data-flow/secret exposure), knowledge (topic clustering), governance, teams, search, cross-user session/transcript. Gated by `org_admin` or `viewer_aggregate` roles.
+  - `/team/[slug]/*` — authenticated, team-scoped. Roster, sessions (incl. real-time active-session stream via `ActiveSessionStream`), member drill-down (sessions + transcript), PRs, adoption, agents, tools, skills, MCP. Gated by `team_lead` role via `requireTeamAccess()`.
+  - `/org/*` — authenticated, org-scoped. Dashboard (incl. spend forecast + cohort friction), adoption funnel, benchmarks, delivery stats, agents comparison, tools breakdown, skills and MCP effectiveness, models (routing recommendations + routing simulator), ROI, quality, security (data-flow/secret exposure + recent secret exposures), knowledge (topic clustering), prompts (prompt pattern mining), governance, teams, search, cross-user session/transcript, sessions/compare (side-by-side session diff). Gated by `org_admin` or `viewer_aggregate` roles.
   - `/admin/*` — authenticated, `org_admin` only. Alerts, access grants, adapters, jobs, org roles, team roles, price tables, retention.
   - `/api/auth/*` — OAuth + session endpoints; device-code flow for the hook binary.
   - `/api/me/*` — transcript proxy, data export, self-deletion.
-  - `/api/org/*` and `/api/team/[slug]/*` — cross-user transcript endpoints (audit-logged).
+  - `/api/org/*` and `/api/team/[slug]/*` — cross-user transcript endpoints (audit-logged). Includes `GET /api/org/models/simulate` (routing simulation, Phase 16 C4) and `GET /api/team/[slug]/sessions/stream` (real-time SSE for active sessions, Phase 16 E4).
 
 ## The `run_kind` guard lives in the data layer, not at call sites
 
