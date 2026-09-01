@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Cell, EmptyState, Row, Table } from '@/components/ui';
 import { frictionBadge } from '@/lib/effectiveness';
-import { fmtUsd, fmtUsdOrDash } from '@/lib/fmt';
+import { fmtDateTime, fmtUsd, fmtUsdOrDash, fmtUsdSession } from '@/lib/fmt';
+import { type SessionSearchResult, searchSessions } from '@/lib/org-queries';
+import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
 import { diffToolMix, getSessionComparison, metricDelta } from '@/lib/session-compare-queries';
 
 export const dynamic = 'force-dynamic';
@@ -30,18 +32,21 @@ export default async function SessionComparePage({
   const leftId = paramToId(leftRaw);
   const rightId = paramToId(rightRaw);
 
+  // Until both sides are chosen, the page is its own picker. It used to render
+  // an empty state telling the reader to hand-edit the query string, which —
+  // combined with there being no link to this route anywhere in the app — meant
+  // a finished feature nobody could reach.
   if (!leftId || !rightId) {
+    const { orgRole } = await requireOrgViewer();
+    const recent = await searchSessions({ page: 1 }, canViewIndividuals(orgRole));
     return (
       <div className="space-y-6">
         <PageHeader
           breadcrumb="Org"
-          description="Pick two sessions to compare side-by-side"
+          description="Choose two sessions to compare side-by-side"
           title="Session comparison"
         />
-        <EmptyState>
-          Add <code className="font-mono">?left=&lt;id&gt;&amp;right=&lt;id&gt;</code> to the URL to
-          compare two sessions.
-        </EmptyState>
+        <SessionPicker leftId={leftId} recent={recent.results.slice(0, 25)} rightId={rightId} />
       </div>
     );
   }
@@ -368,5 +373,99 @@ function MetadataRow({ field, left, right }: { field: string; left: string; righ
       <Cell className={`text-sm ${same ? 'text-text-2' : 'text-text'}`}>{left}</Cell>
       <Cell className={`text-sm ${same ? 'text-text-2' : 'text-text'}`}>{right}</Cell>
     </Row>
+  );
+}
+
+/**
+ * Two-slot picker. Choosing one side keeps the other, so the flow is "pick A,
+ * pick B, land on the comparison" without ever touching the URL by hand.
+ */
+function SessionPicker({
+  leftId,
+  recent,
+  rightId,
+}: {
+  leftId: string | null;
+  recent: SessionSearchResult[];
+  rightId: string | null;
+}) {
+  if (recent.length === 0) {
+    return (
+      <EmptyState title="No sessions available to compare.">
+        Sessions appear here once org members have shared telemetry.
+      </EmptyState>
+    );
+  }
+
+  const slotHref = (slot: 'left' | 'right', id: string) => {
+    const query = new URLSearchParams();
+    const other = slot === 'left' ? rightId : leftId;
+    query.set(slot, id);
+    if (other) {
+      query.set(slot === 'left' ? 'right' : 'left', other);
+    }
+    return `?${query.toString()}`;
+  };
+
+  return (
+    <>
+      <p className="text-sm text-text-2">
+        {leftId
+          ? 'Session A is chosen — pick session B to see the comparison.'
+          : 'Pick session A, then session B.'}
+      </p>
+      <Table
+        columns={[
+          { label: 'Started (UTC)' },
+          { label: 'Developer' },
+          { label: 'Repo' },
+          { align: 'right', label: 'Tools' },
+          { align: 'right', label: 'Cost' },
+          { label: 'Compare as' },
+        ]}
+      >
+        {recent.map((session) => {
+          const isLeft = session.sessionId === leftId;
+          const isRight = session.sessionId === rightId;
+          return (
+            <Row key={session.sessionId}>
+              <Cell className="text-xs text-text-2">{fmtDateTime(session.startedAt)}</Cell>
+              <Cell className="text-xs text-text-2">{session.githubLogin ?? '—'}</Cell>
+              <Cell className="text-xs text-text-2">{session.repoName ?? '—'}</Cell>
+              <Cell num className="text-xs text-text-2">
+                {session.toolCallCount.toLocaleString()}
+              </Cell>
+              <Cell num className="text-xs text-text-2">
+                {fmtUsdSession(session.costUsd)}
+              </Cell>
+              <Cell>
+                <span className="flex gap-2 text-xs">
+                  {isLeft ? (
+                    <span className="text-accent">A ✓</span>
+                  ) : (
+                    <Link
+                      className="text-accent hover:underline"
+                      href={slotHref('left', session.sessionId)}
+                    >
+                      A
+                    </Link>
+                  )}
+                  {isRight ? (
+                    <span className="text-accent">B ✓</span>
+                  ) : (
+                    <Link
+                      className="text-accent hover:underline"
+                      href={slotHref('right', session.sessionId)}
+                    >
+                      B
+                    </Link>
+                  )}
+                </span>
+              </Cell>
+            </Row>
+          );
+        })}
+      </Table>
+    </>
   );
 }

@@ -91,6 +91,15 @@ export default async function OrgSessionDetailPage({
         <ArrowLeftIcon /> Search
       </Link>
 
+      {/* The comparison view had no inbound link anywhere in the app; a session
+          detail is the natural place to start one. */}
+      <Link
+        href={`/org/sessions/compare?left=${id}`}
+        className="ml-4 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text"
+      >
+        Compare with another session
+      </Link>
+
       <SessionDetailHeader
         ownerLabel={owner}
         session={session}
