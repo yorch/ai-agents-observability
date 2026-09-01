@@ -1,3 +1,6 @@
+import { redirect } from 'next/navigation';
+
+import { currentUser } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { sanitizeNext } from '@/lib/session-cookie';
 
@@ -18,6 +21,23 @@ export default async function LoginPage({ searchParams }: Props) {
   const { githubHost } = getConfig();
   const params = await searchParams;
   const next = sanitizeNext(params.next);
+
+  // An already-signed-in visitor gets sent on rather than shown a sign-in form.
+  // Without this, the root layout renders its *authenticated* branch around the
+  // login form — which mounts SessionRefresher, which refreshes, which can 401
+  // on a rotation race and redirect straight back here. That loop is why this
+  // redirect is load-bearing and not merely tidy. `/` already does the same.
+  //
+  // An auth_error is the one case worth staying for: it means an OAuth attempt
+  // just failed, and the notice below is the only place that failure is
+  // reported. Redirecting would swallow it.
+  if (!params.auth_error) {
+    const user = await currentUser();
+    if (user) {
+      redirect(next ?? '/me');
+    }
+  }
+
   const signInHref = next ? `/api/auth/login?next=${encodeURIComponent(next)}` : '/api/auth/login';
 
   return (

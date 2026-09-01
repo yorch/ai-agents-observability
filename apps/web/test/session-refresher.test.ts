@@ -52,11 +52,47 @@ describe('refreshSession', () => {
     expect(result).toBe(true);
   });
 
-  it('redirects to /login on 401 and returns false', async () => {
+  it('redirects to /login when a 401 is confirmed by a second attempt', async () => {
+    vi.useFakeTimers();
     fetchMock.mockResolvedValue(new Response('Unauthorized', { status: 401 }));
-    const result = await refreshSession();
-    expect(result).toBe(false);
+    const pending = refreshSession();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await pending).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(window.location.href).toBe('/login');
+    vi.useRealTimers();
+  });
+
+  // Regression: refresh tokens are single-use, so two concurrent refreshes
+  // leave the loser holding a spent token and receiving a 401 — even though the
+  // winner just installed fresh cookies and the session is perfectly alive.
+  // Treating that first 401 as fatal logged people out with two tabs open.
+  it('does not log out when a concurrent refresh won the rotation race', async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const pending = refreshSession();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await pending).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(window.location.href).toBe('');
+    vi.useRealTimers();
+  });
+
+  // StrictMode double-invokes effects in development, so the component used to
+  // race itself on every mount and produce the 401 above on every page load.
+  it('shares one in-flight request between concurrent callers', async () => {
+    const [first, second] = await Promise.all([refreshSession(), refreshSession()]);
+    expect(first).toBe(true);
+    expect(second).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts a fresh request once the previous one has settled', async () => {
+    await refreshSession();
+    await refreshSession();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('returns false on a 5xx server error — the next interval retries', async () => {

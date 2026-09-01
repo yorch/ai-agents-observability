@@ -22,22 +22,62 @@ const VISIBILITY_THROTTLE_MS = 60 * 1000;
 
 export const REFRESH_PATH = '/api/auth/refresh';
 
-// Exported for testing — the effect logic, decoupled from React.
-// Returns true if the refresh succeeded (2xx), false otherwise.
-export async function refreshSession(): Promise<boolean> {
+// How long to wait before re-testing a 401 (see refreshSession). Long enough
+// for a concurrent refresh's Set-Cookie to land, short enough that a genuinely
+// dead session reaches /login promptly.
+const ROTATION_RACE_RETRY_MS = 750;
+
+/** One in-flight refresh, shared by every concurrent caller. */
+let inFlight: Promise<boolean> | null = null;
+
+function post(): Promise<Response> {
+  return fetch(REFRESH_PATH, { credentials: 'same-origin', method: 'POST' });
+}
+
+async function doRefresh(): Promise<boolean> {
   try {
-    const res = await fetch(REFRESH_PATH, { credentials: 'same-origin', method: 'POST' });
-    if (res.status === 401) {
-      // Refresh token invalid/expired/revoked — the session is over. Redirect
-      // to login so the user sees the auth screen instead of a broken dashboard.
-      window.location.href = '/login';
-      return false;
+    const res = await post();
+    if (res.status !== 401) {
+      return res.ok;
     }
-    return res.ok;
+
+    // A 401 does NOT prove the session is over. Refresh tokens are single-use,
+    // so when two refreshes race, the winner rotates the token and the loser
+    // presents one that is already spent — indistinguishable, here, from a
+    // genuinely dead session. Treating that as fatal logged people out mid-work
+    // (two open tabs was enough) and, because /login used to render inside the
+    // authenticated shell, it could loop forever.
+    //
+    // Re-testing settles it without weakening the server's reuse detection: the
+    // winner has by now installed a *fresh* refresh cookie, so a second attempt
+    // sends a valid token and succeeds. If the session really is over, the
+    // retry sees the same 401 and we redirect.
+    await new Promise((resolve) => setTimeout(resolve, ROTATION_RACE_RETRY_MS));
+    const retry = await post();
+    if (retry.ok) {
+      return true;
+    }
+    if (retry.status === 401) {
+      window.location.href = '/login';
+    }
+    return false;
   } catch {
     // Network error — the next interval or visibility change will retry.
     return false;
   }
+}
+
+// Exported for testing — the effect logic, decoupled from React.
+// Returns true if the refresh succeeded (2xx), false otherwise.
+//
+// Single-flighted: concurrent callers share one request. React's StrictMode
+// double-invokes effects in development, so without this the component raced
+// *itself* on every mount and produced the logout above on every page load.
+export function refreshSession(): Promise<boolean> {
+  inFlight ??= doRefresh().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
 }
 
 export function SessionRefresher() {
