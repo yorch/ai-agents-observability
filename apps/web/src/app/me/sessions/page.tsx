@@ -66,7 +66,7 @@ export default async function SessionsPage({
   }
 
   const params = await searchParams;
-  const page = Math.max(1, parseInt(params.page ?? '1', 10));
+  const page = Math.max(1, Number(params.page ?? '1') || 1);
   const repo = params.repo || undefined;
   const status = params.status || undefined;
   const shape = params.shape || undefined;

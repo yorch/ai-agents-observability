@@ -34,7 +34,7 @@ export default async function TeamMemberSessionsPage({
   });
 
   const sp = await searchParams;
-  const page = Math.max(1, parseInt(sp.page ?? '1', 10));
+  const page = Math.max(1, Number(sp.page ?? '1') || 1);
   const { sessions, total } = await listSessions(member.userId, { page });
 
   const displayName = member.displayName ?? `@${member.githubLogin}`;

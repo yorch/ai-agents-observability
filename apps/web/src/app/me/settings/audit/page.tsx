@@ -42,7 +42,7 @@ export default async function SettingsAuditPage({
   }
 
   const params = await searchParams;
-  const page = Math.max(1, parseInt(params.page ?? '1', 10));
+  const page = Math.max(1, Number(params.page ?? '1') || 1);
   const actionFilter =
     params.action && VALID_ACTIONS.has(params.action) ? params.action : undefined;
   const daysFilter = params.days ? parseInt(params.days, 10) : undefined;

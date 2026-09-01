@@ -151,7 +151,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
   }
 
   const params = await searchParams;
-  const page = Math.max(1, parseInt(params.page ?? '1', 10));
+  const page = Math.max(1, Number(params.page ?? '1') || 1);
   const stateParam = params.state;
   const stateFilter: 'open' | 'merged' | 'all' =
     stateParam === 'open' || stateParam === 'merged' ? stateParam : 'all';
