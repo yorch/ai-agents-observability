@@ -588,15 +588,35 @@ export const TEAM_PAGE_SIZE = 50;
 
 export async function listTeamSessions(
   visibleIds: string[],
-  opts: { page: number },
+  opts: { from?: Date | undefined; page: number; repo?: string | undefined; to?: Date | undefined },
 ): Promise<{ sessions: TeamSessionRow[]; total: number }> {
   if (visibleIds.length === 0) {
     return { sessions: [], total: 0 };
   }
   const prisma = getPrisma();
-  const safePage = Math.max(1, opts.page);
+  // `Math.max(1, NaN)` is NaN, which reaches Prisma's `skip` and throws — so the
+  // caller's parse has to produce a number. Guard here too: this is the last
+  // place that can stop a bad page param becoming a 500.
+  const safePage = Number.isFinite(opts.page) ? Math.max(1, opts.page) : 1;
   // Same population as every other session list (see sessions-queries).
   const where: Prisma.SessionWhereInput = { runKind: 'INTERACTIVE', userId: { in: visibleIds } };
+
+  // The report page drills in here with a window and an optional repo. Those
+  // used to be dropped on the floor, landing the lead on an unfiltered list that
+  // silently disagreed with the report they came from.
+  if (opts.from || opts.to) {
+    where.startedAt = {
+      ...(opts.from ? { gte: opts.from } : {}),
+      ...(opts.to ? { lte: opts.to } : {}),
+    };
+  }
+  if (opts.repo) {
+    const slash = opts.repo.indexOf('/');
+    where.repo =
+      slash > 0
+        ? { githubName: opts.repo.slice(slash + 1), githubOwner: opts.repo.slice(0, slash) }
+        : { githubName: opts.repo };
+  }
 
   const [total, rows] = await Promise.all([
     prisma.session.count({ where }),
