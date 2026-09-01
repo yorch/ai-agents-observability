@@ -251,7 +251,7 @@ const NOTIFICATION_KIND_META: Record<string, { color: string; label: string }> =
   auth: { color: 'bg-series-6', label: 'Auth' },
   elicitation: { color: 'bg-series-4', label: 'Elicitation' },
   idle: { color: 'bg-series-1', label: 'Idle (waiting on you)' },
-  other: { color: 'bg-surface-3', label: 'Other' },
+  other: { color: 'bg-series-none', label: 'Other' },
   permission: { color: 'bg-series-2', label: 'Permission' },
 };
 

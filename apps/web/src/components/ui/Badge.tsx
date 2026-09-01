@@ -45,11 +45,15 @@ export const TONE_TEXT: Record<BadgeTone, string> = {
   warn: 'text-warn',
 };
 
+// Fills, so `neutral` is `bg-series-none` rather than a surface token — these
+// are painted on a `bg-surface-2` track, against which a surface fill is
+// invisible. TONE.neutral above keeps its surface background: that one is a
+// pill with a border and text, so it does not rely on fill contrast alone.
 export const TONE_BG: Record<BadgeTone, string> = {
   accent: 'bg-accent',
   crit: 'bg-crit',
   good: 'bg-good',
-  neutral: 'bg-surface-3',
+  neutral: 'bg-series-none',
   warn: 'bg-warn',
 };
 

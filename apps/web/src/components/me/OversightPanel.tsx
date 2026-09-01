@@ -56,7 +56,7 @@ export function OversightPanel({ data }: { data: OversightSummary }) {
           <ShareBar
             total={data.totalSessions}
             segments={data.modeMix.map((m) => ({
-              className: MODE_COLOR[m.mode] ?? 'bg-surface-3',
+              className: MODE_COLOR[m.mode] ?? 'bg-series-none',
               key: m.mode,
               title: `${MODE_LABEL[m.mode] ?? m.mode}: ${m.count}`,
               value: m.count,
@@ -66,7 +66,7 @@ export function OversightPanel({ data }: { data: OversightSummary }) {
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
           {data.modeMix.map((m) => (
             <span key={m.mode} className="flex items-center gap-1.5 text-xs text-text-2">
-              <span className={`h-2 w-2 rounded-full ${MODE_COLOR[m.mode] ?? 'bg-surface-3'}`} />
+              <span className={`h-2 w-2 rounded-full ${MODE_COLOR[m.mode] ?? 'bg-series-none'}`} />
               {MODE_LABEL[m.mode] ?? m.mode} ({m.count})
             </span>
           ))}
