@@ -35,6 +35,25 @@ const SRC = join(import.meta.dirname, '../src/lib');
  */
 const UNCAST_DATE_TRUNC = /date_trunc\(\s*'[a-z]+'\s*,\s*\$\{[^}]*\}(?!\s*::)/g;
 
+/**
+ * `LEAST`/`GREATEST` are variadic and resolve their return type from their
+ * arguments, so two untyped parameters resolve the whole call to `text` —
+ * and a comparison against a timestamptz column then fails with `42883:
+ * operator does not exist: timestamp with time zone >= text`.
+ *
+ * This is the same defect as the `date_trunc` one above, and the guard above
+ * did not catch it because it named a single function. `getSpendForecast`
+ * shipped `LEAST(${monthStart}, ${last7Start})` and took /org/dashboard —
+ * the org section's landing page — down on every request, behind the same
+ * error boundary that hid the five rollups above.
+ *
+ * Note what the bare comparison elsewhere in that query proves: `started_at
+ * >= ${since}` needs no cast, because the column supplies the type. Only a
+ * parameter reaching a polymorphic function needs one.
+ */
+const POLYMORPHIC_CALL = /\b(?:LEAST|GREATEST)\s*\(([^()]*)\)/gi;
+const UNCAST_INTERPOLATION = /\$\{[^}]*\}(?!\s*::)/;
+
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const full = join(dir, entry);
@@ -52,6 +71,20 @@ describe('bound parameters reaching a polymorphic function carry a cast', () => 
         const line = src.slice(0, m.index).split('\n').length;
         return `${f.slice(SRC.length + 1)}:${line} — ${m[0].trim()}`;
       });
+    });
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('has no uncast interpolation inside LEAST or GREATEST', () => {
+    const offenders = files.flatMap((f) => {
+      const src = readFileSync(f, 'utf8');
+      return [...src.matchAll(POLYMORPHIC_CALL)]
+        .filter((m) => UNCAST_INTERPOLATION.test(m[1] ?? ''))
+        .map((m) => {
+          const line = src.slice(0, m.index).split('\n').length;
+          return `${f.slice(SRC.length + 1)}:${line} — ${m[0].trim()}`;
+        });
     });
 
     expect(offenders).toEqual([]);
