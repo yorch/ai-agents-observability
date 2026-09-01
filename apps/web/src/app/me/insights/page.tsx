@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation';
 import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { ArrowRightIcon } from '@/components/icons';
-import { DaysSelector, parseDays } from '@/components/me/DaysSelector';
 import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
+import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { Card, Cell, EmptyState, Row, Sparkline, Table } from '@/components/ui';
 import { type AttributionCoverage, getAttributionCoverage } from '@/lib/attribution-coverage';
 import { currentUser } from '@/lib/auth';
@@ -63,7 +63,12 @@ export default async function InsightsPage({
   }
 
   const params = await searchParams;
-  const days = parseDays(params.days);
+  // `range`, not `days` — see the note on /me. Same name and default as every
+  // other scoped page, so the selection survives navigation.
+  const days = ([7, 30, 90].includes(Number(params.range)) ? Number(params.range) : 30) as
+    | 7
+    | 30
+    | 90;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
   const [
@@ -135,7 +140,7 @@ export default async function InsightsPage({
             Sessions · friction · shapes · MCP servers · tools · skills
           </p>
         </div>
-        <DaysSelector basePath="/me/insights" current={days} />
+        <DateRangePicker range={days} />
       </div>
 
       {!hasSessionData && !hasEventData ? (
