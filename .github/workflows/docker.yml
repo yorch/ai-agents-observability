@@ -285,7 +285,7 @@ jobs:
           sha256sum "${{ steps.ref.outputs.tarball }}" > "${{ steps.ref.outputs.tarball }}.sha256"
 
       - name: Download SBOM artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: sbom-${{ matrix.component }}-${{ env.RELEASE_TAG }}.json
           path: sbom/
