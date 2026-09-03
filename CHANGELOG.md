@@ -6,6 +6,13 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.4.0 (2026-09-03)
+
+### Features
+
+- web: close 20 findings from a full dashboard audit (#227)
+- ingest: materialize imported history into the continuous aggregates (#225)
+
 ## v2.3.0 (2026-08-31)
 
 ### Features
