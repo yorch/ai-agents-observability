@@ -5,7 +5,7 @@ import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
-import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { DateRangePicker, LONG_RANGES } from '@/components/team-org/DateRangePicker';
 import { Card, Cell, EmptyState, Row, Sparkline, Table } from '@/components/ui';
 import { type AttributionCoverage, getAttributionCoverage } from '@/lib/attribution-coverage';
 import { currentUser } from '@/lib/auth';
@@ -65,10 +65,9 @@ export default async function InsightsPage({
   const params = await searchParams;
   // `range`, not `days` — see the note on /me. Same name and default as every
   // other scoped page, so the selection survives navigation.
-  const days = ([7, 30, 90].includes(Number(params.range)) ? Number(params.range) : 30) as
-    | 7
-    | 30
-    | 90;
+  const days = (LONG_RANGES as readonly number[]).includes(Number(params.range))
+    ? (Number(params.range) as (typeof LONG_RANGES)[number])
+    : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
   const [
@@ -140,7 +139,7 @@ export default async function InsightsPage({
             Sessions · friction · shapes · MCP servers · tools · skills
           </p>
         </div>
-        <DateRangePicker range={days} />
+        <DateRangePicker options={LONG_RANGES} range={days} />
       </div>
 
       {!hasSessionData && !hasEventData ? (

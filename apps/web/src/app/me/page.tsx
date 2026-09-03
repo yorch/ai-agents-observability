@@ -7,7 +7,7 @@ import { RecentSessions } from '@/components/me/RecentSessions';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { SummaryCards } from '@/components/me/SummaryCards';
 import { TopTools } from '@/components/me/TopTools';
-import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { DateRangePicker, LONG_RANGES } from '@/components/team-org/DateRangePicker';
 import { ButtonLink, EmptyState, SkeletonCard } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
@@ -97,10 +97,9 @@ export default async function MePage({
   // second parameter name and a different default (7) behind an identical-looking
   // 7d/30d/90d control, so moving between "My agents" pages silently changed the
   // window and dropped the selection.
-  const days = ([7, 30, 90].includes(Number(params.range)) ? Number(params.range) : 30) as
-    | 7
-    | 30
-    | 90;
+  const days = (LONG_RANGES as readonly number[]).includes(Number(params.range))
+    ? (Number(params.range) as (typeof LONG_RANGES)[number])
+    : 30;
 
   const now = new Date();
   const periodStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
@@ -136,7 +135,7 @@ export default async function MePage({
           </h1>
           <p className="mt-1 text-sm text-text-2">{user.displayName ?? user.githubLogin}</p>
         </div>
-        <DateRangePicker range={days} />
+        <DateRangePicker options={LONG_RANGES} range={days} />
       </div>
       {!hasData ? (
         <EmptyState
