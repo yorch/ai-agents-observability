@@ -13,6 +13,7 @@ import {
   Table,
 } from '@/components/ui';
 import { fmtDate } from '@/lib/fmt';
+import { parsePageParam } from '@/lib/pagination';
 import { ExternalLinkIcon, WarningIcon } from '../../../components/icons';
 import { JiraLink } from '../../../components/JiraLink';
 import { currentUser } from '../../../lib/auth';
@@ -46,6 +47,22 @@ function PRsTable({
   const stateParam = stateFilter && stateFilter !== 'all' ? `&state=${stateFilter}` : '';
 
   if (items.length === 0) {
+    // "No PRs yet" is a first-run message; on an out-of-range page it tells an
+    // onboarded user their data is missing when it is simply on page 1.
+    if (total > 0) {
+      return (
+        <EmptyState
+          title="Nothing on this page"
+          action={
+            <ButtonLink variant="secondary" href={`?page=1${stateParam}`}>
+              Back to page 1
+            </ButtonLink>
+          }
+        >
+          These pull requests start on an earlier page.
+        </EmptyState>
+      );
+    }
     return (
       <EmptyState title="No PRs yet.">
         PRs appear here after the GitHub App is installed and you merge a PR.
@@ -151,7 +168,7 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
   }
 
   const params = await searchParams;
-  const page = Math.max(1, Number(params.page ?? '1') || 1);
+  const page = parsePageParam(params.page);
   const stateParam = params.state;
   const stateFilter: 'open' | 'merged' | 'all' =
     stateParam === 'open' || stateParam === 'merged' ? stateParam : 'all';

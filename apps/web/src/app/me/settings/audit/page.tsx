@@ -3,6 +3,7 @@ import { AuditTable } from '@/components/me/AuditTable';
 import { Button, ButtonLink, Field, Select } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getAuditLog } from '@/lib/me-queries';
+import { parsePageParam } from '@/lib/pagination';
 import { daysAgo } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +43,7 @@ export default async function SettingsAuditPage({
   }
 
   const params = await searchParams;
-  const page = Math.max(1, Number(params.page ?? '1') || 1);
+  const page = parsePageParam(params.page);
   const actionFilter =
     params.action && VALID_ACTIONS.has(params.action) ? params.action : undefined;
   const daysFilter = params.days ? parseInt(params.days, 10) : undefined;

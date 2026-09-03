@@ -2,6 +2,7 @@ import { FilterChips } from '@/components/FilterChips';
 import { TeamSessionsTable } from '@/components/team/TeamSessionsTable';
 import { ActiveSessionStream } from '@/components/team-org/ActiveSessionStream';
 import { Button, Card, Field, FilterPanel, Input, Select } from '@/components/ui';
+import { parsePageParam } from '@/lib/pagination';
 import { requireTeamLead } from '@/lib/roles';
 import { listTeamSessions, resolveTeamVisibility } from '@/lib/team-queries';
 import { listTrendRepos } from '@/lib/trend-queries';
@@ -16,11 +17,6 @@ function parseDate(raw: string | undefined): Date | undefined {
   }
   const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-}
-
-/** `Math.max(1, parseInt('abc', 10))` is NaN — which reaches Prisma and throws. */
-function parsePage(raw: string | undefined): number {
-  return Math.max(1, Number(raw ?? '1') || 1);
 }
 
 type SearchParams = {
@@ -49,7 +45,7 @@ export default async function TeamSessionsPage({
   const { teamId, teamName } = await requireTeamLead(slug);
 
   const { visibleIds, totalCount } = await resolveTeamVisibility(teamId);
-  const page = parsePage(search.page);
+  const page = parsePageParam(search.page);
   const status = SESSION_STATUSES.includes(search.status as (typeof SESSION_STATUSES)[number])
     ? search.status
     : undefined;

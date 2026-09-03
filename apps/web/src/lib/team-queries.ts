@@ -600,10 +600,11 @@ export async function listTeamSessions(
     return { sessions: [], total: 0 };
   }
   const prisma = getPrisma();
-  // `Math.max(1, NaN)` is NaN, which reaches Prisma's `skip` and throws — so the
-  // caller's parse has to produce a number. Guard here too: this is the last
-  // place that can stop a bad page param becoming a 500.
-  const safePage = Number.isFinite(opts.page) ? Math.max(1, opts.page) : 1;
+  // Callers parse with parsePageParam, but this is a library boundary and the
+  // last place that can stop a bad page reaching `skip`. Finite is not enough:
+  // a fractional page yields a fractional offset, and Prisma does not reject it
+  // — it returns a slice starting mid-list, which reads as a valid page.
+  const safePage = Number.isSafeInteger(opts.page) && opts.page >= 1 ? opts.page : 1;
   // Same population as every other session list (see sessions-queries).
   const where: Prisma.SessionWhereInput = { runKind: 'INTERACTIVE', userId: { in: visibleIds } };
 

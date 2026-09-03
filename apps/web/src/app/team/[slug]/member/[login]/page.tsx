@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { SessionsTable } from '@/components/me/SessionsTable';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
+import { parsePageParam } from '@/lib/pagination';
 import { requireTeamLead } from '@/lib/roles';
 import { listSessions } from '@/lib/sessions-queries';
 import { getMemberForTeam } from '@/lib/team-queries';
@@ -34,7 +35,7 @@ export default async function TeamMemberSessionsPage({
   });
 
   const sp = await searchParams;
-  const page = Math.max(1, Number(sp.page ?? '1') || 1);
+  const page = parsePageParam(sp.page);
   const { sessions, total } = await listSessions(member.userId, { page });
 
   const displayName = member.displayName ?? `@${member.githubLogin}`;

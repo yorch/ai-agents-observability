@@ -3,6 +3,7 @@ import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { Button, Card, Input } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/fmt';
+import { parsePageParam } from '@/lib/pagination';
 import { MIN_QUERY_LENGTH, searchOwnTranscripts } from '@/lib/search-queries';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +21,7 @@ export default async function MeSearchPage({
   const params = await searchParams;
   const rawQuery = params.q ?? '';
   const query = rawQuery.trim();
-  const page = Math.max(1, Number(params.page ?? '1') || 1);
+  const page = parsePageParam(params.page);
 
   const tooShort = query.length > 0 && query.length < MIN_QUERY_LENGTH;
   const results =

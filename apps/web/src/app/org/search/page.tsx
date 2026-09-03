@@ -15,6 +15,7 @@ import {
 } from '@/components/ui';
 import { fmtDateTime, fmtUsdSession } from '@/lib/fmt';
 import { searchSessions, searchTranscripts } from '@/lib/org-queries';
+import { parsePageParam } from '@/lib/pagination';
 import { getAllRunsPrisma } from '@/lib/prisma';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,7 @@ export default async function OrgSearchPage({
   const bandRaw = params.band;
   const frictionBand =
     bandRaw === 'low' || bandRaw === 'medium' || bandRaw === 'high' ? bandRaw : undefined;
-  const page = Math.max(1, Number(params.page ?? '1') || 1);
+  const page = parsePageParam(params.page);
 
   let dateFrom: Date | undefined;
   let dateTo: Date | undefined;
