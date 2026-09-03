@@ -117,7 +117,7 @@ export default async function TeamOverviewPage({
 
       {!hasData ? (
         <EmptyState title="No activity yet">
-          Sessions will appear here once team members install the hook and run Claude Code.
+          Sessions will appear here once team members install the hook and run an agent.
         </EmptyState>
       ) : (
         <>

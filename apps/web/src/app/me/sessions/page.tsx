@@ -5,6 +5,7 @@ import { SessionsTable } from '@/components/me/SessionsTable';
 import { Button, ButtonLink, EmptyState, Field, FilterPanel, Input, Select } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
+import { parsePageParam } from '@/lib/pagination';
 import { getAllRunsPrisma } from '@/lib/prisma';
 import { type FrictionBand, listDistinctRepos, listSessions } from '@/lib/sessions-queries';
 
@@ -66,7 +67,7 @@ export default async function SessionsPage({
   }
 
   const params = await searchParams;
-  const page = Math.max(1, parseInt(params.page ?? '1', 10));
+  const page = parsePageParam(params.page);
   const repo = params.repo || undefined;
   const status = params.status || undefined;
   const shape = params.shape || undefined;

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Card, Cell, EmptyState, Pagination, Row, Table } from '@/components/ui';
+import { ButtonLink, Card, Cell, EmptyState, Pagination, Row, Table } from '@/components/ui';
 import { fmtDateTime } from '@/lib/fmt';
 import type { AuditRow } from '@/lib/me-queries';
 
@@ -37,6 +37,22 @@ export function AuditTable({
   hrefFor = (page) => `?page=${page}`,
 }: AuditTableProps) {
   if (rows.length === 0) {
+    // "No one has accessed your data yet" is a reassuring claim, and on an
+    // out-of-range page it is a false one — there are entries, just not here.
+    if (total > 0) {
+      return (
+        <EmptyState
+          title="Nothing on this page"
+          action={
+            <ButtonLink variant="secondary" href={hrefFor(1)}>
+              Back to page 1
+            </ButtonLink>
+          }
+        >
+          These entries start on an earlier page.
+        </EmptyState>
+      );
+    }
     return <EmptyState>No one has accessed your data yet.</EmptyState>;
   }
 

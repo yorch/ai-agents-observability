@@ -125,6 +125,7 @@ export const ORG_NAV: NavGroup[] = [
       { href: '/org/knowledge', icon: BookIcon, label: 'Knowledge' },
       { href: '/org/prompts', icon: SparkleIcon, label: 'Prompts' },
       { href: '/org/search', icon: SearchIcon, label: 'Search' },
+      { href: '/org/sessions/compare', icon: ListIcon, label: 'Compare sessions' },
     ],
     label: 'Governance',
   },

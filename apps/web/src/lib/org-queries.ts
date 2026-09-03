@@ -808,7 +808,12 @@ export async function getSpendForecast(monthStart: Date, last7Start: Date): Prom
     FROM interactive_sessions s
     JOIN users u ON u.id = s.user_id AND u.deactivated_at IS NULL
     LEFT JOIN visibility_policies vp ON vp.user_id = u.id
-    WHERE s.started_at >= LEAST(${monthStart}, ${last7Start})
+    -- The ::timestamptz casts are load-bearing. Postgres resolves LEAST() over
+    -- two *unknown* parameters to text, and the driver adapter sends parameters
+    -- untyped, so without them this reads "timestamptz >= text" and fails with
+    -- 42883 on every request. The bare comparisons above need no cast: there the
+    -- column supplies the type. Wrapping a parameter in LEAST() removes it.
+    WHERE s.started_at >= LEAST(${monthStart}::timestamptz, ${last7Start}::timestamptz)
       AND COALESCE(vp.share_metadata_with_org, true) = true
   `);
   return {

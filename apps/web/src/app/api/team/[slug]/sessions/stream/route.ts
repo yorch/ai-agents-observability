@@ -11,7 +11,10 @@ import { listActiveTeamSessions, resolveTeamVisibility } from '@/lib/team-querie
 
 export const dynamic = 'force-dynamic';
 // E4: SSE endpoint — disable static optimization and keep the response alive.
-// maxDuration is in seconds; MAX_STREAM_MS is in milliseconds. They should match.
+// maxDuration is in seconds, MAX_STREAM_MS in milliseconds, and they are
+// deliberately NOT equal: the stream closes itself at 240s so it always ends on
+// its own terms, 30s inside the 270s platform ceiling. Keep that gap when
+// tuning either one.
 export const maxDuration = 270;
 
 const POLL_INTERVAL_MS = 3000;

@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation';
 import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { ArrowRightIcon } from '@/components/icons';
-import { DaysSelector, parseDays } from '@/components/me/DaysSelector';
 import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
+import { DateRangePicker, LONG_RANGES } from '@/components/team-org/DateRangePicker';
 import { Card, Cell, EmptyState, Row, Sparkline, Table } from '@/components/ui';
 import { type AttributionCoverage, getAttributionCoverage } from '@/lib/attribution-coverage';
 import { currentUser } from '@/lib/auth';
@@ -63,7 +63,11 @@ export default async function InsightsPage({
   }
 
   const params = await searchParams;
-  const days = parseDays(params.days);
+  // `range`, not `days` — see the note on /me. Same name and default as every
+  // other scoped page, so the selection survives navigation.
+  const days = (LONG_RANGES as readonly number[]).includes(Number(params.range))
+    ? (Number(params.range) as (typeof LONG_RANGES)[number])
+    : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
   const [
@@ -135,7 +139,7 @@ export default async function InsightsPage({
             Sessions · friction · shapes · MCP servers · tools · skills
           </p>
         </div>
-        <DaysSelector basePath="/me/insights" current={days} />
+        <DateRangePicker options={LONG_RANGES} range={days} />
       </div>
 
       {!hasSessionData && !hasEventData ? (
@@ -251,7 +255,7 @@ const NOTIFICATION_KIND_META: Record<string, { color: string; label: string }> =
   auth: { color: 'bg-series-6', label: 'Auth' },
   elicitation: { color: 'bg-series-4', label: 'Elicitation' },
   idle: { color: 'bg-series-1', label: 'Idle (waiting on you)' },
-  other: { color: 'bg-surface-3', label: 'Other' },
+  other: { color: 'bg-series-none', label: 'Other' },
   permission: { color: 'bg-series-2', label: 'Permission' },
 };
 

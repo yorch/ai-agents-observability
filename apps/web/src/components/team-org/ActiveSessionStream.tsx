@@ -41,13 +41,18 @@ export function ActiveSessionStream({ slug }: { slug: string }) {
     if (data.event === 'end') {
       return;
     }
+    // The discriminator is `error`, not the array length. The server sends
+    // `sessions: []` for BOTH "the poll failed" and "nothing is active right
+    // now", so keying off length kept the last snapshot forever: once a session
+    // appeared it stayed in the table, still labelled Live, long after it ended.
+    // Only an error frame should preserve the previous snapshot.
     if (data.error) {
       setStreamError(data.error);
+      return;
     }
-    if (data.sessions && data.sessions.length > 0) {
-      setSessions(data.sessions);
-      setLastUpdate(data.ts ?? Date.now());
-    }
+    setStreamError(null);
+    setSessions(data.sessions ?? []);
+    setLastUpdate(data.ts ?? Date.now());
   }, []);
 
   useEffect(() => {
@@ -70,10 +75,21 @@ export function ActiveSessionStream({ slug }: { slug: string }) {
       es.onerror = () => {
         setConnected(false);
         consecutiveErrors++;
-        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-          // Stop reconnecting — likely a fatal error (403/404/500).
+
+        // EventSource does NOT auto-reconnect when the server answers with an
+        // HTTP error (403/404/500) or the wrong content-type — it closes for
+        // good and fires `error` exactly once. Waiting for
+        // MAX_CONSECUTIVE_ERRORS therefore never happened on the failure that
+        // matters most, and the widget sat on "Reconnecting…" forever. Read
+        // readyState to tell a fatal close from a transient drop.
+        const fatal = es?.readyState === EventSource.CLOSED;
+        if (fatal || consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
           es?.close();
-          setStreamError('Stream unavailable — will retry shortly.');
+          setStreamError(
+            fatal
+              ? 'Live updates unavailable — you may not have access to this team, or the stream was rejected. Retrying shortly.'
+              : 'Live updates interrupted — retrying shortly.',
+          );
           // Retry after a back-off delay.
           setTimeout(() => {
             if (!closed) {
@@ -81,7 +97,7 @@ export function ActiveSessionStream({ slug }: { slug: string }) {
             }
           }, 10_000);
         }
-        // EventSource auto-reconnects for < MAX_CONSECUTIVE_ERRORS.
+        // Otherwise EventSource reconnects on its own.
       };
       es.onmessage = (e) => {
         try {

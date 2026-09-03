@@ -5,7 +5,12 @@ import { EmptyState } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { parseReportRange } from '@/lib/reporting-range';
 import { getUserCostDuration } from '@/lib/scatter-queries';
-import { getUserActivityHeatmap, getUserConcurrency, getUserTrends } from '@/lib/trend-queries';
+import {
+  getUserActivityHeatmap,
+  getUserConcurrency,
+  getUserTrends,
+  listTrendRepos,
+} from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 export default async function MeTrendsPage({
@@ -19,13 +24,18 @@ export default async function MeTrendsPage({
   }
   const params = await searchParams;
   const window = parseReportRange(params);
-  const range = ([7, 30, 90].includes(window.days) ? window.days : 30) as 7 | 30 | 90;
+  // A custom from/to window is not a preset — see the note on /org/trends.
+  const custom = Boolean(params.from || params.to);
+  const range = custom
+    ? null
+    : (([7, 30, 90].includes(window.days) ? window.days : 30) as 7 | 30 | 90);
   const since = window.start;
-  const [points, scatter, concurrency, heatmap] = await Promise.all([
+  const [points, scatter, concurrency, heatmap, repos] = await Promise.all([
     getUserTrends(user.id, since, { repo: params.repo, until: window.end }),
     getUserCostDuration(user.id, since, { repo: params.repo, until: window.end }),
     getUserConcurrency(user.id, since, { repo: params.repo, until: window.end }),
     getUserActivityHeatmap(user.id, since, window.end, window.timezone, params.repo),
+    listTrendRepos([user.id]),
   ]);
   return (
     <div className="space-y-6">
@@ -35,15 +45,20 @@ export default async function MeTrendsPage({
             My trends
           </h1>
           <p className="mt-1 text-sm text-text-2">
-            Daily activity and model mix · trailing {range} days
+            Daily activity and model mix ·{' '}
+            {custom
+              ? `${window.from} → ${window.to} (${window.days} days)`
+              : `trailing ${range} days`}
           </p>
         </div>
         <ReportRangeControls
+          basePath="/me/trends"
           range={range}
           from={params.from}
           to={params.to}
           timezone={window.timezone}
           repo={params.repo}
+          repos={repos}
         />
       </div>
       {points.length === 0 ? (

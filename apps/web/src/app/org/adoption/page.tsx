@@ -81,7 +81,7 @@ export default async function OrgAdoptionPage({
             Session frequency ({range}d)
           </h2>
           <p className="text-xs text-text-3">
-            Among org-sharing users — how often are they using Claude Code?
+            Among org-sharing users — how often are they using their agents?
           </p>
           {totalUsersInDist === 0 ? (
             <CardEmpty>No sessions in this period.</CardEmpty>

@@ -5,7 +5,12 @@ import { parseReportRange } from '@/lib/reporting-range';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
 import { resolveTeamVisibility } from '@/lib/team-queries';
-import { getTeamActivityHeatmap, getTeamConcurrency, getTeamTrends } from '@/lib/trend-queries';
+import {
+  getTeamActivityHeatmap,
+  getTeamConcurrency,
+  getTeamTrends,
+  listTrendRepos,
+} from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
 export default async function TeamTrendsPage({
@@ -18,15 +23,20 @@ export default async function TeamTrendsPage({
   const { slug } = await params;
   const search = await searchParams;
   const window = parseReportRange(search);
-  const range = ([7, 30, 90].includes(window.days) ? window.days : 30) as 7 | 30 | 90;
+  // A custom from/to window is not a preset — see the note on /org/trends.
+  const custom = Boolean(search.from || search.to);
+  const range = custom
+    ? null
+    : (([7, 30, 90].includes(window.days) ? window.days : 30) as 7 | 30 | 90);
   const { teamId, teamName } = await requireTeamLead(slug);
   const { visibleIds } = await resolveTeamVisibility(teamId);
   const since = window.start;
-  const [points, scatter, concurrency, heatmap] = await Promise.all([
+  const [points, scatter, concurrency, heatmap, repos] = await Promise.all([
     getTeamTrends(visibleIds, since, { repo: search.repo, until: window.end }),
     getTeamCostDuration(visibleIds, since, { repo: search.repo, until: window.end }),
     getTeamConcurrency(visibleIds, since, { repo: search.repo, until: window.end }),
     getTeamActivityHeatmap(visibleIds, since, window.end, window.timezone, search.repo),
+    listTrendRepos(visibleIds),
   ]);
   return (
     <div className="space-y-6">
@@ -37,15 +47,20 @@ export default async function TeamTrendsPage({
             {teamName} trends
           </h1>
           <p className="mt-1 text-sm text-text-2">
-            Daily activity and model mix · trailing {range} days
+            Daily activity and model mix ·{' '}
+            {custom
+              ? `${window.from} → ${window.to} (${window.days} days)`
+              : `trailing ${range} days`}
           </p>
         </div>
         <ReportRangeControls
+          basePath={`/team/${slug}/trends`}
           range={range}
           from={search.from}
           to={search.to}
           timezone={window.timezone}
           repo={search.repo}
+          repos={repos}
         />
       </div>
       {points.length === 0 ? (

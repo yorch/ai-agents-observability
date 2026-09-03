@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { StatusBadge } from '@/components/me/StatusBadge';
 import { ShapeBadge } from '@/components/me/shape';
-import { Cell, EmptyState, Pagination, Row, Table, TONE_TEXT } from '@/components/ui';
+import { ButtonLink, Cell, EmptyState, Pagination, Row, Table, TONE_TEXT } from '@/components/ui';
 import { computeFrictionScore, frictionBadge } from '@/lib/effectiveness';
 import { fmtDateTime, fmtDurationSec, fmtUsdSession } from '@/lib/fmt';
 import { TEAM_PAGE_SIZE, type TeamSessionRow } from '@/lib/team-queries';
@@ -21,6 +21,24 @@ export function TeamSessionsTable({
   total: number;
 }) {
   if (sessions.length === 0) {
+    // An out-of-range page (stale bookmark, a filter that shrank the result set
+    // under your feet) is not "no sessions" — saying so leaves the reader on an
+    // empty view whose only explanation is the URL. /me/sessions already
+    // distinguishes these; this list did not.
+    if (total > 0) {
+      return (
+        <EmptyState
+          title="Nothing on this page"
+          action={
+            <ButtonLink variant="secondary" href={hrefFor(1)}>
+              Back to page 1
+            </ButtonLink>
+          }
+        >
+          These sessions start on an earlier page.
+        </EmptyState>
+      );
+    }
     return <EmptyState>No sessions found</EmptyState>;
   }
 

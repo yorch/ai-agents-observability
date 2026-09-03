@@ -17,6 +17,10 @@ export function Pagination({
   pageSize: number;
   total: number;
 }) {
+  // Note: an out-of-range page never reaches here — every caller renders an
+  // empty state instead of the table, so the "you are past the end" affordance
+  // belongs in those empty states, not in the pager. See TeamSessionsTable and
+  // /me/sessions.
   const totalPages = Math.ceil(total / pageSize);
   if (totalPages <= 1) {
     return null;

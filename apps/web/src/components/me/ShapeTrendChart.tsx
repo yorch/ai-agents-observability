@@ -37,10 +37,14 @@ export function ShapeTrendChart({ buckets }: { buckets: WeeklyShapeBucket[] }) {
               const label = fmtDayShort(new Date(bucket.weekStart));
               return (
                 <div key={bucket.weekStart} className="flex flex-1 flex-col items-center gap-1">
+                  {/* The week's total used to live only in a `title`, which this
+                      app treats as a bug — hover-only data is unreachable by
+                      keyboard and by touch. It is rendered under the bar now. */}
                   <div
                     className="flex w-full flex-col-reverse overflow-hidden rounded-sm"
                     style={{ height: BAR_HEIGHT_PX }}
-                    title={`${label}: ${total} session${total === 1 ? '' : 's'}`}
+                    aria-label={`${label}: ${total} session${total === 1 ? '' : 's'}`}
+                    role="img"
                   >
                     {shapesPresent.map((shape) => {
                       const count = bucket.shapeCounts[shape] ?? 0;
@@ -56,7 +60,9 @@ export function ShapeTrendChart({ buckets }: { buckets: WeeklyShapeBucket[] }) {
                       );
                     })}
                   </div>
-                  <span className="text-[9px] text-text-3">{label}</span>
+                  <span className="text-[9px] text-text-3">
+                    {label} · {total}
+                  </span>
                 </div>
               );
             })}

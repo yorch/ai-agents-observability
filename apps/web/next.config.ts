@@ -22,7 +22,12 @@ async function headers() {
           key: 'Content-Security-Policy',
           value: [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline'",
+            // React's development build uses eval() to reconstruct component
+            // stacks across the server/client boundary. Without 'unsafe-eval'
+            // in dev, every page logs a CSP warning and the error overlay loses
+            // its stack traces — which is precisely when you need them. It is
+            // never added to a production build.
+            `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data:",
             "font-src 'self'",

@@ -2,9 +2,9 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { withRouteLogging } from '@/lib/api-logging';
 import { currentUser } from '@/lib/auth';
 import { getMyReport } from '@/lib/reporting-queries';
-import { parseReportRange } from '@/lib/reporting-range';
 import { reportDays, reportResponse } from '@/lib/reporting-route';
 import { getUserCostDuration } from '@/lib/scatter-queries';
+import { daysAgo } from '@/lib/time';
 import { getUserActivityHeatmap, getUserConcurrency, getUserTrends } from '@/lib/trend-queries';
 
 export const dynamic = 'force-dynamic';
@@ -14,14 +14,16 @@ export const GET = withRouteLogging('me.report', async (req: NextRequest) => {
   if (!user) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
-  const params = Object.fromEntries(req.nextUrl.searchParams.entries());
-  const window = parseReportRange(params);
-  const report = await getMyReport(user.id, reportDays(req.nextUrl.searchParams.get('range')));
+  // One window for the digest and the analytics alike — see /api/org/report.
+  const days = reportDays(req.nextUrl.searchParams.get('range'));
+  const since = daysAgo(days);
+  const until = new Date();
+  const report = await getMyReport(user.id, days);
   const [trends, scatter, concurrency, heatmap] = await Promise.all([
-    getUserTrends(user.id, window.start, { repo: params.repo, until: window.end }),
-    getUserCostDuration(user.id, window.start, { repo: params.repo, until: window.end }),
-    getUserConcurrency(user.id, window.start, { repo: params.repo, until: window.end }),
-    getUserActivityHeatmap(user.id, window.start, window.end, window.timezone, params.repo),
+    getUserTrends(user.id, since, { until }),
+    getUserCostDuration(user.id, since, { until }),
+    getUserConcurrency(user.id, since, { until }),
+    getUserActivityHeatmap(user.id, since, until, 'UTC', undefined),
   ]);
   report.analytics = {
     concurrency: concurrency.map((p) => ({ ...p, day: p.day.toISOString().slice(0, 10) })),

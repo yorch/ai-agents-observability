@@ -82,6 +82,15 @@
   --color-series-5: #a48700;
   --color-series-6: #cf428c;
 
+  /* The "no series assigned" fill — session shape `minimal`, notification kind
+     `other`. These decline a series hue because they are the absence of a
+     category, not one of them; but they are still real data, and they used to
+     borrow a surface token. Against the bar track (`bg-surface-2`) that scored
+     1.00:1 in dark and 1.00:1 in light — a 22% segment rendered as a hole in
+     the bar and a 14% row as an empty track. Theme-independent like the six
+     hues above, and 3.74:1 dark / 3.98:1 light against the track. */
+  --color-series-none: #757585;
+
   /* Recessive chart grid/axis lines. */
   --color-grid: var(--c-grid);
 }
