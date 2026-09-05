@@ -70,8 +70,17 @@ export async function syncLoginTeams(
 
   // Reconcile departures: soft-delete this user's active memberships for teams
   // we did NOT just observe. `teamIds` is non-empty here, so `notIn` is safe.
+  //
+  // The role is cleared alongside `leftAt`, and that pairing is load-bearing.
+  // The upsert above deliberately does not touch `roleInTeam` on rejoin (see the
+  // comment there — GitHub cannot report maintainer, so writing it would
+  // downgrade someone promoted elsewhere). That is correct for an active member
+  // and wrong for a returning one: a lead who left and came back as an ordinary
+  // GitHub member used to have their oversight silently restored, with no admin
+  // action and no audit row. Dropping the role at the moment of departure means
+  // the rejoin branch has nothing stale left to resurrect.
   await db.teamMember.updateMany({
-    data: { leftAt: now },
+    data: { leftAt: now, roleInTeam: 'MEMBER' },
     where: { leftAt: null, teamId: { notIn: teamIds }, userId },
   });
 }

@@ -122,6 +122,10 @@ export function isKnownJob(name: string): boolean {
   return ALL_KNOWN_JOBS.has(name);
 }
 
+// Membership lookup for the manual-trigger guard below. `enabled` means
+// "the operator left this cadence switched on" for exactly these names.
+const CONFIGURABLE_JOB_NAMES: ReadonlySet<string> = new Set(CONFIGURABLE_JOBS);
+
 // Returns "YYYY-MM-DDTHH:MM" — unique per minute, used as a dedup key to
 // prevent a 60-second poll from firing the same job twice in one minute.
 function slotKey(date: Date): string {
@@ -410,8 +414,42 @@ export function startScheduler(deps: SchedulerDeps): void {
       }
 
       for (const cfg of configs) {
-        // Manual-trigger path: runRequestedAt set by web UI.
+        // Manual-trigger path: runRequestedAt set by the web UI or by
+        // POST /admin/jobs/:name/run on the ingest admin router.
         if (cfg.runRequestedAt) {
+          // A configurable job the operator switched off does not run, however it
+          // was asked for. `enabled` is the switch that turns judge-sessions'
+          // spending — and its model reads of developer transcripts — on; a
+          // manual trigger that ignores it makes the switch advisory. This is
+          // enforced here, in the layer that actually dispatches, so it holds for
+          // callers other than the UI.
+          //
+          // Scoped to CONFIGURABLE_JOBS deliberately: for every other name
+          // `enabled = false` is not an operator decision but the placeholder the
+          // admin router upserts (see routes/admin.ts) for a job that has no
+          // cadence at all and is only ever run by hand. Refusing those would
+          // break the operator-drain path rather than protect anything.
+          if (!cfg.enabled && CONFIGURABLE_JOB_NAMES.has(cfg.jobName)) {
+            logger?.warn(
+              { jobName: cfg.jobName },
+              'Scheduler: manual run refused, job is disabled',
+            );
+            // Clear the request, so a disabled job neither re-refuses on every
+            // poll nor fires the moment someone re-enables it for another reason.
+            try {
+              await db.jobConfig.update({
+                data: { runRequestedAt: null },
+                where: { jobName: cfg.jobName },
+              });
+            } catch (err) {
+              logger?.warn(
+                { err, jobName: cfg.jobName },
+                'Scheduler: failed to clear run_requested_at for a refused manual run',
+              );
+            }
+            continue;
+          }
+
           const latestRun = latestRunByJob.get(cfg.jobName);
           const recentRun = latestRun && latestRun > cfg.runRequestedAt;
 

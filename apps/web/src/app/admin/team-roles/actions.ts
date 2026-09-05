@@ -31,13 +31,18 @@ export const setTeamRole = withActionResult(async (formData) => {
   // updateMany (not update) so a row removed between page render and submit, or a
   // tampered (teamId,userId), is a no-op rather than a thrown P2025 that would
   // surface as an error with no audit trail.
+  //
+  // `leftAt: null` matches the page, which lists only active members
+  // (team-roles/page.tsx). Without it a replayed or hand-crafted submit could
+  // grant LEAD to someone who has already left the team — a row the admin cannot
+  // see and therefore cannot revoke — and report "Role updated." for it.
   const { count } = await db.teamMember.updateMany({
     data: { roleInTeam: role },
-    where: { teamId, userId },
+    where: { leftAt: null, teamId, userId },
   });
 
   if (count === 0) {
-    return { error: 'Member not found — refresh and try again.', ok: false };
+    return { error: 'Active member not found — refresh and try again.', ok: false };
   }
 
   await writeAuditLog({

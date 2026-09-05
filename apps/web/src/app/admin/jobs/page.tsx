@@ -10,6 +10,7 @@ import {
   Select,
   Table,
 } from '@/components/ui';
+import { CONFIGURABLE_JOBS } from '@/lib/configurable-jobs';
 import { fmtUsd } from '@/lib/fmt';
 import { getJudgeSpend } from '@/lib/judge-queries';
 import { getPrisma } from '@/lib/prisma';
@@ -182,12 +183,32 @@ export default async function AdminJobsPage() {
                   </Cell>
 
                   <Cell>
-                    <ActionForm action={triggerJob}>
-                      <input type="hidden" name="jobName" value={cfg.jobName} />
-                      <Button size="sm" type="submit">
-                        Run now
-                      </Button>
-                    </ActionForm>
+                    {/* No "Run now" for a disabled job. The scheduler refuses a
+                        manual trigger for one, so offering the button would be
+                        offering something the backend declines — and it would
+                        make the Enabled switch look advisory. judge-sessions is
+                        the case that matters: it ships off, and one click here
+                        used to start a paid model pass over developer
+                        transcripts regardless. */}
+                    {!CONFIGURABLE_JOBS.has(cfg.jobName) ? (
+                      // This page lists every job_config row, and the ingest
+                      // trigger endpoint mints a placeholder row (enabled=false)
+                      // for fixed-timer and operator-drain jobs. Telling an admin
+                      // to "enable to run" one of those points at an action the
+                      // server action refuses and that was never this page's to
+                      // offer — they run on their own timer or by operator
+                      // trigger against the ingest service.
+                      <span className="text-xs text-text-3">Operator-triggered only</span>
+                    ) : cfg.enabled ? (
+                      <ActionForm action={triggerJob}>
+                        <input type="hidden" name="jobName" value={cfg.jobName} />
+                        <Button size="sm" type="submit">
+                          Run now
+                        </Button>
+                      </ActionForm>
+                    ) : (
+                      <span className="text-xs text-text-3">Disabled — enable to run</span>
+                    )}
                   </Cell>
                 </Row>
               );
