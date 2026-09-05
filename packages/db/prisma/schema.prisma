@@ -55,6 +55,15 @@ enum AuditAction {
   MODEL_POLICY_CHANGED
   HOOK_TOKEN_REVOKED
   ADMIN_JOB_TRIGGERED
+  // Distinct from ADMIN_JOB_TRIGGERED: that one says a job was *run once* now,
+  // this one says its schedule or enabled state was *changed* — a standing
+  // decision that keeps applying after whoever made it has stopped looking.
+  // Enabling `judge-sessions` (paid model reads of developer transcripts) and
+  // disabling `sweep-retention` (transcripts stop ageing out) are both this
+  // shape, and both are questions an audit review asks by filtering on action.
+  // Appended, never reordered — the init migration's CREATE TYPE fixes the
+  // on-disk order.
+  ADMIN_JOB_CONFIG_CHANGED
 }
 
 enum GrantScope {
