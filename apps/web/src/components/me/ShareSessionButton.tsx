@@ -7,6 +7,7 @@ import { ArrowRightIcon } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
 import { confirmSubmit } from '@/components/ui/ConfirmButton';
 import { Input, Select } from '@/components/ui/Field';
+import { useActionResult } from '@/lib/use-action-result';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 
 type ActiveShare = { expiresAt: Date; granteeEmail: string | null; id: string };
@@ -35,6 +36,9 @@ export function ShareSessionButton({
   const [lastShared, setLastShared] = useState<{ email: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // Revoke submits programmatically so its outcome lands next to the row that
+  // was clicked instead of vanishing — the plain `<form action>` reported none.
+  const revoke = useActionResult();
   const menuRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   // The trap owns Escape-to-close and focus restore; only click-outside is
@@ -66,6 +70,11 @@ export function ShareSessionButton({
         setLastShared({ email: result.email });
       }
     });
+  }
+
+  function handleRevoke(formData: FormData) {
+    revoke.reset();
+    revoke.run(() => revokeShare(formData));
   }
 
   async function copyLink() {
@@ -114,8 +123,9 @@ export function ShareSessionButton({
             </p>
           </div>
 
-          {/* Active shares list */}
-          {count > 0 && (
+          {/* Active shares list — kept mounted while a revoke result is showing,
+              so revoking the last share still reports that it worked. */}
+          {(count > 0 || revoke.error || revoke.saved) && (
             <div className="border-t border-border px-4 py-2 space-y-1">
               {activeShares.map((share) => (
                 <div key={share.id} className="flex items-center justify-between gap-2 py-0.5">
@@ -123,23 +133,34 @@ export function ShareSessionButton({
                     <p className="truncate text-xs text-text">{share.granteeEmail ?? '—'}</p>
                     <p className="text-[10px] text-text-3">{formatExpiry(share.expiresAt)}</p>
                   </div>
-                  <form action={revokeShare}>
+                  <form action={handleRevoke}>
                     <input type="hidden" name="grantId" value={share.id} />
                     <input type="hidden" name="sessionId" value={sessionId} />
                     <button
                       type="submit"
+                      disabled={revoke.isPending}
                       title="Revoke access"
                       aria-label={`Revoke access for ${share.granteeEmail ?? 'this user'}`}
                       onClick={confirmSubmit(
                         `Revoke access for ${share.granteeEmail ?? 'this user'}?`,
                       )}
-                      className="rounded px-1.5 py-1 text-[10px] text-text-3 transition-colors hover:text-crit"
+                      className="rounded px-1.5 py-1 text-[10px] text-text-3 transition-colors hover:text-crit disabled:opacity-50"
                     >
                       Revoke
                     </button>
                   </form>
                 </div>
               ))}
+              {revoke.error && (
+                <p role="alert" className="text-[10px] text-crit">
+                  {revoke.error}
+                </p>
+              )}
+              {revoke.saved && (
+                <p role="status" className="text-[10px] text-good">
+                  Access revoked.
+                </p>
+              )}
             </div>
           )}
 

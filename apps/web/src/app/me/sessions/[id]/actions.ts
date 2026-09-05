@@ -310,8 +310,14 @@ export async function unlinkSessionPR(formData: FormData): Promise<PRLinkResult>
   return { ok: true };
 }
 
-/** Lets the session owner revoke any active share on their own session. */
-export async function revokeShare(formData: FormData): Promise<void> {
+/**
+ * Lets the session owner revoke any active share on their own session.
+ *
+ * Every rejection names what went wrong. This is the control for withdrawing
+ * another person's access to a transcript: a silent no-op left the owner unable
+ * to tell "already revoked" from "revoke is broken" from "access is still live".
+ */
+export const revokeShare = withActionResult(async (formData) => {
   const user = await currentUser();
   if (!user) {
     redirect('/login');
@@ -320,36 +326,50 @@ export async function revokeShare(formData: FormData): Promise<void> {
   const grantId = String(formData.get('grantId') ?? '').trim();
   const sessionId = String(formData.get('sessionId') ?? '').trim();
   if (!grantId || !sessionId) {
-    return;
+    return { error: 'Could not tell which share to revoke — refresh and try again.', ok: false };
   }
 
   // Verify the session belongs to the calling user.
   const session = await getSession(user.id, sessionId);
   if (!session) {
-    return;
+    return { error: 'Session not found.', ok: false };
   }
 
   const db = getPrisma();
+  // Read without the `revokedAt: null` filter so an already-revoked grant is
+  // reported as such rather than as a missing one — the two need different
+  // words. Both revalidate: the row the owner just clicked is stale either way.
+  // The `targetSessionId` bound stays, and together with the ownership check
+  // above it is what makes the narrow `updateMany` below safe.
   const grant = await db.accessGrant.findFirst({
-    where: { id: grantId, revokedAt: null, targetSessionId: sessionId },
+    where: { id: grantId, targetSessionId: sessionId },
   });
   if (!grant) {
-    return;
+    revalidatePath(`/me/sessions/${sessionId}`);
+    return { error: 'That share no longer exists — refresh and try again.', ok: false };
+  }
+  if (grant.revokedAt) {
+    revalidatePath(`/me/sessions/${sessionId}`);
+    return { error: 'That share was already revoked — refresh and try again.', ok: false };
   }
 
   const { count } = await db.accessGrant.updateMany({
     data: { revokedAt: new Date() },
     where: { id: grantId, revokedAt: null },
   });
-
-  if (count > 0) {
-    void writeAuditLog({
-      action: AuditAction.GRANT_REVOKED,
-      actorUserId: user.id,
-      targetSessionId: sessionId,
-      targetUserId: grant.granteeUserId,
-    });
+  if (count === 0) {
+    // Revoked by another request between the read above and this write.
+    revalidatePath(`/me/sessions/${sessionId}`);
+    return { error: 'That share was already revoked — refresh and try again.', ok: false };
   }
 
+  void writeAuditLog({
+    action: AuditAction.GRANT_REVOKED,
+    actorUserId: user.id,
+    targetSessionId: sessionId,
+    targetUserId: grant.granteeUserId,
+  });
+
   revalidatePath(`/me/sessions/${sessionId}`);
-}
+  return { message: 'Access revoked.', ok: true };
+});
