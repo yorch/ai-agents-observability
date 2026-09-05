@@ -128,6 +128,19 @@ See [`docs/deploy/README.md`](./docs/deploy/README.md) for deployment details.
 
 **Phase 13** (scoring & evaluation) — implemented scope `done`; four tasks `blocked` on data. Gives every computed signal provenance and a version (`scores`), separates non-human runs from the human aggregates (`run_kind`), adds content-free trajectory scorers, and captures human session labels. The validation tasks that would calibrate `friction_score` and `shape_label` against real outcomes are `blocked` on a data precondition — no rollout has happened, and calibrating against seed data measures the seed script. See [`tasks/P13-roadmap.md`](./tasks/P13-roadmap.md) and [`docs/research/2026-08-12-llm-evals-assessment.md`](./docs/research/2026-08-12-llm-evals-assessment.md); why the judge talks to Anthropic over `fetch` rather than through a provider-abstraction library is assessed in [`docs/research/2026-08-18-judge-client-provider-abstraction.md`](./docs/research/2026-08-18-judge-client-provider-abstraction.md).
 
+**Phase 14** (telemetry fidelity) — `done`. A seventeen-task correctness pass that proved each fix by reading code and running tests. Closed silent gaps in tool-category classification, live turn linkage, cost attribution, and Copilot token capture (settled negatively — the vendor does not persist the event).
+
+**Phase 15** (post-release follow-ups) — `done` except one deliberately unnumbered `tool_action` seed-narrowing follow-up. `P15-001` fixed three defects where the seed recomputed a value production derives.
+
+**Phase 16** (v2.3.0 shipped features) — `done`. Six product features selected from the business-value assessment, merged as stacked PRs on 2026-08-31:
+
+- **S1** — Secret-exposure detection & alerting ([#215](https://github.com/yorch/ai-agents-observability/pull/215)): a `secret_exposure` alert rule and a "Recent secret exposures" table on `/org/security`.
+- **C2** — Per-team cost anomaly detection & alerting ([#216](https://github.com/yorch/ai-agents-observability/pull/216)): a `team_spend_spike` alert rule for per-team cost anomalies.
+- **C4** — Model routing simulation ([#219](https://github.com/yorch/ai-agents-observability/pull/219)): a routing simulator on `/org/models` (`GET /api/org/models/simulate`).
+- **E2** — Session comparison/diff ([#220](https://github.com/yorch/ai-agents-observability/pull/220)): a side-by-side session comparison page at `/org/sessions/compare`.
+- **E3** — Prompt pattern mining ([#221](https://github.com/yorch/ai-agents-observability/pull/221)): a prompt pattern mining page at `/org/prompts`.
+- **E4** — Real-time session stream ([#222](https://github.com/yorch/ai-agents-observability/pull/222)): a real-time SSE endpoint at `/api/team/[slug]/sessions/stream` for team leads.
+
 See [`tasks/INDEX.md`](./tasks/INDEX.md) for task-level status — it is the source of truth, and this summary is a convenience copy.
 
 ## Architecture
