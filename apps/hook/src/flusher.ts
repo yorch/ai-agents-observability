@@ -408,16 +408,43 @@ export async function runFlusher(): Promise<void> {
           consecutiveFailures++;
           await backoffSleep(attempt);
         } else if (res.status >= 400 && res.status < 500) {
-          // 4xx (non-401, non-429): bad data, server won't accept — delete and move on
-          reader.delete(eventIds);
-          log('warn', 'flusher.batch_rejected', { count: rows.length, status: res.status });
+          // 4xx (non-401, non-429). This used to read "bad data, server won't
+          // accept" and `delete` the batch outright, with `consecutiveFailures
+          // = 0` and `success = true` — so no backoff either, and the loop went
+          // straight to the next batch. That drained the entire queue at full
+          // speed, one warn line per batch.
+          //
+          // The premise was wrong: a 4xx here is usually NOT bad data.
+          // `apps/ingest` validates the ENVELOPE strictly and returns 400, but
+          // handles individual events tolerantly (routes/events.ts) — so a 400
+          // means hook/server contract skew, never a poisoned event. The hook
+          // is a binary developers upgrade on their own schedule, so one
+          // envelope change server-side silently destroyed all telemetry from
+          // every un-upgraded machine. A 404 from a misconfigured ingest URL
+          // did the same thing.
+          //
+          // Now it uses the same bounded machinery as 5xx and network errors:
+          // MAX_ATTEMPTS retries, then dropAbandoned() drops it. A genuinely
+          // undeliverable batch still leaves, it just stops taking the rest of
+          // the queue with it. The cost is that a poisoned batch holds the head
+          // for its attempt budget rather than being discarded at once.
+          //
+          // 413 is the one status where retrying the identical bytes is futile
+          // by construction; splitting the batch is the real answer and is not
+          // attempted here.
+          markAttemptAndPrune(eventIds);
+          log('warn', 'flusher.batch_rejected', {
+            attempt,
+            count: rows.length,
+            status: res.status,
+          });
           writeFlusherState({
+            ...readFlusherState(),
             lastError: `Batch rejected by server (${res.status})`,
-            lastFlushAt: null,
             queueDepth: reader.depth(),
           });
-          consecutiveFailures = 0;
-          success = true;
+          consecutiveFailures++;
+          await backoffSleep(attempt);
         } else {
           // 5xx — mark attempts and back off
           markAttemptAndPrune(eventIds);
