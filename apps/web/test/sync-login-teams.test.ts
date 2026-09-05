@@ -55,4 +55,19 @@ describe('syncLoginTeams', () => {
     expect(where.userId).toBe('u1');
     expect(where.teamId).toEqual({ notIn: ['team-1'] });
   });
+
+  // Regression: departure used to set `leftAt` alone. Because the upsert's update
+  // branch clears `leftAt` and deliberately leaves `roleInTeam` untouched, a lead
+  // who left and later rejoined as an ordinary GitHub member had team-lead
+  // oversight silently restored — no admin action, no audit row. Reproduced live
+  // before the fix. These two assertions are a pair: the update branch must keep
+  // NOT writing the role (no login downgrade), which is only safe while departure
+  // clears it.
+  it('clears the team role on departure, so a rejoin cannot resurrect LEAD', async () => {
+    const { db, teamMemberUpdateMany } = mockDb();
+    await syncLoginTeams(db, 'u1', [membership()]);
+    const data = teamMemberUpdateMany.mock.calls[0]?.[0].data;
+    expect(data.roleInTeam).toBe('MEMBER');
+    expect(data.leftAt).toBeInstanceOf(Date);
+  });
 });

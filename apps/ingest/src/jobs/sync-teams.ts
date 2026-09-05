@@ -181,9 +181,22 @@ async function syncUserTeams(
         });
       }
 
-      // Soft-delete members that are no longer in the team
+      // Soft-delete members that are no longer in the team, and DROP their team
+      // role at the same time.
+      //
+      // Departure used to set `leftAt` alone. Rejoining takes the upsert's
+      // update branch, which sets `leftAt: null` and deliberately leaves
+      // `roleInTeam` untouched — so a lead who left and later returned as an
+      // ordinary GitHub member silently regained team-lead oversight of
+      // colleagues' sessions, with no admin action and no audit row. Reproduced
+      // on a live instance before this change.
+      //
+      // `/admin/team-roles` states the intended model: access is "assigned
+      // explicitly here — it is never inferred from GitHub team roles". Clearing
+      // the role on departure is what makes that true. A returning lead must be
+      // re-granted, which is the point: the grant becomes a deliberate act again.
       await db.teamMember.updateMany({
-        data: { leftAt: new Date() },
+        data: { leftAt: new Date(), roleInTeam: 'MEMBER' },
         where: {
           leftAt: null,
           teamId: dbTeam.id,
