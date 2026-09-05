@@ -16,6 +16,9 @@ import { buildCommentBody, postPRComment } from '../lib/pr-comment';
 import { upsertPullRequest } from '../lib/pr-upsert';
 import type { AppDb } from '../types';
 
+/** `.aiot.yml` holds a version field and four booleans. 64 KB is generous. */
+const MAX_CONFIG_BYTES = 64 * 1024;
+
 type PullRequestEvent = EmitterWebhookEvent<'pull_request'>['payload'];
 
 export async function handlePullRequest(
@@ -187,7 +190,25 @@ async function maybePostComment(
     return;
   }
 
+  // `.aiot.yml` is a handful of booleans. The raw-content endpoint will serve a
+  // file up to 100 MB, and this one is attacker-controlled: it is fetched at the
+  // merge commit of the PR being processed, so whoever got that PR merged chose
+  // its contents. Cap before reading the body into memory.
+  //
+  // Note what this is NOT defending against. A YAML alias bomb is the obvious
+  // worry here and it does not apply: js-yaml resolves aliases to *shared
+  // references*, so a 783-byte file whose serialized form would be ~1.5 TB
+  // parses through `parseRepoConfig` in 0.4ms with no measurable allocation
+  // (measured), and nothing downstream deep-walks the result — the handler only
+  // reads `pr_bot.enabled`. The real exposure is the boring one: a large file.
+  const declaredLength = Number(configRes.headers.get('content-length') ?? '0');
+  if (declaredLength > MAX_CONFIG_BYTES) {
+    return;
+  }
   const yamlText = await configRes.text();
+  if (yamlText.length > MAX_CONFIG_BYTES) {
+    return;
+  }
   const repoConfig: RepoConfig | null = parseRepoConfig(yamlText);
   if (!repoConfig?.pr_bot.enabled) {
     return;
