@@ -1,5 +1,7 @@
 import type { GitContext } from '@ai-agents-observability/schemas';
 
+import { log } from './log';
+
 // Run a git command in `cwd`, returning trimmed stdout or null on any failure
 // (non-zero exit, git missing, cwd gone). Synchronous. Called from two sites:
 // the flusher daemon (off the hot path) and hook-entry for SessionStart events
@@ -19,21 +21,28 @@ import type { GitContext } from '@ai-agents-observability/schemas';
 // handles as "not a git repo".
 const GIT_TIMEOUT_MS = 2000;
 
-function run(cwd: string, args: string[]): string | null {
+type RunResult = { ok: true; out: string } | { ok: false };
+
+function runRaw(cwd: string, args: string[]): RunResult {
   try {
     const proc = Bun.spawnSync(['git', '-C', cwd, ...args], {
       stderr: 'ignore',
       stdout: 'pipe',
       timeout: GIT_TIMEOUT_MS,
     });
+    // A timeout reports exitCode null, which this already treats as failure.
     if (proc.exitCode !== 0) {
-      return null;
+      return { ok: false };
     }
-    const out = new TextDecoder().decode(proc.stdout).trim();
-    return out.length > 0 ? out : null;
+    return { ok: true, out: new TextDecoder().decode(proc.stdout).trim() };
   } catch {
-    return null;
+    return { ok: false };
   }
+}
+
+function run(cwd: string, args: string[]): string | null {
+  const result = runRaw(cwd, args);
+  return result.ok && result.out.length > 0 ? result.out : null;
 }
 
 // Parse `owner` / `repo` from a git remote URL. Handles both SSH
@@ -67,12 +76,26 @@ export function getGitContext(cwd: string): GitContext | null {
   }
   const branch = run(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
   const remoteUrl = run(cwd, ['remote', 'get-url', 'origin']);
-  const status = run(cwd, ['status', '--porcelain']);
+  // `status` is the one call whose EMPTY output is meaningful — it is how git
+  // says "clean" — so it cannot go through `run()`, which folds empty and
+  // failed into the same null. Folding them makes a failed `git status` report
+  // `is_dirty: false`, i.e. a confident "clean" for a tree nobody looked at.
+  // A concurrently held `index.lock` is enough to trigger that, and it is
+  // routine while an agent is running; the timeout above adds a second way in.
+  //
+  // `is_dirty` is `z.boolean()` on the wire, so there is no honest third value
+  // to report here — making it nullable is a change across hook, ingest, db and
+  // web. The behaviour is therefore unchanged and the failure is logged
+  // instead, so an undercount is at least attributable rather than invisible.
+  const status = runRaw(cwd, ['status', '--porcelain']);
+  if (!status.ok) {
+    log('warn', 'hook.git.status_failed', { cwd });
+  }
   const { owner, repo } = parseOwnerRepo(remoteUrl);
   return {
     branch: branch === 'HEAD' ? null : branch, // detached HEAD
     commit,
-    is_dirty: status !== null,
+    is_dirty: status.ok && status.out.length > 0,
     owner,
     pr_number: null,
     remote_url: remoteUrl,
