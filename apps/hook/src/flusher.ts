@@ -371,7 +371,9 @@ export async function runFlusher(): Promise<void> {
           // bound, and `aiot status` keeps reporting the last SUCCESSFUL flush
           // with lastError null, so it reads as healthy. A hang has to become a
           // failure for any of the existing retry machinery to run.
-          // `lib/import-ship.ts` already does this; the daemons did not.
+          // `lib/import-ship.ts` shows the idiom, but only on its `/health`
+          // probe — its own two uploads were unbounded as well, and are fixed
+          // in the same commit. Nothing that POSTs telemetry was bounded.
           signal: AbortSignal.timeout(FLUSH_TIMEOUT_MS),
         });
 
