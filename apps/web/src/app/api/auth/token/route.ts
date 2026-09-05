@@ -70,7 +70,10 @@ export const POST = withRouteLogging('auth.token', async (request: Request) => {
   // dummy hash then reject — do NOT fall through to verifyPassword with the
   // sentinel value, which an attacker who knows it could exploit.
   if (!user?.passwordHash) {
-    await getDummyHash();
+    // RUN the comparison rather than only awaiting the hash — getDummyHash()
+    // memoizes, so awaiting it costs nothing after the first request and the
+    // "always run a hash" promise above was not kept. See api/auth/password.
+    await verifyPassword(password, await getDummyHash());
     recordLoginFailure(ip, email);
     return rejectInvalidCredentials(email);
   }

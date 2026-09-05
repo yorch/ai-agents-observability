@@ -78,7 +78,13 @@ export const POST = withRouteLogging('auth.password', async (request: Request) =
   // attacker in as any passwordless user. `/api/auth/token` has always guarded
   // this; this route did not, and the two must not drift again.
   if (!user?.passwordHash) {
-    await getDummyHash();
+    // RUN the comparison, don't merely await the hash. getDummyHash() memoizes,
+    // so after the first request `await getDummyHash()` resolves instantly and
+    // equalizes nothing: measured, this path answered in ~5ms against ~94ms for
+    // an account that has a password — enumerating exactly which emails hold
+    // one. verifyPassword against the (random) dummy does the real scrypt work,
+    // and cannot succeed because no attacker can know that plaintext.
+    await verifyPassword(password, await getDummyHash());
     recordLoginFailure(ip, email);
     logger.warn({ email, reqId: getRequestId() }, 'auth.password.invalid_credentials');
     return jsonError(INVALID_CREDENTIALS, 401);
