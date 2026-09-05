@@ -4,11 +4,27 @@ import type { GitContext } from '@ai-agents-observability/schemas';
 // (non-zero exit, git missing, cwd gone). Synchronous. Called from two sites:
 // the flusher daemon (off the hot path) and hook-entry for SessionStart events
 // (once per session, so the one-time latency is acceptable).
+// A wedged git is the failure this bounds, not a slow one. `git status` on a
+// stale NFS/SMB mount, or with a broken `core.fsmonitor`, blocks in
+// uninterruptible sleep and never returns — and `run` is called from
+// `hook-entry`, which the host agent waits on. Without a bound, the hook does
+// not merely miss its <10ms budget: it stalls the developer's session until the
+// agent's own hook timeout fires. `adapters/gemini-cli.ts` already spawns with
+// `timeout: 5000`; this is the same idiom, not a new policy.
+//
+// 2s rather than 5s because this one is on the hot path: it is far longer than
+// any healthy git call (measured median for the full four-call sequence is
+// ~23ms) and short enough that a hang degrades to "no git context" rather than
+// to a visible freeze. Timing out returns null, which the caller already
+// handles as "not a git repo".
+const GIT_TIMEOUT_MS = 2000;
+
 function run(cwd: string, args: string[]): string | null {
   try {
     const proc = Bun.spawnSync(['git', '-C', cwd, ...args], {
       stderr: 'ignore',
       stdout: 'pipe',
+      timeout: GIT_TIMEOUT_MS,
     });
     if (proc.exitCode !== 0) {
       return null;

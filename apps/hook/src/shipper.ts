@@ -221,10 +221,23 @@ async function throttledUpload(
     },
   });
 
+  // Bun's fetch has no default timeout, so without this a server that accepts
+  // the connection and never responds parks the shipper loop forever.
+  //
+  // The bound cannot be a constant: this upload is throttled ON PURPOSE, so a
+  // legitimate large transcript is legitimately slow, and a flat timeout would
+  // abort exactly the uploads the throttle exists to allow. Derive it from the
+  // body and the pacing rate instead — the transfer itself cannot take less
+  // than byteLength / MAX_BYTES_PER_SEC — then double it and add a floor for
+  // connection setup and the server's own redaction/recompression work.
+  const pacedMs = (body.byteLength / MAX_BYTES_PER_SEC) * 1_000;
+  const timeoutMs = Math.max(60_000, Math.ceil(pacedMs * 2));
+
   return fetch(url, {
     body: readable,
     headers: { ...headers, 'Content-Length': String(body.byteLength) },
     method: 'POST',
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 

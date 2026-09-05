@@ -16,6 +16,13 @@ import { getProjectName } from './lib/project';
 import { openQueueReader } from './lib/queue-reader';
 
 const BATCH_SIZE = 100;
+/**
+ * Wall-clock bound on one event-batch POST. Generous — this is a batch of up to
+ * BATCH_SIZE events and the flusher is a background daemon, so the cost of
+ * being wrong in the slow direction is one retry, while the cost of having no
+ * bound at all is a permanently stalled daemon.
+ */
+const FLUSH_TIMEOUT_MS = 30_000;
 const IDLE_INTERVAL_MS = 5_000;
 const HIGH_WATER_MARK = 50;
 
@@ -356,6 +363,16 @@ export async function runFlusher(): Promise<void> {
             'Content-Type': 'application/json',
           },
           method: 'POST',
+          // Bun's fetch has no default timeout, and this await is the flusher's
+          // only loop. Against a server that accepts the connection and then
+          // never answers — a captive portal, a blackholing proxy, an ingest
+          // stuck on a DB lock — the daemon blocks here forever: no
+          // network_error, no markAttempt, no backoff, the queue grows without
+          // bound, and `aiot status` keeps reporting the last SUCCESSFUL flush
+          // with lastError null, so it reads as healthy. A hang has to become a
+          // failure for any of the existing retry machinery to run.
+          // `lib/import-ship.ts` already does this; the daemons did not.
+          signal: AbortSignal.timeout(FLUSH_TIMEOUT_MS),
         });
 
         if (res.status >= 200 && res.status < 300) {
