@@ -6,6 +6,12 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.4.2 (2026-09-05)
+
+### Bug Fixes
+
+- build: exclude .next/dev from the turbo build cache (#236)
+
 ## v2.4.1 (2026-09-05)
 
 ### Bug Fixes
