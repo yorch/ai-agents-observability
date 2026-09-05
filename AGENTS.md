@@ -26,7 +26,7 @@ This is a **bun + Turbo** monorepo. All commands run from the repo root.
 bun run build              # turbo run build
 bun run typecheck          # turbo run typecheck
 bun run test               # turbo run test
-bun run check              # biome check --error-on-warnings .
+bun run check              # biome check + the source-encoding gate
 bun run format             # biome format --write .
 
 # Per-app typecheck (faster during focused work)
@@ -56,13 +56,28 @@ bun run --cwd apps/hook build:all   # darwin-arm64 + darwin-x64 + linux-arm64 + 
 **Before every `git commit`, all four gates must pass.** Do not commit if any gate fails — fix the issue first.
 
 ```bash
-bun run check        # Biome lint + format (zero warnings allowed — --error-on-warnings is set)
+bun run check        # Biome lint + format (zero warnings allowed) + source-encoding gate
 bun run typecheck    # tsc --noEmit across all workspaces
 bun run build        # ensure all packages compile
 bun run test         # vitest across all workspaces
 ```
 
 Run them in this order: lint → typecheck → build → test. Fix each failure before moving to the next gate. A commit that breaks any gate must not land on `main`.
+
+`check` also runs [`scripts/check-encoding.ts`](scripts/check-encoding.ts), which
+fails if any tracked source file is **binary as far as git is concerned**. That is
+not a style rule. A single stray NUL byte reached a security fix in
+`login-rate-limit.ts` and passed every other gate — a NUL inside a template
+literal is valid TypeScript, so Biome, `tsc`, the build and all 16 test tasks were
+green. What it broke was review: git calls such a file binary, so GitHub renders
+"Binary file not shown" instead of a diff, and the reviewer of a security PR could
+not see what changed.
+
+The gate asks git (`git ls-files --eol`, checking **both** the index and worktree
+columns) rather than scanning for NUL itself, because git's verdict is the one
+that decides whether a diff renders. A genuinely binary asset is allowed by adding
+its extension to `BINARY_EXTENSIONS` in that script — an exemption argued in a
+diff, like `run-kind-exempt`.
 
 **CI is weaker than this gate — that is deliberate, and it is on you.** `.github/workflows/ci.yml` runs typecheck, lint, and test, but **not `bun run build`**. A build break passes CI. Run all four locally.
 
