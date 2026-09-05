@@ -17,6 +17,7 @@
     "dev:github-app": "bun run --cwd apps/github-app dev",
     "dev:site": "bun run --cwd apps/site dev",
     "build": "turbo run build",
+    "clean": "bun run scripts/clean.ts",
     "typecheck": "turbo run typecheck && bun run typecheck:infra",
     "typecheck:infra": "tsc --noEmit -p infra/migrations-runner/tsconfig.json",
     "test": "turbo run test",
