@@ -122,10 +122,22 @@ export function ActiveSessionStream({ slug }: { slug: string }) {
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-xs text-text-3">
           <LiveDot connected={connected} />
-          <span>{connected ? 'Connected — no active sessions' : 'Reconnecting…'}</span>
+          {/*
+            The live region is scoped to the connection word alone. It must NOT
+            wrap the line: `timeAgo(lastUpdate)` re-renders on every tick, so a
+            region around the whole thing would announce continuously — an
+            accessibility fix that is worse than the silence it replaced.
+          */}
+          <span aria-live="polite">
+            {connected ? 'Connected — no active sessions' : 'Reconnecting…'}
+          </span>
           {lastUpdate && <span className="text-text-3">· updated {timeAgo(lastUpdate)}</span>}
         </div>
-        {streamError && <p className="text-xs text-warn">{streamError}</p>}
+        {streamError && (
+          <p className="text-xs text-warn" role="status">
+            {streamError}
+          </p>
+        )}
         <EmptyState>No active sessions right now.</EmptyState>
       </div>
     );
@@ -135,13 +147,18 @@ export function ActiveSessionStream({ slug }: { slug: string }) {
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-xs text-text-3">
         <LiveDot connected={connected} />
-        <span>{connected ? 'Live' : 'Reconnecting…'}</span>
+        {/* Scoped to the connection word only — see the note on the empty branch. */}
+        <span aria-live="polite">{connected ? 'Live' : 'Reconnecting…'}</span>
         <span>
           · {sessions.length} active session{sessions.length !== 1 ? 's' : ''}
         </span>
         {lastUpdate && <span>· updated {timeAgo(lastUpdate)}</span>}
       </div>
-      {streamError && <p className="text-xs text-warn">{streamError}</p>}
+      {streamError && (
+        <p className="text-xs text-warn" role="status">
+          {streamError}
+        </p>
+      )}
       <Table
         columns={[
           { label: 'Member' },
