@@ -4,47 +4,9 @@ import { revalidatePath } from 'next/cache';
 
 import { withActionResult } from '@/lib/action-result';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
+import { CONFIGURABLE_JOBS } from '@/lib/configurable-jobs';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
-
-/**
- * The jobs this page may enable, reschedule, or run. Mirrors `CONFIGURABLE_JOBS`
- * in `apps/ingest/src/jobs/scheduler.ts` — the scheduler is the only reader of an
- * hour+minute cadence, so a job outside that list has no schedule for this form
- * to edit. (`apps/web` cannot import from `apps/ingest`; the shared home for a
- * definition two workspaces must agree on is `packages/schemas`.)
- *
- * **A row in `job_config` is not proof a job belongs here.** `POST
- * /admin/jobs/:name/run` on the ingest service upserts a placeholder row
- * (`enabled = false`, 00:00) for every name it accepts, so a fixed-timer or
- * operator-only job acquires a row — and therefore a row on this page — the first
- * time anyone triggers it. Without this list, ticking Enabled on one of those
- * would put it on a nightly schedule it was deliberately never given:
- *
- *   - `reprice-events-apply` is the write half of a two-name interlock. The bare
- *     `reprice-events` reports what repricing history would change; `-apply`
- *     rewrites `events.cost_usd` and moves the session/PR/cagg totals with it.
- *     The name was split precisely so that rewrite is never the default — a
- *     nightly schedule for it would undo the interlock from the UI.
- *   - `run-deletions` is the GDPR deletion job, on a fixed 6-hourly timer in the
- *     scheduler. Its cadence is not an operator setting.
- *   - `sync-teams`, `sync-jira`, `sweep-abandoned`, `sweep-scratch` and
- *     `backfill-redaction` are fixed-timer or one-shot operator drains, with no
- *     cadence to edit.
- */
-const CONFIGURABLE_JOBS: ReadonlySet<string> = new Set([
-  'sweep-retention',
-  'index-transcripts',
-  'compute-effectiveness',
-  'compute-trajectory-scores',
-  'compute-subject-scores',
-  'link-turn-events',
-  'compute-cost-attribution',
-  'evaluate-alerts',
-  'refresh-caggs',
-  'judge-sessions',
-  'send-report-digest',
-]);
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -55,12 +17,21 @@ const notConfigurable = (jobName: string) => ({
 
 export const updateJobConfig = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
-  const jobName = formData.get('jobName') as string;
+  // String(...) rather than `as string`: FormData.get returns
+  // FormDataEntryValue | null, so the cast was a claim the runtime does not
+  // honour — a File or null would reach the allowlist check and be interpolated
+  // into an error message as "[object File]".
+  const jobName = String(formData.get('jobName') ?? '').trim();
   const enabled = formData.get('enabled') === 'on';
   const runHourUtc = Number(formData.get('runHourUtc'));
   const runMinuteUtc = Number(formData.get('runMinuteUtc'));
+  // Reported separately. Folding a missing job name into the hour/minute branch
+  // answered "which job?" with "Hour must be 0-23" — a rejection that does not
+  // name what was wrong, which is the convention this file is meant to keep.
+  if (!jobName) {
+    return { error: 'Missing job name.', ok: false };
+  }
   if (
-    !jobName ||
     Number.isNaN(runHourUtc) ||
     Number.isNaN(runMinuteUtc) ||
     runHourUtc < 0 ||
@@ -99,7 +70,7 @@ export const updateJobConfig = withActionResult(async (formData) => {
 
 export const triggerJob = withActionResult(async (formData) => {
   const { user } = await requireOrgAdmin();
-  const jobName = formData.get('jobName') as string;
+  const jobName = String(formData.get('jobName') ?? '').trim();
   if (!jobName) {
     return { error: 'Missing job name.', ok: false };
   }
