@@ -182,12 +182,23 @@ export default async function AdminJobsPage() {
                   </Cell>
 
                   <Cell>
-                    <ActionForm action={triggerJob}>
-                      <input type="hidden" name="jobName" value={cfg.jobName} />
-                      <Button size="sm" type="submit">
-                        Run now
-                      </Button>
-                    </ActionForm>
+                    {/* No "Run now" for a disabled job. The scheduler refuses a
+                        manual trigger for one, so offering the button would be
+                        offering something the backend declines — and it would
+                        make the Enabled switch look advisory. judge-sessions is
+                        the case that matters: it ships off, and one click here
+                        used to start a paid model pass over developer
+                        transcripts regardless. */}
+                    {cfg.enabled ? (
+                      <ActionForm action={triggerJob}>
+                        <input type="hidden" name="jobName" value={cfg.jobName} />
+                        <Button size="sm" type="submit">
+                          Run now
+                        </Button>
+                      </ActionForm>
+                    ) : (
+                      <span className="text-xs text-text-3">Disabled — enable to run</span>
+                    )}
                   </Cell>
                 </Row>
               );
