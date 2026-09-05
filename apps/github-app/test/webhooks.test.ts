@@ -177,4 +177,68 @@ describe('webhooks', () => {
     const json = (await res.json()) as { duplicate?: boolean };
     expect(json.duplicate).toBe(true);
   });
+
+  // The body cap. This route reads the whole body before it can verify the
+  // signature — the HMAC is over the body — so an unauthenticated caller chose
+  // how much memory it allocated. `apps/ingest` caps both of its authenticated
+  // routes; this unauthenticated one capped nothing.
+  describe('body limit', () => {
+    // Larger than the 25 MB cap, built without allocating a 26 MB string per
+    // assertion: `content-length` is what bodyLimit reads first.
+    const OVERSIZE = 26 * 1_048_576;
+
+    it('rejects an oversized body with 413', async () => {
+      const app = createApp(config, stubDb, logger);
+      const res = await app.request('/webhooks/github', {
+        body: 'x'.repeat(1024),
+        headers: {
+          'content-length': String(OVERSIZE),
+          'content-type': 'application/json',
+          'x-github-delivery': 'delivery-oversize',
+          'x-github-event': 'pull_request',
+          'x-hub-signature-256': 'sha256=irrelevant',
+        },
+        method: 'POST',
+      });
+      expect(res.status).toBe(413);
+    });
+
+    it('rejects it BEFORE the signature check, not after', async () => {
+      // The discriminating assertion. A valid signature would otherwise be
+      // required to reach any rejection at all, and 401-for-bad-signature would
+      // look identical to a working cap. This request carries a deliberately
+      // wrong signature: if the cap ran after verification the answer would be
+      // 401, so 413 proves the limit sits in front — which is the whole point,
+      // since verification is what reads the body.
+      const app = createApp(config, stubDb, logger);
+      const res = await app.request('/webhooks/github', {
+        body: '{}',
+        headers: {
+          'content-length': String(OVERSIZE),
+          'content-type': 'application/json',
+          'x-github-event': 'pull_request',
+          'x-hub-signature-256': 'sha256=definitely-wrong',
+        },
+        method: 'POST',
+      });
+      expect(res.status).toBe(413);
+    });
+
+    it('still accepts a normal payload', async () => {
+      // Positive control: proves the cap is not rejecting everything.
+      const body = JSON.stringify({ action: 'opened' });
+      const app = createApp(config, stubDb, logger);
+      const res = await app.request('/webhooks/github', {
+        body,
+        headers: {
+          'content-type': 'application/json',
+          'x-github-delivery': 'delivery-normal',
+          'x-github-event': 'pull_request',
+          'x-hub-signature-256': sign(body),
+        },
+        method: 'POST',
+      });
+      expect(res.status).toBe(202);
+    });
+  });
 });
