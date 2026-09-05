@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { hashPassword, issueHookToken, verifyPassword } from '@ai-agents-observability/auth';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -19,10 +21,12 @@ const RequestBody = z.object({
   password: z.string().min(1).max(1024),
 });
 
-// Lazily computed so module load doesn't block the build.
+// Lazily computed so module load doesn't block the build. Random plaintext per
+// process: this hash must never be a known-plaintext target — see the note in
+// api/auth/password/route.ts for what happened when it was.
 let dummyHashPromise: Promise<string> | null = null;
 function getDummyHash(): Promise<string> {
-  dummyHashPromise ??= hashPassword('__sentinel__');
+  dummyHashPromise ??= hashPassword(randomUUID() + randomUUID());
   return dummyHashPromise;
 }
 
@@ -66,7 +70,10 @@ export const POST = withRouteLogging('auth.token', async (request: Request) => {
   // dummy hash then reject — do NOT fall through to verifyPassword with the
   // sentinel value, which an attacker who knows it could exploit.
   if (!user?.passwordHash) {
-    await getDummyHash();
+    // RUN the comparison rather than only awaiting the hash — getDummyHash()
+    // memoizes, so awaiting it costs nothing after the first request and the
+    // "always run a hash" promise above was not kept. See api/auth/password.
+    await verifyPassword(password, await getDummyHash());
     recordLoginFailure(ip, email);
     return rejectInvalidCredentials(email);
   }
