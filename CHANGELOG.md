@@ -6,6 +6,14 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.4.1 (2026-09-05)
+
+### Bug Fixes
+
+- web: close three write-path findings — stale team role, silent revoke, Run-now bypass (#234)
+- privacy: scope routing actuals to the org-visible population (#235)
+- auth: close a passwordless-account login bypass and harden login (#231)
+
 ## v2.4.0 (2026-09-03)
 
 ### Features

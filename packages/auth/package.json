@@ -1,6 +1,6 @@
 {
   "name": "@ai-agents-observability/auth",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "private": true,
   "description": "IdentityProvider interface + GitHub impl + JWT issuance",
   "engines": {
