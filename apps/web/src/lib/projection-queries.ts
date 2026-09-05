@@ -169,6 +169,22 @@ export async function getSpendActuals(
  * takes a measurement, and a window with no attribution is reported through
  * `volume` (the call count), which is zero exactly when nothing was measured.
  */
+// The visibility join below is not decoration. This function shipped without it
+// while both of its siblings carried it, and the file header three screens up
+// promises the opposite: "a user who has opted out of sharing metadata with the
+// org is excluded here ... so a projection and its realization are drawn from the
+// same population". They were not.
+//
+// The leak is by difference, not by row. This returns two org-wide scalars, but
+// /org/models renders it beside `getOrgModelRoutingBreakdown`, which IS scoped —
+// so `ungated actual − gated baseline` is the spend of exactly the non-consenting
+// users, for that model and window. With one opted-out developer, that difference
+// is one named person's spend, tracked week over week, visible to a role
+// (VIEWER_AGGREGATE) defined as never seeing individuals.
+//
+// It is also a correctness fix: comparing an ungated actual against a gated
+// baseline overstated actual spend and therefore understated realized savings on
+// every closed routing claim.
 export async function getRoutingActuals(
   model: string,
   from: Date,
@@ -181,6 +197,8 @@ export async function getRoutingActuals(
         SUM(tool.attributed_cost_usd)::text AS cheap_cost,
         COUNT(*)                            AS call_count
       FROM interactive_events tool
+      JOIN users u ON u.id = tool.user_id AND u.deactivated_at IS NULL
+      LEFT JOIN visibility_policies vp ON vp.user_id = u.id
       JOIN interactive_events turn
         ON turn.session_id  = tool.session_id
        AND turn.event_id    = tool.parent_event_id
@@ -192,6 +210,7 @@ export async function getRoutingActuals(
         AND tool.ts < ${to}
         AND tool.event_type = 'PostToolUse'
         AND tool.tool_category IN (${categories})
+        AND ${ORG_VISIBLE}
     `,
   );
 
