@@ -114,14 +114,38 @@ describe('a missing attribution stays missing', () => {
 });
 
 describe('the attributed queries keep the visibility and run-kind guards', () => {
-  // `attribution-coverage.ts` is checked separately below: it deliberately
-  // mentions neither column (it measures linkage, not cost), so it contributes
-  // no "attributed SQL block" to scan.
-  const QUERY_FILES = [
-    join(LIB, 'org-queries.ts'),
-    join(LIB, 'team-queries.ts'),
-    join(LIB, 'insights-queries.ts'),
-  ];
+  // DERIVED, not enumerated — and that distinction is the whole point.
+  //
+  // This list used to name three files by hand. A fourth, `projection-queries.ts`,
+  // also carries attributed-cost SQL, and its `getRoutingActuals` shipped with no
+  // visibility join at all while both of its siblings had one. The guard written
+  // to catch exactly that stayed green for as long as it existed, because it was
+  // not looking at the file. Enumerating the inputs to a safety check means the
+  // check silently narrows every time the codebase grows.
+  //
+  // Membership is "has at least one attributed SQL block", not "mentions the
+  // column": `recommendations.ts` and `routing-queries.ts` name
+  // `attributedCostUsd` but contain no Prisma.sql at all — they are pure
+  // functions over rows fetched elsewhere, so they carry no query to guard.
+  // `attribution-coverage.ts` is checked separately below for the same reason.
+  const QUERY_FILES = readdirSync(LIB)
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+    .map((name) => join(LIB, name))
+    .filter((path) => attributedSqlBlocks(path).length > 0);
+
+  it('discovers every file carrying attributed-cost SQL', () => {
+    // A derived list must never silently become empty, or shrink back to the
+    // hand-written three that missed the offender.
+    expect(QUERY_FILES.length).toBeGreaterThanOrEqual(4);
+    for (const expected of [
+      'org-queries.ts',
+      'team-queries.ts',
+      'insights-queries.ts',
+      'projection-queries.ts',
+    ]) {
+      expect(QUERY_FILES.some((path) => path.endsWith(expected))).toBe(true);
+    }
+  });
 
   /**
    * Every SQL template literal in a file that mentions either attribution
@@ -130,7 +154,14 @@ describe('the attributed queries keep the visibility and run-kind guards', () =>
    */
   function attributedSqlBlocks(file: string): string[] {
     const src = readFileSync(file, 'utf8');
-    return [...src.matchAll(/Prisma\.sql`([\s\S]*?)`\s*\)/g)]
+    // The trailing `,?` matters. This used to require the closing backtick to be
+    // followed directly by `)`, so a call written as
+    //   $queryRaw<T>(
+    //     Prisma.sql`…`,
+    //   );
+    // matched nothing — which is a second, independent reason this guard was
+    // blind to projection-queries.ts even before the file list is considered.
+    return [...src.matchAll(/Prisma\.sql`([\s\S]*?)`\s*,?\s*\)/g)]
       .map((m) => m[1] as string)
       .filter((sql) => sql.includes(ATTR) || sql.includes(DOWN));
   }
@@ -169,13 +200,26 @@ describe('the attributed queries keep the visibility and run-kind guards', () =>
     const byUserList = /user_id\s+IN\s*\(|user_id\s*=\s*\$\{userId\}/;
     const byPolicyJoin = /visibility_policies/;
     for (const file of QUERY_FILES) {
+      const src = readFileSync(file, 'utf8');
       const blocks = attributedSqlBlocks(file);
       expect(blocks.length).toBeGreaterThan(0);
       for (const sql of blocks) {
         const scoped = byUserList.test(sql) || byPolicyJoin.test(sql);
         expect(scoped, sql).toBe(true);
         if (byPolicyJoin.test(sql)) {
-          expect(sql).toMatch(/share_metadata_with_org/);
+          // The predicate may be written inline, or interpolated from a named
+          // fragment the file defines (`projection-queries.ts` shares one across
+          // three queries as ORG_VISIBLE). A join with no predicate bound to it
+          // is the failure this assertion exists for, so resolving the fragment
+          // has to keep that teeth: the NAME must appear in this SQL *and* its
+          // definition in this file must carry the column.
+          const inline = /share_metadata_with_org/.test(sql);
+          const viaFragment = [...sql.matchAll(/\$\{([A-Z][A-Z0-9_]*)\}/g)].some((m) =>
+            new RegExp(`const\\s+${m[1]}\\s*=\\s*Prisma\\.sql\`[^\`]*share_metadata_with_org`).test(
+              src,
+            ),
+          );
+          expect(inline || viaFragment, sql).toBe(true);
         }
       }
     }
