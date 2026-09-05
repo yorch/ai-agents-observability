@@ -292,6 +292,9 @@ export default async function OrgSearchPage({
                 name="q"
                 defaultValue={query}
                 placeholder="Search transcript content (users with org sharing enabled)"
+                // A placeholder is not an accessible name, and it disappears on
+                // the first keystroke. /me/search already labels its twin.
+                aria-label="Search transcript content"
                 className="flex-1"
               />
               <Button type="submit">Search</Button>

@@ -20,16 +20,30 @@ function ToggleRow({
   toggle: Toggle;
   onChange: (name: string, value: boolean) => void;
 }) {
+  // The switch has no text of its own — its only child is the decorative knob —
+  // so without these it announces as an unnamed "switch, not checked". Five of
+  // them stack on this page, and this is the page that decides who may read a
+  // developer's transcripts: "which one is judge analysis?" has to be answerable
+  // without sight. `toggle.name` is the policy field, so it is already unique.
+  const labelId = `${toggle.name}-label`;
+  const descriptionId = `${toggle.name}-description`;
+
   return (
     <div className="flex items-start justify-between gap-4 py-4 border-b border-border-subtle last:border-0">
       <div className="flex-1">
-        <p className="text-sm font-medium">{toggle.label}</p>
-        <p className="mt-0.5 text-xs text-text-2">{toggle.description}</p>
+        <p className="text-sm font-medium" id={labelId}>
+          {toggle.label}
+        </p>
+        <p className="mt-0.5 text-xs text-text-2" id={descriptionId}>
+          {toggle.description}
+        </p>
       </div>
       <button
         type="button"
         role="switch"
         aria-checked={toggle.value}
+        aria-labelledby={labelId}
+        aria-describedby={descriptionId}
         onClick={() => onChange(toggle.name, !toggle.value)}
         className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-transparent ${
           toggle.value ? 'border-accent bg-accent' : 'border-border-strong bg-surface-2'
