@@ -28,6 +28,7 @@ bun run typecheck          # turbo run typecheck
 bun run test               # turbo run test
 bun run check              # biome check + the source-encoding gate
 bun run format             # biome format --write .
+bun run clean              # remove build artifacts + tool caches; --dry-run to preview
 
 # Per-app typecheck (faster during focused work)
 bun run --cwd apps/web typecheck
