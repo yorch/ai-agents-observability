@@ -25,6 +25,7 @@ import { startScheduler } from '../src/jobs/scheduler';
 function makeDeps(configs: Array<Record<string, unknown>>) {
   const jobConfigUpdate = vi.fn(async () => ({}));
   const jobRunCreate = vi.fn(async () => ({ id: 1n }));
+  const info = vi.fn();
   const warn = vi.fn();
 
   const db = {
@@ -46,8 +47,9 @@ function makeDeps(configs: Array<Record<string, unknown>>) {
     deps: {
       bucket: 'test',
       db: db as unknown as PrismaClient,
-      logger: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn },
+      logger: { debug: vi.fn(), error: vi.fn(), info, warn },
     } as never,
+    info,
     jobConfigUpdate,
     jobRunCreate,
     warn,
@@ -63,6 +65,26 @@ function makeDeps(configs: Array<Record<string, unknown>>) {
 function refused(warn: ReturnType<typeof vi.fn>): boolean {
   return warn.mock.calls.some((args) =>
     args.some((a) => typeof a === 'string' && a.includes('manual run refused')),
+  );
+}
+
+/**
+ * Did the loop take the DISPATCH branch?
+ *
+ * `refused(...) === false` on its own is not evidence of dispatch — it is
+ * equally true of a scheduler that does nothing at all, which is precisely the
+ * regression a "not refused" test should catch. This is the counterpart signal.
+ *
+ * It reads the scheduler's own log rather than a downstream effect on purpose.
+ * `triggerJob` is launched fire-and-forget and the job it dispatches never
+ * reaches `withJobRun` against these mocks, so `jobRun.create` is never called
+ * here — asserting on that would fail for reasons unrelated to the branch under
+ * test. The unit under test is the scheduler's decision, and this is where the
+ * scheduler records it.
+ */
+function dispatched(info: ReturnType<typeof vi.fn>): boolean {
+  return info.mock.calls.some((args) =>
+    args.some((a) => typeof a === 'string' && a.includes('manual run requested')),
   );
 }
 
@@ -123,22 +145,30 @@ describe('scheduler manual-trigger path', () => {
     // ingest admin router mints the row that way for jobs that only ever run by
     // hand. Refusing them would break the operator drain rather than protect
     // anything, so the refusal must not clear their request.
-    const { deps, warn } = makeDeps([pending('reprice-events-apply', false)]);
+    const { deps, info, warn } = makeDeps([pending('reprice-events-apply', false)]);
 
     startScheduler(deps);
     await tick();
 
     expect(refused(warn)).toBe(false);
+    // Not merely "no refusal logged" — it was actually dispatched. Without this
+    // the assertion above would hold just as well if manual dispatch had
+    // stopped working entirely, which is the failure it is meant to catch.
+    expect(dispatched(info)).toBe(true);
   });
 
   it('lets an ENABLED configurable job through the refusal branch', async () => {
     // Positive control: proves the assertions above discriminate, rather than
     // passing because nothing ever dispatches in this harness.
-    const { deps, warn } = makeDeps([pending('judge-sessions', true)]);
+    const { deps, info, warn } = makeDeps([pending('judge-sessions', true)]);
 
     startScheduler(deps);
     await tick();
 
     expect(refused(warn)).toBe(false);
+    // The half that makes this a control at all: the enabled job really is
+    // dispatched. "No refusal was logged" is also true of a scheduler that
+    // dispatches nothing, so on its own it proves nothing about the guard.
+    expect(dispatched(info)).toBe(true);
   });
 });
