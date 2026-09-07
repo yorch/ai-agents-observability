@@ -57,10 +57,12 @@ export const updateJobConfig = withActionResult(async (formData) => {
   // `judge-sessions` on starts paid model reads of developer transcripts. Both
   // are decisions someone has to be able to attribute afterwards, and this path
   // has a named user where the ingest one only has a shared secret.
-  // ADMIN_JOB_TRIGGERED is the existing enum member for admin job control; the
-  // justification carries which job changed and how.
+  // ADMIN_JOB_CONFIG_CHANGED, not ADMIN_JOB_TRIGGERED: a schedule change is a
+  // standing decision, a manual run is a single act. Both used to land under the
+  // trigger action, so "who enabled judge-sessions?" could only be answered by
+  // string-matching the justification prose of every row the filter returned.
   await writeAuditLog({
-    action: AuditAction.ADMIN_JOB_TRIGGERED,
+    action: AuditAction.ADMIN_JOB_CONFIG_CHANGED,
     actorUserId: user.id,
     justification: `Job "${jobName}" ${enabled ? 'enabled' : 'disabled'}, scheduled ${pad2(runHourUtc)}:${pad2(runMinuteUtc)} UTC`,
   });

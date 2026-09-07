@@ -174,14 +174,6 @@ async function getTeamSummaryWindow(
   };
 }
 
-export async function getTeamSummary(
-  since: Date,
-  visibleIds: string[],
-  totalMemberCount: number,
-): Promise<TeamSummary> {
-  return getTeamSummaryWindow(since, undefined, visibleIds, totalMemberCount);
-}
-
 export async function getTeamTopTools(
   since: Date,
   visibleIds: string[],
