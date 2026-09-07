@@ -1,6 +1,6 @@
 {
   "name": "@ai-agents-observability/hook",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "private": true,
   "description": "Bun-compiled CLI: aiot binary",
   "engines": {
