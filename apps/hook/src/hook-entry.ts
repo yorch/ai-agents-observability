@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 
 import { type HookAdapter, selectAdapter } from './adapters';
+import { commitDeferred, discardDeferred, resetDeferred } from './lib/deferred-commit';
 import { getGitContext } from './lib/git';
 import { log } from './lib/log';
 import { pausedPath } from './lib/paths';
@@ -51,6 +52,10 @@ export async function runHook(
   _opts: Options,
   adapter: HookAdapter = selectAdapter(),
 ): Promise<void> {
+  // One hook invocation per process, but clear defensively so a test (or any
+  // future in-process reuse) cannot inherit another run's pending commits.
+  resetDeferred();
+
   try {
     if (existsSync(pausedPath())) {
       return;
@@ -108,9 +113,13 @@ export async function runHook(
       queue = openQueue();
     } catch (err) {
       log('error', 'hook.queue.open_failed', { kind, message: (err as Error).message });
+      // The adapter has already read its side channel. Do NOT commit that read:
+      // nothing was queued, so the next invocation must see the same data again.
+      discardDeferred('queue_open_failed');
       return;
     }
 
+    let enqueued = 0;
     for (const event of events) {
       try {
         queue.enqueue({
@@ -118,9 +127,28 @@ export async function runHook(
           payload_json: JSON.stringify(event),
           ts: event.ts,
         });
+        enqueued += 1;
       } catch (err) {
         log('error', 'hook.queue.enqueue_failed', { kind, message: (err as Error).message });
       }
+    }
+
+    // The commit point. Adapters register their destructive side-channel reads
+    // (a transcript cursor, a usage accumulator) rather than performing them, so
+    // that consuming the source and durably recording what was consumed cannot
+    // come apart — which is what happened before: the cursor advanced while
+    // building the events, and an enqueue failure then dropped them for good,
+    // taking the only live record of that turn's token usage with it.
+    //
+    // Committing on a PARTIAL enqueue is deliberate. The queue dedupes on
+    // event_id, and the ids here are deterministic (derived from the transcript
+    // entry), so re-reading a committed turn is a no-op rather than a double
+    // count — while not committing after a partial success would re-read every
+    // turn on every subsequent invocation, which grows without bound.
+    if (enqueued > 0) {
+      commitDeferred();
+    } else if (events.length > 0) {
+      discardDeferred('enqueue_failed');
     }
 
     // For terminal events, the adapter tells us where the transcript lives; write

@@ -31,6 +31,7 @@ import {
   writeJsonFile,
   writeTextFile,
 } from '../lib/config-wire';
+import { deferCommit } from '../lib/deferred-commit';
 import { pickString } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { log } from '../lib/log';
@@ -636,7 +637,10 @@ function mapBatch(kind: string, raw: Record<string, unknown>): ConformantEvent[]
         hasUsage(delta) ? { llm: llmBlock(delta) } : undefined,
       ),
     );
-    commit();
+    // Deferred: `hook-entry` runs it after the events are queued. Calling it
+    // here advanced the rollout cursor past turns an enqueue failure would then
+    // drop. See lib/deferred-commit.ts.
+    deferCommit('codex.cursor', commit);
     return events;
   } catch {
     return null;
@@ -657,12 +661,15 @@ function stopWithUsage(raw: Record<string, unknown>): ConformantEvent[] | null {
     }
     const { commit, delta } = readUsageDelta(loc);
     if (!hasUsage(delta)) {
-      commit();
+      deferCommit('codex.cursor', commit);
       return [withModelOnly(event, raw)];
     }
     const model = str(raw.model, delta.model ?? 'unknown');
     const withUsage = { ...event, llm: { ...llmBlock(delta), model } } as ConformantEvent;
-    commit();
+    // Deferred: `hook-entry` runs it after the events are queued. Calling it
+    // here advanced the rollout cursor past turns an enqueue failure would then
+    // drop. See lib/deferred-commit.ts.
+    deferCommit('codex.cursor', commit);
     return [withUsage];
   } catch {
     return null;

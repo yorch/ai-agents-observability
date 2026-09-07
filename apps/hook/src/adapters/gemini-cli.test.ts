@@ -2,12 +2,33 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
+import { commitDeferred, resetDeferred } from '../lib/deferred-commit';
 import { selectAdapter } from '.';
 import { conformanceErrors } from './conformance';
 import { geminiCliAdapter } from './gemini-cli';
 
 const SESSION_ID = '7c1d9f30-4a2b-4e88-9d51-6b0e3a7c2f14';
+
+/**
+ * A terminal gemini hook (AfterAgent / SessionEnd) through a SUCCESSFUL enqueue.
+ *
+ * Draining the usage accumulator is deferred now: the adapter registers the
+ * removal and `hook-entry` runs it only once the events are queued, so a failed
+ * enqueue no longer destroys the turn's tokens (see lib/deferred-commit.ts).
+ * These assertions are about the accumulator actually being cleared, so they
+ * have to model the commit too.
+ */
+function terminalBatch(kind: string, raw: Record<string, unknown>) {
+  const events = geminiCliAdapter.mapBatch?.(kind, raw);
+  commitDeferred();
+  return events;
+}
+
+// Deferred commits are module state (lib/deferred-commit.ts). A test that maps a
+// batch without committing or discarding leaves work pending, which a LATER test
+// could then run — against a temp dir that beforeEach has already replaced. Clear
+// it per test so the suite cannot depend on file order.
+beforeEach(resetDeferred);
 
 describe('gemini-cli adapter', () => {
   let telHome: string;
@@ -118,7 +139,7 @@ describe('gemini-cli adapter', () => {
       session_id: SESSION_ID,
     });
 
-    const stop = geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID })?.[0];
+    const stop = terminalBatch('after-agent', { session_id: SESSION_ID })?.[0];
     expect(stop?.event_type).toBe('Stop');
     // Google's promptTokenCount includes the cached content, so the first call
     // contributes 1500 - 400 = 1100 uncached input, not 1500. Billing the raw
@@ -145,7 +166,7 @@ describe('gemini-cli adapter', () => {
       session_id: SESSION_ID,
     });
 
-    const stop = geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID })?.[0];
+    const stop = terminalBatch('after-agent', { session_id: SESSION_ID })?.[0];
     expect(stop?.llm?.output_tokens).toBe(1500);
     expect(stop?.llm?.input_tokens).toBe(900);
   });
@@ -156,9 +177,9 @@ describe('gemini-cli adapter', () => {
       llm_response: { usageMetadata: { candidatesTokenCount: 10, promptTokenCount: 100 } },
       session_id: SESSION_ID,
     });
-    geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID });
+    terminalBatch('after-agent', { session_id: SESSION_ID });
 
-    const second = geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID })?.[0];
+    const second = terminalBatch('after-agent', { session_id: SESSION_ID })?.[0];
     // Assert a Stop was actually emitted first — `?.llm` is also undefined when
     // no event came back at all, which is a different (and worse) failure.
     expect(second?.event_type).toBe('Stop');
@@ -174,7 +195,7 @@ describe('gemini-cli adapter', () => {
     const dir = join(telHome, 'agent-state', 'gemini-cli');
     expect(readdirSync(dir).length).toBe(1);
 
-    geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID });
+    terminalBatch('after-agent', { session_id: SESSION_ID });
     expect(readdirSync(dir).length).toBe(0);
   });
 
@@ -185,7 +206,7 @@ describe('gemini-cli adapter', () => {
       llm_response: { usageMetadata: { candidatesTokenCount: 5, promptTokenCount: 50 } },
       session_id: SESSION_ID,
     });
-    const stop = geminiCliAdapter.mapBatch?.('session-end', { session_id: SESSION_ID })?.[0];
+    const stop = terminalBatch('session-end', { session_id: SESSION_ID })?.[0];
     expect(stop?.event_type).toBe('SessionEnd');
     expect(stop?.llm?.input_tokens).toBe(50);
     expect(readdirSync(join(telHome, 'agent-state', 'gemini-cli')).length).toBe(0);
@@ -200,7 +221,7 @@ describe('gemini-cli adapter', () => {
         session_id: SESSION_ID,
       });
     }
-    const stop = geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID })?.[0];
+    const stop = terminalBatch('after-agent', { session_id: SESSION_ID })?.[0];
     expect(stop?.llm?.input_tokens).toBe(2000);
     expect(stop?.llm?.output_tokens).toBe(200);
   });
@@ -210,7 +231,7 @@ describe('gemini-cli adapter', () => {
       llm_response: { usageMetadata: { candidatesTokenCount: 9, promptTokenCount: 99 } },
     });
     expect(existsSync(join(telHome, 'agent-state', 'gemini-cli'))).toBe(false);
-    const stop = geminiCliAdapter.mapBatch?.('after-agent', {})?.[0];
+    const stop = terminalBatch('after-agent', {})?.[0];
     expect(stop?.llm).toBeUndefined();
   });
 
@@ -219,7 +240,7 @@ describe('gemini-cli adapter', () => {
       llm_response: { something: 'unexpected' },
       session_id: SESSION_ID,
     });
-    const stop = geminiCliAdapter.mapBatch?.('after-agent', { session_id: SESSION_ID })?.[0];
+    const stop = terminalBatch('after-agent', { session_id: SESSION_ID })?.[0];
     expect(stop?.llm).toBeUndefined();
     expect(conformanceErrors(stop)).toEqual([]);
   });
