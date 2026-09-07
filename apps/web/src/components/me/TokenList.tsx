@@ -39,14 +39,28 @@ export function RevokeTokenButton({ token }: { token: TokenInfo }) {
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleRevoke}
-      disabled={state === 'revoking'}
-      className="text-sm text-crit hover:text-crit-dim disabled:opacity-50"
-    >
-      {state === 'revoking' ? 'Revoking…' : 'Revoke'}
-    </button>
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={handleRevoke}
+        disabled={state === 'revoking'}
+        className="text-sm text-crit hover:text-crit-dim disabled:opacity-50"
+      >
+        {state === 'revoking' ? 'Revoking…' : 'Revoke'}
+      </button>
+      {/*
+        `error` was set and never rendered: the button simply re-enabled, so a
+        failed revoke was indistinguishable from one that had not been clicked —
+        and the credential the user believed they had just killed was still live.
+        A silent failure is bad anywhere; on a revoke path it is a security bug.
+        role="alert" so it is announced rather than only seen.
+      */}
+      {state === 'error' ? (
+        <span className="text-xs text-crit" role="alert">
+          Could not revoke — try again.
+        </span>
+      ) : null}
+    </div>
   );
 }
 
