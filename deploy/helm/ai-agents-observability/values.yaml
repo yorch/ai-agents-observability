@@ -190,6 +190,16 @@ ingress:
   #     - observability.example.com
 
 # GitHub App webhook ingress — separate from the web UI ingress.
+#
+# The default paths are an ALLOWLIST of the two routes GitHub actually calls,
+# mirroring the Traefik overlay's router rule. `path: /` with `pathType: Prefix`
+# would publish the whole listener, including `/metrics` — process RSS, heap,
+# CPU, event-loop lag, runtime version, uptime, plus per-event delivery counters
+# — which is ungated by design (Prometheus scrapes it in-cluster, and ingest is
+# the same). `/admin` is gated by ADMIN_SECRET and 404s without one, but there is
+# no reason to route it either.
+#
+# Widen these only if you know what else you are exposing.
 githubAppIngress:
   enabled: false
   className: ""
@@ -197,8 +207,10 @@ githubAppIngress:
   hosts:
     - host: github-webhook.example.com
       paths:
-        - path: /
-          pathType: Prefix
+        - path: /webhooks/github
+          pathType: Exact
+        - path: /health
+          pathType: Exact
   tls: []
 
 # ── Service account ──────────────────────────────────────────────────────────
