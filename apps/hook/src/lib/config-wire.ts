@@ -7,6 +7,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -79,20 +80,40 @@ export function readJsonFile<T = Record<string, unknown>>(filePath: string): T |
 }
 
 /**
- * Write JSON to a file with pretty-printing (2-space indent). Creates parent
- * directories as needed.
+ * Replace a file's contents atomically: write a sibling temp file, then rename.
+ *
+ * These helpers rewrite config files WE DO NOT OWN — `~/.claude/settings.json`
+ * and its equivalents for the other agents. A bare `writeFileSync` truncates
+ * first, so a crash or a full disk mid-write leaves the user with a half-written
+ * settings file that their agent then refuses to parse: we would have broken a
+ * tool the hook is only supposed to observe. `rename` within a directory is
+ * atomic, so a reader sees either the old file or the new one.
+ *
+ * The `.aiot-backup` companion exists for a corrupted file, but recovering from
+ * it is manual — not being the cause is better. `shipper.ts` already uses this
+ * idiom for its markers.
  */
-export function writeJsonFile(filePath: string, data: unknown): void {
+function writeFileAtomic(filePath: string, contents: string): void {
   mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  const tmpPath = `${filePath}.aiot-tmp`;
+  writeFileSync(tmpPath, contents, 'utf8');
+  renameSync(tmpPath, filePath);
 }
 
 /**
- * Write a text file. Creates parent directories as needed.
+ * Write JSON to a file with pretty-printing (2-space indent). Creates parent
+ * directories as needed. Atomic — see {@link writeFileAtomic}.
+ */
+export function writeJsonFile(filePath: string, data: unknown): void {
+  writeFileAtomic(filePath, `${JSON.stringify(data, null, 2)}\n`);
+}
+
+/**
+ * Write a text file. Creates parent directories as needed. Atomic — see
+ * {@link writeFileAtomic}.
  */
 export function writeTextFile(filePath: string, content: string): void {
-  mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, content, 'utf8');
+  writeFileAtomic(filePath, content);
 }
 
 /**

@@ -22,7 +22,9 @@ function ensureDir(path: string): void {
     return;
   }
   try {
-    mkdirSync(dir, { recursive: true });
+    // 0o700 — hook.log records cwd paths, repo/owner and project names. See the
+    // note in lib/queue.ts.
+    mkdirSync(dir, { mode: 0o700, recursive: true });
     ensuredDirs.add(dir);
   } catch {
     // Swallow — log() must never throw.
@@ -56,7 +58,7 @@ export function log(
   rotateIfLarge(path);
   const line = `${JSON.stringify({ event, level, ts: new Date().toISOString(), ...fields })}\n`;
   try {
-    appendFileSync(path, line, { encoding: 'utf8' });
+    appendFileSync(path, line, { encoding: 'utf8', mode: 0o600 });
   } catch {
     // Swallow — log() must never throw.
   }
