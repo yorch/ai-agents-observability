@@ -10,6 +10,12 @@ import { handlePullRequest } from '../handlers/pull-request';
 import { handlePullRequestReview } from '../handlers/pull-request-review';
 import { handlePush, type PushPayload } from '../handlers/push';
 import { recordFailed, recordProcessed, recordReceived } from '../lib/metrics';
+import {
+  CheckRunPayloadSchema,
+  PullRequestPayloadSchema,
+  PullRequestReviewPayloadSchema,
+  PushPayloadSchema,
+} from '../lib/webhook-payloads';
 import type { AppDb, AppEnv } from '../types';
 
 /**
@@ -118,34 +124,65 @@ export function webhooksRouter(db: AppDb, config: Config, logger: Logger): Hono<
 
       void (async () => {
         try {
+          // Parse, don't cast. `X-GitHub-Event` picks the handler and is NOT
+          // covered by the signature (the HMAC is over the body alone), so the
+          // body/handler pairing is attacker-controlled. A cast asserts a shape
+          // nothing checks; the first evidence of a mismatch used to be a
+          // TypeError thrown inside this detached block. `parsed()` returns null
+          // and logs instead, so a mis-routed body is a no-op rather than a
+          // crash. Schemas are minimal and loose on purpose — see
+          // lib/webhook-payloads.ts.
+          function parsed<T>(schema: {
+            safeParse: (v: unknown) => { data?: T; success: boolean };
+          }) {
+            const result = schema.safeParse(payload);
+            if (!result.success) {
+              logger.warn({ delivery: deliveryId, event }, 'webhook.payload.schema_mismatch');
+              return null;
+            }
+            return result.data as T;
+          }
+
           if (event === 'pull_request') {
-            await handlePullRequest(
-              payload as EmitterWebhookEvent<'pull_request'>['payload'],
-              db,
-              config,
-              logger,
-            );
+            const p = parsed(PullRequestPayloadSchema);
+            if (p) {
+              await handlePullRequest(
+                p as unknown as EmitterWebhookEvent<'pull_request'>['payload'],
+                db,
+                config,
+                logger,
+              );
+            }
           }
 
           // P5-005: GitHub Checks correlation — per-run outcome rows + the
           // failure counter on rollups.
           if (event === 'check_run') {
-            await handleCheckRun(payload as CheckRunPayload, db, logger);
+            const p = parsed(CheckRunPayloadSchema);
+            if (p) {
+              await handleCheckRun(p as CheckRunPayload, db, logger);
+            }
           }
 
           // Submitted/dismissed reviews → pr_reviews + maintained review_count.
           if (event === 'pull_request_review') {
-            await handlePullRequestReview(
-              payload as EmitterWebhookEvent<'pull_request_review'>['payload'],
-              db,
-              config,
-              logger,
-            );
+            const p = parsed(PullRequestReviewPayloadSchema);
+            if (p) {
+              await handlePullRequestReview(
+                p as unknown as EmitterWebhookEvent<'pull_request_review'>['payload'],
+                db,
+                config,
+                logger,
+              );
+            }
           }
 
           // Default-branch pushes → commit→session correlation (DESIGN_DOC §7.2).
           if (event === 'push') {
-            await handlePush(payload as PushPayload, db, config, logger);
+            const p = parsed(PushPayloadSchema);
+            if (p) {
+              await handlePush(p as PushPayload, db, config, logger);
+            }
           }
           recordProcessed(`${event}.${action}`, Date.now() - start);
           await db.webhookDelivery
