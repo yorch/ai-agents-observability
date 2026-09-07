@@ -87,6 +87,29 @@ services:
       - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.tls=true"
       - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.tls.certResolver=webcert"
       - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.service=${TRAEFIK_NAME_GITHUB:-ai-agents-github}"
+      # Rate limit. This is the only unauthenticated write surface in the stack,
+      # and it HMACs every body before it can reject one — so an attacker sets
+      # our CPU cost. The 25 MB bodyLimit in the app bounds memory PER REQUEST;
+      # nothing bounded the request RATE.
+      #
+      # It lives here rather than in the app for two reasons: Traefik sees the
+      # real client address natively, where the app would need the trusted-proxy
+      # configuration ingest carries and github-app does not have (duplicating
+      # that logic is how one service ends up with a spoofable X-Forwarded-For);
+      # and this is already where the service's network policy lives — the route
+      # allowlist directly above.
+      #
+      # Rate limiting is SAFE for this endpoint specifically: Traefik answers
+      # over-limit requests with 429, GitHub retries non-2xx, so a throttled
+      # delivery is deferred rather than lost. That is not true of most limits,
+      # and it is why the ceiling can be set with some confidence.
+      #
+      # Defaults are far above any real webhook volume (50/s sustained, 100
+      # burst) and far below what a CPU-exhaustion attempt needs. Override per
+      # install if a monorepo's check_run traffic ever approaches it.
+      - "traefik.http.middlewares.${TRAEFIK_NAME_GITHUB:-ai-agents-github}-ratelimit.ratelimit.average=${GITHUB_WEBHOOK_RATE_AVERAGE:-50}"
+      - "traefik.http.middlewares.${TRAEFIK_NAME_GITHUB:-ai-agents-github}-ratelimit.ratelimit.burst=${GITHUB_WEBHOOK_RATE_BURST:-100}"
+      - "traefik.http.routers.${TRAEFIK_NAME_GITHUB:-ai-agents-github}.middlewares=${TRAEFIK_NAME_GITHUB:-ai-agents-github}-ratelimit"
 
 networks:
   traefik:
