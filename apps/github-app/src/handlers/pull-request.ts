@@ -16,6 +16,52 @@ import { buildCommentBody, postPRComment } from '../lib/pr-comment';
 import { upsertPullRequest } from '../lib/pr-upsert';
 import type { AppDb } from '../types';
 
+/** `.aiot.yml` holds a version field and four booleans. 64 KB is generous. */
+const MAX_CONFIG_BYTES = 64 * 1024;
+
+/**
+ * Read a response body, giving up once it exceeds `maxBytes`. Returns null when
+ * the cap is hit or the body is missing.
+ *
+ * The obvious version of this — check `Content-Length`, then `await res.text()`
+ * — does not work, and both halves fail for their own reason. A header that is
+ * absent or non-numeric produces `0` or `NaN`, and neither is `> maxBytes`, so
+ * an attacker omits the header and walks straight past the guard. And checking
+ * the decoded string afterwards is far too late: `text()` has already buffered
+ * the whole body, which is the allocation the cap exists to prevent. (It is
+ * also not a byte count — `String.length` is UTF-16 code units.)
+ *
+ * So the count has to happen DURING the read, over the raw bytes, with the
+ * stream cancelled the moment the budget is gone.
+ */
+export async function readCapped(res: Response, maxBytes: number): Promise<string | null> {
+  if (!res.body) {
+    return null;
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const joined = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(joined);
+}
+
 type PullRequestEvent = EmitterWebhookEvent<'pull_request'>['payload'];
 
 export async function handlePullRequest(
@@ -187,7 +233,23 @@ async function maybePostComment(
     return;
   }
 
-  const yamlText = await configRes.text();
+  // `.aiot.yml` is a handful of booleans. The raw-content endpoint will serve a
+  // file up to 100 MB, and this one is attacker-controlled: it is fetched at the
+  // merge commit of the PR being processed, so whoever got that PR merged chose
+  // its contents. Cap before reading the body into memory.
+  //
+  // Note what this is NOT defending against. A YAML alias bomb is the obvious
+  // worry here and it does not apply: js-yaml resolves aliases to *shared
+  // references*, so a 783-byte file whose serialized form would be ~1.5 TB
+  // parses through `parseRepoConfig` in 0.4ms with no measurable allocation
+  // (measured), and nothing downstream deep-walks the result — the handler only
+  // reads `pr_bot.enabled`. The real exposure is the boring one: a large file,
+  // which `readCapped` bounds while reading rather than after.
+  const yamlText = await readCapped(configRes, MAX_CONFIG_BYTES);
+  if (yamlText === null) {
+    logger.warn({ max_bytes: MAX_CONFIG_BYTES, pr: prNumber }, 'pr.config.too_large');
+    return;
+  }
   const repoConfig: RepoConfig | null = parseRepoConfig(yamlText);
   if (!repoConfig?.pr_bot.enabled) {
     return;
