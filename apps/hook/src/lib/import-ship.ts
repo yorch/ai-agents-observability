@@ -6,6 +6,19 @@ import { getIngestBaseUrl } from './config';
 
 export type ServerReadyResult = { ok: true } | { ok: false; message: string };
 
+/** Wall-clock bound on one import event batch. Matches the flusher's. */
+const IMPORT_BATCH_TIMEOUT_MS = 30_000;
+
+/**
+ * Bound for one transcript upload, scaled to the payload so a large import does
+ * not abort a legitimately slow transfer. 1 MB/s is a deliberately pessimistic
+ * floor for a link that is working at all; the 60s minimum covers connection
+ * setup plus the server's own redaction and recompression.
+ */
+function transcriptTimeoutMs(bytes: number): number {
+  return Math.max(60_000, Math.ceil((bytes / (1024 * 1024)) * 1_000 * 2));
+}
+
 /**
  * GET /health — verifies the ingest server is reachable and running.
  * Call before starting a large import to fail fast rather than processing thousands of events
@@ -62,6 +75,11 @@ export async function postEventBatch(
       'Content-Type': 'application/json',
     },
     method: 'POST',
+    // Bun's fetch has no default timeout. Only the `/health` probe above was
+    // bounded, which made this file look protected while both of its uploads
+    // could hang forever — an import against a wedged server would sit here
+    // with no output and no way to tell it from a slow one.
+    signal: AbortSignal.timeout(IMPORT_BATCH_TIMEOUT_MS),
   });
 
   if (res.status === 401) {
@@ -150,6 +168,10 @@ export async function uploadTranscript(
         'X-Content-Hash': hash,
       },
       method: 'POST',
+      // Derived, not constant, for the same reason as the shipper's: a large
+      // transcript is legitimately slow, so the bound scales with the payload.
+      // This one is not throttled, so the floor does the work in practice.
+      signal: AbortSignal.timeout(transcriptTimeoutMs(body.byteLength)),
     });
 
     if (res.status >= 200 && res.status < 300) {
