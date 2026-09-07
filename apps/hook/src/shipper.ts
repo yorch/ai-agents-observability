@@ -54,26 +54,63 @@ export type ShipMarker = {
   first_seen_at?: string;
 };
 
+/**
+ * Record that a session's transcript is ready to ship.
+ *
+ * This MERGES onto an existing marker rather than replacing it, and that is the
+ * whole point. Claude Code's Stop fires once per response cycle, so an active
+ * session calls this repeatedly — and a fresh marker each time reset `attempts`
+ * to 0 and `first_seen_at` to now. Both give-up conditions are measured from
+ * exactly those fields, so in any session still doing work neither
+ * MAX_SHIP_ATTEMPTS nor MAX_TRANSIENT_AGE_MS could ever be reached: a transcript
+ * the server permanently rejects was re-read, re-redacted, re-compressed and
+ * re-uploaded every sweep for the life of the session.
+ *
+ * `bytes_uploaded` is deliberately NOT preserved: the transcript has grown since
+ * the last marker, so a resume offset from the previous upload no longer
+ * describes this file.
+ */
 export function writeShipMarker(sessionId: string, transcriptPath: string, partial: boolean): void {
   try {
     const dir = shipQueueDir();
-    mkdirSync(dir, { recursive: true });
+    // 0o700 like every other per-session state dir — this holds session ids and
+    // local transcript paths.
+    mkdirSync(dir, { mode: 0o700, recursive: true });
+    const finalPath = join(dir, `${sessionId}.json`);
+    const prior = readMarkerAt(finalPath);
     const marker: ShipMarker = {
       bytes_uploaded: 0,
-      first_seen_at: new Date().toISOString(),
+      // Keep the ORIGINAL first-seen so the staleness clock keeps running, and
+      // carry the attempt count so the retry budget keeps counting down.
+      first_seen_at: prior?.first_seen_at ?? new Date().toISOString(),
       partial,
       session_id: sessionId,
       transcript_path: transcriptPath,
+      ...(prior?.attempts !== undefined ? { attempts: prior.attempts } : {}),
     };
-    writeFileSync(join(dir, `${sessionId}.json`), JSON.stringify(marker, null, 2), {
+    // tmp + rename, as `recordRetryableFailure` already does below: a crash
+    // mid-write must not leave a truncated marker, which the reader skips —
+    // silently losing the transcript.
+    const tmpPath = `${finalPath}.tmp`;
+    writeFileSync(tmpPath, JSON.stringify(marker, null, 2), {
       encoding: 'utf8',
       mode: 0o600,
     });
+    renameSync(tmpPath, finalPath);
   } catch (err) {
     log('warn', 'shipper.write_marker_failed', {
       message: (err as Error).message,
       sessionId,
     });
+  }
+}
+
+/** One marker by path, or null when absent/unreadable. */
+function readMarkerAt(path: string): ShipMarker | null {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8')) as ShipMarker;
+  } catch {
+    return null;
   }
 }
 

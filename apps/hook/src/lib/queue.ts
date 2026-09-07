@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { mkdirSync } from 'node:fs';
+import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import { queuePath } from './paths';
@@ -27,8 +27,22 @@ export type Queue = {
 };
 
 export function openQueue(path = queuePath()): Queue {
-  mkdirSync(dirname(path), { recursive: true });
+  // 0o700: `~/.aiot` holds this queue, whose rows are full event payloads — cwd
+  // paths, repo and project names, tool arguments. Default-mode 0o755 left all
+  // of that readable by every local account. `identity.json` was already 0o600;
+  // this brings the directory and the queue in line with it, and with the
+  // per-session state dirs the adapters create.
+  mkdirSync(dirname(path), { mode: 0o700, recursive: true });
   const db = new Database(path, { create: true });
+  // The DB file itself: bun:sqlite creates it 0o644, and WAL/shm siblings
+  // inherit the directory. Narrow it after open, best-effort — a failure here
+  // must not stop telemetry.
+  try {
+    chmodSync(path, 0o600);
+  } catch {
+    // Non-fatal: a filesystem without POSIX modes, or a pre-existing file we
+    // do not own.
+  }
 
   // WAL + NORMAL is the speed/durability sweet spot for an append-only queue.
   // temp_store=memory keeps spill space off disk.

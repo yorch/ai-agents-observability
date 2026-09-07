@@ -79,6 +79,60 @@ afterEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('writeShipMarker', () => {
+  it('preserves the attempt count and first-seen time across re-writes', () => {
+    // Claude Code's Stop fires once per response cycle, so an active session
+    // re-writes its marker constantly. A fresh marker each time reset `attempts`
+    // to 0 and `first_seen_at` to now — and both give-up conditions
+    // (MAX_SHIP_ATTEMPTS, MAX_TRANSIENT_AGE_MS) are measured from exactly those
+    // fields. So neither could ever be reached while a session was still doing
+    // work: a transcript the server permanently rejects was re-read,
+    // re-redacted, re-compressed and re-uploaded every sweep, for the life of
+    // the session.
+    const sessionId = 'test-session-merge';
+    const transcriptPath = join(tmpTranscriptDir, 'transcript.jsonl');
+    const markerPath = join(tmpHome, 'ship-queue', `${sessionId}.json`);
+
+    writeShipMarker(sessionId, transcriptPath, false);
+    const firstSeen = (JSON.parse(readFileSync(markerPath, 'utf8')) as ShipMarker).first_seen_at;
+
+    // Simulate the shipper having burned part of the retry budget.
+    const withAttempts = {
+      ...(JSON.parse(readFileSync(markerPath, 'utf8')) as ShipMarker),
+      attempts: 4,
+    };
+    writeFileSync(markerPath, JSON.stringify(withAttempts), 'utf8');
+
+    // The next Stop re-writes the marker.
+    writeShipMarker(sessionId, transcriptPath, false);
+
+    const after = JSON.parse(readFileSync(markerPath, 'utf8')) as ShipMarker;
+    expect(after.attempts).toBe(4);
+    expect(after.first_seen_at).toBe(firstSeen);
+  });
+
+  it('resets bytes_uploaded, because the transcript has grown', () => {
+    // The opposite of the above, and deliberate: a resume offset from the
+    // previous upload no longer describes a file that has since been appended to.
+    const sessionId = 'test-session-bytes';
+    const transcriptPath = join(tmpTranscriptDir, 'transcript.jsonl');
+    const markerPath = join(tmpHome, 'ship-queue', `${sessionId}.json`);
+
+    writeShipMarker(sessionId, transcriptPath, false);
+    const marker = JSON.parse(readFileSync(markerPath, 'utf8')) as ShipMarker;
+    writeFileSync(markerPath, JSON.stringify({ ...marker, bytes_uploaded: 9999 }), 'utf8');
+
+    writeShipMarker(sessionId, transcriptPath, false);
+    expect((JSON.parse(readFileSync(markerPath, 'utf8')) as ShipMarker).bytes_uploaded).toBe(0);
+  });
+
+  it('leaves no temp file behind', () => {
+    // The write is tmp + rename now; a stray `.tmp` would be read as a marker
+    // by nothing, but it would accumulate one file per Stop.
+    const sessionId = 'test-session-tmp';
+    writeShipMarker(sessionId, join(tmpTranscriptDir, 'transcript.jsonl'), false);
+    expect(existsSync(join(tmpHome, 'ship-queue', `${sessionId}.json.tmp`))).toBe(false);
+  });
+
   it('creates a marker file in the ship-queue directory', () => {
     const sessionId = 'test-session-abc123';
     const transcriptPath = join(tmpTranscriptDir, 'transcript.jsonl');
