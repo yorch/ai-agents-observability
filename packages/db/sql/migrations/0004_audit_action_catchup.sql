@@ -43,12 +43,23 @@
 -- Postgres 12; 12+ permits it provided the new value is not USED in the same
 -- transaction, which nothing here does. The stack runs `timescale/timescaledb`
 -- on PG18, and this was verified against a real PG18 server rather than
--- inferred from the version: all three statements committed, and a second run
--- was a clean no-op.
+-- inferred from the version: all statements committed, and a repeat was a
+-- clean no-op.
 --
--- If this file ever throws, `migrations-runner` exits non-zero and every
--- service gated on it refuses to start -- so it must stay unconditional and
--- idempotent. `IF NOT EXISTS` is what makes that true.
+-- WHY `IF NOT EXISTS` IS LOAD-BEARING, AND WHERE
+--
+-- Not for re-runs: the runner records this filename in `_db_sql_migrations` and
+-- skips it afterwards, so it applies once per database. It is for the FRESH
+-- database, where that single application is the dangerous one — layer 1 has
+-- already created `AuditAction` complete, so every value below already exists,
+-- and a bare `ADD VALUE` fails immediately with
+-- `ERROR: enum label "..." already exists` (verified). That aborts the wrapping
+-- transaction, exits `migrations-runner` non-zero, and leaves every service
+-- gated on `condition: service_completed_successfully` refusing to start.
+--
+-- In other words the guard protects the COMMON path — every new install — not
+-- a rare repeat. It also keeps the file safe to re-apply after a crash
+-- mid-transaction, the belt-and-braces reason AGENTS.md gives for this layer.
 
 ALTER TYPE "AuditAction" ADD VALUE IF NOT EXISTS 'VIEW_SESSION';
 ALTER TYPE "AuditAction" ADD VALUE IF NOT EXISTS 'VIEW_TRANSCRIPT';

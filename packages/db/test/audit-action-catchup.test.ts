@@ -46,11 +46,22 @@ describe('AuditAction catch-up migration', () => {
   });
 
   it('guards every statement with IF NOT EXISTS', () => {
-    // The file runs unconditionally on every deployment, inside the single
-    // transaction `applySqlMigrations()` wraps it in. A bare ADD VALUE throws on
-    // the second run; `migrations-runner` then exits non-zero and every service
-    // gated on it refuses to start. So a plain ADD VALUE here is a boot failure,
-    // not a style nit.
+    // Not a style nit — without it this file breaks every FRESH install.
+    //
+    // `applySqlMigrations()` records applied filenames in `_db_sql_migrations`
+    // and skips them afterwards, so this runs once per database, not on every
+    // deployment. The once it runs is the problem: on a fresh database layer 1
+    // has already created `AuditAction` complete, so every value here already
+    // exists. A bare `ADD VALUE` then fails on its first and only application —
+    // `ERROR: enum label "..." already exists`, verified against PG18 — which
+    // aborts the transaction the runner wraps the file in, exits
+    // `migrations-runner` non-zero, and leaves every service gated on
+    // `condition: service_completed_successfully` refusing to start.
+    //
+    // So the common path (a new install) is the one that breaks, not the rare
+    // one. `IF NOT EXISTS` is also what makes the file safe to re-run after a
+    // crash mid-transaction, which is the belt-and-braces reason AGENTS.md
+    // gives for every file in this layer.
     const sql = readFileSync(CATCHUP_SQL, 'utf8');
     const alters = [...sql.matchAll(/^ALTER TYPE .*$/gm)].map((m) => m[0]);
     expect(alters.length).toBeGreaterThan(0);

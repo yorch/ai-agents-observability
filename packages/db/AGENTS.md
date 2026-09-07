@@ -108,9 +108,16 @@ Current files — **four**:
   rather than an error. The file re-asserts every value with
   `ADD VALUE IF NOT EXISTS`, so it is a no-op on a fresh database and repairs an
   upgrade from any past release. `test/audit-action-catchup.test.ts` fails if it
-  drifts from the enum or if a statement loses its `IF NOT EXISTS` — the latter
-  would throw on the second run and stop `migrations-runner`, and with it every
-  service gated on it.
+  drifts from the enum or if a statement loses its `IF NOT EXISTS`.
+
+  That second guard protects the **fresh-install** path, which is the
+  counter-intuitive part. This file runs once per database (the runner records
+  it in `_db_sql_migrations`), and on a fresh database layer 1 has already
+  created `AuditAction` complete — so every value here already exists. A bare
+  `ADD VALUE` therefore fails on its first and only application (`ERROR: enum
+  label "..." already exists`), aborting the wrapping transaction and stopping
+  `migrations-runner`, and with it every service gated on it. The common path is
+  the one that breaks.
 
   **This is the exception, not a new pattern.** An enum value is the one thing
   Prisma models that can be repaired forward safely, because `ADD VALUE` is
