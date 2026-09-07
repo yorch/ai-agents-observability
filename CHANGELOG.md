@@ -6,6 +6,19 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.5.0 (2026-09-07)
+
+### Features
+
+- audit: close three flagged follow-ups — scheduler test, job-config audit action, dead query (#239)
+
+### Bug Fixes
+
+- hook: stop four silent failure modes in the capture path (#242)
+- web: keyboard and screen-reader defects on never-audited surfaces (#240)
+- github-app: cap the unauthenticated webhook and config-file reads (#241)
+- build: exclude .next/dev from the turbo build cache (#236)
+
 ## v2.4.1 (2026-09-05)
 
 ### Bug Fixes
