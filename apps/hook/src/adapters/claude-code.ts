@@ -13,6 +13,7 @@ import {
   stripOwnedEntries,
   writeJsonFile,
 } from '../lib/config-wire';
+import { deferCommit } from '../lib/deferred-commit';
 import { log } from '../lib/log';
 import { agentStateDir } from '../lib/paths';
 import {
@@ -276,9 +277,18 @@ function stopWithUsage(raw: Record<string, unknown>): ConformantEvent[] | null {
       } as ConformantEvent);
     }
 
-    // Committed only once the events exist: advancing eagerly would consume a
-    // turn's entries and then lose them if anything above threw.
-    writeCursor(template.session_id, { offset: newOffset, path: transcriptPath, turns });
+    // Committed only once the events are QUEUED, not merely built. The old
+    // comment here said "once the events exist", and that was the bug: existing
+    // is not surviving. `hook-entry` calls this before it opens the queue and
+    // before it enqueues, and both of those can fail (full disk, locked or
+    // corrupt queue.db) and only log. The cursor was already past those lines,
+    // so the next Stop read from the new offset and the turns were gone — along
+    // with the `llm` block that is the only live source of Claude Code token
+    // usage, leaving sessions.total_cost_usd permanently low and nothing to say
+    // so. See lib/deferred-commit.ts.
+    deferCommit('claude.cursor', () =>
+      writeCursor(template.session_id, { offset: newOffset, path: transcriptPath, turns }),
+    );
     // No new turns (a Stop with nothing appended since the last one) falls back to
     // the ordinary single Stop, so the session's end signal is never lost.
     return events.length > 0 ? events : null;

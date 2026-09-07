@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
+import { commitDeferred, discardDeferred } from '../lib/deferred-commit';
 import { claudeCodeAdapter } from './claude-code';
 import { conformanceErrors } from './conformance';
 
@@ -74,8 +74,27 @@ function stopPayload(path: string = transcript): Record<string, unknown> {
   };
 }
 
+/**
+ * One Stop, all the way through a SUCCESSFUL enqueue.
+ *
+ * The cursor commit is no longer part of the mapping: the adapter registers it
+ * and `hook-entry` runs it only after the events are queued (see
+ * lib/deferred-commit.ts). Calling `mapBatch` alone therefore leaves the cursor
+ * where it was, so a helper that stopped there would model a pipeline that never
+ * commits and every incremental-read assertion below would be meaningless.
+ * `batchWithoutCommit` covers the other half.
+ */
 function batch(payload = stopPayload()) {
-  return claudeCodeAdapter.mapBatch?.('stop', payload) ?? null;
+  const events = claudeCodeAdapter.mapBatch?.('stop', payload) ?? null;
+  commitDeferred();
+  return events;
+}
+
+/** One Stop whose events never reached the queue — the cursor must not move. */
+function batchWithoutCommit(payload = stopPayload()) {
+  const events = claudeCodeAdapter.mapBatch?.('stop', payload) ?? null;
+  discardDeferred('test: enqueue failed');
+  return events;
 }
 
 beforeEach(() => {
@@ -174,6 +193,30 @@ describe('claudeCodeAdapter incremental transcript read', () => {
     expect(second).toHaveLength(1);
     expect(second?.[0]?.turn_number).toBe(2);
     expect(second?.[0]?.event_id).not.toBe(first?.[0]?.event_id);
+  });
+
+  it('does NOT advance the cursor when the events never reach the queue', () => {
+    // The bug this whole change exists for. `hook-entry` builds the events and
+    // only then opens the queue and enqueues; both can fail (full disk, locked
+    // or corrupt queue.db) and both only log. When the cursor advanced during
+    // the build, those turns were unreadable forever after — and they carry the
+    // `llm` block that is the only live source of Claude Code token usage, so
+    // sessions.total_cost_usd stayed permanently low with nothing to say so.
+    writeFileSync(transcript, assistantLine('a1', '2026-08-20T10:00:05.000Z', USAGE));
+
+    const dropped = batchWithoutCommit();
+    expect(dropped?.map((e) => e.turn_number)).toEqual([1]);
+
+    // The same turn must still be readable, with the SAME event id — the ids are
+    // derived from the transcript entry, so a recovered turn dedupes against a
+    // later `aiot import` rather than double-counting.
+    const retried = batch();
+    expect(retried?.map((e) => e.turn_number)).toEqual([1]);
+    expect(retried?.[0]?.event_id).toBe(dropped?.[0]?.event_id as string);
+    expect(retried?.[0]?.llm?.input_tokens).toBe(1500);
+
+    // And once committed it does not come back a third time.
+    expect(batch()).toBeNull();
   });
 
   it('falls back to the plain single Stop when nothing new was appended', () => {

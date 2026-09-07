@@ -13,6 +13,7 @@ import {
   stripOwnedEntries,
   writeJsonFile,
 } from '../lib/config-wire';
+import { deferCommit } from '../lib/deferred-commit';
 import { isRecord } from '../lib/fields';
 import { log } from '../lib/log';
 import { agentStateDir } from '../lib/paths';
@@ -240,19 +241,25 @@ function readUsage(sessionId: string): Usage {
 }
 
 /**
- * Read the turn's accumulated usage, then clear it. The read comes first and the
- * removal is best-effort: if the file cannot be removed we still return what was
- * read, because losing the event is worse than the (visible) risk of counting the
- * same tokens twice. Removal failure is not silent — the caller logs it.
+ * Read the turn's accumulated usage and register its removal for after the
+ * events are queued.
+ *
+ * The removal used to happen here, which lost the turn's tokens whenever the
+ * enqueue that follows failed: the accumulator was already gone, so the next
+ * Stop found nothing. Deferring it keeps exactly the preference this function
+ * already documented — "losing the event is worse than the (visible) risk of
+ * counting the same tokens twice" — and extends it to the failure that actually
+ * loses data. See lib/deferred-commit.ts.
+ *
+ * Removal stays best-effort: a failure is logged by `commitDeferred`, and an
+ * accumulator that outlives its turn is re-counted rather than lost.
  */
-function drainUsage(sessionId: string): { removed: boolean; usage: Usage } {
+function drainUsage(sessionId: string): Usage {
   const usage = readUsage(sessionId);
-  try {
+  deferCommit('gemini.usage', () => {
     rmSync(usagePath(sessionId), { force: true });
-    return { removed: true, usage };
-  } catch {
-    return { removed: false, usage };
-  }
+  });
+  return usage;
 }
 
 function llmBlock(usage: Usage): NonNullable<Event['llm']> {
@@ -436,10 +443,7 @@ export const geminiCliAdapter: HookAdapter = {
     if (event.session_id === NIL_UUID) {
       return [event];
     }
-    const { removed, usage } = drainUsage(event.session_id);
-    if (!removed) {
-      log('warn', 'gemini.usage.drain_not_cleared', { session_id: event.session_id });
-    }
+    const usage = drainUsage(event.session_id);
     if (usage.input === 0 && usage.output === 0 && usage.cacheRead === 0) {
       return [event];
     }

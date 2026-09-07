@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
+import { commitDeferred } from '../lib/deferred-commit';
 import { selectAdapter } from '.';
 import {
   codexAdapter,
@@ -153,6 +153,11 @@ describe('codex adapter — rollout-backed mapBatch', () => {
 
     const first = codexAdapter.mapBatch?.('turn-complete', { 'session-id': sessionId }) ?? [];
     expect(first.filter((e) => e.event_type === 'PostToolUse')).toHaveLength(1);
+    // The rollout cursor advances only once the events are queued — the adapter
+    // registers the write and `hook-entry` runs it after a successful enqueue
+    // (lib/deferred-commit.ts). This test is about the cursor having moved, so
+    // it has to model the commit that moves it.
+    commitDeferred();
 
     // Append a second turn to the same rollout file.
     const appended = [
