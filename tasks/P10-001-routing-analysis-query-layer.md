@@ -59,15 +59,27 @@ properties it does not yet have.*
 - [ ] **Diverged deliberately — needs a decision, not just work.** When the price table
       lacks an entry for a model, the row is returned with `savings: null` (never a
       fabricated number), and this path is unit-tested. *The shipped code instead falls
-      back to a flat `HAIKU_SAVINGS_RATIO = 0.9` and flags the UI via `pricePrecise`,
-      so the surface degrades cleanly rather than going blank. That is a defensible
-      choice and the opposite of what this criterion asks for. Settle which one the
-      product wants before building to it.*
+      back to a flat `HAIKU_SAVINGS_RATIO = 0.9` rather than going blank. That is a
+      defensible choice and the opposite of what this criterion asks for. Settle which
+      one the product wants before building to it. Since 2026-08-20 the fallback is at
+      least **honest**: `priceDerived` is carried per recommendation, so a fallen-back
+      row is no longer described or recorded as price-derived.*
 - [ ] Savings are computed per `agent_type`; a Claude Opus→Sonnet ratio is never
-      applied to another agent's models. *`buildSavingsRatioResolver` takes one merged
-      price map and picks the cheapest Haiku-class model in it, so another agent's
-      economy rate can set the denominator for a Claude model. This is the exact
-      contamination the criterion forbids.*
+      applied to another agent's models. *Still open, but **not** for the reason an
+      earlier revision of this file gave. It claimed the resolver merges every
+      agent's price map and lets one agent's economy rate set another's denominator.
+      That was wrong: `getModelInputPrices()` defaults to `agent = 'claude_code'` and
+      `/org/models` calls it with no argument, so the map is Claude's table alone.
+      The real shape is the mirror image — `getOrgModelRoutingBreakdown` groups by
+      `model, tool_category` across **every** agent, so all agents' rows are priced
+      against Claude's table. Today that produces no wrong rate: every opus-class
+      model in the `pi` / `omp` / `opencode` tables is also in Claude's, and
+      `test/price-tables.test.ts` enforces that shared models agree. It is a latent
+      defect, not a live one — the day a premium model exists in another agent's
+      table and not Claude's, or arrives provider-prefixed, it silently takes the
+      flat fallback. The 2026-08-20 change makes that fallback visible instead of
+      silent; giving the rollup a real `agent_type` grain is the actual fix and is
+      still to do.*
 - [ ] **Partial.** Unit tests cover: normal downgrade range, missing-price-entry null, low-volume
       suppression, and multi-agent isolation. *`routing-queries.test.ts` covers the
       normal range, the 0.95 cap, and the missing-price fallback. There is no
@@ -118,10 +130,12 @@ estimate — `routingSavingRange`, registered as a P13-006 projection so the cla
 later checked against realized spend.
 
 **What is missing is not cosmetic.** The rollup has no `agent_type` or `shape_label`
-grain, there is no volume floor, and the savings resolver draws its target rate from
-one merged price map — so a cheap model belonging to one agent can set the savings
-denominator for another agent's premium model. That last one is the specific failure
-mode criterion 5 was written to prevent, and it is live.
+grain and there is no volume floor. Because the rollup groups by `model` alone while
+the price map is Claude's table alone, every agent's rows are priced against Claude's
+rates — criterion 5's failure mode, reached by a different route than an earlier
+revision of this file described (see that criterion for the correction). It is latent
+rather than live: the shipped tables happen to contain every opus-class model Claude's
+does, and a parity test keeps their rates in agreement.
 
 **One item is a design disagreement, not unfinished work.** The task says a missing
 price entry must yield `savings: null`, "never a fabricated number". The code
@@ -133,3 +147,28 @@ work.
 the model policy, which does not exist. The implementation notes anticipated that
 and asked for an injected tier resolver — `SavingsRatioResolver` is that seam, so
 the dependency is honoured, not ignored.
+
+## Implementation record — 2026-08-20, provenance only
+
+A narrow fix, taken out of this task because it was a correctness bug in the
+*recording*, not a gap in the model.
+
+`pricePrecise` was one panel-wide boolean, computed as "the price-table fetch
+returned a non-empty map". The panel copy used it to tell the reader that saving
+fractions were "derived per-model from the current ingest price table" — for every
+row — and `/org/models` used it to stamp `priceTableVersion: 'ingest:current'` on
+every recorded projection. But whether the *fetch* succeeded and whether *this
+model was in the result* are different questions, and a model absent from the table
+silently takes `HAIKU_SAVINGS_RATIO`. So a heuristic row could be shown as priced
+and, worse, stored with a price-table provenance it never had — and P13-006's
+realization explicitly replays against that field, so the false stamp would have
+made a repricing look like a routing result.
+
+`SavingsRatioResolver` now returns `{ priceDerived, ratio }`, `RoutingRecommendation`
+carries `priceDerived`, the projection stamps provenance per row, and the caveat
+distinguishes all / some / none. Three new tests pin it, each mutation-verified by
+restoring the panel-wide behaviour and watching them fail.
+
+This does **not** close criterion 4 (the `null`-vs-fallback decision is still open)
+and does **not** close criterion 5 (the rollup still has no `agent_type` grain). It
+removes the dishonest claim while both remain open.

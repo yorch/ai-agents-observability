@@ -24,16 +24,34 @@ export type RegisteredRoutingClaim = {
 
 export type RoutingRecommendationsProps = {
   claims: RegisteredRoutingClaim[];
-  // True when the saving fraction came from the ingest price table (per-model),
-  // false when it fell back to the flat heuristic (INGEST_URL unset / fetch failed).
-  pricePrecise: boolean;
+  // Whether the ingest price table was reachable at all (INGEST_URL set, fetch
+  // succeeded, table non-empty). Whether any GIVEN row's ratio came from it is a
+  // separate, per-model question — `recommendation.priceDerived` — because a model
+  // absent from the table falls back to the flat heuristic even when the fetch
+  // worked. The copy below distinguishes all / some / none rather than asserting
+  // per-model pricing for every row on the strength of the fetch succeeding.
+  priceTableReachable: boolean;
 };
 
-export function RoutingRecommendations({ claims, pricePrecise }: RoutingRecommendationsProps) {
+export function RoutingRecommendations({
+  claims,
+  priceTableReachable,
+}: RoutingRecommendationsProps) {
   // Totals are summed from the registered ranges, so the headline and the rows
   // cannot disagree, and the headline is a range for the same reason each row is.
   const totalLow = claims.reduce((sum, c) => sum + c.projection.projectedLow, 0);
   const totalHigh = claims.reduce((sum, c) => sum + c.projection.projectedHigh, 0);
+
+  // Count the rows whose ratio actually came from the table, so the caveat
+  // describes what happened rather than what was attempted.
+  const derived = claims.filter((c) => c.recommendation.priceDerived).length;
+  const provenanceCopy = !priceTableReachable
+    ? 'INGEST_URL is not set, so every estimate here uses a flat ~90%-cheaper heuristic. Point the web app at ingest to derive per-model savings from the live price table.'
+    : derived === claims.length
+      ? 'Saving fractions are derived per-model from the current ingest price table (retrieval turns priced at the cheapest Haiku-class input rate). Still directional — real savings depend on the routed model handling the task.'
+      : derived === 0
+        ? 'None of these models appear in the current ingest price table, so every estimate here uses a flat ~90%-cheaper heuristic rather than a derived rate.'
+        : `${derived} of ${claims.length} estimates are derived per-model from the current ingest price table; the rest use a flat ~90%-cheaper heuristic because those models are not in it.`;
 
   return (
     <div className="space-y-3">
@@ -86,11 +104,8 @@ export function RoutingRecommendations({ claims, pricePrecise }: RoutingRecommen
           ))}
 
           <p className="text-[11px] text-text-3">
-            {pricePrecise
-              ? 'Saving fractions are derived per-model from the current ingest price table (retrieval turns priced at the cheapest Haiku-class input rate). Still directional — real savings depend on the routed model handling the task.'
-              : 'INGEST_URL is not set, so this uses a flat ~90%-cheaper heuristic. Point the web app at ingest to derive per-model savings from the live price table.'}{' '}
-            Each estimate above is recorded as a projection when it is shown, and checked against
-            what actually happened in the panel below.
+            {provenanceCopy} Each estimate above is recorded as a projection when it is shown, and
+            checked against what actually happened in the panel below.
           </p>
         </div>
       )}

@@ -29,8 +29,23 @@ const MAX_SAVINGS_RATIO = 0.95;
 /** Per-model input price ($/Mtok) — the subset of the price table we need. */
 export type ModelInputPrice = { input_per_mtok: number };
 
+/**
+ * The saved fraction of a premium model's retrieval spend, and whether that
+ * number came from the price table or from the flat fallback.
+ *
+ * `priceDerived` is not cosmetic. It used to be inferred panel-wide from "the
+ * price table fetch returned something", which is a different question from "this
+ * model was in it" — so a model that silently fell back to `HAIKU_SAVINGS_RATIO`
+ * was still described to the reader as priced per-model, and worse, was recorded
+ * with `priceTableVersion: 'ingest:current'`. That stamps a false provenance onto
+ * a stored projection, and P13-006's realization is supposed to replay against
+ * the versions active at projection time. A per-model answer is the only one that
+ * can be true.
+ */
+export type ResolvedSavings = { priceDerived: boolean; ratio: number };
+
 /** Resolves the estimated saved fraction of a premium model's retrieval spend. */
-export type SavingsRatioResolver = (model: string) => number;
+export type SavingsRatioResolver = (model: string) => ResolvedSavings;
 
 // Builds a price-derived savings resolver: for a premium model priced at
 // `premiumRate` $/Mtok input, routing retrieval turns to the cheapest Haiku-class
@@ -42,7 +57,7 @@ export function buildSavingsRatioResolver(
 ): SavingsRatioResolver {
   const entries = Object.entries(prices ?? {}).filter(([, p]) => p.input_per_mtok > 0);
   if (entries.length === 0) {
-    return () => HAIKU_SAVINGS_RATIO;
+    return () => ({ priceDerived: false, ratio: HAIKU_SAVINGS_RATIO });
   }
   const haiku = entries.filter(([m]) => m.toLowerCase().includes('haiku'));
   const pool = haiku.length > 0 ? haiku : entries;
@@ -50,9 +65,14 @@ export function buildSavingsRatioResolver(
   return (model: string) => {
     const rate = prices?.[model]?.input_per_mtok;
     if (!rate || rate <= 0 || rate <= targetRate) {
-      return HAIKU_SAVINGS_RATIO;
+      // Not in the table, unpriced, or already at/below the target tier — there is
+      // no ratio to derive, so this is the flat fallback and must say so.
+      return { priceDerived: false, ratio: HAIKU_SAVINGS_RATIO };
     }
-    return Math.max(0, Math.min(MAX_SAVINGS_RATIO, 1 - targetRate / rate));
+    return {
+      priceDerived: true,
+      ratio: Math.max(0, Math.min(MAX_SAVINGS_RATIO, 1 - targetRate / rate)),
+    };
   };
 }
 
@@ -60,6 +80,9 @@ export type RoutingRecommendation = {
   cheapCategorySpend: number;
   estimatedMonthlySaving: number;
   model: string;
+  // Whether `savingsRatio` came from the price table for THIS model, rather than
+  // from the flat fallback. Drives the provenance stamped on the projection.
+  priceDerived: boolean;
   // The saved fraction applied (price-derived when a table was supplied, else the
   // flat fallback) — surfaced so the UI can show "~72% cheaper", not a fixed 90%.
   savingsRatio: number;
@@ -94,7 +117,10 @@ export function routingSavingRange(rec: RoutingRecommendation): { high: number; 
 export function computeRoutingRecommendations(
   rows: OrgModelRoutingRow[],
   rangeDays: number,
-  savingsRatioFor: SavingsRatioResolver = () => HAIKU_SAVINGS_RATIO,
+  savingsRatioFor: SavingsRatioResolver = () => ({
+    priceDerived: false,
+    ratio: HAIKU_SAVINGS_RATIO,
+  }),
 ): { estimatedMonthlySaving: number; recommendations: RoutingRecommendation[] } {
   const cheapRowsByModel = new Map<string, OrgModelRoutingRow[]>();
   for (const row of rows) {
@@ -116,7 +142,7 @@ export function computeRoutingRecommendations(
     if (cheapCategorySpend <= 0) {
       continue;
     }
-    const savingsRatio = savingsRatioFor(model);
+    const { priceDerived, ratio: savingsRatio } = savingsRatioFor(model);
     const topCategories = modelRows
       .map((r) => ({ callCount: r.callCount, category: r.toolCategory, costUsd: r.totalCostUsd }))
       .sort((a, b) => b.costUsd - a.costUsd);
@@ -124,6 +150,7 @@ export function computeRoutingRecommendations(
       cheapCategorySpend,
       estimatedMonthlySaving: cheapCategorySpend * savingsRatio * normalizeToMonthly,
       model,
+      priceDerived,
       savingsRatio,
       topCategories,
     });

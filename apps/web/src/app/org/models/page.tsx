@@ -90,9 +90,10 @@ export default async function OrgModelsPage({
   // Price-derived per-model savings ratio when the ingest price table is
   // reachable; falls back to the flat heuristic when INGEST_URL is unset.
   const savingsRatioFor = buildSavingsRatioResolver(modelPrices);
-  // Only claim price-precision when the table actually yielded usable rates — an
-  // empty map falls back to the flat heuristic inside buildSavingsRatioResolver.
-  const pricePrecise = modelPrices !== null && Object.keys(modelPrices).length > 0;
+  // Whether the price table was reachable at all. This is NOT the same question as
+  // "was this model in it", which is answered per recommendation by `priceDerived`
+  // — conflating the two is what let a fallen-back row be stamped as priced.
+  const priceTableReachable = modelPrices !== null && Object.keys(modelPrices).length > 0;
   const { recommendations: routingRecs } = computeRoutingRecommendations(
     routing,
     range,
@@ -118,12 +119,12 @@ export default async function OrgModelsPage({
         baselineWindowDays: range,
         claimType: 'routing_savings' as const,
         guardBaseline,
-        metadata: { pricePrecise, savingsRatio: rec.savingsRatio },
+        metadata: { priceDerived: rec.priceDerived, savingsRatio: rec.savingsRatio },
         periodEnd: claimEnd,
         periodStart: claimStart,
         // Which price table produced the ratio, so the check replays against it
         // rather than measuring a repricing as a routing result.
-        priceTableVersion: pricePrecise ? 'ingest:current' : null,
+        priceTableVersion: rec.priceDerived ? 'ingest:current' : null,
         projectedHigh: high,
         projectedLow: low,
         segment: rec.model,
@@ -182,7 +183,10 @@ export default async function OrgModelsPage({
       ) : (
         <>
           {/* Routing recommendations */}
-          <RoutingRecommendations claims={routingClaims} pricePrecise={pricePrecise} />
+          <RoutingRecommendations
+            claims={routingClaims}
+            priceTableReachable={priceTableReachable}
+          />
 
           {/* Did the recommendations work? (P13-006, supersedes P10-006) */}
           <ProjectionRealization
