@@ -35,12 +35,26 @@ never clear `_db_sql_migrations` to force a re-run.
 
 ## The drift trap — read this before touching `schema.prisma`
 
-The relational layer is a **single squashed init migration** (the project is
-pre-deployment; phase migrations were merged). Prisma's idempotency check is
+The relational layer is a **single squashed init migration** (phase migrations
+were merged while nothing was deployed). Prisma's idempotency check is
 **name-based**: editing `migration.sql` after it has been applied to a database is
 silently ignored, and your local DB drifts from the schema with no error.
 
-So whenever `schema.prisma` changes, **reset — don't patch**:
+> **The project is no longer pre-deployment, and that changes what "reset" costs.**
+> Tagged releases ship pre-built production images, so databases exist that you
+> cannot reset — a reset wipes all telemetry. The reset below is the procedure
+> for **your local database**. It is *not* available to someone upgrading, and an
+> upgrade never re-runs an edited init migration.
+>
+> This was learned the expensive way three times: `HOOK_TOKEN_REVOKED` and
+> `ADMIN_JOB_TRIGGERED` (#210) and `ADMIN_JOB_CONFIG_CHANGED` (#239, shipped in
+> v2.5.0) were all added by editing the init migration, and every upgraded
+> install silently lacked them. `sql/migrations/0004_audit_action_catchup.sql`
+> repairs those. **If you add an enum value, add it there too** — the parity test
+> will fail if you forget. If you change anything else Prisma manages, a forward
+> repair is generally *not* possible and the change needs its own plan.
+
+So whenever `schema.prisma` changes, **reset your local database — don't patch it**:
 
 ```bash
 bun run docker:infra:down:v   # DESTRUCTIVE — wipes ./data volumes
@@ -66,7 +80,7 @@ the custom layer — not folded into the Prisma migration, where the next
 regeneration would drop it. The custom layer started as one file and **grows by
 appending a new numbered file**; `0001_init.sql` is closed.
 
-Current files — **one**:
+Current files — **four**:
 
 - `0001_init.sql` — everything Prisma cannot model, in one file: the `events`
   hypertable (all columns, including `run_kind`, `notification_kind`,
@@ -82,6 +96,35 @@ Current files — **one**:
   needs `NULLS NOT DISTINCT` (P13-013) and so has no `@@unique` in
   `schema.prisma` at all; and the `interactive_sessions` / `interactive_events`
   views that carry the `run_kind` guard (P13-012).
+- `0002_secret_exposure_rule.sql`, `0003_team_spend_spike_rule.sql` — two
+  additional built-in alert-rule seeds.
+- `0004_audit_action_catchup.sql` — **the repair for this file's own trap.**
+  Three `AuditAction` values were added by editing the squashed init migration
+  *after* this schema had shipped (`HOOK_TOKEN_REVOKED` and
+  `ADMIN_JOB_TRIGGERED` in #210; `ADMIN_JOB_CONFIG_CHANGED` in #239, released in
+  v2.5.0). Prisma's check is name-based, so an upgrading database skips all
+  three and is left missing values the application writes — and because
+  `writeAuditLog` never throws, the result was a *silently missing audit row*
+  rather than an error. The file re-asserts every value with
+  `ADD VALUE IF NOT EXISTS`, so it is a no-op on a fresh database and repairs an
+  upgrade from any past release. `test/audit-action-catchup.test.ts` fails if it
+  drifts from the enum or if a statement loses its `IF NOT EXISTS`.
+
+  That second guard protects the **fresh-install** path, which is the
+  counter-intuitive part. This file runs once per database (the runner records
+  it in `_db_sql_migrations`), and on a fresh database layer 1 has already
+  created `AuditAction` complete — so every value here already exists. A bare
+  `ADD VALUE` therefore fails on its first and only application (`ERROR: enum
+  label "..." already exists`), aborting the wrapping transaction and stopping
+  `migrations-runner`, and with it every service gated on it. The common path is
+  the one that breaks.
+
+  **This is the exception, not a new pattern.** An enum value is the one thing
+  Prisma models that can be repaired forward safely, because `ADD VALUE` is
+  additive and order-independent at the end. A changed column, index or
+  constraint cannot be patched this way — for those the reset below is still the
+  only correct answer, which is why the rule against patching Prisma-managed
+  objects from this layer stands.
 
 **The `SELECT *` rule survives the squash, and still binds.** `interactive_events`
 is `SELECT * FROM events WHERE run_kind = 'INTERACTIVE'`, and Postgres expands the
