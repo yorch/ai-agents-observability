@@ -2,6 +2,7 @@ import { createClient } from '@ai-agents-observability/db';
 import pino from 'pino';
 import { createApp } from './app';
 import { loadConfig } from './config';
+import { SWEEP_INTERVAL_MS, sweepStaleDeliveries } from './jobs/sweep-stale-deliveries';
 
 const config = loadConfig();
 
@@ -37,6 +38,13 @@ async function pruneWebhookDeliveries(): Promise<void> {
 void pruneWebhookDeliveries();
 const retentionTimer = setInterval(pruneWebhookDeliveries, DAY_MS);
 retentionTimer.unref();
+
+// Report deliveries accepted from GitHub and then never finished. We ack 202
+// before processing, so GitHub never redelivers and nothing here retries — this
+// exists so that loss is visible rather than silent. See the job's header.
+void sweepStaleDeliveries(db, logger);
+const staleSweepTimer = setInterval(() => void sweepStaleDeliveries(db, logger), SWEEP_INTERVAL_MS);
+staleSweepTimer.unref();
 
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, starting graceful shutdown');
