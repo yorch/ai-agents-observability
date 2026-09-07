@@ -25,7 +25,14 @@ A server-rendered `/team/[slug]` page visible to team leads and maintainers. Sho
 
 - [ ] `/team/[slug]` renders team name, 30-day cost, session count, active member count, top tools, model mix.
 - [ ] `requireTeamLead(slug)` gates the page (404 for non-leads, redirect for unauth).
-- [ ] `apps/web/src/lib/team-queries.ts` exports `getTeamSummary(teamId, since)`.
+- [ ] `apps/web/src/lib/team-queries.ts` exports the page's summary query. Now
+  `getTeamSummaryWithDelta(days, visibleIds, totalMemberCount)`, which is what
+  `/team/[slug]` and `reporting-queries` call; it returns the current and prior
+  window so the page can show a delta. The originally-specified
+  `getTeamSummary(teamId, since)` never shipped under that signature — the real
+  one took `(since, visibleIds, totalMemberCount)`, because visibility filtering
+  is resolved once per page and passed down rather than re-derived per query —
+  and the single-window wrapper was removed once nothing called it.
 - [ ] A global layout at `apps/web/src/app/team/[slug]/layout.tsx` renders the team nav (Overview · Roster · PRs).
 - [ ] 404 page for unknown slugs.
 - [ ] TypeScript clean and Biome clean.
