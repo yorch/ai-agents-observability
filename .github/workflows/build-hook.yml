@@ -18,11 +18,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Both macOS legs are pinned to 15. The x64 leg ran on `macos-13` until
+          # GitHub retired that image, after which the job was never picked up by a
+          # runner at all — it sat `queued` until the 24h timeout reaped it, which
+          # reads as "pending" rather than "failed", so it never announced itself.
+          # `macos-14` is now deprecated too, so the arm64 leg moves with it rather
+          # than waiting to fail the same silent way.
+          #
+          # The Intel leg must stay on a genuinely Intel runner: the Smoke test step
+          # below *executes* the binary it just built, and an arm64 host cannot run a
+          # bun-darwin-x64 executable without Rosetta, which these images do not ship.
+          # Cross-compiling on arm64 would build fine and then fail the smoke test —
+          # or, worse, pass it while testing the wrong architecture.
           - target: darwin-arm64
-            runner: macos-14
+            runner: macos-15
             bun_target: bun-darwin-arm64
           - target: darwin-x64
-            runner: macos-13
+            runner: macos-15-intel
             bun_target: bun-darwin-x64
           - target: linux-x64
             runner: ubuntu-24.04
