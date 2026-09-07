@@ -2,10 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
 import type { Event } from '@ai-agents-observability/schemas';
-
 import { claudeCodeAdapter } from '../adapters/claude-code';
+import { resetDeferred } from './deferred-commit';
 import { createSynthCtx, entryToEvents, noteSkippedEntry } from './import-synth';
 import type { ClaudeEntry } from './transcript-parser';
 
@@ -123,6 +122,12 @@ function importAll(entries: ClaudeEntry[] = CONVERSATION): Event[] {
 
 const byTool = (events: Event[], name: string, type: Event['event_type']): Event | undefined =>
   events.find((e) => e.event_type === type && e.tool?.name === name);
+
+// Deferred commits are module state (lib/deferred-commit.ts). A test that maps a
+// batch without committing or discarding leaves work pending, which a LATER test
+// could then run — against a temp dir that beforeEach has already replaced. Clear
+// it per test so the suite cannot depend on file order.
+beforeEach(resetDeferred);
 
 describe('turn linkage — import path', () => {
   const events = importAll();

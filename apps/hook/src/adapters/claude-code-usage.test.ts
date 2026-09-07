@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { commitDeferred, discardDeferred } from '../lib/deferred-commit';
+import { commitDeferred, discardDeferred, resetDeferred } from '../lib/deferred-commit';
 import { claudeCodeAdapter } from './claude-code';
 import { conformanceErrors } from './conformance';
 
@@ -107,6 +107,12 @@ afterEach(() => {
   rmSync(home, { force: true, recursive: true });
   process.env.AIOT_HOME = undefined;
 });
+
+// Deferred commits are module state (lib/deferred-commit.ts). A test that maps a
+// batch without committing or discarding leaves work pending, which a LATER test
+// could then run — against a temp dir that beforeEach has already replaced. Clear
+// it per test so the suite cannot depend on file order.
+beforeEach(resetDeferred);
 
 describe('claudeCodeAdapter per-turn usage', () => {
   it('folds a turn’s token usage onto a schema-conformant Stop event', () => {

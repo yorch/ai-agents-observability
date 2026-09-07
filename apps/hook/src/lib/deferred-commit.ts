@@ -51,6 +51,20 @@ type Deferred = { label: string; run: () => void };
 
 const pending: Deferred[] = [];
 
+/** A message for anything that can be thrown, not just an `Error`. */
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  try {
+    return typeof err === 'string' ? err : JSON.stringify(err);
+  } catch {
+    // A value that will not serialize (a cycle, a throwing getter) still has to
+    // produce something — `log()` must never throw.
+    return String(err);
+  }
+}
+
 /**
  * Register work to run once this invocation's events are safely queued.
  * `label` identifies it in the log if it fails.
@@ -73,7 +87,11 @@ export function commitDeferred(): void {
     try {
       run();
     } catch (err) {
-      log('warn', 'hook.deferred_commit.failed', { label, message: (err as Error).message });
+      // `(err as Error).message` is the idiom elsewhere in this app, but it is
+      // wrong here: a non-Error throw yields `undefined` and the log line then
+      // records that a data-integrity commit failed without saying why — the
+      // one field that makes the line worth writing.
+      log('warn', 'hook.deferred_commit.failed', { label, message: errorMessage(err) });
     }
   }
 }
@@ -89,7 +107,9 @@ export function discardDeferred(reason: string): void {
   }
   const labels = pending.map((d) => d.label);
   pending.length = 0;
-  log('warn', 'hook.deferred_commit.discarded', { labels: labels.join(','), reason });
+  // An array, not a joined string: `log()` JSON-serializes its fields, so the
+  // shape survives to anything reading hook.log.
+  log('warn', 'hook.deferred_commit.discarded', { labels, reason });
 }
 
 /** Test seam: drop pending work without logging. Called at the top of `runHook`. */
