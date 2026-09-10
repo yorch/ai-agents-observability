@@ -30,7 +30,7 @@ export function ShapeDistributionChart({ histogram }: { histogram: Record<string
               segments={entries.map(([label, count]) => ({
                 className: shapeBg(label),
                 key: label,
-                title: `${label}: ${count}`,
+                label: `${label}: ${count}`,
                 value: count,
               }))}
             />

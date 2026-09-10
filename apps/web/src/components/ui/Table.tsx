@@ -22,6 +22,12 @@ export function Table({ children, columns }: { children: ReactNode; columns: Col
             {columns.map((col) => (
               <th
                 key={col.label}
+                // Explicit rather than inferred. These tables have one header
+                // row, so most screen readers guess column scope correctly —
+                // but "most, by inference" is a weaker guarantee than saying it,
+                // and it costs one attribute on the primitive every table in the
+                // app is built from.
+                scope="col"
                 className={cx(
                   'whitespace-nowrap pb-2',
                   col.align === 'right' ? 'text-right' : 'text-left',

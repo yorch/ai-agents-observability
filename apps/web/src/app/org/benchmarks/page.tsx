@@ -28,10 +28,17 @@ function DeltaBadge({
 }) {
   const dir = delta(value, median, lowerIsBetter);
   const color = dir === 'above' ? 'text-good' : dir === 'below' ? 'text-crit' : 'text-text-2';
+  // The org median is the baseline this whole chip is ABOUT, and it lived only
+  // in `title` — so the one number that makes the comparison meaningful was
+  // hover-only. Direction was a triangle plus a colour, neither of which has an
+  // accessible name. The label spells all three out; the icons stay decorative.
+  const direction = dir === 'above' ? 'above' : dir === 'below' ? 'below' : 'at';
   return (
     <span
+      role="img"
       className={`inline-flex items-center gap-1 font-mono text-xs ${color}`}
       title={`Org median: ${median}`}
+      aria-label={`${label}: ${direction} the org median of ${median}`}
     >
       {label}
       {dir === 'above' ? (

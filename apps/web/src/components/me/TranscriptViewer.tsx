@@ -348,7 +348,11 @@ export function TranscriptViewer({
     return <div className="animate-pulse motion-reduce:animate-none h-96 bg-surface rounded-lg" />;
   }
   if (error) {
-    return <p className="text-sm text-crit">Error: {error}</p>;
+    return (
+      <p role="alert" className="text-sm text-crit">
+        Error: {error}
+      </p>
+    );
   }
   if (parsedLines.length === 0) {
     return <p className="text-sm text-text-3">Transcript is empty.</p>;
@@ -373,11 +377,28 @@ export function TranscriptViewer({
           placeholder="Search in transcript…"
           className="flex-1"
         />
-        <span className="text-xs text-text-3 font-mono whitespace-nowrap">
+        {/*
+          Search-as-you-type with no live region gave no feedback at all: a
+          sighted user watches the count change, everyone else typed into
+          silence.
+
+          `role="status"` (polite) rather than an assertive region, and
+          deliberately: this text changes on EVERY keystroke, so an assertive
+          region would interrupt the user mid-word, on every word. Polite
+          announcements coalesce, so rapid typing produces one result when they
+          pause — which is the moment the count is worth hearing.
+        */}
+        <span className="text-xs text-text-3 font-mono whitespace-nowrap" aria-hidden="true">
           {query.trim()
             ? `${filtered.length} / ${modeFiltered.length}`
             : `${modeFiltered.length} lines`}
           {loading ? ' · loading…' : ''}
+        </span>
+        <span role="status" className="sr-only">
+          {query.trim()
+            ? `${filtered.length} of ${modeFiltered.length} lines match`
+            : `${modeFiltered.length} lines`}
+          {loading ? ', loading' : ''}
         </span>
         <div className="shrink-0">
           <Segmented label="Transcript view">

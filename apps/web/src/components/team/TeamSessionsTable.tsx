@@ -107,8 +107,15 @@ export function TeamSessionsTable({
               <Cell className="text-center">
                 {badge ? (
                   <span
+                    role="img"
                     className={`text-xs font-medium font-mono ${TONE_TEXT[badge.tone]}`}
                     title={`${((friction ?? 0) * 100).toFixed(0)}%`}
+                    // Only the coarse band ("low"/"high") is visible; the exact
+                    // percentage lived in `title` alone. The band is what you
+                    // scan a table for, so it stays the visible value — the
+                    // number joins it in the accessible name rather than
+                    // widening the column.
+                    aria-label={`${badge.label} friction, ${((friction ?? 0) * 100).toFixed(0)}%`}
                   >
                     {badge.label}
                   </span>

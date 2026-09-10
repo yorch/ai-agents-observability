@@ -1,7 +1,7 @@
 import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, CardEmpty, Cell, Row, SeriesBadge, Stat, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, ChartHover, Row, SeriesBadge, Stat, Table } from '@/components/ui';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import { fmtDayShort, fmtUsdOrDash } from '@/lib/fmt';
 import {
@@ -201,32 +201,83 @@ export default async function OrgToolsPage({
 
 function DailyVolumeBars({ volume }: { volume: DailyToolVolumeRow[] }) {
   const max = Math.max(...volume.map((v) => v.callCount), 1);
+  const anyDenied = volume.some((v) => v.denyCount > 0);
   return (
-    <div className="flex items-end gap-0.5 h-28">
-      {volume.map((v) => {
-        const height = Math.max(4, (v.callCount / max) * 112);
-        const denyHeight = v.callCount > 0 ? (v.denyCount / v.callCount) * height : 0;
-        const label = fmtDayShort(new Date(v.day));
-        return (
-          <div key={v.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
-            <span className="text-[9px] text-text-3">{v.callCount}</span>
-            <div
-              className="w-full rounded-t bg-accent-muted relative min-h-1"
-              style={{ height: `${height}px` }}
-              title={`${label}: ${v.callCount} calls, ${v.denyCount} denied`}
-            >
-              {denyHeight > 0 && (
+    <>
+      {/*
+        `denyCount` used to exist only in `title` AND as a warn-coloured region —
+        unreachable by keyboard, and colour as the sole visual encoding. It is now
+        rendered as text whenever it is non-zero, so the fact of a denial does not
+        depend on distinguishing two hues.
+
+        The `Legend` primitive is deliberately NOT used here. It paints its
+        swatches from the SERIES palette (`seriesBg(index)`), and these bars are
+        `accent-muted` with a `warn` sub-bar — `warn` being correct, since a
+        denial is a state rather than a chart series, which is exactly what the
+        status tokens are reserved for. Passing this through `Legend` would show
+        two series colours that appear nowhere in the chart, which is worse than
+        no legend. This one maps the real tokens instead.
+      */}
+      <ChartHover>
+        <div className="flex items-end gap-0.5 h-28">
+          {volume.map((v) => {
+            const height = Math.max(4, (v.callCount / max) * 112);
+            const denyHeight = v.callCount > 0 ? (v.denyCount / v.callCount) * height : 0;
+            const label = fmtDayShort(new Date(v.day));
+            return (
+              <div key={v.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
+                <span className="text-[9px] text-text-3">{v.callCount}</span>
                 <div
-                  className="absolute right-0 bottom-0 left-0 rounded-t bg-warn"
-                  style={{ height: `${denyHeight}px` }}
-                />
-              )}
-            </div>
-            <span className="text-[8px] text-text-3">{label}</span>
-          </div>
-        );
-      })}
-    </div>
+                  role="img"
+                  // biome-ignore lint/a11y/noNoninteractiveTabindex: chart marks need keyboard tooltip parity
+                  tabIndex={0}
+                  aria-label={`${label}: ${v.callCount} calls, ${v.denyCount} denied`}
+                  data-tip={`${label}|${v.callCount} calls · ${v.denyCount} denied`}
+                  className="w-full rounded-t bg-accent-muted relative min-h-1 outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
+                  style={{ height: `${height}px` }}
+                >
+                  {denyHeight > 0 && (
+                    <div
+                      className="absolute right-0 bottom-0 left-0 rounded-t bg-warn"
+                      style={{ height: `${denyHeight}px` }}
+                    />
+                  )}
+                </div>
+                {/* Text, not colour, is what says a denial happened. */}
+                {v.denyCount > 0 && (
+                  <span className="text-[8px] text-warn">{v.denyCount} denied</span>
+                )}
+                <span className="text-[8px] text-text-3">{label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </ChartHover>
+      {anyDenied && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-text-2">
+          <span className="h-2 w-2 shrink-0 rounded-sm bg-warn" />
+          Denied calls, also counted under each bar
+        </p>
+      )}
+      <details className="mt-4 text-sm text-text-2">
+        <summary className="cursor-pointer text-text-3">View chart data</summary>
+        <Table
+          columns={[
+            { label: 'Day' },
+            { align: 'right', label: 'Calls' },
+            { align: 'right', label: 'Denied' },
+          ]}
+        >
+          {volume.map((v) => (
+            <Row key={v.day.toISOString()}>
+              <Cell>{fmtDayShort(new Date(v.day))}</Cell>
+              <Cell num>{v.callCount.toLocaleString()}</Cell>
+              <Cell num>{v.denyCount.toLocaleString()}</Cell>
+            </Row>
+          ))}
+        </Table>
+      </details>
+    </>
   );
 }
 
@@ -547,52 +598,86 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
 
   return (
     <div className="space-y-4">
-      {[...bySkill.entries()].map(([skill, ciRows]) => {
-        const total = ciRows.reduce((s, r) => s + r.sessionCount, 0);
-        const successCount = ciRows.find((r) => r.ciStatus === 'success')?.sessionCount ?? 0;
-        const passRate = total > 0 ? (successCount / total) * 100 : 0;
-        return (
-          <div key={skill} className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-mono text-text">{skill}</span>
-              <span className="text-good font-mono">{passRate.toFixed(0)}% pass</span>
-            </div>
-            <div className="flex gap-1">
-              {ciRows.map((r) => {
-                const w = total > 0 ? (r.sessionCount / total) * 100 : 0;
-                const cls = CI_COLORS[r.ciStatus] ?? 'text-text-3';
-                return (
-                  <div
-                    key={r.ciStatus}
-                    className="text-[10px] font-mono"
-                    style={{ width: `${w}%` }}
-                  >
-                    <div
-                      className={`h-2 rounded-sm ${
-                        r.ciStatus === 'success'
-                          ? 'bg-good/50'
-                          : r.ciStatus === 'failure'
-                            ? 'bg-crit/50'
-                            : 'bg-warn/50'
-                      }`}
-                      title={`${r.ciStatus}: ${r.sessionCount} sessions`}
-                    />
-                    {/* Distinct short words, not a 4-char slice — "succ"/"fail"
+      {/*
+        `sessionCount` was title-only. The status WORD is already rendered under
+        each segment, so the colour-only half of this chart was fixed earlier;
+        this adds the count. One table for every skill rather than one per
+        skill — a dozen collapsed tables is not a readable alternative.
+      */}
+      <ChartHover>
+        <div className="space-y-4">
+          {[...bySkill.entries()].map(([skill, ciRows]) => {
+            const total = ciRows.reduce((s, r) => s + r.sessionCount, 0);
+            const successCount = ciRows.find((r) => r.ciStatus === 'success')?.sessionCount ?? 0;
+            const passRate = total > 0 ? (successCount / total) * 100 : 0;
+            return (
+              <div key={skill} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-mono text-text">{skill}</span>
+                  <span className="text-good font-mono">{passRate.toFixed(0)}% pass</span>
+                </div>
+                <div className="flex gap-1">
+                  {ciRows.map((r) => {
+                    const w = total > 0 ? (r.sessionCount / total) * 100 : 0;
+                    const cls = CI_COLORS[r.ciStatus] ?? 'text-text-3';
+                    return (
+                      <div
+                        key={r.ciStatus}
+                        className="text-[10px] font-mono"
+                        style={{ width: `${w}%` }}
+                      >
+                        <div
+                          role="img"
+                          // biome-ignore lint/a11y/noNoninteractiveTabindex: chart marks need keyboard tooltip parity
+                          tabIndex={0}
+                          aria-label={`${skill}, ${r.ciStatus}: ${r.sessionCount} sessions`}
+                          data-tip={`${r.ciStatus}|${r.sessionCount} sessions`}
+                          className={`h-2 rounded-sm outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent ${
+                            r.ciStatus === 'success'
+                              ? 'bg-good/50'
+                              : r.ciStatus === 'failure'
+                                ? 'bg-crit/50'
+                                : 'bg-warn/50'
+                          }`}
+                        />
+                        {/* Distinct short words, not a 4-char slice — "succ"/"fail"
                         collide at a glance and leaned on colour to disambiguate. */}
-                    <span className={`${cls} block truncate text-center`}>
-                      {r.ciStatus === 'success'
-                        ? 'pass'
-                        : r.ciStatus === 'failure'
-                          ? 'fail'
-                          : r.ciStatus}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+                        <span className={`${cls} block truncate text-center`}>
+                          {r.ciStatus === 'success'
+                            ? 'pass'
+                            : r.ciStatus === 'failure'
+                              ? 'fail'
+                              : r.ciStatus}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </ChartHover>
+      <details className="text-sm text-text-2">
+        <summary className="cursor-pointer text-text-3">View CI outcomes</summary>
+        <Table
+          columns={[
+            { label: 'Skill' },
+            { label: 'CI status' },
+            { align: 'right', label: 'Sessions' },
+          ]}
+        >
+          {[...bySkill.entries()].flatMap(([skill, ciRows]) =>
+            ciRows.map((r) => (
+              <Row key={`${skill}-${r.ciStatus}`}>
+                <Cell>{skill}</Cell>
+                <Cell>{r.ciStatus}</Cell>
+                <Cell num>{r.sessionCount.toLocaleString()}</Cell>
+              </Row>
+            )),
+          )}
+        </Table>
+      </details>
     </div>
   );
 }

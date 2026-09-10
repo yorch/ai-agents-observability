@@ -89,6 +89,10 @@ export function SessionPRLinks({
               {link.linkSource === 'MANUAL' ? (
                 <button
                   type="button"
+                  // Every row's button announced as a bare "remove", so N rows
+                  // gave N identical controls with nothing to tell them apart.
+                  // The visible word stays short; the name says which PR.
+                  aria-label={`Remove link to PR #${link.prNumber}`}
                   onClick={() => remove(link.prNumber)}
                   disabled={isPending}
                   className="text-xs text-text-3 hover:text-crit transition-colors"
@@ -122,7 +126,11 @@ export function SessionPRLinks({
         </p>
       )}
 
-      {error ? <p className="text-sm text-crit">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-sm text-crit">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

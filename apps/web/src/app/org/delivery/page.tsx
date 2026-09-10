@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
-import { fmtDayShort, fmtHoursShort } from '@/lib/fmt';
+import { Card, CardEmpty, Cell, ChartHover, Row, Stat, Table } from '@/components/ui';
+import { fmtDayShort, fmtHoursShort, fmtUsd } from '@/lib/fmt';
 import {
   getOrgCheckHealth,
   getOrgPRDeliveryStats,
@@ -90,23 +90,59 @@ export default async function OrgDeliveryPage({
           <h2 className="mb-4 font-display text-sm font-semibold text-text">
             Weekly merged PRs ({trendWeeks} weeks)
           </h2>
-          <div className="flex items-end gap-1 h-24">
-            {weeklyTrend.map((w) => {
-              const height = Math.max(4, (w.mergedPRs / maxPRs) * 96);
-              const label = fmtDayShort(new Date(w.week));
-              return (
-                <div key={w.week.toISOString()} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-text-3">{w.mergedPRs}</span>
+          {/*
+            `mergedPRs` is rendered above each bar, but `totalCostUsd` lived only
+            in `title` — unreachable by keyboard, unreliable to a screen reader,
+            absent on touch. House grammar instead: data-tip marks inside
+            ChartHover, each focusable with an aria-label carrying BOTH values,
+            plus the data table that makes the series readable rather than merely
+            reachable (tabbing N bars to hear N numbers is not reading a trend).
+          */}
+          <ChartHover>
+            <div className="flex items-end gap-1 h-24">
+              {weeklyTrend.map((w) => {
+                const height = Math.max(4, (w.mergedPRs / maxPRs) * 96);
+                const label = fmtDayShort(new Date(w.week));
+                const cost = fmtUsd(w.totalCostUsd);
+                return (
                   <div
-                    className="w-full rounded-t bg-accent-muted min-h-1"
-                    style={{ height: `${height}px` }}
-                    title={`${label}: ${w.mergedPRs} PRs · $${w.totalCostUsd.toFixed(2)} total`}
-                  />
-                  <span className="text-[9px] text-text-3">{label}</span>
-                </div>
-              );
-            })}
-          </div>
+                    key={w.week.toISOString()}
+                    className="flex-1 flex flex-col items-center gap-1"
+                  >
+                    <span className="text-[10px] text-text-3">{w.mergedPRs}</span>
+                    <div
+                      role="img"
+                      // biome-ignore lint/a11y/noNoninteractiveTabindex: chart marks need keyboard tooltip parity
+                      tabIndex={0}
+                      aria-label={`${label}: ${w.mergedPRs} merged PRs, ${cost} total`}
+                      data-tip={`${label}|${w.mergedPRs} PRs · ${cost}`}
+                      className="w-full rounded-t bg-accent-muted min-h-1 outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
+                      style={{ height: `${height}px` }}
+                    />
+                    <span className="text-[9px] text-text-3">{label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </ChartHover>
+          <details className="mt-4 text-sm text-text-2">
+            <summary className="cursor-pointer text-text-3">View chart data</summary>
+            <Table
+              columns={[
+                { label: 'Week' },
+                { align: 'right', label: 'Merged PRs' },
+                { align: 'right', label: 'Total cost' },
+              ]}
+            >
+              {weeklyTrend.map((w) => (
+                <Row key={w.week.toISOString()}>
+                  <Cell>{fmtDayShort(new Date(w.week))}</Cell>
+                  <Cell num>{w.mergedPRs.toLocaleString()}</Cell>
+                  <Cell num>{fmtUsd(w.totalCostUsd)}</Cell>
+                </Row>
+              ))}
+            </Table>
+          </details>
         </Card>
       )}
 

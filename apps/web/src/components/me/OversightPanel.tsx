@@ -58,7 +58,7 @@ export function OversightPanel({ data }: { data: OversightSummary }) {
             segments={data.modeMix.map((m) => ({
               className: MODE_COLOR[m.mode] ?? 'bg-series-none',
               key: m.mode,
-              title: `${MODE_LABEL[m.mode] ?? m.mode}: ${m.count}`,
+              label: `${MODE_LABEL[m.mode] ?? m.mode}: ${m.count}`,
               value: m.count,
             }))}
           />
