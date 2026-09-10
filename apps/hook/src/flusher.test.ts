@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { heartbeatAgeSeconds } from './flusher';
 import { openQueueReader } from './lib/queue-reader';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -275,5 +276,33 @@ describe('flusher POST batches', () => {
     } finally {
       server.stop(true);
     }
+  });
+});
+
+describe('heartbeatAgeSeconds', () => {
+  it('returns null when no heartbeat has been recorded', () => {
+    expect(heartbeatAgeSeconds(null)).toBeNull();
+  });
+
+  it('returns 0 for a heartbeat at the current time', () => {
+    const now = Date.now();
+    const ts = new Date(now).toISOString();
+    expect(heartbeatAgeSeconds(ts, now)).toBe(0);
+  });
+
+  it('returns the age in seconds for a past heartbeat', () => {
+    const now = Date.parse('2026-05-21T12:00:00.000Z');
+    const ts = new Date(now - 30_000).toISOString(); // 30s ago
+    expect(heartbeatAgeSeconds(ts, now)).toBe(30);
+  });
+
+  it('returns null for an unparseable timestamp', () => {
+    expect(heartbeatAgeSeconds('not-a-date', Date.now())).toBeNull();
+  });
+
+  it('clamps negative ages to 0 (clock skew)', () => {
+    const now = Date.parse('2026-05-21T12:00:00.000Z');
+    const ts = new Date(now + 10_000).toISOString(); // 10s in the future
+    expect(heartbeatAgeSeconds(ts, now)).toBe(0);
   });
 });

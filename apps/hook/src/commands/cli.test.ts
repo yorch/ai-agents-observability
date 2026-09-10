@@ -233,7 +233,12 @@ describe('status', () => {
   it('shows last flush from flusher-state.json', async () => {
     writeFileSync(
       join(tmpHome, 'flusher-state.json'),
-      JSON.stringify({ lastError: null, lastFlushAt: '2025-01-01T00:00:00.000Z', queueDepth: 7 }),
+      JSON.stringify({
+        lastError: null,
+        lastFlushAt: '2025-01-01T00:00:00.000Z',
+        lastHeartbeatAt: null,
+        queueDepth: 7,
+      }),
     );
     const { stdout } = await captureOutputAsync(async () => {
       await runStatus();
@@ -244,7 +249,12 @@ describe('status', () => {
   it('shows last error from flusher-state.json', async () => {
     writeFileSync(
       join(tmpHome, 'flusher-state.json'),
-      JSON.stringify({ lastError: 'Server error 503', lastFlushAt: null, queueDepth: 0 }),
+      JSON.stringify({
+        lastError: 'Server error 503',
+        lastFlushAt: null,
+        lastHeartbeatAt: null,
+        queueDepth: 0,
+      }),
     );
     const { stdout } = await captureOutputAsync(async () => {
       await runStatus();

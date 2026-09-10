@@ -26,6 +26,7 @@ import { runSendReportDigest } from './send-report-digest';
 import { runSweepAbandoned } from './sweep-abandoned';
 import { runSweepRetention } from './sweep-retention';
 import { runSweepScratch } from './sweep-scratch';
+import { runSweepStaleHosts } from './sweep-stale-hosts';
 import { type JiraSyncConfig, runSyncJira } from './sync-jira';
 import { runSyncTeams } from './sync-teams';
 
@@ -111,6 +112,7 @@ const ALL_KNOWN_JOBS = new Set<string>([
   'sync-jira',
   'sweep-abandoned',
   'sweep-scratch',
+  'sweep-stale-hosts',
   'run-deletions',
   'backfill-redaction',
   'reprice-events',
@@ -163,6 +165,9 @@ export async function triggerJob(deps: SchedulerDeps, jobName: string): Promise<
       break;
     case 'sweep-abandoned':
       await runSweepAbandoned(db, logger);
+      break;
+    case 'sweep-stale-hosts':
+      await runSweepStaleHosts(db, logger);
       break;
     case 'send-report-digest':
       await runSendReportDigest(db, logger, appBaseUrl, emailConfig);
@@ -544,6 +549,13 @@ export function startScheduler(deps: SchedulerDeps): void {
   );
   sweepScratchInterval.unref?.();
 
+  // Stale-host detection (diagnostic): hourly sweep for hosts that went silent.
+  const sweepStaleHostsInterval = setInterval(
+    guarded(() => runSweepStaleHosts(db, logger), 'sweep-stale-hosts'),
+    60 * 60 * 1_000,
+  );
+  sweepStaleHostsInterval.unref?.();
+
   // Every 6 h: GDPR deletion (high-priority, fixed cadence).
   const deletionsInterval = setInterval(
     guarded(() => triggerJob(deps, 'run-deletions'), 'run-deletions'),
@@ -578,6 +590,6 @@ export function startScheduler(deps: SchedulerDeps): void {
       reconcileCostSource: deps.billingSource ? 'vendor' : 'null',
       syncJira: deps.jiraConfig !== undefined,
     },
-    'Job scheduler started (DB-poll every 60s for the job_config cadences: sweep-retention, index-transcripts, compute-effectiveness, compute-trajectory-scores, compute-subject-scores, link-turn-events, compute-cost-attribution, evaluate-alerts, judge-sessions; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',
+    'Job scheduler started (DB-poll every 60s for the job_config cadences: sweep-retention, index-transcripts, compute-effectiveness, compute-trajectory-scores, compute-subject-scores, link-turn-events, compute-cost-attribution, evaluate-alerts, judge-sessions; fixed: sync-teams 1h, sweep-abandoned 10m, sweep-scratch 1h, sweep-stale-hosts 1h, run-deletions 6h; sync-jira 6h when configured; reconcile-cost daily when enabled)',
   );
 }
