@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import type { FlusherStatus } from '../flusher';
 import { heartbeatAgeSeconds } from '../flusher';
+import { getShipMode } from '../lib/config';
 import { flusherStatePath, identityPath, pausedPath, queuePath } from '../lib/paths';
 import { openQueueReader } from '../lib/queue-reader';
 
@@ -32,6 +33,9 @@ export async function runStatus(): Promise<number> {
 
   // ── Paused ────────────────────────────────────────────────────────────────────
   const paused = existsSync(pausedPath());
+
+  // ── Ship mode ──────────────────────────────────────────────────────────────────
+  const shipMode = getShipMode();
 
   // ── Flusher state ─────────────────────────────────────────────────────────────
   let flusherState: FlusherStatus = {
@@ -77,6 +81,7 @@ export async function runStatus(): Promise<number> {
   const lines: string[] = [
     `auth:        ${authLine}`,
     `paused:      ${paused ? 'yes' : 'no'}`,
+    `ship mode:   ${shipMode}`,
     `queue depth: ${queueDepth}`,
     `last flush:  ${flusherState.lastFlushAt ?? 'never'}`,
     `last error:  ${flusherState.lastError ?? 'none'}`,
@@ -103,7 +108,9 @@ export async function runStatus(): Promise<number> {
     }
   }
 
-  if (flusherRunning !== null) {
+  // In inline mode there is no flusher daemon to report on; the "last flush"
+  // and "last error" lines above reflect inline attempts instead.
+  if (shipMode === 'daemon' && flusherRunning !== null) {
     lines.push(`flusher:     ${flusherRunning}`);
   }
   if (shipperRunning !== null) {

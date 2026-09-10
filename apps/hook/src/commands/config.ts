@@ -2,6 +2,7 @@ import {
   type CliConfig,
   cliConfigPath,
   getIngestBaseUrl,
+  getShipMode,
   getWebBaseUrl,
   readCliConfig,
   updateCliConfig,
@@ -9,14 +10,20 @@ import {
 
 const CONFIG_HELP = `aiot config <command> [key] [value]
 
-Persist the observability server URLs used by login, import, flusher, and shipper.
+Persist the observability server URLs and ship mode used by login, import,
+flusher, and shipper.
 
 Commands:
-  show                         Show effective URLs and their source
+  show                         Show effective URLs, ship mode, and their source
   path                         Print the config file path
-  set <web-url|ingest-url> URL Persist a URL
-  unset <web-url|ingest-url>   Remove a persisted URL
+  set <key> <value>            Persist a URL or setting
+  unset <key>                  Remove a persisted URL or setting
   -h, --help                   Show this help
+
+Keys:
+  web-url                      Web application URL
+  ingest-url                   Ingest service URL
+  ship-mode                    Event shipping mode: 'daemon' (default) or 'inline'
 
 Environment variables override persisted values:
   AIOT_API         Web application URL
@@ -24,8 +31,11 @@ Environment variables override persisted values:
 
 const CONFIG_KEYS = {
   'ingest-url': 'ingest_url',
+  'ship-mode': 'ship_mode',
   'web-url': 'web_url',
 } as const satisfies Record<string, keyof CliConfig>;
+
+const VALID_SHIP_MODES = new Set(['daemon', 'inline']);
 
 function sourceFor(envName: string, key: keyof CliConfig, config: CliConfig): string {
   if (process.env[envName]) {
@@ -45,6 +55,9 @@ export function runConfig(args: string[]): number {
       );
       process.stdout.write(
         `ingest_url=${getIngestBaseUrl()} (${sourceFor('INGEST_BASE_URL', 'ingest_url', config)})\n`,
+      );
+      process.stdout.write(
+        `ship_mode=${getShipMode()} (${config.ship_mode ? cliConfigPath() : 'default'})\n`,
       );
       return 0;
     } catch (err) {
@@ -76,7 +89,11 @@ export function runConfig(args: string[]): number {
     }
     const value = args[3];
     if (!value) {
-      process.stderr.write(`Error: config set ${keyArg} requires a URL\n`);
+      process.stderr.write(`Error: config set ${keyArg} requires a value\n`);
+      return 1;
+    }
+    if (key === 'ship_mode' && !VALID_SHIP_MODES.has(value)) {
+      process.stderr.write(`Error: ship-mode must be 'daemon' or 'inline' (got: ${value})\n`);
       return 1;
     }
     const updated = updateCliConfig({ [key]: value });

@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs';
 
 import { type HookAdapter, selectAdapter } from './adapters';
+import { inlineDrain } from './flusher';
+import { getShipMode } from './lib/config';
 import { commitDeferred, discardDeferred, resetDeferred } from './lib/deferred-commit';
 import { getGitContext } from './lib/git';
 import { log } from './lib/log';
@@ -162,6 +164,19 @@ export async function runHook(
       queue.close();
     } catch {
       // ignore
+    }
+
+    // Inline ship mode: best-effort, bounded-time drain AFTER the queue write.
+    // The queue is the durability backstop — on failure or timeout the events
+    // stay in the queue for a later inline attempt, 'aiot flush', or the
+    // flusher daemon. This runs inside the top-level try/catch so it can never
+    // push a failure past exit-0.
+    if (enqueued > 0 && getShipMode() === 'inline') {
+      try {
+        await inlineDrain();
+      } catch {
+        // swallow — events are safely in the queue
+      }
     }
   } catch (err) {
     // Stderr from a hook surfaces inside the Claude Code transcript, so even

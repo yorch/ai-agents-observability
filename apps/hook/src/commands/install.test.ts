@@ -355,3 +355,68 @@ describe('install --no-auto', () => {
     expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(false);
   });
 });
+
+// ── inline ship mode: skips flusher service ─────────────────────────────────
+
+describe('install — inline ship mode', () => {
+  let origConfig: string | undefined;
+
+  beforeEach(() => {
+    origConfig = process.env.AIOT_CONFIG;
+    process.env.AIOT_CONFIG = join(tmpHome, 'config.json');
+  });
+
+  afterEach(() => {
+    if (origConfig !== undefined) {
+      process.env.AIOT_CONFIG = origConfig;
+    } else {
+      delete process.env.AIOT_CONFIG;
+    }
+  });
+
+  it('skips the flusher service file in inline mode', async () => {
+    const { updateCliConfig } = require('../lib/config');
+    updateCliConfig({ ship_mode: 'inline' });
+
+    const { stdout, exit } = await captureOutput(() =>
+      install(['--force', '--no-start'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(0);
+    // Flusher service file should NOT exist
+    expect(existsSync(flusherPath())).toBe(false);
+    // Shipper service file should still exist
+    expect(existsSync(shipperPath())).toBe(true);
+    expect(stdout).toContain('inline ship mode');
+  });
+
+  it('writes the flusher service file in daemon mode (default)', async () => {
+    const { stdout, exit } = await captureOutput(() =>
+      install(['--force', '--no-start'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(0);
+    expect(existsSync(flusherPath())).toBe(true);
+    expect(existsSync(shipperPath())).toBe(true);
+    expect(stdout).not.toContain('inline ship mode');
+  });
+
+  it('removes an existing flusher service file when switching to inline', async () => {
+    // Pre-create the flusher service file (simulating a previous daemon install)
+    if (isDarwin) {
+      mkdirSync(launchAgentsDir(), { recursive: true });
+    } else if (isLinux) {
+      mkdirSync(systemdDir(), { recursive: true });
+    }
+    writeFileSync(flusherPath(), 'old', { mode: 0o644 });
+    expect(existsSync(flusherPath())).toBe(true);
+
+    const { updateCliConfig } = require('../lib/config');
+    updateCliConfig({ ship_mode: 'inline' });
+
+    const { exit } = await captureOutput(() =>
+      install(['--force', '--no-start'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(0);
+    expect(existsSync(flusherPath())).toBe(false);
+    expect(existsSync(shipperPath())).toBe(true);
+  });
+});
