@@ -88,6 +88,11 @@ export function SessionFeedbackForm({
     return (
       <button
         type="button"
+        // Selected state was border + text COLOUR only, so a screen-reader user
+        // could not tell which rating was set — or that their click registered
+        // at all. `Segmented` and `ThemeToggle` both already use aria-pressed
+        // for exactly this; these two were the outliers.
+        aria-pressed={active}
         onClick={() => pick(value)}
         disabled={isPending}
         className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-sm transition-colors ${

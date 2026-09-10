@@ -36,7 +36,7 @@ export function ModelMixChart({ models }: { models: ModelEntry[] }) {
         segments={shown.map((m, i) => ({
           className: seriesBg(i),
           key: m.model,
-          title: `${m.model}: ${m.turns.toLocaleString()} turns`,
+          label: `${m.model}: ${m.turns.toLocaleString()} turns`,
           value: m.turns,
         }))}
       />

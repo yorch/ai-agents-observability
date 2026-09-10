@@ -2,8 +2,21 @@ export type ShareSegment = {
   /** Tailwind background class for this segment — a series or a domain colour. */
   className: string;
   key: string;
-  /** Hover text; the visible legend is the caller's, since each one differs. */
-  title: string;
+  /**
+   * Accessible name for this segment, and its hover text.
+   *
+   * Named `label` rather than `title` on purpose. As `title` the field read as
+   * "hover text", which invites a caller to put the segment's VALUE here and
+   * nowhere else — data that exists only in a `title` attribute is unreachable
+   * by keyboard, unreliable to a screen reader and absent on touch, which is
+   * the defect this app has now fixed in several places. Every current caller
+   * renders its own legend with the counts, so nothing was hover-only; the type
+   * simply made the wrong thing easy.
+   *
+   * It is applied as an `aria-label` as well as a `title`, so a caller that
+   * does put the value here still produces something reachable.
+   */
+  label: string;
   value: number;
 };
 
@@ -28,7 +41,9 @@ export function ShareBar({ segments, total }: { segments: ShareSegment[]; total:
             key={s.key}
             className={s.className}
             style={{ width: `${(s.value / denominator) * 100}%` }}
-            title={s.title}
+            role="img"
+            title={s.label}
+            aria-label={s.label}
           />
         ))}
     </div>

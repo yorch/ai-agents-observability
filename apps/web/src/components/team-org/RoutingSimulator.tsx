@@ -195,7 +195,13 @@ export function RoutingSimulator({ agents, range }: SimulatorProps) {
           {loading ? 'Simulating…' : 'Simulate'}
         </button>
 
-        {error && <p className="text-sm text-crit">{error}</p>}
+        {/* Appears after an async fetch — announce it, or pressing Simulate
+            and failing is indistinguishable from nothing happening. */}
+        {error && (
+          <p role="alert" className="text-sm text-crit">
+            {error}
+          </p>
+        )}
 
         {result && !result.eligible && (
           <p className="text-sm text-text-2">

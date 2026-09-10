@@ -167,7 +167,11 @@ export function ShareSessionButton({
           {/* Success notice */}
           {lastShared && (
             <div className="border-t border-border px-4 py-3 space-y-2">
-              <p className="text-xs text-good">Shared with {lastShared.email}</p>
+              {/* The revoke paths in this same file already carry roles; this
+                  success and the error below were the two that did not. */}
+              <p role="status" className="text-xs text-good">
+                Shared with {lastShared.email}
+              </p>
               {error && (
                 <p role="alert" className="text-xs text-crit">
                   {error}
@@ -201,7 +205,11 @@ export function ShareSessionButton({
           {/* New share form */}
           {!lastShared && (
             <div className="border-t border-border px-4 py-3">
-              {error && <p className="mb-2 text-xs text-crit">{error}</p>}
+              {error && (
+                <p role="alert" className="mb-2 text-xs text-crit">
+                  {error}
+                </p>
+              )}
               <form action={handleShare} className="space-y-2">
                 <input type="hidden" name="sessionId" value={sessionId} />
                 <Input
