@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import type { GitContext } from '@ai-agents-observability/schemas';
@@ -31,15 +31,22 @@ const HIGH_WATER_MARK = 50;
 export type FlusherStatus = {
   queueDepth: number;
   lastFlushAt: string | null;
+  lastHeartbeatAt: string | null;
   lastError: string | null;
 };
 
 function readFlusherState(): FlusherStatus {
   try {
     const raw = readFileSync(flusherStatePath(), 'utf8');
-    return JSON.parse(raw) as FlusherStatus;
+    const parsed = JSON.parse(raw) as Partial<FlusherStatus>;
+    return {
+      lastError: parsed.lastError ?? null,
+      lastFlushAt: parsed.lastFlushAt ?? null,
+      lastHeartbeatAt: parsed.lastHeartbeatAt ?? null,
+      queueDepth: parsed.queueDepth ?? 0,
+    };
   } catch {
-    return { lastError: null, lastFlushAt: null, queueDepth: 0 };
+    return { lastError: null, lastFlushAt: null, lastHeartbeatAt: null, queueDepth: 0 };
   }
 }
 
@@ -47,7 +54,12 @@ function writeFlusherState(state: FlusherStatus): void {
   try {
     const path = flusherStatePath();
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, JSON.stringify(state, null, 2), { encoding: 'utf8', mode: 0o600 });
+    // Atomic write: write to a temp file then rename, so a crash mid-write
+    // cannot leave a truncated state file that `aiot status` would read as
+    // garbage. The rename is atomic on POSIX filesystems.
+    const tmpPath = `${path}.tmp`;
+    writeFileSync(tmpPath, JSON.stringify(state, null, 2), { encoding: 'utf8', mode: 0o600 });
+    renameSync(tmpPath, path);
   } catch {
     // swallow — state file is best-effort
   }
@@ -55,6 +67,37 @@ function writeFlusherState(state: FlusherStatus): void {
 
 export function getFlusherStatus(): FlusherStatus {
   return readFlusherState();
+}
+
+/**
+ * Seconds since the last heartbeat, or null if no heartbeat has ever been
+ * recorded. Pure so it can be tested without touching the filesystem.
+ */
+export function heartbeatAgeSeconds(lastHeartbeat: string | null, now = Date.now()): number | null {
+  if (!lastHeartbeat) {
+    return null;
+  }
+  const ts = Date.parse(lastHeartbeat);
+  if (Number.isNaN(ts)) {
+    return null;
+  }
+  return Math.max(0, Math.floor((now - ts) / 1000));
+}
+
+/** Write a heartbeat timestamp into the state file, preserving other fields.
+ * Throttled to once per HEARTBEAT_MIN_INTERVAL_MS to avoid excessive disk I/O
+ * on the idle loop (which runs every 5s). */
+const HEARTBEAT_MIN_INTERVAL_MS = 30_000; // 30s — 2x/hour, enough for staleness detection
+let lastHeartbeatWrittenAt = 0;
+
+function writeHeartbeat(): void {
+  const now = Date.now();
+  if (now - lastHeartbeatWrittenAt < HEARTBEAT_MIN_INTERVAL_MS) {
+    return;
+  }
+  lastHeartbeatWrittenAt = now;
+  const state = readFlusherState();
+  writeFlusherState({ ...state, lastHeartbeatAt: new Date().toISOString() });
 }
 
 // ── Batch envelope ──────────────────────────────────────────────────────────
@@ -325,6 +368,7 @@ export async function runFlusher(): Promise<void> {
       const rows = reader.drain(BATCH_SIZE);
 
       if (rows.length === 0) {
+        writeHeartbeat();
         await Bun.sleep(IDLE_INTERVAL_MS);
         continue;
       }
@@ -337,6 +381,7 @@ export async function runFlusher(): Promise<void> {
         writeFlusherState({
           ...readFlusherState(),
           lastError: 'No auth token — run `aiot login`',
+          lastHeartbeatAt: new Date().toISOString(),
         });
         await Bun.sleep(IDLE_INTERVAL_MS);
         continue;
@@ -381,7 +426,12 @@ export async function runFlusher(): Promise<void> {
           // Success — delete the rows
           reader.delete(eventIds);
           const now = new Date().toISOString();
-          writeFlusherState({ lastError: null, lastFlushAt: now, queueDepth: reader.depth() });
+          writeFlusherState({
+            lastError: null,
+            lastFlushAt: now,
+            lastHeartbeatAt: now,
+            queueDepth: reader.depth(),
+          });
           log('info', 'flusher.batch_sent', { count: rows.length, status: res.status });
           consecutiveFailures = 0;
           success = true;
@@ -393,6 +443,7 @@ export async function runFlusher(): Promise<void> {
           writeFlusherState({
             ...readFlusherState(),
             lastError: `Unauthorized (${res.status}) — re-authentication required`,
+            lastHeartbeatAt: new Date().toISOString(),
           });
           reader.close();
           process.exit(1);
@@ -405,6 +456,7 @@ export async function runFlusher(): Promise<void> {
           writeFlusherState({
             ...readFlusherState(),
             lastError: `Rate limited (${res.status})`,
+            lastHeartbeatAt: new Date().toISOString(),
             queueDepth: reader.depth(),
           });
           consecutiveFailures++;
@@ -443,6 +495,7 @@ export async function runFlusher(): Promise<void> {
           writeFlusherState({
             ...readFlusherState(),
             lastError: `Batch rejected by server (${res.status})`,
+            lastHeartbeatAt: new Date().toISOString(),
             queueDepth: reader.depth(),
           });
           consecutiveFailures++;
@@ -455,6 +508,7 @@ export async function runFlusher(): Promise<void> {
           writeFlusherState({
             ...readFlusherState(),
             lastError: errMsg,
+            lastHeartbeatAt: new Date().toISOString(),
             queueDepth: reader.depth(),
           });
           consecutiveFailures++;
@@ -468,6 +522,7 @@ export async function runFlusher(): Promise<void> {
         writeFlusherState({
           ...readFlusherState(),
           lastError: `Network error: ${message}`,
+          lastHeartbeatAt: new Date().toISOString(),
           queueDepth: reader.depth(),
         });
         consecutiveFailures++;

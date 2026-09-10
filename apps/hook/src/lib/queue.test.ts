@@ -57,6 +57,73 @@ describe('queue', () => {
 
     expect(count?.c).toBe(1);
   });
+
+  it('prunes oldest rows when event count exceeds AIOT_QUEUE_MAX_EVENTS', () => {
+    process.env.AIOT_QUEUE_MAX_EVENTS = '3';
+    const q = openQueue();
+    for (let i = 0; i < 5; i++) {
+      q.enqueue({
+        event_id: `01939f6c-1234-7000-8000-${i.toString().padStart(12, '0')}`,
+        payload_json: `{"i":${i}}`,
+        ts: `2026-05-21T12:00:0${i}.000Z`,
+      });
+    }
+    q.close();
+
+    const db = new Database(`${tmpHome}/queue.db`);
+    const rows = db
+      .query<{ event_id: string }, []>('SELECT event_id FROM events_queue ORDER BY ts ASC')
+      .all();
+    db.close();
+
+    // Only the 3 newest survive; the 2 oldest were pruned.
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.event_id).toBe('01939f6c-1234-7000-8000-000000000002');
+    expect(rows[2]?.event_id).toBe('01939f6c-1234-7000-8000-000000000004');
+    delete process.env.AIOT_QUEUE_MAX_EVENTS;
+  });
+
+  it('prunes oldest rows when DB file exceeds AIOT_QUEUE_MAX_BYTES', () => {
+    // Use a tiny byte cap so even a few small rows trigger it.
+    process.env.AIOT_QUEUE_MAX_BYTES = '1024';
+    const q = openQueue();
+    // Enqueue enough rows with non-trivial payloads to exceed 1 KB.
+    for (let i = 0; i < 20; i++) {
+      q.enqueue({
+        event_id: `01939f6c-1234-7000-8000-${i.toString().padStart(12, '0')}`,
+        payload_json: JSON.stringify({ data: 'x'.repeat(200), i }),
+        ts: `2026-05-21T12:00:0${i}.000Z`,
+      });
+    }
+    q.close();
+
+    const db = new Database(`${tmpHome}/queue.db`);
+    const count = db.query<{ c: number }, []>('SELECT count(*) AS c FROM events_queue').get();
+    db.close();
+
+    // Some rows should have been pruned — the count should be well under 20.
+    expect(count?.c).toBeLessThan(20);
+    delete process.env.AIOT_QUEUE_MAX_BYTES;
+  });
+
+  it('does not prune when under the caps', () => {
+    const q = openQueue();
+    for (let i = 0; i < 10; i++) {
+      q.enqueue({
+        event_id: `01939f6c-1234-7000-8000-${i.toString().padStart(12, '0')}`,
+        payload_json: `{"i":${i}}`,
+        ts: `2026-05-21T12:00:0${i}.000Z`,
+      });
+    }
+    q.close();
+
+    const db = new Database(`${tmpHome}/queue.db`);
+    const count = db.query<{ c: number }, []>('SELECT count(*) AS c FROM events_queue').get();
+    db.close();
+
+    // Default caps (50k events, 100 MB) — nothing should be pruned.
+    expect(count?.c).toBe(10);
+  });
 });
 
 describe('payload → Event', () => {

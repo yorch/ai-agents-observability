@@ -49,6 +49,16 @@ export type ShipMarker = {
   transcript_path: string;
   partial: boolean;
   bytes_uploaded: number;
+  /** Size of the compressed body when `bytes_uploaded` was last recorded. Used
+   * to validate that a resume offset still describes the current body — if the
+   * transcript grew between sweeps, the compressed bytes changed even if the
+   * size happens to match, so this is a necessary-but-not-sufficient check. */
+  body_size?: number;
+  /** SHA-256 of the compressed body when `bytes_uploaded` was last recorded.
+   * Stronger than body_size alone: catches same-size-different-content changes
+   * that body_size would miss. If the hash doesn't match the current body, the
+   * upload starts from 0. */
+  body_hash?: string;
   attempts?: number;
   /** ISO timestamp the marker was first created; used to age out stale 404s. */
   first_seen_at?: string;
@@ -66,9 +76,10 @@ export type ShipMarker = {
  * the server permanently rejects was re-read, re-redacted, re-compressed and
  * re-uploaded every sweep for the life of the session.
  *
- * `bytes_uploaded` is deliberately NOT preserved: the transcript has grown since
- * the last marker, so a resume offset from the previous upload no longer
- * describes this file.
+ * `bytes_uploaded` and `body_size` are deliberately NOT preserved: the
+ * transcript has grown since the last marker, so a resume offset from the
+ * previous upload no longer describes this file, and the compressed body
+ * it was derived from is stale.
  */
 export function writeShipMarker(sessionId: string, transcriptPath: string, partial: boolean): void {
   try {
@@ -167,6 +178,38 @@ function recordRetryableFailure(marker: ShipMarker, reason: string): boolean {
 }
 
 /**
+ * Atomically update the marker's `bytes_uploaded`, `body_size`, and `body_hash`
+ * after a successful chunk upload. A crash after the server acks a chunk but
+ * before this write completes means the chunk is re-sent on the next sweep —
+ * the server overwrites the scratch file at start=0, so this is safe. A crash
+ * mid-write leaves a temp file, which the reader skips.
+ */
+function updateMarkerProgress(
+  marker: ShipMarker,
+  bytesUploaded: number,
+  bodySize: number,
+  bodyHash: string,
+): void {
+  try {
+    const finalPath = join(shipQueueDir(), `${marker.session_id}.json`);
+    const tmpPath = `${finalPath}.tmp`;
+    writeFileSync(
+      tmpPath,
+      JSON.stringify(
+        { ...marker, body_hash: bodyHash, body_size: bodySize, bytes_uploaded: bytesUploaded },
+        null,
+        2,
+      ),
+      { encoding: 'utf8', mode: 0o600 },
+    );
+    renameSync(tmpPath, finalPath);
+  } catch {
+    // best-effort — if we can't persist progress, the next sweep re-uploads
+    // from the last persisted offset (or from 0 if this was the first chunk).
+  }
+}
+
+/**
  * Handle a transient outcome (404/409/429) that should keep retrying without
  * burning the attempt budget — but abandon the marker once it's older than
  * MAX_TRANSIENT_AGE_MS, so a permanently-absent session (deleted, bad id, or
@@ -231,51 +274,103 @@ export async function buildZstdBody(filePath: string): Promise<{ body: Uint8Arra
   return { body: new Uint8Array(Buffer.concat(chunks)), hash: hash.digest('hex') };
 }
 
-async function throttledUpload(
+// ── Resumable chunked upload ──────────────────────────────────────────────────
+
+const UPLOAD_CHUNK_SIZE = 1024 * 1024; // 1 MB — well under the server's 16 MB per-chunk cap
+
+/**
+ * Upload a compressed transcript body in chunks with `Content-Range` headers,
+ * resuming from the marker's last persisted offset when the body is unchanged.
+ *
+ * The server assembles chunks in a per-session scratch file and processes the
+ * transcript only when the final chunk arrives. A 202 acknowledges an
+ * intermediate chunk; 200/201 means the full body was received and processed.
+ *
+ * Resume safety: the marker records `body_size` AND `body_hash` (sha256 of the
+ * compressed body) alongside `bytes_uploaded`. Both must match to resume — size
+ * alone can collide (same size, different content), but the hash makes it
+ * cryptographically impossible to resume from a stale offset on a different body.
+ *
+ * On 409 ("missing prior chunks"): the server's scratch file was cleaned up
+ * (by sweep-scratch or a restart). Reset to 0 and retry once. A 409 on the
+ * first chunk (start=0) is returned to the caller for status-specific handling.
+ *
+ * Bandwidth pacing: sleep between chunks to stay near MAX_BYTES_PER_SEC, the
+ * same throttle `throttledUpload` enforced by streaming 256 KB pieces.
+ */
+export async function uploadWithResume(
   url: string,
   body: Uint8Array,
   headers: Record<string, string>,
+  marker: ShipMarker,
+  bodyHash: string,
 ): Promise<Response> {
-  // Pace the upload by streaming 256 KB chunks with sleeps between them so
-  // the actual transfer rate stays near MAX_BYTES_PER_SEC. A pre-send sleep
-  // on the whole body does not limit bandwidth — it only delays the start.
-  const CHUNK_SIZE = 256 * 1024;
-  const msPerChunk = Math.ceil((CHUNK_SIZE / MAX_BYTES_PER_SEC) * 1_000);
+  const totalSize = body.byteLength;
+  if (totalSize === 0) {
+    return new Response('{}', { status: 200 });
+  }
 
+  // Resume only if the compressed body is the same one the marker recorded.
+  // Both body_size AND body_hash must match. body_size is a cheap fast-path
+  // reject; body_hash is the cryptographic guarantee. If either mismatches,
+  // start from 0.
   let offset = 0;
-  const readable = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      if (offset >= body.byteLength) {
-        controller.close();
-        return;
-      }
-      const end = Math.min(offset + CHUNK_SIZE, body.byteLength);
-      controller.enqueue(body.slice(offset, end));
-      offset = end;
-      if (offset < body.byteLength) {
+  if (
+    marker.body_size === totalSize &&
+    marker.body_hash === bodyHash &&
+    marker.bytes_uploaded > 0
+  ) {
+    offset = marker.bytes_uploaded;
+    log('info', 'shipper.resuming', { offset, session_id: marker.session_id, total: totalSize });
+  }
+
+  const msPerChunk = Math.ceil((UPLOAD_CHUNK_SIZE / MAX_BYTES_PER_SEC) * 1_000);
+  let retried409 = false;
+
+  while (offset < totalSize) {
+    const chunkEnd = Math.min(offset + UPLOAD_CHUNK_SIZE, totalSize);
+    const chunk = body.slice(offset, chunkEnd);
+    const contentRange = `bytes ${offset}-${chunkEnd - 1}/${totalSize}`;
+    const timeoutMs = Math.max(
+      60_000,
+      Math.ceil((chunk.byteLength / MAX_BYTES_PER_SEC) * 1_000 * 2),
+    );
+
+    const res = await fetch(url, {
+      body: chunk,
+      headers: { ...headers, 'Content-Range': contentRange },
+      method: 'POST',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (res.status === 202) {
+      // Intermediate chunk acked — persist progress for crash recovery.
+      offset = chunkEnd;
+      updateMarkerProgress(marker, offset, totalSize, bodyHash);
+      // Pace: sleep proportional to chunk size to respect the bandwidth cap.
+      if (offset < totalSize) {
         await Bun.sleep(msPerChunk);
       }
-    },
-  });
+      continue;
+    }
 
-  // Bun's fetch has no default timeout, so without this a server that accepts
-  // the connection and never responds parks the shipper loop forever.
-  //
-  // The bound cannot be a constant: this upload is throttled ON PURPOSE, so a
-  // legitimate large transcript is legitimately slow, and a flat timeout would
-  // abort exactly the uploads the throttle exists to allow. Derive it from the
-  // body and the pacing rate instead — the transfer itself cannot take less
-  // than byteLength / MAX_BYTES_PER_SEC — then double it and add a floor for
-  // connection setup and the server's own redaction/recompression work.
-  const pacedMs = (body.byteLength / MAX_BYTES_PER_SEC) * 1_000;
-  const timeoutMs = Math.max(60_000, Math.ceil(pacedMs * 2));
+    if (res.status === 409 && !retried409 && offset > 0) {
+      // Server scratch file was cleaned up — reset to 0 and retry from the start.
+      log('warn', 'shipper.resume_conflict', { offset, session_id: marker.session_id });
+      retried409 = true;
+      offset = 0;
+      updateMarkerProgress(marker, 0, totalSize, bodyHash);
+      continue;
+    }
 
-  return fetch(url, {
-    body: readable,
-    headers: { ...headers, 'Content-Length': String(body.byteLength) },
-    method: 'POST',
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+    // 200/201 (final chunk processed), or 4xx/5xx (error) — return for caller.
+    return res;
+  }
+
+  // All chunks were 202 but the loop exited without a final 200/201 — this
+  // shouldn't happen (the last chunk always gets 200/201), but return a
+  // synthetic success rather than crashing.
+  return new Response('{}', { status: 200 });
 }
 
 // ── Shipper loop ──────────────────────────────────────────────────────────────
@@ -342,24 +437,44 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
   }
 
   const url = `${getIngestBaseUrl()}/v1/transcripts/${session_id}`;
+  // Re-read the marker from disk: a Stop event may have fired since the
+  // sweep started, resetting bytes_uploaded and body_size/body_hash. The
+  // on-disk marker is the source of truth for resume state.
+  const currentMarker = readMarkerAt(join(shipQueueDir(), `${session_id}.json`)) ?? marker;
   try {
-    const res = await throttledUpload(url, body, {
-      Authorization: `Bearer ${jwt}`,
-      'Content-Type': 'application/x-zstd',
-      'X-Content-Hash': hash,
-    });
+    const res = await uploadWithResume(
+      url,
+      body,
+      {
+        Authorization: `Bearer ${jwt}`,
+        'Content-Type': 'application/x-zstd',
+        'X-Content-Hash': hash,
+      },
+      currentMarker,
+      hash,
+    );
 
     if (res.status >= 200 && res.status < 300) {
-      try {
-        deleteMarker(session_id);
-      } catch (delErr) {
-        log('error', 'shipper.delete_marker_failed', {
-          message: (delErr as Error).message,
-          note: 'Transcript uploaded but marker persists — will re-upload next sweep',
-          session_id,
-        });
+      // Re-check the marker before deleting: a Stop event may have rewritten
+      // it with a new transcript_path / body_size while the upload was in
+      // flight. If the on-disk marker no longer matches what we just uploaded
+      // (different body_hash or body_size), don't delete it — the next sweep
+      // will handle the newer transcript.
+      const onDisk = readMarkerAt(join(shipQueueDir(), `${session_id}.json`));
+      if (onDisk && onDisk.body_hash !== currentMarker.body_hash) {
+        log('info', 'shipper.marker_superseded', { session_id });
+      } else {
+        try {
+          deleteMarker(session_id);
+        } catch (delErr) {
+          log('error', 'shipper.delete_marker_failed', {
+            message: (delErr as Error).message,
+            note: 'Transcript uploaded but marker persists — will re-upload next sweep',
+            session_id,
+          });
+        }
+        log('info', 'shipper.uploaded', { bytes: body.byteLength, session_id, status: res.status });
       }
-      log('info', 'shipper.uploaded', { bytes: body.byteLength, session_id, status: res.status });
     } else if (res.status === 404) {
       // The session row doesn't exist yet — the events pipeline hasn't created
       // it (e.g. the flusher is behind or offline). Transient ordering, NOT bad
@@ -367,20 +482,20 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
       // a slow/offline flusher can't cause valid transcripts to be dropped. But a
       // 404 can also be permanent (deleted/unknown session), so age the marker
       // out after MAX_TRANSIENT_AGE_MS instead of looping forever.
-      if (!keepOrAbandonStale(marker, 'session_not_ready')) {
+      if (!keepOrAbandonStale(currentMarker, 'session_not_ready')) {
         log('info', 'shipper.session_not_ready', { session_id, status: res.status });
       }
     } else if (res.status === 409) {
       // Conflict (e.g. missing prior chunk) — transient ordering; keep + retry,
       // no attempt bump (aged out after MAX_TRANSIENT_AGE_MS).
-      if (!keepOrAbandonStale(marker, 'conflict')) {
+      if (!keepOrAbandonStale(currentMarker, 'conflict')) {
         log('info', 'shipper.conflict', { session_id, status: res.status });
       }
     } else if (res.status === 429) {
       // Rate-limited — explicit server backpressure, NOT a failure. Keep the
       // marker and retry next sweep without counting toward the attempt cap
       // (aged out after MAX_TRANSIENT_AGE_MS).
-      if (!keepOrAbandonStale(marker, 'rate_limited')) {
+      if (!keepOrAbandonStale(currentMarker, 'rate_limited')) {
         log('warn', 'shipper.rate_limited', { session_id, status: res.status });
       }
     } else if (res.status === 413) {
@@ -405,12 +520,12 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
     } else {
       // 5xx / unexpected: retryable, retry next sweep (capped)
       log('warn', 'shipper.server_error', { session_id, status: res.status });
-      recordRetryableFailure(marker, `server_error_${res.status}`);
+      recordRetryableFailure(currentMarker, `server_error_${res.status}`);
     }
   } catch (err) {
     // Network error: retryable, retry next sweep (capped)
     log('warn', 'shipper.network_error', { message: (err as Error).message, session_id });
-    recordRetryableFailure(marker, 'network_error');
+    recordRetryableFailure(currentMarker, 'network_error');
   }
 }
 
