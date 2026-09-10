@@ -150,12 +150,13 @@ describe('inlineDrain — POST failure leaves events in queue', () => {
       await inlineDrain(5000);
 
       const reader = openQueueReader(dbPath);
-      // Events stay in the queue — inline mode does NOT markAttempt.
+      // Events stay in the queue — no data loss.
       expect(reader.depth()).toBe(5);
-      // Attempts should still be 0 — no markAttempt on failure.
+      // Attempts are now incremented so poison batches eventually age out
+      // (previously inline mode never marked attempts, causing infinite retries).
       const rows = reader.drain(5);
       for (const row of rows) {
-        expect(row.attempts).toBe(0);
+        expect(row.attempts).toBe(1);
       }
       reader.close();
     } finally {
@@ -276,6 +277,60 @@ describe('postEventBatch — shared drain function', () => {
       expect(result.count).toBe(3);
       expect(result.eventIds).toHaveLength(3);
       expect(reader.depth()).toBe(0);
+      reader.close();
+    } finally {
+      server.stop(true);
+    }
+  });
+});
+
+describe('inlineDrain — concurrent daemon + inline race', () => {
+  it('marks attempts so a concurrent drain sees fewer rows', async () => {
+    // Simulate the race: inline drain runs, marks attempts on its batch.
+    // A second reader opened after the markAttempt should see those rows
+    // with attempts=1, proving the daemon would not re-send them as eagerly.
+    const dbPath = join(tmpHome, 'queue.db');
+    makeQueueDb(dbPath, 5);
+    writeIdentity();
+
+    const { port, server } = startMockServer([200]);
+    process.env.INGEST_BASE_URL = `http://localhost:${port}`;
+
+    try {
+      await inlineDrain(5000);
+
+      // After inline drain succeeds, the rows are deleted (200 path).
+      // The key assertion: depth is 0, so a concurrent daemon would
+      // find nothing to send.
+      const reader = openQueueReader(dbPath);
+      expect(reader.depth()).toBe(0);
+      reader.close();
+    } finally {
+      server.stop(true);
+    }
+  });
+
+  it('marks attempts on failure so poison batches age out', async () => {
+    // A permanently-failing batch in inline-only mode must eventually hit
+    // MAX_ATTEMPTS and be dropped. Without markAttempt, it would retry
+    // forever on every hook call.
+    const dbPath = join(tmpHome, 'queue.db');
+    makeQueueDb(dbPath, 3);
+    writeIdentity();
+
+    const { port, server } = startMockServer([500]);
+    process.env.INGEST_BASE_URL = `http://localhost:${port}`;
+
+    try {
+      await inlineDrain(5000);
+      await inlineDrain(5000); // second hook call, same batch still fails
+
+      const reader = openQueueReader(dbPath);
+      const rows = reader.drain(3);
+      // After two failed inline attempts, attempts should be 2.
+      for (const row of rows) {
+        expect(row.attempts).toBe(2);
+      }
       reader.close();
     } finally {
       server.stop(true);

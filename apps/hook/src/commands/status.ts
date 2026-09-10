@@ -45,7 +45,13 @@ export async function runStatus(): Promise<number> {
     queueDepth: 0,
   };
   try {
-    flusherState = JSON.parse(readFileSync(flusherStatePath(), 'utf8')) as FlusherStatus;
+    const parsed = JSON.parse(readFileSync(flusherStatePath(), 'utf8')) as Partial<FlusherStatus>;
+    flusherState = {
+      lastError: parsed.lastError ?? null,
+      lastFlushAt: parsed.lastFlushAt ?? null,
+      lastHeartbeatAt: parsed.lastHeartbeatAt ?? null,
+      queueDepth: parsed.queueDepth ?? 0,
+    };
   } catch {
     // state file missing or unreadable
   }
@@ -76,6 +82,23 @@ export async function runStatus(): Promise<number> {
     shipperRunning = checkSystemctl('aiot-shipper');
   }
 
+  // ── Heartbeat staleness ───────────────────────────────────────────────────────
+  const hbAge = heartbeatAgeSeconds(flusherState.lastHeartbeatAt);
+  let heartbeatLine: string;
+  if (hbAge === null) {
+    heartbeatLine = 'never';
+  } else {
+    heartbeatLine = `${hbAge}s ago`;
+  }
+  // Warn if the heartbeat is stale relative to the queue state.
+  let heartbeatWarning = false;
+  if (hbAge !== null) {
+    const threshold = queueDepth > 0 ? STALE_HEARTBEAT_WITH_QUEUE_SEC : STALE_HEARTBEAT_IDLE_SEC;
+    if (hbAge > threshold) {
+      heartbeatWarning = true;
+    }
+  }
+
   // ── Output ────────────────────────────────────────────────────────────────────
   const heartbeatAge = heartbeatAgeSeconds(flusherState.lastHeartbeatAt);
   const lines: string[] = [
@@ -84,6 +107,7 @@ export async function runStatus(): Promise<number> {
     `ship mode:   ${shipMode}`,
     `queue depth: ${queueDepth}`,
     `last flush:  ${flusherState.lastFlushAt ?? 'never'}`,
+    `heartbeat:   ${heartbeatLine}${heartbeatWarning ? '  ⚠ stale' : ''}`,
     `last error:  ${flusherState.lastError ?? 'none'}`,
   ];
   if (heartbeatAge !== null) {

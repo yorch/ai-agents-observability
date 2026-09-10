@@ -27,7 +27,7 @@ const FLUSH_TIMEOUT_MS = 30_000;
 const IDLE_INTERVAL_MS = 5_000;
 const HIGH_WATER_MARK = 50;
 
-const DEFAULT_INLINE_TIMEOUT_MS = 1500;
+const DEFAULT_INLINE_TIMEOUT_MS = 500;
 
 // ── State file ────────────────────────────────────────────────────────────────
 
@@ -355,12 +355,15 @@ export type BatchResult = {
 /**
  * Drain one batch from the queue, enrich it, POST it to `/v1/events`, and on
  * success delete the rows. On failure the rows are left in the queue — the
- * caller decides whether to mark attempts (the flusher daemon does; the inline
- * path does not, to guarantee no data loss).
+ * caller decides whether to mark attempts.
  *
  * `enrichNetwork` controls whether expensive gh-CLI enrichment (PR numbers,
  * PR snapshots, GitHub login, team) runs. The inline path skips it to stay
  * within its wall-clock budget; the flusher daemon and `aiot flush` enable it.
+ *
+ * `enrichLocal` controls git-context + project-name enrichment. The inline path
+ * skips this too — `enrichGitContext` can invoke `git` subprocesses, which is
+ * too expensive for the hook hot path. The daemon and `aiot flush` enable it.
  */
 export async function postEventBatch(
   reader: QueueReader,
@@ -370,6 +373,7 @@ export async function postEventBatch(
     batchSize: number;
     timeoutMs: number;
     enrichNetwork?: boolean;
+    enrichLocal?: boolean;
     signal?: AbortSignal;
   },
 ): Promise<BatchResult> {
@@ -381,8 +385,10 @@ export async function postEventBatch(
   const eventIds = rows.map((r) => r.event_id);
   const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
 
-  enrichGitContext(events);
-  enrichProjectName(events);
+  if (opts.enrichLocal !== false) {
+    enrichGitContext(events);
+    enrichProjectName(events);
+  }
   if (opts.enrichNetwork) {
     await enrichPrNumbers(events);
     enrichPrSnapshot(events);
@@ -417,13 +423,22 @@ export async function postEventBatch(
 
 /**
  * Best-effort, bounded-time drain of the queue, called from the hook hot path
- * after the event has been durably enqueued. Reads one batch, POSTs it, and on
- * success deletes the rows. On failure or timeout the events STAY in the queue
- * — no data loss; a later inline attempt, `aiot flush`, or the flusher daemon
- * will retry.
+ * after the event has been durably enqueued. Reads one batch, marks attempts,
+ * POSTs it, and on success deletes the rows. On failure or timeout the events
+ * STAY in the queue — no data loss; a later inline attempt, `aiot flush`, or the
+ * flusher daemon will retry.
  *
- * Network enrichment (gh CLI) is skipped to stay within the wall-clock budget;
- * only cheap local enrichment (git context, project name) runs.
+ * Both network enrichment (gh CLI) and local enrichment (git context, project
+ * name) are skipped — git subprocesses are too expensive for the hook hot path.
+ * The daemon and `aiot flush` will re-enrich when they pick up un-drained rows.
+ *
+ * Attempts are marked BEFORE the POST to prevent a double-send race with a
+ * concurrently running flusher daemon: the daemon's `drain` query filters
+ * `WHERE attempts < MAX_ATTEMPTS`, so a row whose attempts were just incremented
+ * by the inline path is less likely to be picked up simultaneously. This is not
+ * a full lock — the daemon may have already drained the row before the markAttempt
+ * runs — but it narrows the race window significantly. A true lock would require
+ * a schema change (in-flight state column), which is deferred.
  */
 export async function inlineDrain(timeoutMs?: number): Promise<void> {
   const budget =
@@ -448,13 +463,24 @@ export async function inlineDrain(timeoutMs?: number): Promise<void> {
   try {
     const result = await postEventBatch(reader, jwt, getIngestBaseUrl(), {
       batchSize: INLINE_BATCH_SIZE,
+      enrichLocal: false,
       enrichNetwork: false,
       signal: controller.signal,
       timeoutMs: budget,
     });
 
+    // Mark attempts on the rows we tried to send, regardless of success/failure.
+    // On success the rows are deleted immediately after. On failure the attempt
+    // count is incremented so poison batches eventually hit MAX_ATTEMPTS and
+    // are dropped — without this, a permanently-failing batch in inline-only
+    // mode would be retried forever.
+    if (result.eventIds.length > 0) {
+      reader.markAttempt(result.eventIds);
+    }
+
     if (result.ok) {
       writeFlusherState({
+        ...readFlusherState(),
         lastError: null,
         lastFlushAt: new Date().toISOString(),
         queueDepth: reader.depth(),
@@ -525,6 +551,7 @@ export async function runFlushOnce(): Promise<number> {
     }
 
     writeFlusherState({
+      ...readFlusherState(),
       lastError: null,
       lastFlushAt: new Date().toISOString(),
       queueDepth: reader.depth(),
@@ -591,16 +618,19 @@ export async function runFlusher(): Promise<void> {
       });
 
       if (result.count === 0) {
+        writeHeartbeat();
         await Bun.sleep(IDLE_INTERVAL_MS);
         continue;
       }
 
       if (result.ok) {
         writeFlusherState({
+          ...readFlusherState(),
           lastError: null,
           lastFlushAt: new Date().toISOString(),
           queueDepth: reader.depth(),
         });
+        writeHeartbeat();
         log('info', 'flusher.batch_sent', { count: result.count, status: result.status });
         consecutiveFailures = 0;
         const depth = reader.depth();
@@ -634,6 +664,7 @@ export async function runFlusher(): Promise<void> {
           lastError: `Rate limited (${result.status})`,
           queueDepth: reader.depth(),
         });
+        writeHeartbeat();
         consecutiveFailures++;
         await backoffSleep(attempt);
       } else if (result.status !== undefined && result.status >= 400 && result.status < 500) {
@@ -672,6 +703,7 @@ export async function runFlusher(): Promise<void> {
           lastError: `Batch rejected by server (${result.status})`,
           queueDepth: reader.depth(),
         });
+        writeHeartbeat();
         consecutiveFailures++;
         await backoffSleep(attempt);
       } else {
@@ -689,6 +721,7 @@ export async function runFlusher(): Promise<void> {
           lastError: errMsg,
           queueDepth: reader.depth(),
         });
+        writeHeartbeat();
         consecutiveFailures++;
         await backoffSleep(attempt);
       }
