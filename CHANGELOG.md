@@ -6,6 +6,18 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.5.1 (2026-09-10)
+
+### Bug Fixes
+
+- hook: harden queue, heartbeat, and transcript resumability (#253)
+- web: close the remaining title-only, colour-only and silent-error a11y gaps (#252)
+- github-app: make lost deliveries visible, and parse payloads instead of casting (#250)
+- deploy: rate-limit the webhook route and stop Helm publishing /metrics (#251)
+- db: repair AuditAction on databases that upgraded rather than reset (#246)
+- hook: commit a consumed side channel only after the events are queued (#247)
+- hook: make the retry budget reachable, writes atomic, and local state private (#248)
+
 ## v2.5.0 (2026-09-07)
 
 ### Features
