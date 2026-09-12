@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import type { FlusherStatus } from '../flusher';
 import { heartbeatAgeSeconds } from '../flusher';
+import { getShipMode } from '../lib/config';
 import { flusherStatePath, identityPath, pausedPath, queuePath } from '../lib/paths';
 import { openQueueReader } from '../lib/queue-reader';
 
@@ -33,6 +34,9 @@ export async function runStatus(): Promise<number> {
   // ── Paused ────────────────────────────────────────────────────────────────────
   const paused = existsSync(pausedPath());
 
+  // ── Ship mode ──────────────────────────────────────────────────────────────────
+  const shipMode = getShipMode();
+
   // ── Flusher state ─────────────────────────────────────────────────────────────
   let flusherState: FlusherStatus = {
     lastError: null,
@@ -41,7 +45,13 @@ export async function runStatus(): Promise<number> {
     queueDepth: 0,
   };
   try {
-    flusherState = JSON.parse(readFileSync(flusherStatePath(), 'utf8')) as FlusherStatus;
+    const parsed = JSON.parse(readFileSync(flusherStatePath(), 'utf8')) as Partial<FlusherStatus>;
+    flusherState = {
+      lastError: parsed.lastError ?? null,
+      lastFlushAt: parsed.lastFlushAt ?? null,
+      lastHeartbeatAt: parsed.lastHeartbeatAt ?? null,
+      queueDepth: parsed.queueDepth ?? 0,
+    };
   } catch {
     // state file missing or unreadable
   }
@@ -72,13 +82,32 @@ export async function runStatus(): Promise<number> {
     shipperRunning = checkSystemctl('aiot-shipper');
   }
 
+  // ── Heartbeat staleness ───────────────────────────────────────────────────────
+  const hbAge = heartbeatAgeSeconds(flusherState.lastHeartbeatAt);
+  let heartbeatLine: string;
+  if (hbAge === null) {
+    heartbeatLine = 'never';
+  } else {
+    heartbeatLine = `${hbAge}s ago`;
+  }
+  // Warn if the heartbeat is stale relative to the queue state.
+  let heartbeatWarning = false;
+  if (hbAge !== null) {
+    const threshold = queueDepth > 0 ? STALE_HEARTBEAT_WITH_QUEUE_SEC : STALE_HEARTBEAT_IDLE_SEC;
+    if (hbAge > threshold) {
+      heartbeatWarning = true;
+    }
+  }
+
   // ── Output ────────────────────────────────────────────────────────────────────
   const heartbeatAge = heartbeatAgeSeconds(flusherState.lastHeartbeatAt);
   const lines: string[] = [
     `auth:        ${authLine}`,
     `paused:      ${paused ? 'yes' : 'no'}`,
+    `ship mode:   ${shipMode}`,
     `queue depth: ${queueDepth}`,
     `last flush:  ${flusherState.lastFlushAt ?? 'never'}`,
+    `heartbeat:   ${heartbeatLine}${heartbeatWarning ? '  ⚠ stale' : ''}`,
     `last error:  ${flusherState.lastError ?? 'none'}`,
   ];
   if (heartbeatAge !== null) {
@@ -103,7 +132,9 @@ export async function runStatus(): Promise<number> {
     }
   }
 
-  if (flusherRunning !== null) {
+  // In inline mode there is no flusher daemon to report on; the "last flush"
+  // and "last error" lines above reflect inline attempts instead.
+  if (shipMode === 'daemon' && flusherRunning !== null) {
     lines.push(`flusher:     ${flusherRunning}`);
   }
   if (shipperRunning !== null) {

@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
 import { ADAPTERS, type HookAdapter, selectAdapter } from '../adapters';
+import { getShipMode, type ShipMode } from '../lib/config';
 import { type CheckboxItem, checkboxPrompt, isInteractive } from '../lib/prompt';
 
 const FLUSHER_LABEL = 'com.brnby.aiot.flusher';
@@ -312,17 +313,25 @@ async function installDarwin(
   opts: InstallOptions,
   spawn: SpawnFn,
   homeDir: string,
+  shipMode: ShipMode,
 ): Promise<number> {
   const dir = join(homeDir, 'Library', 'LaunchAgents');
   const flusherPath = join(dir, `${FLUSHER_LABEL}.plist`);
   const shipperPath = join(dir, `${SHIPPER_LABEL}.plist`);
+  const inlineMode = shipMode === 'inline';
 
   if (opts.dryRun) {
     process.stdout.write('[dry-run] Would write:\n');
-    process.stdout.write(`  ${flusherPath}\n`);
+    if (!inlineMode) {
+      process.stdout.write(`  ${flusherPath}\n`);
+    }
     process.stdout.write(`  ${shipperPath}\n`);
     if (opts.start) {
-      process.stdout.write('[dry-run] Would run: launchctl load for both services\n');
+      process.stdout.write(
+        '[dry-run] Would run: launchctl load for shipper' +
+          (inlineMode ? '' : ' and flusher') +
+          '\n',
+      );
     }
     const { undetected } = await autoWire(bin, opts);
     printUndetectedSnippets(bin, undetected);
@@ -343,21 +352,34 @@ async function installDarwin(
     }
   }
 
-  writeFileSync(flusherPath, launchdPlist(FLUSHER_LABEL, bin, 'flusher'), {
-    encoding: 'utf8',
-    mode: 0o644,
-  });
+  if (inlineMode) {
+    if (existsSync(flusherPath)) {
+      try {
+        unlinkSync(flusherPath);
+      } catch {
+        // ignore
+      }
+    }
+    process.stdout.write(
+      'Skipping flusher service (inline ship mode — events ship from the hook).\n',
+    );
+  } else {
+    writeFileSync(flusherPath, launchdPlist(FLUSHER_LABEL, bin, 'flusher'), {
+      encoding: 'utf8',
+      mode: 0o644,
+    });
+    process.stdout.write(`wrote: ${flusherPath}\n`);
+  }
   writeFileSync(shipperPath, launchdPlist(SHIPPER_LABEL, bin, 'shipper'), {
     encoding: 'utf8',
     mode: 0o644,
   });
-
-  process.stdout.write(`wrote: ${flusherPath}\n`);
   process.stdout.write(`wrote: ${shipperPath}\n\n`);
 
   if (opts.start) {
     let startFailed = false;
-    for (const path of [flusherPath, shipperPath]) {
+    const loadPaths = inlineMode ? [shipperPath] : [flusherPath, shipperPath];
+    for (const path of loadPaths) {
       const r = spawn(['launchctl', 'load', path]);
       if (r.exitCode !== 0) {
         startFailed = true;
@@ -376,7 +398,9 @@ async function installDarwin(
     process.stdout.write('Services loaded.\n\n');
   } else {
     process.stdout.write('Load services:\n');
-    process.stdout.write(`  launchctl load ${flusherPath}\n`);
+    if (!inlineMode) {
+      process.stdout.write(`  launchctl load ${flusherPath}\n`);
+    }
     process.stdout.write(`  launchctl load ${shipperPath}\n\n`);
   }
 
@@ -390,19 +414,25 @@ async function installLinux(
   opts: InstallOptions,
   spawn: SpawnFn,
   homeDir: string,
+  shipMode: ShipMode,
 ): Promise<number> {
   const dir = join(homeDir, '.config', 'systemd', 'user');
   const flusherPath = join(dir, 'aiot-flusher.service');
   const shipperPath = join(dir, 'aiot-shipper.service');
   const services = ['aiot-flusher', 'aiot-shipper'];
+  const inlineMode = shipMode === 'inline';
 
   if (opts.dryRun) {
     process.stdout.write('[dry-run] Would write:\n');
-    process.stdout.write(`  ${flusherPath}\n`);
+    if (!inlineMode) {
+      process.stdout.write(`  ${flusherPath}\n`);
+    }
     process.stdout.write(`  ${shipperPath}\n`);
     if (opts.start) {
       process.stdout.write(
-        '[dry-run] Would run: systemctl --user enable --now for both services\n',
+        '[dry-run] Would run: systemctl --user enable --now for shipper' +
+          (inlineMode ? '' : ' and flusher') +
+          '\n',
       );
     }
     const { undetected } = await autoWire(bin, opts);
@@ -424,16 +454,28 @@ async function installLinux(
     }
   }
 
-  writeFileSync(flusherPath, systemdUnit(bin, 'flusher', 'aiot flusher'), {
-    encoding: 'utf8',
-    mode: 0o644,
-  });
+  if (inlineMode) {
+    if (existsSync(flusherPath)) {
+      try {
+        unlinkSync(flusherPath);
+      } catch {
+        // ignore
+      }
+    }
+    process.stdout.write(
+      'Skipping flusher service (inline ship mode — events ship from the hook).\n',
+    );
+  } else {
+    writeFileSync(flusherPath, systemdUnit(bin, 'flusher', 'aiot flusher'), {
+      encoding: 'utf8',
+      mode: 0o644,
+    });
+    process.stdout.write(`wrote: ${flusherPath}\n`);
+  }
   writeFileSync(shipperPath, systemdUnit(bin, 'shipper', 'aiot shipper'), {
     encoding: 'utf8',
     mode: 0o644,
   });
-
-  process.stdout.write(`wrote: ${flusherPath}\n`);
   process.stdout.write(`wrote: ${shipperPath}\n\n`);
 
   if (opts.start) {
@@ -448,7 +490,8 @@ async function installLinux(
       return 1;
     }
     let startFailed = false;
-    for (const svc of services) {
+    const enableServices = inlineMode ? ['aiot-shipper'] : services;
+    for (const svc of enableServices) {
       const r = spawn(['systemctl', '--user', 'enable', '--now', svc]);
       if (r.exitCode !== 0) {
         startFailed = true;
@@ -470,7 +513,9 @@ async function installLinux(
   } else {
     process.stdout.write('Enable and start services:\n');
     process.stdout.write('  systemctl --user daemon-reload\n');
-    process.stdout.write('  systemctl --user enable --now aiot-flusher\n');
+    if (!inlineMode) {
+      process.stdout.write('  systemctl --user enable --now aiot-flusher\n');
+    }
     process.stdout.write('  systemctl --user enable --now aiot-shipper\n\n');
   }
 
@@ -504,12 +549,13 @@ export async function runInstall(
   }
 
   const bin = resolvedBinaryPath();
+  const shipMode = getShipMode();
 
   if (process.platform === 'darwin') {
-    return installDarwin(bin, opts, spawn, homeDir);
+    return installDarwin(bin, opts, spawn, homeDir, shipMode);
   }
   if (process.platform === 'linux') {
-    return installLinux(bin, opts, spawn, homeDir);
+    return installLinux(bin, opts, spawn, homeDir, shipMode);
   }
 
   process.stderr.write(`Unsupported platform: ${process.platform}. Manual setup required.\n\n`);

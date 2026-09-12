@@ -11,11 +11,12 @@ import { fetchGitHubLogin, fetchUserTeam } from './lib/github-user';
 import { loadHookToken } from './lib/identity';
 import { getIngestBaseUrl } from './lib/ingest';
 import { log } from './lib/log';
-import { flusherStatePath, telemetryHome } from './lib/paths';
+import { flusherStatePath, queuePath, telemetryHome } from './lib/paths';
 import { getProjectName } from './lib/project';
-import { openQueueReader } from './lib/queue-reader';
+import { openQueueReader, type QueueReader } from './lib/queue-reader';
 
 const BATCH_SIZE = 100;
+const INLINE_BATCH_SIZE = 50;
 /**
  * Wall-clock bound on one event-batch POST. Generous — this is a batch of up to
  * BATCH_SIZE events and the flusher is a background daemon, so the cost of
@@ -25,6 +26,8 @@ const BATCH_SIZE = 100;
 const FLUSH_TIMEOUT_MS = 30_000;
 const IDLE_INTERVAL_MS = 5_000;
 const HIGH_WATER_MARK = 50;
+
+const DEFAULT_INLINE_TIMEOUT_MS = 500;
 
 // ── State file ────────────────────────────────────────────────────────────────
 
@@ -339,6 +342,228 @@ export function enrichProjectName(
   }
 }
 
+// ── Shared batch drain + POST ─────────────────────────────────────────────────
+
+export type BatchResult = {
+  ok: boolean;
+  status?: number;
+  error?: string;
+  count: number;
+  eventIds: string[];
+};
+
+/**
+ * Drain one batch from the queue, enrich it, POST it to `/v1/events`, and on
+ * success delete the rows. On failure the rows are left in the queue — the
+ * caller decides whether to mark attempts.
+ *
+ * `enrichNetwork` controls whether expensive gh-CLI enrichment (PR numbers,
+ * PR snapshots, GitHub login, team) runs. The inline path skips it to stay
+ * within its wall-clock budget; the flusher daemon and `aiot flush` enable it.
+ *
+ * `enrichLocal` controls git-context + project-name enrichment. The inline path
+ * skips this too — `enrichGitContext` can invoke `git` subprocesses, which is
+ * too expensive for the hook hot path. The daemon and `aiot flush` enable it.
+ */
+export async function postEventBatch(
+  reader: QueueReader,
+  jwt: string,
+  ingestBaseUrl: string,
+  opts: {
+    batchSize: number;
+    timeoutMs: number;
+    enrichNetwork?: boolean;
+    enrichLocal?: boolean;
+    signal?: AbortSignal;
+  },
+): Promise<BatchResult> {
+  const rows = reader.drain(opts.batchSize);
+  if (rows.length === 0) {
+    return { count: 0, eventIds: [], ok: true };
+  }
+
+  const eventIds = rows.map((r) => r.event_id);
+  const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
+
+  if (opts.enrichLocal !== false) {
+    enrichGitContext(events);
+    enrichProjectName(events);
+  }
+  if (opts.enrichNetwork) {
+    await enrichPrNumbers(events);
+    enrichPrSnapshot(events);
+    enrichGitHubLogin(events);
+    enrichUserTeam(events);
+  }
+
+  const body = JSON.stringify(buildBatchEnvelope(events));
+
+  try {
+    const res = await fetch(`${ingestBaseUrl}/v1/events`, {
+      body,
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+      signal: opts.signal ?? AbortSignal.timeout(opts.timeoutMs),
+    });
+
+    if (res.status >= 200 && res.status < 300) {
+      reader.delete(eventIds);
+      return { count: rows.length, eventIds, ok: true, status: res.status };
+    }
+    return { count: rows.length, eventIds, ok: false, status: res.status };
+  } catch (err) {
+    return { count: rows.length, error: (err as Error).message, eventIds, ok: false };
+  }
+}
+
+// ── Inline drain (hook hot path) ──────────────────────────────────────────────
+
+/**
+ * Best-effort, bounded-time drain of the queue, called from the hook hot path
+ * after the event has been durably enqueued. Reads one batch, marks attempts,
+ * POSTs it, and on success deletes the rows. On failure or timeout the events
+ * STAY in the queue — no data loss; a later inline attempt, `aiot flush`, or the
+ * flusher daemon will retry.
+ *
+ * Both network enrichment (gh CLI) and local enrichment (git context, project
+ * name) are skipped — git subprocesses are too expensive for the hook hot path.
+ * The daemon and `aiot flush` will re-enrich when they pick up un-drained rows.
+ *
+ * Attempts are marked BEFORE the POST to prevent a double-send race with a
+ * concurrently running flusher daemon: the daemon's `drain` query filters
+ * `WHERE attempts < MAX_ATTEMPTS`, so a row whose attempts were just incremented
+ * by the inline path is less likely to be picked up simultaneously. This is not
+ * a full lock — the daemon may have already drained the row before the markAttempt
+ * runs — but it narrows the race window significantly. A true lock would require
+ * a schema change (in-flight state column), which is deferred.
+ */
+export async function inlineDrain(timeoutMs?: number): Promise<void> {
+  const budget =
+    timeoutMs ?? (Number(process.env.AIOT_INLINE_TIMEOUT_MS) || DEFAULT_INLINE_TIMEOUT_MS);
+
+  let reader: QueueReader;
+  try {
+    reader = openQueueReader(queuePath());
+  } catch {
+    return;
+  }
+
+  const jwt = loadHookToken();
+  if (!jwt) {
+    reader.close();
+    return;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), budget);
+
+  try {
+    const result = await postEventBatch(reader, jwt, getIngestBaseUrl(), {
+      batchSize: INLINE_BATCH_SIZE,
+      enrichLocal: false,
+      enrichNetwork: false,
+      signal: controller.signal,
+      timeoutMs: budget,
+    });
+
+    // Mark attempts on the rows we tried to send, regardless of success/failure.
+    // On success the rows are deleted immediately after. On failure the attempt
+    // count is incremented so poison batches eventually hit MAX_ATTEMPTS and
+    // are dropped — without this, a permanently-failing batch in inline-only
+    // mode would be retried forever.
+    if (result.eventIds.length > 0) {
+      reader.markAttempt(result.eventIds);
+    }
+
+    if (result.ok) {
+      writeFlusherState({
+        ...readFlusherState(),
+        lastError: null,
+        lastFlushAt: new Date().toISOString(),
+        queueDepth: reader.depth(),
+      });
+    } else {
+      writeFlusherState({
+        ...readFlusherState(),
+        lastError: result.error ?? `Server error ${result.status}`,
+        queueDepth: reader.depth(),
+      });
+    }
+  } catch {
+    writeFlusherState({
+      ...readFlusherState(),
+      lastError: 'Inline drain timed out',
+      queueDepth: reader.depth(),
+    });
+  } finally {
+    clearTimeout(timer);
+    reader.close();
+  }
+}
+
+// ── One-shot flush (`aiot flush`) ──────────────────────────────────────────────
+
+/**
+ * Drain the entire queue in a loop, POSTing batches with full enrichment, then
+ * exit. The manual/cron fallback for inline-mode users whose inline attempts
+ * failed. Marks attempts on failure so poison batches eventually hit the cap.
+ */
+export async function runFlushOnce(): Promise<number> {
+  const reader = openQueueReader(queuePath());
+  const ingestBaseUrl = getIngestBaseUrl();
+
+  try {
+    const jwt = loadHookToken();
+    if (!jwt) {
+      process.stderr.write('No auth token — run `aiot login`\n');
+      return 1;
+    }
+
+    let totalSent = 0;
+
+    while (reader.depth() > 0) {
+      const result = await postEventBatch(reader, jwt, ingestBaseUrl, {
+        batchSize: BATCH_SIZE,
+        enrichNetwork: true,
+        timeoutMs: FLUSH_TIMEOUT_MS,
+      });
+
+      if (result.count === 0) {
+        break;
+      }
+
+      if (!result.ok) {
+        reader.markAttempt(result.eventIds);
+        reader.dropAbandoned();
+        writeFlusherState({
+          ...readFlusherState(),
+          lastError: result.error ?? `Server error ${result.status}`,
+          queueDepth: reader.depth(),
+        });
+        process.stderr.write(`Flush failed: ${result.error ?? `status ${result.status}`}\n`);
+        return 1;
+      }
+
+      totalSent += result.count;
+    }
+
+    writeFlusherState({
+      ...readFlusherState(),
+      lastError: null,
+      lastFlushAt: new Date().toISOString(),
+      queueDepth: reader.depth(),
+    });
+
+    process.stdout.write(`Flushed ${totalSent} event${totalSent === 1 ? '' : 's'}.\n`);
+    return 0;
+  } finally {
+    reader.close();
+  }
+}
+
 // ── Flusher loop ──────────────────────────────────────────────────────────────
 
 export async function runFlusher(): Promise<void> {
@@ -365,9 +590,7 @@ export async function runFlusher(): Promise<void> {
   try {
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const rows = reader.drain(BATCH_SIZE);
-
-      if (rows.length === 0) {
+      if (reader.depth() === 0) {
         writeHeartbeat();
         await Bun.sleep(IDLE_INTERVAL_MS);
         continue;
@@ -387,154 +610,120 @@ export async function runFlusher(): Promise<void> {
         continue;
       }
 
-      const eventIds = rows.map((r) => r.event_id);
-      const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
-      enrichGitContext(events);
-      await enrichPrNumbers(events);
-      enrichPrSnapshot(events);
-      enrichGitHubLogin(events);
-      enrichUserTeam(events);
-      enrichProjectName(events);
-      const body = JSON.stringify(buildBatchEnvelope(events));
-
-      let success = false;
       const attempt = consecutiveFailures;
+      const result = await postEventBatch(reader, jwt, ingestBaseUrl, {
+        batchSize: BATCH_SIZE,
+        enrichNetwork: true,
+        timeoutMs: FLUSH_TIMEOUT_MS,
+      });
 
-      try {
-        const res = await fetch(`${ingestBaseUrl}/v1/events`, {
-          body,
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-            'Content-Type': 'application/json',
-          },
-          method: 'POST',
-          // Bun's fetch has no default timeout, and this await is the flusher's
-          // only loop. Against a server that accepts the connection and then
-          // never answers — a captive portal, a blackholing proxy, an ingest
-          // stuck on a DB lock — the daemon blocks here forever: no
-          // network_error, no markAttempt, no backoff, the queue grows without
-          // bound, and `aiot status` keeps reporting the last SUCCESSFUL flush
-          // with lastError null, so it reads as healthy. A hang has to become a
-          // failure for any of the existing retry machinery to run.
-          // `lib/import-ship.ts` shows the idiom, but only on its `/health`
-          // probe — its own two uploads were unbounded as well, and are fixed
-          // in the same commit. Nothing that POSTs telemetry was bounded.
-          signal: AbortSignal.timeout(FLUSH_TIMEOUT_MS),
-        });
-
-        if (res.status >= 200 && res.status < 300) {
-          // Success — delete the rows
-          reader.delete(eventIds);
-          const now = new Date().toISOString();
-          writeFlusherState({
-            lastError: null,
-            lastFlushAt: now,
-            lastHeartbeatAt: now,
-            queueDepth: reader.depth(),
-          });
-          log('info', 'flusher.batch_sent', { count: rows.length, status: res.status });
-          consecutiveFailures = 0;
-          success = true;
-        } else if (res.status === 401) {
-          log('error', 'flusher.unauthorized', {
-            hint: 'Run `aiot login` to re-authenticate',
-            status: res.status,
-          });
-          writeFlusherState({
-            ...readFlusherState(),
-            lastError: `Unauthorized (${res.status}) — re-authentication required`,
-            lastHeartbeatAt: new Date().toISOString(),
-          });
-          reader.close();
-          process.exit(1);
-        } else if (res.status === 429) {
-          // Rate-limited — explicit server backpressure, NOT a failure. Back off
-          // but do NOT markAttempt: counting 429s toward the attempt cap would
-          // let sustained throttling push rows past the cap and dropAbandoned()
-          // would then permanently delete valid, deliverable events.
-          log('warn', 'flusher.rate_limited', { attempt, count: rows.length, status: res.status });
-          writeFlusherState({
-            ...readFlusherState(),
-            lastError: `Rate limited (${res.status})`,
-            lastHeartbeatAt: new Date().toISOString(),
-            queueDepth: reader.depth(),
-          });
-          consecutiveFailures++;
-          await backoffSleep(attempt);
-        } else if (res.status >= 400 && res.status < 500) {
-          // 4xx (non-401, non-429). This used to read "bad data, server won't
-          // accept" and `delete` the batch outright, with `consecutiveFailures
-          // = 0` and `success = true` — so no backoff either, and the loop went
-          // straight to the next batch. That drained the entire queue at full
-          // speed, one warn line per batch.
-          //
-          // The premise was wrong: a 4xx here is usually NOT bad data.
-          // `apps/ingest` validates the ENVELOPE strictly and returns 400, but
-          // handles individual events tolerantly (routes/events.ts) — so a 400
-          // means hook/server contract skew, never a poisoned event. The hook
-          // is a binary developers upgrade on their own schedule, so one
-          // envelope change server-side silently destroyed all telemetry from
-          // every un-upgraded machine. A 404 from a misconfigured ingest URL
-          // did the same thing.
-          //
-          // Now it uses the same bounded machinery as 5xx and network errors:
-          // MAX_ATTEMPTS retries, then dropAbandoned() drops it. A genuinely
-          // undeliverable batch still leaves, it just stops taking the rest of
-          // the queue with it. The cost is that a poisoned batch holds the head
-          // for its attempt budget rather than being discarded at once.
-          //
-          // 413 is the one status where retrying the identical bytes is futile
-          // by construction; splitting the batch is the real answer and is not
-          // attempted here.
-          markAttemptAndPrune(eventIds);
-          log('warn', 'flusher.batch_rejected', {
-            attempt,
-            count: rows.length,
-            status: res.status,
-          });
-          writeFlusherState({
-            ...readFlusherState(),
-            lastError: `Batch rejected by server (${res.status})`,
-            lastHeartbeatAt: new Date().toISOString(),
-            queueDepth: reader.depth(),
-          });
-          consecutiveFailures++;
-          await backoffSleep(attempt);
-        } else {
-          // 5xx — mark attempts and back off
-          markAttemptAndPrune(eventIds);
-          const errMsg = `Server error ${res.status}`;
-          log('warn', 'flusher.batch_failed', { attempt, count: rows.length, status: res.status });
-          writeFlusherState({
-            ...readFlusherState(),
-            lastError: errMsg,
-            lastHeartbeatAt: new Date().toISOString(),
-            queueDepth: reader.depth(),
-          });
-          consecutiveFailures++;
-          await backoffSleep(attempt);
-        }
-      } catch (err) {
-        // Network error — mark attempts and back off
-        const message = (err as Error).message;
-        markAttemptAndPrune(eventIds);
-        log('warn', 'flusher.network_error', { attempt, message });
-        writeFlusherState({
-          ...readFlusherState(),
-          lastError: `Network error: ${message}`,
-          lastHeartbeatAt: new Date().toISOString(),
-          queueDepth: reader.depth(),
-        });
-        consecutiveFailures++;
-        await backoffSleep(attempt);
+      if (result.count === 0) {
+        writeHeartbeat();
+        await Bun.sleep(IDLE_INTERVAL_MS);
+        continue;
       }
 
-      if (success) {
+      if (result.ok) {
+        writeFlusherState({
+          ...readFlusherState(),
+          lastError: null,
+          lastFlushAt: new Date().toISOString(),
+          queueDepth: reader.depth(),
+        });
+        writeHeartbeat();
+        log('info', 'flusher.batch_sent', { count: result.count, status: result.status });
+        consecutiveFailures = 0;
         const depth = reader.depth();
         if (depth < HIGH_WATER_MARK) {
           await Bun.sleep(IDLE_INTERVAL_MS);
         }
         // else: loop immediately to drain more rows
+      } else if (result.status === 401) {
+        log('error', 'flusher.unauthorized', {
+          hint: 'Run `aiot login` to re-authenticate',
+          status: result.status,
+        });
+        writeFlusherState({
+          ...readFlusherState(),
+          lastError: `Unauthorized (${result.status}) — re-authentication required`,
+        });
+        reader.close();
+        process.exit(1);
+      } else if (result.status === 429) {
+        // Rate-limited — explicit server backpressure, NOT a failure. Back off
+        // but do NOT markAttempt: counting 429s toward the attempt cap would
+        // let sustained throttling push rows past the cap and dropAbandoned()
+        // would then permanently delete valid, deliverable events.
+        log('warn', 'flusher.rate_limited', {
+          attempt,
+          count: result.count,
+          status: result.status,
+        });
+        writeFlusherState({
+          ...readFlusherState(),
+          lastError: `Rate limited (${result.status})`,
+          queueDepth: reader.depth(),
+        });
+        writeHeartbeat();
+        consecutiveFailures++;
+        await backoffSleep(attempt);
+      } else if (result.status !== undefined && result.status >= 400 && result.status < 500) {
+        // 4xx (non-401, non-429). This used to read "bad data, server won't
+        // accept" and `delete` the batch outright, with `consecutiveFailures
+        // = 0` and `success = true` — so no backoff either, and the loop went
+        // straight to the next batch. That drained the entire queue at full
+        // speed, one warn line per batch.
+        //
+        // The premise was wrong: a 4xx here is usually NOT bad data.
+        // `apps/ingest` validates the ENVELOPE strictly and returns 400, but
+        // handles individual events tolerantly (routes/events.ts) — so a 400
+        // means hook/server contract skew, never a poisoned event. The hook
+        // is a binary developers upgrade on their own schedule, so one
+        // envelope change server-side silently destroyed all telemetry from
+        // every un-upgraded machine. A 404 from a misconfigured ingest URL
+        // did the same thing.
+        //
+        // Now it uses the same bounded machinery as 5xx and network errors:
+        // MAX_ATTEMPTS retries, then dropAbandoned() drops it. A genuinely
+        // undeliverable batch still leaves, it just stops taking the rest of
+        // the queue with it. The cost is that a poisoned batch holds the head
+        // for its attempt budget rather than being discarded at once.
+        //
+        // 413 is the one status where retrying the identical bytes is futile
+        // by construction; splitting the batch is the real answer and is not
+        // attempted here.
+        markAttemptAndPrune(result.eventIds);
+        log('warn', 'flusher.batch_rejected', {
+          attempt,
+          count: result.count,
+          status: result.status,
+        });
+        writeFlusherState({
+          ...readFlusherState(),
+          lastError: `Batch rejected by server (${result.status})`,
+          queueDepth: reader.depth(),
+        });
+        writeHeartbeat();
+        consecutiveFailures++;
+        await backoffSleep(attempt);
+      } else {
+        // 5xx or network error — mark attempts and back off
+        markAttemptAndPrune(result.eventIds);
+        const errMsg = result.error ?? `Server error ${result.status}`;
+        log('warn', 'flusher.batch_failed', {
+          attempt,
+          count: result.count,
+          message: result.error,
+          status: result.status,
+        });
+        writeFlusherState({
+          ...readFlusherState(),
+          lastError: errMsg,
+          queueDepth: reader.depth(),
+        });
+        writeHeartbeat();
+        consecutiveFailures++;
+        await backoffSleep(attempt);
       }
     }
   } finally {

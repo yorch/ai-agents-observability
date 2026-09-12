@@ -5,9 +5,12 @@ import { dirname, join } from 'node:path';
 export const DEFAULT_INGEST_BASE_URL = 'http://localhost:4000';
 export const DEFAULT_WEB_BASE_URL = 'http://localhost:3000';
 
+export type ShipMode = 'daemon' | 'inline';
+
 export type CliConfig = {
   ingest_url?: string;
   web_url?: string;
+  ship_mode?: ShipMode;
 };
 
 export function cliConfigPath(): string {
@@ -28,6 +31,9 @@ export function readCliConfig(): CliConfig {
     return {
       ...(typeof raw.ingest_url === 'string' ? { ingest_url: normalizeUrl(raw.ingest_url) } : {}),
       ...(typeof raw.web_url === 'string' ? { web_url: normalizeUrl(raw.web_url) } : {}),
+      ...(raw.ship_mode === 'daemon' || raw.ship_mode === 'inline'
+        ? { ship_mode: raw.ship_mode }
+        : {}),
     };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -47,6 +53,10 @@ export function getWebBaseUrl(): string {
   return normalizeUrl(process.env.AIOT_API ?? readCliConfig().web_url ?? DEFAULT_WEB_BASE_URL);
 }
 
+export function getShipMode(): ShipMode {
+  return readCliConfig().ship_mode ?? 'daemon';
+}
+
 export function writeCliConfig(config: CliConfig): void {
   const path = cliConfigPath();
   mkdirSync(dirname(path), { mode: 0o700, recursive: true });
@@ -64,6 +74,8 @@ export function updateCliConfig(
   >) {
     if (value === null || value === undefined) {
       delete next[key];
+    } else if (key === 'ship_mode') {
+      next[key] = value as ShipMode;
     } else {
       next[key] = normalizeUrl(value);
     }

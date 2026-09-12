@@ -8,7 +8,7 @@ import { runPurge } from './commands/purge';
 import { runResume } from './commands/resume';
 import { runStatus } from './commands/status';
 import { runUninstall } from './commands/uninstall';
-import { runFlusher } from './flusher';
+import { runFlusher, runFlushOnce } from './flusher';
 import { runHook } from './hook-entry';
 import { log } from './lib/log';
 import { runShipper } from './shipper';
@@ -51,6 +51,7 @@ Commands:
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
                 kinds: session-start, pre-tool-use, post-tool-use, stop,
                        user-prompt-submit, pre-compact, subagent-stop, notification
+  flush         Drain the SQLite queue once and exit (manual/cron fallback for inline mode)
   flusher       Drain the SQLite queue and POST batches to /v1/events (long-running)
   shipper       Watch for transcript files and upload them to /v1/transcripts (long-running)
 
@@ -89,6 +90,10 @@ async function main(): Promise<number> {
     }
     await runHook(kind, { quiet }, adapter);
     return 0;
+  }
+
+  if (cmd === 'flush') {
+    return await runFlushOnce();
   }
 
   if (cmd === 'flusher') {
