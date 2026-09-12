@@ -96,8 +96,11 @@ Current files — **four**:
   needs `NULLS NOT DISTINCT` (P13-013) and so has no `@@unique` in
   `schema.prisma` at all; and the `interactive_sessions` / `interactive_events`
   views that carry the `run_kind` guard (P13-012).
-- `0002_secret_exposure_rule.sql`, `0003_team_spend_spike_rule.sql` — two
-  additional built-in alert-rule seeds.
+- `0002_secret_exposure_rule.sql` — seeds the `secret_exposure` alert rule
+  (Phase 16 S1), disabled by default. A forward-only numbered file rather than a
+  fold into `0001_init.sql`, because `0001` is closed.
+- `0003_team_spend_spike_rule.sql` — seeds the `team_spend_spike` alert rule
+  (Phase 16 C2), disabled by default. Same rationale as `0002`.
 - `0004_audit_action_catchup.sql` — **the repair for this file's own trap.**
   Three `AuditAction` values were added by editing the squashed init migration
   *after* this schema had shipped (`HOOK_TOKEN_REVOKED` and
