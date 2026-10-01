@@ -1,0 +1,4 @@
+[test]
+# Every test process gets a temp HOME/AIOT_HOME and cannot write under the real
+# home's agent config dirs. See test-setup/isolate-home.ts for why.
+preload = ["./test-setup/isolate-home.ts"]
