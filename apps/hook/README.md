@@ -79,6 +79,7 @@ aiot config set ingest-url https://ingest.example.com
 aiot login
 
 # 3. Install background services and wire hooks into detected agents
+#    (or `aiot install --mode on-demand` for no service at all — see "Install modes")
 aiot install
 
 # 4. Check everything looks healthy
@@ -117,10 +118,17 @@ precedence over the localhost defaults.
 Prints:
 - Logged-in user (from `identity.json`) or "not logged in"
 - Whether telemetry is paused
+- Install mode (`resident` or `on-demand`)
 - Live queue depth (pending events)
 - Last successful flush timestamp
 - Last error message (if any)
 - Whether the flusher and shipper services are running (macOS/Linux)
+
+In `on-demand` mode there is no daemon, so there is no heartbeat to go stale and
+the heartbeat warning is not shown. Instead `status` reports what tells you
+whether data is actually getting out: the **age of the oldest queued row** (a
+stuck queue shows up as a growing number), transcripts still pending, the time of
+the **last clean drain**, and the **current lease holder** (pid, role, age).
 
 ### `pause`
 
@@ -144,12 +152,15 @@ Removed paths:
 - `~/.aiot/flusher-state.json` (flusher state cache)
 - `~/.aiot/paused` (pause marker, if present)
 
+In on-demand mode `purge-local` keeps the install mode by re-creating `queue.db` with only the mode in it. A crash between the delete and the re-create leaves no mode recorded, which reads as `resident`: run `aiot install --mode on-demand` again if hooks stop delivering.
+
 **This does not affect data already uploaded to the server.** Manage server-side data at `$AIOT_API/me/settings/privacy`.
 
 ### `install`
 
-Writes background service files for the flusher and shipper, then loads/enables
-them by default:
+Writes background service files for the flusher and shipper (`--mode resident`,
+the default), or registers no service at all (`--mode on-demand`, see
+[Install modes](#install-modes)), then loads/enables them by default:
 
 - **macOS**: `~/Library/LaunchAgents/com.brnby.aiot.{flusher,shipper}.plist`
 - **Linux**: `~/.config/systemd/user/aiot-{flusher,shipper}.service`
@@ -180,15 +191,119 @@ setup.
 | `--agent <name>` | Wire only this agent (repeatable); skips detection and prompting |
 | `--no-auto` | Skip auto-wiring entirely; print snippets for all agents (legacy behavior) |
 | `--dry-run` | Show what would be wired without modifying any files |
+| `--mode resident\|on-demand` | `resident`: launchd/systemd services. `on-demand`: no service units, a short-lived drainer runs after agent activity. **Without the flag the recorded mode is kept** (`resident` when none is), so re-running `aiot install` after an upgrade never turns an on-demand install back into services |
 
 When run over an existing install, the services are unloaded/disabled first,
 the files are rewritten, and then reloaded — so `install` is idempotent and
 serves as the upgrade path after `install.sh` drops a new binary. Hook config
 is also re-applied idempotently.
 
+### Install modes
+
+**`resident`** (default) registers two always-on services (a flusher and a
+shipper) with launchd/systemd. Data leaves the machine within seconds, whether or
+not an agent is running.
+
+**`on-demand`** is for developers who do not want a service — on macOS, a Login
+Items prompt and a permanent background process. `aiot install --mode on-demand`
+wires the agent hooks and writes **no launchd/systemd units** and runs no
+`launchctl`/`systemctl`. Instead, after a Stop / SubagentStop / SessionEnd hook
+that queued something (or a SessionStart, as catch-up for anything an earlier
+session left behind), the hook starts a short-lived detached `aiot drain`. It
+keeps everything resident mode keeps: client-side redaction, transcript shipping,
+git/PR/team enrichment, resumable uploads. Switching modes stops and removes the
+other mode's units and any running drainer, so the two never coexist.
+
+What this costs, stated plainly:
+
+- **Nothing resident runs between agent sessions.** Delivery is "near-live", not
+  continuous: a drainer is started by a hook and exits when it is done, but it can
+  stay alive for up to its **120 s cap** after the last hook. It exits as soon as
+  nothing is due, on the first transport failure, with no token, or on a 401.
+- **Undelivered data waits for the next agent session.** If you were offline, or
+  closed the laptop, queued events and transcripts stay on disk (and keep their
+  retry times) until the next hook starts a drainer. Rows older than 7 days are
+  dropped, as in resident mode.
+- **Late-delivered events can miss PR linking.** Enrichment (branch, PR number,
+  CI/review state) is resolved on the first delivery attempt and then stored with
+  the row, so a retry reuses it rather than re-resolving — but an event first
+  delivered *after* its PR was merged is enriched against a lookup of **open** PRs
+  and may not link.
+- **Transcripts ship less often.** Each upload re-sends the whole redacted
+  transcript, so in on-demand mode a session's transcript is uploaded on its first
+  drain, at SessionEnd, at the first drain AFTER the session has been quiet for 5
+  minutes, or when the last upload is more than 10 minutes old — not on every Stop.
+  "The first drain after 5 quiet minutes" is not "5 minutes later": nothing runs
+  to notice the quiet. A session that ends without a SessionEnd (Ctrl+C, a crash,
+  an agent with no such hook) is therefore shipped by the NEXT session's catch-up
+  drainer, possibly days later.
+- **A hard container teardown can lose the final batch**, because nothing is left
+  running to send it. Run `aiot drain --wait` first (see below).
+
+macOS note: resident mode installs a LaunchAgent, which triggers the Login Items
+approval prompt. On managed Macs an MDM login-items rule for the signed launcher may
+be able to pre-approve it and so remove the prompt without giving up the always-on
+behaviour. That is advice about how such rules generally work; it has not been
+tested with this binary.
+
+### `drain`
+
+`aiot drain` is what the hook spawns. It makes **one pass**: flush queued events,
+then ship pending transcripts, then exit — it never sleeps waiting for anything.
+It stops at the first of: nothing due, a transport failure, no token, a 401, or a
+120 s wall-clock cap. Whatever it could not deliver stays on disk with its retry
+time. Run in the background it prints nothing (its stdio is `/dev/null`); look at
+`aiot status` or `~/.aiot/hook.log`.
+
+`aiot drain --wait` is the same pass in the foreground: it waits (up to the cap)
+for a drainer that is already running, delivers the queued events, ships the
+pending transcripts regardless of the on-demand cadence **if the transcripts lease
+is free**, prints a summary, and **exits non-zero if any data remains**. If a
+resident shipper or an `aiot import` holds the transcripts lease, the events are
+still delivered, the transcripts are left to that holder, and the exit is 1 with
+"transcripts remaining" in the summary. Use it for CI and devcontainer pre-stop
+hooks, or to catch up by hand.
+
+**Containers.** Keep `AIOT_HOME` on a volume so the queue survives the container,
+authenticate through the environment, and drain before the container stops:
+
+```bash
+export AIOT_HOME=/workspace/.aiot          # a mounted volume
+export AIOT_TOKEN=...                      # no interactive login in a container
+aiot install --mode on-demand --yes
+# ... agent sessions run; hooks queue data and spawn drainers ...
+aiot drain --wait || echo "undelivered data remains in $AIOT_HOME"
+```
+
+Only one process does each kind of delivery work at a time. There are two leases
+in `queue.db` (15 s TTL, renewed every 5 s, so a crashed holder frees it by
+itself): `events` (the resident flusher) and `transcripts` (the resident shipper,
+`aiot import`). `aiot drain` does both kinds of work (it needs `events` and takes
+`transcripts` when it is free), so a long, throttled transcript sweep never holds up
+event delivery in resident mode. A
+resident service that cannot get its lease retries within seconds; `import` and
+`drain --wait` wait for it. A holder that loses a lease (a suspend, a clock step)
+aborts its in-flight requests at once. A drainer needs `events` and merely wants
+`transcripts`: if a shipper or an import holds the latter it delivers the events and
+leaves the transcripts to that holder, and `aiot import` runs one drain pass itself
+when it finishes in on-demand mode.
+
+The drainer is started with a **scrubbed environment**: an allowlist, not the
+agent's shell. Passed on: `HOME`, `PATH`, `TMPDIR`, `AIOT_HOME`, `AIOT_CONFIG`,
+`AIOT_TOKEN`, `XDG_CONFIG_HOME`, proxy and CA-bundle variables, and the user's GitHub
+auth for PR/CI/review lookups (`GITHUB_TOKEN`, `GH_TOKEN`, `GH_HOST`,
+`GH_CONFIG_DIR`, `GH_ENTERPRISE_TOKEN`, `GITHUB_ENTERPRISE_TOKEN`; not
+`GITHUB_API_URL`, which names the host a token is sent to — `gh` finds a GitHub
+Enterprise host through `GH_HOST` — plus `DBUS_SESSION_BUS_ADDRESS` and `XDG_RUNTIME_DIR`, which a keyring-backed `gh`
+login needs on Linux). **Not** passed: `INGEST_BASE_URL`, `AIOT_QUEUE_*` and
+anything else from the agent's shell — set the ingest URL with `aiot config set
+ingest-url`. The trade-off: a GitHub token exported in the agent's shell for another
+purpose changes whose identity enrichment resolves for that drain. (`aiot drain
+--wait` run by hand keeps your shell's environment, as any command does.)
+
 ### `uninstall`
 
-Removes the service files written by `install` and strips aiot's hook entries
+Removes the service files written by `install`, stops a running drainer, and strips aiot's hook entries
 from every agent config that was auto-wired. For shared config files, only
 aiot-owned entries are removed — user-defined hooks are preserved. Backups
 (`.aiot-backup`) are cleaned up after successful removal. Does **not** remove
@@ -262,7 +377,7 @@ If you already run the third-party `omp-hooks` plugin, omp can also be wired thr
 
 ### `flusher` / `shipper`
 
-Long-running daemon processes managed by launchd/systemd. The flusher drains the SQLite queue and POSTs event batches to `/v1/events`. The shipper watches for session transcript markers and uploads redacted transcripts to `/v1/transcripts`.
+Long-running daemon processes managed by launchd/systemd (resident mode only). The flusher drains the SQLite queue and POSTs event batches to `/v1/events`. The shipper watches for session transcript markers and uploads redacted transcripts to `/v1/transcripts`.
 
 ## Exit codes
 
@@ -292,7 +407,7 @@ Hook entrypoints (`hook <kind>`) always exit 0 regardless of errors — a broken
 
 ```
 ~/.aiot/
-  queue.db            — SQLite queue of pending events
+  queue.db            — SQLite queue of pending events, plus the install mode and delivery lease
   ship-queue/         — JSON markers for pending transcript uploads
   identity.json       — Hook auth token + GitHub login
   flusher-state.json  — Last flush time, queue depth, last error (cache)

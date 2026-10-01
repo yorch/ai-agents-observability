@@ -652,7 +652,7 @@ Responsibilities:
 
 Local queue: SQLite database at `~/.aiot/queue.db`. Survives crashes, machine reboots, and offline periods.
 
-**Hook latency budget:** Telemetry hooks must add **<10ms** to any tool call on the hot path. Anything slower gets ripped out by power users. The hook writes to local queue and exits; the flusher is a separate background process.
+**Hook latency budget:** Telemetry hooks must add **<10ms** to any tool call on the hot path. Anything slower gets ripped out by power users. The hook writes to local queue and exits; the flusher is a separate background process. (An opt-in `on-demand` install mode replaces the resident flusher and shipper with a short-lived detached drainer started by terminal hooks — see [P15-002](tasks/P15-002-hook-daemonless-drain.md); the hot path is unchanged for tool hooks.)
 
 ### 6.3 Hook Payload Contract
 

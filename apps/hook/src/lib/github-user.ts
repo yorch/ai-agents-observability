@@ -1,4 +1,5 @@
 import { GH_TIMEOUT_MS } from './github-pr';
+import { noteLookupFailure } from './lookup-status';
 
 // Resolve the authenticated GitHub user's login and team membership.
 // Used by the flusher to populate session_context.git fields before events
@@ -18,11 +19,13 @@ export function fetchGitHubLogin(spawn: GhSpawn = Bun.spawnSync): string | null 
       timeout: GH_TIMEOUT_MS,
     });
     if (proc.exitCode !== 0) {
+      noteLookupFailure();
       return null;
     }
     const login = new TextDecoder().decode(proc.stdout).trim();
     return login || null;
   } catch {
+    noteLookupFailure();
     return null;
   }
 }
@@ -40,6 +43,7 @@ export function fetchUserTeam(owner: string, spawn: GhSpawn = Bun.spawnSync): st
       timeout: GH_TIMEOUT_MS,
     });
     if (proc.exitCode !== 0) {
+      noteLookupFailure();
       return null;
     }
     const teams = JSON.parse(new TextDecoder().decode(proc.stdout)) as Array<{
@@ -49,6 +53,7 @@ export function fetchUserTeam(owner: string, spawn: GhSpawn = Bun.spawnSync): st
     const match = teams.find((t) => t.organization?.login?.toLowerCase() === owner.toLowerCase());
     return match?.name ?? null;
   } catch {
+    noteLookupFailure();
     return null;
   }
 }

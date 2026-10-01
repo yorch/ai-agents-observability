@@ -143,6 +143,66 @@ aiot status     # verify everything is healthy
 | `--agent <name>` | Wire only this agent (repeatable); skips detection and prompting |
 | `--no-auto` | Skip auto-wiring entirely; print snippets for all agents (legacy behavior) |
 | `--dry-run` | Show what would be wired without modifying any files |
+| `--mode resident\|on-demand` | `resident` (default): launchd/systemd services. `on-demand`: no service units; a short-lived drainer runs after agent activity |
+
+### Install without a service (`--mode on-demand`)
+
+If you do not want a launchd/systemd service (on macOS it triggers a Login Items
+prompt and a permanent background process), install in on-demand mode:
+
+```bash
+aiot install --mode on-demand
+```
+
+This wires the same agent hooks but writes **no service units** and runs no
+`launchctl`/`systemctl`. After a Stop / SubagentStop / SessionEnd hook that queued
+something (or a SessionStart, as catch-up), the hook starts a short-lived detached
+`aiot drain`, which redacts and ships exactly what the resident services would.
+Switching between modes (`--mode resident` / `--mode on-demand`) stops and removes
+the other mode's units and any running drainer.
+
+What to expect, honestly:
+
+- **Nothing resident runs between agent sessions**; delivery is near-live, not
+  continuous. A drainer is started by a hook and may stay alive for up to its 120 s cap
+  after the last one.
+- A session's transcript ships at its SessionEnd, or at the first drain after it went
+  quiet — which for a session that ended without a SessionEnd (Ctrl+C, a crash) is the
+  next session's catch-up drainer, not five minutes later.
+- **Data that could not be delivered (offline, laptop closed) waits until the next
+  agent session** starts a drainer.
+- **Events delivered late after a PR merge may miss PR linking** (enrichment looks
+  up open PRs and is stored with the row on the first attempt).
+- **A hard container teardown can lose the final batch** unless `aiot drain --wait`
+  runs first.
+- **On managed Macs an MDM login-items rule for the signed launcher may be able to
+  pre-approve the LaunchAgent for resident mode**, removing the Login Items prompt if
+  you would rather keep the always-on services. This is advice, not something tested
+  with this binary.
+
+`aiot status` in this mode shows the age of the oldest queued row, the last clean
+drain, the current lease holder, and the queue depth (there is no heartbeat to go
+stale).
+
+**Container / devcontainer recipe.** Put `AIOT_HOME` on a volume, authenticate with
+`AIOT_TOKEN`, and drain in the pre-stop step; `aiot drain --wait` runs one pass in
+the foreground and exits non-zero if any data remains:
+
+```bash
+export AIOT_HOME=/workspace/.aiot   # a mounted volume, so the queue outlives the container
+export AIOT_TOKEN=...               # no interactive login
+aiot install --mode on-demand --yes
+# ... run agents ...
+aiot drain --wait                   # pre-stop: deliver what is queued (exit 1 if data remains,
+                                    # e.g. a transcripts lease held by an import: events still go)
+```
+
+The background drainer is started with a scrubbed environment: it ignores
+`INGEST_BASE_URL` and `AIOT_QUEUE_*` from the agent's shell (configure the ingest URL
+with `aiot config set ingest-url`), but keeps the user's GitHub auth (`GITHUB_TOKEN`,
+`GH_TOKEN`, `GH_HOST`, `GH_CONFIG_DIR`, ...) so PR/CI/review enrichment works in
+containers without `gh` (`GITHUB_API_URL` is not passed: it names the host a token is
+sent to, and that must not come from the agent's shell).
 
 After login, historical sessions can be previewed without uploading:
 
@@ -180,5 +240,11 @@ After replacing the binaries, re-run `aiot install` to restart the daemons with 
 aiot install    # unloads old services, rewrites files, reloads
 aiot status     # verify the daemons picked up the new binary
 ```
+
+`aiot install` without `--mode` **keeps the mode you installed in** (`resident` when none
+is recorded). On an `--mode on-demand` install it therefore writes no service units and
+starts no daemon — it only re-wires the hooks (and any newly installed agent) at the new
+binary's path. To change mode, say so: `aiot install --mode resident` /
+`--mode on-demand`.
 
 The hook binary is stateless across versions — the local SQLite queue, identity, and service files are preserved.

@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 
 import { log } from './log';
 import { queuePath } from './paths';
+import { ensureSchema } from './queue-schema';
 
 const HOOK_BUSY_TIMEOUT_MS = 100;
 const DEFAULT_MAX_EVENTS = 50_000;
@@ -31,17 +32,6 @@ function queueMaxBytes(): number {
   return DEFAULT_MAX_BYTES;
 }
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS events_queue (
-  event_id     TEXT PRIMARY KEY,
-  ts           TEXT NOT NULL,
-  payload_json TEXT NOT NULL,
-  attempted_at TEXT,
-  attempts     INTEGER NOT NULL DEFAULT 0
-) STRICT;
-CREATE INDEX IF NOT EXISTS events_queue_ts_idx ON events_queue (ts);
-`;
-
 export type QueuedEvent = {
   event_id: string;
   payload_json: string;
@@ -50,6 +40,8 @@ export type QueuedEvent = {
 
 export type Queue = {
   close(): void;
+  /** The open connection, so the hook can claim a drainer spawn without a second open. */
+  readonly db: Database;
   enqueue(event: QueuedEvent): void;
 };
 
@@ -86,7 +78,7 @@ export function openQueue(path = queuePath()): Queue {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA synchronous = NORMAL;');
   db.exec('PRAGMA temp_store = memory;');
-  db.exec(SCHEMA);
+  ensureSchema(db);
 
   const insert = db.prepare(
     'INSERT OR IGNORE INTO events_queue (event_id, ts, payload_json) VALUES (?, ?, ?)',
@@ -104,6 +96,7 @@ export function openQueue(path = queuePath()): Queue {
     close() {
       db.close();
     },
+    db,
     enqueue(event) {
       // Wrap insert + cap enforcement in a transaction so COUNT and DELETE are
       // atomic: without this, a concurrent flusher process could insert/delete

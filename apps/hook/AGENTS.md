@@ -163,6 +163,8 @@ not module import time, so daemon restarts and tests observe config changes.
 - **The hot path stays tiny.** `hook-entry` writes one row to the local SQLite queue
   (WAL mode) and exits. No network, no redaction, no parsing beyond what the write
   needs — the flusher and shipper do that work out-of-process.
+  (In on-demand mode a *terminal* hook also does a claim query on the open connection and
+  a detached spawn — see "On-demand mode" below. A tool-lifecycle hook does neither.)
 
   **The one exception is a *terminal* hook reading a side-channel file for token
   usage**, because that is the only place three agents' usage exists: codex's
@@ -210,11 +212,11 @@ not a gate. Results upload as an artifact with 90-day retention.
 src/
   cli.ts           # entry; commands/ dispatch
   hook-entry.ts    # the <10ms hot path — stdin JSON → SQLite queue → exit 0
-  flusher.ts       # long-running: drains queue, batches → POST /v1/events
-  shipper.ts       # long-running: redacts + zstd + chunk-uploads transcripts
+  flusher.ts       # flushOnce (one batch) + the resident loop that calls it
+  shipper.ts       # shipPass (one sweep: redact + zstd + chunk-upload) + the resident loop
   adapters/        # per-agent capture (the seam)
-  commands/        # login config install uninstall status pause resume purge import
-  lib/             # queue, persisted config, import sources, adapters' shared parsing
+  commands/        # login config install uninstall status pause resume purge import drain
+  lib/             # queue (+ queue-schema, lease), persisted config, import sources, adapters' shared parsing
 ```
 
 **Adapter working state goes under `agentStateDir(<agent>)`** (`lib/paths.ts`) —
@@ -223,6 +225,133 @@ Codex's rollout cursors, Gemini's token accumulators and Claude Code's per-sessi
 transcript cursors all live there. Putting state
 anywhere else means `purge` silently leaves it behind, which is how unredacted
 per-session data survived a "delete all local telemetry data" once already.
+
+## On-demand mode (no resident service)
+
+`aiot install --mode on-demand` registers no launchd/systemd unit. The hook starts a
+short-lived detached `aiot drain` after a terminal event instead (`lib/drainer-spawn.ts`).
+It must keep everything resident mode keeps; the rules below are what make that safe.
+Each one is here because the obvious version of it is wrong.
+
+- **Two leases, taken by everything that ships.** `lib/lease.ts` keeps one row per kind
+  of delivery work in `queue.db` (`delivery_lease`): `events` (resident flusher) and
+  `transcripts` (resident shipper, `aiot import`); `aiot drain` NEEDS `events` and WANTS
+  `transcripts` (it asks again, `tryAdd`, once its events are done). They are separate so a
+  long, throttled transcript sweep cannot hold up event delivery, and so a drainer can still
+  deliver events while an import holds the transcripts — blocking a spawn on ANY lease
+  stranded every hook that fired during an import. A spawn is refused only while `events`
+  or a drainer is held.
+  A crash frees a lease after the 15 s TTL — no flock, no pid file, and ownership is a
+  random token so there is no PID-reuse hazard. A service that cannot get its lease
+  **retries in seconds, never at its next sweep** (the resident shipper once skipped a whole
+  10-minute sweep because the flusher held the lease for 100 ms). Expiry is wall-clock, so
+  a lease claiming to outlive now + TTL is treated as expired (a clock that stepped back),
+  and a holder whose clock stepped forward learns at its next renewal; losing a lease aborts
+  `lease.signal`, which every fetch carries, and the chunk loop and the drain loop poll it.
+  A synchronous `gh`/`git` call blocks the renewal timer, so a holder can overlap a
+  successor for as long as one such call lasts (seconds, bounded by their timeouts).
+- **Spawn rules.** Terminal events only (`Stop`, `SubagentStop`, `SessionEnd`,
+  `SessionStart` — matched on event type, not kind string, so it is agent-neutral), and
+  only with something enqueued or at SessionStart. Never from a tool-lifecycle hook,
+  never while paused. The decision is made on the connection the hook already has open
+  (`claimDrainerSpawn`: a read, then — only when it can win — one `UPDATE ... RETURNING`),
+  which doubles as the dedupe: a burst of Stops starts one drainer. Do not add a `COUNT(*)`
+  or a file read to the hook for this.
+- **A drainer looks again before it lets go.** A hook that fires while a drainer runs sees a
+  held lease and spawns nothing, so the drainer clears the spawn claim when it takes the
+  lease, re-checks `hasDue()` and the shippable markers after each pass (inside the lease,
+  bounded rounds), and once more after releasing it (a hook arriving after that finds the
+  lease free and spawns its own). Without this a `/exit` seconds after the last answer —
+  the commonest ending — left its SessionEnd and final transcript for the next session. Do
+  not "fix" a test of this by resetting `spawn_claimed_until` or running `aiot drain` by hand.
+  The two re-checks (inside the lease, after it) deliberately overlap — either alone covers a
+  hook landing mid-pass — and the code says so; keep both. A drainer that never took a lease
+  (busy, dead on SQLITE_BUSY, rejected token) hands the claim back in `finally`, or every hook
+  inside the 10 s window is stranded. `aiot import` in on-demand mode runs one drain pass
+  when it finishes, for the transcripts a hook's drainer had to leave to it.
+- **The drainer's environment is an allowlist** (`drainerEnv`) with one rule: what says
+  WHERE delivery goes must not come from the agent's shell (`INGEST_BASE_URL`,
+  `AIOT_QUEUE_*`: a shell with `INGEST_BASE_URL=localhost` for another project would
+  redirect every session on the machine); what says WHO the user is to GitHub may
+  (`GITHUB_TOKEN`, `GH_TOKEN`, `GH_HOST`, `GH_CONFIG_DIR`, `GH_ENTERPRISE_TOKEN`,
+  `GITHUB_ENTERPRISE_TOKEN`, and `DBUS_SESSION_BUS_ADDRESS` / `XDG_RUNTIME_DIR` for a
+  keyring-backed `gh` login). Dropping those silently disabled enrichment in the container
+  recipe the docs recommend. The accepted cost: a token exported in the agent's shell for
+  something else decides whose identity that drain resolves. `GH_HOST` stays although it
+  is a host: with the enterprise tokens also passed, `gh api user` sends that token to
+  whatever host the agent's shell names — accepted, since whoever controls the agent's
+  environment already controls the agent. `GITHUB_API_URL` is NOT on the
+  list: it names the host a token is sent to, an env-supplied host is exactly what must not
+  receive one, and `gh` reaches a GitHub Enterprise host through `GH_HOST` anyway.
+- **`aiot drain` never sleeps** waiting for anything. It ends on nothing due, first transport
+  failure, no token, a rejected token, 401, or the 120 s cap. Failure state lives on disk
+  (`next_attempt_at` on queue rows and ship markers; the rejected token's fingerprint and
+  time and the consecutive-failure streak in `drain_state`), because the next drainer has no
+  memory: the streak is what makes the backoff GROW across processes (≈1 s, 2 s, 4 s ... 5 min)
+  instead of restarting at 1 s. An abort WE cause (cap, lost lease) is reported as `cap` /
+  `lease_lost`, writes no "Network error" state and defers nothing. `last_drain_ok_at` is
+  recorded only when no row or marker is held back by a retry time and no shippable
+  marker was left to another process. A pass that ends `transport`, `no_token` or
+  `unauthorized` also HOLDS spawns for max(30 s, the backoff) (`spawn_hold_until`; capped
+  at 5 min; a SessionEnd bypasses it, the 10 s burst dedupe it does not): the row retry time
+  only holds back rows that already failed, and each Stop adds a new due row. A 2xx in drain
+  mode makes every deferred row and marker due at once, so the recovered drainer delivers
+  the backlog in the same pass; a pass that was merely idle resets nothing. Only a real server response
+  counts toward `MAX_ATTEMPTS`. A drainer prunes 7-day-old rows only while it has a usable
+  token, like the resident flusher.
+- **Enrich once, but only once it worked.** `flushOnce` writes enrichment back to the queue
+  row and marks it `enriched = 1` only when every GitHub lookup ANSWERED
+  (`lib/lookup-status.ts`: the resolvers return null for both "none" and "could not ask").
+  Offline, `gh` and delivery fail together, and a null stored then would be permanent.
+  An enriched row is never re-resolved (a merged PR must not change on retry).
+- **Transcript cadence.** `shipPass({ mode: 'drain' })` ships a session at SessionEnd
+  (`final`), at the first drain after its marker went quiet for 5 min, or when
+  `last_shipped_at` is over 10 min old, and keeps the marker clean (`dirty: false`)
+  afterwards so that memory survives. Nothing runs to notice the quiet, so a session that
+  ends without SessionEnd ships at the NEXT session's catch-up drain. Every hook write —
+  including `markShipFinal` — stamps `updated_at`; a chunk-progress write never changes it
+  and never overwrites a newer hook write.
+- **Uninstall switches spawning off first.** `aiot uninstall` writes mode `resident` before it
+  stops the running drainer, so a hook the remover missed (pasted snippet, project-level or
+  MDM-managed settings) cannot start the next one. `install --mode on-demand` records the
+  mode BEFORE removing the resident units: if it cannot be recorded, the daemons are intact.
+- **Schema changes go through `lib/queue-schema.ts`** (`ensureSchema`): one `PRAGMA
+  user_version` read in the steady state, and every CREATE/ALTER inside one IMMEDIATE
+  transaction on first contact. A hook meeting a legacy queue.db during that one-time upgrade
+  waits on the lock instead of failing on a half-built schema.
+- **Test it as real processes against the compiled binary** (`lib/e2e-harness.ts`,
+  `on-demand.e2e.test.ts`). Under `bun test`, `process.execPath` is `bun`, where
+  `bun drain` silently does nothing and a spawn test passes while spawning nothing
+  (`isCompiledBinary()` guards the spawn for the same reason). Lease tests use real
+  child processes too: one process, one SQLite connection and one event loop cannot
+  race. A test that "forces" contention must prove the overlap happened (a drainer
+  provably mid-upload when the shipper starts), and one that counts processes must count
+  processes (`drain.done` lines), not rows of a single-row table. Tests must set `HOME`
+  and `AIOT_HOME` to a temp dir and never edit an agent's real config.
+
+### Resident mode: what changed
+
+Everything not listed here behaves as it did before the on-demand work. This is the
+complete list; if you add a difference, add a row.
+
+| Area | Before | Now |
+|---|---|---|
+| Delivery coordination | none | flusher takes the `events` lease per batch, shipper the `transcripts` lease per sweep. Separate rows, so neither blocks the other; contention only with a drainer or `aiot import`, and then a retry within 5 s |
+| Idle / no-token tick | a full-batch `drain(100)` read each tick | one `hasDue(false)` read; a tick with no token logs `flusher.no_token`, writes state and sleeps **without** touching the lease |
+| Enrichment | in memory, discarded | written back to the row before the POST (one extra UPDATE per fresh batch); the row is marked final only when every lookup answered |
+| Row retry time (`next_attempt_at`) | did not exist | **not honoured** by the flusher (`drain(n, false)`); only drainers read it |
+| Marker retry time | did not exist | written on 404/409/429/401/network holds and by `recordRetryableFailure` on 5xx / collate / read failures; **not honoured** by the shipper |
+| Shipper sweep | tries every marker; stops only at a 401 | unchanged |
+| Marker bookkeeping | `body_hash` compared to detect a rewrite (wrong for multi-chunk) | `updated_at`, stamped by every hook write; progress and failure writes skip a marker the hook has rewritten |
+| Batch of only undecodable rows | counted as a send (reset the failure counters) | dropped; resets nothing, loop continues |
+| Per terminal hook | one INSERT | + one read of `drain_state` (the claim check; it matches nothing outside on-demand mode) |
+| `queue.db` | two columns fewer, no `drain_state`/`delivery_lease` | upgraded in place on first open (versioned, one transaction) |
+| `aiot status` | no `mode:` line | `mode: resident` line; opening the queue now migrates the schema (`openQueueReader` -> `ensureSchema`), so `status` can write on first run after an upgrade |
+| `aiot install` (resident) | wrote units, touched no process | records the mode (creating `queue.db` if absent) and SIGTERMs, then SIGKILLs, any live lease holder first: a resident flusher or shipper mid-batch, a running `aiot import`. Re-running it without `--mode` keeps an on-demand install on-demand |
+| SessionEnd | nothing on the marker for Claude Code | `markShipFinal` rewrites the marker and bumps `updated_at`, so an in-flight resident upload is "superseded" and costs one re-upload at the next sweep |
+| `aiot import` | waited for no one | takes the `transcripts` lease and fails after a 150 s wait if a resident shipper sweep (or a drainer) holds it longer; stops its in-flight POSTs when the lease is lost |
+| Resident shipper that loses its lease mid-upload | n/a | the pass ends `cap` and the daemon sleeps the full 10-minute sweep interval before looking again |
+| `purge-local` | deleted the queue | stops any lease holder first; with on-demand recorded it recreates `queue.db` holding only the mode (a crash between the delete and the recreate silently reverts to resident) |
 
 ## Building
 
@@ -238,7 +367,7 @@ Each target produces two binaries:
   50–80 MB (the Bun runtime is bundled).
 
 The launcher finds `aiot-runtime` by looking for it next to itself in the same directory.
-`install.ts:resolvedBinaryPath()` derives the launcher path from `process.execPath` (which
+`lib/binary-path.ts:resolvedBinaryPath()` derives the launcher path from `process.execPath` (which
 is the runtime) by stripping the `-runtime` suffix — service files and hook snippets point
 at the launcher, not the runtime. Mac distribution beyond dev machines needs codesigning +
 notarization of the launcher (see `README.md`).

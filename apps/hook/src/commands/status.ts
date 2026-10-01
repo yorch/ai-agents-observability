@@ -2,8 +2,10 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import type { FlusherStatus } from '../flusher';
 import { heartbeatAgeSeconds } from '../flusher';
+import { type DrainStatus, readDrainStatus } from '../lib/lease';
 import { flusherStatePath, identityPath, pausedPath, queuePath } from '../lib/paths';
 import { openQueueReader } from '../lib/queue-reader';
+import { pendingMarkerCount } from '../shipper';
 
 // Heartbeat staleness thresholds (seconds).
 // A non-empty queue with a stale heartbeat means events are piling up and the
@@ -54,11 +56,15 @@ export async function runStatus(): Promise<number> {
 
   // ── Live queue depth (best-effort) ────────────────────────────────────────────
   let queueDepth = flusherState.queueDepth;
+  let oldestQueued: string | null = null;
+  let drain: DrainStatus = { holder: null, lastDrainOkAt: null, mode: 'resident' };
   if (existsSync(queuePath())) {
     let reader: ReturnType<typeof openQueueReader> | undefined;
     try {
       reader = openQueueReader(queuePath());
       queueDepth = reader.depth();
+      oldestQueued = reader.oldestTs();
+      drain = readDrainStatus(reader.db);
     } catch {
       // DB locked or unreadable; use cached value from flusher state
     } finally {
@@ -79,10 +85,17 @@ export async function runStatus(): Promise<number> {
   }
 
   // ── Output ────────────────────────────────────────────────────────────────────
+  if (drain.mode === 'on-demand') {
+    process.stdout.write(
+      `${onDemandLines({ authLine, drain, flusherState, oldestQueued, paused, queueDepth }).join('\n')}\n`,
+    );
+    return 0;
+  }
   const heartbeatAge = heartbeatAgeSeconds(flusherState.lastHeartbeatAt);
   const lines: string[] = [
     `auth:        ${authLine}`,
     `paused:      ${paused ? 'yes' : 'no'}`,
+    'mode:        resident',
     `queue depth: ${queueDepth}`,
     `last flush:  ${flusherState.lastFlushAt ?? 'never'}`,
     `last error:  ${flusherState.lastError ?? 'none'}`,
@@ -118,6 +131,50 @@ export async function runStatus(): Promise<number> {
 
   process.stdout.write(`${lines.join('\n')}\n`);
   return 0;
+}
+
+function age(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 90) {
+    return `${s}s`;
+  }
+  if (s < 5400) {
+    return `${Math.round(s / 60)}m`;
+  }
+  if (s < 172_800) {
+    return `${Math.round(s / 3600)}h`;
+  }
+  return `${Math.round(s / 86_400)}d`;
+}
+
+/**
+ * On-demand mode has no daemon, so a heartbeat is meaningless and a stale one
+ * would be a false alarm on every healthy idle machine. What matters instead is
+ * whether data is getting out: how old the oldest undelivered row is, and when a
+ * drain last finished cleanly. A stuck queue stays visible as a growing age.
+ */
+function onDemandLines(s: {
+  authLine: string;
+  drain: DrainStatus;
+  flusherState: FlusherStatus;
+  oldestQueued: string | null;
+  paused: boolean;
+  queueDepth: number;
+}): string[] {
+  const now = Date.now();
+  const oldest = s.oldestQueued ? Date.parse(s.oldestQueued) : Number.NaN;
+  const { holder, lastDrainOkAt } = s.drain;
+  return [
+    `auth:           ${s.authLine}`,
+    `paused:         ${s.paused ? 'yes' : 'no'}`,
+    'mode:           on-demand (no resident service; a drainer runs after agent activity)',
+    `queue depth:    ${s.queueDepth}`,
+    `oldest queued:  ${Number.isNaN(oldest) ? 'none' : `${age(now - oldest)} old (${s.oldestQueued})`}`,
+    `transcripts pending: ${pendingMarkerCount()}`,
+    `last drain:     ${lastDrainOkAt === null ? 'never' : `${new Date(lastDrainOkAt).toISOString()} (${age(now - lastDrainOkAt)} ago)`}`,
+    `drain lease:    ${holder ? `held by pid ${holder.pid} (${holder.role}, ${age(now - holder.startedAt)})` : 'none'}`,
+    `last error:     ${s.flusherState.lastError ?? 'none'}`,
+  ];
 }
 
 function checkLaunchctl(label: string): string {
