@@ -6,6 +6,12 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.6.0 (2026-10-01)
+
+### Features
+
+- deploy: publish the helm chart as an OCI artifact on release (#255)
+
 ## v2.5.1 (2026-09-10)
 
 ### Bug Fixes
