@@ -146,7 +146,8 @@ Agent hook fires (any of the seven agents, via the adapter seam)
        `aiot drain` that delivers events, then transcripts, and exits
   → ingest: validate, recompute cost (per-agent table), bulk-insert to events
             hypertable, atomic additive session upsert, best-effort session↔PR link
-  → on Stop: shipper (or the drainer, in on-demand mode) redacts + zstd + chunk-uploads transcript
+  → on Stop: shipper redacts + zstd + chunk-uploads transcript (in on-demand mode the drainer ships it
+            at SessionEnd or after the session has been quiet, not on every Stop)
             → POST /v1/transcripts/:id → ingest re-redacts → S3 key on session row
 
 GitHub PR event → github-app webhook: upsert PR (state, is_draft, jira_key,

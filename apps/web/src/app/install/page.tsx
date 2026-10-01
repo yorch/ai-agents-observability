@@ -216,30 +216,32 @@ aiot login`}
         <p className="text-sm text-text-2">
           Choose how delivery runs. Both modes redact, enrich and ship the same data.
         </p>
-        <Card flush>
+        <Card>
           <Table columns={[{ label: 'Mode' }, { label: 'Command' }, { label: 'What runs' }]}>
             {DELIVERY_MODES.map((m) => (
               <Row key={m.mode}>
                 <Cell className="text-text">{m.mode}</Cell>
-                <Cell className="font-mono text-xs text-text-2">{m.command}</Cell>
+                <Cell className="text-text-2">
+                  <code className="font-mono text-xs">{m.command}</code>
+                </Cell>
                 <Cell className="text-text-2">{m.runs}</Cell>
               </Row>
             ))}
           </Table>
         </Card>
         <p className="text-xs text-text-3">
-          On-demand mode registers no launchd/systemd service, and so no macOS Login Items prompt. A
-          drainer can stay alive for up to 120 s after the last hook, and data that could not be
-          delivered (offline) waits for your next agent session. Append{' '}
-          <code className="font-mono">--mode on-demand</code> to the command above for any agent.{' '}
-          Details in the{' '}
+          On-demand mode registers no launchd/systemd service, which is what triggers the macOS
+          Login Items prompt (not yet verified on a Mac). A drainer can stay alive for up to 120 s
+          after the last hook, and data that could not be delivered (offline) waits for your next
+          agent session. Append <code className="font-mono">--mode on-demand</code> to the command
+          above for any agent. Details:{' '}
           <a
             href={`${REPO_URL}/blob/main/docs/getting-started.md#choose-how-delivery-runs`}
             className="text-accent hover:underline"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Getting Started guide
+            Choose how delivery runs
           </a>
           .
         </p>
@@ -298,7 +300,8 @@ aiot import --agent ${selected.flag} --since 2026-01-01`}
           <Link href="/me" className="text-accent hover:underline">
             My Agents
           </Link>{' '}
-          page — you should see the session appear within a few seconds.
+          page — you should see the session appear within a few seconds (in on-demand mode, once the
+          drainer started by the session&apos;s last hook has run).
         </p>
       </section>
 

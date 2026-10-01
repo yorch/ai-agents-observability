@@ -128,7 +128,7 @@ aiot status     # verify everything is healthy
 
 **What `aiot install` does, in order:**
 
-1. **Guards against uncompiled use** — if `process.execPath` is the Bun runtime (not the compiled binary), refuses to run. Service files would point at the wrong executable and agent hooks would be written as `bun hook <kind>`, which no agent can run. `--force --no-auto` writes the service files only; agent hooks are never wired from the Bun runtime.
+1. **Guards against uncompiled use** — if `process.execPath` is the Bun runtime (not the compiled binary), refuses to run. Service files would point at the wrong executable and agent hooks would be written as `bun hook <kind>`, which no agent can run. `--force --no-auto` writes the service files only (resident mode; with `--mode on-demand` it records the mode, writes nothing and wires no hooks); agent hooks are never wired from the Bun runtime.
 2. **Records the mode and stops any running delivery process** — `--mode` if given, otherwise the mode already recorded (`resident` when none is). A running drainer, resident flusher or shipper, or `aiot import` holding the delivery lease is stopped first. In on-demand mode it also removes any resident service units left from an earlier install.
 3. **Writes service files** (resident mode only; on-demand writes none):
    - **macOS**: `~/Library/LaunchAgents/com.brnby.aiot.{flusher,shipper}.plist` (launchd)
@@ -163,50 +163,24 @@ something (or a SessionStart, as catch-up), the hook starts a short-lived detach
 Switching between modes (`--mode resident` / `--mode on-demand`) stops and removes
 the other mode's units and any running drainer.
 
-What to expect, honestly:
-
-- **Nothing resident runs between agent sessions**; delivery is near-live, not
-  continuous. A drainer is started by a hook and may stay alive for up to its 120 s cap
-  after the last one.
-- A session's transcript ships at its SessionEnd, or at the first drain after it went
-  quiet — which for a session that ended without a SessionEnd (Ctrl+C, a crash) is the
-  next session's catch-up drainer, not five minutes later.
-- **Data that could not be delivered (offline, laptop closed) waits until the next
-  agent session** starts a drainer. Queued events are kept for 7 days by age (only
-  enforced while a usable token is present); connection errors do not count toward a
-  row's attempt cap, and a timeout counts only when ingest's `/health` answers.
-- **Events delivered late after a PR merge may miss PR linking** (enrichment looks
-  up open PRs and is stored with the row on the first attempt).
-- **A hard container teardown can lose the final batch** unless `aiot drain --wait`
-  runs first.
-- **On managed Macs an MDM login-items rule for the signed launcher may be able to
-  pre-approve the LaunchAgent for resident mode**, removing the Login Items prompt if
-  you would rather keep the always-on services. This is advice, not something tested
-  with this binary.
+In short: nothing resident runs between agent sessions (a drainer can live up to
+120 s after the last hook); data that could not be delivered waits on disk for the next
+agent session (kept for 7 days); transcripts ship less often than in resident mode;
+late events can miss PR linking; and a hard container teardown can lose the last
+batch unless `aiot drain --wait` runs first. The exact rules, and the macOS note (the
+MDM pre-approval idea is untested advice), are in
+[`apps/hook/README.md`](../../apps/hook/README.md#install-modes).
 
 `aiot status` in this mode shows the age of the oldest queued row, the last clean
 drain, the current lease holder, and the queue depth (there is no heartbeat to go
 stale).
 
-**Container / devcontainer recipe.** Put `AIOT_HOME` on a volume, authenticate with
-`AIOT_TOKEN`, and drain in the pre-stop step; `aiot drain --wait` runs one pass in
-the foreground and exits non-zero if any data remains:
-
-```bash
-export AIOT_HOME=/workspace/.aiot   # a mounted volume, so the queue outlives the container
-export AIOT_TOKEN=...               # no interactive login
-aiot install --mode on-demand --yes
-# ... run agents ...
-aiot drain --wait                   # pre-stop: deliver what is queued (exit 1 if data remains,
-                                    # e.g. a transcripts lease held by an import: events still go)
-```
-
-The background drainer is started with a scrubbed environment: it ignores
-`INGEST_BASE_URL` and `AIOT_QUEUE_*` from the agent's shell (configure the ingest URL
-with `aiot config set ingest-url`), but keeps the user's GitHub auth (`GITHUB_TOKEN`,
-`GH_TOKEN`, `GH_HOST`, `GH_CONFIG_DIR`, ...) so PR/CI/review enrichment works in
-containers without `gh` (`GITHUB_API_URL` is not passed: it names the host a token is
-sent to, and that must not come from the agent's shell).
+**Containers and devcontainers.** Use on-demand mode with `AIOT_HOME` (and the config
+directory) on a volume, a token from the environment, an explicit
+`aiot config set ingest-url ...` (drainers ignore `INGEST_BASE_URL` from the
+environment), and `aiot drain --wait` as the pre-stop step. The recipe, with the
+reason for each line, is in
+[`apps/hook/README.md`](../../apps/hook/README.md#drain).
 
 After login, historical sessions can be previewed without uploading:
 
