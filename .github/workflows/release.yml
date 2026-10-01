@@ -349,7 +349,7 @@ jobs:
           # Dispatch the workflow definitions from main, but tell each one to
           # check out and package the immutable release tag. This is essential
           # when repairing an older tag whose workflow files contain a bug.
-          for workflow in docker.yml build-binaries.yml build-hook.yml; do
+          for workflow in docker.yml build-binaries.yml build-hook.yml helm-chart.yml; do
             args=(
               "${workflow}"
               --ref main
@@ -430,6 +430,9 @@ jobs:
           require_asset SHA256SUMS-binaries
           require_asset SHA256SUMS-hook
           require_asset SHA256SUMS-images
+          require_asset SHA256SUMS-helm
+          require_asset "helm-chart-${TAG}.tgz"
+          require_asset "helm-chart-${TAG}.tgz.sha256"
 
           if ! grep -Eq '^web-standalone-.+\.tar\.gz$' <<< "${ASSETS}"; then
             echo "Missing release asset: web-standalone-*.tar.gz" >&2

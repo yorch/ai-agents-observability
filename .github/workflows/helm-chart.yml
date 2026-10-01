@@ -1,0 +1,157 @@
+name: Publish Helm Chart
+
+run-name: "${{ inputs.release_run_id && format('{0} · release {1}', inputs.release_tag, inputs.release_run_id) || github.event.pull_request.title || github.event.head_commit.message || github.workflow }}"
+
+# Pull requests lint and render the chart. A release dispatch (from release.yml)
+# packages it at the release version, pushes it to GHCR as an OCI artifact,
+# signs it, and attaches the .tgz to the draft release.
+#
+# The chart is published at:
+#   oci://ghcr.io/<owner>/<repo>/charts/ai-agents-observability:<version>
+# GHCR creates that package private. Make it public once (package settings →
+# Change visibility) if consumers should pull it without credentials.
+
+on:
+  pull_request:
+    paths:
+      - 'deploy/helm/**'
+      - '.github/workflows/helm-chart.yml'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Version tag whose source and draft release this run targets
+        required: true
+        type: string
+      release_run_id:
+        description: Release workflow run coordinating this build
+        required: true
+        type: string
+
+env:
+  CHART_DIR: deploy/helm/ai-agents-observability
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+
+concurrency:
+  group: helm-chart-${{ inputs.release_tag || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.18.6
+
+      - name: Lint chart
+        run: helm lint "${CHART_DIR}"
+
+      - name: Render chart (defaults)
+        run: helm template ai-agents-observability "${CHART_DIR}" > /dev/null
+
+      - name: Render chart (external backends, ingress on)
+        run: |
+          helm template ai-agents-observability "${CHART_DIR}" \
+            --set timescaledb.enabled=false \
+            --set externalDatabase.url=postgresql://u:p@db:5432/app \
+            --set minio.enabled=false \
+            --set externalS3.endpoint=https://s3.example.com \
+            --set ingress.enabled=true \
+            --set githubAppIngress.enabled=true \
+            > /dev/null
+
+  publish:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+      packages: write
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.18.6
+
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Package chart
+        id: package
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_TAG#v}"
+          # Chart version and appVersion are stamped from the release tag, so the
+          # in-tree values (0.1.0) never ship. appVersion is the default image tag
+          # and must match a tag docker.yml publishes (X.Y.Z).
+          helm lint "${CHART_DIR}"
+          helm package "${CHART_DIR}" \
+            --version "${VERSION}" \
+            --app-version "${VERSION}" \
+            --destination "${RUNNER_TEMP}/chart"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Push chart
+        id: push
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY,,}"
+          helm push "${RUNNER_TEMP}/chart/ai-agents-observability-${VERSION}.tgz" \
+            "oci://ghcr.io/${REPO}/charts" 2>&1 | tee "${RUNNER_TEMP}/helm-push.log"
+          DIGEST=$(sed -n 's/^Digest: //p' "${RUNNER_TEMP}/helm-push.log")
+          if [[ ! "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Could not read the pushed chart digest from helm output." >&2
+            exit 1
+          fi
+          echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"
+          echo "ref=ghcr.io/${REPO}/charts/ai-agents-observability" >> "${GITHUB_OUTPUT}"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign chart (keyless via OIDC)
+        env:
+          REF: ${{ steps.push.outputs.ref }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: cosign sign --yes "${REF}@${DIGEST}"
+
+      - name: Generate build provenance attestation
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.push.outputs.ref }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attach chart to the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/chart"
+          cp "ai-agents-observability-${VERSION}.tgz" "helm-chart-${RELEASE_TAG}.tgz"
+          sha256sum "helm-chart-${RELEASE_TAG}.tgz" > "helm-chart-${RELEASE_TAG}.tgz.sha256"
+          sha256sum "helm-chart-${RELEASE_TAG}.tgz" > SHA256SUMS-helm
+          gh release upload "${RELEASE_TAG}" \
+            "helm-chart-${RELEASE_TAG}.tgz" \
+            "helm-chart-${RELEASE_TAG}.tgz.sha256" \
+            SHA256SUMS-helm \
+            --clobber
