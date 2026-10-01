@@ -54,13 +54,16 @@ Commands:
   pause         Pause telemetry collection (writes a marker file)
   resume        Resume telemetry collection (removes the marker)
   purge-local   Remove all local data (queue, logs, identity) — use --yes to confirm
-  install       Write launchd/systemd service files and wire hooks into detected agents
-  uninstall     Remove service files and aiot hook config (does not remove local data)
+  install       Wire hooks into detected agents and, by default (--mode resident), write
+                launchd/systemd service files; --mode on-demand registers no service
+  uninstall     Remove aiot hook config and any service files (does not remove local data)
 
   import        Import historical Claude Code, Codex, OpenCode, Pi, or OMP sessions
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
-  flusher       Drain the SQLite queue and POST batches to /v1/events (long-running)
-  shipper       Watch for transcript files and upload them to /v1/transcripts (long-running)
+  drain         One delivery pass (events, then transcripts), then exit; --wait runs it in
+                the foreground and exits non-zero if data remains
+  flusher       Drain the SQLite queue and POST batches to /v1/events (long-running; resident mode)
+  shipper       Watch for transcript files and upload them to /v1/transcripts (long-running; resident mode)
 
 Options:
   --quiet        Suppress non-fatal output (errors still logged to file)
@@ -120,9 +123,9 @@ Prints:
 - Whether telemetry is paused
 - Install mode (`resident` or `on-demand`)
 - Live queue depth (pending events)
-- Last successful flush timestamp
+- Last successful flush timestamp (resident mode)
 - Last error message (if any)
-- Whether the flusher and shipper services are running (macOS/Linux)
+- Whether the flusher and shipper services are running (resident mode, macOS/Linux)
 
 In `on-demand` mode there is no daemon, so there is no heartbeat to go stale and
 the heartbeat warning is not shown. Instead `status` reports what tells you
@@ -165,7 +168,7 @@ the default), or registers no service at all (`--mode on-demand`, see
 - **macOS**: `~/Library/LaunchAgents/com.brnby.aiot.{flusher,shipper}.plist`
 - **Linux**: `~/.config/systemd/user/aiot-{flusher,shipper}.service`
 
-After services are started, `install` **auto-detects** installed agent harnesses
+After the services are started (or, in on-demand mode, with none), `install` **auto-detects** installed agent harnesses
 and wires aiot hooks into each one. For each detected agent:
 
 - **Claude Code**: merges hook entries into `~/.claude/settings.json`
@@ -182,6 +185,10 @@ user-defined hooks. Repeated installs are idempotent — aiot strips its own
 previous entries before appending the current ones, so no duplicates
 accumulate. Agents that are not detected get their snippet printed for manual
 setup.
+
+Running `install` (in either mode, except `--dry-run`) also stops whatever currently holds the
+delivery lease, so a running drainer, a resident flusher or shipper, or an
+`aiot import` in progress is terminated first; re-run the import afterwards.
 
 | Flag | Description |
 |------|-------------|
@@ -223,7 +230,11 @@ What this costs, stated plainly:
 - **Undelivered data waits for the next agent session.** If you were offline, or
   closed the laptop, queued events and transcripts stay on disk (and keep their
   retry times) until the next hook starts a drainer. Rows older than 7 days are
-  dropped, as in resident mode.
+  dropped, as in resident mode, and only while a usable token is present, so being
+  logged out never turns into data loss. Connection errors (refused, DNS,
+  unreachable) never count toward a row's 10-attempt cap, and a timeout counts
+  only when ingest's `/health` answers, i.e. when the batch, not the network, is
+  the likely culprit.
 - **Late-delivered events can miss PR linking.** Enrichment (branch, PR number,
   CI/review state) is resolved on the first delivery attempt and then stored with
   the row, so a retry reuses it rather than re-resolving — but an event first
@@ -303,8 +314,10 @@ purpose changes whose identity enrichment resolves for that drain. (`aiot drain
 
 ### `uninstall`
 
-Removes the service files written by `install`, stops a running drainer, and strips aiot's hook entries
-from every agent config that was auto-wired. For shared config files, only
+Removes the service files written by `install` (there are none in on-demand mode), stops a running
+drainer, and strips aiot's hook entries from every agent config that was auto-wired. It resets the
+install mode to `resident` *first*, so a hook it could not remove (a pasted snippet, project-level or
+MDM-managed settings) cannot start another drainer. For shared config files, only
 aiot-owned entries are removed — user-defined hooks are preserved. Backups
 (`.aiot-backup`) are cleaned up after successful removal. Does **not** remove
 local data (`purge-local` does that).

@@ -14,9 +14,9 @@ Installation is a two-step process handled by two separate installers:
 | Step | Installer | What it does |
 |------|-----------|-------------|
 | **1. Binary acquisition** | `scripts/install.sh` (shell script) | Downloads both binaries, verifies checksums, and places them on your `PATH` |
-| **2. Service setup** | `aiot install` (CLI subcommand) | Writes launchd/systemd service files, starts the background daemons, and auto-wires hooks into detected agent harnesses |
+| **2. Delivery setup** | `aiot install` (CLI subcommand) | Auto-wires hooks into detected agent harnesses and sets up how delivery runs: by default (`--mode resident`) it writes launchd/systemd service files and starts the background daemons; with `--mode on-demand` it registers no service (see [Install without a service](#install-without-a-service---mode-on-demand)) |
 
-Step 1 gets the binaries onto your machine. Step 2 wires them into your system services and your coding agent's hook configuration. Both are needed for a working install.
+Step 1 gets the binaries onto your machine. Step 2 wires them into your coding agent's hook configuration and, in resident mode, your system services. Both are needed for a working install.
 
 ## Step 1 — Binary acquisition
 
@@ -111,7 +111,7 @@ mv aiot-linux-x64 ~/.local/bin/aiot
 mv aiot-runtime-linux-x64 ~/.local/bin/aiot-runtime
 ```
 
-## Step 2 — Service setup and hook wiring
+## Step 2 — Delivery setup and hook wiring
 
 Once the binary is on your `PATH`, run:
 
@@ -121,19 +121,21 @@ aiot config set web-url https://observability.example.com
 aiot config set ingest-url https://ingest.example.com
 
 aiot login      # GitHub device-code OAuth flow
-aiot install    # writes launchd/systemd services + auto-wires detected agents
+aiot install    # resident (default): launchd/systemd services + auto-wires detected agents
+                # or: aiot install --mode on-demand  (no service; see below)
 aiot status     # verify everything is healthy
 ```
 
 **What `aiot install` does, in order:**
 
 1. **Guards against uncompiled use** — if `process.execPath` is the Bun runtime (not the compiled binary), refuses to run. Service files would point at the wrong executable and agent hooks would be written as `bun hook <kind>`, which no agent can run. `--force --no-auto` writes the service files only; agent hooks are never wired from the Bun runtime.
-2. **Writes service files:**
+2. **Records the mode and stops any running delivery process** — `--mode` if given, otherwise the mode already recorded (`resident` when none is). A running drainer, resident flusher or shipper, or `aiot import` holding the delivery lease is stopped first. In on-demand mode it also removes any resident service units left from an earlier install.
+3. **Writes service files** (resident mode only; on-demand writes none):
    - **macOS**: `~/Library/LaunchAgents/com.brnby.aiot.{flusher,shipper}.plist` (launchd)
    - **Linux**: `~/.config/systemd/user/aiot-{flusher,shipper}.service` (systemd user units)
-3. **Handles upgrades** — if service files already exist, unloads/disables them first, then rewrites and reloads. This makes `install` idempotent — re-running it after a binary upgrade restarts the daemons cleanly.
-4. **Starts the services** (default, `--start`): runs `launchctl load` / `systemctl --user enable --now`. If any start step fails, exits 1 with a clear error. Use `--no-start` to write files without starting (prints the commands instead).
-5. **Auto-detects and wires agent harnesses** — scans for installed agents (Claude Code, Codex, Gemini CLI, Copilot CLI, Pi, OMP, opencode) and automatically writes hook configuration into each detected agent's config. In interactive mode, shows a checkbox list of detected agents; use `--yes` to wire all without prompting. For shared config files, creates a `.aiot-backup` before first modification, preserves user-defined hooks, and strips only aiot-owned entries on re-install (idempotent). Agents that are not detected get their snippet printed for manual setup.
+4. **Handles upgrades** — if service files already exist, unloads/disables them first, then rewrites and reloads. This makes `install` idempotent — re-running it after a binary upgrade restarts the daemons cleanly.
+5. **Starts the services** (resident mode, default `--start`): runs `launchctl load` / `systemctl --user enable --now`. If any start step fails, exits 1 with a clear error. Use `--no-start` to write files without starting (prints the commands instead).
+6. **Auto-detects and wires agent harnesses** — scans for installed agents (Claude Code, Codex, Gemini CLI, Copilot CLI, Pi, OMP, opencode) and automatically writes hook configuration into each detected agent's config. In interactive mode, shows a checkbox list of detected agents; use `--yes` to wire all without prompting. For shared config files, creates a `.aiot-backup` before first modification, preserves user-defined hooks, and strips only aiot-owned entries on re-install (idempotent). Agents that are not detected get their snippet printed for manual setup.
 
 | Flag | Description |
 |------|-------------|
@@ -170,7 +172,9 @@ What to expect, honestly:
   quiet — which for a session that ended without a SessionEnd (Ctrl+C, a crash) is the
   next session's catch-up drainer, not five minutes later.
 - **Data that could not be delivered (offline, laptop closed) waits until the next
-  agent session** starts a drainer.
+  agent session** starts a drainer. Queued events are kept for 7 days by age (only
+  enforced while a usable token is present); connection errors do not count toward a
+  row's attempt cap, and a timeout counts only when ingest's `/health` answers.
 - **Events delivered late after a PR merge may miss PR linking** (enrichment looks
   up open PRs and is stored with the row on the first attempt).
 - **A hard container teardown can lose the final batch** unless `aiot drain --wait`
@@ -234,11 +238,11 @@ mv aiot-darwin-arm64 ~/.local/bin/aiot
 mv aiot-runtime-darwin-arm64 ~/.local/bin/aiot-runtime
 ```
 
-After replacing the binaries, re-run `aiot install` to restart the daemons with the new executable:
+After replacing the binaries, re-run `aiot install` to restart the daemons with the new executable (resident mode). In on-demand mode there are no daemons to restart: the next drainer simply runs the new binary, and `install` only re-applies the hook wiring.
 
 ```bash
-aiot install    # unloads old services, rewrites files, reloads
-aiot status     # verify the daemons picked up the new binary
+aiot install    # resident: unloads old services, rewrites files, reloads. on-demand: re-wires hooks only
+aiot status     # verify: the mode line, and in resident mode that the daemons are running
 ```
 
 `aiot install` without `--mode` **keeps the mode you installed in** (`resident` when none

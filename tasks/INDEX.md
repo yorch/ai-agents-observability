@@ -424,7 +424,7 @@ Opened after v1.0.0. Phase 14 corrected what the pipeline records and proved it 
 | ID | Title | Status | Owner | Est | Depends on |
 |---|---|---|---|---|---|
 | [P15-001](./P15-001-seed-fidelity.md) | Seed-fidelity pass — three survivors from a seed-and-verify sweep | done | claude | M | P14-002, P14-006, P14-011 |
-| [P15-002](./P15-002-hook-daemonless-drain.md) | On-demand install mode — a detached drainer instead of a resident service | review | claude | L | P1-021, P1-022 |
+| [P15-002](./P15-002-hook-daemonless-drain.md) | On-demand install mode — a detached drainer instead of a resident service | done | claude | L | P1-021, P1-022 |
 
 **Three defects, one root cause** — the seed computing a value independently instead of deriving it from what it had already written:
 

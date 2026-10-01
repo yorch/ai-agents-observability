@@ -141,10 +141,12 @@ Agent hook fires (any of the seven agents, via the adapter seam)
      · SessionStart now captures real git context (branch/commit/remote/dirty)
      · permission mode canonicalized (normal→bypass autonomy ranks); Notification
        events classified (permission/idle/elicitation/auth/other)
-  → flusher (out-of-process) batches every 5s / 50 events → POST /v1/events
+  → flusher (out-of-process, resident mode) batches every 5s / 50 events → POST /v1/events
+     · on-demand mode has no resident flusher: a terminal hook starts a short-lived
+       `aiot drain` that delivers events, then transcripts, and exits
   → ingest: validate, recompute cost (per-agent table), bulk-insert to events
             hypertable, atomic additive session upsert, best-effort session↔PR link
-  → on Stop: shipper redacts + zstd + chunk-uploads transcript
+  → on Stop: shipper (or the drainer, in on-demand mode) redacts + zstd + chunk-uploads transcript
             → POST /v1/transcripts/:id → ingest re-redacts → S3 key on session row
 
 GitHub PR event → github-app webhook: upsert PR (state, is_draft, jira_key,
@@ -181,9 +183,10 @@ operational sign-off / manual integration (see §8).
 ### Hook CLI (`apps/hook`)
 Adapter-based capture (seven agents; `--agent <name>` selects one). Full command surface:
 `login` (GitHub device-code **+ password fallback**), `install`/`uninstall`
-(launchd/systemd), `status`, `pause`/`resume`, `purge-local`, `import`
+(launchd/systemd by default, or `--mode on-demand` with no service), `status`, `pause`/`resume`, `purge-local`, `import`
 (historical backfill from `~/.claude/projects`), the internal `hook <kind>`
-entrypoint, `flusher`, `shipper`. Offline-durable SQLite queue (WAL), a p99
+entrypoint, `drain` (the on-demand delivery pass), `flusher`, `shipper` (resident mode).
+Offline-durable SQLite queue (WAL; events are kept up to 7 days), a p99
 cold-start budget of **<15 ms on developer hardware**, git-at-session-start capture,
 throttled transcript upload. The budget is *measured* in CI (`.github/workflows/perf.yml`,
 uploaded as an artifact for trend tracking) but **not enforced** — it runs

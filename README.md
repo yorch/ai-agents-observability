@@ -63,6 +63,7 @@ aiot config set ingest-url https://ingest.example.com
 aiot login
 aiot install                  # Claude Code (default)
 aiot install --agent codex    # or any other supported agent
+aiot install --mode on-demand # no background service: a short-lived drainer ships after agent activity
 ```
 
 Historical data can be backfilled from Claude Code, Codex, OpenCode, Pi, and OMP;
