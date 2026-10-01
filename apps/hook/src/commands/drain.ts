@@ -1,6 +1,6 @@
 import { flushOnce } from '../flusher';
 import { backoffMs } from '../lib/backoff';
-import { loadHookToken } from '../lib/identity';
+import { loadHookToken, reauthHint } from '../lib/identity';
 import { getIngestBaseUrl } from '../lib/ingest';
 import {
   clearRejectedToken,
@@ -283,15 +283,35 @@ export async function drainPass(
   }
 }
 
-const STOP_TEXT: Record<DrainReport['stop'], string> = {
-  busy: 'another aiot delivery process holds the lease',
-  cap: 'hit the time cap',
-  done: 'complete',
-  lease_lost: 'lost the delivery lease',
-  no_token: 'no auth token — run `aiot login`',
-  transport: 'the ingest server was unreachable or failing',
-  unauthorized: 'token rejected — run `aiot login`',
+const STOP_TEXT: Record<DrainReport['stop'], () => string> = {
+  busy: () => 'another aiot delivery process holds the lease',
+  cap: () => 'hit the time cap',
+  done: () => 'complete',
+  lease_lost: () => 'lost the delivery lease',
+  no_token: () => 'no auth token — run `aiot login`',
+  transport: () => 'the ingest server was unreachable or failing',
+  unauthorized: () => `token rejected. ${reauthHint()}`,
 };
+
+/**
+ * The `result:` line. A pass that ended `done` delivered everything that was due,
+ * so what is still owed is waiting out a retry delay, held by another delivery
+ * process (a shipper or an import), or was queued during the pass. Say so instead
+ * of a `complete` that sits beside exit code 1.
+ */
+function resultText(report: DrainReport): string {
+  const owed: string[] = [];
+  if (report.remainingEvents > 0) {
+    owed.push(`${report.remainingEvents} events still queued`);
+  }
+  if (report.remainingTranscripts > 0) {
+    owed.push(`${report.remainingTranscripts} transcripts still pending`);
+  }
+  if (report.stop === 'done' && owed.length > 0) {
+    return `incomplete — ${owed.join(', ')}: waiting out a retry delay or held by another delivery process (shipper/import)`;
+  }
+  return STOP_TEXT[report.stop]();
+}
 
 export async function runDrain(args: string[]): Promise<number> {
   const wait = args.includes('--wait');
@@ -326,7 +346,7 @@ export async function runDrain(args: string[]): Promise<number> {
       `events sent:          ${report.flushed}`,
       `events remaining:     ${report.remainingEvents}`,
       `transcripts remaining: ${report.remainingTranscripts}`,
-      `result:               ${STOP_TEXT[report.stop]}`,
+      `result:               ${resultText(report)}`,
       '',
     ].join('\n'),
   );

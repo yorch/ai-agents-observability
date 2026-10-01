@@ -254,7 +254,7 @@ describe('claude-code — leaked bun groups', () => {
     // Mix in a current-form group too.
     cfgFor('claude-code').apply?.(LAUNCHER);
 
-    expect(cfgFor('claude-code').remove?.()).toBe(true);
+    expect(cfgFor('claude-code').remove?.()).toBe('removed');
 
     const after = readHooks(path);
     expect(Object.keys(after)).toEqual(['SessionStart']);
@@ -321,7 +321,7 @@ describe('codex — leaked bun groups (hooks.json path)', () => {
     const path = write(REL, JSON.stringify({ hooks }));
     cfgFor('codex').apply?.(LAUNCHER);
 
-    expect(cfgFor('codex').remove?.()).toBe(true);
+    expect(cfgFor('codex').remove?.()).toBe('removed');
 
     expect(readHooks(path)).toEqual({ SessionStart: [HERDR_CODEX] });
   });

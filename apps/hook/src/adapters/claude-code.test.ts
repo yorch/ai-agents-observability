@@ -123,7 +123,7 @@ describe('claudeCodeAdapter install — upgrading an existing 8-hook install', (
     writeFileSync(settingsPath, JSON.stringify({ hooks: { SessionEnd: [userHook] } }));
     const { apply, remove } = claudeCodeAdapter.installConfig();
     apply?.(BIN);
-    expect(remove?.()).toBe(true);
+    expect(remove?.()).toBe('removed');
 
     const { hooks } = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
       hooks: Record<string, unknown[]>;

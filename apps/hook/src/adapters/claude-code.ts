@@ -26,7 +26,7 @@ import {
 } from '../lib/payload';
 import { NIL_UUID } from '../lib/session-id';
 import { readNewLines, safeJsonLine } from '../lib/tail-read';
-import type { ConformantEvent, HookAdapter } from './index';
+import type { ConformantEvent, HookAdapter, RemoveOutcome } from './index';
 import { createStdinHookAdapter } from './stdin-hook-factory';
 
 // Claude Code adapter — the first HookAdapter implementation, and (since P12-003)
@@ -342,12 +342,12 @@ function applyClaudeCode(bin: string): string | null {
   }
 }
 
-function removeClaudeCode(): boolean {
+function removeClaudeCode(): RemoveOutcome {
   const settingsPath = CLAUDE_SETTINGS_PATH();
   try {
     const existing = readJsonFile<Record<string, unknown>>(settingsPath);
     if (!existing) {
-      return true;
+      return 'unchanged';
     }
     const hooks = (existing.hooks as Record<string, unknown[]>) ?? {};
     const cleaned: Record<string, unknown[]> = {};
@@ -366,14 +366,14 @@ function removeClaudeCode(): boolean {
       }
     }
     if (!hadAny) {
-      return true;
+      return 'unchanged';
     }
     writeJsonFile(settingsPath, { ...existing, hooks: cleaned });
     removeBackup(settingsPath);
-    return true;
+    return 'removed';
   } catch (err) {
     process.stderr.write(`Error removing Claude Code hooks: ${(err as Error).message}\n`);
-    return false;
+    return 'failed';
   }
 }
 

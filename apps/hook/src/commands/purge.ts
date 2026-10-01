@@ -18,7 +18,7 @@ import { collatedDir } from '../lib/transcript-collate';
 
 export async function runPurge(args: string[]): Promise<number> {
   const yes = args.includes('--yes') || args.includes('-y');
-  const privacyUrl = `${getWebBaseUrl()}/me/privacy`;
+  const privacyUrl = `${getWebBaseUrl()}/me/settings/privacy`;
 
   if (!yes) {
     process.stdout.write(

@@ -26,6 +26,8 @@ export type ConformantEvent = Event;
 export type TranscriptTarget = { sessionId: string; transcriptPath: string };
 
 /** Metadata the `install` command needs to wire the agent's hooks. */
+export type RemoveOutcome = 'removed' | 'unchanged' | 'failed';
+
 export type AdapterInstallConfig = {
   agentName: string;
   /** Hook kinds the agent emits / we register. */
@@ -50,9 +52,10 @@ export type AdapterInstallConfig = {
   apply?(bin: string): string | null;
   /**
    * Remove aiot's hook config from the agent's config file(s), preserving
-   * any user-defined hooks. Returns true on success.
+   * any user-defined hooks. Reports whether it changed anything: `removed`,
+   * `unchanged` (nothing of ours was wired), or `failed` (error on stderr).
    */
-  remove?(): boolean;
+  remove?(): RemoveOutcome;
 };
 
 export interface HookAdapter {

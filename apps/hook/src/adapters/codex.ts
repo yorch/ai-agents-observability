@@ -39,7 +39,13 @@ import { agentStateDir } from '../lib/paths';
 import { NIL_UUID, sessionUuid } from '../lib/session-id';
 import { readNewLines, safeJsonLine } from '../lib/tail-read';
 import { uuidv7 } from '../lib/uuid';
-import type { AdapterInstallConfig, ConformantEvent, HookAdapter, TranscriptTarget } from './index';
+import type {
+  AdapterInstallConfig,
+  ConformantEvent,
+  HookAdapter,
+  RemoveOutcome,
+  TranscriptTarget,
+} from './index';
 import { createStdinHookAdapter } from './stdin-hook-factory';
 
 // OpenAI Codex CLI adapter — TWO capture paths, because Codex has two extension
@@ -835,13 +841,14 @@ function applyCodex(bin: string): string | null {
   }
 }
 
-function removeCodex(): boolean {
-  let ok = true;
+function removeCodex(): RemoveOutcome {
+  let changed = false;
   try {
     // Remove wrapper script.
     const wrapperPath = CODEX_NOTIFY_WRAPPER();
     if (existsSync(wrapperPath)) {
       rmSync(wrapperPath, { force: true });
+      changed = true;
     }
 
     // Remove our entries from hooks.json.
@@ -867,6 +874,7 @@ function removeCodex(): boolean {
       if (hadAny) {
         writeJsonFile(hooksJsonPath, { ...existing, hooks: cleaned });
         removeBackup(hooksJsonPath);
+        changed = true;
       }
     }
 
@@ -878,13 +886,14 @@ function removeCodex(): boolean {
         const lines = raw.split('\n').filter((l) => !/^notify\s*=.*aiot-notify\.sh/.test(l));
         writeFileSync(configPath, lines.join('\n'), 'utf8');
         removeBackup(configPath);
+        changed = true;
       }
     }
   } catch (err) {
     process.stderr.write(`Error removing Codex hooks: ${(err as Error).message}\n`);
-    ok = false;
+    return 'failed';
   }
-  return ok;
+  return changed ? 'removed' : 'unchanged';
 }
 
 export const codexAdapter: HookAdapter = {

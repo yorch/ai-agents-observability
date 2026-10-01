@@ -9,7 +9,7 @@ import {
   writeTextFile,
 } from '../lib/config-wire';
 
-import type { HookAdapter } from './index';
+import type { HookAdapter, RemoveOutcome } from './index';
 import { createPiFamilyAdapter, renderExtensionSnippet } from './pi-family';
 
 // OMP (oh-my-pi) adapter (P12-008). OMP is a fork of Pi that went the opposite
@@ -119,17 +119,18 @@ function applyOmp(bin: string): string | null {
   }
 }
 
-function removeOmp(): boolean {
+function removeOmp(): RemoveOutcome {
   const pluginFile = ompPluginFile();
   try {
-    if (existsSync(pluginFile)) {
+    const existed = existsSync(pluginFile);
+    if (existed) {
       rmSync(pluginFile, { force: true });
     }
     removeBackup(pluginFile);
-    return true;
+    return existed ? 'removed' : 'unchanged';
   } catch (err) {
     process.stderr.write(`Error removing omp hook module: ${(err as Error).message}\n`);
-    return false;
+    return 'failed';
   }
 }
 

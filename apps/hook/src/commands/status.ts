@@ -5,6 +5,7 @@ import { heartbeatAgeSeconds } from '../flusher';
 import { type DrainStatus, readDrainStatus } from '../lib/lease';
 import { flusherStatePath, identityPath, pausedPath, queuePath } from '../lib/paths';
 import { openQueueReader } from '../lib/queue-reader';
+import { residentServiceFiles } from '../lib/service-files';
 import { pendingMarkerCount } from '../shipper';
 
 // Heartbeat staleness thresholds (seconds).
@@ -30,12 +31,6 @@ export async function runStatus(): Promise<number> {
     }
   } catch {
     // identity.json missing or unreadable
-  }
-  if (process.env.AIOT_TOKEN?.trim()) {
-    // This is the SHELL's environment. The launchd/systemd services written by
-    // `aiot install` do not inherit it, so they still need `aiot login`.
-    authLine =
-      'AIOT_TOKEN is set in this shell (services installed by `aiot install` do not see it)';
   }
 
   // ── Paused ────────────────────────────────────────────────────────────────────
@@ -72,16 +67,29 @@ export async function runStatus(): Promise<number> {
     }
   }
 
+  // AIOT_TOKEN is the SHELL's environment. The resident launchd/systemd services
+  // do not inherit it, so they still need `aiot login`; an on-demand drainer is
+  // spawned by the hook, which passes AIOT_TOKEN through.
+  if (process.env.AIOT_TOKEN?.trim()) {
+    authLine =
+      drain.mode === 'on-demand'
+        ? "AIOT_TOKEN is set in this shell (the drainer receives it from the hook's environment)"
+        : 'AIOT_TOKEN is set in this shell (services installed by `aiot install` do not see it)';
+  }
+
   // ── Service status ────────────────────────────────────────────────────────────
   let flusherRunning: string | null = null;
   let shipperRunning: string | null = null;
 
-  if (process.platform === 'darwin') {
-    flusherRunning = checkLaunchctl('com.brnby.aiot.flusher');
-    shipperRunning = checkLaunchctl('com.brnby.aiot.shipper');
-  } else if (process.platform === 'linux') {
-    flusherRunning = checkSystemctl('aiot-flusher');
-    shipperRunning = checkSystemctl('aiot-shipper');
+  // On-demand installs have no service to ask about.
+  if (drain.mode !== 'on-demand') {
+    if (process.platform === 'darwin') {
+      flusherRunning = checkLaunchctl('com.brnby.aiot.flusher');
+      shipperRunning = checkLaunchctl('com.brnby.aiot.shipper');
+    } else if (process.platform === 'linux') {
+      flusherRunning = checkSystemctl('aiot-flusher');
+      shipperRunning = checkSystemctl('aiot-shipper');
+    }
   }
 
   // ── Output ────────────────────────────────────────────────────────────────────
@@ -89,6 +97,13 @@ export async function runStatus(): Promise<number> {
     process.stdout.write(
       `${onDemandLines({ authLine, drain, flusherState, oldestQueued, paused, queueDepth }).join('\n')}\n`,
     );
+    // Without spawning anything: leftover units (a half-failed mode switch) would
+    // keep a resident daemon running beside the drainers.
+    if (residentServiceFiles().some((file) => existsSync(file))) {
+      process.stdout.write(
+        'warning: resident service files still present — run `aiot install --mode on-demand` again or `aiot uninstall`\n',
+      );
+    }
     return 0;
   }
   const heartbeatAge = heartbeatAgeSeconds(flusherState.lastHeartbeatAt);

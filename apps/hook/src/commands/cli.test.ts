@@ -226,7 +226,7 @@ describe('purge-local', () => {
     const { stdout } = await captureOutputAsync(async () => {
       await runPurge([]);
     });
-    expect(stdout).toContain('/me/privacy');
+    expect(stdout).toContain('/me/settings/privacy');
   });
 });
 

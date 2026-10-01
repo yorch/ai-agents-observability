@@ -4,7 +4,7 @@ import type { EventType, ToolInfo } from '@ai-agents-observability/schemas';
 
 import { dirExists, homeDir, writeJsonFile } from '../lib/config-wire';
 
-import type { HookAdapter } from './index';
+import type { HookAdapter, RemoveOutcome } from './index';
 import {
   buildGenericToolInfo,
   createStdinHookAdapter,
@@ -273,16 +273,17 @@ function applyCopilot(bin: string): string | null {
   }
 }
 
-function removeCopilot(): boolean {
+function removeCopilot(): RemoveOutcome {
   const hookFile = COPILOT_HOOK_FILE();
   try {
-    if (existsSync(hookFile)) {
-      rmSync(hookFile, { force: true });
+    if (!existsSync(hookFile)) {
+      return 'unchanged';
     }
-    return true;
+    rmSync(hookFile, { force: true });
+    return 'removed';
   } catch (err) {
     process.stderr.write(`Error removing Copilot CLI hooks: ${(err as Error).message}\n`);
-    return false;
+    return 'failed';
   }
 }
 

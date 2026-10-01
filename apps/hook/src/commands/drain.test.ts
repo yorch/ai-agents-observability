@@ -4,10 +4,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { newSessionId, writeTranscript } from '../lib/e2e-harness';
-import { claimDrainerSpawn, LEASE_TTL_MS, readDrainStatus, writeMode } from '../lib/lease';
+import {
+  claimDrainerSpawn,
+  LEASE_TTL_MS,
+  readDrainStatus,
+  recordRejectedToken,
+  writeMode,
+} from '../lib/lease';
 import { openQueue } from '../lib/queue';
 import { markShipFinal, writeShipMarker } from '../shipper';
-import { drainPass } from './drain';
+import { drainPass, runDrain } from './drain';
 
 // In-process tests of drainPass: the hard wall-clock cap (the compiled-binary suite
 // covers every other way a drainer ends, but waiting 120 s for the real cap would
@@ -624,5 +630,78 @@ describe('what a clean drain claims, marker side', () => {
     expect(report.stop).toBe('done');
     expect(lastOk()).toBeNull();
     expect(report.remainingTranscripts).toBe(1);
+  });
+});
+
+describe('`aiot drain --wait` output', () => {
+  async function waitOutput(): Promise<{ code: number; out: string }> {
+    const chunks: string[] = [];
+    const orig = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (c: string | Uint8Array) => {
+      chunks.push(String(c));
+      return true;
+    };
+    try {
+      const code = await runDrain(['--wait']);
+      return { code, out: chunks.join('') };
+    } finally {
+      process.stdout.write = orig;
+    }
+  }
+
+  function rejectToken(token: string): void {
+    const q = openQueue();
+    recordRejectedToken(q.db, token);
+    q.close();
+  }
+
+  it('tells an AIOT_TOKEN user to replace it, since `aiot login` cannot override it', async () => {
+    setEnv('INGEST_BASE_URL', 'http://127.0.0.1:1');
+    setEnv('AIOT_TOKEN', 'cct_from_env');
+    rejectToken('cct_from_env');
+
+    const { code, out } = await waitOutput();
+
+    expect(code).toBe(1);
+    expect(out).toContain('AIOT_TOKEN is set and was rejected — replace it');
+    expect(out).not.toMatch(/result:\s+token rejected — run `aiot login`/);
+  });
+
+  it('still points a login-token user at `aiot login`', async () => {
+    setEnv('INGEST_BASE_URL', 'http://127.0.0.1:1');
+    rejectToken('cct_test');
+
+    const { code, out } = await waitOutput();
+
+    expect(code).toBe(1);
+    expect(out).toMatch(/result:\s+token rejected\. Run `aiot login` to re-authenticate/);
+  });
+
+  it('does not print `complete` beside exit 1 when rows are waiting out a retry delay', async () => {
+    setEnv('INGEST_BASE_URL', 'http://127.0.0.1:1');
+    enqueue(2);
+    const q = openQueue();
+    q.db
+      .query('UPDATE events_queue SET next_attempt_at = ?')
+      .run(new Date(Date.now() + 3_600_000).toISOString());
+    q.close();
+
+    const { code, out } = await waitOutput();
+
+    expect(code).toBe(1);
+    expect(out).toMatch(/events remaining:\s+2/);
+    expect(out).toMatch(
+      /result:\s+incomplete — 2 events still queued.*waiting out a retry delay or held by another delivery process/,
+    );
+    expect(out).not.toContain('complete\n');
+  });
+
+  it('still says `complete` with exit 0 when nothing remains', async () => {
+    setEnv('INGEST_BASE_URL', 'http://127.0.0.1:1');
+
+    const { code, out } = await waitOutput();
+
+    expect(code).toBe(0);
+    expect(out).toMatch(/result:\s+complete/);
   });
 });
