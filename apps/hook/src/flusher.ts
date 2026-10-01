@@ -352,6 +352,9 @@ export async function runFlusher(): Promise<void> {
   // cap. Pruning only here (right after a bump) avoids a full table scan on
   // every idle loop tick — a markAttempt is the only thing that can newly
   // abandon a row. Data loss at the cap is intentional (P1-021) but logged.
+  // Only a real server response may call this: the cap exists to shed batches
+  // the server rejects, not to time out an offline laptop (~13 min at the
+  // 1s→300s backoff). Offline survival is bounded by row age instead.
   const markAttemptAndPrune = (ids: string[]): void => {
     reader.markAttempt(ids);
     const dropped = reader.dropAbandoned();
@@ -365,6 +368,10 @@ export async function runFlusher(): Promise<void> {
   try {
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      const expired = reader.dropExpired();
+      if (expired > 0) {
+        log('warn', 'flusher.dropped_expired', { count: expired });
+      }
       const rows = reader.drain(BATCH_SIZE);
 
       if (rows.length === 0) {
@@ -515,9 +522,10 @@ export async function runFlusher(): Promise<void> {
           await backoffSleep(attempt);
         }
       } catch (err) {
-        // Network error — mark attempts and back off
+        // Network error or timeout — back off but do NOT markAttempt: no server
+        // rejected the batch, so it says nothing about the rows. Counting it
+        // deleted every queued row after ~13 min offline. Age expiry bounds it.
         const message = (err as Error).message;
-        markAttemptAndPrune(eventIds);
         log('warn', 'flusher.network_error', { attempt, message });
         writeFlusherState({
           ...readFlusherState(),

@@ -9,8 +9,21 @@ export type QueueRow = {
   attempts: number;
 };
 
-/** Max delivery attempts before a row is abandoned (dropped) by the flusher. */
+/**
+ * Max server rejections (5xx, non-401/429 4xx) before a row is abandoned
+ * (dropped) by the flusher. Network errors, timeouts and 429s never count — see
+ * the flusher loop — so being offline cannot burn this budget.
+ */
 export const MAX_ATTEMPTS = 10;
+
+/**
+ * Rows whose event `ts` is older than this are dropped. With attempts no longer
+ * counting offline time, age is what bounds the queue's lifetime. 7 days matches
+ * ingest's look-back jobs (link-turn-events, compute-cost-attribution): an event
+ * arriving later than that can no longer be linked or priced, so keeping it
+ * only delays the flusher.
+ */
+export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type QueueReader = {
   /** SELECT up to `limit` rows WHERE attempts < MAX_ATTEMPTS ORDER BY ts */
@@ -21,6 +34,8 @@ export type QueueReader = {
   delete(eventIds: string[]): void;
   /** DELETE WHERE attempts >= MAX_ATTEMPTS — returns count dropped. */
   dropAbandoned(): number;
+  /** DELETE WHERE ts < now - MAX_AGE_MS — returns count dropped. */
+  dropExpired(now?: number): number;
   /** COUNT(*) WHERE attempts < MAX_ATTEMPTS */
   depth(): number;
   /** MAX(attempted_at) */
@@ -53,6 +68,8 @@ export function openQueueReader(dbPath: string): QueueReader {
     `DELETE FROM events_queue WHERE attempts >= ${MAX_ATTEMPTS}`,
   );
 
+  const dropExpiredStmt = db.prepare('DELETE FROM events_queue WHERE ts < ?');
+
   return {
     close(): void {
       db.close();
@@ -79,6 +96,12 @@ export function openQueueReader(dbPath: string): QueueReader {
       // permanently-rejecting endpoint). Drop them so the DB doesn't grow
       // unbounded and a head-of-line poison row can't block the queue forever.
       return dropAbandonedStmt.run().changes;
+    },
+
+    dropExpired(now = Date.now()): number {
+      // `ts` is always `toISOString()` output (UTC, fixed width), so string
+      // comparison is chronological and the ts index serves the range scan.
+      return dropExpiredStmt.run(new Date(now - MAX_AGE_MS).toISOString()).changes;
     },
 
     lastAttemptedAt(): string | null {
