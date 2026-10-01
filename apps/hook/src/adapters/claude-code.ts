@@ -48,6 +48,7 @@ const HOOK_KIND_TO_SETTINGS_KEY: Record<HookKind, string> = {
   'post-tool-use': 'PostToolUse',
   'pre-compact': 'PreCompact',
   'pre-tool-use': 'PreToolUse',
+  'session-end': 'SessionEnd',
   'session-start': 'SessionStart',
   stop: 'Stop',
   'subagent-stop': 'SubagentStop',
@@ -396,9 +397,12 @@ const base = createStdinHookAdapter({
     settingsHint: 'Add to ~/.claude/settings.json:',
   },
   knownKeys: CLAUDE_KNOWN_KEYS,
-  // Claude Code ships the transcript at Stop. The path + session id come from the
-  // hook payload (transcript_path / session_id), not a computed location.
-  transcriptKinds: ['stop'],
+  // Claude Code ships the transcript at Stop, and again at SessionEnd — the one
+  // hook that fires however the session ends (/exit, ctrl-D, /clear, logout),
+  // where Stop never fires if the user quits mid-response. The path + session id
+  // come from the hook payload (transcript_path / session_id), not a computed
+  // location.
+  transcriptKinds: ['stop', 'session-end'],
 });
 
 export const claudeCodeAdapter: HookAdapter = {

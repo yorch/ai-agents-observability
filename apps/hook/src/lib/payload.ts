@@ -79,6 +79,7 @@ export const CLAUDE_KNOWN_KEYS = [
 
 export type HookKind =
   | 'session-start'
+  | 'session-end'
   | 'pre-tool-use'
   | 'post-tool-use'
   | 'stop'
@@ -92,6 +93,7 @@ export const HOOK_KIND_TO_EVENT_TYPE: Record<HookKind, EventType> = {
   'post-tool-use': 'PostToolUse',
   'pre-compact': 'PreCompact',
   'pre-tool-use': 'PreToolUse',
+  'session-end': 'SessionEnd',
   'session-start': 'SessionStart',
   stop: 'Stop',
   'subagent-stop': 'SubagentStop',

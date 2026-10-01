@@ -238,7 +238,7 @@ Requires authentication (`aiot login`) unless `--dry-run` is passed.
 
 Low-level entrypoint invoked directly by the coding agent. Reads a JSON payload from stdin, converts it to an event, and appends it to the local SQLite queue. Should not be invoked manually.
 
-Hook kinds (Claude Code): `session-start`, `pre-tool-use`, `post-tool-use`, `stop`, `user-prompt-submit`, `pre-compact`, `subagent-stop`, `notification`.
+Hook kinds (Claude Code): `session-start`, `session-end`, `pre-tool-use`, `post-tool-use`, `stop`, `user-prompt-submit`, `pre-compact`, `subagent-stop`, `notification`.
 
 Hook entrypoints always exit 0 to avoid disrupting the agent — errors go to the log file only. This matters most for GitHub Copilot CLI, whose `preToolUse` hooks are fail-closed: a non-zero exit there denies the tool call.
 
