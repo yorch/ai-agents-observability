@@ -55,6 +55,10 @@ export type ShipMarker = {
   attempts?: number;
   /** ISO timestamp the marker was first created; used to age out stale 404s. */
   first_seen_at?: string;
+  /** ISO timestamp of the last `writeShipMarker` (a Stop). Chunk-progress writes
+   * do not touch it, so a changed value means the marker was rewritten, not
+   * merely progressed. Absent on markers written by older versions. */
+  updated_at?: string;
 };
 
 /**
@@ -90,6 +94,7 @@ export function writeShipMarker(sessionId: string, transcriptPath: string, parti
       partial,
       session_id: sessionId,
       transcript_path: transcriptPath,
+      updated_at: new Date().toISOString(),
       ...(prior?.attempts !== undefined ? { attempts: prior.attempts } : {}),
     };
     // tmp + rename, as `recordRetryableFailure` already does below: a crash
@@ -158,6 +163,10 @@ function recordRetryableFailure(marker: ShipMarker, reason: string): boolean {
     // leave a truncated marker (which the reader would skip — losing the
     // transcript silently — or whose attempts counter would reset).
     const finalPath = join(shipQueueDir(), `${marker.session_id}.json`);
+    // A Stop rewrote the marker since `marker` was read: don't put the stale copy back.
+    if (readMarkerAt(finalPath)?.updated_at !== marker.updated_at) {
+      return false;
+    }
     const tmpPath = `${finalPath}.tmp`;
     writeFileSync(tmpPath, JSON.stringify({ ...marker, attempts }, null, 2), {
       encoding: 'utf8',
@@ -185,6 +194,12 @@ function updateMarkerProgress(
 ): void {
   try {
     const finalPath = join(shipQueueDir(), `${marker.session_id}.json`);
+    // A Stop rewrote the marker since `marker` was read: writing this stale copy
+    // back would restore the old updated_at and let the final check delete the
+    // newer marker. Drop the progress; the next sweep starts from 0.
+    if (readMarkerAt(finalPath)?.updated_at !== marker.updated_at) {
+      return;
+    }
     const tmpPath = `${finalPath}.tmp`;
     writeFileSync(
       tmpPath,
@@ -408,6 +423,12 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
     return false;
   }
 
+  // Snapshot the on-disk marker BEFORE reading the transcript: a Stop landing
+  // during redaction/compression is then seen as a rewrite (its turn is not in
+  // the body we upload) instead of being folded into the snapshot. It is also
+  // the source of truth for resume state, since a Stop resets bytes_uploaded.
+  const currentMarker = readMarkerAt(join(shipQueueDir(), `${session_id}.json`)) ?? marker;
+
   let sourcePath: string | null;
   try {
     sourcePath = resolveShippablePath(marker);
@@ -439,10 +460,6 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
   }
 
   const url = `${getIngestBaseUrl()}/v1/transcripts/${session_id}`;
-  // Re-read the marker from disk: a Stop event may have fired since the
-  // sweep started, resetting bytes_uploaded and body_size/body_hash. The
-  // on-disk marker is the source of truth for resume state.
-  const currentMarker = readMarkerAt(join(shipQueueDir(), `${session_id}.json`)) ?? marker;
   try {
     const res = await uploadWithResume(
       url,
@@ -459,11 +476,14 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
     if (res.status >= 200 && res.status < 300) {
       // Re-check the marker before deleting: a Stop event may have rewritten
       // it with a new transcript_path / body_size while the upload was in
-      // flight. If the on-disk marker no longer matches what we just uploaded
-      // (different body_hash or body_size), don't delete it — the next sweep
-      // will handle the newer transcript.
+      // flight. Compare `updated_at`, which only writeShipMarker changes: the
+      // chunk-progress writes set body_hash/bytes_uploaded on disk but never on
+      // this in-memory marker, so comparing body_hash made every multi-chunk
+      // upload look superseded. If it differs, don't delete — the next sweep
+      // will handle the newer transcript. (The read-to-delete gap below is
+      // microseconds and not closed; a Stop landing exactly there is lost.)
       const onDisk = readMarkerAt(join(shipQueueDir(), `${session_id}.json`));
-      if (onDisk && onDisk.body_hash !== currentMarker.body_hash) {
+      if (onDisk && onDisk.updated_at !== currentMarker.updated_at) {
         log('info', 'shipper.marker_superseded', { session_id });
       } else {
         try {
