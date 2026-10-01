@@ -9,6 +9,11 @@ import {
   type ImportAgent,
   importSource,
 } from '../lib/import-source';
+import { readMode, withLease } from '../lib/lease';
+import { log } from '../lib/log';
+import { queuePath } from '../lib/paths';
+import { openQueueReader } from '../lib/queue-reader';
+import { drainPass } from './drain';
 
 const BATCH_SIZE = 100;
 
@@ -106,7 +111,56 @@ function parseImportArgs(args: string[]): ImportOptions | 'help' | 'error' {
   return { agent, dryRun, noTranscripts, quiet, sessionId, since };
 }
 
+// A drainer holds the lease for at most DRAIN_CAP_MS (120s); wait that out.
+const LEASE_WAIT_MS = 150_000;
+
+/**
+ * Import uploads transcripts directly, so it takes the `transcripts` lease: the
+ * resident shipper or a drainer uploading the same session at the same moment would
+ * do the same redaction and upload twice, and an unchunked import body landing
+ * mid-assembly of a chunked upload is a sequence the server route was never
+ * specified for. (The import itself POSTs each transcript in ONE request, so it
+ * cannot interleave chunks with itself.) Dry runs and help ship nothing and skip it.
+ *
+ * The lease can be lost (suspend, a clock step); the loop stops at the next session
+ * boundary when it is, rather than carrying on beside whoever took over.
+ */
 export async function runImport(args: string[]): Promise<number> {
+  const rest = args.slice(1);
+  if (rest.includes('--dry-run') || rest.includes('-h') || rest.includes('--help')) {
+    return runImportUnlocked(args);
+  }
+  const queue = openQueueReader(queuePath());
+  try {
+    const leased = await withLease(queue.db, 'import', (lease) => runImportUnlocked(args, lease), {
+      waitMs: LEASE_WAIT_MS,
+    });
+    if (!leased.held) {
+      process.stderr.write(
+        'Error: another aiot process is delivering data (the lease is held). Try again shortly.\n',
+      );
+      return 1;
+    }
+    // In on-demand mode nothing is running to pick up what accumulated while the
+    // import held the transcripts lease: a drainer spawned by a hook in that time
+    // delivered the events but had to leave the transcripts to us. One pass now.
+    if (readMode(queue.db) === 'on-demand') {
+      try {
+        await drainPass();
+      } catch (err) {
+        log('warn', 'import.post_drain_failed', { message: (err as Error).message });
+      }
+    }
+    return leased.value;
+  } finally {
+    queue.close();
+  }
+}
+
+async function runImportUnlocked(
+  args: string[],
+  lease?: { check(): boolean; signal: AbortSignal },
+): Promise<number> {
   const parsed = parseImportArgs(args.slice(1));
   if (parsed === 'help') {
     process.stdout.write(`${IMPORT_HELP}\n`);
@@ -178,6 +232,10 @@ export async function runImport(args: string[]): Promise<number> {
   let totalTranscripts = 0;
 
   for (const session of sessions) {
+    if (lease && !lease.check()) {
+      process.stderr.write('Error: lost the delivery lease; stopping. Re-run `aiot import`.\n');
+      return 1;
+    }
     try {
       const events = await session.events(opts.since);
       if (events.length === 0) {
@@ -194,7 +252,12 @@ export async function runImport(args: string[]): Promise<number> {
         const pending: Event[] = [...events];
         while (pending.length > 0) {
           const batch = pending.splice(0, BATCH_SIZE);
-          const result = await postEventBatch(batch, jwt as string, ingestBaseUrl as string);
+          const result = await postEventBatch(
+            batch,
+            jwt as string,
+            ingestBaseUrl as string,
+            lease?.signal,
+          );
           sessionAccepted += result.accepted;
           sessionDeduped += result.deduped;
           sessionRejected += result.rejected;
@@ -215,7 +278,14 @@ export async function runImport(args: string[]): Promise<number> {
               prepared.path,
               jwt,
               ingestBaseUrl as string,
+              lease?.signal,
             );
+            if (!result.ok && result.reason === 'aborted') {
+              process.stderr.write(
+                'Error: lost the delivery lease mid-upload; stopping. Re-run `aiot import`.\n',
+              );
+              return 1;
+            }
             if (result.ok) {
               transcriptStatus = `ok (${result.bytes} bytes)`;
               totalTranscripts += 1;
@@ -237,6 +307,14 @@ export async function runImport(args: string[]): Promise<number> {
         );
       }
     } catch (err) {
+      if (lease?.signal.aborted) {
+        // The lease was lost under an in-flight POST: stop cleanly, not as a
+        // per-session "WARNING".
+        process.stderr.write(
+          'Error: lost the delivery lease mid-import; stopping. Re-run `aiot import`.\n',
+        );
+        return 1;
+      }
       if (err instanceof AuthError) {
         process.stderr.write(`Authentication error: ${(err as Error).message}\n`);
         return 1;

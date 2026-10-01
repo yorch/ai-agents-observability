@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from 'node:fs';
 
 import { getWebBaseUrl } from '../lib/config';
+import { readMode, stopLeaseHolderIfAny, writeMode } from '../lib/lease';
 import { logPath } from '../lib/log';
 import {
   agentStateRoot,
@@ -11,6 +12,8 @@ import {
   shipQueueDir,
   telemetryHome,
 } from '../lib/paths';
+import { openQueue } from '../lib/queue';
+import { openQueueReader } from '../lib/queue-reader';
 import { collatedDir } from '../lib/transcript-collate';
 
 export async function runPurge(args: string[]): Promise<number> {
@@ -45,6 +48,26 @@ export async function runPurge(args: string[]): Promise<number> {
 
   const removed: string[] = [];
   const failed: string[] = [];
+
+  // A live drainer would keep shipping from — or recreate — the state removed
+  // below. The install mode is the one thing worth carrying across a purge:
+  // without it an on-demand install silently stops delivering.
+  let priorMode: 'resident' | 'on-demand' = 'resident';
+  try {
+    if (existsSync(queuePath())) {
+      const reader = openQueueReader(queuePath());
+      try {
+        priorMode = readMode(reader.db);
+      } finally {
+        reader.close();
+      }
+    }
+    await stopLeaseHolderIfAny();
+  } catch (err) {
+    process.stderr.write(
+      `Warning: could not stop the running drainer: ${(err as Error).message}\n`,
+    );
+  }
 
   const home = telemetryHome();
 
@@ -87,6 +110,20 @@ export async function runPurge(args: string[]): Promise<number> {
   // naming agents, so a new adapter's state cannot be forgotten here.
   tryRemove(collatedDir(), true);
   tryRemove(agentStateRoot(), true);
+
+  if (priorMode === 'on-demand') {
+    try {
+      const queue = openQueue();
+      writeMode(queue.db, priorMode);
+      queue.close();
+      process.stdout.write(
+        'kept: install mode (on-demand). The agent hooks are still wired, so they will queue and\n' +
+          'deliver again once you run `aiot login` (the identity file was removed above).\n',
+      );
+    } catch (err) {
+      failed.push(`install mode (${(err as Error).message})`);
+    }
+  }
 
   for (const p of removed) {
     process.stdout.write(`removed: ${p}\n`);

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { ADAPTERS } from '../adapters';
 import { homeDir } from '../lib/config-wire';
+import { stopLeaseHolderIfAny } from '../lib/lease';
 
 const FLUSHER_LABEL = 'com.brnby.aiot.flusher';
 const SHIPPER_LABEL = 'com.brnby.aiot.shipper';
@@ -87,7 +88,20 @@ function uninstallLinux(): number {
   return 0;
 }
 
-export function runUninstall(): number {
+export async function runUninstall(): Promise<number> {
+  // Mode first: a hook the remover misses (a pasted snippet, project-level or
+  // MDM-managed settings) must stop spawning drainers before the running one is
+  // stopped, or it would start the next as soon as this one died. Then a running
+  // drainer must not outlive the uninstall and keep shipping.
+  try {
+    if (!(await stopLeaseHolderIfAny({ resetMode: true }))) {
+      process.stderr.write('Warning: a process that is not aiot holds the delivery lease\n');
+    }
+  } catch (err) {
+    process.stderr.write(
+      `Warning: could not stop the running drainer: ${(err as Error).message}\n`,
+    );
+  }
   if (process.platform === 'darwin') {
     return uninstallDarwin();
   }

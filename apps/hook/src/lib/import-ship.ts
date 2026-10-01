@@ -9,6 +9,12 @@ export type ServerReadyResult = { ok: true } | { ok: false; message: string };
 /** Wall-clock bound on one import event batch. Matches the flusher's. */
 const IMPORT_BATCH_TIMEOUT_MS = 30_000;
 
+/** The request's own timeout, plus the caller's signal when there is one. */
+function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const timeout = AbortSignal.timeout(ms);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 /**
  * Bound for one transcript upload, scaled to the payload so a large import does
  * not abort a legitimately slow transfer. 1 MB/s is a deliberately pessimistic
@@ -66,6 +72,8 @@ export async function postEventBatch(
   events: Event[],
   jwt: string,
   ingestBaseUrl: string = getIngestBaseUrl(),
+  /** Aborted when the caller loses its delivery lease: the POST stops with it. */
+  signal?: AbortSignal,
 ): Promise<BatchResult> {
   const body = JSON.stringify(buildBatchEnvelope(events));
   const res = await fetch(`${ingestBaseUrl}/v1/events`, {
@@ -79,7 +87,7 @@ export async function postEventBatch(
     // bounded, which made this file look protected while both of its uploads
     // could hang forever — an import against a wedged server would sit here
     // with no output and no way to tell it from a slow one.
-    signal: AbortSignal.timeout(IMPORT_BATCH_TIMEOUT_MS),
+    signal: withTimeout(signal, IMPORT_BATCH_TIMEOUT_MS),
   });
 
   if (res.status === 401) {
@@ -120,7 +128,7 @@ const MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024;
 
 export type UploadResult =
   | { ok: true; bytes: number }
-  | { ok: false; reason: 'session_not_found' | 'skipped' | 'error'; message: string };
+  | { ok: false; reason: 'session_not_found' | 'skipped' | 'error' | 'aborted'; message: string };
 
 /**
  * Upload a session transcript via buildZstdBody() → POST /v1/transcripts/{sessionId}.
@@ -137,6 +145,8 @@ export async function uploadTranscript(
   transcriptPath: string,
   jwt: string,
   ingestBaseUrl: string = getIngestBaseUrl(),
+  /** Aborted when the caller loses its delivery lease: the upload stops with it. */
+  signal?: AbortSignal,
 ): Promise<UploadResult> {
   let body: Uint8Array;
   let hash: string;
@@ -171,7 +181,7 @@ export async function uploadTranscript(
       // Derived, not constant, for the same reason as the shipper's: a large
       // transcript is legitimately slow, so the bound scales with the payload.
       // This one is not throttled, so the floor does the work in practice.
-      signal: AbortSignal.timeout(transcriptTimeoutMs(body.byteLength)),
+      signal: withTimeout(signal, transcriptTimeoutMs(body.byteLength)),
     });
 
     if (res.status >= 200 && res.status < 300) {
@@ -186,6 +196,10 @@ export async function uploadTranscript(
     }
     return { message: `Server returned ${res.status}`, ok: false, reason: 'error' };
   } catch (err) {
+    if (signal?.aborted) {
+      // Our own stop (a lost lease), not the network's doing: no "network error".
+      return { message: 'stopped: delivery lease lost', ok: false, reason: 'aborted' };
+    }
     return { message: `Network error: ${(err as Error).message}`, ok: false, reason: 'error' };
   }
 }

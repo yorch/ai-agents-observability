@@ -1,10 +1,14 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 
 import { ADAPTERS, type HookAdapter, selectAdapter } from '../adapters';
-import { isAiotBinary } from '../lib/config-wire';
+import { isCompiledBinary, resolvedBinaryPath } from '../lib/binary-path';
+import { type InstallMode, readMode, stopLeaseHolder, writeMode } from '../lib/lease';
+import { queuePath } from '../lib/paths';
 import { type CheckboxItem, checkboxPrompt, isInteractive } from '../lib/prompt';
+import { openQueue } from '../lib/queue';
+import { openQueueReader } from '../lib/queue-reader';
 
 const FLUSHER_LABEL = 'com.brnby.aiot.flusher';
 const SHIPPER_LABEL = 'com.brnby.aiot.shipper';
@@ -29,6 +33,13 @@ interface InstallOptions {
   dryRun: boolean;
   /** With --no-auto, write service files even when running from the Bun runtime, not the compiled binary. Never enables hook wiring. */
   force: boolean;
+  /**
+   * resident: launchd/systemd services. on-demand: no services, a short-lived
+   * drainer. null = no `--mode` given: keep whatever mode is recorded (resident
+   * when none is), so re-running `aiot install` after an upgrade or to wire a newly
+   * installed agent never turns an on-demand install back into services.
+   */
+  mode: InstallMode | null;
   /** Skip auto-wiring, print snippets only (legacy behavior). */
   noAuto: boolean;
   /** Load/enable the services after writing their files (default: true). */
@@ -42,6 +53,7 @@ function parseArgs(args: readonly string[]): InstallOptions {
     agents: [],
     dryRun: false,
     force: false,
+    mode: null,
     noAuto: false,
     start: true,
     yes: false,
@@ -63,6 +75,12 @@ function parseArgs(args: readonly string[]): InstallOptions {
       opts.yes = true;
     } else if (a === '--dry-run') {
       opts.dryRun = true;
+    } else if (a === '--mode' || a.startsWith('--mode=')) {
+      const value = a === '--mode' ? args[++i] : a.slice('--mode='.length);
+      if (value !== 'resident' && value !== 'on-demand') {
+        throw new Error(`--mode must be "resident" or "on-demand" (got: ${value ?? 'nothing'})`);
+      }
+      opts.mode = value;
     } else if (a === '--agent') {
       // --agent is also consumed by cli.ts, but if it reaches here (e.g. multiple
       // --agent flags for selective wiring), collect them.
@@ -289,33 +307,103 @@ function printUndetectedSnippets(bin: string, keys: string[]): void {
   }
 }
 
-function resolvedBinaryPath(exe: string): string {
-  // The guard in runInstall already refuses to wire hooks from an uncompiled
-  // runtime and prints the explanatory message there, so no warning is needed.
-  //
-  // When running via the Rust launcher, process.execPath is `aiot-runtime`
-  // (the Bun-compiled binary). Services and hook snippets must point at the
-  // launcher (`aiot`), not the runtime, so that macOS BTM attributes the
-  // background activity to our signature rather than Bun's.
-  //
-  // Cross-compiled distribution binaries carry a target suffix
-  // (`aiot-runtime-darwin-arm64`); the sibling launcher is
-  // `aiot-darwin-arm64`, so we strip just `runtime` (keeping any target
-  // suffix) rather than replacing the whole name.
-  const name = basename(exe);
-  if (name.startsWith('aiot-runtime')) {
-    return exe.replace('aiot-runtime', 'aiot');
+/**
+ * Stop and delete the resident mode's service units, if any. Switching to
+ * on-demand must not leave a daemon running beside the drainers.
+ */
+function removeServiceUnits(spawn: SpawnFn, homeDir: string): string[] {
+  const removed: string[] = [];
+  if (process.platform === 'darwin') {
+    const dir = join(homeDir, 'Library', 'LaunchAgents');
+    for (const label of [FLUSHER_LABEL, SHIPPER_LABEL]) {
+      const path = join(dir, `${label}.plist`);
+      if (existsSync(path)) {
+        spawn(['launchctl', 'unload', path]);
+        rmSync(path, { force: true });
+        removed.push(path);
+      }
+    }
+  } else if (process.platform === 'linux') {
+    const dir = join(homeDir, '.config', 'systemd', 'user');
+    for (const svc of ['aiot-flusher', 'aiot-shipper']) {
+      const path = join(dir, `${svc}.service`);
+      if (existsSync(path)) {
+        spawn(['systemctl', '--user', 'disable', '--now', svc]);
+        rmSync(path, { force: true });
+        removed.push(path);
+      }
+    }
+    if (removed.length > 0) {
+      spawn(['systemctl', '--user', 'daemon-reload']);
+    }
   }
-  return exe;
+  return removed;
+}
+
+/** The mode already recorded in queue.db, without creating one: resident when none. */
+function recordedMode(): InstallMode {
+  if (!existsSync(queuePath())) {
+    return 'resident';
+  }
+  const reader = openQueueReader(queuePath());
+  try {
+    return readMode(reader.db);
+  } finally {
+    reader.close();
+  }
 }
 
 /**
- * True when `exe` (normally process.execPath) is the compiled aiot binary. Shares
- * its predicate with hook ownership, so anything this lets through is something
- * re-install and uninstall will recognise.
+ * Persist the install mode in queue.db (where the hook reads it without extra
+ * I/O) and stop whatever holds the delivery lease, so a drainer from the other
+ * mode cannot keep running beside the new one. Throws if the queue cannot be
+ * opened — callers record the mode BEFORE touching units or hooks, so a failure
+ * leaves the previous install exactly as it was.
  */
-function isCompiledBinary(exe: string = process.execPath): boolean {
-  return isAiotBinary(exe);
+async function recordMode(mode: InstallMode): Promise<void> {
+  const queue = openQueue();
+  try {
+    writeMode(queue.db, mode);
+    if (!(await stopLeaseHolder(queue.db))) {
+      throw new Error('another process holds the delivery lease and is not an aiot process');
+    }
+  } finally {
+    queue.close();
+  }
+}
+
+async function installOnDemand(
+  bin: string,
+  opts: InstallOptions,
+  spawn: SpawnFn,
+  homeDir: string,
+): Promise<number> {
+  if (opts.dryRun) {
+    process.stdout.write(
+      '[dry-run] Would record mode on-demand and remove any resident service units\n',
+    );
+    process.stdout.write('[dry-run] Would write NO launchd/systemd units\n');
+    const { undetected } = await autoWire(bin, opts);
+    printUndetectedSnippets(bin, undetected);
+    return 0;
+  }
+
+  // Mode first: if it cannot be recorded the resident daemons are still in place.
+  // A brief overlap of a resident daemon and a drainer is harmless — they share
+  // the delivery lease.
+  await recordMode('on-demand');
+  for (const path of removeServiceUnits(spawn, homeDir)) {
+    process.stdout.write(`removed resident service: ${path}\n`);
+  }
+
+  process.stdout.write(
+    'Mode: on-demand. No service is registered; after agent activity the hook starts a\n' +
+      'short-lived drainer. No resident process runs between agent sessions (a drainer\n' +
+      'can linger up to 120 s after the last hook).\n\n',
+  );
+  const { undetected } = await autoWire(bin, opts);
+  printUndetectedSnippets(bin, undetected);
+  return 0;
 }
 
 async function installDarwin(
@@ -499,6 +587,22 @@ export async function runInstall(
   // uses process.execPath.
   exe: string = process.execPath,
 ): Promise<number> {
+  // Anything that throws below used to escape to cli.ts, which turns it into a
+  // bare exit 1 with no message — after hooks may already have been wired.
+  try {
+    return await install(args, spawn, homeDir, exe);
+  } catch (err) {
+    process.stderr.write(`Error: install failed: ${(err as Error).message}\n`);
+    return 1;
+  }
+}
+
+async function install(
+  args: readonly string[],
+  spawn: SpawnFn,
+  homeDir: string,
+  exe: string,
+): Promise<number> {
   const opts = parseArgs(args);
 
   // Hook wiring (autoWire → every adapter's apply) writes `bin` into the agent's
@@ -523,6 +627,16 @@ export async function runInstall(
   }
 
   const bin = resolvedBinaryPath(exe);
+  const mode = opts.mode ?? recordedMode();
+
+  if (mode === 'on-demand' && (process.platform === 'darwin' || process.platform === 'linux')) {
+    return installOnDemand(bin, opts, spawn, homeDir);
+  }
+  // Recorded before any unit is written or hook wired, so a resident install over
+  // an on-demand one stops hooks spawning drainers first.
+  if (!opts.dryRun && (process.platform === 'darwin' || process.platform === 'linux')) {
+    await recordMode('resident');
+  }
 
   if (process.platform === 'darwin') {
     return installDarwin(bin, opts, spawn, homeDir);

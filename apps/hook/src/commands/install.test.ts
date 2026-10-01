@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { claudeCodeAdapter } from '../adapters/claude-code';
+import { readMode } from '../lib/lease';
+import { openQueue } from '../lib/queue';
 import { runInstall } from './install';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -441,6 +443,175 @@ describe('install --no-auto', () => {
     // Snippets are printed instead.
     expect(stdout).toContain('settings.json');
     // No settings file was written.
+    expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(false);
+  });
+});
+
+// ── --mode on-demand | resident ───────────────────────────────────────────────
+
+function recordedMode(): string {
+  const queue = openQueue();
+  try {
+    return readMode(queue.db);
+  } finally {
+    queue.close();
+  }
+}
+
+describe('install --mode', () => {
+  beforeEach(() => {
+    mkdirSync(join(tmpHome, '.claude'), { recursive: true });
+  });
+
+  it('on-demand writes no service units, runs no service manager, records the mode, wires hooks', async () => {
+    const rec = recordingSpawn();
+    const { stdout, exit } = await captureOutput(() =>
+      install(['--yes', '--mode', 'on-demand'], rec.fn),
+    );
+    expect(exit).toBe(0);
+    expect(existsSync(flusherPath())).toBe(false);
+    expect(existsSync(shipperPath())).toBe(false);
+    expect(rec.calls).toEqual([]);
+    expect(recordedMode()).toBe('on-demand');
+    expect(stdout).toContain('Wired Claude Code');
+    expect(stdout).toContain('No resident process runs between agent sessions');
+    // The hook written is the launcher.
+    const settings = JSON.parse(readFileSync(join(tmpHome, '.claude', 'settings.json'), 'utf8'));
+    for (const groups of Object.values(settings.hooks) as { hooks: { command: string }[] }[][]) {
+      expect(groups.flatMap((g) => g.hooks.map((h) => h.command))).toEqual([LAUNCHER]);
+    }
+  });
+
+  it('on-demand is guarded like any install: refused from the Bun runtime, nothing recorded or wired', async () => {
+    const { stderr, exit } = await captureOutput(() =>
+      install(['--yes', '--mode', 'on-demand'], recordingSpawn().fn, process.execPath),
+    );
+    expect(exit).toBe(1);
+    expect(stderr).toContain('Refusing to install');
+    expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(false);
+    expect(existsSync(join(tmpHome, '.aiot', 'queue.db'))).toBe(false);
+  });
+
+  it('switching resident -> on-demand stops and removes the resident units', async () => {
+    await captureOutput(() => install(['--no-start', '--no-auto'], recordingSpawn().fn));
+    expect(existsSync(flusherPath())).toBe(true);
+    expect(recordedMode()).toBe('resident');
+
+    const rec = recordingSpawn();
+    const { exit } = await captureOutput(() => install(['--no-auto', '--mode=on-demand'], rec.fn));
+    expect(exit).toBe(0);
+    expect(existsSync(flusherPath())).toBe(false);
+    expect(existsSync(shipperPath())).toBe(false);
+    // The units were stopped, not just deleted.
+    const stopCalls = rec.calls.filter(
+      (c) =>
+        (c[0] === 'launchctl' && c[1] === 'unload') ||
+        (c[0] === 'systemctl' && c.includes('disable')),
+    );
+    expect(stopCalls).toHaveLength(2);
+    expect(recordedMode()).toBe('on-demand');
+  });
+
+  it('records the mode BEFORE removing units: if it cannot be recorded, the daemons are untouched', async () => {
+    await captureOutput(() => install(['--no-start', '--no-auto'], recordingSpawn().fn));
+    expect(existsSync(flusherPath())).toBe(true);
+
+    // The queue can no longer be opened: AIOT_HOME now sits beneath a regular file.
+    const blocker = join(tmpHome, 'not-a-dir');
+    writeFileSync(blocker, 'x');
+    process.env.AIOT_HOME = join(blocker, '.aiot');
+    const rec = recordingSpawn();
+    const { stderr, exit } = await captureOutput(() =>
+      install(['--no-auto', '--mode', 'on-demand'], rec.fn),
+    );
+
+    expect(exit).toBe(1);
+    expect(stderr).toContain('install failed');
+    expect(existsSync(flusherPath())).toBe(true);
+    expect(existsSync(shipperPath())).toBe(true);
+    expect(rec.calls).toEqual([]);
+  });
+
+  it('switching on-demand -> resident records resident before writing units', async () => {
+    await captureOutput(() => install(['--no-auto', '--mode', 'on-demand'], recordingSpawn().fn));
+    expect(recordedMode()).toBe('on-demand');
+    const { exit } = await captureOutput(() =>
+      install(['--no-start', '--no-auto', '--mode', 'resident'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(0);
+    expect(recordedMode()).toBe('resident');
+    expect(existsSync(flusherPath())).toBe(true);
+  });
+
+  // Re-running `aiot install` is the documented upgrade path and how a newly
+  // installed agent gets wired. Without --mode it must not silently turn an
+  // on-demand install back into launchd/systemd services.
+  it('re-running install WITHOUT --mode keeps the recorded mode and writes no units', async () => {
+    await captureOutput(() => install(['--yes', '--mode', 'on-demand'], recordingSpawn().fn));
+    expect(recordedMode()).toBe('on-demand');
+
+    const rec = recordingSpawn();
+    const { exit } = await captureOutput(() => install(['--yes'], rec.fn));
+
+    expect(exit).toBe(0);
+    expect(recordedMode()).toBe('on-demand');
+    expect(existsSync(flusherPath())).toBe(false);
+    expect(existsSync(shipperPath())).toBe(false);
+    expect(rec.calls).toEqual([]);
+  });
+
+  it('wires a newly installed agent without changing the mode', async () => {
+    await captureOutput(() => install(['--yes', '--mode', 'on-demand'], recordingSpawn().fn));
+    mkdirSync(join(tmpHome, '.gemini'), { recursive: true });
+
+    const rec = recordingSpawn();
+    const { stdout, exit } = await captureOutput(() => install(['--yes'], rec.fn));
+
+    expect(exit).toBe(0);
+    expect(stdout).toContain('Wired Gemini');
+    expect(existsSync(join(tmpHome, '.gemini', 'settings.json'))).toBe(true);
+    expect(recordedMode()).toBe('on-demand');
+    expect(existsSync(flusherPath())).toBe(false);
+    expect(rec.calls).toEqual([]);
+  });
+
+  it('with nothing recorded, no --mode still means resident services (the default is unchanged)', async () => {
+    const { exit } = await captureOutput(() =>
+      install(['--no-start', '--no-auto'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(0);
+    expect(recordedMode()).toBe('resident');
+    expect(existsSync(flusherPath())).toBe(true);
+  });
+
+  it('an explicit --mode resident still switches an on-demand install back', async () => {
+    await captureOutput(() => install(['--no-auto', '--mode', 'on-demand'], recordingSpawn().fn));
+    await captureOutput(() =>
+      install(['--no-start', '--no-auto', '--mode', 'resident'], recordingSpawn().fn),
+    );
+    expect(recordedMode()).toBe('resident');
+    expect(existsSync(flusherPath())).toBe(true);
+  });
+
+  it('rejects an unknown mode loudly, before touching anything', async () => {
+    const { stderr, exit } = await captureOutput(() =>
+      install(['--yes', '--mode', 'daemonless'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(1);
+    expect(stderr).toContain('--mode must be');
+    expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(false);
+    expect(existsSync(flusherPath())).toBe(false);
+  });
+
+  it('fails loudly, and wires no hooks, when the mode cannot be recorded', async () => {
+    const blocker = join(tmpHome, 'not-a-dir');
+    writeFileSync(blocker, 'x');
+    process.env.AIOT_HOME = join(blocker, '.aiot');
+    const { stderr, exit } = await captureOutput(() =>
+      install(['--yes', '--mode', 'on-demand'], recordingSpawn().fn),
+    );
+    expect(exit).toBe(1);
+    expect(stderr).toContain('install failed');
     expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(false);
   });
 });
