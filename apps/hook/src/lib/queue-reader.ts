@@ -18,10 +18,19 @@ export const MAX_ATTEMPTS = 10;
 
 /**
  * Rows whose event `ts` is older than this are dropped. With attempts no longer
- * counting offline time, age is what bounds the queue's lifetime. 7 days matches
- * ingest's look-back jobs (link-turn-events, compute-cost-attribution): an event
- * arriving later than that can no longer be linked or priced, so keeping it
- * only delays the flusher.
+ * counting offline time, age is what bounds the queue's lifetime.
+ *
+ * Why 7 days, stated exactly: a late event is NOT worthless on arrival — ingest
+ * still counts it into the session and adds its cost to `total_cost_usd`
+ * (apps/ingest/src/lib/upsert-session.ts, on arrival). What it loses is the
+ * later enrichment: the link-turn-events and compute-cost-attribution jobs look
+ * back 7 days, keyed on `sessions.ended_at`, so an older event is never linked
+ * to its turn or attributed.
+ *
+ * Age is measured from the event's own `ts`, not from when it was enqueued, and
+ * there is deliberately no enqueue-time column. Consequence: a first Stop with
+ * no transcript cursor re-enqueues a long session's old turns with their
+ * original `ts`, and any older than 7 days are expired here rather than sent.
  */
 export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 

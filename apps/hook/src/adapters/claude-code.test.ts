@@ -116,6 +116,20 @@ describe('claudeCodeAdapter install — upgrading an existing 8-hook install', (
     expect(hooks.Stop?.[0]).toEqual(userHook);
     expect(Object.keys(hooks)).toHaveLength(9);
   });
+
+  it('uninstall removes the SessionEnd entry along with the others, keeping user hooks', () => {
+    const settingsPath = join(tmpHome, '.claude', 'settings.json');
+    const userHook = { hooks: [{ command: '/usr/bin/notify-send', type: 'command' }] };
+    writeFileSync(settingsPath, JSON.stringify({ hooks: { SessionEnd: [userHook] } }));
+    const { apply, remove } = claudeCodeAdapter.installConfig();
+    apply?.(BIN);
+    expect(remove?.()).toBe(true);
+
+    const { hooks } = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
+      hooks: Record<string, unknown[]>;
+    };
+    expect(hooks).toEqual({ SessionEnd: [userHook] });
+  });
 });
 
 // P14-010: Claude Code's own PostToolUse hook-input schema carries

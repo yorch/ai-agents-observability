@@ -252,6 +252,20 @@ describe('status', () => {
     expect(stdout).toContain('logged in as octocat');
   });
 
+  it('says AIOT_TOKEN is this shell only, not what the installed services use', async () => {
+    process.env.AIOT_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJlbnYifQ.c2ln';
+    try {
+      const { stdout } = await captureOutputAsync(async () => {
+        await runStatus();
+      });
+      expect(stdout).toContain('AIOT_TOKEN is set in this shell');
+      expect(stdout).toContain('services installed by `aiot install` do not see it');
+      expect(stdout).not.toContain('eyJhbGci');
+    } finally {
+      delete process.env.AIOT_TOKEN;
+    }
+  });
+
   it('reports paused state when marker exists', async () => {
     writeFileSync(join(tmpHome, 'paused'), '');
     const { stdout } = await captureOutputAsync(async () => {

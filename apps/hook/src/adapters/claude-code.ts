@@ -170,8 +170,9 @@ function writeCursor(sessionId: string, cursor: TurnCursor): void {
 /**
  * Sweep cursors for sessions that have not been written to in {@link CURSOR_TTL_MS}.
  *
- * Claude Code registers no SessionEnd hook, so unlike codex and gemini there is no
- * moment at which a session's state can be dropped on purpose — without a sweep
+ * Nothing drops a session's cursor when the session ends: the SessionEnd hook is
+ * registered but only emits an event and a ship marker, it does not clean up
+ * adapter state (and a killed session never fires it) — without a sweep
  * the directory grows one small file per session forever. Called ONLY on the first
  * Stop of a session (when no cursor existed), so it is one readdir per session,
  * never per turn and never on the tool hot path. Best-effort throughout: a

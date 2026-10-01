@@ -30,7 +30,10 @@ export async function runStatus(): Promise<number> {
     // identity.json missing or unreadable
   }
   if (process.env.AIOT_TOKEN?.trim()) {
-    authLine = 'token from AIOT_TOKEN';
+    // This is the SHELL's environment. The launchd/systemd services written by
+    // `aiot install` do not inherit it, so they still need `aiot login`.
+    authLine =
+      'AIOT_TOKEN is set in this shell (services installed by `aiot install` do not see it)';
   }
 
   // ── Paused ────────────────────────────────────────────────────────────────────

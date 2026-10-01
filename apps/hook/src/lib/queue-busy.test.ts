@@ -8,10 +8,16 @@ import { openQueue } from './queue';
 import { openQueueReader } from './queue-reader';
 
 // bun:sqlite's busy_timeout defaults to 0, so a writer that met another writer
-// failed instantly with SQLITE_BUSY: the hook dropped the event, and the flusher
-// loop (which has no try/catch around the reader) crashed. The competing writer
-// is a separate process holding the lock for 60ms.
+// failed instantly with SQLITE_BUSY: the hook dropped the event, and in the
+// flusher a throw from drain/dropExpired (the only reader calls outside its
+// inner try) escaped the loop. The competing writer is a separate process
+// holding the lock for HOLD_MS; each test also asserts the call really waited, so
+// a lock holder that was slow to start cannot make it pass vacuously.
 
+// Shorter than the hook's 100ms busy_timeout, longer than any plausible gap
+// between the holder's 'locked' line and the call under test.
+const HOLD_MS = 70;
+const MIN_WAIT_MS = 30;
 const HOLDER = join(import.meta.dir, 'queue-lock-holder.ts');
 
 let tmpHome: string;
@@ -27,7 +33,7 @@ afterEach(() => {
 });
 
 async function holdWriteLock(dbPath: string): Promise<{ released: Promise<number> }> {
-  const proc = Bun.spawn([process.execPath, HOLDER, dbPath, '60'], { stdout: 'pipe' });
+  const proc = Bun.spawn([process.execPath, HOLDER, dbPath, String(HOLD_MS)], { stdout: 'pipe' });
   const out = proc.stdout.getReader();
   await out.read(); // printed once the holder owns the write lock
   out.releaseLock();
@@ -46,6 +52,7 @@ describe('write contention', () => {
     const q = openQueue(); // creates the schema
     const { released } = await holdWriteLock(`${tmpHome}/queue.db`);
 
+    const t0 = performance.now();
     expect(() =>
       q.enqueue({
         event_id: EVENT.event_id,
@@ -53,6 +60,7 @@ describe('write contention', () => {
         ts: new Date().toISOString(),
       }),
     ).not.toThrow();
+    expect(performance.now() - t0).toBeGreaterThanOrEqual(MIN_WAIT_MS);
     q.close();
     await released;
 
@@ -73,7 +81,9 @@ describe('write contention', () => {
     const reader = openQueueReader(`${tmpHome}/queue.db`);
     const { released } = await holdWriteLock(`${tmpHome}/queue.db`);
 
+    const t0 = performance.now();
     expect(() => reader.markAttempt([EVENT.event_id])).not.toThrow();
+    expect(performance.now() - t0).toBeGreaterThanOrEqual(MIN_WAIT_MS);
     reader.close();
     await released;
   });
