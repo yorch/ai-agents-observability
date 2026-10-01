@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { getFlusherStatus, runFlusher } from './flusher';
+import { getFlusherStatus, HEALTH_PROBE_TIMEOUT_MS, runFlusher } from './flusher';
 import * as identity from './lib/identity';
 import * as project from './lib/project';
 import * as queueReader from './lib/queue-reader';
@@ -355,8 +355,16 @@ describe('flusher timeouts and robustness', () => {
       port: 0,
     });
     process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    // Shorten the batch POST's timeout so a hung server is cheap to wait out. The
+    // /health probe is a different timeout: when /health is healthy it answers at
+    // once, so it keeps a generous bound — shrinking it too makes the probe race
+    // a loaded runner and lose, which counts as 'server unreachable' and costs an
+    // extra POST (CI saw 11 POSTs, not MAX_ATTEMPTS). Only a dead /health needs
+    // the short bound, because it never answers.
     const realTimeout = AbortSignal.timeout.bind(AbortSignal);
-    const timeoutSpy = spyOn(AbortSignal, 'timeout').mockImplementation(() => realTimeout(40));
+    const timeoutSpy = spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) =>
+      realTimeout(ms === HEALTH_PROBE_TIMEOUT_MS && healthy ? 2_000 : 40),
+    );
     try {
       await runUntil(done);
     } finally {

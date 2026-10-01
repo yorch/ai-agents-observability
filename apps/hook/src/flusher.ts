@@ -28,7 +28,7 @@ const IDLE_INTERVAL_MS = 5_000;
 const UNAUTHORIZED_RETRY_MS = 60_000;
 const EXPIRY_INTERVAL_MS = 60_000;
 /** Wall-clock bound on the /health probe that follows a timed-out batch POST. */
-const HEALTH_PROBE_TIMEOUT_MS = 5_000;
+export const HEALTH_PROBE_TIMEOUT_MS = 5_000;
 /** Consecutive iteration-level throws on one head event before it is charged attempts. */
 const THROW_COUNT_BEFORE_ATTEMPTS = 5;
 const HIGH_WATER_MARK = 50;
