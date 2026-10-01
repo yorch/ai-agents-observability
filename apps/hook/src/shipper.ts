@@ -12,7 +12,7 @@ import {
 import { join } from 'node:path';
 import { createZstdCompress } from 'node:zlib';
 
-import { loadHookToken, reauthHint } from './lib/identity';
+import { loadHookToken, REJECTED_TOKEN_REPROBE_MS, reauthHint } from './lib/identity';
 import { getIngestBaseUrl } from './lib/ingest';
 import { log } from './lib/log';
 import { shipQueueDir } from './lib/paths';
@@ -34,14 +34,6 @@ const MAX_BYTES_PER_SEC = 5 * 1024 * 1024;
 // transcript (server 500s, unreadable file) must not be re-read/re-uploaded
 // forever every sweep.
 const MAX_SHIP_ATTEMPTS = 10;
-
-// Max age for transient outcomes (404/409/429) that DON'T bump the attempt
-// counter. These are normally short-lived ordering/backpressure, but a 404 can
-// also be permanent (bad session id, the session was deleted, or ingest cleaned
-// it up), in which case the marker would otherwise retry forever. After this age
-// we give up. Generous so a slow/offline flusher backfilling the session row
-// still wins.
-const MAX_TRANSIENT_AGE_MS = 24 * 60 * 60 * 1_000; // 24h
 
 // ── Ship marker ───────────────────────────────────────────────────────────────
 
@@ -73,7 +65,7 @@ export type ShipMarker = {
  * session calls this repeatedly — and a fresh marker each time reset `attempts`
  * to 0 and `first_seen_at` to now. Both give-up conditions are measured from
  * exactly those fields, so in any session still doing work neither
- * MAX_SHIP_ATTEMPTS nor MAX_TRANSIENT_AGE_MS could ever be reached: a transcript
+ * MAX_SHIP_ATTEMPTS nor a first_seen_at age check could ever be reached: a transcript
  * the server permanently rejects was re-read, re-redacted, re-compressed and
  * re-uploaded every sweep for the life of the session.
  *
@@ -211,28 +203,9 @@ function updateMarkerProgress(
 }
 
 /**
- * Handle a transient outcome (404/409/429) that should keep retrying without
- * burning the attempt budget — but abandon the marker once it's older than
- * MAX_TRANSIENT_AGE_MS, so a permanently-absent session (deleted, bad id, or
- * ingest cleanup) can't loop forever. Returns true if the marker was abandoned.
- */
-function keepOrAbandonStale(marker: ShipMarker, reason: string): boolean {
-  const firstSeen = marker.first_seen_at ? Date.parse(marker.first_seen_at) : Number.NaN;
-  if (!Number.isNaN(firstSeen) && Date.now() - firstSeen > MAX_TRANSIENT_AGE_MS) {
-    deleteMarker(marker.session_id);
-    log('error', 'shipper.abandoned_stale', {
-      ageMs: Date.now() - firstSeen,
-      reason,
-      session_id: marker.session_id,
-    });
-    return true;
-  }
-  return false;
-}
-
-/**
- * Hold a marker through an outage (offline, or a rejected token) that says
- * nothing about the transcript, so no attempt is burned — but give up once the
+ * Hold a marker through an outage or a transient answer (offline, a rejected
+ * token, 404/409/429) that says nothing about the transcript, so no attempt is
+ * burned — but give up once the
  * marker has been idle for MAX_AGE_MS, the same 7-day horizon as the flusher's
  * event expiry, so transcripts and events are lost on one schedule.
  *
@@ -509,22 +482,25 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
       // it (e.g. the flusher is behind or offline). Transient ordering, NOT bad
       // data: keep the marker and retry WITHOUT consuming the attempt budget, so
       // a slow/offline flusher can't cause valid transcripts to be dropped. But a
-      // 404 can also be permanent (deleted/unknown session), so age the marker
-      // out after MAX_TRANSIENT_AGE_MS instead of looping forever.
-      if (!keepOrAbandonStale(currentMarker, 'session_not_ready')) {
+      // 404 can also be permanent (deleted/unknown session), so abandon the
+      // marker once it has been idle MAX_AGE_MS instead of looping forever. That
+      // is the flusher's event horizon on purpose: after a long logout the
+      // flusher is still catching up on a backlog, and a shorter clock here (it
+      // used to be 24h of first_seen_at) deleted transcripts on their first 404.
+      if (!holdUnlessIdle(currentMarker, 'session_not_ready')) {
         log('info', 'shipper.session_not_ready', { session_id, status: res.status });
       }
     } else if (res.status === 409) {
       // Conflict (e.g. missing prior chunk) — transient ordering; keep + retry,
-      // no attempt bump (aged out after MAX_TRANSIENT_AGE_MS).
-      if (!keepOrAbandonStale(currentMarker, 'conflict')) {
+      // no attempt bump (abandoned after MAX_AGE_MS idle).
+      if (!holdUnlessIdle(currentMarker, 'conflict')) {
         log('info', 'shipper.conflict', { session_id, status: res.status });
       }
     } else if (res.status === 429) {
       // Rate-limited — explicit server backpressure, NOT a failure. Keep the
       // marker and retry next sweep without counting toward the attempt cap
-      // (aged out after MAX_TRANSIENT_AGE_MS).
-      if (!keepOrAbandonStale(currentMarker, 'rate_limited')) {
+      // (abandoned after MAX_AGE_MS idle).
+      if (!holdUnlessIdle(currentMarker, 'rate_limited')) {
         log('warn', 'shipper.rate_limited', { session_id, status: res.status });
       }
     } else if (res.status === 401) {
@@ -589,6 +565,9 @@ export async function runShipper(): Promise<void> {
     // best-effort
   }
 
+  let rejectedToken: string | null = null;
+  let rejectedAt = 0;
+
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const markers = readMarkers();
@@ -605,8 +584,19 @@ export async function runShipper(): Promise<void> {
       continue;
     }
 
+    // A token ingest rejected would only be rejected again — after reading,
+    // redacting and compressing a whole transcript to find out. Skip the sweep
+    // until the token changes (or the re-probe interval passes).
+    if (jwt === rejectedToken && Date.now() - rejectedAt < REJECTED_TOKEN_REPROBE_MS) {
+      await Bun.sleep(SWEEP_INTERVAL_MS);
+      continue;
+    }
+
+    rejectedToken = null;
     for (const marker of markers) {
       if (await processMarker(marker, jwt)) {
+        rejectedToken = jwt;
+        rejectedAt = Date.now();
         break;
       }
     }

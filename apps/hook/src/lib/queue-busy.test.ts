@@ -11,13 +11,16 @@ import { openQueueReader } from './queue-reader';
 // failed instantly with SQLITE_BUSY: the hook dropped the event, and in the
 // flusher a throw from drain/dropExpired (the only reader calls outside its
 // inner try) escaped the loop. The competing writer is a separate process
-// holding the lock for HOLD_MS; each test also asserts the call really waited, so
-// a lock holder that was slow to start cannot make it pass vacuously.
+// holding the lock; each test also asserts the call returned only after the
+// holder's own lock-acquired timestamp plus the hold, so it cannot pass without
+// having waited on the lock.
 
-// Shorter than the hook's 100ms busy_timeout, longer than any plausible gap
-// between the holder's 'locked' line and the call under test.
-const HOLD_MS = 70;
-const MIN_WAIT_MS = 30;
+// The hook's busy_timeout is 100ms, so its hold must be shorter than that; the
+// flusher's is 5000ms, so its hold can be long enough to be insensitive to
+// scheduling jitter.
+const HOOK_HOLD_MS = 70;
+const READER_HOLD_MS = 300;
+const CLOCK_SLACK_MS = 5;
 const HOLDER = join(import.meta.dir, 'queue-lock-holder.ts');
 
 let tmpHome: string;
@@ -32,12 +35,15 @@ afterEach(() => {
   delete process.env.AIOT_HOME;
 });
 
-async function holdWriteLock(dbPath: string): Promise<{ released: Promise<number> }> {
-  const proc = Bun.spawn([process.execPath, HOLDER, dbPath, String(HOLD_MS)], { stdout: 'pipe' });
+async function holdWriteLock(
+  dbPath: string,
+  holdMs: number,
+): Promise<{ released: Promise<number>; releaseAt: number }> {
+  const proc = Bun.spawn([process.execPath, HOLDER, dbPath, String(holdMs)], { stdout: 'pipe' });
   const out = proc.stdout.getReader();
-  await out.read(); // printed once the holder owns the write lock
+  const line = new TextDecoder().decode((await out.read()).value); // `locked <epoch ms>`
   out.releaseLock();
-  return { released: proc.exited };
+  return { releaseAt: Number(line.split(' ')[1]) + holdMs, released: proc.exited };
 }
 
 const EVENT = {
@@ -50,9 +56,8 @@ const EVENT = {
 describe('write contention', () => {
   it('hook enqueue waits out a competing write instead of failing with SQLITE_BUSY', async () => {
     const q = openQueue(); // creates the schema
-    const { released } = await holdWriteLock(`${tmpHome}/queue.db`);
+    const { released, releaseAt } = await holdWriteLock(`${tmpHome}/queue.db`, HOOK_HOLD_MS);
 
-    const t0 = performance.now();
     expect(() =>
       q.enqueue({
         event_id: EVENT.event_id,
@@ -60,7 +65,7 @@ describe('write contention', () => {
         ts: new Date().toISOString(),
       }),
     ).not.toThrow();
-    expect(performance.now() - t0).toBeGreaterThanOrEqual(MIN_WAIT_MS);
+    expect(Date.now()).toBeGreaterThanOrEqual(releaseAt - CLOCK_SLACK_MS);
     q.close();
     await released;
 
@@ -79,11 +84,10 @@ describe('write contention', () => {
     q.close();
 
     const reader = openQueueReader(`${tmpHome}/queue.db`);
-    const { released } = await holdWriteLock(`${tmpHome}/queue.db`);
+    const { released, releaseAt } = await holdWriteLock(`${tmpHome}/queue.db`, READER_HOLD_MS);
 
-    const t0 = performance.now();
     expect(() => reader.markAttempt([EVENT.event_id])).not.toThrow();
-    expect(performance.now() - t0).toBeGreaterThanOrEqual(MIN_WAIT_MS);
+    expect(Date.now()).toBeGreaterThanOrEqual(releaseAt - CLOCK_SLACK_MS);
     reader.close();
     await released;
   });

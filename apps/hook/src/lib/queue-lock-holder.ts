@@ -8,7 +8,9 @@ const [dbPath, holdMs] = process.argv.slice(2);
 const db = new Database(dbPath ?? '');
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec('BEGIN IMMEDIATE');
-process.stdout.write('locked\n');
+// The timestamp lets the test reason about when the lock was actually taken, not
+// about when its stdout happened to be read.
+process.stdout.write(`locked ${Date.now()}\n`);
 await Bun.sleep(Number(holdMs));
 db.exec('COMMIT');
 db.close();

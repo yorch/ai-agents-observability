@@ -11,8 +11,10 @@ export type QueueRow = {
 
 /**
  * Max server rejections (5xx, non-401/429 4xx) before a row is abandoned
- * (dropped) by the flusher. Network errors, timeouts and 429s never count — see
- * the flusher loop — so being offline cannot burn this budget.
+ * (dropped) by the flusher, plus request timeouts when /health shows the server
+ * is up (so the batch itself is the problem). Connection errors, timeouts with
+ * the server unreachable, and 429s never count — see the flusher loop — so being
+ * offline cannot burn this budget.
  */
 export const MAX_ATTEMPTS = 10;
 

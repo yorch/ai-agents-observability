@@ -665,10 +665,11 @@ describe('shipper outage handling', () => {
   }
 
   /** Run `sweeps` sweeps of the real loop (each ends in one Bun.sleep). */
-  async function runSweeps(sweeps: number): Promise<void> {
+  async function runSweeps(sweeps: number, onSleep?: (n: number) => void): Promise<void> {
     class Stop extends Error {}
     let n = 0;
     const spy = spyOn(Bun, 'sleep').mockImplementation((async () => {
+      onSleep?.(n + 1);
       if (++n >= sweeps) {
         throw new Stop();
       }
@@ -759,5 +760,74 @@ describe('shipper outage handling', () => {
     dead.stop(true);
     await runSweeps(1);
     expect(existsSync(marker)).toBe(false);
+  });
+
+  it('keeps a long-lived session marker on 404 (the flusher may still be catching up)', async () => {
+    setToken();
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 3_600_000).toISOString();
+    const marker = stage(S1, threeDaysAgo);
+    const server = Bun.serve({ fetch: () => new Response('no session', { status: 404 }), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runSweeps(1);
+    } finally {
+      server.stop(true);
+    }
+    expect(existsSync(marker)).toBe(true);
+  });
+
+  it('skips whole sweeps while the token is the rejected one, retrying a changed token at once', async () => {
+    setToken();
+    stage(S1);
+    const auths: Array<string | null> = [];
+    const server = Bun.serve({
+      fetch: (req) => {
+        auths.push(req.headers.get('authorization'));
+        return new Response('no', { status: 401 });
+      },
+      port: 0,
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runSweeps(5, (n) => {
+        if (n === 3) {
+          writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'newer-jwt' }));
+        }
+      });
+    } finally {
+      server.stop(true);
+    }
+    // sweep 1 probes (401); sweeps 2-3 skip; token changes; sweep 4 probes the new
+    // token (401); sweep 5 skips. No transcript is read or uploaded on a skip.
+    expect(auths).toEqual(['Bearer some-jwt', 'Bearer newer-jwt']);
+  });
+
+  it('re-probes a rejected token after 15 minutes', async () => {
+    setToken();
+    stage(S1);
+    let requests = 0;
+    const server = Bun.serve({
+      fetch: () => {
+        requests++;
+        return new Response('no', { status: 401 });
+      },
+      port: 0,
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    const realNow = Date.now.bind(Date);
+    let skew = 0;
+    const nowSpy = spyOn(Date, 'now').mockImplementation(() => realNow() + skew);
+    try {
+      await runSweeps(4, (n) => {
+        if (n === 2) {
+          skew = 16 * 60_000;
+        }
+      });
+    } finally {
+      nowSpy.mockRestore();
+      server.stop(true);
+    }
+    // sweep 1 probes; sweep 2 skips; the clock jumps 16 min; sweep 3 re-probes.
+    expect(requests).toBe(2);
   });
 });

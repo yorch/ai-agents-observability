@@ -26,6 +26,13 @@ export function userIdClaim(): string {
 }
 
 /**
+ * How long the flusher and shipper trust "ingest rejected this token" before
+ * trying it once more (a token can be un-revoked, or the 401 can be ingest's own
+ * misconfiguration fixed server-side). A CHANGED token is tried immediately.
+ */
+export const REJECTED_TOKEN_REPROBE_MS = 15 * 60_000;
+
+/**
  * What to tell the user when ingest rejects the token. `aiot login` rewrites
  * identity.json, which AIOT_TOKEN overrides, so it cannot fix an env token.
  */

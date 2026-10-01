@@ -6,6 +6,8 @@ import { join } from 'node:path';
 
 import { getFlusherStatus, runFlusher } from './flusher';
 import * as identity from './lib/identity';
+import * as project from './lib/project';
+import * as queueReader from './lib/queue-reader';
 import { MAX_AGE_MS, MAX_ATTEMPTS, openQueueReader } from './lib/queue-reader';
 
 // These drive the REAL flusher loop (not a re-implementation of it). Bun.sleep
@@ -213,6 +215,7 @@ describe('flusher 401', () => {
     writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'stale-jwt' }));
 
     let stateAfterFirst401: ReturnType<typeof getFlusherStatus> | undefined;
+    let finalError: string | null | undefined;
     let sleeps: number[] = [];
     try {
       sleeps = await runUntil((s) => {
@@ -221,6 +224,9 @@ describe('flusher 401', () => {
           // must have said why. Then the user re-authenticates.
           stateAfterFirst401 = getFlusherStatus();
           writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'fresh-jwt' }));
+        }
+        if (s.length > 1) {
+          finalError = getFlusherStatus().lastError;
         }
         return s.length > 1;
       });
@@ -235,7 +241,7 @@ describe('flusher 401', () => {
     const reader = openQueueReader(dbPath);
     expect(reader.depth()).toBe(0);
     reader.close();
-    expect(getFlusherStatus().lastError).toBeNull();
+    expect(finalError).toBeNull();
   });
 
   it('does not drain, enrich or POST again while the token is the rejected one', async () => {
@@ -249,14 +255,64 @@ describe('flusher 401', () => {
       port: 0,
     });
     process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    // Count drains: the token check must come BEFORE the drain (and so before
+    // enrichment, which runs after it), not merely before the POST.
+    let drains = 0;
+    const realOpen = queueReader.openQueueReader;
+    const openSpy = spyOn(queueReader, 'openQueueReader').mockImplementation((p: string) => {
+      const reader = realOpen(p);
+      const realDrain = reader.drain.bind(reader);
+      reader.drain = (n: number) => {
+        drains++;
+        return realDrain(n);
+      };
+      return reader;
+    });
     let sleeps: number[] = [];
     try {
       sleeps = await runUntil((s) => s.length >= 4);
     } finally {
+      openSpy.mockRestore();
       server.stop(true);
     }
     expect(posts).toBe(1);
+    expect(drains).toBe(1);
     expect(sleeps).toEqual([60_000, 60_000, 60_000, 60_000]);
+  });
+
+  it('re-probes a rejected token after 15 minutes, and a changed token at once', async () => {
+    seedQueue(2);
+    const auths: Array<string | null> = [];
+    const server = Bun.serve({
+      fetch: (req) => {
+        auths.push(req.headers.get('authorization'));
+        return new Response('expired', { status: 401 });
+      },
+      port: 0,
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    // Virtual clock: the loop reads Date.now(); the sleep hook advances it.
+    const realNow = Date.now.bind(Date);
+    let skew = 0;
+    const nowSpy = spyOn(Date, 'now').mockImplementation(() => realNow() + skew);
+    try {
+      await runUntil((s) => {
+        skew += s[s.length - 1] ?? 0;
+        if (s.length === 16) {
+          writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'newer-jwt' }));
+        }
+        return s.length >= 17;
+      });
+    } finally {
+      nowSpy.mockRestore();
+      server.stop(true);
+    }
+    // 60s sleeps x15 reach the 15-minute re-probe once (POST #2), a further 15
+    // would be needed for a third; the swapped token is POSTed immediately.
+    expect(auths[0]).toBe('Bearer test-jwt-token');
+    expect(auths[1]).toBe('Bearer test-jwt-token');
+    expect(auths.at(-1)).toBe('Bearer newer-jwt');
+    expect(auths.filter((a) => a === 'Bearer test-jwt-token')).toHaveLength(2);
   });
 
   it('names AIOT_TOKEN in the error when the rejected token came from the environment', async () => {
@@ -264,23 +320,35 @@ describe('flusher 401', () => {
     const server = Bun.serve({ fetch: () => new Response('no', { status: 401 }), port: 0 });
     process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
     process.env.AIOT_TOKEN = 'env-jwt';
+    let lastError = null as string | null;
     try {
-      await runUntil(() => true);
+      await runUntil(() => {
+        // Read before the stop sentinel, which the loop's own catch would record.
+        lastError = getFlusherStatus().lastError;
+        return true;
+      });
     } finally {
       server.stop(true);
       delete process.env.AIOT_TOKEN;
     }
-    expect(getFlusherStatus().lastError).toContain('AIOT_TOKEN');
+    expect(lastError).toContain('AIOT_TOKEN');
   });
 });
 
 describe('flusher timeouts and robustness', () => {
-  it('counts a TimeoutError toward the cap and drops the batch at it', async () => {
+  // A server that takes the batch and never answers it. `healthy` says whether
+  // /health still answers — i.e. whether the server is reachable at all.
+  async function runAgainstHungBatches(
+    healthy: boolean,
+    done: (sleeps: number[]) => boolean,
+  ): Promise<{ posts: number; dbPath: string }> {
     const dbPath = seedQueue(3);
     let posts = 0;
     const server = Bun.serve({
-      // Accepts the request and never answers: the server is reachable.
-      fetch: () => {
+      fetch: (req) => {
+        if (new URL(req.url).pathname === '/health') {
+          return healthy ? new Response('ok') : new Promise<Response>(() => {});
+        }
         posts++;
         return new Promise<Response>(() => {});
       },
@@ -290,14 +358,80 @@ describe('flusher timeouts and robustness', () => {
     const realTimeout = AbortSignal.timeout.bind(AbortSignal);
     const timeoutSpy = spyOn(AbortSignal, 'timeout').mockImplementation(() => realTimeout(40));
     try {
-      await runUntil((s) => s.length > MAX_ATTEMPTS + 5);
+      await runUntil(done);
     } finally {
       timeoutSpy.mockRestore();
       server.stop(true);
     }
+    return { dbPath, posts };
+  }
+
+  it('counts a timeout toward the cap when /health shows the server is up', async () => {
+    const { dbPath, posts } = await runAgainstHungBatches(true, (s) => s.length > MAX_ATTEMPTS + 5);
     expect(posts).toBe(MAX_ATTEMPTS);
     const reader = openQueueReader(dbPath);
     expect(reader.depth()).toBe(0);
+    reader.close();
+  });
+
+  it('does NOT count a timeout when /health is dead too (path down, not the batch)', async () => {
+    const { dbPath } = await runAgainstHungBatches(false, (s) => sum(s) > 20 * 60_000);
+    const reader = openQueueReader(dbPath);
+    expect(reader.depth()).toBe(3);
+    expect(reader.drain(10).every((r) => r.attempts === 0)).toBe(true);
+    reader.close();
+  });
+
+  it('records the error and a heartbeat when an iteration throws', async () => {
+    seedQueue(1);
+    const spy = spyOn(identity, 'loadHookToken').mockImplementation(() => {
+      throw new Error('disk I/O error');
+    });
+    let state: ReturnType<typeof getFlusherStatus> | undefined;
+    try {
+      await runUntil(() => {
+        state = getFlusherStatus();
+        return true;
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(state?.lastError).toBe('Internal error: disk I/O error');
+    expect(state?.lastHeartbeatAt).not.toBeNull();
+  });
+
+  it('eventually drops a batch that makes every iteration throw', async () => {
+    const dbPath = seedQueue(3);
+    const server = Bun.serve({ fetch: () => new Response('{}', { status: 200 }), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    // Enrichment runs after drain and before the POST; make it choke every time.
+    const spy = spyOn(project, 'getProjectName').mockImplementation(() => {
+      throw new Error('cannot read package.json');
+    });
+    try {
+      await runUntil((s) => s.length > 20);
+    } finally {
+      spy.mockRestore();
+      server.stop(true);
+    }
+    const reader = openQueueReader(dbPath);
+    expect(reader.depth()).toBe(0);
+    reader.close();
+  });
+
+  it('does not charge rows when the throw happens before the batch is drained', async () => {
+    const dbPath = seedQueue(3);
+    const spy = spyOn(identity, 'loadHookToken').mockImplementation(() => {
+      throw new Error('boom');
+    });
+    try {
+      await runUntil((s) => s.length > 20);
+    } finally {
+      spy.mockRestore();
+    }
+    const reader = openQueueReader(dbPath);
+    expect(reader.depth()).toBe(3);
+    expect(reader.drain(10).every((r) => r.attempts === 0)).toBe(true);
     reader.close();
   });
 
