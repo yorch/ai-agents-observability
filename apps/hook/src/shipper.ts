@@ -7,16 +7,19 @@ import {
   renameSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { createZstdCompress } from 'node:zlib';
 
+import { backoffMs } from './lib/backoff';
 import { loadHookToken, REJECTED_TOKEN_REPROBE_MS, reauthHint } from './lib/identity';
 import { getIngestBaseUrl } from './lib/ingest';
+import { withLease } from './lib/lease';
 import { log } from './lib/log';
-import { shipQueueDir } from './lib/paths';
-import { MAX_AGE_MS } from './lib/queue-reader';
+import { queuePath, shipQueueDir } from './lib/paths';
+import { MAX_AGE_MS, openQueueReader } from './lib/queue-reader';
 import {
   collateDirectory,
   collatedPathFor,
@@ -26,6 +29,8 @@ import {
 import { redactedLines } from './lib/transcript-stream';
 
 const SWEEP_INTERVAL_MS = 10 * 60 * 1_000; // 10 minutes
+// When another delivery process holds the lease, look again after this.
+const LEASE_RETRY_MS = 5_000;
 
 // Bandwidth throttle: max 5 MB/s
 const MAX_BYTES_PER_SEC = 5 * 1024 * 1024;
@@ -34,6 +39,18 @@ const MAX_BYTES_PER_SEC = 5 * 1024 * 1024;
 // transcript (server 500s, unreadable file) must not be re-read/re-uploaded
 // forever every sweep.
 const MAX_SHIP_ATTEMPTS = 10;
+
+// On-demand (`aiot drain`) cadence. Claude Code's Stop fires once per response
+// cycle and every upload re-sends the WHOLE redacted transcript, so a drainer
+// spawned from each Stop would upload a growing file dozens of times a session.
+// Instead a session's transcript ships when it ends, when it has gone quiet, or
+// when the last upload is old. The resident shipper keeps its own cadence.
+const SHIP_INTERVAL_MS = 10 * 60 * 1_000;
+const IDLE_AFTER_MS = 5 * 60 * 1_000;
+// A retained (already shipped, not re-dirtied) marker is bookkeeping only.
+const SHIPPED_MARKER_TTL_MS = 24 * 60 * 60 * 1_000;
+// Hold-off for outcomes that are not the transcript's fault.
+const TRANSIENT_DEFER_MS = 60_000;
 
 // ── Ship marker ───────────────────────────────────────────────────────────────
 
@@ -59,6 +76,14 @@ export type ShipMarker = {
    * do not touch it, so a changed value means the marker was rewritten, not
    * merely progressed. Absent on markers written by older versions. */
   updated_at?: string;
+  /** Set by SessionEnd: nothing more will be appended, ship it now. */
+  final?: boolean;
+  /** ISO timestamp of the last successful upload; drives the on-demand cadence. */
+  last_shipped_at?: string;
+  /** False once shipped and not touched by a hook since (on-demand only). Absent means dirty. */
+  dirty?: boolean;
+  /** ISO timestamp before which this marker is not retried; persisted so a new process honours it. */
+  next_attempt_at?: string;
 };
 
 /**
@@ -78,7 +103,12 @@ export type ShipMarker = {
  * previous upload no longer describes this file, and the compressed body
  * it was derived from is stale.
  */
-export function writeShipMarker(sessionId: string, transcriptPath: string, partial: boolean): void {
+export function writeShipMarker(
+  sessionId: string,
+  transcriptPath: string,
+  partial: boolean,
+  opts: { final?: boolean } = {},
+): void {
   try {
     const dir = shipQueueDir();
     // 0o700 like every other per-session state dir — this holds session ids and
@@ -96,6 +126,9 @@ export function writeShipMarker(sessionId: string, transcriptPath: string, parti
       transcript_path: transcriptPath,
       updated_at: new Date().toISOString(),
       ...(prior?.attempts !== undefined ? { attempts: prior.attempts } : {}),
+      ...(prior?.last_shipped_at ? { last_shipped_at: prior.last_shipped_at } : {}),
+      ...(prior?.next_attempt_at ? { next_attempt_at: prior.next_attempt_at } : {}),
+      ...(opts.final || prior?.final ? { final: true } : {}),
     };
     // tmp + rename, as `recordRetryableFailure` already does below: a crash
     // mid-write must not leave a truncated marker, which the reader skips —
@@ -112,6 +145,56 @@ export function writeShipMarker(sessionId: string, transcriptPath: string, parti
       sessionId,
     });
   }
+}
+
+/**
+ * Flag a session's marker as final (SessionEnd). Adapters that only write a
+ * marker on Stop (Claude Code) never see the end of a session otherwise, and the
+ * on-demand shipper would hold the last upload back until the session went idle.
+ */
+export function markShipFinal(sessionId: string): void {
+  try {
+    const path = join(shipQueueDir(), `${sessionId}.json`);
+    const prior = readMarkerAt(path);
+    if (!prior || prior.final) {
+      return;
+    }
+    const tmpPath = `${path}.tmp`;
+    // Bump updated_at as any hook write does: an upload in flight when the session
+    // ends must see the marker as rewritten (superseded), or it would retain a
+    // clean marker with `final` dropped and the final transcript would never ship.
+    writeFileSync(
+      tmpPath,
+      JSON.stringify(
+        {
+          ...withoutResumeState(prior),
+          bytes_uploaded: 0,
+          final: true,
+          updated_at: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+      {
+        encoding: 'utf8',
+        mode: 0o600,
+      },
+    );
+    renameSync(tmpPath, path);
+  } catch (err) {
+    log('warn', 'shipper.mark_final_failed', { message: (err as Error).message, sessionId });
+  }
+}
+
+/**
+ * A hook write invalidates resume state (the transcript has grown, so the compressed
+ * body — and the offset into it — no longer describes the file). writeShipMarker
+ * drops it; so must markShipFinal, or a superseded final upload resumes at a stale
+ * offset and costs a 409.
+ */
+function withoutResumeState(m: ShipMarker): ShipMarker {
+  const { body_hash: _h, body_size: _s, ...rest } = m;
+  return rest;
 }
 
 /** One marker by path, or null when absent/unreadable. */
@@ -141,6 +224,48 @@ function readMarkers(): ShipMarker[] {
   return markers;
 }
 
+function nextAttemptIn(ms: number): string {
+  return new Date(Date.now() + ms).toISOString();
+}
+
+/** Marker is eligible now unless a previous process scheduled a later retry. */
+function isDue(marker: ShipMarker, now = Date.now()): boolean {
+  const at = marker.next_attempt_at ? Date.parse(marker.next_attempt_at) : Number.NaN;
+  return Number.isNaN(at) || at <= now;
+}
+
+/**
+ * Hold a marker back WITHOUT consuming its attempt budget — for outcomes that are
+ * the server's or the network's state, not the transcript's. Persisted, so the
+ * next process (an on-demand drainer has no memory) honours it.
+ */
+function deferMarker(marker: ShipMarker, ms = TRANSIENT_DEFER_MS): void {
+  try {
+    const finalPath = join(shipQueueDir(), `${marker.session_id}.json`);
+    const onDisk = readMarkerAt(finalPath);
+    // A newer Stop (or the SessionEnd) rewrote the marker since this snapshot: that
+    // turn did not fail, so it is not held back — writeShipMarker carries
+    // next_attempt_at forward and would otherwise delay it a minute.
+    if (!onDisk || onDisk.updated_at !== marker.updated_at) {
+      return;
+    }
+    const before = statSync(finalPath);
+    const tmpPath = `${finalPath}.tmp`;
+    writeFileSync(
+      tmpPath,
+      JSON.stringify({ ...onDisk, next_attempt_at: nextAttemptIn(ms) }, null, 2),
+      { encoding: 'utf8', mode: 0o600 },
+    );
+    renameSync(tmpPath, finalPath);
+    // Not activity: holdUnlessIdle reads this file's mtime as "last touched by a
+    // hook", and a deferral every few minutes must not keep an abandoned
+    // session's marker alive forever.
+    utimesSync(finalPath, before.atime, before.mtime);
+  } catch {
+    // best-effort
+  }
+}
+
 function deleteMarker(sessionId: string): void {
   // { force: true } suppresses ENOENT; other errors (EACCES etc.) still throw.
   rmSync(join(shipQueueDir(), `${sessionId}.json`), { force: true });
@@ -168,10 +293,18 @@ function recordRetryableFailure(marker: ShipMarker, reason: string): boolean {
       return false;
     }
     const tmpPath = `${finalPath}.tmp`;
-    writeFileSync(tmpPath, JSON.stringify({ ...marker, attempts }, null, 2), {
-      encoding: 'utf8',
-      mode: 0o600,
-    });
+    writeFileSync(
+      tmpPath,
+      JSON.stringify(
+        { ...marker, attempts, next_attempt_at: nextAttemptIn(backoffMs(attempts)) },
+        null,
+        2,
+      ),
+      {
+        encoding: 'utf8',
+        mode: 0o600,
+      },
+    );
     renameSync(tmpPath, finalPath);
   } catch {
     // best-effort; if we can't persist the attempt count we'll just retry again
@@ -220,14 +353,17 @@ function updateMarkerProgress(
 /**
  * Hold a marker through an outage or a transient answer (offline, a rejected
  * token, 404/409/429) that says nothing about the transcript, so no attempt is
- * burned — but give up once the
- * marker has been idle for MAX_AGE_MS, the same 7-day horizon as the flusher's
- * event expiry, so transcripts and events are lost on one schedule.
+ * burned — but give up once the marker has been idle for MAX_AGE_MS, the same
+ * 7-day horizon as the flusher's event expiry, so transcripts and events are
+ * lost on one schedule.
  *
  * Idle is the marker FILE's mtime, not `first_seen_at`: writeShipMarker keeps
  * `first_seen_at` across Stops, so for a long-lived session that field is the
  * session's age and would expire a marker on its first failure. The mtime moves
  * on every Stop, so it measures "nothing has touched this for 7 days".
+ * (deferMarker restores it after writing, for the same reason.)
+ * A kept marker also gets a persisted retry time, which an on-demand drainer
+ * honours (the resident shipper sweeps on its own timer and ignores it).
  * Returns true if the marker was abandoned.
  */
 function holdUnlessIdle(marker: ShipMarker, reason: string): boolean {
@@ -243,6 +379,15 @@ function holdUnlessIdle(marker: ShipMarker, reason: string): boolean {
   deleteMarker(marker.session_id);
   log('error', 'shipper.abandoned_idle', { idleMs, reason, session_id: marker.session_id });
   return true;
+}
+
+/** holdUnlessIdle, then — when the marker is kept — hold it back for a while. */
+function holdAndDefer(marker: ShipMarker, reason: string): boolean {
+  if (holdUnlessIdle(marker, reason)) {
+    return true;
+  }
+  deferMarker(marker);
+  return false;
 }
 
 // ── Bandwidth-throttled upload ────────────────────────────────────────────────
@@ -320,6 +465,9 @@ export async function uploadWithResume(
   headers: Record<string, string>,
   marker: ShipMarker,
   bodyHash: string,
+  signal?: AbortSignal,
+  /** Polled before every chunk: a lost lease or an expired deadline ends the upload. */
+  shouldStop?: () => boolean,
 ): Promise<Response> {
   const totalSize = body.byteLength;
   if (totalSize === 0) {
@@ -344,6 +492,10 @@ export async function uploadWithResume(
   let retried409 = false;
 
   while (offset < totalSize) {
+    if (signal?.aborted || shouldStop?.()) {
+      // Progress so far is already persisted; the next pass resumes from it.
+      throw new DOMException('upload stopped', 'AbortError');
+    }
     const chunkEnd = Math.min(offset + UPLOAD_CHUNK_SIZE, totalSize);
     const chunk = body.slice(offset, chunkEnd);
     const contentRange = `bytes ${offset}-${chunkEnd - 1}/${totalSize}`;
@@ -351,12 +503,13 @@ export async function uploadWithResume(
       60_000,
       Math.ceil((chunk.byteLength / MAX_BYTES_PER_SEC) * 1_000 * 2),
     );
+    const chunkTimeout = AbortSignal.timeout(timeoutMs);
 
     const res = await fetch(url, {
       body: chunk,
       headers: { ...headers, 'Content-Range': contentRange },
       method: 'POST',
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: signal ? AbortSignal.any([signal, chunkTimeout]) : chunkTimeout,
     });
 
     if (res.status === 202) {
@@ -412,15 +565,29 @@ function resolveShippablePath(marker: ShipMarker): string | null {
   return dest;
 }
 
-/** Returns true when ingest answered 401, so the sweep can stop. */
-async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> {
+/** What the caller needs to know to decide whether to keep going. */
+/** `aborted`: WE stopped it (deadline, lost lease): not the network's doing, so nothing is logged or deferred. */
+type MarkerOutcome = 'ok' | 'unauthorized' | 'transport' | 'aborted';
+
+type ProcessOptions = {
+  /** Keep a shipped, non-final marker (with `last_shipped_at`) instead of deleting it. */
+  retainShipped?: boolean;
+  shouldStop?: () => boolean;
+  signal?: AbortSignal;
+};
+
+async function processMarker(
+  marker: ShipMarker,
+  jwt: string,
+  opts: ProcessOptions = {},
+): Promise<MarkerOutcome> {
   const { session_id, transcript_path } = marker;
 
   // If transcript file is missing: delete marker and move on
   if (!existsSync(transcript_path)) {
     log('warn', 'shipper.transcript_missing', { session_id, transcript_path });
     deleteMarker(session_id);
-    return false;
+    return 'ok';
   }
 
   // Snapshot the on-disk marker BEFORE reading the transcript: a Stop landing
@@ -435,14 +602,14 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
   } catch (err) {
     log('warn', 'shipper.collate_error', { message: (err as Error).message, session_id });
     recordRetryableFailure(marker, 'collate_error');
-    return false;
+    return 'ok';
   }
   if (sourcePath === null) {
     // Nothing collatable YET — the agent may still be flushing its records.
     // Retryable (and attempt-capped), not terminal: deleting the marker here
     // would abandon the transcript on a single unlucky sweep.
     recordRetryableFailure(marker, 'collate_empty');
-    return false;
+    return 'ok';
   }
 
   let body: Uint8Array;
@@ -452,7 +619,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
   } catch (err) {
     log('warn', 'shipper.read_error', { message: (err as Error).message, session_id });
     recordRetryableFailure(marker, 'read_error');
-    return false;
+    return 'ok';
   } finally {
     // A collation is a temp artifact: drop it whether or not the upload works.
     // The next sweep re-collates from the agent's storage, which may have grown.
@@ -471,6 +638,8 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
       },
       currentMarker,
       hash,
+      opts.signal,
+      opts.shouldStop,
     );
 
     if (res.status >= 200 && res.status < 300) {
@@ -487,7 +656,11 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
         log('info', 'shipper.marker_superseded', { session_id });
       } else {
         try {
-          deleteMarker(session_id);
+          if (opts.retainShipped && !currentMarker.final) {
+            retainShipped(currentMarker);
+          } else {
+            deleteMarker(session_id);
+          }
         } catch (delErr) {
           log('error', 'shipper.delete_marker_failed', {
             message: (delErr as Error).message,
@@ -496,6 +669,10 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
           });
         }
         log('info', 'shipper.uploaded', { bytes: body.byteLength, session_id, status: res.status });
+        if (opts.retainShipped) {
+          // The server is answering: transcripts held back while it was not are due.
+          clearMarkerDeferrals();
+        }
       }
     } else if (res.status === 404) {
       // The session row doesn't exist yet — the events pipeline hasn't created
@@ -507,22 +684,23 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
       // is the flusher's event horizon on purpose: after a long logout the
       // flusher is still catching up on a backlog, and a shorter clock here (it
       // used to be 24h of first_seen_at) deleted transcripts on their first 404.
-      if (!holdUnlessIdle(currentMarker, 'session_not_ready')) {
+      if (!holdAndDefer(currentMarker, 'session_not_ready')) {
         log('info', 'shipper.session_not_ready', { session_id, status: res.status });
       }
     } else if (res.status === 409) {
       // Conflict (e.g. missing prior chunk) — transient ordering; keep + retry,
       // no attempt bump (abandoned after MAX_AGE_MS idle).
-      if (!holdUnlessIdle(currentMarker, 'conflict')) {
+      if (!holdAndDefer(currentMarker, 'conflict')) {
         log('info', 'shipper.conflict', { session_id, status: res.status });
       }
     } else if (res.status === 429) {
       // Rate-limited — explicit server backpressure, NOT a failure. Keep the
       // marker and retry next sweep without counting toward the attempt cap
       // (abandoned after MAX_AGE_MS idle).
-      if (!holdUnlessIdle(currentMarker, 'rate_limited')) {
+      if (!holdAndDefer(currentMarker, 'rate_limited')) {
         log('warn', 'shipper.rate_limited', { session_id, status: res.status });
       }
+      return 'transport';
     } else if (res.status === 401) {
       // Expired/revoked token — the transcript is fine. This used to fall into
       // the generic 4xx branch below and DELETE the marker, discarding every
@@ -538,7 +716,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
           status: res.status,
         });
       }
-      return true;
+      return 'unauthorized';
     } else if (res.status === 413) {
       // Too large for the server's body limit. Retrying the same bytes cannot
       // help, so the marker still goes — but this is a capacity problem, not bad
@@ -562,15 +740,170 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> 
       // 5xx / unexpected: retryable, retry next sweep (capped)
       log('warn', 'shipper.server_error', { session_id, status: res.status });
       recordRetryableFailure(currentMarker, `server_error_${res.status}`);
+      return 'transport';
     }
   } catch (err) {
+    // An abort we caused: the marker keeps its progress and is picked up by the
+    // next holder at once, not 60 s from now as a network error would imply.
+    if (opts.signal?.aborted || (err instanceof DOMException && err.message === 'upload stopped')) {
+      return 'aborted';
+    }
     // Network error: no attempt burned. Counting it abandoned a transcript after
     // MAX_SHIP_ATTEMPTS x 10-minute sweeps (~100 min offline) while the flusher's
-    // events survive 7 days. Bounded by marker idle age instead.
+    // events survive 7 days. Bounded by marker idle age instead; the retry time
+    // is persisted so an on-demand drainer, which has no memory, backs off too.
     log('warn', 'shipper.network_error', { message: (err as Error).message, session_id });
-    holdUnlessIdle(currentMarker, 'network_error');
+    holdAndDefer(currentMarker, 'network_error');
+    return 'transport';
   }
-  return false;
+  return 'ok';
+}
+
+/**
+ * On-demand mode keeps the marker after a successful upload so the next Stop
+ * knows when this session last shipped. It is clean (`dirty: false`) until a
+ * hook touches it again, and nothing re-uploads a clean marker.
+ */
+function retainShipped(marker: ShipMarker): void {
+  const finalPath = join(shipQueueDir(), `${marker.session_id}.json`);
+  const now = new Date().toISOString();
+  const tmpPath = `${finalPath}.tmp`;
+  const shipped: ShipMarker = {
+    bytes_uploaded: 0,
+    dirty: false,
+    first_seen_at: now,
+    last_shipped_at: now,
+    partial: marker.partial,
+    session_id: marker.session_id,
+    transcript_path: marker.transcript_path,
+    updated_at: marker.updated_at ?? now,
+  };
+  writeFileSync(tmpPath, JSON.stringify(shipped, null, 2), { encoding: 'utf8', mode: 0o600 });
+  renameSync(tmpPath, finalPath);
+}
+
+export type ShipPassResult = {
+  /** Why the pass ended. `done` means everything it was allowed to ship was attempted. */
+  stop: 'done' | 'no_token' | 'unauthorized' | 'transport' | 'cap';
+};
+
+/** Markers that still owe an upload (a retained, clean marker does not). */
+export function pendingMarkerCount(): number {
+  return readMarkers().filter((m) => m.dirty !== false).length;
+}
+
+/** Cadence rule for on-demand mode — see SHIP_INTERVAL_MS. `force` ships everything. */
+function shouldShipNow(marker: ShipMarker, force: boolean, now: number): boolean {
+  if (force || marker.final) {
+    return true;
+  }
+  const shippedAt = marker.last_shipped_at ? Date.parse(marker.last_shipped_at) : Number.NaN;
+  if (Number.isNaN(shippedAt) || now - shippedAt >= SHIP_INTERVAL_MS) {
+    return true;
+  }
+  const updatedAt = marker.updated_at ? Date.parse(marker.updated_at) : Number.NaN;
+  return !Number.isNaN(updatedAt) && now - updatedAt >= IDLE_AFTER_MS;
+}
+
+/** The markers a pass may ship now. Also GCs retained markers past their TTL. */
+function selectMarkers(drain: boolean, force: boolean): ShipMarker[] {
+  const now = Date.now();
+  return readMarkers().filter((m) => {
+    if (m.dirty === false) {
+      const at = m.last_shipped_at ? Date.parse(m.last_shipped_at) : Number.NaN;
+      if (!Number.isNaN(at) && now - at > SHIPPED_MARKER_TTL_MS) {
+        deleteMarker(m.session_id);
+      }
+      return false;
+    }
+    // The retry time is the drainer's memory across processes. The resident
+    // shipper, as before this branch, sweeps every marker on its own timer.
+    return !drain || (isDue(m, now) && shouldShipNow(m, force, now));
+  });
+}
+
+/**
+ * The server just answered: markers held back for a failed or refused attempt are
+ * due again. (Drain mode only; the resident shipper never honoured the hold.)
+ */
+export function clearMarkerDeferrals(): void {
+  for (const m of readMarkers()) {
+    if (m.next_attempt_at === undefined || m.dirty === false) {
+      continue;
+    }
+    const path = join(shipQueueDir(), `${m.session_id}.json`);
+    const onDisk = readMarkerAt(path);
+    if (!onDisk || onDisk.updated_at !== m.updated_at || onDisk.next_attempt_at === undefined) {
+      continue;
+    }
+    try {
+      const before = statSync(path);
+      const { next_attempt_at: _n, ...rest } = onDisk;
+      const tmpPath = `${path}.tmp`;
+      writeFileSync(tmpPath, JSON.stringify(rest, null, 2), { encoding: 'utf8', mode: 0o600 });
+      renameSync(tmpPath, path);
+      utimesSync(path, before.atime, before.mtime);
+    } catch {
+      // best-effort
+    }
+  }
+}
+
+/** Dirty markers held back by a persisted retry time (a failed or refused upload), not by cadence. */
+export function countDeferredMarkers(): number {
+  const now = Date.now();
+  return readMarkers().filter((m) => m.dirty !== false && !isDue(m, now)).length;
+}
+
+/** True when an on-demand pass (no `force`) would ship something right now. */
+export function hasShippableMarkers(): boolean {
+  return selectMarkers(true, false).length > 0;
+}
+
+/**
+ * One sweep over the markers that are due. `resident` ships every marker and
+ * deletes it on success, and keeps going past a failed one (the daemon's
+ * long-standing behaviour: one bad transcript or one 5xx must not hold back the
+ * rest of the sweep). `drain` applies the on-demand cadence, keeps a shipped
+ * marker so the cadence has memory, and stops at the first transport failure
+ * instead of grinding through every remaining marker against a server that is
+ * down. Both stop at a 401: the token is the same for every marker.
+ */
+export async function shipPass(opts: {
+  /** Drain mode only: ship every dirty marker regardless of cadence. */
+  force?: boolean;
+  mode: 'resident' | 'drain';
+  signal?: AbortSignal;
+  /** Polled between markers and before each chunk; true ends the pass (deadline, lost lease). */
+  shouldStop?: () => boolean;
+}): Promise<ShipPassResult> {
+  const drain = opts.mode === 'drain';
+  const markers = selectMarkers(drain, opts.force ?? false);
+  if (markers.length === 0) {
+    return { stop: 'done' };
+  }
+  const jwt = loadHookToken();
+  if (!jwt) {
+    log('warn', 'shipper.no_token', { hint: 'Run `aiot login` to authenticate' });
+    return { stop: 'no_token' };
+  }
+  for (const marker of markers) {
+    if (opts.shouldStop?.()) {
+      return { stop: 'cap' };
+    }
+    const outcome = await processMarker(marker, jwt, {
+      retainShipped: drain,
+      ...(opts.shouldStop ? { shouldStop: opts.shouldStop } : {}),
+      ...(opts.signal ? { signal: opts.signal } : {}),
+    });
+    if (outcome === 'aborted') {
+      return { stop: 'cap' };
+    }
+    if (outcome === 'unauthorized' || (outcome === 'transport' && drain)) {
+      return { stop: outcome };
+    }
+  }
+  return { stop: 'done' };
 }
 
 export async function runShipper(): Promise<void> {
@@ -585,42 +918,46 @@ export async function runShipper(): Promise<void> {
     // best-effort
   }
 
+  // Only here for its connection: the delivery lease lives in queue.db.
+  const queue = openQueueReader(queuePath());
   let rejectedToken: string | null = null;
   let rejectedAt = 0;
-
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const markers = readMarkers();
-
-    if (markers.length === 0) {
-      await Bun.sleep(SWEEP_INTERVAL_MS);
-      continue;
-    }
-
-    const jwt = loadHookToken();
-    if (!jwt) {
-      log('warn', 'shipper.no_token', { hint: 'Run `aiot login` to authenticate' });
-      await Bun.sleep(SWEEP_INTERVAL_MS);
-      continue;
-    }
-
-    // A token ingest rejected would only be rejected again — after reading,
-    // redacting and compressing a whole transcript to find out. Skip the sweep
-    // until the token changes (or the re-probe interval passes).
-    if (jwt === rejectedToken && Date.now() - rejectedAt < REJECTED_TOKEN_REPROBE_MS) {
-      await Bun.sleep(SWEEP_INTERVAL_MS);
-      continue;
-    }
-
-    rejectedToken = null;
-    for (const marker of markers) {
-      if (await processMarker(marker, jwt)) {
-        rejectedToken = jwt;
-        rejectedAt = Date.now();
-        break;
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      let wait = SWEEP_INTERVAL_MS;
+      const jwt = loadHookToken();
+      // A token ingest rejected would only be rejected again — after reading,
+      // redacting and compressing a whole transcript to find out. Skip the sweep
+      // until the token changes (or the re-probe interval passes).
+      const skip =
+        jwt !== null &&
+        jwt === rejectedToken &&
+        Date.now() - rejectedAt < REJECTED_TOKEN_REPROBE_MS;
+      if (!skip && readMarkers().length > 0) {
+        rejectedToken = null;
+        // One transcript uploader at a time across every delivery process. A holder
+        // elsewhere (a drainer, an `aiot import`) is not an error — it will finish
+        // on its own, and the flusher no longer shares this lease — so look again
+        // in seconds rather than skipping a whole 10-minute sweep, which is what
+        // delayed every transcript by 10 minutes when the lease was shared.
+        const leased = await withLease(queue.db, 'shipper', (lease) =>
+          shipPass({
+            mode: 'resident',
+            shouldStop: () => !lease.check(),
+            signal: lease.signal,
+          }),
+        );
+        if (!leased.held) {
+          wait = LEASE_RETRY_MS;
+        } else if (leased.value.stop === 'unauthorized') {
+          rejectedToken = jwt;
+          rejectedAt = Date.now();
+        }
       }
+      await Bun.sleep(wait);
     }
-
-    await Bun.sleep(SWEEP_INTERVAL_MS);
+  } finally {
+    queue.close();
   }
 }

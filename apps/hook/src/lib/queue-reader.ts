@@ -2,11 +2,15 @@ import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import { ensureSchema } from './queue-schema';
+
 export type QueueRow = {
   event_id: string;
   payload_json: string;
   ts: string;
   attempts: number;
+  /** 1 once enrichment has been written back into `payload_json`. */
+  enriched: number;
 };
 
 /**
@@ -36,9 +40,42 @@ export const MAX_ATTEMPTS = 10;
  */
 export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Rows are due when `next_attempt_at <= cutoff`; a cutoff past every ISO string ignores it. */
+function retryCutoff(honourRetryAt: boolean): string {
+  return honourRetryAt ? new Date().toISOString() : '\uffff';
+}
+
 export type QueueReader = {
-  /** SELECT up to `limit` rows WHERE attempts < MAX_ATTEMPTS ORDER BY ts */
-  drain(limit: number): QueueRow[];
+  /** The open connection, for the delivery lease. */
+  readonly db: Database;
+  /**
+   * True when at least one row is due — a cheap probe that does not read payloads.
+   * `honourRetryAt: false` ignores the persisted retry time (the resident daemon,
+   * which keeps its own in-memory backoff, as before).
+   */
+  hasDue(honourRetryAt?: boolean): boolean;
+  /** SELECT up to `limit` due rows (attempts < MAX_ATTEMPTS, not deferred) ORDER BY ts */
+  drain(limit: number, honourRetryAt?: boolean): QueueRow[];
+  /**
+   * Hold rows back until `untilMs` (epoch ms). Persisted on the row, so a fresh
+   * process — the next on-demand drainer — honours a backoff set by the last one.
+   */
+  defer(eventIds: string[], untilMs: number): void;
+  /**
+   * Persist enrichment into the rows. `complete` marks them enriched, so a retry
+   * reuses the stored payload instead of re-resolving; a partial result (a lookup
+   * that could not be answered) is stored but left open for a later attempt.
+   */
+  saveEnriched(rows: Array<{ event_id: string; payload_json: string }>, complete: boolean): void;
+  /**
+   * Make every deferred row due. Called when the server has just answered 2xx: rows
+   * held back for a transport failure are not in trouble — the server is simply
+   * back — and must not wait out a backoff set while it was down. (Attempt counters
+   * from real rejections are separate and untouched.)
+   */
+  clearDeferrals(): void;
+  /** ts of the oldest queued row, deferred or not — the "is it stuck" signal. */
+  oldestTs(): string | null;
   /** UPDATE: attempts++, attempted_at=now() */
   markAttempt(eventIds: string[]): void;
   /** DELETE WHERE event_id IN (...) */
@@ -66,9 +103,19 @@ export function openQueueReader(dbPath: string): QueueReader {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA synchronous = NORMAL;');
   db.exec('PRAGMA temp_store = memory;');
+  ensureSchema(db);
 
-  const drainStmt = db.prepare<QueueRow, [number]>(
-    `SELECT event_id, payload_json, ts, attempts FROM events_queue WHERE attempts < ${MAX_ATTEMPTS} ORDER BY ts LIMIT ?`,
+  const drainStmt = db.prepare<QueueRow, [string, number]>(
+    `SELECT event_id, payload_json, ts, attempts, enriched FROM events_queue
+     WHERE attempts < ${MAX_ATTEMPTS} AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+     ORDER BY ts LIMIT ?`,
+  );
+  const hasDueStmt = db.prepare<{ one: number }, [string]>(
+    `SELECT 1 AS one FROM events_queue
+     WHERE attempts < ${MAX_ATTEMPTS} AND (next_attempt_at IS NULL OR next_attempt_at <= ?) LIMIT 1`,
+  );
+  const oldestStmt = db.prepare<{ oldest: string | null }, []>(
+    'SELECT MIN(ts) AS oldest FROM events_queue',
   );
 
   const depthStmt = db.prepare<{ c: number }, []>(
@@ -86,8 +133,23 @@ export function openQueueReader(dbPath: string): QueueReader {
   const dropExpiredStmt = db.prepare('DELETE FROM events_queue WHERE ts < ?');
 
   return {
+    clearDeferrals(): void {
+      db.exec('UPDATE events_queue SET next_attempt_at = NULL WHERE next_attempt_at IS NOT NULL');
+    },
     close(): void {
       db.close();
+    },
+
+    db,
+
+    defer(eventIds: string[], untilMs: number): void {
+      if (eventIds.length === 0) {
+        return;
+      }
+      const placeholders = eventIds.map(() => '?').join(',');
+      db.prepare(
+        `UPDATE events_queue SET next_attempt_at = ? WHERE event_id IN (${placeholders})`,
+      ).run(new Date(untilMs).toISOString(), ...eventIds);
     },
 
     delete(eventIds: string[]): void {
@@ -102,8 +164,8 @@ export function openQueueReader(dbPath: string): QueueReader {
       const row = depthStmt.get();
       return row?.c ?? 0;
     },
-    drain(limit: number): QueueRow[] {
-      return drainStmt.all(limit);
+    drain(limit: number, honourRetryAt = true): QueueRow[] {
+      return drainStmt.all(retryCutoff(honourRetryAt), limit);
     },
 
     dropAbandoned(): number {
@@ -119,6 +181,10 @@ export function openQueueReader(dbPath: string): QueueReader {
       return dropExpiredStmt.run(new Date(now - MAX_AGE_MS).toISOString()).changes;
     },
 
+    hasDue(honourRetryAt = true): boolean {
+      return hasDueStmt.get(retryCutoff(honourRetryAt)) !== null;
+    },
+
     lastAttemptedAt(): string | null {
       const row = lastAttemptedAtStmt.get();
       return row?.last ?? null;
@@ -132,6 +198,21 @@ export function openQueueReader(dbPath: string): QueueReader {
       db.prepare(
         `UPDATE events_queue SET attempts = attempts + 1, attempted_at = ? WHERE event_id IN (${placeholders})`,
       ).run(new Date().toISOString(), ...eventIds);
+    },
+
+    oldestTs(): string | null {
+      return oldestStmt.get()?.oldest ?? null;
+    },
+
+    saveEnriched(rows, complete): void {
+      const update = db.prepare(
+        `UPDATE events_queue SET payload_json = ?, enriched = ${complete ? 1 : 0} WHERE event_id = ?`,
+      );
+      db.transaction(() => {
+        for (const r of rows) {
+          update.run(r.payload_json, r.event_id);
+        }
+      })();
     },
   };
 }

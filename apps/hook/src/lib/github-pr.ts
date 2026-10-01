@@ -2,6 +2,8 @@
 // Used by the flusher to populate session_context.git.pr_number before
 // events are shipped to ingest — keeping the hook hot path network-free.
 
+import { noteLookupFailure } from './lookup-status';
+
 function githubApiBase(): string {
   return (process.env.GITHUB_API_URL ?? 'https://api.github.com').replace(/\/$/, '');
 }
@@ -36,13 +38,11 @@ export function isGitHubRemote(remoteUrl: string | null): boolean {
   return /github\.com/i.test(remoteUrl);
 }
 
+/** A lookup's value plus whether the source actually answered (null can mean either). */
+type Lookup = { ok: boolean; value: number | null };
+
 // Primary path: gh CLI handles host, auth, token refresh, and GHES automatically.
-function fetchPrNumberViaGh(
-  owner: string,
-  repo: string,
-  branch: string,
-  spawn: GhSpawn,
-): number | null {
+function fetchPrNumberViaGh(owner: string, repo: string, branch: string, spawn: GhSpawn): Lookup {
   try {
     const proc = spawn(
       [
@@ -63,12 +63,12 @@ function fetchPrNumberViaGh(
       { stderr: 'ignore', stdout: 'pipe', timeout: GH_TIMEOUT_MS },
     );
     if (proc.exitCode !== 0) {
-      return null;
+      return { ok: false, value: null };
     }
     const prs = JSON.parse(new TextDecoder().decode(proc.stdout)) as Array<{ number: number }>;
-    return prs[0]?.number ?? null;
+    return { ok: true, value: prs[0]?.number ?? null };
   } catch {
-    return null;
+    return { ok: false, value: null };
   }
 }
 
@@ -78,10 +78,10 @@ async function fetchPrNumberViaApi(
   repo: string,
   branch: string,
   remoteUrl: string | null,
-): Promise<number | null> {
+): Promise<Lookup> {
   const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? '';
   if (!token || !isGitHubRemote(remoteUrl)) {
-    return null;
+    return { ok: false, value: null };
   }
   try {
     const url = `${githubApiBase()}/repos/${owner}/${repo}/pulls?head=${owner}:${encodeURIComponent(branch)}&state=open&per_page=1`;
@@ -94,12 +94,12 @@ async function fetchPrNumberViaApi(
       signal: AbortSignal.timeout(GH_TIMEOUT_MS),
     });
     if (!res.ok) {
-      return null;
+      return { ok: false, value: null };
     }
     const pulls = (await res.json()) as Array<{ number: number }>;
-    return pulls[0]?.number ?? null;
+    return { ok: true, value: pulls[0]?.number ?? null };
   } catch {
-    return null;
+    return { ok: false, value: null };
   }
 }
 
@@ -116,10 +116,16 @@ export async function fetchOpenPrNumber(
   remoteUrl: string | null = null,
   spawn: GhSpawn = Bun.spawnSync,
 ): Promise<number | null> {
-  return (
-    fetchPrNumberViaGh(owner, repo, branch, spawn) ??
-    (await fetchPrNumberViaApi(owner, repo, branch, remoteUrl))
-  );
+  const viaGh = fetchPrNumberViaGh(owner, repo, branch, spawn);
+  if (viaGh.value !== null) {
+    return viaGh.value;
+  }
+  const viaApi = await fetchPrNumberViaApi(owner, repo, branch, remoteUrl);
+  if (!viaGh.ok && !viaApi.ok) {
+    // Neither source could be asked: "no PR" below means "unknown", not "none".
+    noteLookupFailure();
+  }
+  return viaApi.value;
 }
 
 // ── PR snapshot (CI status + review decision) ─────────────────────────────
@@ -177,6 +183,7 @@ export function fetchPrSnapshot(
       { stderr: 'ignore', stdout: 'pipe', timeout: GH_TIMEOUT_MS },
     );
     if (proc.exitCode !== 0) {
+      noteLookupFailure();
       return null;
     }
     const data = JSON.parse(new TextDecoder().decode(proc.stdout)) as {
@@ -195,6 +202,7 @@ export function fetchPrSnapshot(
       reviewDecision,
     };
   } catch {
+    noteLookupFailure();
     return null;
   }
 }
