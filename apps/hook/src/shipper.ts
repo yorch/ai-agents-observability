@@ -12,10 +12,11 @@ import {
 import { join } from 'node:path';
 import { createZstdCompress } from 'node:zlib';
 
-import { loadHookToken } from './lib/identity';
+import { loadHookToken, reauthHint } from './lib/identity';
 import { getIngestBaseUrl } from './lib/ingest';
 import { log } from './lib/log';
 import { shipQueueDir } from './lib/paths';
+import { MAX_AGE_MS } from './lib/queue-reader';
 import {
   collateDirectory,
   collatedPathFor,
@@ -229,6 +230,33 @@ function keepOrAbandonStale(marker: ShipMarker, reason: string): boolean {
   return false;
 }
 
+/**
+ * Hold a marker through an outage (offline, or a rejected token) that says
+ * nothing about the transcript, so no attempt is burned — but give up once the
+ * marker has been idle for MAX_AGE_MS, the same 7-day horizon as the flusher's
+ * event expiry, so transcripts and events are lost on one schedule.
+ *
+ * Idle is the marker FILE's mtime, not `first_seen_at`: writeShipMarker keeps
+ * `first_seen_at` across Stops, so for a long-lived session that field is the
+ * session's age and would expire a marker on its first failure. The mtime moves
+ * on every Stop, so it measures "nothing has touched this for 7 days".
+ * Returns true if the marker was abandoned.
+ */
+function holdUnlessIdle(marker: ShipMarker, reason: string): boolean {
+  let idleMs = 0;
+  try {
+    idleMs = Date.now() - statSync(join(shipQueueDir(), `${marker.session_id}.json`)).mtimeMs;
+  } catch {
+    return false;
+  }
+  if (idleMs <= MAX_AGE_MS) {
+    return false;
+  }
+  deleteMarker(marker.session_id);
+  log('error', 'shipper.abandoned_idle', { idleMs, reason, session_id: marker.session_id });
+  return true;
+}
+
 // ── Bandwidth-throttled upload ────────────────────────────────────────────────
 
 /**
@@ -396,14 +424,15 @@ function resolveShippablePath(marker: ShipMarker): string | null {
   return dest;
 }
 
-async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
+/** Returns true when ingest answered 401, so the sweep can stop. */
+async function processMarker(marker: ShipMarker, jwt: string): Promise<boolean> {
   const { session_id, transcript_path } = marker;
 
   // If transcript file is missing: delete marker and move on
   if (!existsSync(transcript_path)) {
     log('warn', 'shipper.transcript_missing', { session_id, transcript_path });
     deleteMarker(session_id);
-    return;
+    return false;
   }
 
   let sourcePath: string | null;
@@ -412,14 +441,14 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
   } catch (err) {
     log('warn', 'shipper.collate_error', { message: (err as Error).message, session_id });
     recordRetryableFailure(marker, 'collate_error');
-    return;
+    return false;
   }
   if (sourcePath === null) {
     // Nothing collatable YET — the agent may still be flushing its records.
     // Retryable (and attempt-capped), not terminal: deleting the marker here
     // would abandon the transcript on a single unlucky sweep.
     recordRetryableFailure(marker, 'collate_empty');
-    return;
+    return false;
   }
 
   let body: Uint8Array;
@@ -429,7 +458,7 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
   } catch (err) {
     log('warn', 'shipper.read_error', { message: (err as Error).message, session_id });
     recordRetryableFailure(marker, 'read_error');
-    return;
+    return false;
   } finally {
     // A collation is a temp artifact: drop it whether or not the upload works.
     // The next sweep re-collates from the agent's storage, which may have grown.
@@ -502,15 +531,18 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
       // Expired/revoked token — the transcript is fine. This used to fall into
       // the generic 4xx branch below and DELETE the marker, discarding every
       // pending transcript for as long as the user stayed logged out. Keep it;
-      // the token is re-read each sweep, so `aiot login` recovers it. Aged out
-      // after MAX_TRANSIENT_AGE_MS like the other credential-independent holds.
-      if (!keepOrAbandonStale(currentMarker, 'unauthorized')) {
+      // the token is re-read each sweep, so a fresh login recovers it. Held
+      // under the idle horizon (see holdUnlessIdle), never the 24h
+      // first_seen_at one. The sweep stops at the first 401: the token is the
+      // same for every marker, so the rest would only repeat it.
+      if (!holdUnlessIdle(currentMarker, 'unauthorized')) {
         log('warn', 'shipper.unauthorized', {
-          hint: 'Run `aiot login` to re-authenticate',
+          hint: reauthHint(),
           session_id,
           status: res.status,
         });
       }
+      return true;
     } else if (res.status === 413) {
       // Too large for the server's body limit. Retrying the same bytes cannot
       // help, so the marker still goes — but this is a capacity problem, not bad
@@ -536,10 +568,13 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
       recordRetryableFailure(currentMarker, `server_error_${res.status}`);
     }
   } catch (err) {
-    // Network error: retryable, retry next sweep (capped)
+    // Network error: no attempt burned. Counting it abandoned a transcript after
+    // MAX_SHIP_ATTEMPTS x 10-minute sweeps (~100 min offline) while the flusher's
+    // events survive 7 days. Bounded by marker idle age instead.
     log('warn', 'shipper.network_error', { message: (err as Error).message, session_id });
-    recordRetryableFailure(currentMarker, 'network_error');
+    holdUnlessIdle(currentMarker, 'network_error');
   }
+  return false;
 }
 
 export async function runShipper(): Promise<void> {
@@ -571,7 +606,9 @@ export async function runShipper(): Promise<void> {
     }
 
     for (const marker of markers) {
-      await processMarker(marker, jwt);
+      if (await processMarker(marker, jwt)) {
+        break;
+      }
     }
 
     await Bun.sleep(SWEEP_INTERVAL_MS);

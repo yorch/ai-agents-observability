@@ -26,6 +26,16 @@ export function userIdClaim(): string {
 }
 
 /**
+ * What to tell the user when ingest rejects the token. `aiot login` rewrites
+ * identity.json, which AIOT_TOKEN overrides, so it cannot fix an env token.
+ */
+export function reauthHint(): string {
+  return process.env.AIOT_TOKEN?.trim()
+    ? 'AIOT_TOKEN is set and was rejected — replace it (`aiot login` cannot override it)'
+    : 'Run `aiot login` to re-authenticate';
+}
+
+/**
  * Load the hook auth token: `AIOT_TOKEN` if set, else the one written by
  * `aiot login` (the `token` field of the identity file). The env var wins so a
  * container can be provisioned without an interactive login. Returns null when

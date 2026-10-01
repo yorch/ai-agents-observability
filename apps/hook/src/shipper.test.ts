@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
@@ -643,5 +643,121 @@ describe('shipper 401', () => {
 
     expect(keptAfter401).toBe(true);
     expect(existsSync(markerPath)).toBe(false);
+  });
+});
+
+describe('shipper outage handling', () => {
+  const S1 = '5f0c1d52-8a3e-4b6f-9c1d-2e7a4b8d9f03';
+  const S2 = '7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+
+  function stage(sessionId: string, firstSeenAt?: string): string {
+    const transcriptPath = join(tmpTranscriptDir, `${sessionId}.jsonl`);
+    writeTranscript(transcriptPath, [
+      JSON.stringify({ message: { content: 'hello', role: 'user' }, type: 'user' }),
+    ]);
+    writeShipMarker(sessionId, transcriptPath, false);
+    const markerPath = join(tmpHome, 'ship-queue', `${sessionId}.json`);
+    if (firstSeenAt) {
+      const m = JSON.parse(readFileSync(markerPath, 'utf8')) as ShipMarker;
+      writeFileSync(markerPath, JSON.stringify({ ...m, first_seen_at: firstSeenAt }));
+    }
+    return markerPath;
+  }
+
+  /** Run `sweeps` sweeps of the real loop (each ends in one Bun.sleep). */
+  async function runSweeps(sweeps: number): Promise<void> {
+    class Stop extends Error {}
+    let n = 0;
+    const spy = spyOn(Bun, 'sleep').mockImplementation((async () => {
+      if (++n >= sweeps) {
+        throw new Stop();
+      }
+    }) as typeof Bun.sleep);
+    try {
+      await runShipper();
+    } catch (err) {
+      if (!(err instanceof Stop)) {
+        throw err;
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  function setToken(): void {
+    writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'some-jwt' }));
+  }
+
+  it('keeps a long-lived session marker on 401 (first_seen_at is the SESSION age)', async () => {
+    setToken();
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 3_600_000).toISOString();
+    const marker = stage(S1, threeDaysAgo);
+    const server = Bun.serve({ fetch: () => new Response('no', { status: 401 }), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runSweeps(1);
+    } finally {
+      server.stop(true);
+    }
+    expect(existsSync(marker)).toBe(true);
+  });
+
+  it('stops the sweep at the first 401 instead of repeating it per marker', async () => {
+    setToken();
+    stage(S1);
+    stage(S2);
+    let requests = 0;
+    const server = Bun.serve({
+      fetch: () => {
+        requests++;
+        return new Response('no', { status: 401 });
+      },
+      port: 0,
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runSweeps(1);
+    } finally {
+      server.stop(true);
+    }
+    expect(requests).toBe(1);
+  });
+
+  it('abandons a marker that nothing has touched for 7 days, even on 401', async () => {
+    setToken();
+    const marker = stage(S1);
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 3_600_000);
+    utimesSync(marker, eightDaysAgo, eightDaysAgo);
+    const server = Bun.serve({ fetch: () => new Response('no', { status: 401 }), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runSweeps(1);
+    } finally {
+      server.stop(true);
+    }
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it('does not burn attempts on network errors: survives far more than MAX_SHIP_ATTEMPTS sweeps', async () => {
+    setToken();
+    const marker = stage(S1);
+    const dead = Bun.serve({ fetch: () => new Response('x'), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${dead.port}`;
+    dead.stop(true);
+    await runSweeps(15);
+    expect(existsSync(marker)).toBe(true);
+    expect((JSON.parse(readFileSync(marker, 'utf8')) as ShipMarker).attempts ?? 0).toBe(0);
+  });
+
+  it('abandons an idle marker on network errors once past 7 days', async () => {
+    setToken();
+    const marker = stage(S1);
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 3_600_000);
+    utimesSync(marker, eightDaysAgo, eightDaysAgo);
+    const dead = Bun.serve({ fetch: () => new Response('x'), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${dead.port}`;
+    dead.stop(true);
+    await runSweeps(1);
+    expect(existsSync(marker)).toBe(false);
   });
 });
