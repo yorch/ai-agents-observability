@@ -39,6 +39,19 @@ const AGENT_INFO: {
   },
 ];
 
+const DELIVERY_MODES = [
+  {
+    command: 'aiot install',
+    mode: 'Resident (default)',
+    runs: 'Two background services (a flusher and a shipper) send data within seconds.',
+  },
+  {
+    command: 'aiot install --mode on-demand',
+    mode: 'On-demand',
+    runs: 'No service. After agent activity a short-lived drainer starts, delivers, and exits.',
+  },
+];
+
 const REPO_URL = 'https://github.com/yorch/ai-agents-observability';
 
 export default async function InstallPage({
@@ -175,9 +188,9 @@ aiot login`}
         </div>
 
         <p className="text-sm text-text-2">
-          Select your agent to see the install command. The hook writes background service files and
-          auto-detects and auto-wires supported agent harnesses it finds on your machine. Config
-          snippets are printed only for agents it could not detect, so you can wire them by hand.
+          Select your agent to see the install command. It auto-detects and auto-wires supported
+          agent harnesses it finds on your machine. Config snippets are printed only for agents it
+          could not detect, so you can wire them by hand.
         </p>
 
         <div className="overflow-x-auto">
@@ -201,8 +214,41 @@ aiot login`}
         </pre>
 
         <p className="text-sm text-text-2">
-          The command prints a config snippet to paste into{' '}
-          <code className="font-mono text-xs">{selected.configPath}</code>. For the exact snippet
+          Choose how delivery runs. Both modes redact, enrich and ship the same data.
+        </p>
+        <Card>
+          <Table columns={[{ label: 'Mode' }, { label: 'Command' }, { label: 'What runs' }]}>
+            {DELIVERY_MODES.map((m) => (
+              <Row key={m.mode}>
+                <Cell className="text-text">{m.mode}</Cell>
+                <Cell className="text-text-2">
+                  <code className="font-mono text-xs">{m.command}</code>
+                </Cell>
+                <Cell className="text-text-2">{m.runs}</Cell>
+              </Row>
+            ))}
+          </Table>
+        </Card>
+        <p className="text-xs text-text-3">
+          On-demand mode registers no launchd/systemd service, which is what triggers the macOS
+          Login Items prompt (not yet verified on a Mac). A drainer can stay alive for up to 120 s
+          after the last hook, and data that could not be delivered (offline) waits for your next
+          agent session. Append <code className="font-mono">--mode on-demand</code> to the command
+          above for any agent. Details:{' '}
+          <a
+            href={`${REPO_URL}/blob/main/docs/getting-started.md#choose-how-delivery-runs`}
+            className="text-accent hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Choose how delivery runs
+          </a>
+          .
+        </p>
+
+        <p className="text-sm text-text-2">
+          Hooks are wired into <code className="font-mono text-xs">{selected.configPath}</code>; if
+          the command could not do that it prints a snippet to paste there. For the exact snippet
           for each agent, see the{' '}
           <a
             href={`${REPO_URL}/blob/main/docs/getting-started.md`}
@@ -254,7 +300,8 @@ aiot import --agent ${selected.flag} --since 2026-01-01`}
           <Link href="/me" className="text-accent hover:underline">
             My Agents
           </Link>{' '}
-          page — you should see the session appear within a few seconds.
+          page — you should see the session appear within a few seconds (in on-demand mode, once the
+          drainer started by the session&apos;s last hook has run).
         </p>
       </section>
 
@@ -271,7 +318,7 @@ aiot import --agent ${selected.flag} --since 2026-01-01`}
           </div>
           <div>
             <code className="font-mono text-xs text-text-2">aiot uninstall</code>
-            <span className="ml-3 text-text-3">— remove hooks and background services</span>
+            <span className="ml-3 text-text-3">— remove hooks and any background services</span>
           </div>
         </div>
         <p className="text-xs text-text-3">

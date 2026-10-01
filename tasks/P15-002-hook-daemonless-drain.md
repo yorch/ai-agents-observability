@@ -3,7 +3,7 @@ id: P15-002
 title: On-demand install mode — a detached drainer instead of a resident service
 phase: 15
 workstream: D
-status: review
+status: done
 owner: claude
 depends_on: [P1-021, P1-022]
 blocks: []
@@ -24,10 +24,10 @@ enrichment, resumable uploads. `resident` stays the default.
 Decided by the owner. Lossy tiers (agent-native HTTP hooks / OTel) are explicitly
 out of scope, and Windows stays unsupported. The design survived an adversarial
 review; the decisions that are not obvious are recorded in
-[`apps/hook/AGENTS.md`](../apps/hook/AGENTS.md) ("On-demand mode"). Depends on the
-delivery-reliability fixes in `fix/hook-delivery-reliability` (age-based expiry,
-network errors not counting toward `MAX_ATTEMPTS`, 401 handling, `AIOT_TOKEN`,
-`SessionEnd` capture, purge of `-wal`/`-shm`, `busy_timeout`).
+[`apps/hook/AGENTS.md`](../apps/hook/AGENTS.md) ("On-demand mode"). Shipped in PR #264, on top of the
+delivery-reliability fixes that landed in #258 (age-based expiry, network errors not
+counting toward `MAX_ATTEMPTS`, 401 handling, `AIOT_TOKEN`, `SessionEnd` capture, purge
+of `-wal`/`-shm`, `busy_timeout`) and #260 (hook wiring only from the compiled binary).
 
 ## Acceptance criteria
 
@@ -74,9 +74,9 @@ network errors not counting toward `MAX_ATTEMPTS`, 401 handling, `AIOT_TOKEN`,
   shipper treated chunk-progress writes as "the marker was rewritten" for every multi-chunk
   upload. On main that costs ONE redundant full upload plus a 409 per multi-chunk transcript
   and then self-heals; it is not a loop. The fix (compare the hook-stamped `updated_at`,
-  and skip progress/failure writes over a rewritten marker) landed on main as #261; this
-  branch builds on it and adds only `markShipFinal` bumping `updated_at` and resetting
-  resume state.
+  and skip progress/failure writes over a rewritten marker) landed on main as #261; #264
+  built on it and added only `markShipFinal` bumping `updated_at` and resetting resume
+  state.
 - `AGENTS.md` carries the "Resident mode: what changed" table — the complete list of
   differences resident installs see.
 
@@ -88,6 +88,25 @@ network errors not counting toward `MAX_ATTEMPTS`, 401 handling, `AIOT_TOKEN`,
 - tests: `lib/lease.test.ts`, `lib/queue-schema.test.ts`, `commands/{drain,install,on-demand-commands}.test.ts`,
   `on-demand.e2e.test.ts` (+ `lib/e2e-harness.ts`)
 - docs: `apps/hook/{README,AGENTS}.md`, `docs/deploy/hook-binary.md`
+
+## Known follow-ups
+
+Merged as #264 with these open, none of them blocking:
+
+- **macOS and the Rust launcher are unverified.** The e2e suite
+  (`on-demand.e2e.test.ts`) drives the compiled runtime, and the launcher is used only
+  where `cargo` exists; the on-demand path (including the launcher's `execv` under a
+  detached spawn, and the Login Items behaviour the mode exists to avoid) has not been
+  exercised on a Mac.
+- **No test for the corrupt-batch failure counter**, and none for a stale `--wait`
+  streak write.
+- **`SessionEnd` does not capture usage for turns after the last `Stop`** (Claude Code
+  usage is read from the transcript at `Stop`).
+- **`purge-local` while a resident flusher is running** leaves that flusher on an
+  unlinked `queue.db`.
+- **A symlinked `settings.json` is replaced on write** rather than followed.
+- **`resolvedBinaryPath` replaces the first `aiot-runtime` match** in the path, so a
+  directory component containing that string is rewritten too.
 
 ## Out of scope
 

@@ -109,7 +109,7 @@ The `aiot` hook binary is published to GitHub Releases with per-platform binarie
 curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/scripts/install.sh | bash
 ```
 
-See [hook-binary.md](./hook-binary.md).
+After install, `aiot install` runs delivery as two resident background services (the default) or, with `--mode on-demand`, as a short-lived drainer started by agent hooks, with no service registered. See [hook-binary.md](./hook-binary.md).
 
 ## Internal registry sync recipe
 

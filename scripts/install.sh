@@ -288,7 +288,8 @@ fi
 
 echo "Next steps:"
 echo "  aiot login      # authenticate via GitHub OAuth"
-echo "  aiot install    # set up background services + wire hooks into detected agents"
+echo "  aiot install    # wire hooks into detected agents + start two background services (resident mode)"
+echo "                  # or: aiot install --mode on-demand   (no background service; a short-lived drainer ships data)"
 echo "  aiot status     # check health"
 echo ""
 

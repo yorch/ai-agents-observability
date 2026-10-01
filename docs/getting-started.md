@@ -8,6 +8,13 @@ agents, importing existing session history, and verifying your data appears.
 > up the platform itself, see the [root README](../README.md) for local
 > development and [deployment docs](./deploy/README.md) for production.
 
+> **Prefer no background service?** `aiot install --mode on-demand` registers no
+> launchd/systemd units: after agent activity the hook starts a short-lived
+> process (the drainer) that ships your data and exits. It is the usual choice on
+> macOS (a resident service is what triggers the Login Items prompt; not yet
+> verified on a Mac), in devcontainers, and in CI. See [Choose how delivery runs](#choose-how-delivery-runs)
+> in step 4.
+
 ## Supported agents
 
 The `aiot` hook binary captures events from seven AI coding agents.
@@ -40,22 +47,27 @@ curl -fsSL https://raw.githubusercontent.com/yorch/ai-agents-observability/main/
 
 ### Option B — Manual download
 
-Download the binary for your platform from the
+Download the binaries for your platform from the
 [GitHub releases page](https://github.com/yorch/ai-agents-observability/releases/latest):
 
-| Platform | Binary name |
+| Platform | Binary names |
 |---|---|
-| macOS (Apple Silicon) | `aiot-darwin-arm64` |
-| macOS (Intel) | `aiot-darwin-x64` |
-| Linux (ARM64) | `aiot-linux-arm64` |
-| Linux (x86-64) | `aiot-linux-x64` |
+| macOS (Apple Silicon) | `aiot-darwin-arm64` + `aiot-runtime-darwin-arm64` |
+| macOS (Intel) | `aiot-darwin-x64` + `aiot-runtime-darwin-x64` |
+| Linux (ARM64) | `aiot-linux-arm64` + `aiot-runtime-linux-arm64` |
+| Linux (x86-64) | `aiot-linux-x64` + `aiot-runtime-linux-x64` |
 
-Then make it executable and move it to your PATH:
+Then make both executable and move them to your PATH:
+
+Download **both** the launcher (`aiot-<os>-<arch>`) and the runtime
+(`aiot-runtime-<os>-<arch>`); the launcher looks for `aiot-runtime` next to
+itself:
 
 ```bash
-chmod +x aiot-<os>-<arch>
+chmod +x aiot-<os>-<arch> aiot-runtime-<os>-<arch>
 mkdir -p ~/.local/bin
 mv aiot-<os>-<arch> ~/.local/bin/aiot
+mv aiot-runtime-<os>-<arch> ~/.local/bin/aiot-runtime
 ```
 
 For checksum verification and air-gapped installation, see
@@ -89,13 +101,71 @@ This prints a URL and a short device code. Open the URL in your browser, enter
 the code, and authorize. Your auth token is stored locally in
 `~/.aiot/identity.json`.
 
+**Containers and CI.** CI has no one to complete the device flow. Run
+`aiot login` once elsewhere and pass the `token` field of its `identity.json` as
+`AIOT_TOKEN` (a devcontainer with `AIOT_HOME` on a volume can simply run
+`aiot login` once). `AIOT_TOKEN` takes precedence over `identity.json`. The
+launchd/systemd services of a resident install do not inherit your shell's
+environment and still use `aiot login`; an on-demand drainer receives
+`AIOT_TOKEN` from the environment of the hook that starts it. In on-demand mode,
+ignore the `aiot status` note that services do not see `AIOT_TOKEN`; the
+drainer does. If ingest rejects the token, `aiot login` cannot override the
+variable; replace it. See [Containers and CI](#containers-and-ci).
+
 ## 4. Install hooks for your agent
 
-The `install` command writes background service files (launchd on macOS,
-systemd on Linux) for the flusher and shipper daemons, and auto-detects and
-auto-wires any supported agent harnesses it finds on your machine. Snippets
-are printed only for agents it could not detect, so you can wire them by
-hand.
+`install` does two things: it sets up **how delivery runs** (next section), and
+it auto-detects and auto-wires any supported agent harnesses it finds on your
+machine. Snippets are printed only for agents it could not detect, so you can
+wire them by hand. Run it from the compiled `aiot` binary; from the Bun runtime
+it refuses to wire hooks.
+
+### Choose how delivery runs
+
+Hooks only write to a local queue; something then has to deliver it to the
+server. `install` offers two ways. Both redact transcripts client-side, enrich
+events with git/PR/team context, and use resumable uploads. They differ in what
+is left running on your machine.
+
+| | **Resident** (default) | **On-demand** |
+|---|---|---|
+| Command | `aiot install` | `aiot install --mode on-demand` |
+| What runs | Two background services, a flusher and a shipper, registered with launchd (macOS) or systemd (Linux) | Nothing between agent sessions. A Stop, SubagentStop or SessionEnd hook that queued something (or a SessionStart, as catch-up) starts a short-lived detached `aiot drain` |
+| When data ships | Within seconds, whether or not an agent is running | Shortly after agent activity; the drainer exits when nothing is due, after at most 120 s |
+| What you give up | A service registered with the OS (on macOS, a Login Items prompt and a permanent background process) | Continuous delivery: anything that could not be delivered waits for your next agent session |
+| Best for | Workstations where a service is fine and you want delivery independent of agent activity | Macs where you want to avoid a Login Items entry (not yet verified on a Mac), devcontainers, CI, anyone who wants no resident process |
+
+`aiot install` with no `--mode` keeps the mode already recorded (`resident` when
+none is), so re-running it after an upgrade, or to wire a newly installed agent,
+never turns an on-demand install back into services. To switch, say so:
+`aiot install --mode resident` or `aiot install --mode on-demand`. Switching
+stops and removes the other mode's units and any running drainer, so the two
+never run side by side. Any `install` (except `--dry-run`) also stops a running
+`aiot import`; re-run it afterwards.
+
+The main limits of on-demand mode:
+
+- A drainer can stay alive for up to 120 s after the last hook, and data that
+  could not be delivered (offline, laptop closed) waits on disk for the next
+  agent session. Queued events are kept for 7 days.
+- A hard container teardown can lose the last batch, because nothing is left
+  running to send it; run `aiot drain --wait` first (see
+  [Containers and CI](#containers-and-ci)).
+- Transcripts ship at SessionEnd or after the session has been quiet, not on
+  every Stop; a session that ends without a SessionEnd ships its tail at the
+  next session's catch-up drainer.
+
+The full list, with the exact transcript cadence and PR-linking caveat, is in
+[Install modes](../apps/hook/README.md#install-modes).
+
+On macOS, the Login Items prompt is why many people choose on-demand: resident
+mode installs a LaunchAgent, on-demand installs none (not yet verified on a Mac).
+On managed Macs an MDM login-items rule may be able to pre-approve the resident
+LaunchAgent instead; that is general MDM advice and has not been tested with
+this binary. On-demand mode has been verified on Linux; macOS, and the Rust
+launcher's role in starting the drainer, have not been verified end to end.
+
+### Wire your agent
 
 ```bash
 # Default: Claude Code
@@ -108,6 +178,9 @@ aiot install --agent copilot
 aiot install --agent pi
 aiot install --agent omp
 aiot install --agent opencode
+
+# Any of the above in on-demand mode
+aiot install --agent codex --mode on-demand
 ```
 
 If `install` could not auto-wire an agent, copy the printed snippet into the
@@ -380,11 +453,49 @@ Check that everything is healthy:
 aiot status
 ```
 
-This shows your login state, queue depth, and whether the flusher and shipper
-services are running.
+The first lines are the same in both modes (`auth`, `paused`, `mode`, `queue depth`);
+what follows depends on how delivery runs.
+
+**Resident mode** shows the flush and service state:
+
+```text
+auth:        logged in as octocat
+paused:      no
+mode:        resident
+queue depth: 0
+last flush:  2026-10-01T20:47:25.587Z
+last error:  none
+heartbeat:    4s ago
+flusher:     running
+shipper:     running
+```
+
+A stale heartbeat with events queued prints a `WARNING` that the daemon may be
+stalled.
+
+**On-demand mode** has no daemon, so no heartbeat. It shows whether data is
+getting out instead:
+
+```text
+auth:           logged in as octocat
+paused:         no
+mode:           on-demand (no resident service; a drainer runs after agent activity)
+queue depth:    0
+oldest queued:  none
+transcripts pending: 0
+last drain:     2026-10-01T20:47:19.619Z (6s ago)
+drain lease:    none
+last error:     none
+```
+
+`oldest queued` is the age of the oldest undelivered event; a stuck queue shows
+up as a growing number. `last drain` is the last drain that finished with
+nothing owed. `drain lease` names the process (a drainer, an import, ...) holding the delivery lease right now. (The
+values above are illustrative; the field names and layout are from a real run.)
 
 Then start a session in your agent. After it ends, refresh your
-[My Agents](/me) page — the session should appear within a few seconds.
+[My Agents](/me) page — the session should appear within a few seconds (in
+on-demand mode, once the drainer the session's last hook started has run).
 
 ## 6. Import existing session data
 
@@ -447,14 +558,46 @@ as live uploads.
 
 | Command | Description |
 |---|---|
-| `aiot status` | Show auth status, queue depth, service state |
+| `aiot status` | Show auth status, install mode, queue depth, and service state (resident) or drain state (on-demand) |
 | `aiot pause` | Temporarily stop sending telemetry |
 | `aiot resume` | Re-enable telemetry |
-| `aiot uninstall` | Remove hooks and background services |
-| `aiot purge-local` | Delete all local data (queue, logs, identity) |
+| `aiot install --mode on-demand` / `--mode resident` | Switch how delivery runs; stops and removes the other mode's units and any running drainer |
+| `aiot drain` | One delivery pass: send queued events, then ship pending transcripts, then exit. This is what the hook starts; run by hand it prints nothing and exits 0 |
+| `aiot drain --wait` | The same pass in the foreground. Waits for a running drainer and runs its pass within one 120 s cap, prints a summary, and exits 1 if any data remains or the pass could not finish |
+| `aiot uninstall` | Remove aiot's hooks from every agent config it wired. Resident: also removes the launchd/systemd service files. Either mode: stops a running drainer and resets the mode to `resident`. Local data is kept |
+| `aiot purge-local --yes` | Delete all local data (queue, logs, identity). An on-demand install keeps its mode and needs `aiot login` again (not with `AIOT_TOKEN`). Resident: run `aiot uninstall` first, or re-run `aiot install` after, because a running flusher is left on the deleted queue |
 
 You can also manage privacy settings from the
 [Privacy](/me/settings/privacy) page in the dashboard.
+
+## Containers and CI
+
+A container has no launchd/systemd, so use on-demand mode with a token from the
+environment, keep the queue on a volume, and drain before the container stops:
+
+```bash
+export AIOT_HOME=/workspace/.aiot            # a mounted volume, so the queue outlives the container
+export XDG_CONFIG_HOME=/workspace/.config    # also on the volume (or re-run the next line at every start)
+export AIOT_TOKEN=...                        # see step 3 for where the value comes from
+aiot config set ingest-url https://ingest.example.com   # drainers ignore INGEST_BASE_URL from the environment
+aiot install --mode on-demand --yes
+# ... agent sessions run; hooks queue data and spawn drainers ...
+aiot drain --wait || echo "undelivered data remains in $AIOT_HOME"
+```
+
+The `config set` line matters: the drainer a hook starts deliberately drops
+`INGEST_BASE_URL` from the agent's shell (so a shell cannot redirect delivery)
+and falls back to `http://localhost:4000` unless the config file says
+otherwise. With only the environment variable set, every in-session drainer
+fails and only the final foreground `aiot drain --wait`, which does read the
+variable, delivers. The config file lives under `$XDG_CONFIG_HOME` (or
+`~/.config`), not under `AIOT_HOME`.
+
+`aiot drain --wait` exits 1 when data remains: rows still waiting out a retry
+delay after a failure (`--wait` does not skip retry delays, so retry or keep the
+volume), or transcripts held by an `aiot import` (events are still delivered).
+The drainer keeps `AIOT_TOKEN` and GitHub credentials from the environment.
+Details: [Install modes](../apps/hook/README.md#install-modes).
 
 ## What to look at next
 

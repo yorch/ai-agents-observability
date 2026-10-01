@@ -45,7 +45,9 @@ Without these, the binary works on developer machines with `xattr -d com.apple.q
 ## Usage
 
 ```
-aiot <command> [options]
+aiot v0.1.0
+
+Usage: aiot <command> [options]
 
 Commands:
   login         Authenticate with the observability server (device-code flow)
@@ -54,19 +56,40 @@ Commands:
   pause         Pause telemetry collection (writes a marker file)
   resume        Resume telemetry collection (removes the marker)
   purge-local   Remove all local data (queue, logs, identity) — use --yes to confirm
+  import         Import historical Claude Code, Codex, OpenCode, Pi, or OMP sessions
   install       Write launchd/systemd service files and wire hooks into detected agents
-  uninstall     Remove service files and aiot hook config (does not remove local data)
+                flags: --no-start (don't load/enable), --force (allow uncompiled),
+                       --yes (wire all detected agents without prompting),
+                       --agent <name> (wire only this agent, repeatable),
+                       --no-auto (skip auto-wiring, print snippets only),
+                       --dry-run (show what would be wired without modifying files),
+                       --mode resident|on-demand (resident: launchd/systemd services, default;
+                         on-demand: no services, a short-lived drainer after agent activity)
+  uninstall     Remove service files (does not remove local data)
 
-  import        Import historical Claude Code, Codex, OpenCode, Pi, or OMP sessions
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
+                kinds: session-start, session-end, pre-tool-use, post-tool-use, stop,
+                       user-prompt-submit, pre-compact, subagent-stop, notification
+  drain         One delivery pass (events, then transcripts), then exit. Used by on-demand
+                installs; --wait runs it in the foreground and exits non-zero if data remains
   flusher       Drain the SQLite queue and POST batches to /v1/events (long-running)
   shipper       Watch for transcript files and upload them to /v1/transcripts (long-running)
 
 Options:
+  --agent <name> Select the agent for install, hook, or historical import
   --quiet        Suppress non-fatal output (errors still logged to file)
   -V, --version  Show version
   -h, --help     Show help
+
+Exit codes:
+  0  Success
+  1  Error (message written to stderr)
 ```
+
+The help text above is the literal output of `aiot --help`; the `install`,
+`uninstall`, `flusher` and `shipper` lines predate on-demand mode. In on-demand
+mode `install` registers no service files, `uninstall` has none to remove, and
+`flusher` and `shipper` are only run by resident services.
 
 ## Quickstart
 
@@ -78,7 +101,7 @@ aiot config set ingest-url https://ingest.example.com
 # 2. Authenticate (prints a URL + code to complete the GitHub device flow)
 aiot login
 
-# 3. Install background services and wire hooks into detected agents
+# 3. Wire hooks into detected agents and install the two background services
 #    (or `aiot install --mode on-demand` for no service at all — see "Install modes")
 aiot install
 
@@ -120,9 +143,9 @@ Prints:
 - Whether telemetry is paused
 - Install mode (`resident` or `on-demand`)
 - Live queue depth (pending events)
-- Last successful flush timestamp
+- Last successful flush timestamp (resident mode)
 - Last error message (if any)
-- Whether the flusher and shipper services are running (macOS/Linux)
+- Whether the flusher and shipper services are running (resident mode, macOS/Linux)
 
 In `on-demand` mode there is no daemon, so there is no heartbeat to go stale and
 the heartbeat warning is not shown. Instead `status` reports what tells you
@@ -165,7 +188,7 @@ the default), or registers no service at all (`--mode on-demand`, see
 - **macOS**: `~/Library/LaunchAgents/com.brnby.aiot.{flusher,shipper}.plist`
 - **Linux**: `~/.config/systemd/user/aiot-{flusher,shipper}.service`
 
-After services are started, `install` **auto-detects** installed agent harnesses
+After the services are started (or, in on-demand mode, with none), `install` **auto-detects** installed agent harnesses
 and wires aiot hooks into each one. For each detected agent:
 
 - **Claude Code**: merges hook entries into `~/.claude/settings.json`
@@ -182,6 +205,10 @@ user-defined hooks. Repeated installs are idempotent — aiot strips its own
 previous entries before appending the current ones, so no duplicates
 accumulate. Agents that are not detected get their snippet printed for manual
 setup.
+
+Running `install` (in either mode, except `--dry-run`) also stops whatever currently holds the
+delivery lease, so a running drainer, a resident flusher or shipper, or an
+`aiot import` in progress is terminated first; re-run the import afterwards.
 
 | Flag | Description |
 |------|-------------|
@@ -223,7 +250,11 @@ What this costs, stated plainly:
 - **Undelivered data waits for the next agent session.** If you were offline, or
   closed the laptop, queued events and transcripts stay on disk (and keep their
   retry times) until the next hook starts a drainer. Rows older than 7 days are
-  dropped, as in resident mode.
+  dropped, as in resident mode, and only while a usable token is present, so being
+  logged out never turns into data loss. Connection errors (refused, DNS,
+  unreachable) never count toward a row's 10-attempt cap, and a timeout counts
+  only when ingest's `/health` answers, i.e. when the batch, not the network, is
+  the likely culprit.
 - **Late-delivered events can miss PR linking.** Enrichment (branch, PR number,
   CI/review state) is resolved on the first delivery attempt and then stored with
   the row, so a retry reuses it rather than re-resolving — but an event first
@@ -231,7 +262,7 @@ What this costs, stated plainly:
   and may not link.
 - **Transcripts ship less often.** Each upload re-sends the whole redacted
   transcript, so in on-demand mode a session's transcript is uploaded on its first
-  drain, at SessionEnd, at the first drain AFTER the session has been quiet for 5
+  drain (a never-shipped transcript counts as overdue), and after that at SessionEnd, at the first drain AFTER the session has been quiet for 5
   minutes, or when the last upload is more than 10 minutes old — not on every Stop.
   "The first drain after 5 quiet minutes" is not "5 minutes later": nothing runs
   to notice the quiet. A session that ends without a SessionEnd (Ctrl+C, a crash,
@@ -255,13 +286,16 @@ It stops at the first of: nothing due, a transport failure, no token, a 401, or 
 time. Run in the background it prints nothing (its stdio is `/dev/null`); look at
 `aiot status` or `~/.aiot/hook.log`.
 
-`aiot drain --wait` is the same pass in the foreground: it waits (up to the cap)
-for a drainer that is already running, delivers the queued events, ships the
+`aiot drain --wait` is the same pass in the foreground: it waits for a drainer
+that is already running and then runs its own pass, both within one 120 s cap,
+delivers the queued events, ships the
 pending transcripts regardless of the on-demand cadence **if the transcripts lease
 is free**, prints a summary, and **exits non-zero if any data remains**. If a
 resident shipper or an `aiot import` holds the transcripts lease, the events are
 still delivered, the transcripts are left to that holder, and the exit is 1 with
-"transcripts remaining" in the summary. Use it for CI and devcontainer pre-stop
+"transcripts remaining" in the summary. Rows still waiting out a retry delay after
+a failure also count as remaining: `--wait` does not skip retry delays, so retry
+the command or keep the volume. Use it for CI and devcontainer pre-stop
 hooks, or to catch up by hand.
 
 **Containers.** Keep `AIOT_HOME` on a volume so the queue survives the container,
@@ -269,11 +303,23 @@ authenticate through the environment, and drain before the container stops:
 
 ```bash
 export AIOT_HOME=/workspace/.aiot          # a mounted volume
-export AIOT_TOKEN=...                      # no interactive login in a container
+export XDG_CONFIG_HOME=/workspace/.config  # also on the volume (or re-run the next line at every start)
+export AIOT_TOKEN=...                      # the `token` field of an identity.json from `aiot login`
+aiot config set ingest-url https://ingest.example.com   # drainers ignore INGEST_BASE_URL from the environment
 aiot install --mode on-demand --yes
 # ... agent sessions run; hooks queue data and spawn drainers ...
 aiot drain --wait || echo "undelivered data remains in $AIOT_HOME"
 ```
+
+The `config set` line is required, not optional. The drainer a hook starts drops
+`INGEST_BASE_URL` from the agent's shell and falls back to `http://localhost:4000`
+unless the config file says otherwise; with only the environment variable set,
+every in-session drainer fails to connect (`aiot status` shows `Network error`)
+and only the final foreground `aiot drain --wait`, which does read the variable,
+delivers. The config file lives under `$XDG_CONFIG_HOME` (or `~/.config`), not
+under `AIOT_HOME`, so persist that directory too or repeat the command in the
+entrypoint. A devcontainer with `AIOT_HOME` on a volume can run `aiot login` once
+instead of using `AIOT_TOKEN`.
 
 Only one process does each kind of delivery work at a time. There are two leases
 in `queue.db` (15 s TTL, renewed every 5 s, so a crashed holder frees it by
@@ -303,8 +349,10 @@ purpose changes whose identity enrichment resolves for that drain. (`aiot drain
 
 ### `uninstall`
 
-Removes the service files written by `install`, stops a running drainer, and strips aiot's hook entries
-from every agent config that was auto-wired. For shared config files, only
+Removes the service files written by `install` (there are none in on-demand mode), stops a running
+drainer, and strips aiot's hook entries from every agent config that was auto-wired. It resets the
+install mode to `resident` *first*, so a hook it could not remove (a pasted snippet, project-level or
+MDM-managed settings) cannot start another drainer. For shared config files, only
 aiot-owned entries are removed — user-defined hooks are preserved. Backups
 (`.aiot-backup`) are cleaned up after successful removal. Does **not** remove
 local data (`purge-local` does that).
