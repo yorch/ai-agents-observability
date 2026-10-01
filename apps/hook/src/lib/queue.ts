@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 import { log } from './log';
 import { queuePath } from './paths';
 
+const HOOK_BUSY_TIMEOUT_MS = 100;
 const DEFAULT_MAX_EVENTS = 50_000;
 const DEFAULT_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
 
@@ -70,6 +71,16 @@ export function openQueue(path = queuePath()): Queue {
     // do not own.
   }
 
+  // bun:sqlite's busy_timeout defaults to 0 (measured): a write that meets
+  // another writer fails with SQLITE_BUSY at once, and hook-entry then drops the
+  // event. The competing writers are real — the flusher's delete/markAttempt
+  // transactions, and several hooks firing together (parallel tool calls,
+  // subagents). The wait only happens under contention, so the uncontended
+  // path stays at its <10ms budget; 100ms is far longer than any of those
+  // transactions (a handful of rows, ~1-5ms) yet is the most latency we are
+  // willing to add to the host agent's tool call. Set first so the pragmas
+  // below, which can also need the write lock, get it too.
+  db.exec(`PRAGMA busy_timeout = ${HOOK_BUSY_TIMEOUT_MS};`);
   // WAL + NORMAL is the speed/durability sweet spot for an append-only queue.
   // temp_store=memory keeps spill space off disk.
   db.exec('PRAGMA journal_mode = WAL;');

@@ -48,6 +48,10 @@ export function openQueueReader(dbPath: string): QueueReader {
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = new Database(dbPath, { create: true, readonly: false });
 
+  // Default busy_timeout is 0, so any overlap with a hook's enqueue transaction
+  // threw SQLITE_BUSY out of the flusher loop. This is a daemon off the hot path
+  // (unlike queue.ts), so it can afford to wait much longer than the hook does.
+  db.exec('PRAGMA busy_timeout = 5000;');
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA synchronous = NORMAL;');
   db.exec('PRAGMA temp_store = memory;');
