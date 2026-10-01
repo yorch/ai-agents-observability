@@ -107,19 +107,37 @@ configs, written as `bun hook <kind>`, with the suite green:
 
 - **Tests never touch the real HOME.** `bunfig.toml` preloads
   `test-setup/isolate-home.ts`, which points `HOME`/`AIOT_HOME` and `os.homedir()` at
-  a temp dir and makes node:fs writes under the real home's agent dirs throw.
-  `test-isolation.test.ts` proves it; if it goes red, stop and fix the preload before
-  running anything else. Adapters read `homeDir()` (HOME), not `runInstall`'s
-  `homeDir` argument, so injecting that argument alone isolates nothing.
+  a temp dir. It also makes writes under the real home's `.claude`, `.codex`,
+  `.config/opencode`, `.config/systemd`, `.pi`, `.gemini`, `.copilot`, `.omp`, `.aiot`
+  and `Library/LaunchAgents` throw (symlinks resolved): node:fs mutators in sync,
+  callback and promises form, write-mode `open`, `createWriteStream`, and `Bun.write`.
+  **Not guarded:** `Bun.file().writer()`, bun:sqlite opening a file, and child
+  processes such as `Bun.spawn` of an external tool; only the temp HOME/AIOT_HOME
+  covers those. `bunfig.toml` is read from the CWD only, so run `bun test` from
+  `apps/hook` or the repo root (whose bunfig points at the same preload); anywhere
+  else is unguarded, and `test-isolation.test.ts` fails first with a clear message.
+  That test only ever probes a fake protected dir exported by the preload. If it goes
+  red, stop and fix the preload before running anything else. Adapters read
+  `homeDir()` (HOME), not `runInstall`'s `homeDir` argument, so injecting that
+  argument alone isolates nothing.
 - **Hook wiring never writes a non-compiled binary.** `runInstall` refuses unless
-  `process.execPath` is the compiled `aiot*` binary, `--force` or not (`--force
-  --no-auto` writes service files only). Every adapter's `apply` runs behind that one
-  check; tests inject the `exe` argument instead of weakening it.
+  `process.execPath` is the compiled aiot binary (`isAiotBinary`: basename `aiot`,
+  `aiot-<target>` or `aiot-runtime-<target>`, the same predicate ownership uses),
+  `--force` or not (`--force --no-auto` writes service files only, and prints no
+  snippets). Every adapter's `apply` runs behind that one check; tests inject the
+  `exe` argument instead of weakening it.
 - **Ownership is structural, not a substring.** `lib/config-wire.ts` matches the parsed
-  entry (basename `aiot*` + `hook` arg), plus the legacy bare `bun hook` form so
-  re-install and uninstall repair the leaked duplicates. `command.includes('aiot')`
-  missed `bun` (every re-install appended a group) and matched foreign paths. Test
-  with real-shaped entries, not a bin that happens to contain "aiot".
+  entry (basename `aiot*` + `hook` arg). It also recognises the exact leaked legacy
+  shapes so re-install and uninstall repair them: Claude
+  `{args:['hook',<kind>], command:<absolute>/bun, type}` and Codex
+  `{command:[<absolute>/bun,'hook',<kind>,'--agent',<name>], type}`, known kind, no
+  matcher or extra keys. A plain `"bun hook stop"` string, a relative `bun`, an
+  unknown kind or a customised entry is left alone. **Residual risk:** a developer's
+  own absolute-path `bun hook <known-kind>` hook with nothing else on it is
+  indistinguishable from the leak and will be treated as ours.
+  `command.includes('aiot')` missed `bun` (every re-install appended a group) and
+  matched foreign paths. Test with real-shaped entries, not a bin that happens to
+  contain "aiot".
 
 ## Historical import
 

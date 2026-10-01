@@ -12,38 +12,34 @@
 //   1. HOME and AIOT_HOME point at a fresh temp dir, and `os.homedir()` follows
 //      HOME. Bun's own `os.homedir()` ignores a later HOME, and paths.ts, config.ts
 //      and claude-projects.ts call it directly.
-//   2. node:fs mutators throw if the target is under the REAL home's agent config
-//      dirs. That is the backstop for any path that still resolves to the real
-//      home (an absolute path, a cached value, a new module that reads the
-//      passwd entry).
+//   2. Writes under the REAL home's agent/service dirs throw (see guard.ts).
 //
-// `mock.module` is the only mechanism that works here: Bun's named imports from a
+// WHAT IS GUARDED: node:fs mutators (sync, callback and promises forms, incl.
+// write-mode open and createWriteStream) and Bun.write, for any path under the real
+// home's protected dirs, symlinks resolved. WHAT IS NOT: `Bun.file().writer()`,
+// bun:sqlite opening a database file, and child processes (`Bun.spawn` of an
+// external tool). Those are covered only by layer 1 (HOME/AIOT_HOME are temp).
+//
+// bunfig.toml is read from the CWD only. Run from apps/hook (turbo and CI do), or
+// from the repo root (the root bunfig points here too). From anywhere else this file
+// does not load, and src/test-isolation.test.ts fails fast on the missing marker.
+//
+// `mock.module` is the only mechanism that works: Bun's named imports from a
 // builtin ignore monkey-patching of the module object.
 
 import { mock } from 'bun:test';
 import * as fsNs from 'node:fs';
 import * as fsPromisesNs from 'node:fs/promises';
 import * as osNs from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+
+import { opensForWrite, protectedDirsFor, refuseIfProtected } from './guard';
 
 // Plain copies taken BEFORE mock.module: after it, the namespaces resolve to the
 // mocks, and a mock that spreads its own namespace recurses.
 const realFs = { ...fsNs };
 const realFsPromises = { ...fsPromisesNs };
 const realOs = { ...osNs };
-
-/** Directories under a real home that tests must never write to. */
-const PROTECTED = [
-  '.claude',
-  '.codex',
-  '.config/opencode',
-  '.pi',
-  '.gemini',
-  '.copilot',
-  '.omp',
-  '.oh-omp',
-  '.aiot',
-];
 
 function realHomes(): string[] {
   const homes = new Set<string>();
@@ -56,79 +52,54 @@ function realHomes(): string[] {
     // no passwd entry (some containers): HOME alone has to do.
   }
   homes.add(realOs.homedir());
-  return [...homes].filter((h) => h.length > 1).map((h) => resolve(h));
+  return [...homes].filter((h) => h.length > 1);
 }
 
-const protectedDirs = realHomes().flatMap((home) => PROTECTED.map((d) => join(home, d)));
+const realHomeList = realHomes();
+const tmpHome = realFs.mkdtempSync(join(realOs.tmpdir(), 'aiot-test-home-'));
+// A stand-in protected dir OUTSIDE tmpHome. Canary tests aim their probe writes
+// here, so proving the guard never needs to touch the real home.
+const fakeProtectedRoot = realFs.mkdtempSync(join(realOs.tmpdir(), 'aiot-test-protected-'));
+const fakeProtectedDir = join(fakeProtectedRoot, '.claude');
+realFs.mkdirSync(fakeProtectedDir, { recursive: true });
 
-function refuseIfProtected(target: unknown): void {
-  if (typeof target !== 'string' && !(target instanceof URL) && !(target instanceof Uint8Array)) {
-    return; // a file descriptor, or an unsupported shape the real fs will reject
-  }
-  const text =
-    target instanceof URL
-      ? target.pathname
-      : String(target instanceof Uint8Array ? Buffer.from(target) : target);
-  const abs = resolve(text);
-  for (const dir of protectedDirs) {
-    if (abs === dir || abs.startsWith(`${dir}/`)) {
-      throw new Error(
-        `[aiot test isolation] refusing to write under the real home: ${abs}. ` +
-          'Tests must use a temp HOME (set up by test-setup/isolate-home.ts).',
-      );
-    }
-  }
-}
+const protectedDirs = [...protectedDirsFor(realHomeList), fakeProtectedDir];
+const check = (target: unknown) => refuseIfProtected(target, protectedDirs);
 
-// Every mutator the hook code or its tests use, with how many leading args are paths.
-const FS_MUTATORS: Record<string, number> = {
-  appendFileSync: 1,
-  chmodSync: 1,
-  copyFileSync: 2,
-  cpSync: 2,
-  linkSync: 2,
-  mkdirSync: 1,
-  renameSync: 2,
-  rmdirSync: 1,
-  rmSync: 1,
-  symlinkSync: 2,
-  truncateSync: 1,
-  unlinkSync: 1,
-  utimesSync: 1,
-  writeFileSync: 1,
-};
-const FS_PROMISES_MUTATORS: Record<string, number> = {
-  appendFile: 1,
-  chmod: 1,
-  copyFile: 2,
-  cp: 2,
-  link: 2,
-  mkdir: 1,
-  rename: 2,
-  rm: 1,
-  rmdir: 1,
-  symlink: 2,
-  truncate: 1,
-  unlink: 1,
-  utimes: 1,
-  writeFile: 1,
+process.env.HOME = tmpHome;
+process.env.AIOT_HOME = join(tmpHome, '.aiot');
+
+// name → indexes of the path args that get written or removed. Sources that are
+// only read (copyFile/cp/link source, a symlink's target) are not checked.
+const MUTATORS: Record<string, number[]> = {
+  appendFile: [0],
+  chmod: [0],
+  copyFile: [1],
+  cp: [1],
+  link: [1],
+  mkdir: [0],
+  rename: [0, 1],
+  rm: [0],
+  rmdir: [0],
+  symlink: [1],
+  truncate: [0],
+  unlink: [0],
+  utimes: [0],
+  writeFile: [0],
 };
 
-function guard<T extends Record<string, unknown>>(
-  real: T,
-  mutators: Record<string, number>,
-  async = false,
-): T {
+function wrap(
+  real: Record<string, unknown>,
+  names: Record<string, number[]>,
+  async: boolean,
+): Record<string, unknown> {
   const out: Record<string, unknown> = { ...real };
-  for (const [name, nPaths] of Object.entries(mutators)) {
-    const fn = real[name];
-    if (typeof fn !== 'function') {
-      continue;
-    }
-    out[name] = (...args: unknown[]) => {
+  const guardCall =
+    (paths: number[], fn: (...a: unknown[]) => unknown) =>
+    (...args: unknown[]) => {
       try {
-        for (let i = 0; i < nPaths; i++) {
-          refuseIfProtected(args[i]);
+        for (const i of paths) {
+          check(args[i]);
         }
       } catch (err) {
         if (async) {
@@ -136,38 +107,71 @@ function guard<T extends Record<string, unknown>>(
         }
         throw err;
       }
-      return (fn as (...a: unknown[]) => unknown)(...args);
+      return fn(...args);
     };
+  for (const [name, paths] of Object.entries(names)) {
+    for (const key of [name, `${name}Sync`]) {
+      const fn = real[key];
+      if (typeof fn === 'function' && (key === name || !async)) {
+        out[key] = guardCall(paths, fn as (...a: unknown[]) => unknown);
+      }
+    }
   }
-  return out as T;
+  // open/openSync only when opened for writing; createWriteStream always writes.
+  for (const key of ['open', 'openSync']) {
+    const fn = real[key];
+    if (typeof fn === 'function') {
+      out[key] = (...args: unknown[]) => {
+        if (opensForWrite(args[1])) {
+          return guardCall([0], fn as (...a: unknown[]) => unknown)(...args);
+        }
+        return (fn as (...a: unknown[]) => unknown)(...args);
+      };
+    }
+  }
+  if (typeof real.createWriteStream === 'function') {
+    out.createWriteStream = guardCall([0], real.createWriteStream as (...a: unknown[]) => unknown);
+  }
+  return out;
 }
 
-// openSync is a mutator only when opened for writing.
-function guardedOpenSync(...args: Parameters<typeof realFs.openSync>) {
-  const flags = args[1];
-  if (flags === undefined || flags === 'r' || flags === 'rs' || flags === 0) {
-    return realFs.openSync(...args);
-  }
-  refuseIfProtected(args[0]);
-  return realFs.openSync(...args);
-}
+const guardedFsPromises = wrap(realFsPromises, MUTATORS, true);
+// `fs.promises` must be the guarded one, or it is a bypass around the named exports.
+const guardedFs = { ...wrap(realFs, MUTATORS, false), promises: guardedFsPromises };
 
-const tmpHome = realFs.mkdtempSync(join(realOs.tmpdir(), 'aiot-test-home-'));
-process.env.HOME = tmpHome;
-process.env.AIOT_HOME = join(tmpHome, '.aiot');
-
-const guardedFs = { ...guard(realFs, FS_MUTATORS), openSync: guardedOpenSync };
-const guardedFsPromises = guard(realFsPromises, FS_PROMISES_MUTATORS, true);
 const guardedOs = { ...realOs, homedir: () => process.env.HOME ?? tmpHome };
 
 mock.module('node:fs', () => ({ ...guardedFs, default: guardedFs }));
 mock.module('node:fs/promises', () => ({ ...guardedFsPromises, default: guardedFsPromises }));
 mock.module('node:os', () => ({ ...guardedOs, default: guardedOs }));
 
-process.on('exit', () => {
+// Bun.write is a separate write path from node:fs.
+const realBunWrite = Bun.write.bind(Bun);
+Bun.write = ((dest: unknown, ...rest: unknown[]) => {
   try {
-    realFs.rmSync(tmpHome, { force: true, recursive: true });
-  } catch {
-    // best effort: it is a temp dir
+    check(dest);
+  } catch (err) {
+    return Promise.reject(err);
+  }
+  return (realBunWrite as (...a: unknown[]) => unknown)(dest, ...rest);
+}) as typeof Bun.write;
+
+// The marker canary tests assert FIRST, so a run without this preload fails with a
+// clear message instead of probing the real home.
+(globalThis as Record<string, unknown>).__AIOT_TEST_ISOLATION__ = {
+  fakeProtectedDir,
+  protectedDirs,
+  realHome: realHomeList[realHomeList.length - 1],
+  realHomes: realHomeList,
+  tmpHome,
+};
+
+process.on('exit', () => {
+  for (const dir of [tmpHome, fakeProtectedRoot]) {
+    try {
+      realFs.rmSync(dir, { force: true, recursive: true });
+    } catch {
+      // best effort: temp dirs
+    }
   }
 });
