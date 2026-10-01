@@ -14,7 +14,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInstall } from '../commands/install';
-import { stripOwnedEntries } from '../lib/config-wire';
+import { isAiotBinary, stripOwnedEntries } from '../lib/config-wire';
 import { claudeCodeAdapter } from './claude-code';
 import { ADAPTERS } from './index';
 
@@ -100,6 +100,33 @@ describe('stripOwnedEntries — ownership is structural', () => {
     expect(stripOwnedEntries([unnamed])).toEqual([]);
   });
 
+  it('rejects a binary name the install guard would also reject (one predicate)', () => {
+    for (const exe of ['/opt/aiot2', '/opt/aiot_v2', '/opt/aiotool']) {
+      expect(isAiotBinary(exe)).toBe(false);
+      expect(stripOwnedEntries([claudeGroup(exe, ['hook', 'stop'])])).toHaveLength(1);
+    }
+    for (const exe of ['/opt/aiot', '/opt/aiot-linux-x64', '/opt/aiot-runtime-darwin-arm64']) {
+      expect(isAiotBinary(exe)).toBe(true);
+    }
+  });
+
+  it('knows every hook kind the adapters really write (derived from a real apply)', () => {
+    mkdirSync(join(tmpHome, '.claude'), { recursive: true });
+    mkdirSync(join(tmpHome, '.codex'), { recursive: true });
+    write('.codex/config.toml', '[features]\nhooks = true\n');
+    for (const [agent, rel] of [
+      ['claude-code', '.claude/settings.json'],
+      ['codex', '.codex/hooks.json'],
+    ] as const) {
+      // apply with an absolute bun path, i.e. exactly what the leak wrote
+      expect(cfgFor(agent).apply?.(BUN)).toBeTruthy();
+      const written = readHooks(join(tmpHome, rel));
+      const kept = Object.values(written).flatMap((entries) => stripOwnedEntries(entries));
+      expect(kept).toEqual([]);
+      expect(Object.keys(written).length).toBeGreaterThan(5);
+    }
+  });
+
   it('keeps foreign hooks byte-identical', () => {
     const foreign = [
       claudeGroup('bun', ['run', 'lint']),
@@ -116,6 +143,17 @@ describe('stripOwnedEntries — ownership is structural', () => {
       { command: ['bun', 'run', 'lint'], type: 'command' },
       { command: ['/aiot-tools/x', 'hook', 'stop'], type: 'command' },
       { command: [BUN, 'hook', 'stop'], timeout: 5, type: 'command' },
+      // legacy `bun hook` is ONLY the exact leaked shape: these are not it
+      { hooks: [{ command: 'bun hook', type: 'command' }] },
+      { hooks: [{ command: 'bun hook lint', type: 'command' }] },
+      { hooks: [{ command: '/usr/bin/bun hook stop', type: 'command' }] },
+      claudeGroup('bun', ['hook', 'stop']), // not an absolute path
+      claudeGroup(BUN, ['hook', 'deploy']), // not a known hook kind
+      claudeGroup(BUN, ['hook', 'stop', '--extra']),
+      { command: ['bun', 'hook'], type: 'command' },
+      { command: ['bun', 'hook', 'stop', '--agent', 'codex'], type: 'command' },
+      { command: [BUN, 'hook', 'deploy', '--agent', 'codex'], type: 'command' },
+      { command: [BUN, 'hook', 'stop'], type: 'command' }, // no --agent
       { hooks: [{ command: "bash '/home/x/.claude/hooks/herdr-agent-state.sh' session" }] },
       'not-an-object',
     ];
@@ -175,7 +213,7 @@ describe('claude-code — leaked bun groups', () => {
     for (const event of events) {
       hooks[event] = [];
       for (let i = 0; i < DUPLICATES; i++) {
-        hooks[event].push({ hooks: [{ args: ['hook', 'x'], command: BUN, type: 'command' }] });
+        hooks[event].push({ hooks: [{ args: ['hook', 'stop'], command: BUN, type: 'command' }] });
       }
     }
     hooks.SessionStart = [HERDR_CLAUDE, ...(hooks.SessionStart ?? [])];
@@ -228,7 +266,7 @@ describe('claude-code — leaked bun groups', () => {
     const events = wiredEvents('claude-code', REL);
     const only: Hooks = {};
     for (const event of events) {
-      only[event] = [{ hooks: [{ args: ['hook', 'x'], command: BUN, type: 'command' }] }];
+      only[event] = [{ hooks: [{ args: ['hook', 'stop'], command: BUN, type: 'command' }] }];
     }
     const path = write(REL, JSON.stringify({ hooks: only }));
     cfgFor('claude-code').remove?.();
@@ -342,14 +380,26 @@ describe('whole-file agents — nothing is written from the Bun runtime', () => 
     ]) {
       mkdirSync(join(tmpHome, dir), { recursive: true });
     }
-    const exit = await runInstall(
-      ['--force', '--yes', '--no-start'],
-      claudeCodeAdapter,
-      () => ({ exitCode: 0 }),
-      tmpHome,
-      process.execPath,
-    );
+    const errChunks: string[] = [];
+    const origErr = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (chunk: string | Uint8Array) => {
+      errChunks.push(String(chunk));
+      return true;
+    };
+    let exit: number;
+    try {
+      exit = await runInstall(
+        ['--force', '--yes', '--no-start'],
+        claudeCodeAdapter,
+        () => ({ exitCode: 0 }),
+        tmpHome,
+        process.execPath,
+      );
+    } finally {
+      process.stderr.write = origErr;
+    }
     expect(exit).toBe(1);
+    expect(errChunks.join('')).toContain('Refusing to install');
     for (const rel of [
       '.claude/settings.json',
       '.codex/hooks.json',

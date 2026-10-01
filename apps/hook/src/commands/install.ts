@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
 import { ADAPTERS, type HookAdapter, selectAdapter } from '../adapters';
+import { isAiotBinary } from '../lib/config-wire';
 import { type CheckboxItem, checkboxPrompt, isInteractive } from '../lib/prompt';
 
 const FLUSHER_LABEL = 'com.brnby.aiot.flusher';
@@ -268,6 +269,13 @@ function printUndetectedSnippets(bin: string, keys: string[]): void {
   if (keys.length === 0) {
     return;
   }
+  if (!isCompiledBinary(bin)) {
+    // A snippet for the Bun runtime is `bun hook <kind>`: copy-pasteable and wrong.
+    process.stdout.write(
+      '\nManual agent setup snippets omitted: not running from the compiled aiot binary.\n',
+    );
+    return;
+  }
   process.stdout.write('\nManual setup for undetected agents:\n');
   for (const key of keys) {
     const adapter = ADAPTERS[key];
@@ -301,9 +309,13 @@ function resolvedBinaryPath(exe: string): string {
   return exe;
 }
 
-/** True when `exe` (normally process.execPath) is the compiled aiot binary. */
-function isCompiledBinary(exe: string): boolean {
-  return basename(exe).startsWith('aiot');
+/**
+ * True when `exe` (normally process.execPath) is the compiled aiot binary. Shares
+ * its predicate with hook ownership, so anything this lets through is something
+ * re-install and uninstall will recognise.
+ */
+function isCompiledBinary(exe: string = process.execPath): boolean {
+  return isAiotBinary(exe);
 }
 
 async function installDarwin(

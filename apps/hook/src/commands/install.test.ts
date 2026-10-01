@@ -153,6 +153,24 @@ describe('install — uncompiled guard', () => {
     expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(false);
   });
 
+  it('--force --no-auto prints no copy-pasteable `bun hook` snippets', async () => {
+    const { stdout, exit } = await captureOutput(() =>
+      install(['--force', '--no-auto', '--no-start'], recordingSpawn().fn, process.execPath),
+    );
+    expect(exit).toBe(0);
+    expect(stdout).toContain('snippets omitted');
+    expect(stdout).not.toContain(process.execPath);
+    expect(stdout).not.toContain('"hook"');
+  });
+
+  it('refuses a binary whose name the ownership predicate would not recognise', async () => {
+    for (const exe of ['/opt/aiot/aiot2', '/opt/aiot/aiot_v2']) {
+      const { stderr, exit } = await captureOutput(() => install([], recordingSpawn().fn, exe));
+      expect(exit).toBe(1);
+      expect(stderr).toContain('Refusing to install');
+    }
+  });
+
   // The bug this pins: --force bypassed the guard, then autoWire wrote
   // `bun hook <kind>` into every detected agent's config. --force must not be
   // able to do that, with or without --yes / --agent / --dry-run.

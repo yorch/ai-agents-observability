@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, dirname } from 'node:path';
+import { basename, dirname, isAbsolute } from 'node:path';
 
 /** Suffix appended to config files before aiot's first modification. */
 export const BACKUP_SUFFIX = '.aiot-backup';
@@ -120,6 +120,35 @@ export function writeTextFile(filePath: string, content: string): void {
 const AIOT_BASENAME = /^aiot(-.+)?$/;
 
 /**
+ * Is `exe` (a path) the compiled aiot launcher or runtime? ONE predicate for two
+ * questions that must never disagree: "may install write this path into an agent
+ * config" (install.ts) and "will re-install/uninstall recognise it afterwards"
+ * (ownership below). A name accepted by one and rejected by the other (`aiot2`)
+ * writes hooks nothing can ever clean up.
+ */
+export function isAiotBinary(exe: string): boolean {
+  return AIOT_BASENAME.test(basename(exe));
+}
+
+/**
+ * Hook kinds aiot has ever registered (Claude Code and Codex). The legacy
+ * `bun hook <kind>` rule only fires for these. A test derives the kinds from a
+ * real apply and fails if one is missing here.
+ */
+const KNOWN_HOOK_KINDS: ReadonlySet<string> = new Set([
+  'notification',
+  'permission-request',
+  'post-tool-use',
+  'pre-compact',
+  'pre-tool-use',
+  'session-end',
+  'session-start',
+  'stop',
+  'subagent-stop',
+  'user-prompt-submit',
+]);
+
+/**
  * Split a shell-ish command string into tokens, honouring "double" and 'single'
  * quotes. Only used for hook shapes that put the whole invocation in one string
  * (Gemini CLI writes `"<bin>" hook <kind> --agent gemini-cli`).
@@ -132,21 +161,57 @@ function splitCommand(command: string): string[] {
  * True when `argv` (executable first) is an invocation aiot wrote: the
  * executable's BASENAME is the launcher/runtime and the first argument is
  * `hook`. A path that merely contains "aiot" (`/aiot-tools/x`) does not match.
- *
- * `legacyBun` additionally recognises `bun hook <kind>` — what every install
- * run from the Bun runtime (tests, `bun run src/cli.ts`) used to write before
- * hook wiring was refused outside the compiled binary. Those entries leaked
- * into real configs, six more per run, and are only ours if nothing else about
- * them is customised (the caller decides that), so re-install and uninstall can
- * repair them without touching a user's own `bun run lint`.
  */
-function isAiotInvocation(argv: readonly unknown[], legacyBun: boolean): boolean {
+function isAiotInvocation(argv: readonly unknown[]): boolean {
   const [exe, sub] = argv;
-  if (typeof exe !== 'string' || sub !== 'hook') {
-    return false;
+  return typeof exe === 'string' && sub === 'hook' && isAiotBinary(exe);
+}
+
+/**
+ * LEGACY: the exact entries that leaked into real configs when install ran from
+ * the Bun runtime (tests, `bun run src/cli.ts`) — six more per run — before hook
+ * wiring was refused outside the compiled binary:
+ *
+ *   Claude: `{ args: ['hook', <kind>], command: <abs path>/bun, type }`
+ *   Codex:  `{ command: [<abs path>/bun, 'hook', <kind>, '--agent', <name>], type }`
+ *
+ * Deliberately narrow so re-install/uninstall can repair them without touching a
+ * user's own `bun run lint`: an ABSOLUTE `bun` path, a known hook kind, the
+ * args-array form for Claude (a plain `"bun hook stop"` string is not ours), no
+ * extra keys, and (checked by the caller) no matcher on the group.
+ *
+ * RESIDUAL RISK, accepted: a developer's own hook that is exactly an absolute-path
+ * `bun hook <known-kind>` with no matcher/timeout is indistinguishable from the
+ * leak and WILL be treated as ours — removed on uninstall, replaced on install.
+ */
+function isLegacyBunHook(h: Record<string, unknown>): boolean {
+  if (typeof h.command === 'string') {
+    const args = h.args;
+    return (
+      Array.isArray(args) &&
+      args.length === 2 &&
+      args[0] === 'hook' &&
+      typeof args[1] === 'string' &&
+      KNOWN_HOOK_KINDS.has(args[1]) &&
+      isAbsolute(h.command) &&
+      basename(h.command) === 'bun' &&
+      onlyKeys(h, ['args', 'command', 'type'])
+    );
   }
-  const name = basename(exe);
-  return AIOT_BASENAME.test(name) || (legacyBun && name === 'bun');
+  const c = h.command;
+  return (
+    Array.isArray(c) &&
+    c.length === 5 &&
+    typeof c[0] === 'string' &&
+    isAbsolute(c[0]) &&
+    basename(c[0]) === 'bun' &&
+    c[1] === 'hook' &&
+    typeof c[2] === 'string' &&
+    KNOWN_HOOK_KINDS.has(c[2]) &&
+    c[3] === '--agent' &&
+    typeof c[4] === 'string' &&
+    onlyKeys(h, ['command', 'type'])
+  );
 }
 
 /** True when every own key of `o` is in `allowed`. */
@@ -157,7 +222,7 @@ function onlyKeys(o: Record<string, unknown>, allowed: readonly string[]): boole
 /**
  * Is this hook object (one element of a group's `hooks` array, or a Codex entry
  * itself) one aiot wrote? `plainGroup` says the enclosing group has no keys
- * besides `hooks` (no matcher), which the legacy `bun hook` form requires.
+ * besides `hooks` (no matcher), which {@link isLegacyBunHook} requires.
  */
 function isOwnedHook(h: Record<string, unknown>, plainGroup: boolean): boolean {
   // Gemini names every entry `aiot-<kind>`.
@@ -173,10 +238,7 @@ function isOwnedHook(h: Record<string, unknown>, plainGroup: boolean): boolean {
   } else {
     return false;
   }
-  if (isAiotInvocation(argv, false)) {
-    return true;
-  }
-  return plainGroup && onlyKeys(h, ['args', 'command', 'type']) && isAiotInvocation(argv, true);
+  return isAiotInvocation(argv) || (plainGroup && isLegacyBunHook(h));
 }
 
 /**
