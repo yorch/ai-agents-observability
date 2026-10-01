@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
-import { fetchOpenPrNumber, fetchPrSnapshot, isGitHubRemote } from './github-pr';
+import { fetchOpenPrNumber, fetchPrSnapshot, GH_TIMEOUT_MS, isGitHubRemote } from './github-pr';
 
 type GhSpawn = typeof Bun.spawnSync;
 
@@ -113,6 +113,53 @@ describe('fetchOpenPrNumber', () => {
     );
     expect(result).toBeNull();
   });
+
+  it('bounds the gh spawn, and a timed-out gh (exitCode null) is "no PR"', async () => {
+    let seen: { timeout?: number } | undefined;
+    const result = await fetchOpenPrNumber('acme', 'widget', 'main', null, ((
+      _cmd: unknown,
+      opts: { timeout?: number },
+    ) => {
+      seen = opts;
+      return { exitCode: null, stdout: new Uint8Array() };
+    }) as unknown as GhSpawn);
+    expect(seen?.timeout).toBe(GH_TIMEOUT_MS);
+    expect(result).toBeNull();
+  });
+
+  it('gives up on a REST API that accepts the connection and never answers', async () => {
+    // Shrink the bound so the test does not wait GH_TIMEOUT_MS; assert it is
+    // the production constant that was requested.
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const requested: number[] = [];
+    const spy = spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+      requested.push(ms);
+      return realTimeout(200);
+    });
+    const server = Bun.serve({ fetch: () => new Promise<Response>(() => {}), port: 0 });
+    const origToken = process.env.GITHUB_TOKEN;
+    process.env.GITHUB_API_URL = `http://127.0.0.1:${server.port}`;
+    process.env.GITHUB_TOKEN = 'ghp_test';
+    try {
+      const result = await fetchOpenPrNumber(
+        'acme',
+        'widget',
+        'main',
+        `http://127.0.0.1:${server.port}/acme/widget.git`,
+        () => spawnResult('', 1),
+      );
+      expect(result).toBeNull();
+      expect(requested).toContain(GH_TIMEOUT_MS);
+    } finally {
+      spy.mockRestore();
+      server.stop(true);
+      if (origToken === undefined) {
+        delete process.env.GITHUB_TOKEN;
+      } else {
+        process.env.GITHUB_TOKEN = origToken;
+      }
+    }
+  });
 });
 
 // ── fetchPrSnapshot ─────────────────────────────────────────────────────────
@@ -174,6 +221,19 @@ describe('fetchPrSnapshot', () => {
     );
 
     expect(result).toEqual({ ciStatus: null, reviewDecision: null });
+  });
+
+  it('bounds the gh spawn, and a timed-out gh (exitCode null) is "no snapshot"', () => {
+    let seen: { timeout?: number } | undefined;
+    const result = fetchPrSnapshot('acme', 'widget', 1, ((
+      _cmd: unknown,
+      opts: { timeout?: number },
+    ) => {
+      seen = opts;
+      return { exitCode: null, stdout: new Uint8Array() };
+    }) as unknown as GhSpawn);
+    expect(seen?.timeout).toBe(GH_TIMEOUT_MS);
+    expect(result).toBeNull();
   });
 
   it('returns null when gh returns malformed snapshot JSON', () => {

@@ -1,3 +1,5 @@
+import { GH_TIMEOUT_MS } from './github-pr';
+
 // Resolve the authenticated GitHub user's login and team membership.
 // Used by the flusher to populate session_context.git fields before events
 // are shipped to ingest — keeping the hook hot path network-free.
@@ -13,6 +15,7 @@ export function fetchGitHubLogin(spawn: GhSpawn = Bun.spawnSync): string | null 
     const proc = spawn(['gh', 'api', 'user', '--jq', '.login'], {
       stderr: 'ignore',
       stdout: 'pipe',
+      timeout: GH_TIMEOUT_MS,
     });
     if (proc.exitCode !== 0) {
       return null;
@@ -34,6 +37,7 @@ export function fetchUserTeam(owner: string, spawn: GhSpawn = Bun.spawnSync): st
     const proc = spawn(['gh', 'api', 'user/teams?per_page=100'], {
       stderr: 'ignore',
       stdout: 'pipe',
+      timeout: GH_TIMEOUT_MS,
     });
     if (proc.exitCode !== 0) {
       return null;
