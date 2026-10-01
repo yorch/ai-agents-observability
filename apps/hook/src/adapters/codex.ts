@@ -773,10 +773,8 @@ function renderHooksSnippet(bin: string): string {
 const CODEX_NOTIFY_WRAPPER = () => join(codexHome(), 'aiot-notify.sh');
 const CODEX_HOOKS_JSON = () => join(codexHome(), 'hooks.json');
 const CODEX_CONFIG_TOML = () => join(codexHome(), 'config.toml');
-// Ownership marker for hooks.json entries (the lifecycle-hooks path).
-// applyCodex uses this to strip old entries before re-adding; removeCodex uses
-// it to clean up. Must match in both directions.
-const CODEX_HOOKS_MARKER = 'aiot';
+// hooks.json ownership is structural (lib/config-wire.ts isOwnedHook); apply and
+// remove share it, so they cannot disagree about what is ours.
 
 function detectCodex(): boolean {
   return dirExists(codexHome());
@@ -802,9 +800,7 @@ function applyCodex(bin: string): string | null {
       const userHooks = (existing.hooks as Record<string, unknown[]>) ?? {};
       const merged: Record<string, unknown[]> = {};
       for (const [event, entries] of Object.entries(userHooks)) {
-        merged[event] = Array.isArray(entries)
-          ? stripOwnedEntries(entries, CODEX_HOOKS_MARKER)
-          : [];
+        merged[event] = Array.isArray(entries) ? stripOwnedEntries(entries) : [];
       }
       for (const [event, entries] of Object.entries(ourHooks)) {
         merged[event] = [...(merged[event] ?? []), ...entries];
@@ -856,11 +852,9 @@ function removeCodex(): boolean {
       const cleaned: Record<string, unknown[]> = {};
       let hadAny = false;
       for (const [event, entries] of Object.entries(hooks)) {
-        const stripped = Array.isArray(entries)
-          ? stripOwnedEntries(entries, CODEX_HOOKS_MARKER)
-          : entries;
+        const stripped = Array.isArray(entries) ? stripOwnedEntries(entries) : entries;
         if (Array.isArray(stripped)) {
-          if (stripped.length !== entries.length) {
+          if (JSON.stringify(stripped) !== JSON.stringify(entries)) {
             hadAny = true;
           }
           if (stripped.length > 0) {

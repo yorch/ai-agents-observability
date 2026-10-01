@@ -298,7 +298,6 @@ function renderSnippet(bin: string): string {
 
 const GEMINI_CONFIG_DIR = () => join(homeDir(), '.gemini');
 const GEMINI_SETTINGS_PATH = () => join(GEMINI_CONFIG_DIR(), 'settings.json');
-const OWNERSHIP_MARKER = 'aiot-';
 
 function detectGeminiCli(): boolean {
   return dirExists(GEMINI_CONFIG_DIR());
@@ -331,7 +330,7 @@ function applyGeminiCli(bin: string): string | null {
     const userHooks = (existing.hooks as Record<string, unknown[]>) ?? {};
     const merged: Record<string, unknown[]> = {};
     for (const [event, entries] of Object.entries(userHooks)) {
-      merged[event] = Array.isArray(entries) ? stripOwnedEntries(entries, OWNERSHIP_MARKER) : [];
+      merged[event] = Array.isArray(entries) ? stripOwnedEntries(entries) : [];
     }
     for (const [event, entries] of Object.entries(ourHooks)) {
       merged[event] = [...(merged[event] ?? []), ...entries];
@@ -356,11 +355,9 @@ function removeGeminiCli(): boolean {
     const cleaned: Record<string, unknown[]> = {};
     let hadAny = false;
     for (const [event, entries] of Object.entries(hooks)) {
-      const stripped = Array.isArray(entries)
-        ? stripOwnedEntries(entries, OWNERSHIP_MARKER)
-        : entries;
+      const stripped = Array.isArray(entries) ? stripOwnedEntries(entries) : entries;
       if (Array.isArray(stripped)) {
-        if (stripped.length !== entries.length) {
+        if (JSON.stringify(stripped) !== JSON.stringify(entries)) {
           hadAny = true;
         }
         if (stripped.length > 0) {

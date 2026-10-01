@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname } from 'node:path';
+import { basename, dirname } from 'node:path';
 
 /** Suffix appended to config files before aiot's first modification. */
 export const BACKUP_SUFFIX = '.aiot-backup';
@@ -116,20 +116,83 @@ export function writeTextFile(filePath: string, content: string): void {
   writeFileAtomic(filePath, content);
 }
 
+/** `aiot` (the launcher), `aiot-<target>`, or `aiot-runtime[-<target>]`. */
+const AIOT_BASENAME = /^aiot(-.+)?$/;
+
 /**
- * Strip entries from a hooks array whose command references our ownership
- * marker. Works for both the Claude Code / Gemini CLI shape (entries with
- * `hooks` arrays containing `{ command, args, type }` objects) and the Codex
- * shape (entries with `{ command: string[], type }` objects).
- *
- * The marker is a substring that uniquely identifies aiot-owned entries —
- * typically the binary name or a wrapper script name. User hooks that don't
- * contain the marker are preserved.
+ * Split a shell-ish command string into tokens, honouring "double" and 'single'
+ * quotes. Only used for hook shapes that put the whole invocation in one string
+ * (Gemini CLI writes `"<bin>" hook <kind> --agent gemini-cli`).
  */
-export function stripOwnedEntries(entries: unknown[], marker: string): unknown[] {
+function splitCommand(command: string): string[] {
+  return [...command.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3] ?? '');
+}
+
+/**
+ * True when `argv` (executable first) is an invocation aiot wrote: the
+ * executable's BASENAME is the launcher/runtime and the first argument is
+ * `hook`. A path that merely contains "aiot" (`/aiot-tools/x`) does not match.
+ *
+ * `legacyBun` additionally recognises `bun hook <kind>` — what every install
+ * run from the Bun runtime (tests, `bun run src/cli.ts`) used to write before
+ * hook wiring was refused outside the compiled binary. Those entries leaked
+ * into real configs, six more per run, and are only ours if nothing else about
+ * them is customised (the caller decides that), so re-install and uninstall can
+ * repair them without touching a user's own `bun run lint`.
+ */
+function isAiotInvocation(argv: readonly unknown[], legacyBun: boolean): boolean {
+  const [exe, sub] = argv;
+  if (typeof exe !== 'string' || sub !== 'hook') {
+    return false;
+  }
+  const name = basename(exe);
+  return AIOT_BASENAME.test(name) || (legacyBun && name === 'bun');
+}
+
+/** True when every own key of `o` is in `allowed`. */
+function onlyKeys(o: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(o).every((k) => allowed.includes(k));
+}
+
+/**
+ * Is this hook object (one element of a group's `hooks` array, or a Codex entry
+ * itself) one aiot wrote? `plainGroup` says the enclosing group has no keys
+ * besides `hooks` (no matcher), which the legacy `bun hook` form requires.
+ */
+function isOwnedHook(h: Record<string, unknown>, plainGroup: boolean): boolean {
+  // Gemini names every entry `aiot-<kind>`.
+  if (typeof h.name === 'string' && h.name.startsWith('aiot-')) {
+    return true;
+  }
+  let argv: unknown[];
+  if (typeof h.command === 'string') {
+    // Claude: command + args[]. Gemini: the whole invocation in `command`.
+    argv = Array.isArray(h.args) ? [h.command, ...h.args] : splitCommand(h.command);
+  } else if (Array.isArray(h.command)) {
+    argv = h.command; // Codex / Copilot
+  } else {
+    return false;
+  }
+  if (isAiotInvocation(argv, false)) {
+    return true;
+  }
+  return plainGroup && onlyKeys(h, ['args', 'command', 'type']) && isAiotInvocation(argv, true);
+}
+
+/**
+ * Strip aiot-owned hooks from a hooks array. Works for both the Claude Code /
+ * Gemini CLI shape (entries with `hooks` arrays of `{ command, args, type }`)
+ * and the Codex shape (entries that are `{ command: string[], type }`).
+ *
+ * Ownership is structural — see {@link isOwnedHook} — never a substring test:
+ * `command.includes('aiot')` missed `bun hook` (so every re-install appended
+ * another group) while matching any foreign path that contained "aiot".
+ * Everything else, including the rest of a mixed group, is preserved verbatim.
+ */
+export function stripOwnedEntries(entries: unknown[]): unknown[] {
   const result: unknown[] = [];
   for (const entry of entries) {
-    const stripped = stripEntry(entry, marker);
+    const stripped = stripEntry(entry);
     if (stripped !== null) {
       result.push(stripped);
     }
@@ -142,7 +205,7 @@ export function stripOwnedEntries(entries: unknown[], marker: string): unknown[]
  * (which may be the original if nothing was owned), or null if the entire
  * entry was aiot-owned and should be removed.
  */
-function stripEntry(entry: unknown, marker: string): unknown | null {
+function stripEntry(entry: unknown): unknown | null {
   if (typeof entry !== 'object' || entry === null) {
     return entry;
   }
@@ -152,17 +215,18 @@ function stripEntry(entry: unknown, marker: string): unknown | null {
   // Filter the nested hooks array rather than removing the whole group —
   // a user may have their own hooks in the same group.
   if (Array.isArray(e.hooks)) {
+    const plainGroup = onlyKeys(e, ['hooks']);
     const filtered = e.hooks.filter(
       (h) =>
         !(
           typeof h === 'object' &&
           h !== null &&
-          ((typeof (h as Record<string, unknown>).command === 'string' &&
-            ((h as Record<string, unknown>).command as string).includes(marker)) ||
-            (typeof (h as Record<string, unknown>).name === 'string' &&
-              ((h as Record<string, unknown>).name as string).includes(marker)))
+          isOwnedHook(h as Record<string, unknown>, plainGroup)
         ),
     );
+    if (filtered.length === e.hooks.length) {
+      return entry;
+    }
     if (filtered.length === 0) {
       // The entire group was aiot-owned.
       return null;
@@ -172,10 +236,7 @@ function stripEntry(entry: unknown, marker: string): unknown | null {
 
   // Codex / Copilot shape: { command: string[] }
   if (Array.isArray(e.command)) {
-    if (e.command.some((c) => typeof c === 'string' && c.includes(marker))) {
-      return null;
-    }
-    return entry;
+    return isOwnedHook(e, true) ? null : entry;
   }
 
   return entry;
