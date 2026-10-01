@@ -48,6 +48,7 @@ const HOOK_KIND_TO_SETTINGS_KEY: Record<HookKind, string> = {
   'post-tool-use': 'PostToolUse',
   'pre-compact': 'PreCompact',
   'pre-tool-use': 'PreToolUse',
+  'session-end': 'SessionEnd',
   'session-start': 'SessionStart',
   stop: 'Stop',
   'subagent-stop': 'SubagentStop',
@@ -169,8 +170,9 @@ function writeCursor(sessionId: string, cursor: TurnCursor): void {
 /**
  * Sweep cursors for sessions that have not been written to in {@link CURSOR_TTL_MS}.
  *
- * Claude Code registers no SessionEnd hook, so unlike codex and gemini there is no
- * moment at which a session's state can be dropped on purpose — without a sweep
+ * Nothing drops a session's cursor when the session ends: the SessionEnd hook is
+ * registered but only emits an event and a ship marker, it does not clean up
+ * adapter state (and a killed session never fires it) — without a sweep
  * the directory grows one small file per session forever. Called ONLY on the first
  * Stop of a session (when no cursor existed), so it is one readdir per session,
  * never per turn and never on the tool hot path. Best-effort throughout: a
@@ -396,9 +398,12 @@ const base = createStdinHookAdapter({
     settingsHint: 'Add to ~/.claude/settings.json:',
   },
   knownKeys: CLAUDE_KNOWN_KEYS,
-  // Claude Code ships the transcript at Stop. The path + session id come from the
-  // hook payload (transcript_path / session_id), not a computed location.
-  transcriptKinds: ['stop'],
+  // Claude Code ships the transcript at Stop, and again at SessionEnd — the one
+  // hook that fires however the session ends (/exit, ctrl-D, /clear, logout),
+  // where Stop never fires if the user quits mid-response. The path + session id
+  // come from the hook payload (transcript_path / session_id), not a computed
+  // location.
+  transcriptKinds: ['stop', 'session-end'],
 });
 
 export const claudeCodeAdapter: HookAdapter = {

@@ -26,11 +26,35 @@ export function userIdClaim(): string {
 }
 
 /**
- * Load the hook auth token written by `aiot login` (the `token`
- * field of the identity file). Returns null when absent/unreadable. Shared by
- * the flusher and transcript shipper so the read isn't duplicated.
+ * How long the flusher and shipper trust "ingest rejected this token" before
+ * trying it once more (a token can be un-revoked, or the 401 can be ingest's own
+ * misconfiguration fixed server-side). A CHANGED token is tried immediately.
+ */
+export const REJECTED_TOKEN_REPROBE_MS = 15 * 60_000;
+
+/**
+ * What to tell the user when ingest rejects the token. `aiot login` rewrites
+ * identity.json, which AIOT_TOKEN overrides, so it cannot fix an env token.
+ */
+export function reauthHint(): string {
+  return process.env.AIOT_TOKEN?.trim()
+    ? 'AIOT_TOKEN is set and was rejected — replace it (`aiot login` cannot override it)'
+    : 'Run `aiot login` to re-authenticate';
+}
+
+/**
+ * Load the hook auth token: `AIOT_TOKEN` if set, else the one written by
+ * `aiot login` (the `token` field of the identity file). The env var wins so a
+ * container can be provisioned without an interactive login. Returns null when
+ * neither is present. Shared by the flusher, transcript shipper and import so
+ * the read isn't duplicated. Read per call, never cached — a fresh `aiot login`
+ * must be picked up by a running daemon. The token is a credential: never log it.
  */
 export function loadHookToken(): string | null {
+  const fromEnv = process.env.AIOT_TOKEN?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
   try {
     const raw = readFileSync(identityPath(), 'utf8');
     const parsed = JSON.parse(raw) as { token?: unknown };

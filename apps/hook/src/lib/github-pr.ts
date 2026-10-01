@@ -8,6 +8,14 @@ function githubApiBase(): string {
 
 type GhSpawn = typeof Bun.spawnSync;
 
+// A wedged `gh` (a credential-helper prompt, a stalled TLS connection) or an
+// API host that accepts the socket and never answers would block the flusher's
+// only loop forever — `spawnSync` and Bun's `fetch` have no default bound.
+// 15s is far above a healthy call (hundreds of ms) yet short enough that a hang
+// degrades to "no enrichment" for one batch. A timed-out spawn reports exitCode
+// null and a timed-out fetch throws; both already resolve to the null result.
+export const GH_TIMEOUT_MS = 15_000;
+
 /**
  * True if `remoteUrl` points at a GitHub host. Used to gate the API fallback
  * path — the gh CLI path doesn't need this check since gh itself knows its host.
@@ -52,7 +60,7 @@ function fetchPrNumberViaGh(
         '--limit',
         '1',
       ],
-      { stderr: 'ignore', stdout: 'pipe' },
+      { stderr: 'ignore', stdout: 'pipe', timeout: GH_TIMEOUT_MS },
     );
     if (proc.exitCode !== 0) {
       return null;
@@ -83,6 +91,7 @@ async function fetchPrNumberViaApi(
         Authorization: `Bearer ${token}`,
         'X-GitHub-Api-Version': '2022-11-28',
       },
+      signal: AbortSignal.timeout(GH_TIMEOUT_MS),
     });
     if (!res.ok) {
       return null;
@@ -165,7 +174,7 @@ export function fetchPrSnapshot(
         '--json',
         'reviewDecision,statusCheckRollup',
       ],
-      { stderr: 'ignore', stdout: 'pipe' },
+      { stderr: 'ignore', stdout: 'pipe', timeout: GH_TIMEOUT_MS },
     );
     if (proc.exitCode !== 0) {
       return null;

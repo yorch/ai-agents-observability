@@ -8,7 +8,7 @@ import { getGitContext } from './lib/git';
 import type { PrSnapshot } from './lib/github-pr';
 import { fetchOpenPrNumber, fetchPrSnapshot } from './lib/github-pr';
 import { fetchGitHubLogin, fetchUserTeam } from './lib/github-user';
-import { loadHookToken } from './lib/identity';
+import { loadHookToken, REJECTED_TOKEN_REPROBE_MS, reauthHint } from './lib/identity';
 import { getIngestBaseUrl } from './lib/ingest';
 import { log } from './lib/log';
 import { flusherStatePath, telemetryHome } from './lib/paths';
@@ -24,6 +24,13 @@ const BATCH_SIZE = 100;
  */
 const FLUSH_TIMEOUT_MS = 30_000;
 const IDLE_INTERVAL_MS = 5_000;
+/** Poll interval while the current token is the one ingest rejected. */
+const UNAUTHORIZED_RETRY_MS = 60_000;
+const EXPIRY_INTERVAL_MS = 60_000;
+/** Wall-clock bound on the /health probe that follows a timed-out batch POST. */
+const HEALTH_PROBE_TIMEOUT_MS = 5_000;
+/** Consecutive iteration-level throws on one head event before it is charged attempts. */
+const THROW_COUNT_BEFORE_ATTEMPTS = 5;
 const HIGH_WATER_MARK = 50;
 
 // ── State file ────────────────────────────────────────────────────────────────
@@ -341,6 +348,18 @@ export function enrichProjectName(
 
 // ── Flusher loop ──────────────────────────────────────────────────────────────
 
+/** True if ingest's /health answers 2xx within HEALTH_PROBE_TIMEOUT_MS. */
+async function serverIsUp(): Promise<boolean> {
+  try {
+    const res = await fetch(`${getIngestBaseUrl()}/health`, {
+      signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function runFlusher(): Promise<void> {
   const dbPath = `${telemetryHome()}/queue.db`;
   const reader = openQueueReader(dbPath);
@@ -352,6 +371,9 @@ export async function runFlusher(): Promise<void> {
   // cap. Pruning only here (right after a bump) avoids a full table scan on
   // every idle loop tick — a markAttempt is the only thing that can newly
   // abandon a row. Data loss at the cap is intentional (P1-021) but logged.
+  // Only a real server response may call this: the cap exists to shed batches
+  // the server rejects, not to time out an offline laptop (~13 min at the
+  // 1s→300s backoff). Offline survival is bounded by row age instead.
   const markAttemptAndPrune = (ids: string[]): void => {
     reader.markAttempt(ids);
     const dropped = reader.dropAbandoned();
@@ -361,180 +383,305 @@ export async function runFlusher(): Promise<void> {
   };
 
   let consecutiveFailures = 0;
+  // The token ingest last answered 401 to. While loadHookToken() still returns
+  // it there is nothing to try, so the loop only waits.
+  let rejectedToken: string | null = null;
+  let rejectedAt = 0;
+  let lastExpiryAt = 0;
+  // The batch in flight, and how many iterations in a row have THROWN on the
+  // same head event (see the iteration catch).
+  let batchIds: string[] = [];
+  let throwingHead: string | null = null;
+  let throwCount = 0;
 
   try {
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const rows = reader.drain(BATCH_SIZE);
-
-      if (rows.length === 0) {
-        writeHeartbeat();
-        await Bun.sleep(IDLE_INTERVAL_MS);
-        continue;
-      }
-
-      const jwt = loadHookToken();
-      if (!jwt) {
-        log('warn', 'flusher.no_token', {
-          hint: 'Run `aiot login` to authenticate',
-        });
-        writeFlusherState({
-          ...readFlusherState(),
-          lastError: 'No auth token — run `aiot login`',
-          lastHeartbeatAt: new Date().toISOString(),
-        });
-        await Bun.sleep(IDLE_INTERVAL_MS);
-        continue;
-      }
-
-      const eventIds = rows.map((r) => r.event_id);
-      const events = rows.map((r) => JSON.parse(r.payload_json) as unknown);
-      enrichGitContext(events);
-      await enrichPrNumbers(events);
-      enrichPrSnapshot(events);
-      enrichGitHubLogin(events);
-      enrichUserTeam(events);
-      enrichProjectName(events);
-      const body = JSON.stringify(buildBatchEnvelope(events));
-
-      let success = false;
-      const attempt = consecutiveFailures;
-
+      // One try/catch per iteration: nothing outside the inner fetch handler —
+      // dropExpired/drain on a locked or damaged DB, a state-file write — may kill
+      // the daemon (the service manager would just restart it into the same
+      // fault). Back off and go round again.
       try {
-        const res = await fetch(`${ingestBaseUrl}/v1/events`, {
-          body,
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-            'Content-Type': 'application/json',
-          },
-          method: 'POST',
-          // Bun's fetch has no default timeout, and this await is the flusher's
-          // only loop. Against a server that accepts the connection and then
-          // never answers — a captive portal, a blackholing proxy, an ingest
-          // stuck on a DB lock — the daemon blocks here forever: no
-          // network_error, no markAttempt, no backoff, the queue grows without
-          // bound, and `aiot status` keeps reporting the last SUCCESSFUL flush
-          // with lastError null, so it reads as healthy. A hang has to become a
-          // failure for any of the existing retry machinery to run.
-          // `lib/import-ship.ts` shows the idiom, but only on its `/health`
-          // probe — its own two uploads were unbounded as well, and are fixed
-          // in the same commit. Nothing that POSTs telemetry was bounded.
-          signal: AbortSignal.timeout(FLUSH_TIMEOUT_MS),
-        });
+        const jwt = loadHookToken();
 
-        if (res.status >= 200 && res.status < 300) {
-          // Success — delete the rows
-          reader.delete(eventIds);
-          const now = new Date().toISOString();
-          writeFlusherState({
-            lastError: null,
-            lastFlushAt: now,
-            lastHeartbeatAt: now,
-            queueDepth: reader.depth(),
-          });
-          log('info', 'flusher.batch_sent', { count: rows.length, status: res.status });
-          consecutiveFailures = 0;
-          success = true;
-        } else if (res.status === 401) {
-          log('error', 'flusher.unauthorized', {
-            hint: 'Run `aiot login` to re-authenticate',
-            status: res.status,
+        // A token ingest already rejected will be rejected again: don't drain,
+        // enrich (gh spawns) or POST until loadHookToken() returns something
+        // different (or REJECTED_TOKEN_REPROBE_MS has passed, so a server-side fix
+        // is eventually noticed). Costs nothing but a heartbeat.
+        if (
+          jwt !== null &&
+          jwt === rejectedToken &&
+          Date.now() - rejectedAt < REJECTED_TOKEN_REPROBE_MS
+        ) {
+          writeHeartbeat();
+          await Bun.sleep(UNAUTHORIZED_RETRY_MS);
+          continue;
+        }
+
+        // Age expiry only runs while the flusher HAS a usable token (one is
+        // configured and ingest has not rejected it). While logged out nothing can
+        // be delivered, so letting the 7-day clock run would turn "log in again
+        // next week" into silent loss. At most once a minute: rows only age on
+        // that scale, and a per-tick DELETE is what markAttemptAndPrune avoids.
+        if (jwt !== null && Date.now() - lastExpiryAt >= EXPIRY_INTERVAL_MS) {
+          lastExpiryAt = Date.now();
+          const expired = reader.dropExpired();
+          if (expired > 0) {
+            log('warn', 'flusher.dropped_expired', { count: expired });
+          }
+        }
+        batchIds = [];
+        const rows = reader.drain(BATCH_SIZE);
+        batchIds = rows.map((r) => r.event_id);
+
+        if (rows.length === 0) {
+          writeHeartbeat();
+          await Bun.sleep(IDLE_INTERVAL_MS);
+          continue;
+        }
+
+        if (!jwt) {
+          log('warn', 'flusher.no_token', {
+            hint: 'Run `aiot login` to authenticate',
           });
           writeFlusherState({
             ...readFlusherState(),
-            lastError: `Unauthorized (${res.status}) — re-authentication required`,
+            lastError: 'No auth token — run `aiot login`',
             lastHeartbeatAt: new Date().toISOString(),
           });
-          reader.close();
-          process.exit(1);
-        } else if (res.status === 429) {
-          // Rate-limited — explicit server backpressure, NOT a failure. Back off
-          // but do NOT markAttempt: counting 429s toward the attempt cap would
-          // let sustained throttling push rows past the cap and dropAbandoned()
-          // would then permanently delete valid, deliverable events.
-          log('warn', 'flusher.rate_limited', { attempt, count: rows.length, status: res.status });
+          await Bun.sleep(IDLE_INTERVAL_MS);
+          continue;
+        }
+
+        // A row whose payload is not JSON can never be sent; left in place it would
+        // fail this parse on every iteration and wedge the queue head. Drop it.
+        const events: unknown[] = [];
+        const eventIds: string[] = [];
+        const corrupt: string[] = [];
+        for (const r of rows) {
+          try {
+            events.push(JSON.parse(r.payload_json) as unknown);
+            eventIds.push(r.event_id);
+          } catch {
+            corrupt.push(r.event_id);
+          }
+        }
+        if (corrupt.length > 0) {
+          reader.delete(corrupt);
+          log('warn', 'flusher.dropped_corrupt', { count: corrupt.length });
+        }
+        if (events.length === 0) {
+          continue;
+        }
+        enrichGitContext(events);
+        await enrichPrNumbers(events);
+        enrichPrSnapshot(events);
+        enrichGitHubLogin(events);
+        enrichUserTeam(events);
+        enrichProjectName(events);
+        const body = JSON.stringify(buildBatchEnvelope(events));
+
+        let success = false;
+        const attempt = consecutiveFailures;
+
+        try {
+          const res = await fetch(`${ingestBaseUrl}/v1/events`, {
+            body,
+            headers: {
+              Authorization: `Bearer ${jwt}`,
+              'Content-Type': 'application/json',
+            },
+            method: 'POST',
+            // Bun's fetch has no default timeout, and this await is the flusher's
+            // only loop. Against a server that accepts the connection and then
+            // never answers — a captive portal, a blackholing proxy, an ingest
+            // stuck on a DB lock — the daemon blocks here forever: no
+            // network_error, no backoff, the queue grows without bound, and
+            // `aiot status` keeps reporting the last SUCCESSFUL flush with
+            // lastError null, so it reads as healthy. A hang has to become a
+            // failure for any of the retry machinery to run (the resulting
+            // TimeoutError is counted toward the attempt cap, see the catch).
+            // `lib/import-ship.ts` shows the idiom, but only on its `/health`
+            // probe — its own two uploads were unbounded as well, and are fixed
+            // in the same commit. Nothing that POSTs telemetry was bounded.
+            signal: AbortSignal.timeout(FLUSH_TIMEOUT_MS),
+          });
+
+          if (res.status >= 200 && res.status < 300) {
+            // Success — delete the rows
+            reader.delete(eventIds);
+            const now = new Date().toISOString();
+            writeFlusherState({
+              lastError: null,
+              lastFlushAt: now,
+              lastHeartbeatAt: now,
+              queueDepth: reader.depth(),
+            });
+            log('info', 'flusher.batch_sent', { count: rows.length, status: res.status });
+            consecutiveFailures = 0;
+            rejectedToken = null;
+            throwingHead = null;
+            throwCount = 0;
+            success = true;
+          } else if (res.status === 401) {
+            // Used to `process.exit(1)`. The service manager restarts the daemon
+            // (systemd Restart=always RestartSec=5, launchd KeepAlive), so an
+            // expired token became an endless crash loop that also reset the
+            // heartbeat. Stay up instead: record the error, leave the rows untouched
+            // (no markAttempt — the batch is fine, the credential is not), and
+            // remember the rejected token. The top of the loop then only waits
+            // (60s) until the token changes, so `aiot login` recovers the daemon
+            // without a restart and without re-running gh enrichment every minute.
+            const hint = reauthHint();
+            log('error', 'flusher.unauthorized', { hint, status: res.status });
+            writeFlusherState({
+              ...readFlusherState(),
+              lastError: `Unauthorized (${res.status}) — ${hint}`,
+              lastHeartbeatAt: new Date().toISOString(),
+              queueDepth: reader.depth(),
+            });
+            rejectedToken = jwt;
+            rejectedAt = Date.now();
+          } else if (res.status === 429) {
+            // Rate-limited — explicit server backpressure, NOT a failure. Back off
+            // but do NOT markAttempt: counting 429s toward the attempt cap would
+            // let sustained throttling push rows past the cap and dropAbandoned()
+            // would then permanently delete valid, deliverable events.
+            log('warn', 'flusher.rate_limited', {
+              attempt,
+              count: rows.length,
+              status: res.status,
+            });
+            writeFlusherState({
+              ...readFlusherState(),
+              lastError: `Rate limited (${res.status})`,
+              lastHeartbeatAt: new Date().toISOString(),
+              queueDepth: reader.depth(),
+            });
+            consecutiveFailures++;
+            await backoffSleep(attempt);
+          } else if (res.status >= 400 && res.status < 500) {
+            // 4xx (non-401, non-429). This used to read "bad data, server won't
+            // accept" and `delete` the batch outright, with `consecutiveFailures
+            // = 0` and `success = true` — so no backoff either, and the loop went
+            // straight to the next batch. That drained the entire queue at full
+            // speed, one warn line per batch.
+            //
+            // The premise was wrong: a 4xx here is usually NOT bad data.
+            // `apps/ingest` validates the ENVELOPE strictly and returns 400, but
+            // handles individual events tolerantly (routes/events.ts) — so a 400
+            // means hook/server contract skew, never a poisoned event. The hook
+            // is a binary developers upgrade on their own schedule, so one
+            // envelope change server-side silently destroyed all telemetry from
+            // every un-upgraded machine. A 404 from a misconfigured ingest URL
+            // did the same thing.
+            //
+            // Now it uses the same bounded machinery as 5xx and timeouts:
+            // MAX_ATTEMPTS retries, then dropAbandoned() drops it. A genuinely
+            // undeliverable batch still leaves, it just stops taking the rest of
+            // the queue with it. The cost is that a poisoned batch holds the head
+            // for its attempt budget rather than being discarded at once.
+            //
+            // 413 is the one status where retrying the identical bytes is futile
+            // by construction; splitting the batch is the real answer and is not
+            // attempted here.
+            markAttemptAndPrune(eventIds);
+            log('warn', 'flusher.batch_rejected', {
+              attempt,
+              count: rows.length,
+              status: res.status,
+            });
+            writeFlusherState({
+              ...readFlusherState(),
+              lastError: `Batch rejected by server (${res.status})`,
+              lastHeartbeatAt: new Date().toISOString(),
+              queueDepth: reader.depth(),
+            });
+            consecutiveFailures++;
+            await backoffSleep(attempt);
+          } else {
+            // 5xx — mark attempts and back off
+            markAttemptAndPrune(eventIds);
+            const errMsg = `Server error ${res.status}`;
+            log('warn', 'flusher.batch_failed', {
+              attempt,
+              count: rows.length,
+              status: res.status,
+            });
+            writeFlusherState({
+              ...readFlusherState(),
+              lastError: errMsg,
+              lastHeartbeatAt: new Date().toISOString(),
+              queueDepth: reader.depth(),
+            });
+            consecutiveFailures++;
+            await backoffSleep(attempt);
+          }
+        } catch (err) {
+          const message = (err as Error).message;
+          // A connection error (refused, DNS, unreachable) says nothing about the
+          // rows, so it does NOT markAttempt: counting it deleted every queued row
+          // after ~13 min offline. Age expiry bounds those instead.
+          //
+          // A TIMEOUT is ambiguous: either THIS batch is the problem (the server
+          // accepted it and sat on it — too large, pathological), or the path is
+          // dead and the connect itself hung (Wi-Fi up but upstream gone, a VPN
+          // with blackholed routes, a captive portal). Counting the second kind is
+          // the ~13 min data loss again, so ask a cheap question first: does
+          // /health answer? Only if it does is the batch the culprit, and it then
+          // counts like any other server-side failure under the same cap of 10 (a
+          // batch has to stall ~13 minutes of 30s tries before it is dropped).
+          // A failed probe is a connection error: no attempt counted.
+          const name = (err as Error).name;
+          if ((name === 'TimeoutError' || name === 'AbortError') && (await serverIsUp())) {
+            markAttemptAndPrune(eventIds);
+          }
+          log('warn', 'flusher.network_error', { attempt, message });
           writeFlusherState({
             ...readFlusherState(),
-            lastError: `Rate limited (${res.status})`,
+            lastError: `Network error: ${message}`,
             lastHeartbeatAt: new Date().toISOString(),
             queueDepth: reader.depth(),
           });
           consecutiveFailures++;
           await backoffSleep(attempt);
-        } else if (res.status >= 400 && res.status < 500) {
-          // 4xx (non-401, non-429). This used to read "bad data, server won't
-          // accept" and `delete` the batch outright, with `consecutiveFailures
-          // = 0` and `success = true` — so no backoff either, and the loop went
-          // straight to the next batch. That drained the entire queue at full
-          // speed, one warn line per batch.
-          //
-          // The premise was wrong: a 4xx here is usually NOT bad data.
-          // `apps/ingest` validates the ENVELOPE strictly and returns 400, but
-          // handles individual events tolerantly (routes/events.ts) — so a 400
-          // means hook/server contract skew, never a poisoned event. The hook
-          // is a binary developers upgrade on their own schedule, so one
-          // envelope change server-side silently destroyed all telemetry from
-          // every un-upgraded machine. A 404 from a misconfigured ingest URL
-          // did the same thing.
-          //
-          // Now it uses the same bounded machinery as 5xx and network errors:
-          // MAX_ATTEMPTS retries, then dropAbandoned() drops it. A genuinely
-          // undeliverable batch still leaves, it just stops taking the rest of
-          // the queue with it. The cost is that a poisoned batch holds the head
-          // for its attempt budget rather than being discarded at once.
-          //
-          // 413 is the one status where retrying the identical bytes is futile
-          // by construction; splitting the batch is the real answer and is not
-          // attempted here.
-          markAttemptAndPrune(eventIds);
-          log('warn', 'flusher.batch_rejected', {
-            attempt,
-            count: rows.length,
-            status: res.status,
-          });
-          writeFlusherState({
-            ...readFlusherState(),
-            lastError: `Batch rejected by server (${res.status})`,
-            lastHeartbeatAt: new Date().toISOString(),
-            queueDepth: reader.depth(),
-          });
-          consecutiveFailures++;
-          await backoffSleep(attempt);
-        } else {
-          // 5xx — mark attempts and back off
-          markAttemptAndPrune(eventIds);
-          const errMsg = `Server error ${res.status}`;
-          log('warn', 'flusher.batch_failed', { attempt, count: rows.length, status: res.status });
-          writeFlusherState({
-            ...readFlusherState(),
-            lastError: errMsg,
-            lastHeartbeatAt: new Date().toISOString(),
-            queueDepth: reader.depth(),
-          });
-          consecutiveFailures++;
-          await backoffSleep(attempt);
+        }
+
+        if (success) {
+          const depth = reader.depth();
+          if (depth < HIGH_WATER_MARK) {
+            await Bun.sleep(IDLE_INTERVAL_MS);
+          }
+          // else: loop immediately to drain more rows
         }
       } catch (err) {
-        // Network error — mark attempts and back off
         const message = (err as Error).message;
-        markAttemptAndPrune(eventIds);
-        log('warn', 'flusher.network_error', { attempt, message });
+        log('error', 'flusher.iteration_failed', { message });
         writeFlusherState({
           ...readFlusherState(),
-          lastError: `Network error: ${message}`,
+          lastError: `Internal error: ${message}`,
           lastHeartbeatAt: new Date().toISOString(),
-          queueDepth: reader.depth(),
         });
-        consecutiveFailures++;
-        await backoffSleep(attempt);
-      }
-
-      if (success) {
-        const depth = reader.depth();
-        if (depth < HIGH_WATER_MARK) {
-          await Bun.sleep(IDLE_INTERVAL_MS);
+        // A batch that makes the iteration throw EVERY time (enrichment or
+        // serialisation choking on one payload) is never POSTed, so no response
+        // ever counts it and it would hold the head for the full 7 days. After 5
+        // consecutive throws on the same head event, count each further one so it
+        // reaches MAX_ATTEMPTS and drops. batchIds is empty when the throw came
+        // before drain (a DB fault), which must not charge any row.
+        const head = batchIds[0] ?? null;
+        if (head !== null) {
+          throwCount = head === throwingHead ? throwCount + 1 : 1;
+          throwingHead = head;
+          if (throwCount > THROW_COUNT_BEFORE_ATTEMPTS) {
+            try {
+              markAttemptAndPrune(batchIds);
+            } catch {
+              // the DB is the thing failing; the next iteration retries
+            }
+          }
         }
-        // else: loop immediately to drain more rows
+        const attempt = consecutiveFailures++;
+        await backoffSleep(attempt);
       }
     }
   } finally {

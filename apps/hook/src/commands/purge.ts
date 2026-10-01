@@ -21,7 +21,7 @@ export async function runPurge(args: string[]): Promise<number> {
     process.stdout.write(
       [
         'This will permanently delete all local telemetry data:',
-        `  event queue:    ${queuePath()}`,
+        `  event queue:    ${queuePath()} (+ -wal/-shm)`,
         `  ship queue:     ${shipQueueDir()}`,
         `  log file:       ${logPath()}`,
         `  staged uploads: ${collatedDir()}`,
@@ -69,8 +69,16 @@ export async function runPurge(args: string[]): Promise<number> {
   }
 
   tryRemove(queuePath());
+  // The queue runs in WAL mode, so recent event payloads live in these two
+  // siblings until a checkpoint folds them into queue.db — and the flusher
+  // keeps a connection open, so they routinely exist. Deleting only queue.db
+  // left cwd paths, repo names and tool arguments on disk after "delete all
+  // local telemetry data", and a stale -wal can be replayed into a fresh DB.
+  tryRemove(`${queuePath()}-wal`);
+  tryRemove(`${queuePath()}-shm`);
   tryRemove(shipQueueDir(), true);
   tryRemove(logPath());
+  tryRemove(`${logPath()}.1`); // the rotated generation (lib/log.ts)
   tryRemove(identityPath());
   tryRemove(flusherStatePath());
   tryRemove(pausedPath());

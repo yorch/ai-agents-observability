@@ -137,6 +137,9 @@ Add to `~/.claude/settings.json` (merge with any existing `hooks` object):
     "PreToolUse": [
       { "hooks": [{ "args": ["hook", "pre-tool-use"], "command": "~/.local/bin/aiot", "type": "command" }] }
     ],
+    "SessionEnd": [
+      { "hooks": [{ "args": ["hook", "session-end"], "command": "~/.local/bin/aiot", "type": "command" }] }
+    ],
     "SessionStart": [
       { "hooks": [{ "args": ["hook", "session-start"], "command": "~/.local/bin/aiot", "type": "command" }] }
     ],

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
+import { GH_TIMEOUT_MS } from './github-pr';
 import { fetchGitHubLogin, fetchUserTeam } from './github-user';
 
 type GhSpawn = typeof Bun.spawnSync;
@@ -62,5 +63,27 @@ describe('fetchUserTeam', () => {
   it('returns null when gh returns malformed JSON', () => {
     const result = fetchUserTeam('acme', () => spawnResult('not json'));
     expect(result).toBeNull();
+  });
+});
+
+// ── timeouts ────────────────────────────────────────────────────────────────
+
+describe('gh timeouts', () => {
+  const hung = (seen: Array<{ timeout?: number } | undefined>) =>
+    ((_cmd: unknown, opts: { timeout?: number }) => {
+      seen.push(opts);
+      return { exitCode: null, stdout: new Uint8Array() };
+    }) as unknown as GhSpawn;
+
+  it('fetchGitHubLogin bounds gh and treats a timeout as no login', () => {
+    const seen: Array<{ timeout?: number } | undefined> = [];
+    expect(fetchGitHubLogin(hung(seen))).toBeNull();
+    expect(seen[0]?.timeout).toBe(GH_TIMEOUT_MS);
+  });
+
+  it('fetchUserTeam bounds gh and treats a timeout as no team', () => {
+    const seen: Array<{ timeout?: number } | undefined> = [];
+    expect(fetchUserTeam('acme', hung(seen))).toBeNull();
+    expect(seen[0]?.timeout).toBe(GH_TIMEOUT_MS);
   });
 });

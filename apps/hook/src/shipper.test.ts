@@ -1,11 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 import type { ShipMarker } from './shipper';
-import { buildZstdBody, uploadWithResume, writeShipMarker } from './shipper';
+import { buildZstdBody, runShipper, uploadWithResume, writeShipMarker } from './shipper';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -594,5 +594,240 @@ describe('uploadWithResume', () => {
     } finally {
       server.stop(true);
     }
+  });
+});
+
+describe('shipper 401', () => {
+  it('keeps the marker while the token is rejected, then ships once it is replaced', async () => {
+    const sessionId = '5f0c1d52-8a3e-4b6f-9c1d-2e7a4b8d9f03';
+    const transcriptPath = join(tmpTranscriptDir, `${sessionId}.jsonl`);
+    writeTranscript(transcriptPath, [
+      JSON.stringify({ message: { content: 'hello', role: 'user' }, type: 'user' }),
+    ]);
+    writeShipMarker(sessionId, transcriptPath, false);
+    const markerPath = join(tmpHome, 'ship-queue', `${sessionId}.json`);
+    writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'stale-jwt' }));
+
+    const server = Bun.serve({
+      fetch: (req) =>
+        req.headers.get('authorization') === 'Bearer fresh-jwt'
+          ? new Response('{}', { status: 200 })
+          : new Response('expired', { status: 401 }),
+      port: 0,
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+
+    class Stop extends Error {}
+    let sweeps = 0;
+    let keptAfter401 = false;
+    const spy = spyOn(Bun, 'sleep').mockImplementation((async () => {
+      sweeps++;
+      if (sweeps === 1) {
+        // 401 sweep done: the marker used to be deleted here.
+        keptAfter401 = existsSync(markerPath);
+        writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'fresh-jwt' }));
+      } else {
+        throw new Stop();
+      }
+    }) as typeof Bun.sleep);
+    try {
+      await runShipper();
+    } catch (err) {
+      if (!(err instanceof Stop)) {
+        throw err;
+      }
+    } finally {
+      spy.mockRestore();
+      server.stop(true);
+    }
+
+    expect(keptAfter401).toBe(true);
+    expect(existsSync(markerPath)).toBe(false);
+  });
+});
+
+describe('shipper outage handling', () => {
+  const S1 = '5f0c1d52-8a3e-4b6f-9c1d-2e7a4b8d9f03';
+  const S2 = '7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+
+  function stage(sessionId: string, firstSeenAt?: string): string {
+    const transcriptPath = join(tmpTranscriptDir, `${sessionId}.jsonl`);
+    writeTranscript(transcriptPath, [
+      JSON.stringify({ message: { content: 'hello', role: 'user' }, type: 'user' }),
+    ]);
+    writeShipMarker(sessionId, transcriptPath, false);
+    const markerPath = join(tmpHome, 'ship-queue', `${sessionId}.json`);
+    if (firstSeenAt) {
+      const m = JSON.parse(readFileSync(markerPath, 'utf8')) as ShipMarker;
+      writeFileSync(markerPath, JSON.stringify({ ...m, first_seen_at: firstSeenAt }));
+    }
+    return markerPath;
+  }
+
+  /** Run `sweeps` sweeps of the real loop (each ends in one Bun.sleep). */
+  async function runSweeps(sweeps: number, onSleep?: (n: number) => void): Promise<void> {
+    class Stop extends Error {}
+    let n = 0;
+    const spy = spyOn(Bun, 'sleep').mockImplementation((async () => {
+      onSleep?.(n + 1);
+      if (++n >= sweeps) {
+        throw new Stop();
+      }
+    }) as typeof Bun.sleep);
+    try {
+      await runShipper();
+    } catch (err) {
+      if (!(err instanceof Stop)) {
+        throw err;
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  function setToken(): void {
+    writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'some-jwt' }));
+  }
+
+  it('keeps a long-lived session marker on 401 (first_seen_at is the SESSION age)', async () => {
+    setToken();
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 3_600_000).toISOString();
+    const marker = stage(S1, threeDaysAgo);
+    const server = Bun.serve({ fetch: () => new Response('no', { status: 401 }), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runSweeps(1);
+    } finally {
+      server.stop(true);
+    }
+    expect(existsSync(marker)).toBe(true);
+  });
+
+  it('stops the sweep at the first 401 instead of repeating it per marker', async () => {
+    setToken();
+    stage(S1);
+    stage(S2);
+    let requests = 0;
+    const server = Bun.serve({
+      fetch: () => {
+        requests++;
+        return new Response('no', { status: 401 });
+      },
+      port: 0,
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runSweeps(1);
+    } finally {
+      server.stop(true);
+    }
+    expect(requests).toBe(1);
+  });
+
+  it('abandons a marker that nothing has touched for 7 days, even on 401', async () => {
+    setToken();
+    const marker = stage(S1);
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 3_600_000);
+    utimesSync(marker, eightDaysAgo, eightDaysAgo);
+    const server = Bun.serve({ fetch: () => new Response('no', { status: 401 }), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runSweeps(1);
+    } finally {
+      server.stop(true);
+    }
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it('does not burn attempts on network errors: survives far more than MAX_SHIP_ATTEMPTS sweeps', async () => {
+    setToken();
+    const marker = stage(S1);
+    const dead = Bun.serve({ fetch: () => new Response('x'), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${dead.port}`;
+    dead.stop(true);
+    await runSweeps(15);
+    expect(existsSync(marker)).toBe(true);
+    expect((JSON.parse(readFileSync(marker, 'utf8')) as ShipMarker).attempts ?? 0).toBe(0);
+  });
+
+  it('abandons an idle marker on network errors once past 7 days', async () => {
+    setToken();
+    const marker = stage(S1);
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 3_600_000);
+    utimesSync(marker, eightDaysAgo, eightDaysAgo);
+    const dead = Bun.serve({ fetch: () => new Response('x'), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${dead.port}`;
+    dead.stop(true);
+    await runSweeps(1);
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it('keeps a long-lived session marker on 404 (the flusher may still be catching up)', async () => {
+    setToken();
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 3_600_000).toISOString();
+    const marker = stage(S1, threeDaysAgo);
+    const server = Bun.serve({ fetch: () => new Response('no session', { status: 404 }), port: 0 });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runSweeps(1);
+    } finally {
+      server.stop(true);
+    }
+    expect(existsSync(marker)).toBe(true);
+  });
+
+  it('skips whole sweeps while the token is the rejected one, retrying a changed token at once', async () => {
+    setToken();
+    stage(S1);
+    const auths: Array<string | null> = [];
+    const server = Bun.serve({
+      fetch: (req) => {
+        auths.push(req.headers.get('authorization'));
+        return new Response('no', { status: 401 });
+      },
+      port: 0,
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runSweeps(5, (n) => {
+        if (n === 3) {
+          writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'newer-jwt' }));
+        }
+      });
+    } finally {
+      server.stop(true);
+    }
+    // sweep 1 probes (401); sweeps 2-3 skip; token changes; sweep 4 probes the new
+    // token (401); sweep 5 skips. No transcript is read or uploaded on a skip.
+    expect(auths).toEqual(['Bearer some-jwt', 'Bearer newer-jwt']);
+  });
+
+  it('re-probes a rejected token after 15 minutes', async () => {
+    setToken();
+    stage(S1);
+    let requests = 0;
+    const server = Bun.serve({
+      fetch: () => {
+        requests++;
+        return new Response('no', { status: 401 });
+      },
+      port: 0,
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    const realNow = Date.now.bind(Date);
+    let skew = 0;
+    const nowSpy = spyOn(Date, 'now').mockImplementation(() => realNow() + skew);
+    try {
+      await runSweeps(4, (n) => {
+        if (n === 2) {
+          skew = 16 * 60_000;
+        }
+      });
+    } finally {
+      nowSpy.mockRestore();
+      server.stop(true);
+    }
+    // sweep 1 probes; sweep 2 skips; the clock jumps 16 min; sweep 3 re-probes.
+    expect(requests).toBe(2);
   });
 });

@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { eventsFor } from '../hook-entry';
 import { claudeCodeAdapter } from './claude-code';
@@ -29,6 +32,103 @@ describe('claudeCodeAdapter', () => {
     const raw = { session_id: SESSION_ID, transcript_path: '/home/dev/.claude/x.jsonl' };
     const stop = claudeCodeAdapter.mapPayload('stop', raw);
     expect(claudeCodeAdapter.transcriptTarget('stop', raw)?.sessionId).toBe(stop.session_id);
+  });
+});
+
+// Claude Code's SessionEnd hook fires however a session ends, with the same base
+// fields as Stop plus `reason`. Stop never fires if the user quits mid-response,
+// so without this kind the session never got its closing event or final
+// transcript ship marker.
+describe('claudeCodeAdapter — SessionEnd', () => {
+  const raw = {
+    cwd: '/home/dev/proj',
+    hook_event_name: 'SessionEnd',
+    reason: 'prompt_input_exit',
+    session_id: SESSION_ID,
+    transcript_path: '/home/dev/.claude/projects/-home-dev-proj/3f8c2a1e.jsonl',
+  };
+
+  it('maps session-end to a conformant SessionEnd event', () => {
+    expect(claudeCodeAdapter.isHookKind('session-end')).toBe(true);
+    const events = eventsFor(claudeCodeAdapter, 'session-end', raw);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.event_type).toBe('SessionEnd');
+    expect(events[0]?.session_id).toBe(SESSION_ID);
+    expect(conformanceErrors(events[0] as never)).toEqual([]);
+  });
+
+  it('writes a ship marker for the transcript, like Stop', () => {
+    expect(claudeCodeAdapter.transcriptTarget('session-end', raw)).toEqual({
+      sessionId: SESSION_ID,
+      transcriptPath: raw.transcript_path,
+    });
+  });
+
+  it('does not read the transcript for usage (the Stop hook owns that cursor)', () => {
+    expect(claudeCodeAdapter.mapBatch?.('session-end', raw) ?? null).toBeNull();
+  });
+});
+
+describe('claudeCodeAdapter install — upgrading an existing 8-hook install', () => {
+  let tmpHome: string;
+  let origHome: string | undefined;
+
+  beforeEach(() => {
+    tmpHome = mkdtempSync(join(tmpdir(), 'aiot-claude-upgrade-'));
+    origHome = process.env.HOME;
+    process.env.HOME = tmpHome;
+    mkdirSync(join(tmpHome, '.claude'), { recursive: true });
+  });
+
+  afterEach(() => {
+    if (origHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = origHome;
+    }
+    rmSync(tmpHome, { force: true, recursive: true });
+  });
+
+  it('adds SessionEnd on re-run, keeps user hooks, and never duplicates ours', () => {
+    const settingsPath = join(tmpHome, '.claude', 'settings.json');
+    const userHook = { hooks: [{ command: '/usr/bin/notify-send', type: 'command' }] };
+    // What a pre-SessionEnd release wrote: the 8 original kinds only.
+    const old = JSON.parse(claudeCodeAdapter.installConfig().renderSnippet(BIN)) as {
+      hooks: Record<string, HookGroup[]>;
+    };
+    delete old.hooks.SessionEnd;
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({ hooks: { ...old.hooks, Stop: [userHook, ...(old.hooks.Stop ?? [])] } }),
+    );
+
+    const { apply } = claudeCodeAdapter.installConfig();
+    expect(apply?.(BIN)).toContain(settingsPath);
+    expect(apply?.(BIN)).toContain(settingsPath); // idempotent second run
+
+    const { hooks } = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
+      hooks: Record<string, Array<HookGroup | typeof userHook>>;
+    };
+    expect(hooks.SessionEnd).toEqual([
+      { hooks: [{ args: ['hook', 'session-end'], command: BIN, type: 'command' }] },
+    ]);
+    expect(hooks.Stop).toHaveLength(2);
+    expect(hooks.Stop?.[0]).toEqual(userHook);
+    expect(Object.keys(hooks)).toHaveLength(9);
+  });
+
+  it('uninstall removes the SessionEnd entry along with the others, keeping user hooks', () => {
+    const settingsPath = join(tmpHome, '.claude', 'settings.json');
+    const userHook = { hooks: [{ command: '/usr/bin/notify-send', type: 'command' }] };
+    writeFileSync(settingsPath, JSON.stringify({ hooks: { SessionEnd: [userHook] } }));
+    const { apply, remove } = claudeCodeAdapter.installConfig();
+    apply?.(BIN);
+    expect(remove?.()).toBe(true);
+
+    const { hooks } = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
+      hooks: Record<string, unknown[]>;
+    };
+    expect(hooks).toEqual({ SessionEnd: [userHook] });
   });
 });
 
@@ -124,7 +224,7 @@ describe('claudeCodeAdapter.installConfig().renderSnippet', () => {
     }
   });
 
-  it('registers exactly the expected 8 event names', () => {
+  it('registers exactly the expected 9 event names', () => {
     const { hooks } = JSON.parse(raw) as { hooks: Record<string, unknown> };
     expect(Object.keys(hooks).sort()).toEqual(
       [
@@ -132,6 +232,7 @@ describe('claudeCodeAdapter.installConfig().renderSnippet', () => {
         'PostToolUse',
         'PreCompact',
         'PreToolUse',
+        'SessionEnd',
         'SessionStart',
         'Stop',
         'SubagentStop',
@@ -157,6 +258,7 @@ describe('claudeCodeAdapter.installConfig().renderSnippet', () => {
       PostToolUse: ['hook', 'post-tool-use'],
       PreCompact: ['hook', 'pre-compact'],
       PreToolUse: ['hook', 'pre-tool-use'],
+      SessionEnd: ['hook', 'session-end'],
       SessionStart: ['hook', 'session-start'],
       Stop: ['hook', 'stop'],
       SubagentStop: ['hook', 'subagent-stop'],
