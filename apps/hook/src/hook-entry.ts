@@ -2,16 +2,24 @@ import { existsSync } from 'node:fs';
 
 import { type HookAdapter, selectAdapter } from './adapters';
 import { commitDeferred, discardDeferred, resetDeferred } from './lib/deferred-commit';
+import { maybeSpawnDrainer } from './lib/drainer-spawn';
 import { getGitContext } from './lib/git';
 import { log } from './lib/log';
 import { pausedPath } from './lib/paths';
 import { openQueue } from './lib/queue';
 import { readStdinBounded } from './lib/stdin';
-import { writeShipMarker } from './shipper';
+import { markShipFinal, writeShipMarker } from './shipper';
 
 type Options = {
   quiet: boolean;
 };
+
+/**
+ * Event types after which an on-demand install starts a drainer. Tool-lifecycle
+ * hooks are deliberately absent: they fire orders of magnitude more often and
+ * must stay free of any extra work.
+ */
+const DRAIN_TRIGGERS = new Set(['Stop', 'SubagentStop', 'SessionEnd', 'SessionStart']);
 
 function safeParse(raw: string): Record<string, unknown> | null {
   try {
@@ -153,9 +161,29 @@ export async function runHook(
 
     // For terminal events, the adapter tells us where the transcript lives; write
     // a ship marker so the shipper can upload it.
+    const ended = events.find((e) => e.event_type === 'SessionEnd');
     const target = adapter.transcriptTarget(kind, payload);
     if (target) {
-      writeShipMarker(target.sessionId, target.transcriptPath, false);
+      writeShipMarker(target.sessionId, target.transcriptPath, false, {
+        final: ended !== undefined,
+      });
+    } else if (ended) {
+      // An adapter that only writes a marker on Stop never sees the end of the
+      // session; flag the existing marker so an on-demand drainer ships it now.
+      markShipFinal(ended.session_id);
+    }
+
+    // On-demand installs have no resident daemon: start a short-lived drainer,
+    // but only after a terminal event that either queued something or opened a
+    // session (catch-up for data left by an earlier, undelivered one). The
+    // spawn decision is a claim on the connection already open.
+    if (
+      events.some((e) => DRAIN_TRIGGERS.has(e.event_type)) &&
+      (enqueued > 0 || events.some((e) => e.event_type === 'SessionStart'))
+    ) {
+      // A SessionEnd is the last chance to ship that session, so it ignores the
+      // backoff a failing environment has put on spawning (never the burst dedupe).
+      maybeSpawnDrainer(queue, { bypassHold: events.some((e) => e.event_type === 'SessionEnd') });
     }
 
     try {

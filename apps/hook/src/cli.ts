@@ -1,5 +1,6 @@
 import { type HookAdapter, selectAdapter } from './adapters';
 import { runConfig } from './commands/config';
+import { runDrain } from './commands/drain';
 import { runImport } from './commands/import';
 import { runInstall } from './commands/install';
 import { runLogin } from './commands/login';
@@ -45,12 +46,16 @@ Commands:
                        --yes (wire all detected agents without prompting),
                        --agent <name> (wire only this agent, repeatable),
                        --no-auto (skip auto-wiring, print snippets only),
-                       --dry-run (show what would be wired without modifying files)
+                       --dry-run (show what would be wired without modifying files),
+                       --mode resident|on-demand (resident: launchd/systemd services, default;
+                         on-demand: no services, a short-lived drainer after agent activity)
   uninstall     Remove service files (does not remove local data)
 
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
                 kinds: session-start, session-end, pre-tool-use, post-tool-use, stop,
                        user-prompt-submit, pre-compact, subagent-stop, notification
+  drain         One delivery pass (events, then transcripts), then exit. Used by on-demand
+                installs; --wait runs it in the foreground and exits non-zero if data remains
   flusher       Drain the SQLite queue and POST batches to /v1/events (long-running)
   shipper       Watch for transcript files and upload them to /v1/transcripts (long-running)
 
@@ -94,6 +99,10 @@ async function main(): Promise<number> {
   if (cmd === 'flusher') {
     await runFlusher();
     return 0;
+  }
+
+  if (cmd === 'drain') {
+    return runDrain(args);
   }
 
   if (cmd === 'shipper') {
