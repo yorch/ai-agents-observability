@@ -498,6 +498,19 @@ async function processMarker(marker: ShipMarker, jwt: string): Promise<void> {
       if (!keepOrAbandonStale(currentMarker, 'rate_limited')) {
         log('warn', 'shipper.rate_limited', { session_id, status: res.status });
       }
+    } else if (res.status === 401) {
+      // Expired/revoked token — the transcript is fine. This used to fall into
+      // the generic 4xx branch below and DELETE the marker, discarding every
+      // pending transcript for as long as the user stayed logged out. Keep it;
+      // the token is re-read each sweep, so `aiot login` recovers it. Aged out
+      // after MAX_TRANSIENT_AGE_MS like the other credential-independent holds.
+      if (!keepOrAbandonStale(currentMarker, 'unauthorized')) {
+        log('warn', 'shipper.unauthorized', {
+          hint: 'Run `aiot login` to re-authenticate',
+          session_id,
+          status: res.status,
+        });
+      }
     } else if (res.status === 413) {
       // Too large for the server's body limit. Retrying the same bytes cannot
       // help, so the marker still goes — but this is a capacity problem, not bad

@@ -1,11 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 import type { ShipMarker } from './shipper';
-import { buildZstdBody, uploadWithResume, writeShipMarker } from './shipper';
+import { buildZstdBody, runShipper, uploadWithResume, writeShipMarker } from './shipper';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -594,5 +594,54 @@ describe('uploadWithResume', () => {
     } finally {
       server.stop(true);
     }
+  });
+});
+
+describe('shipper 401', () => {
+  it('keeps the marker while the token is rejected, then ships once it is replaced', async () => {
+    const sessionId = '5f0c1d52-8a3e-4b6f-9c1d-2e7a4b8d9f03';
+    const transcriptPath = join(tmpTranscriptDir, `${sessionId}.jsonl`);
+    writeTranscript(transcriptPath, [
+      JSON.stringify({ message: { content: 'hello', role: 'user' }, type: 'user' }),
+    ]);
+    writeShipMarker(sessionId, transcriptPath, false);
+    const markerPath = join(tmpHome, 'ship-queue', `${sessionId}.json`);
+    writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'stale-jwt' }));
+
+    const server = Bun.serve({
+      fetch: (req) =>
+        req.headers.get('authorization') === 'Bearer fresh-jwt'
+          ? new Response('{}', { status: 200 })
+          : new Response('expired', { status: 401 }),
+      port: 0,
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+
+    class Stop extends Error {}
+    let sweeps = 0;
+    let keptAfter401 = false;
+    const spy = spyOn(Bun, 'sleep').mockImplementation((async () => {
+      sweeps++;
+      if (sweeps === 1) {
+        // 401 sweep done: the marker used to be deleted here.
+        keptAfter401 = existsSync(markerPath);
+        writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'fresh-jwt' }));
+      } else {
+        throw new Stop();
+      }
+    }) as typeof Bun.sleep);
+    try {
+      await runShipper();
+    } catch (err) {
+      if (!(err instanceof Stop)) {
+        throw err;
+      }
+    } finally {
+      spy.mockRestore();
+      server.stop(true);
+    }
+
+    expect(keptAfter401).toBe(true);
+    expect(existsSync(markerPath)).toBe(false);
   });
 });

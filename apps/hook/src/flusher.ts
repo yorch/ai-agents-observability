@@ -24,6 +24,8 @@ const BATCH_SIZE = 100;
  */
 const FLUSH_TIMEOUT_MS = 30_000;
 const IDLE_INTERVAL_MS = 5_000;
+/** How long to wait after a 401 before re-reading the token and retrying. */
+const UNAUTHORIZED_RETRY_MS = 60_000;
 const HIGH_WATER_MARK = 50;
 
 // ── State file ────────────────────────────────────────────────────────────────
@@ -443,6 +445,13 @@ export async function runFlusher(): Promise<void> {
           consecutiveFailures = 0;
           success = true;
         } else if (res.status === 401) {
+          // Used to `process.exit(1)`. The service manager (systemd Restart=always,
+          // launchd KeepAlive) restarts the daemon immediately, so an expired token
+          // became an endless crash loop that also reset the heartbeat. Stay up
+          // instead: record the error, leave the rows untouched (no markAttempt —
+          // the batch is fine, the credential is not), and wait long. The token is
+          // re-read at the top of every iteration, so `aiot login` recovers the
+          // daemon without a restart.
           log('error', 'flusher.unauthorized', {
             hint: 'Run `aiot login` to re-authenticate',
             status: res.status,
@@ -451,9 +460,9 @@ export async function runFlusher(): Promise<void> {
             ...readFlusherState(),
             lastError: `Unauthorized (${res.status}) — re-authentication required`,
             lastHeartbeatAt: new Date().toISOString(),
+            queueDepth: reader.depth(),
           });
-          reader.close();
-          process.exit(1);
+          await Bun.sleep(UNAUTHORIZED_RETRY_MS);
         } else if (res.status === 429) {
           // Rate-limited — explicit server backpressure, NOT a failure. Back off
           // but do NOT markAttempt: counting 429s toward the attempt cap would

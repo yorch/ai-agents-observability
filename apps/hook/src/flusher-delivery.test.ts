@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runFlusher } from './flusher';
+import { getFlusherStatus, runFlusher } from './flusher';
 import { MAX_AGE_MS, MAX_ATTEMPTS, openQueueReader } from './lib/queue-reader';
 
 // These drive the REAL flusher loop (not a re-implementation of it). Bun.sleep
@@ -184,5 +184,47 @@ describe('flusher age expiry', () => {
     const reader = openQueueReader(dbPath);
     expect(reader.depth()).toBe(0);
     reader.close();
+  });
+});
+
+describe('flusher 401', () => {
+  it('stays alive, keeps the rows, and recovers when `aiot login` writes a fresh token', async () => {
+    const dbPath = seedQueue(6);
+    const auths: Array<string | null> = [];
+    const server = Bun.serve({
+      fetch: (req) => {
+        const auth = req.headers.get('authorization');
+        auths.push(auth);
+        return auth === 'Bearer fresh-jwt'
+          ? new Response('{}', { status: 200 })
+          : new Response('expired', { status: 401 });
+      },
+      port: 0,
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'stale-jwt' }));
+
+    let stateAfterFirst401: ReturnType<typeof getFlusherStatus> | undefined;
+    try {
+      await runUntil((s) => {
+        if (s.length === 1) {
+          // The loop is now waiting out the 401: it must still have the rows and
+          // must have said why. Then the user re-authenticates.
+          stateAfterFirst401 = getFlusherStatus();
+          writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'fresh-jwt' }));
+        }
+        return s.length > 1;
+      });
+    } finally {
+      server.stop(true);
+    }
+
+    expect(stateAfterFirst401?.lastError).toContain('Unauthorized (401)');
+    expect(stateAfterFirst401?.queueDepth).toBe(6);
+    expect(auths).toEqual(['Bearer stale-jwt', 'Bearer fresh-jwt']);
+    const reader = openQueueReader(dbPath);
+    expect(reader.depth()).toBe(0);
+    reader.close();
+    expect(getFlusherStatus().lastError).toBeNull();
   });
 });
