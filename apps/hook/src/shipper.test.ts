@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
@@ -560,10 +561,12 @@ describe('uploadWithResume', () => {
       const body = new Uint8Array(2.5 * 1024 * 1024);
       crypto.getRandomValues(body);
       const sessionId = 'session-progress';
-      const marker = makeMarker(sessionId);
-
-      // Write the marker to disk so updateMarkerProgress can find it
+      // Write the marker to disk so updateMarkerProgress can find it, and hand
+      // uploadWithResume that same marker (progress writes skip a stale copy).
       writeShipMarker(sessionId, '/tmp/fake.jsonl', false);
+      const marker = JSON.parse(
+        readFileSync(join(tmpHome, 'ship-queue', `${sessionId}.json`), 'utf8'),
+      ) as ShipMarker;
 
       await uploadWithResume(
         `http://localhost:${port}/v1/transcripts/${sessionId}`,
@@ -644,6 +647,244 @@ describe('shipper 401', () => {
     expect(keptAfter401).toBe(true);
     expect(existsSync(markerPath)).toBe(false);
   });
+});
+
+describe('shipper multi-chunk supersede check', () => {
+  const SID = '9b1e7c34-2d5a-4f08-a6c3-1e8d7f4b2a90';
+
+  /** Realistic JSONL transcript lines whose zstd body is well over one 1 MB
+   * chunk: prose drawn from a large pseudo-random vocabulary, so it does not
+   * compress to nothing the way repeated text would. */
+  function bigTranscriptLines(): string[] {
+    // Sized for 3+ chunks with margin, so progress writes happen between chunks.
+    let seed = 12345;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 2 ** 32;
+    };
+    const syl = ['ka', 'lo', 'mi', 'ren', 'tu', 'sa', 'vo', 'ni', 'pel', 'dra', 'qui', 'zen'];
+    const vocab = Array.from({ length: 40_000 }, () => {
+      const n = 2 + Math.floor(rand() * 3);
+      return Array.from({ length: n }, () => syl[Math.floor(rand() * syl.length)]).join('');
+    });
+    const sentence = (words: number) =>
+      Array.from({ length: words }, () => vocab[Math.floor(rand() * vocab.length)]).join(' ');
+    const lines: string[] = [];
+    for (let i = 0; i < 30_000; i++) {
+      lines.push(
+        JSON.stringify(
+          i % 2 === 0
+            ? { message: { content: sentence(60), role: 'user' }, type: 'user', uuid: `u-${i}` }
+            : {
+                message: { content: [{ text: sentence(120), type: 'text' }], role: 'assistant' },
+                type: 'assistant',
+                uuid: `a-${i}`,
+              },
+        ),
+      );
+    }
+    return lines;
+  }
+
+  /** Fake ingest that mimics the real route's chunk assembly: start=0 resets the
+   * scratch file, a later chunk must start exactly where the scratch ends (else
+   * 409), the final chunk answers 200. `onChunk(index, isFinal)` runs while that
+   * request is in flight. */
+  function startAssemblingIngest(onChunk?: (index: number, isFinal: boolean) => void) {
+    let scratch = 0;
+    const stats = { chunksAtStart0: 0, conflicts: 0, finals: 0, requests: 0 };
+    const server = Bun.serve({
+      async fetch(req) {
+        stats.requests++;
+        const body = new Uint8Array(await req.arrayBuffer());
+        const m = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(req.headers.get('content-range') ?? '');
+        if (!m) {
+          return new Response('bad range', { status: 400 });
+        }
+        const [start, end, total] = [Number(m[1]), Number(m[2]), Number(m[3])];
+        if (start === 0) {
+          stats.chunksAtStart0++;
+          scratch = 0;
+        } else if (scratch !== start) {
+          stats.conflicts++;
+          return new Response('Missing prior chunks', { status: 409 });
+        }
+        scratch += body.byteLength;
+        const isFinal = end + 1 >= total;
+        onChunk?.(stats.requests - 1, isFinal);
+        if (!isFinal) {
+          return new Response('{}', { status: 202 });
+        }
+        stats.finals++;
+        scratch = 0;
+        return new Response('{}', { status: 200 });
+      },
+      port: 0,
+    });
+    return { server, stats };
+  }
+
+  /** Run exactly one sweep: pacing sleeps are instant, the inter-sweep sleep stops the loop. */
+  async function runOneSweep(): Promise<void> {
+    class Stop extends Error {}
+    const spy = spyOn(Bun, 'sleep').mockImplementation((async (ms: number) => {
+      if (ms > 1_000) {
+        throw new Stop();
+      }
+    }) as typeof Bun.sleep);
+    try {
+      await runShipper();
+    } catch (err) {
+      if (!(err instanceof Stop)) {
+        throw err;
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  function setup(): string {
+    const transcriptPath = join(tmpTranscriptDir, `${SID}.jsonl`);
+    writeTranscript(transcriptPath, bigTranscriptLines());
+    writeShipMarker(SID, transcriptPath, false);
+    writeFileSync(join(tmpHome, 'identity.json'), JSON.stringify({ token: 'jwt' }));
+    return join(tmpHome, 'ship-queue', `${SID}.json`);
+  }
+
+  it('uploads each chunk once and clears the marker with no re-upload or 409', async () => {
+    const markerPath = setup();
+    const { server, stats } = startAssemblingIngest();
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    let requestsAfterFirst: number;
+    try {
+      await runOneSweep();
+      requestsAfterFirst = stats.requests;
+      // A marker wrongly kept as "superseded" would be re-uploaded here.
+      await runOneSweep();
+    } finally {
+      server.stop(true);
+    }
+    // The body really is multi-chunk, and was sent exactly once.
+    expect(requestsAfterFirst).toBeGreaterThan(2);
+    expect(stats.requests).toBe(requestsAfterFirst);
+    expect(stats.chunksAtStart0).toBe(1);
+    expect(stats.conflicts).toBe(0);
+    expect(stats.finals).toBe(1);
+    expect(existsSync(markerPath)).toBe(false);
+  }, 60_000);
+
+  /** A Stop: a fresh marker write whose updated_at must differ, so wait out the clock tick. */
+  function stop(transcriptPath: string): void {
+    const t = Date.now();
+    while (Date.now() === t) {
+      // spin
+    }
+    writeShipMarker(SID, transcriptPath, false);
+  }
+
+  it('keeps the marker when a Stop rewrites it while the final chunk is in flight', async () => {
+    const markerPath = setup();
+    const transcriptPath = join(tmpTranscriptDir, `${SID}.jsonl`);
+    const { server, stats } = startAssemblingIngest((_i, isFinal) => {
+      if (isFinal) {
+        stop(transcriptPath);
+      }
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runOneSweep();
+    } finally {
+      server.stop(true);
+    }
+    expect(stats.finals).toBe(1);
+    expect(existsSync(markerPath)).toBe(true);
+  }, 60_000);
+
+  it('keeps the marker when a Stop lands between chunks (progress writes must not clobber it)', async () => {
+    const markerPath = setup();
+    const transcriptPath = join(tmpTranscriptDir, `${SID}.jsonl`);
+    let stopped = false;
+    const { server, stats } = startAssemblingIngest((i, isFinal) => {
+      // While serving the first chunk: the uploader then writes progress from its stale copy.
+      if (i === 0 && !isFinal) {
+        stopped = true;
+        stop(transcriptPath);
+      }
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runOneSweep();
+    } finally {
+      server.stop(true);
+    }
+    expect(stopped).toBe(true);
+    expect(stats.finals).toBe(1);
+    expect(existsSync(markerPath)).toBe(true);
+  }, 60_000);
+
+  it('keeps the marker when a Stop lands while the body is being built', async () => {
+    const markerPath = setup();
+    // The transcript is a FIFO: the body build blocks reading it until the
+    // writer below has injected a Stop, so the Stop lands deterministically
+    // between the marker snapshot and the upload.
+    const fifo = join(tmpTranscriptDir, `${SID}.fifo`);
+    Bun.spawnSync(['mkfifo', fifo]);
+    writeShipMarker(SID, fifo, false);
+    const writer = (async () => {
+      const fh = await open(fifo, 'w');
+      await fh.write(
+        `${JSON.stringify({ message: { content: 'hi', role: 'user' }, type: 'user' })}\n`,
+      );
+      stop(fifo);
+      await fh.close();
+    })();
+    const { server, stats } = startAssemblingIngest();
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runOneSweep();
+      await writer;
+    } finally {
+      server.stop(true);
+    }
+    expect(stats.finals).toBe(1);
+    expect(existsSync(markerPath)).toBe(true);
+  }, 60_000);
+
+  it('keeps the marker when an older hook binary rewrites it without updated_at', async () => {
+    const markerPath = setup();
+    const { server, stats } = startAssemblingIngest((_i, isFinal) => {
+      if (isFinal) {
+        // Rolling upgrade: a not-yet-updated hook rewrites the marker with no updated_at.
+        const m = JSON.parse(readFileSync(markerPath, 'utf8'));
+        delete m.updated_at;
+        writeFileSync(markerPath, JSON.stringify(m));
+      }
+    });
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runOneSweep();
+    } finally {
+      server.stop(true);
+    }
+    expect(stats.finals).toBe(1);
+    expect(existsSync(markerPath)).toBe(true);
+  }, 60_000);
+
+  it('treats a marker without updated_at (older version) as unchanged', async () => {
+    const markerPath = setup();
+    const legacy = JSON.parse(readFileSync(markerPath, 'utf8'));
+    delete legacy.updated_at;
+    writeFileSync(markerPath, JSON.stringify(legacy));
+    const { server, stats } = startAssemblingIngest();
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${server.port}`;
+    try {
+      await runOneSweep();
+    } finally {
+      server.stop(true);
+    }
+    expect(stats.conflicts).toBe(0);
+    expect(existsSync(markerPath)).toBe(false);
+  }, 60_000);
 });
 
 describe('shipper outage handling', () => {
