@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runHook } from '../hook-entry';
+import { openQueue } from '../lib/queue';
 import { runPause } from './pause';
 import { runPurge } from './purge';
 import { runResume } from './resume';
@@ -175,6 +176,42 @@ describe('purge-local', () => {
     expect(existsSync(join(tmpHome, 'queue.db'))).toBe(false);
     expect(existsSync(join(tmpHome, 'identity.json'))).toBe(false);
     expect(existsSync(join(tmpHome, 'paused'))).toBe(false);
+  });
+
+  it('removes the WAL and shm siblings of a live queue, not just queue.db', async () => {
+    // Real queue, left open the way the flusher's connection is, so the payload
+    // is still in the -wal (not yet checkpointed into queue.db).
+    const queue = openQueue();
+    const cwd = '/home/dev/secret-client-project';
+    try {
+      queue.enqueue({
+        event_id: '0192f3a0-7c1e-7b2a-9d4e-000000000001',
+        payload_json: JSON.stringify({
+          event_type: 'PostToolUse',
+          session_context: { cwd },
+          session_id: '5f0c1d52-8a3e-4b6f-9c1d-2e7a4b8d9f03',
+        }),
+        ts: new Date().toISOString(),
+      });
+      const wal = join(tmpHome, 'queue.db-wal');
+      expect(existsSync(wal)).toBe(true);
+      expect(readFileSync(wal).includes(cwd)).toBe(true);
+
+      expect(await runPurge(['--yes'])).toBe(0);
+
+      expect(existsSync(join(tmpHome, 'queue.db'))).toBe(false);
+      expect(existsSync(wal)).toBe(false);
+      expect(existsSync(join(tmpHome, 'queue.db-shm'))).toBe(false);
+    } finally {
+      queue.close();
+    }
+  });
+
+  it('removes the rotated hook.log.1 too', async () => {
+    writeFileSync(join(tmpHome, 'hook.log'), 'logs');
+    writeFileSync(join(tmpHome, 'hook.log.1'), 'older logs');
+    expect(await runPurge(['--yes'])).toBe(0);
+    expect(existsSync(join(tmpHome, 'hook.log.1'))).toBe(false);
   });
 
   it('returns 0 when nothing to remove', async () => {
