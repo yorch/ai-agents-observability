@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
 import { ADAPTERS, type HookAdapter, selectAdapter } from '../adapters';
+import { isAiotBinary } from '../lib/config-wire';
 import { type CheckboxItem, checkboxPrompt, isInteractive } from '../lib/prompt';
 
 const FLUSHER_LABEL = 'com.brnby.aiot.flusher';
@@ -26,7 +27,7 @@ interface InstallOptions {
   agents: string[];
   /** Show what would be wired without modifying files. */
   dryRun: boolean;
-  /** Write service files even when running from the Bun runtime, not the compiled binary. */
+  /** With --no-auto, write service files even when running from the Bun runtime, not the compiled binary. Never enables hook wiring. */
   force: boolean;
   /** Skip auto-wiring, print snippets only (legacy behavior). */
   noAuto: boolean;
@@ -268,6 +269,13 @@ function printUndetectedSnippets(bin: string, keys: string[]): void {
   if (keys.length === 0) {
     return;
   }
+  if (!isCompiledBinary(bin)) {
+    // A snippet for the Bun runtime is `bun hook <kind>`: copy-pasteable and wrong.
+    process.stdout.write(
+      '\nManual agent setup snippets omitted: not running from the compiled aiot binary.\n',
+    );
+    return;
+  }
   process.stdout.write('\nManual setup for undetected agents:\n');
   for (const key of keys) {
     const adapter = ADAPTERS[key];
@@ -281,9 +289,9 @@ function printUndetectedSnippets(bin: string, keys: string[]): void {
   }
 }
 
-function resolvedBinaryPath(): string {
-  // The guard in runInstall already refuses uncompiled without --force and
-  // prints the explanatory message there, so no warning is needed here.
+function resolvedBinaryPath(exe: string): string {
+  // The guard in runInstall already refuses to wire hooks from an uncompiled
+  // runtime and prints the explanatory message there, so no warning is needed.
   //
   // When running via the Rust launcher, process.execPath is `aiot-runtime`
   // (the Bun-compiled binary). Services and hook snippets must point at the
@@ -294,7 +302,6 @@ function resolvedBinaryPath(): string {
   // (`aiot-runtime-darwin-arm64`); the sibling launcher is
   // `aiot-darwin-arm64`, so we strip just `runtime` (keeping any target
   // suffix) rather than replacing the whole name.
-  const exe = process.execPath;
   const name = basename(exe);
   if (name.startsWith('aiot-runtime')) {
     return exe.replace('aiot-runtime', 'aiot');
@@ -302,9 +309,13 @@ function resolvedBinaryPath(): string {
   return exe;
 }
 
-/** True when process.execPath is the compiled aiot binary. */
-function isCompiledBinary(): boolean {
-  return basename(process.execPath).startsWith('aiot');
+/**
+ * True when `exe` (normally process.execPath) is the compiled aiot binary. Shares
+ * its predicate with hook ownership, so anything this lets through is something
+ * re-install and uninstall will recognise.
+ */
+function isCompiledBinary(exe: string = process.execPath): boolean {
+  return isAiotBinary(exe);
 }
 
 async function installDarwin(
@@ -484,26 +495,34 @@ export async function runInstall(
   _adapter: HookAdapter = selectAdapter(),
   spawn: SpawnFn = defaultSpawn,
   homeDir: string = homedir(),
+  // Injectable so tests can exercise the compiled-binary path; production always
+  // uses process.execPath.
+  exe: string = process.execPath,
 ): Promise<number> {
   const opts = parseArgs(args);
 
-  // Refuse to write service files pointing at the Bun runtime unless --force
-  // is passed — they would fail to start and silently leave the user with no
-  // telemetry collection.
-  if (!isCompiledBinary() && !opts.force) {
+  // Hook wiring (autoWire → every adapter's apply) writes `bin` into the agent's
+  // config. From the Bun runtime that is `bun hook <kind>`, which no agent can
+  // run and which the ownership predicate cannot tell apart from a user's own
+  // command on re-install. So an uncompiled run never wires hooks, --force or
+  // not. --force only lets service files through, and only together with
+  // --no-auto.
+  if (!isCompiledBinary(exe) && (!opts.force || !opts.noAuto)) {
     process.stderr.write(
       'Refusing to install: process.execPath is the Bun runtime, not the\n' +
-        `compiled aiot binary (got: ${process.execPath}).\n` +
-        'The generated service files would fail to start.\n\n' +
+        `compiled aiot binary (got: ${exe}).\n` +
+        'Agent hooks written from here would run `bun hook <kind>` and fail,\n' +
+        'and the service files would fail to start.\n\n' +
         'Build the binary first:\n' +
         '  bun run --cwd apps/hook build\n' +
         'then run: ./apps/hook/dist/aiot install\n\n' +
-        'Or pass --force to write the files anyway.\n',
+        'To write only the service files from the Bun runtime, pass\n' +
+        '--force --no-auto (agent hooks are never wired from here).\n',
     );
     return 1;
   }
 
-  const bin = resolvedBinaryPath();
+  const bin = resolvedBinaryPath(exe);
 
   if (process.platform === 'darwin') {
     return installDarwin(bin, opts, spawn, homeDir);

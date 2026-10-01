@@ -435,7 +435,7 @@ describe('stripOwnedEntries mixed-group preservation', () => {
             {
               hooks: [
                 { command: 'my-user-tool', type: 'command' },
-                { command: BIN, type: 'command' },
+                { args: ['hook', 'pre-tool-use'], command: BIN, type: 'command' },
               ],
             },
           ],

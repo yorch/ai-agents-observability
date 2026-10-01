@@ -4,3 +4,8 @@ exact = true              # bun add writes exact versions; no ^ or ~
 saveTextLockfile = true   # bun.lock text format (v3), not legacy bun.lockb
 registry = "https://registry.npmjs.org/"
 minimumReleaseAge = 432000 # 5 days (seconds): supply-chain guard — reject pkg versions newer than this
+
+[test]
+# `bun test` from the repo root: guard the real home exactly as apps/hook/bunfig.toml
+# does (bunfig is read from the CWD only). Other workspaces test with vitest/turbo.
+preload = ["./apps/hook/test-setup/isolate-home.ts"]

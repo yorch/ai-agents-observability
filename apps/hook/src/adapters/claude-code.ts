@@ -304,10 +304,7 @@ function stopWithUsage(raw: Record<string, unknown>): ConformantEvent[] | null {
 
 const CLAUDE_CONFIG_DIR = () => join(homeDir(), '.claude');
 const CLAUDE_SETTINGS_PATH = () => join(CLAUDE_CONFIG_DIR(), 'settings.json');
-// Ownership marker: the binary name in the `command` field. User hooks that
-// happen to contain "aiot" as a substring would also match, but the exec form
-// (`command: "/usr/local/bin/aiot"`) makes false positives extremely unlikely.
-const OWNERSHIP_MARKER = 'aiot';
+// Ownership is structural (lib/config-wire.ts isOwnedHook), not a substring.
 
 function detectClaudeCode(): boolean {
   return dirExists(CLAUDE_CONFIG_DIR());
@@ -331,7 +328,7 @@ function applyClaudeCode(bin: string): string | null {
     const userHooks = (existing.hooks as Record<string, unknown[]>) ?? {};
     const merged: Record<string, unknown[]> = {};
     for (const [event, entries] of Object.entries(userHooks)) {
-      merged[event] = Array.isArray(entries) ? stripOwnedEntries(entries, OWNERSHIP_MARKER) : [];
+      merged[event] = Array.isArray(entries) ? stripOwnedEntries(entries) : [];
     }
     for (const [event, entries] of Object.entries(ourHooks)) {
       merged[event] = [...(merged[event] ?? []), ...entries];
@@ -356,11 +353,9 @@ function removeClaudeCode(): boolean {
     const cleaned: Record<string, unknown[]> = {};
     let hadAny = false;
     for (const [event, entries] of Object.entries(hooks)) {
-      const stripped = Array.isArray(entries)
-        ? stripOwnedEntries(entries, OWNERSHIP_MARKER)
-        : entries;
+      const stripped = Array.isArray(entries) ? stripOwnedEntries(entries) : entries;
       if (Array.isArray(stripped)) {
-        if (stripped.length !== entries.length) {
+        if (JSON.stringify(stripped) !== JSON.stringify(entries)) {
           hadAny = true;
         }
         if (stripped.length > 0) {

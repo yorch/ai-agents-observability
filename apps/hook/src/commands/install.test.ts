@@ -9,21 +9,51 @@ import { runInstall } from './install';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 let tmpHome: string;
+let origHome: string | undefined;
+let origAiotHome: string | undefined;
 
+// HOME and AIOT_HOME go to the temp dir for EVERY test in this file. The adapters
+// resolve their config dirs from HOME, not from runInstall's `homeDir` parameter
+// (that one is only the launchd/systemd root), so a test that forgot to set it
+// wired every detected agent into the developer's real ~/.claude and ~/.codex.
 beforeEach(() => {
   tmpHome = mkdtempSync(join(tmpdir(), 'aiot-install-test-'));
+  origHome = process.env.HOME;
+  origAiotHome = process.env.AIOT_HOME;
+  process.env.HOME = tmpHome;
+  process.env.AIOT_HOME = join(tmpHome, '.aiot');
 });
 
 afterEach(() => {
+  restoreEnv('HOME', origHome);
+  restoreEnv('AIOT_HOME', origAiotHome);
   rmSync(tmpHome, { force: true, recursive: true });
 });
 
-/** runInstall with the temp dir injected as homeDir (Bun's homedir() ignores $HOME). */
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
+}
+
+/** What process.execPath is for the shipped binary: the launcher's sibling runtime. */
+const COMPILED_EXE = '/opt/aiot/aiot-runtime-linux-x64';
+/** ...and the launcher path hooks and service files must point at. */
+const LAUNCHER = '/opt/aiot/aiot-linux-x64';
+
+/**
+ * runInstall with the temp dir injected as homeDir (Bun's homedir() ignores $HOME)
+ * and, by default, a compiled-binary execPath. Pass `process.execPath` to exercise
+ * the real uncompiled path (the Bun runtime under `bun test`).
+ */
 async function install(
   args: string[],
   spawn: (cmd: readonly string[]) => { exitCode: number },
+  exe: string = COMPILED_EXE,
 ): Promise<number> {
-  return runInstall(args, claudeCodeAdapter, spawn, tmpHome);
+  return runInstall(args, claudeCodeAdapter, spawn, tmpHome, exe);
 }
 
 /** A spawn mock that records every call and returns exitCode 0. */
@@ -101,22 +131,67 @@ describe('install — uncompiled guard', () => {
   // binary, so the guard fires. These tests exercise that path directly.
 
   it('refuses without --force and writes no service files', async () => {
-    const { stderr, exit } = await captureOutput(() => install([], recordingSpawn().fn));
+    const { stderr, exit } = await captureOutput(() =>
+      install([], recordingSpawn().fn, process.execPath),
+    );
     expect(exit).toBe(1);
     expect(stderr).toContain('Refusing to install');
-    expect(stderr).toContain('--force');
+    expect(stderr).toContain(process.execPath);
+    expect(stderr).toContain('--force --no-auto');
     expect(existsSync(flusherPath())).toBe(false);
     expect(existsSync(shipperPath())).toBe(false);
   });
 
-  it('proceeds with --force', async () => {
+  it('writes service files with --force --no-auto, and never any hook config', async () => {
+    mkdirSync(join(tmpHome, '.claude'), { recursive: true });
     const { exit } = await captureOutput(() =>
-      install(['--force', '--no-start'], recordingSpawn().fn),
+      install(['--force', '--no-auto', '--no-start'], recordingSpawn().fn, process.execPath),
     );
     expect(exit).toBe(0);
     expect(existsSync(flusherPath())).toBe(true);
     expect(existsSync(shipperPath())).toBe(true);
+    expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(false);
   });
+
+  it('--force --no-auto prints no copy-pasteable `bun hook` snippets', async () => {
+    const { stdout, exit } = await captureOutput(() =>
+      install(['--force', '--no-auto', '--no-start'], recordingSpawn().fn, process.execPath),
+    );
+    expect(exit).toBe(0);
+    expect(stdout).toContain('snippets omitted');
+    expect(stdout).not.toContain(process.execPath);
+    expect(stdout).not.toContain('"hook"');
+  });
+
+  it('refuses a binary whose name the ownership predicate would not recognise', async () => {
+    for (const exe of ['/opt/aiot/aiot2', '/opt/aiot/aiot_v2']) {
+      const { stderr, exit } = await captureOutput(() => install([], recordingSpawn().fn, exe));
+      expect(exit).toBe(1);
+      expect(stderr).toContain('Refusing to install');
+    }
+  });
+
+  // The bug this pins: --force bypassed the guard, then autoWire wrote
+  // `bun hook <kind>` into every detected agent's config. --force must not be
+  // able to do that, with or without --yes / --agent / --dry-run.
+  for (const extra of [[], ['--yes'], ['--agent', 'claude-code'], ['--dry-run']]) {
+    it(`--force does not wire hooks from the Bun runtime (${extra.join(' ') || 'default'})`, async () => {
+      for (const dir of ['.claude', '.codex', '.gemini', '.copilot', '.pi', '.config/opencode']) {
+        mkdirSync(join(tmpHome, dir), { recursive: true });
+      }
+      const { stderr, exit } = await captureOutput(() =>
+        install(['--force', '--no-start', ...extra], recordingSpawn().fn, process.execPath),
+      );
+      expect(exit).toBe(1);
+      expect(stderr).toContain('Refusing to install');
+      expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(false);
+      expect(existsSync(join(tmpHome, '.codex', 'hooks.json'))).toBe(false);
+      expect(existsSync(join(tmpHome, '.gemini', 'settings.json'))).toBe(false);
+      expect(existsSync(join(tmpHome, '.copilot', 'hooks'))).toBe(false);
+      expect(existsSync(join(tmpHome, '.config', 'opencode', 'plugins'))).toBe(false);
+      expect(existsSync(flusherPath())).toBe(false);
+    });
+  }
 });
 
 // ── --no-start prints commands instead of running them ────────────────────────
@@ -288,6 +363,20 @@ describe('install --yes', () => {
     const settings = JSON.parse(readFileSync(join(tmpHome, '.claude', 'settings.json'), 'utf8'));
     expect(settings.hooks).toBeDefined();
     expect(Object.keys(settings.hooks).length).toBeGreaterThan(0);
+    // The command written is the launcher, not the runtime and not `bun`.
+    for (const groups of Object.values(settings.hooks) as { hooks: { command: string }[] }[][]) {
+      expect(groups.flatMap((g) => g.hooks.map((h) => h.command))).toEqual([LAUNCHER]);
+    }
+  });
+
+  it('is idempotent across repeated installs (one group per event, not N)', async () => {
+    const run = () =>
+      captureOutput(() => install(['--force', '--yes', '--no-start'], recordingSpawn().fn));
+    await run();
+    const first = readFileSync(join(tmpHome, '.claude', 'settings.json'), 'utf8');
+    await run();
+    await run();
+    expect(readFileSync(join(tmpHome, '.claude', 'settings.json'), 'utf8')).toBe(first);
   });
 });
 
