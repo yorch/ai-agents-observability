@@ -98,6 +98,29 @@ points at a **directory** is collated into one JSONL by the shipper
 (`lib/transcript-collate.ts`), out of the hot path. That rule is agent-neutral,
 and it closed opencode's P8-004 transcript gap in P12-009.
 
+## Installing into agent configs: tests never touch the real HOME
+
+`install` rewrites config files this tool does not own (`~/.claude/settings.json`,
+`~/.codex/hooks.json`, the opencode/pi plugin files). Three rules, all from one
+incident where `bun test` appended six hook groups per run to a developer's real
+configs, written as `bun hook <kind>`, with the suite green:
+
+- **Tests never touch the real HOME.** `bunfig.toml` preloads
+  `test-setup/isolate-home.ts`, which points `HOME`/`AIOT_HOME` and `os.homedir()` at
+  a temp dir and makes node:fs writes under the real home's agent dirs throw.
+  `test-isolation.test.ts` proves it; if it goes red, stop and fix the preload before
+  running anything else. Adapters read `homeDir()` (HOME), not `runInstall`'s
+  `homeDir` argument, so injecting that argument alone isolates nothing.
+- **Hook wiring never writes a non-compiled binary.** `runInstall` refuses unless
+  `process.execPath` is the compiled `aiot*` binary, `--force` or not (`--force
+  --no-auto` writes service files only). Every adapter's `apply` runs behind that one
+  check; tests inject the `exe` argument instead of weakening it.
+- **Ownership is structural, not a substring.** `lib/config-wire.ts` matches the parsed
+  entry (basename `aiot*` + `hook` arg), plus the legacy bare `bun hook` form so
+  re-install and uninstall repair the leaked duplicates. `command.includes('aiot')`
+  missed `bun` (every re-install appended a group) and matched foreign paths. Test
+  with real-shaped entries, not a bin that happens to contain "aiot".
+
 ## Historical import
 
 `commands/import.ts` owns the shared auth, readiness, batching, upload, and summary

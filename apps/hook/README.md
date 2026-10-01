@@ -175,7 +175,7 @@ setup.
 | Flag | Description |
 |------|-------------|
 | `--no-start` | Write the service files but don't load/enable them (prints the commands instead) |
-| `--force` | Write service files even when running uncompiled (from the Bun runtime, not the binary) |
+| `--force` | With `--no-auto`, write service files even when running uncompiled (from the Bun runtime, not the binary). Agent hooks are never wired from the Bun runtime, with or without `--force` |
 | `--yes` | Wire all detected agents without prompting |
 | `--agent <name>` | Wire only this agent (repeatable); skips detection and prompting |
 | `--no-auto` | Skip auto-wiring entirely; print snippets for all agents (legacy behavior) |
