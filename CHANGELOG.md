@@ -6,6 +6,16 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.8.0 (2026-10-01)
+
+### Features
+
+- hook: on-demand install mode with a short-lived drainer instead of resident services (#264)
+
+### Bug Fixes
+
+- hook: make CLI output and help text match what each mode actually does (#267)
+
 ## v2.7.0 (2026-10-01)
 
 ### Features
