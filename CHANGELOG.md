@@ -6,6 +6,17 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.7.0 (2026-10-01)
+
+### Features
+
+- hook: make event and transcript delivery survive outages, bad tokens and hangs (#258)
+
+### Bug Fixes
+
+- hook: detect a ship marker rewritten mid-upload by updated_at, not body_hash (#261)
+- hook: never wire agent hooks from the Bun runtime and recognise aiot hooks structurally (#260)
+
 ## v2.6.0 (2026-10-01)
 
 ### Features
