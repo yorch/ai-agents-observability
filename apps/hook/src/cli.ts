@@ -40,8 +40,8 @@ Commands:
   pause         Pause telemetry collection (writes a marker file)
   resume        Resume telemetry collection (removes the marker)
   purge-local   Remove all local data (queue, logs, identity) — use --yes to confirm
-  import         Import historical Claude Code, Codex, OpenCode, Pi, or OMP sessions
-  install       Write launchd/systemd service files and wire hooks into detected agents
+  import        Import historical Claude Code, Codex, OpenCode, Pi, or OMP sessions
+  install       Wire hooks into detected agents and, in resident mode, write launchd/systemd service files
                 flags: --no-start (don't load/enable), --force (allow uncompiled),
                        --yes (wire all detected agents without prompting),
                        --agent <name> (wire only this agent, repeatable),
@@ -49,15 +49,15 @@ Commands:
                        --dry-run (show what would be wired without modifying files),
                        --mode resident|on-demand (resident: launchd/systemd services, default;
                          on-demand: no services, a short-lived drainer after agent activity)
-  uninstall     Remove service files (does not remove local data)
+  uninstall     Remove aiot hook config and any service files (does not remove local data)
 
   hook <kind>   Run a hook entrypoint (reads JSON from stdin)
                 kinds: session-start, session-end, pre-tool-use, post-tool-use, stop,
                        user-prompt-submit, pre-compact, subagent-stop, notification
-  drain         One delivery pass (events, then transcripts), then exit. Used by on-demand
-                installs; --wait runs it in the foreground and exits non-zero if data remains
-  flusher       Drain the SQLite queue and POST batches to /v1/events (long-running)
-  shipper       Watch for transcript files and upload them to /v1/transcripts (long-running)
+  drain         One delivery pass (events, then transcripts), then exit. Spawned by hooks in
+                on-demand mode; --wait runs it in the foreground and exits non-zero if data remains
+  flusher       Drain the SQLite queue and POST batches to /v1/events (long-running; resident mode)
+  shipper       Watch for transcript files and upload them to /v1/transcripts (long-running; resident mode)
 
 Options:
   --agent <name> Select the agent for install, hook, or historical import

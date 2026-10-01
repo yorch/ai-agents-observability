@@ -23,7 +23,13 @@ import { isRecord, optionalNonNegativeInt } from '../lib/fields';
 import { userIdClaim } from '../lib/identity';
 import { sessionUuid } from '../lib/session-id';
 import { uuidv7 } from '../lib/uuid';
-import type { AdapterInstallConfig, ConformantEvent, HookAdapter, TranscriptTarget } from './index';
+import type {
+  AdapterInstallConfig,
+  ConformantEvent,
+  HookAdapter,
+  RemoveOutcome,
+  TranscriptTarget,
+} from './index';
 
 // opencode adapter (P8-004) — the validating SECOND HookAdapter, used to confirm
 // the seam from P8-003 holds for an agent that is not Claude Code.
@@ -253,17 +259,18 @@ function applyOpencode(bin: string): string | null {
   }
 }
 
-function removeOpencode(): boolean {
+function removeOpencode(): RemoveOutcome {
   const pluginFile = OPENCODE_PLUGIN_FILE();
   try {
-    if (existsSync(pluginFile)) {
+    const existed = existsSync(pluginFile);
+    if (existed) {
       rmSync(pluginFile, { force: true });
     }
     removeBackup(pluginFile);
-    return true;
+    return existed ? 'removed' : 'unchanged';
   } catch (err) {
     process.stderr.write(`Error removing opencode plugin: ${(err as Error).message}\n`);
-    return false;
+    return 'failed';
   }
 }
 

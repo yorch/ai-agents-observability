@@ -243,6 +243,14 @@ export function makeMachine(): Machine {
   writeFileSync(prFile, '[{"number":42}]');
   const ghFailFile = join(home, 'gh.fail');
   writeFakeGh(ghDir, ghLog, prFile, ghFailFile);
+  // No e2e may reach a real service manager: both fakes only log their arguments.
+  for (const tool of ['systemctl', 'launchctl']) {
+    writeFileSync(
+      join(ghDir, tool),
+      `#!/bin/sh\necho "${tool} $@" >> '${join(home, 'service-manager.log')}'\nexit 3\n`,
+      { mode: 0o755 },
+    );
+  }
   mkdirSync(aiotHome, { mode: 0o700, recursive: true });
   const m: Machine = {
     aiot: buildBinary(),

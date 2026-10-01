@@ -177,7 +177,7 @@ describe('claude-code auto-wire', () => {
 
   it('handles missing settings.json gracefully on remove', () => {
     mkdir('.claude');
-    expect(cfg().remove?.()).toBe(true);
+    expect(cfg().remove?.()).toBe('unchanged');
   });
 });
 
@@ -497,4 +497,23 @@ describe('all adapters support auto-wire', () => {
       expect(cfg.remove).toBeDefined();
     });
   }
+});
+
+describe('remove() reports whether it changed anything', () => {
+  it('codex: a leftover aiot-notify.sh wrapper alone counts as removed', () => {
+    writeFile('.codex/aiot-notify.sh', '#!/bin/sh\n');
+
+    expect(cfgFor('codex').remove?.()).toBe('removed');
+
+    expect(exists('.codex/aiot-notify.sh')).toBe(false);
+  });
+
+  it('gemini-cli: a settings file with only user hooks is unchanged', () => {
+    const userHook = { hooks: [{ command: '/usr/bin/notify-send', type: 'command' }] };
+    writeFile('.gemini/settings.json', JSON.stringify({ hooks: { SessionStart: [userHook] } }));
+
+    expect(cfgFor('gemini-cli').remove?.()).toBe('unchanged');
+
+    expect(readJson('.gemini/settings.json')).toEqual({ hooks: { SessionStart: [userHook] } });
+  });
 });

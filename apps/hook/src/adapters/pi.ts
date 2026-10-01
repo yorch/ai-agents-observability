@@ -9,7 +9,7 @@ import {
   writeTextFile,
 } from '../lib/config-wire';
 
-import type { HookAdapter } from './index';
+import type { HookAdapter, RemoveOutcome } from './index';
 import { createPiFamilyAdapter, renderExtensionSnippet } from './pi-family';
 
 // Pi adapter (P12-007). Pi (`@earendil-works/pi-coding-agent`) has no stdin
@@ -77,17 +77,18 @@ function applyPi(bin: string): string | null {
   }
 }
 
-function removePi(): boolean {
+function removePi(): RemoveOutcome {
   const pluginFile = PI_PLUGIN_FILE();
   try {
-    if (existsSync(pluginFile)) {
+    const existed = existsSync(pluginFile);
+    if (existed) {
       rmSync(pluginFile, { force: true });
     }
     removeBackup(pluginFile);
-    return true;
+    return existed ? 'removed' : 'unchanged';
   } catch (err) {
     process.stderr.write(`Error removing Pi extension: ${(err as Error).message}\n`);
-    return false;
+    return 'failed';
   }
 }
 
