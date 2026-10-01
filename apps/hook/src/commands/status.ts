@@ -29,6 +29,9 @@ export async function runStatus(): Promise<number> {
   } catch {
     // identity.json missing or unreadable
   }
+  if (process.env.AIOT_TOKEN?.trim()) {
+    authLine = 'token from AIOT_TOKEN';
+  }
 
   // ── Paused ────────────────────────────────────────────────────────────────────
   const paused = existsSync(pausedPath());

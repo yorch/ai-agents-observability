@@ -26,11 +26,18 @@ export function userIdClaim(): string {
 }
 
 /**
- * Load the hook auth token written by `aiot login` (the `token`
- * field of the identity file). Returns null when absent/unreadable. Shared by
- * the flusher and transcript shipper so the read isn't duplicated.
+ * Load the hook auth token: `AIOT_TOKEN` if set, else the one written by
+ * `aiot login` (the `token` field of the identity file). The env var wins so a
+ * container can be provisioned without an interactive login. Returns null when
+ * neither is present. Shared by the flusher, transcript shipper and import so
+ * the read isn't duplicated. Read per call, never cached — a fresh `aiot login`
+ * must be picked up by a running daemon. The token is a credential: never log it.
  */
 export function loadHookToken(): string | null {
+  const fromEnv = process.env.AIOT_TOKEN?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
   try {
     const raw = readFileSync(identityPath(), 'utf8');
     const parsed = JSON.parse(raw) as { token?: unknown };

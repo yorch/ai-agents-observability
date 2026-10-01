@@ -279,6 +279,7 @@ Hook entrypoints (`hook <kind>`) always exit 0 regardless of errors — a broken
 |----------|---------|-------------|
 | `AIOT_API` | persisted `web-url`, then `http://localhost:3000` | Highest-precedence web app URL override |
 | `INGEST_BASE_URL` | persisted `ingest-url`, then `http://localhost:4000` | Highest-precedence ingest URL override |
+| `AIOT_TOKEN` | the `token` in `identity.json` (from `aiot login`) | Auth token for the flusher, shipper and `import`; wins over the file, so containers need no interactive login |
 | `AIOT_CONFIG` | `${XDG_CONFIG_HOME:-~/.config}/aiot/config.json` | Override the persisted config file path |
 | `AIOT_HOME` | `~/.aiot` | Override the local data directory (useful for tests) |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Override the Claude Code import source |
