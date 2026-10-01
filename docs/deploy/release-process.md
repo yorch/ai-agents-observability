@@ -22,8 +22,8 @@ release.yml: publish-release job
   → re-runs all four quality gates (check, typecheck, build, test)
   → creates vX.Y.Z tag pinned to the merge commit
   → creates a draft GitHub Release with changelog notes
-  → explicitly dispatches docker.yml, build-binaries.yml, and build-hook.yml
-    at the version tag and waits for all three workflows
+  → explicitly dispatches docker.yml, build-binaries.yml, build-hook.yml, and
+    helm-chart.yml at the version tag and waits for all four workflows
   → verifies every expected release asset
   → publishes the release only when it is complete
 ```
@@ -48,13 +48,16 @@ Versions follow [semver](https://semver.org/), derived from [conventional commit
 
 ## What gets published
 
-On each release, `release.yml` explicitly dispatches three workflow definitions from `main`, passing the immutable `release_tag`, and waits for them to attach artifacts to the draft GitHub Release. Each workflow checks out and packages source from that tag:
+On each release, `release.yml` explicitly dispatches four workflow definitions from `main`, passing the immutable `release_tag`, and waits for them to attach artifacts to the draft GitHub Release. Each workflow checks out and packages source from that tag:
 
 | Workflow | Artifacts | Checksum file |
 |---|---|---|
 | `docker.yml` | OCI image tarballs, SBOMs | `SHA256SUMS-images` |
 | `build-binaries.yml` | Server binaries (4 platforms), web tarball | `SHA256SUMS-binaries` |
 | `build-hook.yml` | Hook binaries (4 platforms) | `SHA256SUMS-hook` |
+| `helm-chart.yml` | Helm chart `.tgz` (also pushed to GHCR as an OCI artifact) | `SHA256SUMS-helm` |
+
+The Helm chart is pushed to `oci://ghcr.io/yorch/ai-agents-observability/charts/ai-agents-observability` at the release version (chart `version` and `appVersion` are stamped from the tag, so `appVersion` is also the default image tag), then signed and attested like the images. GHCR creates the package private; make it public once if consumers should pull it without credentials.
 
 Docker images are also pushed to GHCR (`ghcr.io/yorch/ai-agents-observability/<component>:<tag>`), signed with cosign, and given GitHub build-provenance attestations.
 

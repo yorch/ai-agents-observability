@@ -49,6 +49,19 @@ The chart deploys:
 - Ingest Deployment + Service
 - GitHub App Deployment + Service (optional)
 
+## Install from the published OCI chart
+
+Each release publishes the chart to GHCR, so you can install without cloning the repo:
+
+```bash
+helm install ai-agents-observability \
+  oci://ghcr.io/yorch/ai-agents-observability/charts/ai-agents-observability \
+  --version 2.5.1 \
+  -n ai-agents-observability -f my-values.yaml
+```
+
+The chart `version` equals the release version, and `appVersion` (the default image tag) is stamped to match it. Verify the signature with `cosign verify` as described in [verifying-artifacts.md](./verifying-artifacts.md).
+
 ## Using an internal registry
 
 For governance-compliant deployments, push images to your internal registry and point the chart at it:
