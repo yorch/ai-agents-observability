@@ -25,8 +25,8 @@ import {
   type HookKind,
 } from '../lib/payload';
 import { NIL_UUID } from '../lib/session-id';
-import { readNewLines, safeJsonLine } from '../lib/tail-read';
-import type { ConformantEvent, HookAdapter, RemoveOutcome } from './index';
+import { readLinesWindow, readNewLines, safeJsonLine } from '../lib/tail-read';
+import type { ConformantEvent, HookAdapter, RemoveOutcome, TailChunk } from './index';
 import { createStdinHookAdapter } from './stdin-hook-factory';
 
 // Claude Code adapter — the first HookAdapter implementation, and (since P12-003)
@@ -203,6 +203,41 @@ function pruneStaleCursors(): void {
 }
 
 /**
+ * One assistant transcript entry as a Stop-typed turn event: deterministic id, the
+ * `llm` block, `tool_use_ids`, and no transcript CONTENT (lib/claude-turns.ts).
+ * Shared by the Stop read and the SessionEnd tail so a turn is the same row from
+ * whichever hook mints it.
+ */
+function mintTurn(
+  template: ConformantEvent,
+  entry: Parameters<typeof assistantTurn>[0],
+  turnNumber: number,
+): ConformantEvent {
+  const turn = assistantTurn(entry);
+  return {
+    ...template,
+    event_id: turn.eventId,
+    llm: turn.llm,
+    // Marks the derivation, matching what `import` writes, so the row reads
+    // the same whichever path inserted it first. No transcript CONTENT is
+    // copied here — see lib/claude-turns.ts.
+    //
+    // `tool_use_ids` is the P14-006 half: the ids of the calls THIS turn
+    // issued, read off lines this Stop was already parsing for usage. It is
+    // the only new information the linkage needs, and it costs no extra I/O
+    // — which is why the linkage is derived here and not on the tool hooks,
+    // where reading a file is forbidden (apps/hook/AGENTS.md).
+    metadata: {
+      ...template.metadata,
+      source: 'claude-jsonl',
+      ...toolUseIdsMetadata(turn.toolUseIds),
+    },
+    ts: turn.ts,
+    turn_number: turnNumber,
+  } as ConformantEvent;
+}
+
+/**
  * The turns appended since the last Stop, as Stop events.
  *
  * Returns null — "no batch, fall back to the plain single Stop" — for every
@@ -255,28 +290,7 @@ function stopWithUsage(raw: Record<string, unknown>): ConformantEvent[] | null {
         continue;
       }
       turns += 1;
-      const turn = assistantTurn(entry);
-      events.push({
-        ...template,
-        event_id: turn.eventId,
-        llm: turn.llm,
-        // Marks the derivation, matching what `import` writes, so the row reads
-        // the same whichever path inserted it first. No transcript CONTENT is
-        // copied here — see lib/claude-turns.ts.
-        //
-        // `tool_use_ids` is the P14-006 half: the ids of the calls THIS turn
-        // issued, read off lines this Stop was already parsing for usage. It is
-        // the only new information the linkage needs, and it costs no extra I/O
-        // — which is why the linkage is derived here and not on the tool hooks,
-        // where reading a file is forbidden (apps/hook/AGENTS.md).
-        metadata: {
-          ...template.metadata,
-          source: 'claude-jsonl',
-          ...toolUseIdsMetadata(turn.toolUseIds),
-        },
-        ts: turn.ts,
-        turn_number: turns,
-      } as ConformantEvent);
+      events.push(mintTurn(template, entry, turns));
     }
 
     // Committed only once the events are QUEUED, not merely built. The old
@@ -401,6 +415,115 @@ const base = createStdinHookAdapter({
   transcriptKinds: ['stop', 'session-end'],
 });
 
+/**
+ * A SessionEnd payload dressed as the Stop whose turns it mints. Everything is kept
+ * except SessionEnd's own `reason`, and `stop_hook_active` (a Stop-only flag) defaults
+ * to false so the metadata keys line up. `admitsToMetadata` still decides what reaches
+ * metadata, as for a real Stop.
+ *
+ * What is NOT the same as a turn a Stop mints: Claude Code builds a SessionEnd payload
+ * without the permission mode and effort a Stop carries, so `session_context.mode` of
+ * these turns is the default rather than e.g. `accept_edits`, `metadata.effort` is
+ * absent, and `stop_hook_active` is the default. Ingest keeps whichever row for an
+ * (event_id, ts) arrives first, so a turn's mode follows the hook that reached it first.
+ */
+function stopShaped(raw: Record<string, unknown>): Record<string, unknown> {
+  const { reason: _reason, ...rest } = raw;
+  return { stop_hook_active: false, ...rest, hook_event_name: 'Stop' };
+}
+
+/** Bytes of transcript read per window at SessionEnd (a cold one can be 100 MB). */
+const TAIL_WINDOW_BYTES = 4 * 1024 * 1024;
+
+/**
+ * The turns after the last Stop, for the SessionEnd hook (see `HookAdapter.tail`).
+ *
+ * Same cursor, same deterministic ids and same Stop-typed events as `stopWithUsage`,
+ * so Stop-then-SessionEnd reads each turn once. Unlike Stop it is chunked and
+ * time-boxed: each chunk's `commit` moves the cursor to the byte just past the last
+ * line that chunk covered, with the turn ordinal at that point, so a kill, a full
+ * queue or the deadline leave a cursor that is exact and the rest is read by the
+ * next Stop, SessionEnd or import. An empty transcript tail commits nothing.
+ */
+function* sessionEndTail(
+  raw: Record<string, unknown>,
+  opts: { chunkSize: number; shouldStop(): boolean },
+): Generator<TailChunk, void, void> {
+  const transcriptPath = raw.transcript_path;
+  if (typeof transcriptPath !== 'string' || transcriptPath.length === 0) {
+    return;
+  }
+  let template: ConformantEvent;
+  try {
+    template = base.mapPayload('stop', stopShaped(raw));
+  } catch {
+    return;
+  }
+  const sessionId = template.session_id;
+  if (sessionId === NIL_UUID) {
+    return;
+  }
+  const { cursor, existed } = readCursor(sessionId, transcriptPath);
+  if (!existed) {
+    pruneStaleCursors();
+  }
+  let offset = cursor.offset;
+  let turns = cursor.turns;
+  const commitAt = (at: number, ordinal: number) => () =>
+    writeCursor(sessionId, { offset: at, path: transcriptPath, turns: ordinal });
+
+  const startTurns = turns;
+  let doneAt = offset; // the byte just past the last chunk handed out
+  /** The time box ended the pass: say how much is left, so a silent cut-off is not invisible. */
+  const stoppedAtDeadline = () => {
+    let remaining = -1;
+    try {
+      remaining = statSync(transcriptPath).size - doneAt;
+    } catch {
+      // the log line is best effort
+    }
+    log('info', 'hook.tail.deadline', { queued: turns - startTurns, remaining_bytes: remaining });
+  };
+
+  while (!opts.shouldStop()) {
+    let window: ReturnType<typeof readLinesWindow>;
+    try {
+      window = readLinesWindow(transcriptPath, offset, TAIL_WINDOW_BYTES);
+    } catch (err) {
+      // A missing or unreadable transcript costs the usage, never the hook.
+      log('warn', 'claude.usage.read_failed', { message: (err as Error).message });
+      return;
+    }
+    const { lines, newOffset } = window;
+    if (newOffset === offset) {
+      return;
+    }
+    let events: ConformantEvent[] = [];
+    let covered = offset;
+    for (const { text, end } of lines) {
+      const entry = safeJsonLine(text);
+      if (isAssistantEntry(entry)) {
+        turns += 1;
+        events.push(mintTurn(template, entry, turns));
+      }
+      covered = end;
+      if (events.length >= opts.chunkSize) {
+        yield { commit: commitAt(covered, turns), events };
+        doneAt = covered;
+        events = [];
+        if (opts.shouldStop()) {
+          stoppedAtDeadline();
+          return;
+        }
+      }
+    }
+    yield { commit: commitAt(newOffset, turns), events };
+    offset = newOffset;
+    doneAt = newOffset;
+  }
+  stoppedAtDeadline();
+}
+
 export const claudeCodeAdapter: HookAdapter = {
   ...base,
 
@@ -410,6 +533,11 @@ export const claudeCodeAdapter: HookAdapter = {
     // main Stop's incremental read already picks them up. Reading from both would
     // race on one cursor and emit each subagent turn twice.
     return kind === 'stop' ? stopWithUsage(raw) : null;
+  },
+
+  // SessionEnd's usage is bulk work done AFTER its own event is queued: see `tail`.
+  tail(kind, raw, opts) {
+    return sessionEndTail(kind === 'session-end' ? raw : {}, opts);
   },
 };
 

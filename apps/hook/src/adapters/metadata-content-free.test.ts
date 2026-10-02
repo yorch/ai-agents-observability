@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { CONTENT_BEARING_KEYS, MAX_METADATA_STRING } from '@ai-agents-observability/schemas';
 import { describe, expect, it } from 'vitest';
 
@@ -155,6 +158,93 @@ describe('the shape rule refuses what no name list can anticipate', () => {
         p14_008_unlisted_prose: SENTINEL.padEnd(MAX_METADATA_STRING + 1, '.'),
       });
       expect(JSON.stringify(event.metadata)).not.toContain(SENTINEL);
+    });
+  }
+});
+
+describe('bulk events from `tail` are content-free too', () => {
+  // A tail mints events from two sources the mapPayload sweep above never walks: a
+  // hook payload of its own (SessionEnd) AND the transcript, whose assistant text, tool
+  // inputs and tool results are exactly the content metadata must never carry.
+  const tailAdapters = Object.entries(ADAPTERS).filter(([, adapter]) => adapter.tail);
+
+  it('is not vacuous: at least one registered adapter has a tail to sweep', () => {
+    expect(tailAdapters.map(([name]) => name)).toContain('claude-code');
+  });
+
+  for (const [name, adapter] of tailAdapters) {
+    it(`${name} · tail`, () => {
+      const dir = mkdtempSync(join(tmpdir(), 'aiot-mcf-tail-'));
+      const prevHome = process.env.AIOT_HOME;
+      process.env.AIOT_HOME = dir;
+      try {
+        const transcript = join(dir, 't.jsonl');
+        const line = (o: unknown) => `${JSON.stringify(o)}\n`;
+        writeFileSync(
+          transcript,
+          line({
+            message: { content: `question ${SENTINEL}`, role: 'user' },
+            timestamp: '2026-08-20T10:00:00.000Z',
+            type: 'user',
+            uuid: 'u1',
+          }) +
+            line({
+              message: {
+                content: [
+                  { text: `answer ${SENTINEL}`, type: 'text' },
+                  {
+                    id: 'toolu_01A09q90qw90lq917835lq9',
+                    input: { command: `echo ${SENTINEL}` },
+                    name: 'Bash',
+                    type: 'tool_use',
+                  },
+                ],
+                model: 'claude-opus-4-5-20251101',
+                role: 'assistant',
+                usage: { input_tokens: 1, output_tokens: 2 },
+              },
+              timestamp: '2026-08-20T10:00:05.000Z',
+              type: 'assistant',
+              uuid: 'a1',
+            }) +
+            line({
+              message: {
+                content: [
+                  {
+                    content: `output ${SENTINEL}`,
+                    tool_use_id: 'toolu_01A09q90qw90lq917835lq9',
+                    type: 'tool_result',
+                  },
+                ],
+                role: 'user',
+              },
+              timestamp: '2026-08-20T10:00:06.000Z',
+              type: 'user',
+              uuid: 'u2',
+            }),
+        );
+        const events = [
+          ...(adapter.tail?.(
+            'session-end',
+            { ...payloadWithAllContentKeys(), transcript_path: transcript },
+            { chunkSize: 10, shouldStop: () => false },
+          ) ?? []),
+        ].flatMap((chunk) => chunk.events);
+        expect(events.length).toBeGreaterThan(0); // the sweep reached something
+        for (const event of events) {
+          // The WHOLE event, not just metadata: a leak into session_context or a
+          // promoted field is the same bug.
+          expect(JSON.stringify(event)).not.toContain(SENTINEL);
+          for (const key of Object.keys(event.metadata)) {
+            expect(CONTENT_BEARING_KEYS.has(key)).toBe(false);
+          }
+        }
+        // ...and it is a live passthrough, not an emptied object.
+        expect(events[0]?.metadata[CONTROL_KEY]).toBe(CONTROL_VALUE);
+      } finally {
+        process.env.AIOT_HOME = prevHome;
+        rmSync(dir, { force: true, recursive: true });
+      }
     });
   }
 });

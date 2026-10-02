@@ -169,7 +169,8 @@ not module import time, so daemon restarts and tests observe config changes.
   **The one exception is a *terminal* hook reading a side-channel file for token
   usage**, because that is the only place three agents' usage exists: codex's
   rollout JSONL, gemini's accumulator, and (P14-003) Claude Code's session
-  transcript at Stop. Every one of them is behind a per-session byte cursor, so
+  transcript at Stop and, for the turns after the last Stop, at SessionEnd (the optional
+  `HookAdapter.tail`, below). Every one of them is behind a per-session byte cursor, so
   the read is proportional to what the agent appended since the last turn and not
   to the session — an uncursored read is O(n²) over a session and will blow the
   budget on a long one. The rule that stayed intact: **no tool-lifecycle hook
@@ -193,6 +194,51 @@ not module import time, so daemon restarts and tests observe config changes.
   same way before you look for a heuristic — the alternative here was a
   timestamp-nearest-Stop guess that three separate reviews rejected, because its
   failure mode is a plausible dollar figure on the wrong tool.
+
+  **The SessionEnd tail (`HookAdapter.tail`) is bulk work with a deadline, and its order
+  matters.** Claude Code kills a SessionEnd hook at its deadline (1.5 s unless a hook entry
+  sets a longer `timeout`; aiot's sets none), and a cold transcript (first SessionEnd after an
+  upgrade or `purge-local`, a session that never had a Stop, a resume past the 14-day cursor
+  TTL) can be tens of thousands of turns. So `hook-entry` (1) queues the plain SessionEnd with
+  the single-row `enqueue` and writes the ship marker, (2) only then pulls chunks from the
+  tail and queues each with `enqueueMany` in its own ~1 ms transaction (100 rows, then a
+  pause of 3x the chunk time), committing the transcript cursor after each chunk, and
+  (3) spawns the on-demand drainer last. It stops starting chunks 700 ms after the hook
+  started; the cursor then points exactly past the last chunk, and the next Stop, SessionEnd or
+  `aiot import` reads on. Why each part is the way it is, all measured on the compiled binary:
+  one transaction for 10,000 realistic rows (~824 B each) held the write lock for 104-134 ms,
+  longer than the 100 ms busy timeout, so concurrent tool hooks of other sessions lost events;
+  and a single transaction is all-or-nothing, so a kill left no SessionEnd, no marker and no
+  cursor. The pause is deliberate: a writer that finds the database busy sleeps between
+  retries, so back-to-back transactions hold the lock almost continuously for everyone else
+  (the e2e test with one big transaction and no pause lost events in 8 of 8 runs; with 100-row
+  chunks and the pause, in 0 of 10 on a quiet machine). `enqueueMany` never prunes: pruning deletes the oldest rows by ts, which for a
+  transcript tail are the rows just inserted, while the cursor moves past them. A tail that
+  does not fit under the cap waits (nothing queued, cursor unmoved) for a later Stop to find
+  room. The pause after a chunk is capped at 20 ms and at the time left before the deadline:
+  the chunk's elapsed time also contains waiting for ANOTHER process's lock and the
+  post-commit checkpoint, and an uncapped 3x pause after a 351 ms wait slept past Claude Code's
+  kill, after the marker but before the drainer spawn.
+
+  A turn minted at SessionEnd is the turn a Stop mints, except for what the SessionEnd
+  payload does not carry (Claude Code 2.1.287 builds it as the base keys plus `reason`, with no
+  permission mode or effort): `session_context.mode` is the default instead of e.g.
+  `accept_edits`, `metadata.effort` is absent, and `stop_hook_active` is defaulted to false.
+  Its template is the SessionEnd payload minus its own `reason`. Ingest keeps the first row it
+  receives for an (event_id, ts), so a turn's mode follows whichever hook reached it first
+  (the session-level mode keeps the maximum autonomy, so that is safe). A session that never had
+  a Stop is first seen at SessionEnd, so its ended-at becomes its earliest unread turn's
+  timestamp: ingest already treats a Stop as an end.
+
+  What to expect of the limits: the tail stops starting chunks 700 ms in and logs
+  `hook.tail.deadline` with the bytes left; a cold 10,000-turn transcript reaches about 5,400
+  turns per SessionEnd. For an ended session the remainder normally waits for `aiot import` or
+  a resume (the next Stop or SessionEnd reads on from the cursor). The tail can fill the queue
+  to within one chunk of the cap with rows whose timestamps are older than other sessions'
+  new rows; the single-row `enqueue` of those prunes oldest-ts first (the existing cap
+  behaviour, not new). And a kill during the tail now loses the drainer SPAWN for up to ~700 ms
+  of exposure: the SessionEnd row and the marker are durable first, and the next SessionStart
+  catches up in on-demand mode.
 
 ## The perf budget, stated honestly
 

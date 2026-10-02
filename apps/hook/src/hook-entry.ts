@@ -6,7 +6,7 @@ import { maybeSpawnDrainer } from './lib/drainer-spawn';
 import { getGitContext } from './lib/git';
 import { log } from './lib/log';
 import { pausedPath } from './lib/paths';
-import { openQueue } from './lib/queue';
+import { openQueue, type Queue, type QueuedEvent } from './lib/queue';
 import { readStdinBounded } from './lib/stdin';
 import { markShipFinal, writeShipMarker } from './shipper';
 
@@ -20,6 +20,97 @@ type Options = {
  * must stay free of any extra work.
  */
 const DRAIN_TRIGGERS = new Set(['Stop', 'SubagentStop', 'SessionEnd', 'SessionStart']);
+
+/**
+ * A SessionEnd's bulk usage pass (`HookAdapter.tail`) stops starting new chunks this
+ * long after the hook started. Claude Code kills a SessionEnd hook at its deadline
+ * (1.5 s unless a hook entry sets a longer `timeout`), and the primary event, the
+ * ship marker and the drainer spawn all have to fit before it. What is not read stays
+ * behind the cursor for the next Stop, SessionEnd or import.
+ */
+const TAIL_BUDGET_MS = 700;
+/** Rows per transaction: ~5 ms, well inside the 100 ms busy timeout. */
+export const TAIL_CHUNK_ROWS = 100;
+/** After a chunk, the tail pauses this many times as long as the chunk took (25% duty). */
+const TAIL_PAUSE_FACTOR = 3;
+const TAIL_MIN_PAUSE_MS = 2;
+const TAIL_MAX_PAUSE_MS = 20;
+
+/**
+ * One chunk, retrying while another process holds the write lock (the connection's
+ * 100 ms busy timeout already waited once). Gives up at the deadline by throwing,
+ * which leaves the cursor at the last committed chunk.
+ */
+function enqueueChunk(queue: Queue, rows: QueuedEvent[], deadline: number): boolean {
+  for (;;) {
+    try {
+      return queue.enqueueMany(rows);
+    } catch (err) {
+      if (!(err as Error).message.includes('database is locked') || Date.now() >= deadline) {
+        throw err;
+      }
+      Bun.sleepSync(10);
+    }
+  }
+}
+
+/**
+ * Queue an adapter's bulk events chunk by chunk, committing its cursor after each.
+ * Never throws (a hook always exits 0). Stops at the deadline, at an exhausted
+ * adapter, or when the queue has no room (nothing is ever pruned to make room: the
+ * cursor would move past rows that pruning then deleted).
+ */
+function queueTail(
+  queue: Queue,
+  adapter: HookAdapter,
+  kind: string,
+  payload: Record<string, unknown>,
+  startedAt: number,
+): void {
+  if (!adapter.tail) {
+    return;
+  }
+  const deadline = startedAt + TAIL_BUDGET_MS;
+  let queued = 0;
+  try {
+    for (const chunk of adapter.tail(kind, payload, {
+      chunkSize: TAIL_CHUNK_ROWS,
+      shouldStop: () => Date.now() >= deadline,
+    })) {
+      const rows: QueuedEvent[] = chunk.events.map((e) => ({
+        event_id: e.event_id,
+        payload_json: JSON.stringify(e),
+        ts: e.ts,
+      }));
+      const began = performance.now();
+      if (!enqueueChunk(queue, rows, deadline)) {
+        log('warn', 'hook.tail.queue_full', { kind, queued });
+        return;
+      }
+      queued += rows.length;
+      chunk.commit();
+      // Let go of the write lock for a while. A writer that finds the database busy
+      // sleeps between retries (SQLite's busy handler backs off 1, 2, 5, 10 ... 100 ms),
+      // so back-to-back chunks would hold the lock almost continuously and starve the
+      // tool hooks of other sessions past their 100 ms timeout. The pause scales with
+      // the chunk's time (about 25% duty) but is capped: `elapsed` also contains time
+      // spent waiting for ANOTHER process's lock and the post-commit checkpoint, which
+      // is not time this hook held anything, and sleeping 3x that (a 351 ms wait made a
+      // 1 s pause) pushed the hook past Claude Code's kill, after the marker but before
+      // the drainer spawn. It never sleeps past the deadline either.
+      const elapsed = performance.now() - began;
+      Bun.sleepSync(
+        Math.min(
+          TAIL_MAX_PAUSE_MS,
+          Math.max(0, deadline - Date.now()),
+          Math.max(TAIL_MIN_PAUSE_MS, elapsed * TAIL_PAUSE_FACTOR),
+        ),
+      );
+    }
+  } catch (err) {
+    log('error', 'hook.tail.failed', { kind, message: (err as Error).message, queued });
+  }
+}
 
 function safeParse(raw: string): Record<string, unknown> | null {
   try {
@@ -63,6 +154,7 @@ export async function runHook(
   // One hook invocation per process, but clear defensively so a test (or any
   // future in-process reuse) cannot inherit another run's pending commits.
   resetDeferred();
+  const startedAt = Date.now();
 
   try {
     if (existsSync(pausedPath())) {
@@ -171,6 +263,15 @@ export async function runHook(
       // An adapter that only writes a marker on Stop never sees the end of the
       // session; flag the existing marker so an on-demand drainer ships it now.
       markShipFinal(ended.session_id);
+    }
+
+    // The bulk part of a SessionEnd (usage for the turns after the last Stop) comes
+    // AFTER its own event is queued and its marker written, and BEFORE the drainer
+    // spawn, so the drainer finds the turns. A kill anywhere in here leaves the
+    // durable SessionEnd and marker (the next SessionStart's catch-up spawns the
+    // drainer) and a cursor that is exact for whatever was queued.
+    if (ended) {
+      queueTail(queue, adapter, kind, payload, startedAt);
     }
 
     // On-demand installs have no resident daemon: start a short-lived drainer,

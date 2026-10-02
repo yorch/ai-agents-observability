@@ -22,6 +22,13 @@ import { piAdapter } from './pi';
 
 export type ConformantEvent = Event;
 
+/**
+ * One slice of an adapter's bulk work (see `HookAdapter.tail`). `commit` records the
+ * adapter's own progress (a cursor) and is called only once `events` are durably
+ * queued.
+ */
+export type TailChunk = { events: ConformantEvent[]; commit(): void };
+
 /** Where a terminal (stop) event's transcript lives, for the shipper. */
 export type TranscriptTarget = { sessionId: string; transcriptPath: string };
 
@@ -75,6 +82,20 @@ export interface HookAdapter {
   mapBatch?(kind: string, raw: Record<string, unknown>): ConformantEvent[] | null;
   /** Translate a raw stdin hook payload for `kind` into a ConformantEvent. */
   mapPayload(kind: string, raw: Record<string, unknown>): ConformantEvent;
+  /**
+   * Optional: bulk events for a hook whose side channel can be large (Claude Code's
+   * SessionEnd, with a cold transcript). The transport queues the primary event
+   * (`mapPayload`/`mapBatch`) and writes the ship marker FIRST, then pulls chunks
+   * from here, queues each in its own short transaction, and calls `commit()` after
+   * it, so a hook killed part-way keeps what is queued and the next run resumes at
+   * the last commit. Stop pulling = return: the generator must check
+   * `opts.shouldStop()` before doing more work (it is the hook's time box).
+   */
+  tail?(
+    kind: string,
+    raw: Record<string, unknown>,
+    opts: { chunkSize: number; shouldStop(): boolean },
+  ): Generator<TailChunk, void, void>;
   /** For a terminal event, the transcript to ship (null when none applies). */
   transcriptTarget(kind: string, raw: Record<string, unknown>): TranscriptTarget | null;
 }

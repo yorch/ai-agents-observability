@@ -1,10 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { commitDeferred, discardDeferred, resetDeferred } from '../lib/deferred-commit';
+import { agentStateDir } from '../lib/paths';
 import { claudeCodeAdapter } from './claude-code';
 import { conformanceErrors } from './conformance';
+import type { ConformantEvent } from './index';
 
 // Per-turn usage capture on the LIVE Claude Code path (P14-003).
 //
@@ -335,5 +346,282 @@ describe('claudeCodeAdapter usage read degrades instead of throwing', () => {
     // the SAME file, so the main Stop's incremental read already covers them.
     expect(claudeCodeAdapter.mapBatch?.('subagent-stop', stopPayload()) ?? null).toBeNull();
     expect(claudeCodeAdapter.mapBatch?.('pre-tool-use', stopPayload()) ?? null).toBeNull();
+  });
+});
+
+// The usage for the turns after a session's last Stop, read at SessionEnd. It is
+// bulk work behind the SessionEnd's own event (HookAdapter.tail): chunked, with a
+// cursor that is exact after every chunk, so a kill, a full queue or the hook's
+// deadline lose nothing that a later Stop, SessionEnd or import cannot read.
+describe('claudeCodeAdapter SessionEnd tail', () => {
+  const T2 = { ...USAGE, input_tokens: 2100, output_tokens: 640 };
+  const T3 = { ...USAGE, cache_read_input_tokens: 15_500, input_tokens: 90, output_tokens: 77 };
+
+  function sessionEndPayload(path: string = transcript): Record<string, unknown> {
+    return {
+      cwd: '/home/dev/proj',
+      hook_event_name: 'SessionEnd',
+      reason: 'prompt_input_exit',
+      session_id: SESSION_ID,
+      transcript_path: path,
+    };
+  }
+
+  /** What hook-entry does: pull chunks, queue them (here: collect), commit each. */
+  function runTail(
+    opts: { chunkSize?: number; stopAfterChunks?: number; commit?: boolean } = {},
+    payload = sessionEndPayload(),
+  ) {
+    const chunks: { events: ConformantEvent[]; commit(): void }[] = [];
+    const gen = claudeCodeAdapter.tail?.('session-end', payload, {
+      chunkSize: opts.chunkSize ?? 500,
+      shouldStop: () => chunks.length >= (opts.stopAfterChunks ?? Number.POSITIVE_INFINITY),
+    });
+    for (const chunk of gen ?? []) {
+      chunks.push(chunk);
+      if (opts.commit !== false) {
+        chunk.commit();
+      }
+    }
+    return { chunks, events: chunks.flatMap((c) => c.events) };
+  }
+
+  const cursor = () =>
+    JSON.parse(readFileSync(join(agentStateDir('claude-code'), `${SESSION_ID}.json`), 'utf8')) as {
+      offset: number;
+      path: string;
+      turns: number;
+    };
+
+  function sessionWithTailAfterLastStop(): void {
+    writeFileSync(
+      transcript,
+      userLine('u1', '2026-08-20T10:00:00.000Z') +
+        assistantLine('a1', '2026-08-20T10:00:05.000Z', USAGE, {
+          id: 'toolu_01A09q90qw90lq917835lq9',
+          name: 'Bash',
+        }),
+    );
+    expect(batch()).toHaveLength(1); // the Stop
+    writeFileSync(
+      transcript,
+      readFileSync(transcript, 'utf8') +
+        userLine('u2', '2026-08-20T10:01:00.000Z') +
+        assistantLine('a2', '2026-08-20T10:01:06.000Z', T2) +
+        assistantLine('a3', '2026-08-20T10:01:12.000Z', T3, {
+          id: 'toolu_01B7XnkR3wQm2sLzH8yTqPaV',
+          name: 'Read',
+        }),
+    );
+  }
+
+  it('mapBatch reads nothing at SessionEnd: the plain event is the primary one', () => {
+    sessionWithTailAfterLastStop();
+    expect(claudeCodeAdapter.mapBatch?.('session-end', sessionEndPayload()) ?? null).toBeNull();
+    expect(existsSync(join(agentStateDir('claude-code'), `${SESSION_ID}.json`))).toBe(true); // the Stop's
+    expect(cursor().turns).toBe(1); // untouched
+  });
+
+  it('yields the turns after the last Stop as conformant Stop events with tokens', () => {
+    sessionWithTailAfterLastStop();
+    const { events } = runTail();
+    expect(events.map((e) => [e.event_type, e.turn_number])).toEqual([
+      ['Stop', 2],
+      ['Stop', 3],
+    ]);
+    for (const e of events) {
+      expect(conformanceErrors(e)).toEqual([]);
+    }
+    expect(events[0]?.llm).toEqual({
+      cache_creation_tokens: 300,
+      cache_read_tokens: 12_000,
+      cost_usd: 0, // adapters never price; ingest does
+      input_tokens: 2100,
+      model: MODEL,
+      output_tokens: 640,
+    });
+    expect(events[1]?.llm).toMatchObject({
+      cache_read_tokens: 15_500,
+      input_tokens: 90,
+      output_tokens: 77,
+    });
+    expect(events[1]?.metadata).toMatchObject({
+      source: 'claude-jsonl',
+      tool_use_ids: ['toolu_01B7XnkR3wQm2sLzH8yTqPaV'],
+    });
+  });
+
+  it('Stop then SessionEnd counts every turn once, in either order', () => {
+    sessionWithTailAfterLastStop();
+    const first = runTail();
+    expect(first.events).toHaveLength(2);
+    expect(runTail().chunks).toHaveLength(0); // the cursor is at the end: nothing to yield
+    expect(batch()).toBeNull(); // and a Stop after it finds nothing new either
+    expect(cursor()).toEqual({ offset: statSync(transcript).size, path: transcript, turns: 3 });
+  });
+
+  it('commits an exact cursor after every chunk, and a later run resumes from it', () => {
+    // 25 turns, with a blank line and multibyte text between them: offsets are BYTES.
+    let text = '';
+    for (let i = 0; i < 25; i++) {
+      text += `${i % 5 === 0 ? '\n' : ''}`;
+      text += assistantLine(`a${i}`, `2026-08-20T10:00:${String(i).padStart(2, '0')}.000Z`, {
+        ...USAGE,
+        output_tokens: 100 + i,
+      }).replace('working on it', `trabajando — 日本語 ${i}`);
+    }
+    writeFileSync(transcript, text);
+
+    const firstRun = runTail({ chunkSize: 10, stopAfterChunks: 1 });
+    expect(firstRun.events.map((e) => e.turn_number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const lines = text.split('\n');
+    const nonBlank = lines.filter((l) => l.length > 0);
+    const through10 = Buffer.byteLength(
+      `${lines.slice(0, lines.indexOf(nonBlank[9] as string) + 1).join('\n')}\n`,
+    );
+    expect(cursor()).toEqual({ offset: through10, path: transcript, turns: 10 });
+
+    const rest = runTail({ chunkSize: 10 });
+    expect(rest.events.map((e) => e.turn_number)).toEqual(
+      Array.from({ length: 15 }, (_, i) => 11 + i),
+    );
+    const all = [...firstRun.events, ...rest.events];
+    expect(new Set(all.map((e) => e.event_id)).size).toBe(25);
+    expect(all.reduce((n, e) => n + (e.llm?.output_tokens ?? 0), 0)).toBe(
+      Array.from({ length: 25 }, (_, i) => 100 + i).reduce((a, b) => a + b, 0),
+    );
+    expect(cursor().offset).toBe(statSync(transcript).size);
+  });
+
+  it('a kill between a chunk’s enqueue and its commit re-reads that chunk with the same ids', () => {
+    let text = '';
+    for (let i = 0; i < 12; i++) {
+      text += assistantLine(`a${i}`, `2026-08-20T10:00:${String(i).padStart(2, '0')}.000Z`, USAGE);
+    }
+    writeFileSync(transcript, text);
+    const queued = new Set<string>();
+    // chunk 1 queued and committed; chunk 2 queued but "killed" before its commit
+    const killed = runTail({ chunkSize: 5, commit: false, stopAfterChunks: 2 });
+    killed.chunks[0]?.commit();
+    for (const e of killed.events) {
+      queued.add(e.event_id);
+    }
+    expect(cursor().turns).toBe(5);
+
+    const rerun = runTail({ chunkSize: 5 });
+    const overlap = rerun.events.filter((e) => queued.has(e.event_id));
+    expect(overlap.map((e) => e.turn_number)).toEqual([6, 7, 8, 9, 10]); // deduped by the queue
+    for (const e of rerun.events) {
+      queued.add(e.event_id);
+    }
+    expect(queued.size).toBe(12);
+    expect(cursor().turns).toBe(12);
+  });
+
+  it('yields nothing without a transcript, a readable file or a usable session id', () => {
+    expect(runTail({}, sessionEndPayload('/nonexistent.jsonl')).chunks).toHaveLength(0);
+    const { transcript_path: _t, ...noPath } = sessionEndPayload();
+    expect(runTail({}, noPath).chunks).toHaveLength(0);
+    writeFileSync(transcript, assistantLine('a1', '2026-08-20T10:00:05.000Z', USAGE));
+    const { session_id: _s, ...noSession } = sessionEndPayload();
+    expect(runTail({}, noSession).chunks).toHaveLength(0); // nil session: no shared cursor
+  });
+});
+
+// What a turn minted at SessionEnd shares with the same turn minted at Stop, and what it
+// cannot. Claude Code (2.1.287) builds a SessionEnd payload as the base keys plus
+// `reason`, with no permission mode or effort; a Stop adds permission_mode, effort,
+// stop_hook_active, last_assistant_message, background_tasks and session_crons. Ingest keeps
+// the first row that arrives for an (event_id, ts), so these differences are real but small.
+describe('claudeCodeAdapter turns minted at SessionEnd versus at Stop', () => {
+  const BASE = {
+    agent_type: 'main',
+    cwd: '/home/dev/proj',
+    prompt_id: '0f1e2d3c-4b5a-4968-8776-655443322110',
+    scratchpad_dir: '/tmp/claude-1000/scratch/3f8c2a1e',
+    session_id: SESSION_ID,
+  };
+
+  function mint(kind: 'stop' | 'session-end') {
+    // a fresh cursor each time
+    rmSync(join(agentStateDir('claude-code')), { force: true, recursive: true });
+    const out: ConformantEvent[] = [];
+    if (kind === 'stop') {
+      out.push(
+        ...(claudeCodeAdapter.mapBatch?.('stop', {
+          ...BASE,
+          background_tasks: [],
+          effort: 'high',
+          hook_event_name: 'Stop',
+          last_assistant_message: 'Done — I updated the file and ran the tests.',
+          permission_mode: 'acceptEdits',
+          session_crons: [],
+          stop_hook_active: true,
+          transcript_path: transcript,
+        }) ?? []),
+      );
+      discardDeferred('test');
+    } else {
+      const gen = claudeCodeAdapter.tail?.(
+        'session-end',
+        { ...BASE, hook_event_name: 'SessionEnd', reason: 'clear', transcript_path: transcript },
+        { chunkSize: 500, shouldStop: () => false },
+      );
+      for (const chunk of gen ?? []) {
+        out.push(...chunk.events);
+      }
+    }
+    return out;
+  }
+
+  it('are the same events except mode, effort and the Stop-only flag; never content', () => {
+    writeFileSync(
+      transcript,
+      userLine('u1', '2026-08-20T10:00:00.000Z') +
+        assistantLine('a1', '2026-08-20T10:00:05.000Z', USAGE, {
+          id: 'toolu_01A09q90qw90lq917835lq9',
+          name: 'Bash',
+        }) +
+        assistantLine('a2', '2026-08-20T10:00:09.000Z', USAGE),
+    );
+    const atStop = mint('stop');
+    const atEnd = mint('session-end');
+    expect(atEnd).toHaveLength(2);
+    expect(atStop).toHaveLength(2);
+
+    const norm = (e: ConformantEvent) => {
+      const {
+        client: _c,
+        metadata,
+        session_context,
+        ...rest
+      } = e as unknown as Record<string, unknown> & {
+        metadata: Record<string, unknown>;
+        session_context: Record<string, unknown>;
+      };
+      const { stop_hook_active: _s, effort: _e, ...meta } = metadata;
+      const { mode: _m, ...ctx } = session_context;
+      return { ...rest, metadata: meta, session_context: ctx };
+    };
+    expect(atEnd.map(norm)).toEqual(atStop.map(norm));
+
+    // The differences, stated exactly: SessionEnd carries no permission mode (so the mode is
+    // the default, not Stop's accept_edits) and no effort.
+    expect(atStop[0]?.session_context.mode).toBe('accept_edits');
+    expect(atEnd[0]?.session_context.mode).not.toBe('accept_edits');
+    expect(atStop[0]?.metadata.effort).toBe('high');
+    expect(atEnd[0]?.metadata.effort).toBeUndefined();
+
+    // Provenance, never content: neither the message nor SessionEnd's own `reason`.
+    const text = JSON.stringify(atEnd.map((e) => e.metadata));
+    for (const leaked of ['Done', 'reason', 'background_tasks']) {
+      expect(text).not.toContain(leaked);
+    }
+    expect(atEnd[0]?.metadata).toMatchObject({
+      agent_type: 'main',
+      prompt_id: BASE.prompt_id,
+      scratchpad_dir: BASE.scratchpad_dir,
+      source: 'claude-jsonl',
+    });
   });
 });
