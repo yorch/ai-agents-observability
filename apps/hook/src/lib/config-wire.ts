@@ -114,6 +114,13 @@ export function readJsonFile<T = Record<string, unknown>>(filePath: string): T |
  *   are over an hour old and whose pid is gone (and nothing else).
  * - The result keeps the target's permission bits (a 0600 file stays 0600) when
  *   no explicit `mode` is given; a new file gets the umask default.
+ * - The temp file is created with the target's mode (and O_EXCL), never wider.
+ *
+ * Limits: a hard-linked config is broken (the rename gives the path a new inode, so
+ * the other name keeps the old content); ownership, ACLs and xattrs are not
+ * preserved; a dangling link whose parent directories do not exist gets them
+ * created (mkdir -p at the link target). Leftover temps with the legacy bare name
+ * `<name>.aiot-tmp` are never swept.
  *
  * What it does NOT give: mutual exclusion. Two read-modify-write cycles that
  * interleave (an apply racing Claude Code's own write to settings.json, or a user
@@ -124,23 +131,43 @@ export function writeFileAtomic(filePath: string, contents: string, mode?: numbe
   const target = resolveSymlinks(filePath);
   mkdirSync(dirname(target), { recursive: true });
   removeStaleTemps(target);
-  const keep = mode === undefined ? existingMode(target) : undefined;
+  const intended = mode ?? existingMode(target);
   const tmpPath = `${target}.aiot-tmp.${process.pid}.${randomBytes(4).toString('hex')}`;
   try {
-    writeFileSync(tmpPath, contents, mode === undefined ? 'utf8' : { encoding: 'utf8', mode });
-    if (keep !== undefined) {
-      chmodSync(tmpPath, keep); // writeFileSync's mode is masked by the umask
+    // Created with its final mode and O_EXCL: the contents (settings.json can hold
+    // `env` and `apiKeyHelper`) are never readable by more than the target was, not
+    // even for the moment between the write and a chmod, and a link planted at the
+    // temp name is refused instead of followed.
+    writeFileSync(tmpPath, contents, { encoding: 'utf8', flag: 'wx', mode: intended });
+    if (mode === undefined && intended !== undefined) {
+      chmodSync(tmpPath, intended); // only restores bits the umask stripped at creation
     }
     renameSync(tmpPath, target);
   } catch (err) {
     rmSync(tmpPath, { force: true });
     const code = (err as NodeJS.ErrnoException).code;
-    if (target !== filePath && (code === 'EACCES' || code === 'EROFS' || code === 'EPERM')) {
-      throw new Error(
-        `${filePath} is a symlink into a read-only location (${target}); aiot cannot update it — make the target writable, or unlink it and let aiot own the file`,
-      );
+    if (code === 'EACCES' || code === 'EROFS' || code === 'EPERM') {
+      if (isSymlink(filePath)) {
+        throw new Error(
+          `${filePath} is a symlink into a read-only location (${target}); aiot cannot update it — make the target writable, or unlink it and let aiot own the file`,
+        );
+      }
+      if (dirname(target) !== dirname(filePath)) {
+        // A parent directory is a symlink and the real one cannot take the temp file:
+        // name it, instead of an error about a temp file in a place the user never sees.
+        throw new Error(`${filePath}: ${dirname(target)} is not writable (${code})`);
+      }
     }
     throw err;
+  }
+}
+
+/** Is the FILE itself a link (not merely something under a linked directory)? */
+function isSymlink(path: string): boolean {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
   }
 }
 

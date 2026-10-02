@@ -206,12 +206,17 @@ accumulate. A config file that is a symlink (a dotfile manager) is updated
 through the link: the link stays, its target changes, and the target keeps its
 permissions. If the target sits in a read-only location (a Nix store, say) the
 install fails with a message naming it; make the target writable, or unlink it
-and let aiot own the file. Writes are atomic (a temp file beside the real file,
+and let aiot own the file. (A symlinked parent directory that cannot take a new file
+is named in the message too.) Writes are atomic (a temp file beside the real file,
 then a rename), so a crash never leaves half a file, and temp files a killed
 writer left behind (over an hour old, writer gone) are removed on the next
 write. A rename is not a lock: if aiot and another writer (the agent itself, or
 you) rewrite the same file at the same moment, neither corrupts it, but the
-later write can drop the earlier one's change; re-run `aiot install` to repair. Agents that are not
+later write can drop the earlier one's change; re-run `aiot install` to repair.
+Limits: a hard-linked config is broken by the rename (the other name keeps the old
+content), ownership/ACLs/xattrs are not preserved, and a dangling link whose parent
+directories are missing gets them created. The `config.toml` that Codex's legacy
+`notify` wiring edits is still rewritten in place (truncate, then write), not atomically. Agents that are not
 detected get their snippet printed for manual setup.
 
 Running `install` (in either mode, except `--dry-run`) also stops whatever currently holds the

@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import * as nodeCrypto from 'node:crypto';
+import * as fs from 'node:fs';
 import {
   chmodSync,
   existsSync,
@@ -23,7 +25,8 @@ import { readJsonFile, writeFileAtomic, writeJsonFile, writeTextFile } from './c
 let root: string;
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'aiot-config-wire-'));
+  // realpath: macOS's tmpdir sits under a /var symlink, which would make every path "linked".
+  root = realpathSync(mkdtempSync(join(tmpdir(), 'aiot-config-wire-')));
 });
 
 afterEach(() => {
@@ -353,5 +356,85 @@ describe('concurrent read-modify-write cycles', () => {
     writeJsonFile(p, { hooks: [...(a?.hooks ?? []), 'from-aiot'] });
     writeJsonFile(p, { hooks: [...(b?.hooks ?? []), 'from-the-agent'] });
     expect(readJsonFile<{ hooks: string[] }>(p)).toEqual({ hooks: ['from-the-agent'] });
+  });
+});
+
+describe('the temp file is created with its final mode and O_EXCL', () => {
+  // writeFileSync's options are what decide the creation mode, so they are asserted
+  // directly: a write-then-chmod would leave the contents (settings.json can hold `env`
+  // and `apiKeyHelper`) readable by anyone for the length of the write.
+  function tempWriteOptions(run: () => void): Record<string, unknown> {
+    const real = fs.writeFileSync;
+    const spy = spyOn(fs, 'writeFileSync').mockImplementation(((...args: unknown[]) =>
+      (real as (...a: unknown[]) => unknown)(...args)) as never);
+    try {
+      run();
+      const call = spy.mock.calls.find(([path]) => String(path).includes('.aiot-tmp.'));
+      expect(call).toBeDefined();
+      return (call?.[2] ?? {}) as Record<string, unknown>;
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  it('a 0600 target gets a 0600, wx temp', () => {
+    const target = join(root, 'settings.json');
+    writeFileSync(target, '{}');
+    chmodSync(target, 0o600);
+    const opts = tempWriteOptions(() => writeFileAtomic(target, '{"env":{}}'));
+    expect(opts).toMatchObject({ flag: 'wx', mode: 0o600 });
+    expect(lstatSync(target).mode & 0o7777).toBe(0o600);
+  });
+
+  it('an explicit mode wins, and a new file gets the umask default (no mode passed)', () => {
+    const explicit = join(root, 'explicit.json');
+    writeFileSync(explicit, '{}');
+    chmodSync(explicit, 0o644);
+    expect(tempWriteOptions(() => writeFileAtomic(explicit, '{}', 0o640))).toMatchObject({
+      flag: 'wx',
+      mode: 0o640,
+    });
+
+    const fresh = tempWriteOptions(() => writeFileAtomic(join(root, 'fresh.json'), '{}'));
+    expect(fresh.flag).toBe('wx');
+    expect(fresh.mode).toBeUndefined();
+  });
+
+  it('a link planted at the temp name is refused, not followed or overwritten', () => {
+    const target = join(root, 'settings.json');
+    writeFileSync(target, '{"keep":true}');
+    const victim = join(root, 'victim.txt');
+    writeFileSync(victim, 'precious');
+    // Make the "random" suffix predictable and plant a link at exactly that name.
+    const randomSpy = spyOn(nodeCrypto, 'randomBytes').mockImplementation((() =>
+      Buffer.from('deadbeef', 'hex')) as never);
+    const planted = `${target}.aiot-tmp.${process.pid}.deadbeef`;
+    symlinkSync(victim, planted);
+    try {
+      expect(() => writeFileAtomic(target, '{"new":true}')).toThrow(/EEXIST/);
+    } finally {
+      randomSpy.mockRestore();
+    }
+    expect(readFileSync(victim, 'utf8')).toBe('precious'); // never written through the link
+    expect(readFileSync(target, 'utf8')).toBe('{"keep":true}'); // target unchanged
+    expect(() => lstatSync(planted)).toThrow(/ENOENT/); // the failure path removed the link itself
+    expect(existsSync(victim)).toBe(true); // ...and not what it pointed at
+  });
+});
+
+describe('a symlinked parent directory that cannot take the temp file', () => {
+  it('a plain file under a symlinked PARENT names the real directory that is not writable', () => {
+    const ro = join(root, 'ro');
+    mkdirSync(ro);
+    symlinkSync(ro, join(root, 'via'));
+    chmodSync(ro, 0o555);
+    try {
+      const attempt = () => writeJsonFile(join(root, 'via', 'settings.json'), {});
+      expect(attempt).toThrow(`${join(root, 'via', 'settings.json')}: ${ro} is not writable`);
+      expect(attempt).not.toThrow(/aiot-tmp/); // not a temp name the user has never seen
+      expect(attempt).not.toThrow(/is a symlink into/); // the FILE is not the link
+    } finally {
+      chmodSync(ro, 0o755);
+    }
   });
 });
