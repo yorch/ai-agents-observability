@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import { ensureSchema } from './queue-schema';
@@ -92,6 +92,23 @@ export type QueueReader = {
 };
 
 /** Opens the DB in WAL mode (same as queue.ts writer). */
+/**
+ * Identity (device:inode) of the file at `dbPath`, or null when there is none.
+ * A resident daemon keeps one connection for its whole life; `purge-local`
+ * unlinks queue.db and the next hook creates a new one, which the old connection
+ * never sees. The daemons compare this to the id they opened with. Take the id
+ * BEFORE opening: a replacement racing the open then shows up as a mismatch on
+ * the next tick instead of being recorded against the wrong file.
+ */
+export function queueFileId(dbPath: string): string | null {
+  try {
+    const st = statSync(dbPath);
+    return `${st.dev}:${st.ino}`;
+  } catch {
+    return null;
+  }
+}
+
 export function openQueueReader(dbPath: string): QueueReader {
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = new Database(dbPath, { create: true, readonly: false });

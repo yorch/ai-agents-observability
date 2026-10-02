@@ -351,7 +351,7 @@ complete list; if you add a difference, add a row.
 | SessionEnd | nothing on the marker for Claude Code | `markShipFinal` rewrites the marker and bumps `updated_at`, so an in-flight resident upload is "superseded" and costs one re-upload at the next sweep |
 | `aiot import` | waited for no one | takes the `transcripts` lease and fails after a 150 s wait if a resident shipper sweep (or a drainer) holds it longer; stops its in-flight POSTs when the lease is lost |
 | Resident shipper that loses its lease mid-upload | n/a | the pass ends `cap` and the daemon sleeps the full 10-minute sweep interval before looking again |
-| `purge-local` | deleted the queue | stops any lease holder first; with on-demand recorded it recreates `queue.db` holding only the mode (a crash between the delete and the recreate silently reverts to resident) |
+| `purge-local` | deleted the queue | stops any lease holder first; with on-demand recorded it recreates `queue.db` holding only the mode (a crash between the delete and the recreate silently reverts to resident). An IDLE resident daemon holds no lease, so there is nothing to stop: the flusher and shipper compare `queueFileId()` (dev:ino) to the file they opened and reopen the new `queue.db` (the flusher idles while it is missing) |
 
 ## Building
 

@@ -19,7 +19,7 @@ import { getIngestBaseUrl } from './lib/ingest';
 import { withLease } from './lib/lease';
 import { log } from './lib/log';
 import { queuePath, shipQueueDir } from './lib/paths';
-import { MAX_AGE_MS, openQueueReader } from './lib/queue-reader';
+import { MAX_AGE_MS, openQueueReader, queueFileId } from './lib/queue-reader';
 import {
   collateDirectory,
   collatedPathFor,
@@ -919,13 +919,28 @@ export async function runShipper(): Promise<void> {
   }
 
   // Only here for its connection: the delivery lease lives in queue.db.
-  const queue = openQueueReader(queuePath());
+  let queueFile = queueFileId(queuePath());
+  let queue = openQueueReader(queuePath());
+  queueFile ??= queueFileId(queuePath());
   let rejectedToken: string | null = null;
   let rejectedAt = 0;
   try {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       let wait = SWEEP_INTERVAL_MS;
+      // Follow queue.db across a `purge-local`, or the lease below would sit on the
+      // deleted file and exclude nobody (see the same check in runFlusher).
+      const currentFile = queueFileId(queuePath());
+      if (currentFile !== queueFile) {
+        if (currentFile === null) {
+          await Bun.sleep(LEASE_RETRY_MS);
+          continue;
+        }
+        queue.close();
+        queue = openQueueReader(queuePath());
+        queueFile = currentFile;
+        log('info', 'shipper.queue_replaced', {});
+      }
       const jwt = loadHookToken();
       // A token ingest rejected would only be rejected again — after reading,
       // redacting and compressing a whole transcript to find out. Skip the sweep
