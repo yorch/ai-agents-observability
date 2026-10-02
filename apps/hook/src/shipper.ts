@@ -19,7 +19,7 @@ import { getIngestBaseUrl } from './lib/ingest';
 import { withLease } from './lib/lease';
 import { log } from './lib/log';
 import { queuePath, shipQueueDir } from './lib/paths';
-import { MAX_AGE_MS, openQueueReader } from './lib/queue-reader';
+import { MAX_AGE_MS, openQueueReader, queueFileId } from './lib/queue-reader';
 import {
   collateDirectory,
   collatedPathFor,
@@ -31,6 +31,8 @@ import { redactedLines } from './lib/transcript-stream';
 const SWEEP_INTERVAL_MS = 10 * 60 * 1_000; // 10 minutes
 // When another delivery process holds the lease, look again after this.
 const LEASE_RETRY_MS = 5_000;
+/** How often the daemon looks for a replaced queue.db while it waits for the next sweep. */
+const QUEUE_POLL_MS = 5_000;
 
 // Bandwidth throttle: max 5 MB/s
 const MAX_BYTES_PER_SEC = 5 * 1024 * 1024;
@@ -919,13 +921,28 @@ export async function runShipper(): Promise<void> {
   }
 
   // Only here for its connection: the delivery lease lives in queue.db.
-  const queue = openQueueReader(queuePath());
+  let queueFile = queueFileId(queuePath());
+  let queue = openQueueReader(queuePath());
+  queueFile ??= queueFileId(queuePath());
   let rejectedToken: string | null = null;
   let rejectedAt = 0;
   try {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       let wait = SWEEP_INTERVAL_MS;
+      // Follow queue.db across a `purge-local`, or the lease below would sit on the
+      // deleted file and exclude nobody (see the same check in runFlusher).
+      const currentFile = queueFileId(queuePath());
+      if (currentFile !== queueFile) {
+        if (currentFile === null) {
+          await Bun.sleep(LEASE_RETRY_MS);
+          continue;
+        }
+        queue.close();
+        queue = openQueueReader(queuePath());
+        queueFile = currentFile;
+        log('info', 'shipper.queue_replaced', {});
+      }
       const jwt = loadHookToken();
       // A token ingest rejected would only be rejected again — after reading,
       // redacting and compressing a whole transcript to find out. Skip the sweep
@@ -955,7 +972,22 @@ export async function runShipper(): Promise<void> {
           rejectedAt = Date.now();
         }
       }
-      await Bun.sleep(wait);
+      // The wait ends early when queue.db is replaced (`purge-local`), or this
+      // connection's lease would sit on the deleted file for up to the whole sweep
+      // interval, excluding nobody: an `aiot import` could upload beside a sweep.
+      let poll: ReturnType<typeof setInterval> | undefined;
+      const replaced = new Promise<void>((resolve) => {
+        poll = setInterval(() => {
+          if (queueFileId(queuePath()) !== queueFile) {
+            resolve();
+          }
+        }, QUEUE_POLL_MS);
+      });
+      try {
+        await Promise.race([Bun.sleep(wait), replaced]);
+      } finally {
+        clearInterval(poll);
+      }
     }
   } finally {
     queue.close();

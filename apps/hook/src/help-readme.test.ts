@@ -18,7 +18,10 @@ describe('README Usage block', () => {
   it('is the literal output of `aiot --help` (version line aside)', () => {
     const run = Bun.spawnSync([process.execPath, 'src/cli.ts', '--help'], { cwd: hookDir });
     expect(run.exitCode).toBe(0);
-    const stripVersion = (text: string) => text.trimEnd().replace(/^aiot v\d+\.\d+\.\d+/, 'aiot');
-    expect(stripVersion(readmeUsageBlock())).toBe(stripVersion(run.stdout.toString()));
+    // The README shows a `vX.Y.Z` placeholder so it never rots; help prints the real version.
+    const readme = readmeUsageBlock();
+    expect(readme.split('\n')[0]).toBe('aiot vX.Y.Z');
+    const stripVersion = (text: string) => text.trimEnd().replace(/^aiot v\S+/, 'aiot v<version>');
+    expect(stripVersion(readme)).toBe(stripVersion(run.stdout.toString()));
   });
 });

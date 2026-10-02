@@ -15,7 +15,7 @@ import { log } from './lib/log';
 import { lookupFailures, resetLookupFailures } from './lib/lookup-status';
 import { flusherStatePath, telemetryHome } from './lib/paths';
 import { getProjectName } from './lib/project';
-import { openQueueReader, type QueueReader, type QueueRow } from './lib/queue-reader';
+import { openQueueReader, type QueueReader, type QueueRow, queueFileId } from './lib/queue-reader';
 
 const BATCH_SIZE = 100;
 /**
@@ -685,7 +685,9 @@ export async function flushOnce(
 
 export async function runFlusher(): Promise<void> {
   const dbPath = `${telemetryHome()}/queue.db`;
-  const reader = openQueueReader(dbPath);
+  let readerFile = queueFileId(dbPath);
+  let reader = openQueueReader(dbPath);
+  readerFile ??= queueFileId(dbPath);
 
   const ingestBaseUrl = getIngestBaseUrl();
   log('info', 'flusher.start', { ingestBaseUrl });
@@ -710,6 +712,23 @@ export async function runFlusher(): Promise<void> {
       // the daemon (the service manager would just restart it into the same
       // fault). Back off and go round again.
       try {
+        // `purge-local` unlinks queue.db and the next hook creates a new one; this
+        // connection would stay on the deleted file, delivering what the purge was
+        // meant to remove and never seeing a new event. Idle, it holds no lease for
+        // the purge to find and stop, so follow the file instead.
+        const currentFile = queueFileId(dbPath);
+        if (currentFile !== readerFile) {
+          if (currentFile === null) {
+            writeHeartbeat();
+            await Bun.sleep(IDLE_INTERVAL_MS);
+            continue;
+          }
+          reader.close();
+          reader = openQueueReader(dbPath);
+          readerFile = currentFile;
+          log('info', 'flusher.queue_replaced', {});
+        }
+
         const jwt = loadHookToken();
 
         // A token ingest already rejected will be rejected again: don't drain,

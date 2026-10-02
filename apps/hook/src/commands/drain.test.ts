@@ -9,6 +9,7 @@ import {
   LEASE_TTL_MS,
   readDrainStatus,
   recordRejectedToken,
+  withLease,
   writeMode,
 } from '../lib/lease';
 import { openQueue } from '../lib/queue';
@@ -582,6 +583,69 @@ describe('the spawn hold on a failing environment', () => {
     expect(after.db.query('SELECT failure_streak AS n FROM drain_state').get()).toEqual({ n: 1 });
     after.close();
     expect(holdUntil()).toBe(hold);
+  }, 30_000);
+
+  it('a batch of only undecodable rows is not a send: it resets neither the streak nor the hold', async () => {
+    onDemand();
+    setEnv('INGEST_BASE_URL', 'http://127.0.0.1:1');
+    enqueueOne();
+    await drainPass({ capMs: 10_000 }); // transport failure: streak 1, the row is held back
+    const hold = holdUntil();
+    const streak = () => {
+      const q = openQueue();
+      try {
+        return (q.db.query('SELECT failure_streak AS n FROM drain_state').get() as { n: number }).n;
+      } finally {
+        q.close();
+      }
+    };
+    expect(streak()).toBe(1);
+
+    // A due row that can never be decoded, in front of the held-back good one.
+    const q = openQueue();
+    q.enqueue({
+      event_id: '0198f2c4-7a10-7b3e-9d41-00000000c0de',
+      payload_json: '{"agent_type":"CLAUDE_CODE","event_id":',
+      ts: new Date(Date.now() - 1000).toISOString(),
+    });
+    q.close();
+
+    const report = await drainPass({ capMs: 5_000 });
+
+    expect(report.stop).toBe('done');
+    expect(report.flushed).toBe(0); // dropping garbage is not a delivery
+    expect(report.remainingEvents).toBe(1); // the corrupt row is gone, the good one is held
+    expect(streak()).toBe(1);
+    expect(holdUntil()).toBe(hold);
+  }, 30_000);
+
+  it('a --wait drainer reads the failure streak only once it holds the lease', async () => {
+    onDemand();
+    setEnv('INGEST_BASE_URL', 'http://127.0.0.1:1'); // connection refused
+    enqueueOne();
+    // Another pass holds the lease; the waiter is queued behind it from the start.
+    const other = openQueue();
+    let finish: () => void = () => {};
+    const otherPass = withLease(
+      other.db,
+      'drain',
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    );
+    const waiter = drainPass({ capMs: 20_000, wait: true });
+    await Bun.sleep(300); // the waiter has started and found the lease taken
+
+    // The pass ahead of it fails and records streak 5 before letting go. A waiter
+    // that had read the streak up front would write 0 + 1 and lose all five.
+    other.db.query('UPDATE drain_state SET failure_streak = 5 WHERE id = 1').run();
+    finish();
+    await otherPass;
+    other.close();
+
+    const report = await waiter;
+    expect(report.stop).toBe('transport');
+    const q = openQueue();
+    expect(q.db.query('SELECT failure_streak AS n FROM drain_state').get()).toEqual({ n: 6 });
+    q.close();
   }, 30_000);
 });
 

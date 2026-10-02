@@ -565,7 +565,7 @@ as live uploads.
 | `aiot drain` | One delivery pass: send queued events, then ship pending transcripts, then exit. This is what the hook starts; run by hand it prints nothing and exits 0 |
 | `aiot drain --wait` | The same pass in the foreground. Waits for a running drainer and runs its pass within one 120 s cap, prints a summary, and exits 1 if any data remains or the pass could not finish |
 | `aiot uninstall` | Remove aiot's hooks from every agent config it wired. Resident: also removes the launchd/systemd service files. Either mode: stops a running drainer and resets the mode to `resident`. Local data is kept |
-| `aiot purge-local --yes` | Delete all local data (queue, logs, identity). An on-demand install keeps its mode and needs `aiot login` again (not with `AIOT_TOKEN`). Resident: run `aiot uninstall` first, or re-run `aiot install` after, because a running flusher is left on the deleted queue |
+| `aiot purge-local --yes` | Delete all local data (queue, logs, identity). An on-demand install keeps its mode and needs `aiot login` again (not with `AIOT_TOKEN`). Running resident daemons find and reopen the new queue on their own, so no restart is needed: the shipper within about 5 s, the flusher at its next loop pass (about 5 s when idle, up to a minute while waiting on a rejected token, up to 5 minutes in network backoff). Run `aiot login` again to resume delivery |
 
 You can also manage privacy settings from the
 [Privacy](/me/settings/privacy) page in the dashboard.

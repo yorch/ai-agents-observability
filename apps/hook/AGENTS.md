@@ -111,8 +111,15 @@ configs, written as `bun hook <kind>`, with the suite green:
   `.config/opencode`, `.config/systemd`, `.pi`, `.gemini`, `.copilot`, `.omp`, `.aiot`
   and `Library/LaunchAgents` throw (symlinks resolved): node:fs mutators in sync,
   callback and promises form, write-mode `open`, `createWriteStream`, and `Bun.write`.
-  **Not guarded:** `Bun.file().writer()`, bun:sqlite opening a file, and child
-  processes such as `Bun.spawn` of an external tool; only the temp HOME/AIOT_HOME
+  An in-process `Bun.spawn`/`Bun.spawnSync` of `systemctl` or `launchctl` throws too
+  (a bare name resolves against the PATH the process started with, so it cannot be
+  faked in-process): stub it with `lib/fake-service-manager.ts`, inject `spawn`, or run
+  a child with a fake first on its PATH. `status` swallows that throw as "unknown", so
+  assert the probe was made, as the status tests do.
+  **Not guarded:** `Bun.file().writer()`, bun:sqlite opening a file, and every other way
+  to start a process: only `Bun.spawn` and `Bun.spawnSync` are covered by the
+  systemctl/launchctl check, NOT `node:child_process` (`spawn`/`exec*`) and NOT the
+  `Bun.$` shell, and an external tool other than those two is not checked at all; only the temp HOME/AIOT_HOME
   covers those. `bunfig.toml` is read from the CWD only, so run `bun test` from
   `apps/hook` or the repo root (whose bunfig points at the same preload); anywhere
   else is unguarded, and `test-isolation.test.ts` fails first with a clear message.
@@ -351,7 +358,7 @@ complete list; if you add a difference, add a row.
 | SessionEnd | nothing on the marker for Claude Code | `markShipFinal` rewrites the marker and bumps `updated_at`, so an in-flight resident upload is "superseded" and costs one re-upload at the next sweep |
 | `aiot import` | waited for no one | takes the `transcripts` lease and fails after a 150 s wait if a resident shipper sweep (or a drainer) holds it longer; stops its in-flight POSTs when the lease is lost |
 | Resident shipper that loses its lease mid-upload | n/a | the pass ends `cap` and the daemon sleeps the full 10-minute sweep interval before looking again |
-| `purge-local` | deleted the queue | stops any lease holder first; with on-demand recorded it recreates `queue.db` holding only the mode (a crash between the delete and the recreate silently reverts to resident) |
+| `purge-local` | deleted the queue | stops any lease holder first; with on-demand recorded it recreates `queue.db` holding only the mode (a crash between the delete and the recreate silently reverts to resident). An IDLE resident daemon holds no lease, so there is nothing to stop: both compare `queueFileId()` (dev:ino) to the file they opened and reopen the new `queue.db`. The flusher checks at the top of each loop pass (about 5 s idle, but up to 60 s in the rejected-token wait and 5 min in network backoff) and idles while the file is missing; the shipper's sweep wait polls every 5 s, and a sweep already in flight is not interrupted (purge stops a lease holder first). Until a daemon reopens, its lease sits on the unlinked file and excludes nobody |
 
 ## Building
 

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { claudeCodeAdapter } from '../adapters/claude-code';
+import { fakeServiceManager } from '../lib/fake-service-manager';
 import { readDrainStatus, readMode, recordDrainOk, writeMode } from '../lib/lease';
 import { openQueue } from '../lib/queue';
 import { runPurge } from './purge';
@@ -137,9 +138,17 @@ describe('status in on-demand mode', () => {
     q.close();
     writeFileSync(join(tmpHome, 'flusher-state.json'), JSON.stringify(STALE_HEARTBEAT));
 
-    const out = await capture(() => runStatus());
+    // Resident status probes the service manager; stub it, never the real one.
+    const services = fakeServiceManager();
+    let out: string;
+    try {
+      out = await capture(() => runStatus());
+    } finally {
+      services.restore();
+    }
     expect(out).toContain('WARNING: flusher heartbeat');
     expect(out).toMatch(/mode:\s+resident/);
+    expect(services.calls.length).toBeGreaterThan(0);
   });
 });
 

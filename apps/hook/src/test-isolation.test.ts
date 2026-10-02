@@ -79,6 +79,18 @@ describe('test isolation preload', () => {
     }
   });
 
+  it('refuses to run the real systemctl/launchctl in-process', () => {
+    expect(() => Bun.spawnSync(['systemctl', '--user', 'is-active', '__aiot_probe__'])).toThrow(
+      'REAL service manager',
+    );
+    expect(() => Bun.spawn(['launchctl', 'list', '__aiot_probe__'])).toThrow(
+      'REAL service manager',
+    );
+    expect(() => Bun.spawnSync({ cmd: ['systemctl', 'status'] })).toThrow('REAL service manager');
+    // Ordinary commands are untouched.
+    expect(Bun.spawnSync([process.execPath, '--version']).exitCode).toBe(0);
+  });
+
   it('refuses every guarded write API under a protected dir', async () => {
     const target = join(fake, PROBE);
     expect(() => writeFileSync(target, 'x')).toThrow(REFUSED);

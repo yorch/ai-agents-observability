@@ -1043,6 +1043,44 @@ maybe('on-demand mode, compiled binary', () => {
       expect(modeOf(m)).toBe('on-demand');
     }, 60_000);
 
+    it('purge-local leaves an idle resident flusher following the NEW queue.db', async () => {
+      // An idle flusher holds no lease, so purge has nothing to stop; its one
+      // connection used to stay on the unlinked file, and every event after the
+      // purge sat in the new queue forever.
+      const { ingest, machine: m } = residentMachine();
+      const flusher = Bun.spawn([m.aiot, 'flusher'], {
+        env: m.env,
+        stderr: 'ignore',
+        stdout: 'ignore',
+      });
+      children.push(flusher);
+      await until(() => logHas(m, '"flusher.start"'), 10_000, 'flusher up');
+      const before = session(m);
+      await hook(m, 'Stop', before);
+      await until(
+        () => ingest.events.length > 0 && queueDepth(m) === 0,
+        20_000,
+        'first session delivered',
+      );
+      const delivered = ingest.events.length;
+
+      expect((await aiot(m, ['purge-local', '--yes'])).code).toBe(0);
+      // purge removed the login too; the machine is logged in again, as a user would.
+      m.login();
+      const after = session(m);
+      await hook(m, 'Stop', after);
+      expect(queueDepth(m)).toBeGreaterThan(0);
+
+      await until(
+        () => queueDepth(m) === 0 && ingest.events.length > delivered,
+        20_000,
+        'the post-purge session delivered by the same flusher',
+      );
+      expect(ingest.events.slice(delivered).every((e) => e.session_id === after.id)).toBe(true);
+      expect(pidGone(flusher.pid)).toBe(false);
+      expect(logHas(m, '"flusher.queue_replaced"')).toBe(true);
+    }, 60_000);
+
     it('switching to resident stops the drainer', async () => {
       const { ingest, machine: m } = await onDemandMachine({ eventsDelayMs: 20_000 });
       const s = session(m);

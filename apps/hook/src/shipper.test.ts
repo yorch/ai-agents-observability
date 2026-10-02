@@ -5,6 +5,8 @@ import { open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
+import { openQueue } from './lib/queue';
+import * as queueReader from './lib/queue-reader';
 import type { ShipMarker } from './shipper';
 import { buildZstdBody, runShipper, uploadWithResume, writeShipMarker } from './shipper';
 
@@ -1071,4 +1073,52 @@ describe('shipper outage handling', () => {
     // sweep 1 probes; sweep 2 skips; the clock jumps 16 min; sweep 3 re-probes.
     expect(requests).toBe(2);
   });
+});
+
+describe('shipper follows queue.db across purge-local', () => {
+  it('reopens the new queue.db within seconds, not at the next 10-minute sweep', async () => {
+    const queueDb = join(tmpHome, 'queue.db');
+    const before = openQueue(); // the file the daemon opens at start
+    before.close();
+
+    const openSpy = spyOn(queueReader, 'openQueueReader');
+    class Stop extends Error {}
+    let calls = 0;
+    let opens = -1;
+    const started = Date.now();
+    let replacedAfterMs = -1;
+    // The long sweep wait never ends on its own: only the early wake-up can end it.
+    const spy = spyOn(Bun, 'sleep').mockImplementation((() => {
+      calls++;
+      if (calls === 1) {
+        // What `aiot purge-local` does while the daemon waits: unlink, and the next
+        // hook creates a fresh queue.db.
+        setTimeout(() => {
+          for (const suffix of ['', '-wal', '-shm']) {
+            rmSync(`${queueDb}${suffix}`, { force: true });
+          }
+          openQueue().close();
+          replacedAfterMs = Date.now() - started;
+        }, 200);
+        return new Promise<void>(() => {});
+      }
+      throw new Stop();
+    }) as unknown as typeof Bun.sleep);
+    try {
+      await runShipper();
+    } catch (err) {
+      if (!(err instanceof Stop)) {
+        throw err;
+      }
+    } finally {
+      opens = openSpy.mock.calls.length;
+      spy.mockRestore();
+      openSpy.mockRestore();
+    }
+
+    expect(opens).toBe(2); // at start, and again for the new file
+    expect(replacedAfterMs).toBeGreaterThan(0);
+    expect(Date.now() - started).toBeLessThan(15_000); // QUEUE_POLL_MS is 5 s
+    expect(readFileSync(join(tmpHome, 'hook.log'), 'utf8')).toContain('"shipper.queue_replaced"');
+  }, 30_000);
 });

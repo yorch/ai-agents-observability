@@ -16,9 +16,11 @@
 //
 // WHAT IS GUARDED: node:fs mutators (sync, callback and promises forms, incl.
 // write-mode open and createWriteStream) and Bun.write, for any path under the real
-// home's protected dirs, symlinks resolved. WHAT IS NOT: `Bun.file().writer()`,
-// bun:sqlite opening a database file, and child processes (`Bun.spawn` of an
-// external tool). Those are covered only by layer 1 (HOME/AIOT_HOME are temp).
+// home's protected dirs, symlinks resolved. Also refused: an in-process
+// `Bun.spawn`/`Bun.spawnSync` of systemctl or launchctl (see refuseServiceManager).
+// WHAT IS NOT: `Bun.file().writer()`, bun:sqlite opening a database file, and other
+// child processes (`Bun.spawn` of an external tool). Those are covered only by layer 1
+// (HOME/AIOT_HOME are temp).
 //
 // bunfig.toml is read from the CWD only. Run from apps/hook (turbo and CI do), or
 // from the repo root (the root bunfig points here too). From anywhere else this file
@@ -33,7 +35,7 @@ import * as fsPromisesNs from 'node:fs/promises';
 import * as osNs from 'node:os';
 import { join } from 'node:path';
 
-import { opensForWrite, protectedDirsFor, refuseIfProtected } from './guard';
+import { opensForWrite, protectedDirsFor, refuseIfProtected, refuseServiceManager } from './guard';
 
 // Plain copies taken BEFORE mock.module: after it, the namespaces resolve to the
 // mocks, and a mock that spreads its own namespace recurses.
@@ -155,6 +157,17 @@ Bun.write = ((dest: unknown, ...rest: unknown[]) => {
   }
   return (realBunWrite as (...a: unknown[]) => unknown)(dest, ...rest);
 }) as typeof Bun.write;
+
+// A test must never reach the developer's real systemctl/launchctl (`status` probes
+// them read-only; `install`/`uninstall` would stop real services). Bare names resolve
+// against the PATH the process started with, so they cannot be faked in-process.
+for (const name of ['spawn', 'spawnSync'] as const) {
+  const real = Bun[name].bind(Bun) as (...a: unknown[]) => unknown;
+  (Bun as Record<string, unknown>)[name] = (...args: unknown[]) => {
+    refuseServiceManager(args[0], tmpHome);
+    return real(...args);
+  };
+}
 
 // The marker canary tests assert FIRST, so a run without this preload fails with a
 // clear message instead of probing the real home.

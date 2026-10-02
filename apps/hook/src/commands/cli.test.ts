@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runHook } from '../hook-entry';
+import { type FakeServiceManager, fakeServiceManager } from '../lib/fake-service-manager';
 import { openQueue } from '../lib/queue';
 import { runPause } from './pause';
 import { runPurge } from './purge';
@@ -233,6 +234,15 @@ describe('purge-local', () => {
 // ── status ────────────────────────────────────────────────────────────────────
 
 describe('status', () => {
+  // Resident-mode status asks the service manager about both units. Never the real one.
+  let services: FakeServiceManager;
+  beforeEach(() => {
+    services = fakeServiceManager();
+  });
+  afterEach(() => {
+    services.restore();
+  });
+
   it('shows not logged in when no identity.json', async () => {
     const { stdout } = await captureOutputAsync(async () => {
       await runStatus();
@@ -279,6 +289,23 @@ describe('status', () => {
       await runStatus();
     });
     expect(stdout).toMatch(/paused:\s+no/);
+  });
+
+  it('asks the service manager about both resident units, and reports them not running', async () => {
+    const { stdout } = await captureOutputAsync(async () => {
+      await runStatus();
+    });
+    const asked = services.calls.map((c) => c.join(' '));
+    if (process.platform === 'darwin') {
+      expect(asked.filter((c) => c.startsWith('launchctl list '))).toHaveLength(2);
+    } else {
+      expect(asked).toEqual([
+        'systemctl --user is-active aiot-flusher',
+        'systemctl --user is-active aiot-shipper',
+      ]);
+    }
+    expect(stdout).toMatch(/flusher:\s+not running/);
+    expect(stdout).toMatch(/shipper:\s+not running/);
   });
 
   it('shows last flush from flusher-state.json', async () => {
