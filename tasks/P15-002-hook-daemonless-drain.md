@@ -93,20 +93,22 @@ of `-wal`/`-shm`, `busy_timeout`) and #260 (hook wiring only from the compiled b
 
 Merged as #264 with these open, none of them blocking:
 
+### Resolved after #264
+
+- **No test for the corrupt-batch failure counter, and none for a stale `--wait` streak write** → fixed in #269.
+- **`SessionEnd` does not capture usage for turns after the last `Stop`** → fixed in #270.
+- **`purge-local` while a resident flusher is running leaves that flusher on an unlinked `queue.db`** → fixed in #269 (the resident daemons now follow queue.db across purge-local).
+- **A symlinked `settings.json` is replaced on write rather than followed** → fixed in #271.
+- **`resolvedBinaryPath` replaces the first `aiot-runtime` match in the path** → fixed in #269.
+
+### Open
+
 - **macOS and the Rust launcher are unverified.** The e2e suite
   (`on-demand.e2e.test.ts`) drives the compiled runtime, and the launcher is used only
   where `cargo` exists; the on-demand path (including the launcher's `execv` under a
   detached spawn, and the Login Items behaviour the mode exists to avoid) has not been
   exercised on a Mac.
-- **No test for the corrupt-batch failure counter**, and none for a stale `--wait`
-  streak write.
-- **`SessionEnd` does not capture usage for turns after the last `Stop`** (Claude Code
-  usage is read from the transcript at `Stop`).
-- **`purge-local` while a resident flusher is running** leaves that flusher on an
-  unlinked `queue.db`.
-- **A symlinked `settings.json` is replaced on write** rather than followed.
-- **`resolvedBinaryPath` replaces the first `aiot-runtime` match** in the path, so a
-  directory component containing that string is rewritten too.
+- **Queue byte cap never shrinks.** Once the queue `.db` file is over `AIOT_QUEUE_MAX_BYTES` it stays over the cap even after a full drain (nothing vacuums), so every single-row enqueue prunes its own row. Pre-existing; reproduced with a 3 MB cap and a 6.2 MB empty database.
 - **Parked idea: a bounded `SessionEnd` linger for ephemeral environments.** On-demand
   mode cannot guarantee the last batch survives a hard container teardown unless
   `aiot drain --wait` runs as a pre-stop step. An opt-in linger (say
