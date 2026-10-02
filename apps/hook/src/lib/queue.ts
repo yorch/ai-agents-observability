@@ -43,6 +43,15 @@ export type Queue = {
   /** The open connection, so the hook can claim a drainer spawn without a second open. */
   readonly db: Database;
   enqueue(event: QueuedEvent): void;
+  /**
+   * `events` in ONE transaction, for bulk work that is chunked by the caller (~500
+   * rows is ~5 ms, inside the busy timeout; 10,000 in one transaction is not).
+   * Unlike `enqueue` it NEVER prunes: when the rows do not fit under the event or
+   * byte cap it inserts nothing and returns false, because pruning removes the
+   * oldest rows by ts, which for a transcript tail are the rows just inserted, and
+   * the caller is about to move a cursor past them.
+   */
+  enqueueMany(events: readonly QueuedEvent[]): boolean;
 };
 
 export function openQueue(path = queuePath()): Queue {
@@ -91,6 +100,19 @@ export function openQueue(path = queuePath()): Queue {
   const pruneOldestStmt = db.prepare(
     'DELETE FROM events_queue WHERE event_id IN (SELECT event_id FROM events_queue ORDER BY ts ASC, event_id ASC LIMIT ?)',
   );
+
+  // In WAL mode the .db file lags behind the .db-wal file until a checkpoint, so
+  // measure both (the -wal may not exist yet: the .db size is a lower bound).
+  function onDiskBytes(): number {
+    let size = 0;
+    try {
+      size = statSync(path).size;
+      size += statSync(`${path}-wal`).size;
+    } catch {
+      // see above
+    }
+    return size;
+  }
 
   return {
     close() {
@@ -151,6 +173,21 @@ export function openQueue(path = queuePath()): Queue {
           pruneOldestStmt.run(toPrune);
           log('warn', 'queue.pruned_bytes', { count: toPrune, fileSize, max: maxBytes });
         }
+      })();
+    },
+    enqueueMany(events) {
+      if (events.length === 0) {
+        return true;
+      }
+      return db.transaction(() => {
+        const depth = countStmt.get()?.c ?? 0;
+        if (depth + events.length > queueMaxEvents() || onDiskBytes() > queueMaxBytes()) {
+          return false;
+        }
+        for (const event of events) {
+          insert.run(event.event_id, event.ts, event.payload_json);
+        }
+        return true;
       })();
     },
   };

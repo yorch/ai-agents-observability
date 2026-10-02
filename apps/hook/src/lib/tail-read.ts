@@ -49,3 +49,56 @@ export function safeJsonLine(line: string): unknown {
     return null;
   }
 }
+
+/** One non-blank line and the byte offset just past its newline. */
+export type OffsetLine = { text: string; end: number };
+
+/**
+ * Like {@link readNewLines}, but at most about `maxBytes` per call and with each
+ * line's end offset, so a caller that stops part-way can record a cursor that
+ * points exactly past the last line it finished. A line longer than the window
+ * widens it (a tool result can be megabytes) rather than being split. Whole lines
+ * only; `newOffset` is just past the last newline read.
+ */
+export function readLinesWindow(
+  path: string,
+  fromOffset: number,
+  maxBytes: number,
+): { lines: OffsetLine[]; newOffset: number } {
+  const size = statSync(path).size;
+  let len = Math.min(size - fromOffset, maxBytes);
+  if (len <= 0) {
+    return { lines: [], newOffset: fromOffset };
+  }
+  const fd = openSync(path, 'r');
+  try {
+    for (;;) {
+      const buf = Buffer.allocUnsafe(len);
+      const got = readSync(fd, buf, 0, len, fromOffset);
+      const lastNl = buf.subarray(0, got).lastIndexOf(10);
+      if (lastNl < 0) {
+        // A half-written final line, or the file shrank or was replaced after the stat
+        // (a short read): either way there is nothing whole to return. Widening the
+        // window only makes sense while the file really is longer than what we asked for.
+        if (got < len || fromOffset + got >= size) {
+          return { lines: [], newOffset: fromOffset };
+        }
+        len = Math.min(size - fromOffset, len * 2);
+        continue;
+      }
+      const lines: OffsetLine[] = [];
+      let start = 0;
+      while (start <= lastNl) {
+        const nl = buf.indexOf(10, start);
+        const text = buf.toString('utf8', start, nl);
+        if (text.trim().length > 0) {
+          lines.push({ end: fromOffset + nl + 1, text });
+        }
+        start = nl + 1;
+      }
+      return { lines, newOffset: fromOffset + lastNl + 1 };
+    }
+  } finally {
+    closeSync(fd);
+  }
+}
