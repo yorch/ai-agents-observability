@@ -6,6 +6,14 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v2.8.1 (2026-10-02)
+
+### Bug Fixes
+
+- hook: write agent configs through symlinks, keep their mode, and clean up after killed writers (#271)
+- hook: capture Claude Code usage for the turns after the last Stop at SessionEnd (#270)
+- hook: follow queue.db across purge-local, version from package.json, and small cleanups (#269)
+
 ## v2.8.0 (2026-10-01)
 
 ### Features
