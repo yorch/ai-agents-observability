@@ -287,6 +287,8 @@ if [[ "${on_path}" == "false" ]]; then
 fi
 
 echo "Next steps:"
+echo "  aiot config set web-url https://observability.example.com   # skip for a local server (default: localhost)"
+echo "  aiot config set ingest-url https://ingest.example.com       # then check with: aiot config show"
 echo "  aiot login      # authenticate via GitHub OAuth"
 echo "  aiot install    # wire hooks into detected agents + start two background services (resident mode)"
 echo "                  # or: aiot install --mode on-demand   (no background service; a short-lived drainer ships data)"
