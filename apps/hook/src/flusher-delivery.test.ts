@@ -468,6 +468,54 @@ describe('flusher timeouts and robustness', () => {
     reader.close();
   });
 
+  it('a batch of only undecodable rows is not a send: the failure streak survives it', async () => {
+    const dbPath = seedQueue(1);
+    process.env.INGEST_BASE_URL = `http://127.0.0.1:${closedPort()}`;
+    const sql = (fn: (db: Database) => void) => {
+      const db = new Database(dbPath);
+      try {
+        fn(db);
+      } finally {
+        db.close();
+      }
+    };
+    // Between iterations (the sleeps), turn the queue into one corrupt row, then
+    // back into one good row: the corrupt batch is dropped as a "sent" of 0.
+    const sleeps = await runUntil((s) => {
+      if (s.length === 2) {
+        // Two transport failures so far (~1 s, ~2 s): the streak is 2.
+        sql((db) => db.run("UPDATE events_queue SET payload_json = 'not json{'"));
+      } else if (s.length === 3) {
+        // The idle tick after the corrupt row was dropped.
+        sql((db) => {
+          const ts = new Date().toISOString();
+          const id = '0192f3a0-7c1e-7b2a-9d4e-ffffffffffff';
+          db.run('INSERT INTO events_queue (event_id, ts, payload_json) VALUES (?, ?, ?)', [
+            id,
+            ts,
+            JSON.stringify({
+              agent_type: 'claude-code',
+              event_id: id,
+              event_type: 'PostToolUse',
+              session_context: { cwd: tmpHome },
+              session_id: '5f0c1d52-8a3e-4b6f-9c1d-2e7a4b8d9f03',
+              ts,
+            }),
+          ]);
+        });
+      }
+      return s.length >= 4;
+    });
+
+    // 1 s, 2 s, then the idle tick (5 s) after the corrupt row's drop, then the next
+    // failure backs off at attempt 2 (~4 s, +-20%). A corrupt batch that reset the
+    // streak would make that last one ~1 s.
+    expect(sleeps).toHaveLength(4);
+    expect(sleeps[2]).toBe(5_000);
+    expect(sleeps[3]).toBeGreaterThanOrEqual(3_200);
+    expect(sleeps[3]).toBeLessThanOrEqual(4_800);
+  });
+
   it('survives an iteration that throws, backs off, and keeps delivering', async () => {
     const dbPath = seedQueue(2);
     const server = Bun.serve({ fetch: () => new Response('{}', { status: 200 }), port: 0 });
