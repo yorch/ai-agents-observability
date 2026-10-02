@@ -31,6 +31,8 @@ import { redactedLines } from './lib/transcript-stream';
 const SWEEP_INTERVAL_MS = 10 * 60 * 1_000; // 10 minutes
 // When another delivery process holds the lease, look again after this.
 const LEASE_RETRY_MS = 5_000;
+/** How often the daemon looks for a replaced queue.db while it waits for the next sweep. */
+const QUEUE_POLL_MS = 5_000;
 
 // Bandwidth throttle: max 5 MB/s
 const MAX_BYTES_PER_SEC = 5 * 1024 * 1024;
@@ -970,7 +972,22 @@ export async function runShipper(): Promise<void> {
           rejectedAt = Date.now();
         }
       }
-      await Bun.sleep(wait);
+      // The wait ends early when queue.db is replaced (`purge-local`), or this
+      // connection's lease would sit on the deleted file for up to the whole sweep
+      // interval, excluding nobody: an `aiot import` could upload beside a sweep.
+      let poll: ReturnType<typeof setInterval> | undefined;
+      const replaced = new Promise<void>((resolve) => {
+        poll = setInterval(() => {
+          if (queueFileId(queuePath()) !== queueFile) {
+            resolve();
+          }
+        }, QUEUE_POLL_MS);
+      });
+      try {
+        await Promise.race([Bun.sleep(wait), replaced]);
+      } finally {
+        clearInterval(poll);
+      }
     }
   } finally {
     queue.close();

@@ -91,7 +91,6 @@ export type QueueReader = {
   close(): void;
 };
 
-/** Opens the DB in WAL mode (same as queue.ts writer). */
 /**
  * Identity (device:inode) of the file at `dbPath`, or null when there is none.
  * A resident daemon keeps one connection for its whole life; `purge-local`
@@ -109,6 +108,7 @@ export function queueFileId(dbPath: string): string | null {
   }
 }
 
+/** Opens the DB in WAL mode (same as queue.ts writer). */
 export function openQueueReader(dbPath: string): QueueReader {
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = new Database(dbPath, { create: true, readonly: false });
