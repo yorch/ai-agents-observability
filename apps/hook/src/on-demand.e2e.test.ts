@@ -239,7 +239,15 @@ maybe('on-demand mode, compiled binary', () => {
       // the final transcript.
       await until(() => completed(ingest, s) >= 2, 60_000, 'the transcript after the SessionEnd');
       expect(ingest.violations).toEqual([]);
-      // And it was ONE drainer process throughout, not a second one racing it.
+      // And it was ONE drainer process throughout, not a second one racing it. The
+      // drainer logs `drain.done` after its last upload returns and the lease is
+      // released, so the transcript can be complete at the ingest a moment before
+      // that line exists: wait for the drainer to finish before counting.
+      await until(
+        () => holderOf(m) === null && drainsFinished(m) >= 1,
+        30_000,
+        'the drainer to finish',
+      );
       expect(drainsFinished(m)).toBe(1);
     }, 150_000);
   });
