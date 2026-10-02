@@ -16,8 +16,10 @@ import { isAiotBinary } from './config-wire';
  * suffix) rather than replacing the whole name.
  */
 export function resolvedBinaryPath(exe: string = process.execPath): string {
-  if (basename(exe).startsWith('aiot-runtime')) {
-    return exe.replace('aiot-runtime', 'aiot');
+  const name = basename(exe);
+  if (name.startsWith('aiot-runtime')) {
+    // Rewrite the basename only: a directory such as `aiot-runtime-tools/` must stay as is.
+    return exe.slice(0, exe.length - name.length) + name.replace('aiot-runtime', 'aiot');
   }
   return exe;
 }
