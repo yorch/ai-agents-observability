@@ -2,18 +2,24 @@
 // These handle the common patterns: config-dir detection, backup creation,
 // and JSON merge with ownership-marker-based idempotency.
 
+import { randomBytes } from 'node:crypto';
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  readlinkSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 /** Suffix appended to config files before aiot's first modification. */
 export const BACKUP_SUFFIX = '.aiot-backup';
@@ -92,12 +98,128 @@ export function readJsonFile<T = Record<string, unknown>>(filePath: string): T |
  * The `.aiot-backup` companion exists for a corrupted file, but recovering from
  * it is manual — not being the cause is better. `shipper.ts` already uses this
  * idiom for its markers.
+ *
+ * More things a bare temp-then-rename gets wrong on a user's config:
+ * - A dotfile manager symlinks `~/.claude/settings.json` into a repo. Renaming
+ *   over the link replaces the LINK with a regular file and the managed target
+ *   never sees the change, so we resolve the link first (as the kernel would:
+ *   relative targets resolve from the link's REAL directory) and rename over the
+ *   real file, leaving the symlink in place. Dangling and chained links resolve too.
+ *   A target in a read-only store (home-manager's /nix/store) fails with a message
+ *   that says so, instead of naming a temp file the user never sees.
+ * - The temp name is unique per call (pid + random), so two installs running at
+ *   once cannot write one temp file together and then fail the second rename; a
+ *   failed write removes its own temp. A SIGKILLed writer leaves its temp behind,
+ *   so each write best-effort removes `<name>.aiot-tmp.<pid>.<hex>` siblings that
+ *   are over an hour old and whose pid is gone (and nothing else).
+ * - The result keeps the target's permission bits (a 0600 file stays 0600) when
+ *   no explicit `mode` is given; a new file gets the umask default.
+ *
+ * What it does NOT give: mutual exclusion. Two read-modify-write cycles that
+ * interleave (an apply racing Claude Code's own write to settings.json, or a user
+ * edit) each rename a complete file, so neither corrupts it, but the later one
+ * silently drops the earlier one's change.
  */
-function writeFileAtomic(filePath: string, contents: string): void {
-  mkdirSync(dirname(filePath), { recursive: true });
-  const tmpPath = `${filePath}.aiot-tmp`;
-  writeFileSync(tmpPath, contents, 'utf8');
-  renameSync(tmpPath, filePath);
+export function writeFileAtomic(filePath: string, contents: string, mode?: number): void {
+  const target = resolveSymlinks(filePath);
+  mkdirSync(dirname(target), { recursive: true });
+  removeStaleTemps(target);
+  const keep = mode === undefined ? existingMode(target) : undefined;
+  const tmpPath = `${target}.aiot-tmp.${process.pid}.${randomBytes(4).toString('hex')}`;
+  try {
+    writeFileSync(tmpPath, contents, mode === undefined ? 'utf8' : { encoding: 'utf8', mode });
+    if (keep !== undefined) {
+      chmodSync(tmpPath, keep); // writeFileSync's mode is masked by the umask
+    }
+    renameSync(tmpPath, target);
+  } catch (err) {
+    rmSync(tmpPath, { force: true });
+    const code = (err as NodeJS.ErrnoException).code;
+    if (target !== filePath && (code === 'EACCES' || code === 'EROFS' || code === 'EPERM')) {
+      throw new Error(
+        `${filePath} is a symlink into a read-only location (${target}); aiot cannot update it — make the target writable, or unlink it and let aiot own the file`,
+      );
+    }
+    throw err;
+  }
+}
+
+function existingMode(path: string): number | undefined {
+  try {
+    return statSync(path).mode & 0o7777;
+  } catch {
+    return undefined;
+  }
+}
+
+const STALE_TEMP_MS = 60 * 60 * 1000;
+
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code !== 'ESRCH'; // EPERM: alive, not ours
+  }
+}
+
+/** Remove `<target>.aiot-tmp.<pid>.<hex>` regular files that are old and whose writer is gone. */
+function removeStaleTemps(target: string): void {
+  try {
+    const dir = dirname(target);
+    const prefix = `${basename(target)}.aiot-tmp.`;
+    for (const name of readdirSync(dir)) {
+      const m = name.startsWith(prefix)
+        ? /^(\d+)\.[0-9a-f]{8}$/.exec(name.slice(prefix.length))
+        : null;
+      if (!m) {
+        continue;
+      }
+      const path = join(dir, name);
+      const st = lstatSync(path); // never follow a link
+      if (st.isFile() && Date.now() - st.mtimeMs > STALE_TEMP_MS && !pidAlive(Number(m[1]))) {
+        rmSync(path, { force: true });
+      }
+    }
+  } catch {
+    // best effort: clutter, not a failure
+  }
+}
+
+function realDir(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
+ * The file a write to `path` really lands on. An existing file resolves with
+ * realpath. A dangling link is walked hop by hop, each relative target resolved
+ * against the REAL directory of the link that holds it (a lexical `dirname` is
+ * wrong when the link's own directory is a symlink).
+ */
+function resolveSymlinks(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    // missing, or a dangling link: walk it
+  }
+  let current = path;
+  for (let hops = 0; hops < 40; hops++) {
+    let target: string;
+    try {
+      if (!lstatSync(current).isSymbolicLink()) {
+        return current;
+      }
+      target = readlinkSync(current);
+    } catch {
+      return join(realDir(dirname(current)), basename(current)); // plain missing file
+    }
+    current = resolve(realDir(dirname(current)), target);
+  }
+  throw new Error(`Too many levels of symbolic links: ${path}`);
 }
 
 /**
