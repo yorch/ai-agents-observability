@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { writeFileAtomic } from './config-wire';
 
 export const DEFAULT_INGEST_BASE_URL = 'http://localhost:4000';
 export const DEFAULT_WEB_BASE_URL = 'http://localhost:3000';
@@ -50,9 +51,7 @@ export function getWebBaseUrl(): string {
 export function writeCliConfig(config: CliConfig): void {
   const path = cliConfigPath();
   mkdirSync(dirname(path), { mode: 0o700, recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(config, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
-  renameSync(tmp, path);
+  writeFileAtomic(path, `${JSON.stringify(config, null, 2)}\n`, 0o600);
 }
 
 export function updateCliConfig(
