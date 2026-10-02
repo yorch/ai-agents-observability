@@ -107,6 +107,23 @@ Merged as #264 with these open, none of them blocking:
 - **A symlinked `settings.json` is replaced on write** rather than followed.
 - **`resolvedBinaryPath` replaces the first `aiot-runtime` match** in the path, so a
   directory component containing that string is rewritten too.
+- **Parked idea: a bounded `SessionEnd` linger for ephemeral environments.** On-demand
+  mode cannot guarantee the last batch survives a hard container teardown unless
+  `aiot drain --wait` runs as a pre-stop step. An opt-in linger (say
+  `AIOT_SESSIONEND_LINGER_MS`, off by default, hard cap about 1 s) would have the
+  `SessionEnd` hook spawn the drainer as it does today and then wait for the drainer's
+  `events` phase to finish, so the agent's exit holds the process tree alive. It is
+  best-effort (a host may kill the tree first), costs one more spawn rule and wait path,
+  and is only worth building if someone without a pre-stop hook asks for it; documenting
+  `aiot drain --wait` is the default answer.
+  - **Prior art, rejected and archived** as tag `archive/hook-inline-ship-mode`
+    (`7fcb96f`, formerly branch `feat/hook-inline-ship-mode`): an opt-in
+    `ship-mode = inline` that POSTed events from inside the hook. It ran on tool hooks
+    too (network on the hot path), charged an attempt on its own 500 ms self-timeout (a
+    slow but healthy ingest lost data after 10 Stops), sent to the agent shell's
+    `INGEST_BASE_URL`, delivered events unenriched for good, and still needed the
+    resident shipper. Every mechanic it had is superseded by `--mode`, `aiot drain` and
+    `flushOnce`. Build the linger fresh on the drainer, not by reviving that branch.
 
 ## Out of scope
 
