@@ -1,3 +1,4 @@
+import pkg from '../package.json' with { type: 'json' };
 import { type HookAdapter, selectAdapter } from './adapters';
 import { runConfig } from './commands/config';
 import { runDrain } from './commands/drain';
@@ -27,7 +28,9 @@ function parseAgent(args: string[]): string | undefined {
   return undefined;
 }
 
-const VERSION = '0.1.0';
+// package.json is the single source of truth (release automation bumps it); the JSON
+// import is inlined into the `bun build --compile` binary.
+const VERSION = pkg.version;
 
 const HELP = `aiot v${VERSION}
 

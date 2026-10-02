@@ -45,7 +45,7 @@ Without these, the binary works on developer machines with `xattr -d com.apple.q
 ## Usage
 
 ```
-aiot v0.1.0
+aiot vX.Y.Z
 
 Usage: aiot <command> [options]
 
