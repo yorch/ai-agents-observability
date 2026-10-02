@@ -3,7 +3,7 @@
 // developer's real home.
 
 import { existsSync, realpathSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 /** Directories under a home that tests must never write to. */
 export const PROTECTED_RELATIVE = [
@@ -87,4 +87,30 @@ export function refuseIfProtected(target: unknown, dirs: readonly string[]): voi
 /** open/openSync flags that can modify the file (default `r` cannot). */
 export function opensForWrite(flags: unknown): boolean {
   return !(flags === undefined || flags === 'r' || flags === 'rs' || flags === 0);
+}
+
+const SERVICE_MANAGERS = new Set(['systemctl', 'launchctl']);
+
+/**
+ * Throw if an in-process spawn would run the REAL service manager. `Bun.spawn`
+ * resolves a bare name against the PATH the test process started with, so a test
+ * cannot fake it in-process: it must inject `spawn`, stub `Bun.spawnSync`, or run a
+ * child with a fake first on its PATH. A path under `fakeDir` (a test's own fake
+ * script) is allowed. `cmd` is whatever was passed as the first argument of
+ * `Bun.spawn`/`Bun.spawnSync` (an argv array, or an options object with `cmd`).
+ */
+export function refuseServiceManager(cmd: unknown, fakeDir: string): void {
+  const argv = Array.isArray(cmd) ? cmd : (cmd as { cmd?: unknown } | null)?.cmd;
+  const first = Array.isArray(argv) ? argv[0] : undefined;
+  if (typeof first !== 'string' || !SERVICE_MANAGERS.has(basename(first))) {
+    return;
+  }
+  if (isAbsolute(first) && within(realish(first), realish(fakeDir))) {
+    return;
+  }
+  throw new Error(
+    `[aiot test isolation] refusing to run ${first} in-process: that is the REAL service ` +
+      'manager. Inject `spawn`, stub Bun.spawnSync (src/lib/fake-service-manager.ts), ' +
+      'or run a child process with a fake on its PATH.',
+  );
 }

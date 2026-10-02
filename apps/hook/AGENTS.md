@@ -111,7 +111,12 @@ configs, written as `bun hook <kind>`, with the suite green:
   `.config/opencode`, `.config/systemd`, `.pi`, `.gemini`, `.copilot`, `.omp`, `.aiot`
   and `Library/LaunchAgents` throw (symlinks resolved): node:fs mutators in sync,
   callback and promises form, write-mode `open`, `createWriteStream`, and `Bun.write`.
-  **Not guarded:** `Bun.file().writer()`, bun:sqlite opening a file, and child
+  An in-process `Bun.spawn`/`Bun.spawnSync` of `systemctl` or `launchctl` throws too
+  (a bare name resolves against the PATH the process started with, so it cannot be
+  faked in-process): stub it with `lib/fake-service-manager.ts`, inject `spawn`, or run
+  a child with a fake first on its PATH. `status` swallows that throw as "unknown", so
+  assert the probe was made, as the status tests do.
+  **Not guarded:** `Bun.file().writer()`, bun:sqlite opening a file, and other child
   processes such as `Bun.spawn` of an external tool; only the temp HOME/AIOT_HOME
   covers those. `bunfig.toml` is read from the CWD only, so run `bun test` from
   `apps/hook` or the repo root (whose bunfig points at the same preload); anywhere

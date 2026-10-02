@@ -6,7 +6,13 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { opensForWrite, PROTECTED_RELATIVE, protectedDirsFor, refuseIfProtected } from './guard';
+import {
+  opensForWrite,
+  PROTECTED_RELATIVE,
+  protectedDirsFor,
+  refuseIfProtected,
+  refuseServiceManager,
+} from './guard';
 
 describe('refuseIfProtected', () => {
   const root = mkdtempSync(join(tmpdir(), 'aiot-guard-unit-'));
@@ -80,5 +86,32 @@ describe('opensForWrite', () => {
     for (const f of ['w', 'a', 'r+', 'wx', 'a+', 65]) {
       expect(opensForWrite(f)).toBe(true);
     }
+  });
+});
+
+describe('refuseServiceManager', () => {
+  const fakeDir = mkdtempSync(join(tmpdir(), 'aiot-guard-sm-'));
+
+  it('refuses a bare systemctl/launchctl, as argv or as an options object', () => {
+    expect(() => refuseServiceManager(['systemctl', '--user', 'is-active', 'x'], fakeDir)).toThrow(
+      'REAL service manager',
+    );
+    expect(() => refuseServiceManager(['launchctl', 'list'], fakeDir)).toThrow('REAL service');
+    expect(() => refuseServiceManager({ cmd: ['systemctl', 'status'] }, fakeDir)).toThrow(
+      'REAL service',
+    );
+  });
+
+  it('refuses an absolute path to the real binary', () => {
+    expect(() => refuseServiceManager(['/usr/bin/systemctl', 'disable', 'x'], fakeDir)).toThrow(
+      'REAL service',
+    );
+  });
+
+  it('allows a test’s own fake under the fake dir, and every other command', () => {
+    expect(() => refuseServiceManager([join(fakeDir, 'systemctl'), 'x'], fakeDir)).not.toThrow();
+    expect(() => refuseServiceManager(['ls', '-1'], fakeDir)).not.toThrow();
+    expect(() => refuseServiceManager([process.execPath, 'src/cli.ts'], fakeDir)).not.toThrow();
+    expect(() => refuseServiceManager('systemctl', fakeDir)).not.toThrow(); // not an argv: not a spawn shape
   });
 });
