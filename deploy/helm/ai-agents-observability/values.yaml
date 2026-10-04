@@ -46,19 +46,32 @@ timescaledb:
 externalDatabase:
   url: ""  # postgresql://user:pass@host:5432/dbname
 
-# ── MinIO (S3-compatible object store) ───────────────────────────────────────
-# By default, a bundled StatefulSet runs MinIO. For production, prefer external
-# S3 (AWS, Backblaze B2, etc.) — set enabled: false and provide externalS3.*.
-minio:
+# ── Object store (S3-compatible) ─────────────────────────────────────────────
+# By default a bundled single-node Garage StatefulSet runs. It has NO
+# redundancy: for production prefer external S3 (AWS, Backblaze B2, etc.) — set
+# enabled: false and provide externalS3.*. (Replaces the former minio.* values;
+# setting minio.* now fails the render. Upgrading existing MinIO data:
+# docs/deploy/migrate-from-minio.md.) The bucket is created by Garage itself on
+# start. The bundled store accepts SSE headers but does NOT encrypt: leave
+# S3_SSE_ALGORITHM unset (see SECURITY.md).
+objectStore:
   enabled: true
   image:
-    repository: quay.io/minio/minio
-    tag: RELEASE.2025-09-07T16-13-09Z
+    repository: dxflrs/garage
+    tag: v2.4.1
     pullPolicy: IfNotPresent
   auth:
-    rootUser: minioadmin  # CHANGE THIS
-    rootPassword: minioadmin  # CHANGE THIS
+    accessKeyId: devaccesskey  # any value is accepted
+    # MUST be >= 16 characters. CHANGE THIS. Never edit it after first boot
+    # without first running `garage key delete <old key id>` in the pod:
+    # Garage crash-loops on a changed secret for an existing key id.
+    secretAccessKey: devsecretkey-change-me
   bucket: transcripts
+  # Upgrades from the MinIO-based chart: the render FAILS while the old
+  # data-<fullname>-minio-0 PVC exists, so an upgrade cannot silently start an
+  # empty store. Set true only while following docs/deploy/migrate-from-minio.md
+  # (or after deciding to discard that data).
+  legacyMinioPvcAcknowledged: false
   persistence:
     enabled: true
     storageClass: ""
@@ -66,13 +79,14 @@ minio:
     accessMode: ReadWriteOnce
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 50m
+      memory: 64Mi
     limits:
       cpu: "1"
-      memory: 1Gi
+      memory: 512Mi
 
-# External S3 — used when minio.enabled is false.
+# External S3 — used when externalS3.endpoint is set (and objectStore.enabled
+# should then be false).
 externalS3:
   endpoint: ""        # https://s3.amazonaws.com
   accessKeyId: ""

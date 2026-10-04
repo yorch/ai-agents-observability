@@ -63,7 +63,7 @@ security issue, please report it responsibly:
 ## Data redaction
 
 - **Double redaction:** Transcripts are redacted once client-side in the hook
-  binary and again server-side in the ingest pipeline before any S3/MinIO write.
+  binary and again server-side in the ingest pipeline before any S3 write.
   The server does not trust that the client ran redaction.
 - **12 regex rule classes:** AWS access keys, AWS secret keys, GitHub tokens,
   JWTs, Slack tokens, environment-secret patterns, private keys, generic API
@@ -146,16 +146,24 @@ responsibilities at the infrastructure layer:
 
 - **TLS termination:** Terminate TLS at the reverse proxy (e.g. Traefik, nginx).
   The application listens on plain HTTP inside the container network.
-- **Encryption at rest:** Configure Postgres and MinIO/S3 encryption at rest
+- **Encryption at rest:** Configure Postgres and S3 encryption at rest
   according to your infrastructure provider. The application does not manage
-  disk-level encryption. For S3-backed deployments (not MinIO), set
+  disk-level encryption. For external S3 deployments, set
   `S3_SSE_ALGORITHM` (`AES256` or `aws:kms`) and optionally `S3_KMS_KEY_ID` to
   enable server-side encryption on transcript object uploads. When unset, no
-  SSE headers are sent (MinIO default).
+  SSE headers are sent (the default). **Do not rely on this against the bundled
+  Garage store:** it accepts the SSE headers without error but does nothing with
+  them, so objects are stored unencrypted. Use filesystem/volume encryption
+  under `./data/garage` instead.
 - **Secret management:** No secrets are hardcoded in the codebase. All secrets
   (JWT signing keys, database credentials, S3 credentials, OAuth client
   secrets, API keys) must be provided via explicit environment variables. Use a
-  secrets manager (e.g. Vault, AWS Secrets Manager) in production.
+  secrets manager (e.g. Vault, AWS Secrets Manager) in production. One
+  deliberate exception: the bundled Garage store's `GARAGE_RPC_SECRET` defaults
+  to a fixed, public constant in `docker-compose.infra.yml`. It is not a
+  credential only because `infra/garage/garage.toml` binds Garage's RPC (3901)
+  and admin (3903) ports to loopback inside the container; never publish or
+  widen those binds without also setting your own `GARAGE_RPC_SECRET`.
 - **Network policies:** Restrict ingress to the web, ingest, and GitHub-app
   ports. The ingest endpoint (`:4000`) should only be reachable by developer
   machines or CI runners, not the public internet.

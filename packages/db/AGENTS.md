@@ -266,7 +266,7 @@ this by deleting rows from `_db_sql_migrations`: that re-runs the whole init fil
 against a populated database. **Reset:**
 
 ```bash
-bun run docker:infra:down:v   # DESTRUCTIVE — wipes ./data (Postgres + MinIO + Grafana)
+bun run docker:infra:down:v   # DESTRUCTIVE — wipes ./data (Postgres + Garage object store + Grafana)
 bun run docker:infra:up
 bun run db:deploy
 bun run db:seed               # optional

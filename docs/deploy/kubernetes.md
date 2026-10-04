@@ -43,7 +43,7 @@ helm install ai-agents-observability deploy/helm/ai-agents-observability/ \
 
 The chart deploys:
 - TimescaleDB StatefulSet (or uses your external DB)
-- MinIO StatefulSet (or uses your external S3)
+- Garage object-store StatefulSet (or uses your external S3); it creates the bucket itself
 - Migrations Job (Helm pre-install hook)
 - Web Deployment + Service
 - Ingest Deployment + Service
@@ -89,7 +89,7 @@ timescaledb:
 externalDatabase:
   url: postgresql://user:pass@managed-postgres.internal:5432/ai_agents_observability
 
-minio:
+objectStore:
   enabled: false
 
 externalS3:
@@ -101,7 +101,7 @@ externalS3:
   forcePathStyle: false
 ```
 
-When `timescaledb.enabled` is false, the chart skips the TimescaleDB StatefulSet and uses `externalDatabase.url` for all services. Same for MinIO/external S3.
+When `timescaledb.enabled` is false, the chart skips the TimescaleDB StatefulSet and uses `externalDatabase.url` for all services. Same for the bundled object store: set `objectStore.enabled=false` and `externalS3.*`. The former `minio.*` values were removed and setting them fails the render; see [migrate-from-minio.md](./migrate-from-minio.md).
 
 ## Ingress
 
@@ -226,7 +226,7 @@ kubectl port-forward -n ai-agents-observability svc/ai-agents-observability-web 
 ## Production considerations
 
 - **TimescaleDB**: the bundled StatefulSet is a starting point. For production, use a managed Postgres with TimescaleDB extension, or the [CloudNativePG operator](https://cloudnative-pg.io/) with the TimescaleDB extension. The bundled StatefulSet has no HA, no automated backups, and no WAL archiving.
-- **MinIO**: same — the bundled StatefulSet is single-node. For production, use external S3 or the [MinIO Operator](https://min.io/docs/minio/kubernetes/upstream/) for distributed MinIO.
+- **Object store**: same — the bundled Garage StatefulSet is single-node with no redundancy. For production, use external S3. The bundled store accepts but ignores SSE headers (see SECURITY.md).
 - **Resource limits**: the defaults in `values.yaml` are conservative. Adjust based on your load.
-- **Replicas**: `web` and `ingest` can be scaled horizontally (they're stateless). `github-app` can too. TimescaleDB and MinIO are single-replica by default.
-- **Backups**: PVC snapshots for TimescaleDB and MinIO data. Configure according to your cluster's backup strategy (Velero, etc.).
+- **Replicas**: `web` and `ingest` can be scaled horizontally (they're stateless). `github-app` can too. TimescaleDB and the object store are single-replica by default.
+- **Backups**: PVC snapshots for TimescaleDB and object-store data (snapshot Garage while it is quiescent; its metadata is sqlite). Configure according to your cluster's backup strategy (Velero, etc.).

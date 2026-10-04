@@ -44,8 +44,14 @@ bun run --cwd apps/github-app dev  # requires the GitHub App values in .env
 Alternatively, `just dev-up` builds and runs ingest and web in containers. Use
 `just dev-pr-loop-up` to include the credential-gated GitHub App service.
 
-The backing stack exposes PostgreSQL on `localhost:5432`, MinIO on ports `9000` and
-`9001`, Prometheus on `9090`, and Grafana on `3001` by default.
+The backing stack exposes PostgreSQL on `localhost:5432`, the S3-compatible object
+store (Garage) on port `9000`, Prometheus on `9090`, and Grafana on `3001` by default.
+
+> **Upgrading a self-hosted stack that used the bundled MinIO?** The bundled object
+> store is now Garage and cannot read MinIO's data directory. Run the migration before
+> starting the new version: [`docs/deploy/migrate-from-minio.md`](./docs/deploy/migrate-from-minio.md).
+> The `just` recipes refuse to start if they find un-migrated MinIO data; plain
+> `docker compose` / `bun run docker:*` commands do not have that guard.
 
 ### Install the hook CLI
 

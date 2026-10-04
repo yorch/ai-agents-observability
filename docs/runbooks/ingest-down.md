@@ -42,7 +42,7 @@ curl http://localhost:4000/readyz
 
 1. **Service process exited?** — Check Docker exit code. OOM kills show exit code 137.
 2. **Postgres down?** — `checks.postgres: "error"` in `/readyz`. See `timescale-slow.md`.
-3. **MinIO/S3 down?** — `checks.s3: "error"` in `/readyz`. See `minio-full.md`.
+3. **Object store / S3 down?** — `checks.s3: "error"` in `/readyz`. See `object-store-full.md`.
 4. **Config missing?** — Service fails at startup with a Zod validation error. Check env vars against `.env.example`.
 5. **Port conflict?** — Default port 4000. `lsof -i :4000` to find the occupying process.
 

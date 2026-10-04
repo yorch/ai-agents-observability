@@ -111,7 +111,8 @@ const ConfigSchema = z.object({
   s3_secret_access_key: z.string().min(1),
   // Optional server-side encryption for S3 transcript objects. Set to 'AES256'
   // for SSE-S3 or 'aws:kms' for SSE-KMS. When unset, no SSE headers are sent
-  // (preserving current behavior for MinIO which doesn't support SSE headers).
+  // (the bundled Garage store accepts SSE headers but does NOT encrypt; see
+  // SECURITY.md).
   s3_sse_algorithm: z.string().optional(),
   // P7-007 spike. Gates semantic-search prototype. Accepts "1" or "true". No effect on
   // production paths when unset.
@@ -146,7 +147,32 @@ const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 
+/**
+ * The bundled object store moved from MinIO to Garage and its credentials are
+ * now the apps' own S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY. The compose files
+ * still accept MINIO_ROOT_USER / MINIO_ROOT_PASSWORD as a fallback, but the app
+ * never read them, so a process that has only the legacy names would otherwise
+ * fail with a bare "S3_ACCESS_KEY_ID: Required". Say what to do instead.
+ */
+export function assertNoLegacyMinioEnv(env: Record<string, string | undefined>): void {
+  const legacy = ['MINIO_ROOT_USER', 'MINIO_ROOT_PASSWORD'].filter((k) => env[k]);
+  if (legacy.length === 0) {
+    return;
+  }
+  const missing = ['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'].filter((k) => !env[k]);
+  if (missing.length === 0) {
+    return;
+  }
+  throw new Error(
+    `${legacy.join(' / ')} is set but ${missing.join(' / ')} is not. The bundled object store ` +
+      'is now Garage and the apps read S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY only ' +
+      '(the Garage secret must be at least 16 characters). Set them and see ' +
+      'docs/deploy/migrate-from-minio.md.',
+  );
+}
+
 export function loadConfig(): Config {
+  assertNoLegacyMinioEnv(process.env);
   return ConfigSchema.parse({
     admin_secret: process.env.ADMIN_SECRET,
     anthropic_admin_key: process.env.ANTHROPIC_ADMIN_KEY,

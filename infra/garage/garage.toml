@@ -1,0 +1,39 @@
+# Garage config for the BUNDLED single-node object store (dev, homelab, small
+# teams). For production-grade durability point the stack at a managed S3
+# service instead (S3_ENDPOINT_OVERRIDE / externalS3.*): single-node Garage has
+# no redundancy, exactly like the single-drive MinIO it replaced.
+#
+# Started as: garage -c /etc/garage.toml server --single-node --default-bucket
+# The access key, secret and bucket come from GARAGE_DEFAULT_ACCESS_KEY /
+# GARAGE_DEFAULT_SECRET_KEY / GARAGE_DEFAULT_BUCKET (set by the compose files
+# from S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY / S3_BUCKET). The rpc_secret comes
+# from GARAGE_RPC_SECRET (see docker-compose.infra.yml).
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+
+# sqlite over lmdb: LMDB can corrupt after an unclean shutdown and its files are
+# architecture-dependent. Our write rate is ~1 PUT per session, so the speed
+# cost is irrelevant.
+db_engine = "sqlite"
+replication_factor = 1
+
+# The RPC port is a cluster-internal port and rpc_secret is a fixed, public
+# constant in the compose files (Garage demands exactly 64 hex chars and Compose
+# cannot derive one). That is acceptable ONLY because RPC is bound to loopback:
+# no other container on the network can reach it, and `garage health` (the
+# healthcheck) runs inside this container. Do not widen this bind.
+rpc_bind_addr = "127.0.0.1:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+# Garage rejects a client region that differs from this one. Keep it equal to
+# S3_REGION (default us-east-1).
+s3_region = "us-east-1"
+# Container port 9000 (not Garage's conventional 3900) so every existing
+# endpoint string (http://minio:9000, http://localhost:9000) keeps working.
+api_bind_addr = "0.0.0.0:9000"
+
+[admin]
+# Loopback only; no admin token is configured, so the admin API is unused.
+api_bind_addr = "127.0.0.1:3903"

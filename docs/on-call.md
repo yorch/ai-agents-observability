@@ -13,7 +13,7 @@ This document covers the on-call rotation, escalation paths, and quick-access li
 |---|---|---|
 | Grafana | http://localhost:3001 | `https://$DOMAIN_GRAFANA` |
 | Prometheus | http://localhost:9090 | Internal only |
-| MinIO Console | http://localhost:9001 | Internal only for bundled MinIO |
+| Object store (S3 API) | http://localhost:9000 | Internal only for the bundled Garage store (no console) |
 
 ---
 
@@ -56,7 +56,7 @@ Retention: 15 days (configurable in `docker-compose.infra.yml`).
 | `apps/web` | 3000 | — |
 | `apps/github-app` | 4001 | `docs/runbooks/webhook-failing.md` |
 | Postgres / TimescaleDB | 5432 | `docs/runbooks/timescale-slow.md` |
-| MinIO | 9000 / 9001 | `docs/runbooks/minio-full.md` |
+| Object store (Garage) | 9000 | `docs/runbooks/object-store-full.md` |
 
 Not every runbook maps to a service being down. `docs/runbooks/cagg-backfill.md`
 covers imported history that is present in the sessions lists but missing from

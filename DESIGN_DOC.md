@@ -96,7 +96,7 @@ Split by access pattern:
 
 - **Postgres** — dimensions (users, teams, repos), sessions, PR rollups, audit log, visibility policies. Transactional, queryable surface for the UI.
 - **Postgres + TimescaleDB hypertable** — high-volume events firehose. (Decision: Timescale over ClickHouse for v1 — see §11.1.)
-- **S3-compatible object store (MinIO)** — raw transcript JSONL, zstd-compressed, keyed by session ID. Lifecycle rules for retention. MinIO for local dev and homelab prod; any S3-compatible store for cloud prod.
+- **S3-compatible object store (bundled Garage)** — raw transcript JSONL, zstd-compressed, keyed by session ID. Retention is enforced by the app (`sweep-retention`), not store lifecycle rules. Garage for local dev and homelab prod; any S3-compatible store for cloud prod.
 
 ### 4.3 Query / API / UI Plane
 
@@ -128,7 +128,7 @@ Read-only service that fronts:
 [Transcript shipper: redact → zstd → upload]
        │
        ▼
-[POST /v1/transcripts/{sid}] ──► [MinIO/S3: transcripts/{yyyy}/{mm}/{dd}/{sid}.jsonl.zst]
+[POST /v1/transcripts/{sid}] ──► [S3: transcripts/{yyyy}/{mm}/{dd}/{sid}.jsonl.zst]
                                         │
                                         ▼
                                  [Postgres: sessions.transcript_s3_key]
@@ -730,7 +730,7 @@ At `Stop` and on a 10-minute heartbeat for long-running sessions:
 2. Run redaction pass (see §9)
 3. Compress with **zstd**, streaming the redacted lines through `node:zlib`'s `createZstdCompress` so the full uncompressed transcript never sits in memory. The ingest service still accepts **gzip** for backward compatibility, but it always decompresses, re-redacts as defense-in-depth, and re-compresses to zstd for storage — so the stored object is always `.jsonl.zst` regardless of the upload encoding
 4. `POST /v1/transcripts/{session_id}` with `Content-Range` for chunked / resumable upload
-5. Server writes to MinIO/S3 at `transcripts/{yyyy}/{mm}/{dd}/{user_id}/{session_id}.jsonl.zst`
+5. Server writes to the object store at `transcripts/{yyyy}/{mm}/{dd}/{user_id}/{session_id}.jsonl.zst`
 6. On final chunk, update `sessions.transcript_*` columns
 
 **The transcript is also read locally, at Stop, for token usage (P14-003).** Claude Code's hook payload carries none — on any hook — so until P14-003 the only producer of an `llm` block for `CLAUDE_CODE` was the `import` subcommand, and every live-captured session recorded `$0` across every cost surface in the product. The Stop payload hands over `transcript_path`, each `assistant` entry in that JSONL carries `message.usage`, and `mapBatch` folds one Stop event per assistant turn out of the entries appended since the last Stop.
@@ -1060,7 +1060,9 @@ This is a presentation discipline, not a data model decision. Worth re-asserting
 
 **Alternative considered:** Go binary. Would work well; rejected to keep the codebase in one language (TypeScript everywhere).
 
-### 11.3 MinIO for Transcript Blobs
+### 11.3 Self-hosted S3 for Transcript Blobs (MinIO, superseded by Garage)
+
+> **Superseded 2026-10-04:** MinIO was chosen originally; its community edition is archived and its images are no longer pullable. The bundled store is now **Garage** (`dxflrs/garage`, single-node mode), see [docs/research/2026-10-04-minio-replacement.md](docs/research/2026-10-04-minio-replacement.md). The "lifecycle rules" bullet below no longer applies: the store-side 365-day rule was dropped because it was bucket-wide and overrode per-team retention; the app-side `sweep-retention` job is the only retention mechanism. The original record follows.
 
 **Choice:** MinIO for local dev and homelab prod (S3-compatible, self-hosted).
 
@@ -1136,7 +1138,7 @@ Resist the urge to build all of it. The MVP that proves value:
 
 ### 12.1 Phase 1 — Spine + Self-Service ("My Agents")
 
-1. Ingest API + Timescale events + Postgres sessions + MinIO/S3 transcript upload
+1. Ingest API + Timescale events + Postgres sessions + S3 transcript upload
 2. GitHub OAuth login + nightly team sync
 3. Hook binary (Bun-compiled), distributed via internal dotfiles / MDM
 4. Redaction v1 (regex pass)

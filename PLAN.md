@@ -13,7 +13,7 @@ These were agreed during planning and are the basis for every task below. If one
 | Scope | Phases 1–9 sequenced and done, plus Phase 11 (shipped out of order as one vertical slice) and Phase 12 (agent adapter expansion, done); Phase 10 done (P10-001–P10-005 done, P10-006 cancelled); Phase 13 (scoring & evaluation) done except four tasks `blocked` on the DP-1 data precondition; Phase 14 (telemetry fidelity) done; Phase 15 (post-release follow-ups) done except one unnumbered seed gap; Phase 16 (v2.3.0 shipped features) done — six product features merged 2026-08-31; remaining open statuses are operational sign-off / integration items in P1–P2 plus P6 deferrals superseded by P8 | Keep the plan aligned with task status |
 | Dev environment | docker-compose locally | Single `up` from a clean clone |
 | Hook binary | Bun, compiled with `bun build --compile` | Single static binary, fast cold start |
-| Object store | MinIO (local dev + homelab prod) | S3-compatible, self-hostable |
+| Object store | Garage single-node (local dev + homelab prod; was MinIO until 2026-10) | S3-compatible, self-hostable; see docs/research/2026-10-04-minio-replacement.md |
 | API plane | Separate Bun ingest service + Next.js UI | Different SLOs, different scaling shapes |
 | DB tooling | Prisma 7 for dimensional tables; raw SQL via `prisma db execute` for Timescale hypertable + continuous aggregates | Prisma has no first-class hypertable support |
 | Retention | 1 year transcripts (object store TTL), indefinite metadata | Spec §10 |
@@ -46,8 +46,7 @@ New pins are only taken once they clear `bunfig.toml`'s `minimumReleaseAge` (5-d
 | Prisma | 7.9.1 | Latest stable. Classic Prisma Client (not Prisma Postgres). |
 | `@prisma/client` | 7.9.1 | Lockstep with `prisma`. |
 | TimescaleDB image | `timescale/timescaledb:latest-pg18` | Current local-dev compose image. This intentionally uses the standard TimescaleDB image with bind-mounted state under `./data/postgres`; revisit exact tag pinning before production hardening. |
-| MinIO image | `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | Docker Hub MinIO images deprecated Oct 2025. Pull from quay.io. Pin exact RELEASE, never `:latest`. |
-| MinIO client image | `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` | Bucket init + lifecycle. |
+| Object store image | `dxflrs/garage:v2.4.1` | Replaced MinIO (upstream archived; images no longer pullable). Pin exact tag, never `:latest`. |
 | Prometheus image | `prom/prometheus:v3.14.0` | Scrapes `/metrics` on web, ingest and github-app. `infra/prometheus/prometheus.yml` validates clean under `promtool check config` on this tag. |
 | Grafana image | `grafana/grafana:13.2.0` | Dashboards + datasource are file-provisioned from `infra/grafana/`. The 12→13 jump migrates the Grafana sqlite DB under `./data/grafana` **forward only** — snapshot that directory before upgrading a live install, because Grafana does not support downgrading it. |
 | Watchtower image | `ghcr.io/nicholas-fedor/watchtower:1.21.0` | Optional auto-update overlay. `containrrr/watchtower` was archived Dec 2025; this maintained fork keeps the `com.centurylinklabs.watchtower.*` label namespace and the `WATCHTOWER_*` variables, so the compose overlay is unchanged apart from the image. |
@@ -57,7 +56,7 @@ New pins are only taken once they clear `bunfig.toml`'s `minimumReleaseAge` (5-d
 | jose | 6.2.8 | JWT/JWS/JWE. Zero deps, runs on Bun/Node/Workers. |
 | `octokit` | 5.0.5 | GHES compatibility via `@octokit/plugin-enterprise-compatibility` if pre-3.x GHES surfaces. |
 | `@octokit/plugin-enterprise-compatibility` | 6.0.3 | Conditionally loaded for old GHES. ESM-only since v5 — fine, this repo only uses `import`. |
-| `@aws-sdk/client-s3` | 3.1110.0 | MinIO via `forcePathStyle: true` + custom `endpoint`. |
+| `@aws-sdk/client-s3` | 3.1110.0 | S3-compatible stores via `forcePathStyle: true` + custom `endpoint`. |
 | pino | 10.3.1 | Worker-thread transports. |
 | `pino-pretty` | 13.1.3 | Dev-only pretty printing. |
 | nodemailer | 9.0.5 | Alert email delivery from `apps/ingest`. 9.0.4/9.0.5 are MIME + header injection hardening. |
@@ -268,7 +267,7 @@ These apply to every task. Don't restate in each task file.
   1. **Every dependency is pinned to an exact version.** No `^`, no `~`, no `>=`, no `*`. The catalog entries in root `package.json` use bare semver (`"zod": "4.4.3"`). Sub-packages use `"catalog:"`.
   2. `bunfig.toml` sets `[install] exact = true` so `bun add` writes exact versions by default.
   3. `bun.lock` is the source of truth for what gets installed and is required to match `package.json`. CI runs `bun install --frozen-lockfile`; out-of-band edits fail the build.
-  4. Docker image tags should be exact before production use. MinIO is already pinned (`RELEASE.2025-09-07T16-13-09Z`); the local TimescaleDB image currently uses `timescale/timescaledb:latest-pg18` and is called out as a hardening risk in §6. SHA256-digest pinning (`@sha256:...`) is acceptable for prod overlays.
+  4. Docker image tags should be exact before production use. The object store is pinned (`dxflrs/garage:v2.4.1`); the local TimescaleDB image currently uses `timescale/timescaledb:latest-pg18` and is called out as a hardening risk in §6. SHA256-digest pinning (`@sha256:...`) is acceptable for prod overlays.
   5. Engine pins: `engines.node = ">=24"` in `package.json`; CI uses `actions/setup-node@v7` reading `.node-version` (major pin). `engines.bun = "1.3.14"` exact; CI uses `oven-sh/setup-bun@v2.2.0` with `bun-version: '1.3.14'` (exact).
   6. Bumps are deliberate: open a PR per dependency (or per coordinated group — e.g., React + react-dom + Next.js), update the catalog entry, regenerate `bun.lock`, run the full CI suite. No mass-bump PRs.
   7. Renovate/Dependabot may *propose* bumps but never auto-merges. Schedule weekly so PRs don't pile up.
@@ -301,11 +300,11 @@ Tracked as **issues**, not tasks, because they need product/owner input before t
 |---|---|---|
 | Prisma + Timescale dual-migration friction | Spike in `P1-003`; fallback to Drizzle if it bites | Backend |
 | Bun-compiled binary blocked by Mac codesigning | Spike before week 3 of Phase 1 (`P1-019`) | Systems |
-| MinIO in homelab = SPOF | Phase 4 ops handoff evaluates HA MinIO vs B2 fallback | Platform/SRE |
+| Bundled object store in homelab = SPOF | Phase 4 ops handoff evaluates external S3 (e.g. B2) as the production path | Platform/SRE |
 | GHES webhook payload drift | `packages/github` version-detects; integration test against a real GHES instance | Backend |
 | Privacy regression on team views | Audit log is the safety net; covered by `P3-*` tasks | Cross-cutting |
 | Wrong Postgres patch version breaks TimescaleDB ABI | Local dev currently uses `timescale/timescaledb:latest-pg18`; pin an exact `timescale/timescaledb` tag before production hardening. | Backend |
-| MinIO Docker Hub image deprecation (Oct 2025) | Pull from `quay.io/minio/minio` with pinned RELEASE tag, never `:latest` | Backend |
+| MinIO upstream archived, images unpullable (2025-26) | Replaced by Garage (2026-10); migration guide in docs/deploy/migrate-from-minio.md | Backend |
 | Bun 1.3 isolated installs + catalogs has dedup/cache bugs ([#23615](https://github.com/oven-sh/bun/issues/23615)) | Use HOISTED installs (`linker = "hoisted"` in `bunfig.toml`) until fixed | Cross-cutting |
 | Watchtower is a third-party fork with `docker.sock` access | The upstream `containrrr/watchtower` is archived; `nickfedor/watchtower` is pinned to an exact tag (never `:latest`) and the overlay stays opt-in — it is not part of `docker:app` or `docker:infra`. Re-audit the fork before enabling it in production. | Platform/SRE |
 | Bun Rust-rewrite branch regressions on native modules | Pin Bun 1.3.14 (stable JS impl), not bleeding-edge | Systems |

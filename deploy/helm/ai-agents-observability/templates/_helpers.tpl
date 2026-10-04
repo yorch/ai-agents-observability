@@ -88,13 +88,42 @@ Resolve the DATABASE_URL: external if set, otherwise bundled TimescaleDB.
 {{- end -}}
 
 {{/*
-Resolve S3 settings: external if set, otherwise bundled MinIO.
+Fail early on values that no longer mean anything. The bundled MinIO was
+replaced by Garage (objectStore.*); a silently ignored minio.* block would
+leave an install running with defaults the operator never chose.
+*/}}
+{{- define "ai-agents-observability.validate" -}}
+{{- if hasKey .Values "minio" -}}
+{{- fail "The minio.* values were removed: the bundled object store is now Garage under objectStore.* (set objectStore.enabled=false instead of minio.enabled=false). Existing MinIO data must be copied first; see docs/deploy/migrate-from-minio.md." -}}
+{{- end -}}
+{{- if and (not .Values.objectStore.enabled) (not .Values.externalS3.endpoint) -}}
+{{- fail "objectStore.enabled=false requires externalS3.endpoint (and its credentials); otherwise ingest and web point at an object store that does not exist." -}}
+{{- end -}}
+{{- if and .Values.objectStore.enabled (not .Values.externalS3.endpoint) -}}
+{{- if lt (len .Values.objectStore.auth.secretAccessKey) 16 -}}
+{{- fail "objectStore.auth.secretAccessKey must be at least 16 characters (Garage refuses to start otherwise)." -}}
+{{- end -}}
+{{- /* Data-loss guard for upgrades from the MinIO chart. An install that kept
+       the default values has no minio.* key to trip the check above, so the
+       upgrade would delete the MinIO StatefulSet, start an EMPTY Garage, and
+       leave every stored transcript in the orphaned PVC while /readyz is green.
+       The PVC's presence is the signal. (lookup is empty under `helm template`,
+       so this only fires against a live cluster, which is where it matters.) */ -}}
+{{- $legacyPvc := printf "data-%s-minio-0" (include "ai-agents-observability.fullname" .) -}}
+{{- if and (lookup "v1" "PersistentVolumeClaim" .Release.Namespace $legacyPvc) (not .Values.objectStore.legacyMinioPvcAcknowledged) -}}
+{{- fail (printf "Found the PVC %s from the bundled MinIO this chart used to run. Upgrading would start an EMPTY Garage store while the database still references the transcripts in that PVC. Follow docs/deploy/migrate-from-minio.md, which has you set objectStore.legacyMinioPvcAcknowledged=true for the upgrade and then copy the data." $legacyPvc) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Resolve S3 settings: external if set, otherwise the bundled Garage store.
 */}}
 {{- define "ai-agents-observability.s3Endpoint" -}}
 {{- if .Values.externalS3.endpoint -}}
 {{- .Values.externalS3.endpoint -}}
 {{- else -}}
-{{- printf "http://%s-minio:9000" (include "ai-agents-observability.fullname" .) -}}
+{{- printf "http://%s-object-store:9000" (include "ai-agents-observability.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -102,7 +131,7 @@ Resolve S3 settings: external if set, otherwise bundled MinIO.
 {{- if .Values.externalS3.endpoint -}}
 {{- .Values.externalS3.accessKeyId -}}
 {{- else -}}
-{{- .Values.minio.auth.rootUser -}}
+{{- .Values.objectStore.auth.accessKeyId -}}
 {{- end -}}
 {{- end -}}
 
@@ -110,7 +139,7 @@ Resolve S3 settings: external if set, otherwise bundled MinIO.
 {{- if .Values.externalS3.endpoint -}}
 {{- .Values.externalS3.secretAccessKey -}}
 {{- else -}}
-{{- .Values.minio.auth.rootPassword -}}
+{{- .Values.objectStore.auth.secretAccessKey -}}
 {{- end -}}
 {{- end -}}
 
@@ -118,7 +147,7 @@ Resolve S3 settings: external if set, otherwise bundled MinIO.
 {{- if .Values.externalS3.endpoint -}}
 {{- .Values.externalS3.bucket -}}
 {{- else -}}
-{{- .Values.minio.bucket -}}
+{{- .Values.objectStore.bucket -}}
 {{- end -}}
 {{- end -}}
 

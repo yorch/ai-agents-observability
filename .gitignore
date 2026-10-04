@@ -25,7 +25,8 @@ packages/db/src/generated/
 # ── Local infra state ───────────────────────────────────────────
 # Local infra volumes created by `docker:infra:up` (root-owned).
 # Anchored to the repo root so it never shadows a source dir named `data`.
-# Data — root-level stack bind mounts only (Postgres/MinIO/Prometheus/Grafana).
+# Data — root-level stack bind mounts only (Postgres/Garage/Prometheus/Grafana,
+# plus the legacy data/minio store kept for migration).
 # Anchored with a leading slash so it does NOT match app-level data dirs such as
 # apps/ingest/src/data/ (which holds committed price-table JSON).
 /data/
@@ -62,7 +63,7 @@ apps/hook/bin/
 apps/hook/dist/
 # Rust launcher build output
 apps/hook/launcher/target/
-# MinIO local data
+# Legacy MinIO local data (pre-Garage)
 infra/.minio-data/
 # Claude Code internal (worktrees, session state)
 .claude/

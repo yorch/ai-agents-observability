@@ -1,0 +1,178 @@
+{{- if and .Values.objectStore.enabled (not .Values.externalS3.endpoint) -}}
+{{- $fullname := include "ai-agents-observability.fullname" . -}}
+{{- $secretName := printf "%s-object-store" $fullname -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- $rpcSecret := "" -}}
+{{- if and $existing $existing.data (index $existing.data "rpc-secret") -}}
+{{- $rpcSecret = index $existing.data "rpc-secret" | b64dec -}}
+{{- else -}}
+{{- /* Garage demands exactly 64 hex characters. Generated once and reused on
+       upgrade via lookup; RPC is bound to loopback so it is never a network
+       credential. */ -}}
+{{- $rpcSecret = sha256sum (randAlphaNum 64) -}}
+{{- end -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: object-store
+type: Opaque
+stringData:
+  access-key-id: {{ include "ai-agents-observability.s3AccessKey" . | quote }}
+  secret-access-key: {{ include "ai-agents-observability.s3SecretKey" . | quote }}
+  rpc-secret: {{ $rpcSecret | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-object-store
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: object-store
+data:
+  garage.toml: |
+    # Bundled single-node Garage. Mirrors infra/garage/garage.toml in the repo.
+    # No redundancy: use externalS3.* for production-grade durability.
+    metadata_dir = "/var/lib/garage/meta"
+    data_dir = "/var/lib/garage/data"
+    db_engine = "sqlite"
+    replication_factor = 1
+    rpc_bind_addr = "127.0.0.1:3901"
+    rpc_public_addr = "127.0.0.1:3901"
+
+    [s3_api]
+    s3_region = "us-east-1"
+    api_bind_addr = "0.0.0.0:9000"
+
+    [admin]
+    api_bind_addr = "127.0.0.1:3903"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}-object-store
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: object-store
+spec:
+  serviceName: {{ $fullname }}-object-store
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ai-agents-observability.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: object-store
+  template:
+    metadata:
+      labels:
+        {{- include "ai-agents-observability.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: object-store
+    spec:
+      containers:
+        - name: garage
+          image: "{{ .Values.objectStore.image.repository }}:{{ .Values.objectStore.image.tag }}"
+          imagePullPolicy: {{ .Values.objectStore.image.pullPolicy }}
+          # The image has no shell: exec-form only. Single-node mode creates the
+          # key and the bucket from GARAGE_DEFAULT_* on every start (idempotent),
+          # which is what makes the bucket exist at all.
+          args:
+            - /garage
+            - -c
+            - /etc/garage/garage.toml
+            - server
+            - --single-node
+            - --default-bucket
+          env:
+            - name: GARAGE_DEFAULT_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: access-key-id
+            - name: GARAGE_DEFAULT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: secret-access-key
+            - name: GARAGE_DEFAULT_BUCKET
+              value: {{ .Values.objectStore.bucket | quote }}
+            - name: GARAGE_RPC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: rpc-secret
+          ports:
+            - name: s3-api
+              containerPort: 9000
+              protocol: TCP
+          {{- with .Values.objectStore.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # `garage health` exits 0 when up and 1 when down (Garage >= 2.4.0).
+          startupProbe:
+            exec:
+              command: ["/garage", "-c", "/etc/garage/garage.toml", "health"]
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            exec:
+              command: ["/garage", "-c", "/etc/garage/garage.toml", "health"]
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command: ["/garage", "-c", "/etc/garage/garage.toml", "health"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/garage
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/garage/meta
+              subPath: meta
+            - name: data
+              mountPath: /var/lib/garage/data
+              subPath: data
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $fullname }}-object-store
+        {{- if not .Values.objectStore.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+  {{- if .Values.objectStore.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - {{ .Values.objectStore.persistence.accessMode | quote }}
+        {{- if .Values.objectStore.persistence.storageClass }}
+        storageClassName: {{ .Values.objectStore.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.objectStore.persistence.size | quote }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-object-store
+  labels:
+    {{- include "ai-agents-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: object-store
+spec:
+  type: ClusterIP
+  ports:
+    - name: s3-api
+      port: 9000
+      targetPort: s3-api
+      protocol: TCP
+  selector:
+    {{- include "ai-agents-observability.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: object-store
+{{- end -}}
