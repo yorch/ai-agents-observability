@@ -32,40 +32,42 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_agents_observability}
     restart: "no"
 
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    command: server /data --console-address ":9001"
+  # Renamed from `minio`. The `minio` network alias below keeps existing
+  # S3_ENDPOINT=http://minio:9000 values resolving, but user compose override
+  # files that reference the `minio` SERVICE must be renamed to `object-store`
+  # (docs/deploy/migrate-from-minio.md).
+  object-store:
+    image: ${OBJECT_STORE_IMAGE:-dxflrs/garage:v2.4.1}
+    # No shell in this image: exec-form only. Single-node mode creates the key
+    # and bucket from the GARAGE_DEFAULT_* variables on every start (idempotent).
+    command: ["/garage", "-c", "/etc/garage.toml", "server", "--single-node", "--default-bucket"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-devaccesskey}}
+      # Garage requires >= 16 characters. NEVER change this after first boot
+      # without rotating the key (garage key delete): a changed secret for an
+      # existing key id is fatal and the container crash-loops.
+      GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:-${MINIO_ROOT_PASSWORD:-devsecretkey-change-me}}
+      GARAGE_DEFAULT_BUCKET: ${S3_BUCKET:-transcripts}
+      # Fixed on purpose; RPC is bound to loopback in garage.toml, so this
+      # grants nothing to other containers. Must be exactly 64 hex characters.
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:-0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0}
     ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${S3_PORT:-${MINIO_PORT:-9000}}:9000"
     volumes:
-      - ./data/minio:/data
+      - ./infra/garage/garage.toml:/etc/garage.toml:ro
+      - ./data/garage/meta:/var/lib/garage/meta
+      - ./data/garage/data:/var/lib/garage/data
+    networks:
+      default:
+        aliases:
+          - minio
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live"]
+      test: ["CMD", "/garage", "-c", "/etc/garage.toml", "health"]
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 5s
     restart: unless-stopped
-
-  createbuckets:
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      sh -c "
-        mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
-        mc mb --ignore-existing local/transcripts &&
-        mc ilm rule add --expire-days 365 local/transcripts &&
-        echo 'Bucket setup complete'
-      "
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    restart: "no"
 
   prometheus:
     image: prom/prometheus:v3.14.0

@@ -13,7 +13,7 @@ Deploy the full stack by building all four application images from source on you
 - Docker with Compose v2.30 or newer
 - `just` 1.43 or newer
 - ~2 GB RAM available for the build (Bun + Next.js compilation)
-- Network access to pull base images on first build (`oven/bun:1.3.14-alpine`, `node:24-alpine`, `timescale/timescaledb`, `quay.io/minio/minio`, `quay.io/minio/mc`). For fully offline builds, mirror these to a local registry first.
+- Network access to pull base images on first build (`oven/bun:1.3.14-alpine`, `node:24-alpine`, `timescale/timescaledb`, `dxflrs/garage`). For fully offline builds, mirror these to a local registry first.
 
 ## Steps
 
@@ -42,7 +42,7 @@ just prod-source-up
 
 This single command:
 - Builds all four application images locally (`web`, `ingest`, `github-app`, `migrations-runner`)
-- Starts the infra stack (TimescaleDB, MinIO, Prometheus, Grafana)
+- Starts the infra stack (TimescaleDB, Garage object store, Prometheus, Grafana)
 - Runs migrations (one-shot, gates the app services)
 - Starts the app services
 
@@ -76,7 +76,7 @@ just prod-source-traefik-up
 Set `DOMAIN_APP`, `DOMAIN_INGEST`, `DOMAIN_GITHUB`, and `DOMAIN_GRAFANA` in
 `.env.production`. This overlay publishes no container ports on the host. Web,
 GitHub webhooks, ingest, and Grafana are reachable only through Traefik; PostgreSQL,
-MinIO, Prometheus, and all application metrics routes remain internal. The ingest
+The object store, Prometheus, and all application metrics routes remain internal. The ingest
 router exposes only `GET /health`, `POST /v1/events`, and
 `POST /v1/transcripts/:id`; the GitHub service router exposes only `GET /health` and
 `POST /webhooks/github`.

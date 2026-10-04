@@ -88,7 +88,7 @@ Set these before running:
 - `JWT_ED25519_PRIVATE_KEY` / `JWT_ED25519_PUBLIC_KEY` — JWT signing keys (required)
 - `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` — GitHub OAuth (required)
 - `GITHUB_HOST` — GitHub host (default: github.com)
-- `S3_*` — S3/MinIO config (for transcript proxy)
+- `S3_*` — S3-compatible object store config (for transcript proxy)
 - `ADMIN_SECRET` — admin endpoint protection (optional)
 README
 

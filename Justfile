@@ -22,6 +22,7 @@ dev-infra-config:
 # Start only local backing services for native app development.
 dev-infra-up:
     @test -f .env || { echo "Missing .env; run 'just dev-init' first" >&2; exit 1; }
+    @./scripts/check-object-store.sh .env
     docker compose --env-file .env -f docker-compose.infra.yml up -d
 
 # Stop local backing services while preserving data.
@@ -40,11 +41,13 @@ dev-config:
 # Start the fully Dockerized development stack.
 dev-up:
     @test -f .env || { echo "Missing .env; run 'just dev-init' first" >&2; exit 1; }
+    @./scripts/check-object-store.sh .env
     docker compose --env-file .env -f docker-compose.infra.yml -f docker-compose.app.yml up -d --build
 
 # Start Dockerized development with the GitHub App profile.
 dev-pr-loop-up:
     @test -f .env || { echo "Missing .env; run 'just dev-init' first" >&2; exit 1; }
+    @./scripts/check-object-store.sh .env
     docker compose --env-file .env -f docker-compose.infra.yml -f docker-compose.app.yml --profile pr-loop up -d --build
 
 # Stop the fully Dockerized development stack while preserving data.
@@ -77,26 +80,31 @@ prod-pull:
 # Start production from pre-built images.
 prod-up:
     @test -f "{{ prod_env }}" || { echo "Missing {{ prod_env }}; run 'just prod-init' first" >&2; exit 1; }
+    @./scripts/check-object-store.sh "{{ prod_env }}"
     APP_ENV_FILE="{{ prod_env }}" docker compose --env-file "{{ prod_env }}" -f docker-compose.infra.yml -f docker-compose.prod.yml up -d
 
 # Start production by building application images from source.
 prod-source-up:
     @test -f "{{ prod_env }}" || { echo "Missing {{ prod_env }}; run 'just prod-init' first" >&2; exit 1; }
+    @./scripts/check-object-store.sh "{{ prod_env }}"
     APP_ENV_FILE="{{ prod_env }}" docker compose --env-file "{{ prod_env }}" -f docker-compose.infra.yml -f docker-compose.prod.yml -f docker-compose.self-hosted.yml up -d --build
 
 # Start pre-built production images behind an existing Traefik instance.
 prod-traefik-up:
     @test -f "{{ prod_env }}" || { echo "Missing {{ prod_env }}; run 'just prod-init' first" >&2; exit 1; }
+    @./scripts/check-object-store.sh "{{ prod_env }}"
     APP_ENV_FILE="{{ prod_env }}" docker compose --env-file "{{ prod_env }}" -f docker-compose.infra.yml -f docker-compose.prod.yml -f docker-compose.traefik.yml up -d
 
 # Start source-built production behind an existing Traefik instance.
 prod-source-traefik-up:
     @test -f "{{ prod_env }}" || { echo "Missing {{ prod_env }}; run 'just prod-init' first" >&2; exit 1; }
+    @./scripts/check-object-store.sh "{{ prod_env }}"
     APP_ENV_FILE="{{ prod_env }}" docker compose --env-file "{{ prod_env }}" -f docker-compose.infra.yml -f docker-compose.prod.yml -f docker-compose.self-hosted.yml -f docker-compose.traefik.yml up -d --build
 
 # Start production with automatic application-image updates.
 prod-watchtower-up:
     @test -f "{{ prod_env }}" || { echo "Missing {{ prod_env }}; run 'just prod-init' first" >&2; exit 1; }
+    @./scripts/check-object-store.sh "{{ prod_env }}"
     APP_ENV_FILE="{{ prod_env }}" docker compose --env-file "{{ prod_env }}" -f docker-compose.infra.yml -f docker-compose.prod.yml -f docker-compose.watchtower.yml up -d
 
 # Stop production while preserving data.
@@ -110,3 +118,8 @@ prod-ps:
 # Follow production logs.
 prod-logs:
     APP_ENV_FILE="{{ prod_env }}" docker compose --env-file "{{ prod_env }}" -f docker-compose.infra.yml -f docker-compose.prod.yml logs -f
+
+# Copy an existing MinIO object store (./data/minio) into the bundled Garage store.
+# Stop the stack first. Never modifies ./data/minio. See docs/deploy/migrate-from-minio.md.
+migrate-object-store env_file=".env":
+    ./scripts/migrate-minio-to-garage.sh "{{ env_file }}"

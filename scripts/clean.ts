@@ -16,7 +16,7 @@
  * at workspace roots; anything else needs a line in EXTRA_PATHS.
  *
  * Deliberately NOT removed:
- *   - `data/` and `infra/.minio-data/` — stack state, not build output. Wiping
+ *   - `data/` (Postgres, Garage, and the legacy MinIO store) and `infra/.minio-data/` — stack state, not build output. Wiping
  *     these drops the database. That is what `docker:infra:down:v` is for, and
  *     it is marked destructive on purpose.
  *   - `node_modules/` — reinstalling is a separate, much slower decision.

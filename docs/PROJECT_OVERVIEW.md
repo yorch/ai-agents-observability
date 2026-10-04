@@ -83,7 +83,7 @@ than standing.
 - **Storage** — split three ways:
   - **TimescaleDB** `events` hypertable (the firehose) + 3 continuous aggregates
   - **Postgres** dimensional tables (sessions, users, teams, PRs, governance)
-  - **S3 / MinIO** for transcript blobs
+  - **S3-compatible object store** (bundled Garage, or any external S3) for transcript blobs
 - **Query / UI** (`apps/web`, Next.js 16, :3000) — read-only dashboards +
   governance workflows (grant request/approve, alert admin).
 

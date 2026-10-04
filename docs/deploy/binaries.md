@@ -84,9 +84,9 @@ chmod +x ingest-server-linux-x64
 
 # Set required env vars
 export DATABASE_URL=postgresql://user:pass@host:5432/ai_agents_observability
-export S3_ENDPOINT=http://minio:9000
-export S3_ACCESS_KEY_ID=minioadmin
-export S3_SECRET_ACCESS_KEY=minioadmin
+export S3_ENDPOINT=http://object-store:9000
+export S3_ACCESS_KEY_ID=<your-key-id>
+export S3_SECRET_ACCESS_KEY=<secret-at-least-16-chars>
 export S3_BUCKET=transcripts
 export S3_REGION=us-east-1
 export S3_FORCE_PATH_STYLE=true
@@ -127,9 +127,9 @@ export JWT_ED25519_PUBLIC_KEY=...
 export GITHUB_OAUTH_CLIENT_ID=...
 export GITHUB_OAUTH_CLIENT_SECRET=...
 export GITHUB_HOST=https://github.com
-export S3_ENDPOINT=http://minio:9000
-export S3_ACCESS_KEY_ID=minioadmin
-export S3_SECRET_ACCESS_KEY=minioadmin
+export S3_ENDPOINT=http://object-store:9000
+export S3_ACCESS_KEY_ID=<your-key-id>
+export S3_SECRET_ACCESS_KEY=<secret-at-least-16-chars>
 export S3_BUCKET=transcripts
 export S3_REGION=us-east-1
 export S3_FORCE_PATH_STYLE=true
@@ -154,8 +154,8 @@ Type=simple
 ExecStart=/opt/ai-agents-observability/ingest-server-linux-x64
 Environment=DATABASE_URL=postgresql://user:pass@localhost:5432/ai_agents_observability
 Environment=S3_ENDPOINT=http://localhost:9000
-Environment=S3_ACCESS_KEY_ID=minioadmin
-Environment=S3_SECRET_ACCESS_KEY=minioadmin
+Environment=S3_ACCESS_KEY_ID=<your-key-id>
+Environment=S3_SECRET_ACCESS_KEY=<secret-at-least-16-chars>
 Environment=S3_BUCKET=transcripts
 Environment=S3_REGION=us-east-1
 Environment=S3_FORCE_PATH_STYLE=true
@@ -212,8 +212,8 @@ Environment=GITHUB_OAUTH_CLIENT_ID=...
 Environment=GITHUB_OAUTH_CLIENT_SECRET=...
 Environment=GITHUB_HOST=https://github.com
 Environment=S3_ENDPOINT=http://localhost:9000
-Environment=S3_ACCESS_KEY_ID=minioadmin
-Environment=S3_SECRET_ACCESS_KEY=minioadmin
+Environment=S3_ACCESS_KEY_ID=<your-key-id>
+Environment=S3_SECRET_ACCESS_KEY=<secret-at-least-16-chars>
 Environment=S3_BUCKET=transcripts
 Environment=S3_REGION=us-east-1
 Environment=S3_FORCE_PATH_STYLE=true

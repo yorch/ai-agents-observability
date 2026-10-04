@@ -62,11 +62,34 @@ jobs:
           helm template ai-agents-observability "${CHART_DIR}" \
             --set timescaledb.enabled=false \
             --set externalDatabase.url=postgresql://u:p@db:5432/app \
-            --set minio.enabled=false \
+            --set objectStore.enabled=false \
             --set externalS3.endpoint=https://s3.example.com \
             --set ingress.enabled=true \
             --set githubAppIngress.enabled=true \
             > /dev/null
+
+      - name: Render chart (bundled object store explicit)
+        run: |
+          helm template ai-agents-observability "${CHART_DIR}" \
+            --set objectStore.auth.secretAccessKey=0123456789abcdef0123 \
+            > "${RUNNER_TEMP}/default.yaml"
+          grep -q 'app.kubernetes.io/component: object-store' "${RUNNER_TEMP}/default.yaml"
+
+      - name: Legacy minio.* values must fail loudly
+        run: |
+          if helm template ai-agents-observability "${CHART_DIR}" --set minio.enabled=false > /dev/null 2> "${RUNNER_TEMP}/minio.err"; then
+            echo "expected the render to fail when minio.* is set" >&2
+            exit 1
+          fi
+          grep -q 'migrate-from-minio' "${RUNNER_TEMP}/minio.err"
+
+      - name: Disabling the bundled store without external S3 must fail
+        run: |
+          if helm template ai-agents-observability "${CHART_DIR}" --set objectStore.enabled=false > /dev/null 2> "${RUNNER_TEMP}/noS3.err"; then
+            echo "expected the render to fail without externalS3.endpoint" >&2
+            exit 1
+          fi
+          grep -q 'requires externalS3.endpoint' "${RUNNER_TEMP}/noS3.err"
 
   publish:
     if: github.event_name == 'workflow_dispatch'

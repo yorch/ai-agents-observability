@@ -2,6 +2,12 @@
 
 This project uses a two-phase release process. The key invariant: **nothing reaches a registry without human approval of the version number.**
 
+## Breaking releases that need operator action
+
+Some `feat!:` releases require self-hosters to do something before the new version starts. They are linked from the README so they are found before the upgrade, not after:
+
+- Bundled MinIO replaced by Garage: [migrate-from-minio.md](./migrate-from-minio.md). Call this out at the top of the GitHub Release notes for that version.
+
 ## How it works
 
 ```text

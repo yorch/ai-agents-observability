@@ -32,8 +32,8 @@ export class TranscriptTooLargeError extends Error {
 // Decompress → split JSONL → redact each line → recompress as zstd.
 // Accepts zstd (hook client + server-to-server) or gzip (legacy hook clients).
 // Memory-bounded by `maxOutputLength` so a decompression bomb can't OOM the
-// process. v1 keeps the whole transcript in memory because single-PUT to MinIO
-// is simpler than streaming multipart; switch to a streaming pipeline
+// process. v1 keeps the whole transcript in memory because single-PUT to the object
+// store is simpler than streaming multipart; switch to a streaming pipeline
 // (`createZstdDecompress` + `node:readline`) if real sessions approach the cap.
 //
 // All zlib ops run on the libuv threadpool (async variants) so they don't block

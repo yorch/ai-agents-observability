@@ -40,8 +40,11 @@ APP_ENV_FILE=.env.production docker compose --env-file .env.production \
 
 Compose v2.30 or newer is required for raw service env files, which preserve literal
 `$` characters in application secrets. Values Compose interpolates into the model
-(such as bundled database and MinIO credentials) must represent a literal `$` as `$$`.
+(such as bundled database and object-store credentials) must represent a literal `$` as `$$`.
 See [README.md](../../README.md) for the full setup guide.
+
+**Upgrading from the MinIO-based stack?** See [migrate-from-minio.md](./migrate-from-minio.md)
+before pulling the new release. The bundled object store changed and existing data needs a copy.
 
 For an existing Traefik instance, set `DOMAIN_APP`, `DOMAIN_INGEST`, `DOMAIN_GITHUB`,
 and `DOMAIN_GRAFANA`, then run:
@@ -51,7 +54,7 @@ just prod-traefik-up
 ```
 
 The Traefik overlay publishes no container ports on the host. It exposes web, GitHub
-webhooks, ingest, and Grafana through HTTPS domains; PostgreSQL, MinIO, and Prometheus
+webhooks, ingest, and Grafana through HTTPS domains; PostgreSQL, the object store, and Prometheus
 remain internal. Metrics routes are not exposed through Traefik. Only `/health`,
 `/v1/events`, and `/v1/transcripts/:id` are routed on the ingest domain; the GitHub
 service domain similarly allows only `/health` and `/webhooks/github`. Set
@@ -79,7 +82,7 @@ See [air-gapped.md](./air-gapped.md).
 
 ### 4. Kubernetes (Helm chart)
 
-A Helm chart packages all four services + TimescaleDB + MinIO. Supports internal registries, external DB/S3, ingress, and air-gapped deployments.
+A Helm chart packages all four services + TimescaleDB + a bundled Garage object store. Supports internal registries, external DB/S3, ingress, and air-gapped deployments.
 
 ```bash
 helm install ai-agents-observability deploy/helm/ai-agents-observability/ -f my-values.yaml

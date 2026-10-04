@@ -1,6 +1,6 @@
 # Overlay for deploying behind an existing Traefik instance. Layer it on top of
-# the infra + prod compose files (the prod services depend on postgres/minio,
-# which are defined in docker-compose.infra.yml):
+# the infra + prod compose files (the prod services depend on postgres and the
+# bundled object store, which are defined in docker-compose.infra.yml):
 #   just prod-traefik-up
 #
 # Assumes Traefik is already running with an external network named `traefik`
@@ -11,7 +11,7 @@ services:
   postgres:
     ports: !reset []
 
-  minio:
+  object-store:
     ports: !reset []
 
   prometheus:

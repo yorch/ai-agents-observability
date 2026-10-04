@@ -52,8 +52,8 @@ Migrations are disabled in values. Apply them manually:
 - Using external database: {{ .Values.externalDatabase.url | default "(not set — check values!)" }}
 {{- end }}
 
-{{- if .Values.minio.enabled }}
-- MinIO is running as a bundled StatefulSet. For production, consider external S3.
+{{- if and .Values.objectStore.enabled (not .Values.externalS3.endpoint) }}
+- Garage is running as a bundled single-node StatefulSet (no redundancy). For production, use external S3.
 {{- else }}
 - Using external S3: {{ .Values.externalS3.endpoint | default "(not set — check values!)" }}
 {{- end }}

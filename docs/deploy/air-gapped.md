@@ -144,5 +144,5 @@ There is no auto-update. To update:
 
 - **No auto-update by design.** Every update is a deliberate, verified transfer.
 - **Bundle size.** Four images at ~200 MB each = ~800 MB compressed. For very large images, consider splitting the transfer or using a different mechanism.
-- **Base images for infra.** The `docker-compose.infra.yml` file references `timescale/timescaledb`, `quay.io/minio/minio`, etc. These also need to be available offline. Either pre-load them on the air-gapped Docker daemon, or mirror them to a local registry.
+- **Base images for infra.** The `docker-compose.infra.yml` file references `timescale/timescaledb`, `dxflrs/garage` (one image; the old MinIO and `mc` images are gone), etc. These also need to be available offline. Either pre-load them on the air-gapped Docker daemon, or mirror them to a local registry.
 - **Signature verification offline.** Cosign keyless signatures reference the online transparency log. For fully offline verification, export the cosign bundle during the online step and use `cosign verify --bundle` on the air-gapped machine.
