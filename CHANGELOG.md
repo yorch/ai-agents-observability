@@ -6,6 +6,12 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v3.0.0 (2026-10-04)
+
+### Breaking Changes
+
+- deploy: replace deprecated MinIO with Garage as the bundled object store (#274)
+
 ## v2.8.1 (2026-10-02)
 
 ### Bug Fixes
