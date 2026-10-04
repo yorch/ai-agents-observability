@@ -3,7 +3,7 @@ id: P15-003
 title: Replace the deprecated MinIO with Garage as the bundled object store
 phase: 15
 workstream: A
-status: review
+status: done
 owner: claude
 depends_on: [P1-002, P1-012]
 blocks: []
@@ -36,29 +36,31 @@ passes every call ingest makes. A real MinIO → Garage copy passes
 although `rclone check` reports no differences. `helm lint` and `helm template`
 (3.18.6) pass, and the chart's refusal cases fail with clear messages.
 
-The status is `review`, not `done`, because of the lesson recorded under Phase 15:
-a claim verified only by reading is a hypothesis.
+It stayed in `review` until those parts were run, because of the lesson recorded
+under Phase 15: a claim verified only by reading is a hypothesis. The project owner
+ran the real-environment criteria below and reported all of them passing on
+2026-10-04, after v3.0.0 was published.
 
 ## Acceptance criteria
 
-- [ ] `docker compose config` succeeds for every file combination the Justfile
+- [x] `docker compose config` succeeds for every file combination the Justfile
       recipes use (`docker-compose.self-hosted.yml` and the traefik file are
       overrides, not standalone stacks) with a stock `.env` from `.env.example`,
       and `just prod-config` passes.
-- [ ] `just dev-up` on a clean checkout brings `object-store` to healthy on Linux
+- [x] `just dev-up` on a clean checkout brings `object-store` to healthy on Linux
       (bind-mount ownership of `./data/garage`) and on macOS; ingest's `/readyz` is
       green and a transcript upload round-trips.
-- [ ] `just migrate-object-store` on a copy of a real, populated `./data/minio`
+- [x] `just migrate-object-store` on a copy of a real, populated `./data/minio`
       completes, writes `data/garage/.minio-migration-complete`, and leaves
       `./data/minio` byte-identical; the stack then serves old transcripts and
       judge rationales.
-- [ ] Starting the stack with a populated `./data/minio` and no completion marker
+- [x] Starting the stack with a populated `./data/minio` and no completion marker
       is refused by `scripts/check-object-store.sh`.
-- [ ] `helm upgrade` from the last MinIO-based chart onto a live cluster fails
+- [x] `helm upgrade` from the last MinIO-based chart onto a live cluster fails
       while the legacy MinIO PVC exists and `objectStore.legacyMinioPvcAcknowledged`
       is unset, and succeeds after following the Kubernetes recipe in the
       migration guide.
-- [ ] The v3.0.0 GitHub Release notes open with a link to
+- [x] The v3.0.0 GitHub Release notes open with a link to
       `docs/deploy/migrate-from-minio.md` (see Implementation notes).
 
 ## Implementation notes
@@ -68,6 +70,8 @@ and force-pushes the `release/vX.Y.Z` branch on every push to `main`, so a callo
 edited into that branch is lost. Add it once the release is published:
 `gh release edit v3.0.0 --notes-file <file>` with the callout prepended to the
 existing body (`gh release view v3.0.0 --json body -q .body`).
+Done on 2026-10-04: the published notes open with an `[!IMPORTANT]` callout
+linking the guide at the `v3.0.0` tag.
 
 ## Files touched
 
