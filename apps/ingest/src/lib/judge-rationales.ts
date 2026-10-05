@@ -1,8 +1,10 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
 import { redact } from '@ai-agents-observability/redaction';
 import { SCORER_NAMES, SCORERS } from '@ai-agents-observability/schemas';
-import { DeleteObjectsCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectsCommand, type S3Client } from '@aws-sdk/client-s3';
 import type { Logger } from 'pino';
+
+import { putObject, type SseRequest } from './s3';
 
 /**
  * Judge rationale artifacts (P13-009).
@@ -68,6 +70,9 @@ export async function putJudgeRationale(
   s3: S3Client,
   bucket: string,
   artifact: JudgeRationaleArtifact,
+  // Required (may be undefined) so a new caller cannot silently skip SSE.
+  sse: SseRequest | undefined,
+  logger?: Logger,
 ): Promise<{ key: string; redactionFlags: string[] }> {
   const completion = redact(artifact.taskCompletion.rationale);
   const coherence = redact(artifact.planCoherence.rationale);
@@ -79,13 +84,16 @@ export async function putJudgeRationale(
   };
 
   const key = judgeRationaleKey(artifact.sessionId, artifact.scorerVersion);
-  await s3.send(
-    new PutObjectCommand({
-      Body: JSON.stringify(body),
-      Bucket: bucket,
-      ContentType: 'application/json',
-      Key: key,
-    }),
+  // Same helper as transcripts: identical SSE headers and the same
+  // sse_unconfirmed_total / once-per-process WARN when the store does not echo it.
+  await putObject(
+    { bucket, client: s3 },
+    key,
+    new TextEncoder().encode(JSON.stringify(body)),
+    'application/json',
+    undefined,
+    sse,
+    logger,
   );
 
   return { key, redactionFlags: [...new Set([...completion.flags, ...coherence.flags])] };

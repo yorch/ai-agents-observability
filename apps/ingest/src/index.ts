@@ -12,6 +12,7 @@ import { startScheduler } from './jobs/scheduler';
 import { AnthropicJudgeClient } from './lib/judge-client';
 import { createLogger } from './lib/logger';
 import { buildPriceTableRegistry } from './lib/price-tables';
+import { sseRequestFromConfig } from './lib/s3';
 
 const config = loadConfig();
 
@@ -127,6 +128,7 @@ if (config.judge_anthropic_api_key && config.judge_operator_user_id && !judgeRev
     'judge: configured model has no registered revision — the judge stays disabled',
   );
 }
+const sseRequest = sseRequestFromConfig(config);
 const judge =
   config.judge_anthropic_api_key && config.judge_operator_user_id && judgeRevision
     ? {
@@ -140,6 +142,7 @@ const judge =
           operatorUserId: config.judge_operator_user_id,
           revision: judgeRevision,
           sampleRate: config.judge_sample_rate,
+          sse: sseRequest,
         },
       }
     : undefined;

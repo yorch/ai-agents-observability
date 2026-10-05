@@ -16,6 +16,7 @@ import type { Logger } from 'pino';
 
 import type { JudgeModelClient } from '../lib/judge-client';
 import { putJudgeRationale } from '../lib/judge-rationales';
+import type { SseRequest } from '../lib/s3';
 import { scoreUpserts } from '../lib/scores';
 import { downloadAndParseTranscript, extractTextContent } from './index-transcripts';
 import { type JobRawDb, withJobRun } from './job-run';
@@ -82,6 +83,13 @@ export type JudgeRunConfig = {
   ownSessionsOnly?: boolean;
   revision: JudgeRevision;
   sampleRate: number;
+  /**
+   * SSE for rationale objects: `sseRequestFromConfig(config)`, which is
+   * undefined when S3_SSE_ALGORITHM is unset. Deliberately REQUIRED (though it
+   * may be undefined): an optional field silently meant "no SSE" for every
+   * caller that forgot it, which is exactly how rationales went unencrypted.
+   */
+  sse: SseRequest | undefined;
 };
 
 type JudgeDb = JobRawDb & Pick<PrismaClient, 'auditLog'>;
@@ -299,15 +307,21 @@ export async function judgeOneSession(
     return false;
   }
 
-  const { key: rationaleRef, redactionFlags } = await putJudgeRationale(s3, bucket, {
-    createdAt: new Date().toISOString(),
-    judgeModel: revision.model,
-    judgePromptVersion: revision.promptVersion,
-    planCoherence: verdict.plan_coherence,
-    scorerVersion: revision.scorerVersion,
-    sessionId: candidate.session_id,
-    taskCompletion: verdict.task_completion,
-  });
+  const { key: rationaleRef, redactionFlags } = await putJudgeRationale(
+    s3,
+    bucket,
+    {
+      createdAt: new Date().toISOString(),
+      judgeModel: revision.model,
+      judgePromptVersion: revision.promptVersion,
+      planCoherence: verdict.plan_coherence,
+      scorerVersion: revision.scorerVersion,
+      sessionId: candidate.session_id,
+      taskCompletion: verdict.task_completion,
+    },
+    config.sse,
+    logger,
+  );
 
   // One model call produced both labels, so its cost is split evenly across the
   // two rows: a cost view that sums `scores.cost_usd` then reports the true
