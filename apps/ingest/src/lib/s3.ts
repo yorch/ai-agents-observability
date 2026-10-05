@@ -37,6 +37,31 @@ export type SseRequest = {
   endpointHost?: string;
 };
 
+/**
+ * Builds the SSE request from ingest config, or undefined when S3_SSE_ALGORITHM
+ * is unset. One builder for every writer (transcripts, judge rationales) so they
+ * cannot drift apart on what "SSE configured" means.
+ */
+export function sseRequestFromConfig(config: {
+  s3_endpoint: string;
+  s3_kms_key_id?: string | undefined;
+  s3_sse_algorithm?: string | undefined;
+}): SseRequest | undefined {
+  if (!config.s3_sse_algorithm) {
+    return undefined;
+  }
+  return {
+    algorithm: config.s3_sse_algorithm as ServerSideEncryption,
+    endpointHost: new URL(config.s3_endpoint).host,
+    // config.ts documents S3_KMS_KEY_ID as ignored unless the algorithm is
+    // aws:kms (or aws:kms:dsse). Sending SSEKMSKeyId alongside AES256 makes AWS
+    // reject the PUT, so honour that here for every writer.
+    ...(config.s3_kms_key_id && config.s3_sse_algorithm.startsWith('aws:kms')
+      ? { kmsKeyId: config.s3_kms_key_id }
+      : {}),
+  };
+}
+
 // One warning per process, not per object: a store that ignores SSE ignores it on
 // every upload, and one line per transcript would bury the log. The counter in
 // metrics.ts still ticks per object, so the volume stays observable.

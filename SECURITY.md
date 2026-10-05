@@ -149,9 +149,10 @@ responsibilities at the infrastructure layer:
 - **Encryption at rest:** Configure Postgres and S3 encryption at rest
   according to your infrastructure provider. The application does not manage
   disk-level encryption. For external S3 deployments, set
-  `S3_SSE_ALGORITHM` (`AES256` or `aws:kms`) and optionally `S3_KMS_KEY_ID` to
-  enable server-side encryption on transcript object uploads. When unset, no
-  SSE headers are sent (the default). **Do not rely on this against the bundled
+  `S3_SSE_ALGORITHM` (`AES256` or `aws:kms`) and optionally `S3_KMS_KEY_ID`
+  (used only with `aws:kms`) to enable server-side encryption on transcript and
+  judge-rationale object uploads. When unset, no SSE headers are sent (the
+  default). **Do not rely on this against the bundled
   Garage store:** it accepts the SSE headers without error but does nothing with
   them, so objects are stored unencrypted. Use filesystem/volume encryption
   under `./data/garage` instead. Ingest detects this without store-specific
@@ -160,9 +161,9 @@ responsibilities at the infrastructure layer:
   not echo it, ingest logs one `ingest.s3.sse_unconfirmed` WARN per process
   (naming the requested algorithm and endpoint host) and increments the
   `sse_unconfirmed_total` Prometheus counter per upload. Uploads still succeed.
-  For `aws:kms` only the algorithm is verified, not the key id. Only transcript
-  uploads are checked (and encrypted): judge-rationale objects are written
-  without SSE headers today. Treat the warning as "the store did not encrypt
+  For `aws:kms` only the algorithm is verified, not the key id. Transcript and
+  judge-rationale uploads share one write path, so both are encrypted and
+  checked the same way. Treat the warning as "the store did not encrypt
   this object as asked", not automatically as "plaintext": Cloudflare R2, for
   example, ignores the SSE header but encrypts everything at rest, while the
   bundled Garage stores plaintext. MinIO without a KMS rejects the upload

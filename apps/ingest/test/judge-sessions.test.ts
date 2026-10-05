@@ -204,16 +204,23 @@ function transcriptBody(): Uint8Array {
 
 function makeMockS3(ops: string[]) {
   const gets: string[] = [];
-  const puts: { body: string; key: string }[] = [];
+  const puts: { body: string; key: string; sse: unknown; sseKmsKeyId: unknown }[] = [];
 
   const client = {
     _gets: gets,
     _puts: puts,
     send: vi.fn(async (cmd: { input: Record<string, unknown> }) => {
       const input = cmd.input;
-      if (typeof input.Body === 'string') {
+      if (input.Body instanceof Uint8Array || typeof input.Body === 'string') {
         ops.push('put');
-        puts.push({ body: input.Body, key: String(input.Key) });
+        const body =
+          typeof input.Body === 'string' ? input.Body : new TextDecoder().decode(input.Body);
+        puts.push({
+          body,
+          key: String(input.Key),
+          sse: input.ServerSideEncryption,
+          sseKmsKeyId: input.SSEKMSKeyId,
+        });
         return {};
       }
       if (input.Delete) {
@@ -248,6 +255,7 @@ function makeConfig(overrides: Partial<JudgeRunConfig> = {}): JudgeRunConfig {
     operatorUserId: OPERATOR,
     revision: REVISION,
     sampleRate: 0.1,
+    sse: undefined,
     ...overrides,
   };
 }
@@ -476,6 +484,21 @@ describe('scoring', () => {
     for (const row of db._scores) {
       expect(row.rationaleRef).toBe(put?.key);
     }
+  });
+
+  it('encrypts the rationale with the run config SSE (the same as transcripts)', async () => {
+    const { s3 } = await run(
+      db,
+      makeConfig({ sse: { algorithm: 'aws:kms', kmsKeyId: 'alias/transcripts' } }),
+      makeJudgeClient(),
+    );
+    expect(s3._puts).toHaveLength(1);
+    expect(s3._puts[0]).toMatchObject({ sse: 'aws:kms', sseKmsKeyId: 'alias/transcripts' });
+  });
+
+  it('sends no SSE headers on rationales when SSE is not configured', async () => {
+    const { s3 } = await run(db, makeConfig(), makeJudgeClient());
+    expect(s3._puts[0]?.sse).toBeUndefined();
   });
 
   it('writes nothing when the reply fails the constrained schema', async () => {

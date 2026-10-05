@@ -105,7 +105,8 @@ const ConfigSchema = z.object({
     .optional()
     .transform((v) => v !== 'false' && v !== '0')
     .default(true),
-  // KMS key ID/ARN when s3_sse_algorithm is 'aws:kms'. Ignored otherwise.
+  // KMS key ID/ARN when s3_sse_algorithm is 'aws:kms' (or 'aws:kms:dsse'). Ignored
+  // otherwise (enforced in lib/s3.ts sseRequestFromConfig).
   s3_kms_key_id: z.string().optional(),
   s3_region: z.string().default('us-east-1'),
   s3_secret_access_key: z.string().min(1),

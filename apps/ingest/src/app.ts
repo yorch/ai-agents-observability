@@ -1,11 +1,12 @@
 import type { PrismaClient } from '@ai-agents-observability/db';
-import type { S3Client, ServerSideEncryption } from '@aws-sdk/client-s3';
+import type { S3Client } from '@aws-sdk/client-s3';
 import { Hono } from 'hono';
 import type { Logger } from 'pino';
 
 import type { Config } from './config';
 import { registry } from './lib/metrics';
 import { buildPriceTableRegistry } from './lib/price-tables';
+import { sseRequestFromConfig } from './lib/s3';
 import { authRequired } from './middleware/auth';
 import { loggerMiddleware } from './middleware/logger';
 import { rateLimitMiddleware } from './middleware/rate-limit';
@@ -84,21 +85,14 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
     '/v1/events',
     eventsRouter(deps.db, priceTables, deps.logger, config.jira_project_keys),
   );
+  const sse = sseRequestFromConfig(config);
   app.route(
     '/v1/transcripts',
     transcriptsRouter(
       {
         db: deps.db,
         s3: deps.s3,
-        ...(config.s3_sse_algorithm
-          ? {
-              sse: {
-                algorithm: config.s3_sse_algorithm as ServerSideEncryption,
-                endpointHost: new URL(config.s3_endpoint).host,
-                ...(config.s3_kms_key_id ? { kmsKeyId: config.s3_kms_key_id } : {}),
-              },
-            }
-          : {}),
+        ...(sse ? { sse } : {}),
       },
       deps.logger,
     ),
