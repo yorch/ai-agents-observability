@@ -6,6 +6,16 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v3.1.0 (2026-10-05)
+
+### Features
+
+- ingest: warn when the object store does not confirm requested SSE (#278)
+
+### Bug Fixes
+
+- ingest: apply configured SSE to judge-rationale uploads (#279)
+
 ## v3.0.0 (2026-10-04)
 
 ### Breaking Changes
