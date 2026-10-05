@@ -94,6 +94,7 @@ export function createApp(config: Config, deps: AppDeps): Hono<AppEnv> {
           ? {
               sse: {
                 algorithm: config.s3_sse_algorithm as ServerSideEncryption,
+                endpointHost: new URL(config.s3_endpoint).host,
                 ...(config.s3_kms_key_id ? { kmsKeyId: config.s3_kms_key_id } : {}),
               },
             }

@@ -112,7 +112,8 @@ const ConfigSchema = z.object({
   // Optional server-side encryption for S3 transcript objects. Set to 'AES256'
   // for SSE-S3 or 'aws:kms' for SSE-KMS. When unset, no SSE headers are sent
   // (the bundled Garage store accepts SSE headers but does NOT encrypt; see
-  // SECURITY.md).
+  // SECURITY.md). When set, ingest checks that each PutObject response echoes the
+  // algorithm and logs one WARN (plus sse_unconfirmed_total) if the store did not.
   s3_sse_algorithm: z.string().optional(),
   // P7-007 spike. Gates semantic-search prototype. Accepts "1" or "true". No effect on
   // production paths when unset.

@@ -154,7 +154,19 @@ responsibilities at the infrastructure layer:
   SSE headers are sent (the default). **Do not rely on this against the bundled
   Garage store:** it accepts the SSE headers without error but does nothing with
   them, so objects are stored unencrypted. Use filesystem/volume encryption
-  under `./data/garage` instead.
+  under `./data/garage` instead. Ingest detects this without store-specific
+  checks: AWS S3 echoes the algorithm in the PutObject response when it
+  encrypted the object, so if `S3_SSE_ALGORITHM` is set and the response does
+  not echo it, ingest logs one `ingest.s3.sse_unconfirmed` WARN per process
+  (naming the requested algorithm and endpoint host) and increments the
+  `sse_unconfirmed_total` Prometheus counter per upload. Uploads still succeed.
+  For `aws:kms` only the algorithm is verified, not the key id. Only transcript
+  uploads are checked (and encrypted): judge-rationale objects are written
+  without SSE headers today. Treat the warning as "the store did not encrypt
+  this object as asked", not automatically as "plaintext": Cloudflare R2, for
+  example, ignores the SSE header but encrypts everything at rest, while the
+  bundled Garage stores plaintext. MinIO without a KMS rejects the upload
+  instead, and SeaweedFS echoes `AES256`.
 - **Secret management:** No secrets are hardcoded in the codebase. All secrets
   (JWT signing keys, database credentials, S3 credentials, OAuth client
   secrets, API keys) must be provided via explicit environment variables. Use a

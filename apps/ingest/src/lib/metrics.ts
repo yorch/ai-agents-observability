@@ -31,6 +31,15 @@ export const transcriptsStoredTotal = new Counter({
   registers: [registry],
 });
 
+// PutObject with SSE requested (S3_SSE_ALGORITHM) whose response did not echo the
+// requested algorithm: the store ignored the headers and the object is stored
+// unencrypted. Unlabelled; the one-time warn log carries the details.
+export const sseUnconfirmedTotal = new Counter({
+  help: 'Transcript uploads where SSE was requested but the object store did not confirm it',
+  name: 'sse_unconfirmed_total',
+  registers: [registry],
+});
+
 // A model absent from the price table bills $0 despite real token usage. This
 // counter makes that visible on the ops dashboard rather than only in logs, so
 // an unpriced (e.g. newly released, or non-Anthropic) model is caught quickly.
