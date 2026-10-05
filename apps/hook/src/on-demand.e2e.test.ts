@@ -184,11 +184,21 @@ maybe('on-demand mode, compiled binary', () => {
     // would never have completed an upload.
     expect(ingest.violations).toEqual([]);
     await until(() => queueDepth(m) === 0, 5_000, 'queue empty');
-    const lastOk = m.db(
-      (db) =>
-        (db.query('SELECT last_drain_ok_at AS t FROM drain_state').get() as { t: number | null }).t,
+    // Recorded when the drain pass ends, after the transcript upload and the
+    // drainer's re-checks, so it can land a moment after the queue empties.
+    await until(
+      () =>
+        m.db(
+          (db) =>
+            (
+              db.query('SELECT last_drain_ok_at AS t FROM drain_state').get() as {
+                t: number | null;
+              }
+            ).t,
+        ) !== null,
+      5_000,
+      'last_drain_ok_at',
     );
-    expect(lastOk).not.toBeNull();
   }, 60_000);
 
   // The commonest ending of a session: the last answer, then `/exit` seconds later.
