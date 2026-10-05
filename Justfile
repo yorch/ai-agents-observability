@@ -33,6 +33,10 @@ dev-infra-down:
 dev-infra-logs:
     docker compose --env-file .env -f docker-compose.infra.yml logs -f
 
+# Show local backing-service status.
+dev-infra-ps:
+    docker compose --env-file .env -f docker-compose.infra.yml ps
+
 # Validate the fully Dockerized development Compose model.
 dev-config:
     @test -f .env || { echo "Missing .env; run 'just dev-init' first" >&2; exit 1; }
