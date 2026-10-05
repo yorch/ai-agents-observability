@@ -4,14 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { PrismaClient } from '@ai-agents-observability/db';
-import { S3ServiceException, type ServerSideEncryption } from '@aws-sdk/client-s3';
+import { S3ServiceException } from '@aws-sdk/client-s3';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { Logger } from 'pino';
 import { z } from 'zod';
 
 import { transcriptsStoredTotal } from '../lib/metrics';
-import { objectMetadata, putObject, type S3Deps, transcriptKey } from '../lib/s3';
+import { objectMetadata, putObject, type S3Deps, type SseRequest, transcriptKey } from '../lib/s3';
 import { processTranscript, TranscriptTooLargeError } from '../lib/transcript-pipeline';
 import type { AppEnv } from '../types';
 
@@ -49,7 +49,7 @@ type SessionRepo = Pick<PrismaClient, 'session'>;
 export type TranscriptsDeps = {
   db: SessionRepo;
   s3: S3Deps;
-  sse?: { algorithm: ServerSideEncryption; kmsKeyId?: string };
+  sse?: SseRequest;
 };
 
 // Parses a Content-Type header value into its bare MIME, dropping parameters
@@ -248,6 +248,7 @@ export function transcriptsRouter(deps: TranscriptsDeps, logger: Logger): Hono<A
               [UPLOAD_SHA_METADATA_KEY]: sha256,
             },
             deps.sse,
+            logger,
           );
         } catch (err) {
           if (err instanceof S3ServiceException) {

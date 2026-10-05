@@ -1,9 +1,10 @@
 import { zstdCompressSync } from 'node:zlib';
 
 import type { S3Client } from '@aws-sdk/client-s3';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../src/app';
+import { resetSseWarningForTests } from '../src/lib/s3';
 import { makeTestConfig, makeTestDeps } from './helpers';
 
 const USER_ID = '00000000-0000-0000-0000-000000000001';
@@ -128,5 +129,49 @@ describe('S3 server-side encryption', () => {
     expect(res.status).toBe(201);
     expect(sent[0]?.ServerSideEncryption).toBeUndefined();
     expect(sent[0]?.SSEKMSKeyId).toBeUndefined();
+  });
+});
+
+// Through the real route + createApp wiring, not just the lib/s3 helper: the
+// check only protects anyone if routes/transcripts.ts passes the logger and
+// app.ts passes the SSE request (with a credential-free endpoint host).
+describe('S3 SSE confirmation through POST /v1/transcripts', () => {
+  beforeEach(() => resetSseWarningForTests());
+
+  async function upload(echo: Record<string, string>, endpoint = 'http://localhost:9000') {
+    const deps = sessionDeps();
+    deps.s3.client = { send: vi.fn(async () => echo) } as unknown as S3Client;
+    const warn = vi.fn();
+    (deps.logger as unknown as { warn: typeof warn }).warn = warn;
+    const config = makeTestConfig();
+    config.s3_sse_algorithm = 'AES256';
+    config.s3_endpoint = endpoint;
+    const app = createApp(config, deps);
+    const res = await app.request(`/v1/transcripts/${SESSION_ID}`, {
+      body: compress('{"role":"user","content":"hi"}\n'),
+      headers: { Authorization: TOKEN, 'Content-Type': 'application/x-zstd' },
+      method: 'POST',
+    });
+    return { res, warn };
+  }
+
+  it('warns (and still stores) when the store does not echo the algorithm', async () => {
+    const { res, warn } = await upload({}, 'http://AKIAEXAMPLE:s3cr3t@store.internal:9000');
+    expect(res.status).toBe(201);
+    const calls = warn.mock.calls.filter((c) => String(c[1]).includes('sse_unconfirmed'));
+    expect(calls).toHaveLength(1);
+    const fields = calls[0]?.[0] as Record<string, unknown>;
+    expect(fields).toEqual({
+      confirmed: null,
+      endpointHost: 'store.internal:9000',
+      requested: 'AES256',
+    });
+    expect(JSON.stringify(calls[0])).not.toContain('s3cr3t');
+  });
+
+  it('does not warn when the store echoes the requested algorithm', async () => {
+    const { res, warn } = await upload({ ServerSideEncryption: 'AES256' });
+    expect(res.status).toBe(201);
+    expect(warn.mock.calls.filter((c) => String(c[1]).includes('sse_unconfirmed'))).toHaveLength(0);
   });
 });
