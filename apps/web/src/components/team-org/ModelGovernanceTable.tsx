@@ -1,18 +1,20 @@
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import type { TeamModelGovernanceRow } from '@/lib/org-queries';
 
-export function ModelGovernanceTable({ rows }: { rows: TeamModelGovernanceRow[] }) {
+export async function ModelGovernanceTable({ rows }: { rows: TeamModelGovernanceRow[] }) {
+  const { dict } = await getTranslations();
   if (rows.length === 0) {
     return (
-      <Card title="Model governance by team" contentClassName="space-y-3">
-        <CardEmpty>No model usage in this period.</CardEmpty>
+      <Card title={dict.org.modelGovernance.title} contentClassName="space-y-3">
+        <CardEmpty>{dict.org.modelGovernance.empty}</CardEmpty>
       </Card>
     );
   }
 
   return (
-    <Card title="Model governance by team" contentClassName="space-y-3">
-      <p className="text-xs text-text-3">Top model by cost per team (top 10 teams).</p>
+    <Card title={dict.org.modelGovernance.title} contentClassName="space-y-3">
+      <p className="text-xs text-text-3">{dict.org.modelGovernance.caption}</p>
       <Table
         columns={[
           { label: 'Team' },

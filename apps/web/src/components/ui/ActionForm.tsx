@@ -2,7 +2,8 @@
 
 import type { ReactNode } from 'react';
 import { useActionState } from 'react';
-import type { ActionResult } from '@/lib/action-result';
+import { useDict } from '@/i18n/provider';
+import type { ActionResult } from '@/lib/action-result-types';
 
 /**
  * A form around a server action that returns `ActionResult`, rendering the
@@ -18,6 +19,7 @@ export function ActionForm({
   children: ReactNode;
   className?: string;
 }) {
+  const dict = useDict();
   const [state, formAction, isPending] = useActionState(
     async (_prev: ActionResult | null, formData: FormData) => action(formData),
     null,
@@ -33,7 +35,7 @@ export function ActionForm({
       )}
       {!isPending && state?.ok && (
         <p role="status" className="basis-full text-xs text-good">
-          {state.message ?? 'Saved.'}
+          {state.message ?? dict.common.saved}
         </p>
       )}
     </form>

@@ -45,7 +45,7 @@ export function AdoptionFunnel({
       <div className="space-y-2">
         {rows.map(({ label, value, delta }) => (
           <div key={label} className="flex justify-between">
-            <span className="text-sm text-text-2">{label}</span>
+            <span className="min-w-0 text-sm text-text-2">{label}</span>
             <div className="flex items-baseline">
               <span className="font-semibold text-text font-mono">{value}</span>
               {renderDeltaBadge(delta)}

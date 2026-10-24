@@ -1,5 +1,7 @@
 import { ReportDigest } from '@/components/reports/ReportDigest';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { getTeamReport } from '@/lib/reporting-queries';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
@@ -23,6 +25,7 @@ export default async function TeamReportPage({
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
 
   const { teamId, teamName } = await requireTeamLead(slug);
+  const { dict } = await getTranslations();
   const visibility = await resolveTeamVisibility(teamId);
 
   const since = daysAgo(range);
@@ -55,10 +58,10 @@ export default async function TeamReportPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Team"
-        description="Aggregate activity only; team privacy settings are applied."
+        breadcrumb={dict.team.report.breadcrumb}
+        description={dict.team.report.description}
         range={range}
-        title={`${teamName} report`}
+        title={format(dict.team.report.title, { team: teamName })}
       />
       <ReportDigest
         apiHref={`/api/team/${slug}/report?range=${range}`}

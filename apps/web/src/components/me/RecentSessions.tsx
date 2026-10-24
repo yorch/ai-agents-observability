@@ -26,7 +26,7 @@ export function RecentSessions({ sessions }: { sessions: RecentSession[] }) {
           <Link
             key={s.sessionId}
             href={`/me/sessions/${s.sessionId}`}
-            className="flex items-center justify-between rounded-md border border-border-subtle px-3 py-2.5 hover:bg-surface-2 hover:border-border transition-colors"
+            className="flex min-w-0 items-center justify-between rounded-md border border-border-subtle px-3 py-2.5 hover:bg-surface-2 hover:border-border transition-colors"
           >
             <div className="min-w-0">
               <p className="text-sm font-medium text-text truncate">
@@ -34,7 +34,7 @@ export function RecentSessions({ sessions }: { sessions: RecentSession[] }) {
               </p>
               <p className="text-xs text-text-3 font-mono">{fmtDateTime(s.startedAt)}</p>
             </div>
-            <div className="flex items-center gap-3 ml-4 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 ml-4 shrink-0">
               <span className="text-xs text-text-2 font-mono">
                 {fmtDurationSec(s.durationSeconds)}
               </span>

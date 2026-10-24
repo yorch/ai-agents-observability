@@ -111,3 +111,18 @@ this.
 ## Pinning
 
 Every dep is pinned via the root `package.json` catalog. Sub-packages reference shared deps as `"catalog:"`. Don't add a new dep without adding it to the catalog first — see [`/PLAN.md`](../../PLAN.md) §4 "Pinning policy".
+
+## i18n
+
+The app supports English (`en`) and Spanish (`es`), with additional locales added by extending `LOCALES` in `src/i18n/config.ts`. The system is a **custom dictionary** — no `next-intl`, no external i18n library. This matches the SARPRO sibling project and keeps the dependency surface at zero.
+
+- **Cookie-based locale, no URL prefix.** The locale is stored in `obs.locale` and read by `getLocale()` (server, `cache()`d) or `useDict()`/`useLocale()` (client). `proxy.ts` seeds the cookie from `Accept-Language` on first visit. No `/en/...` `/es/...` routing — this is an authenticated dashboard, not an SEO surface.
+- **English is the source of truth.** `src/i18n/dictionary.ts` exports `en`; `type Dictionary = typeof en`. **Do NOT put `as const` on `en`** — it narrows values to string literals and breaks `es: Dictionary`. Spanish must satisfy the same shape; the compiler enforces completeness when the placeholder is replaced.
+- **Server components** call `getTranslations()` (or `getLocale()` + `getDictionary()`) from `@/i18n/server` and read `dict.section.key`. **Client components** call `useDict()` from `@/i18n/provider` (requires `I18nProvider` in the tree, which the root layout sets up).
+- **Interpolation** uses `format(template, { placeholder })` from `@/i18n/config` — `{placeholder}` syntax, no ICU. For JSX-embedded links, split the string into `prefix` / `suffix` keys rather than embedding markup in the template.
+- **`nav-model.ts` uses `labelKey`** (a `keyof Dictionary['nav']`), not a raw string. The rail and command palette resolve `labelKey` → `dict.nav[labelKey]` at render time. The command palette resolves at **flatten time** so search works on translated text.
+- **Server actions** translate on the server side: `withActionResult` reads the locale via `getLocale()` and returns a localized fallback string. The `ActionResult` type lives in `src/lib/action-result-types.ts` (client-safe); `src/lib/action-result.ts` is server-only (`import 'server-only'`).
+- **`fmt.ts` stays locale-independent.** UTC dates, `$` currency, en-US number grouping are semantic invariants for an observability dashboard, not locale preferences. Translate UI strings only.
+- **Primitives stay dumb.** `Card`/`Table`/`EmptyState`/`PageHeader` don't know about i18n — callers resolve translations before passing strings. Don't add i18n coupling to the UI primitive layer.
+- **Agent labels** use `dict.agents[AGENT_TYPE]`, not `agentDisplayName()`. The registry in `packages/schemas` is the source of agent *identity*; the dictionary is the source of localized *labels*. Don't write "Claude Code" into a user-facing string — go through the dictionary.
+- **Out of scope for i18n:** email templates (ingest app), Slack/webhook payloads, `<title>` tags, `global-error.tsx` (last-resort crash boundary). These stay English.

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 const WRAP = 'inline-flex gap-0.5 rounded-lg border border-border bg-surface-2 p-0.5';
@@ -35,13 +36,13 @@ export function SegmentedLink({
   selected: boolean;
 }) {
   return (
-    <a
+    <Link
       href={href}
       aria-current={selected ? 'page' : undefined}
       className={`${ITEM} ${selected ? ON : OFF}`}
     >
       {children}
-    </a>
+    </Link>
   );
 }
 

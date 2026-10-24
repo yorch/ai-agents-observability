@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { FrictionDistributionChart } from '@/components/me/FrictionDistributionChart';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
@@ -9,6 +10,8 @@ import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable
 import { ProjectionRealization } from '@/components/team-org/ProjectionRealization';
 import { SpendForecast } from '@/components/team-org/SpendForecast';
 import { axisMoney, BarChart, Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
+import { format } from '@/i18n/config';
+import { getTranslations } from '@/i18n/server';
 import { getOrgCohortFriction } from '@/lib/cohort-queries';
 import { fmtDayShort } from '@/lib/fmt';
 import {
@@ -59,6 +62,7 @@ export default async function OrgDashboardPage({
 
   const { orgRole } = await requireOrgViewer();
   const isAdmin = isOrgAdmin(orgRole);
+  const { dict } = await getTranslations();
 
   // Calendar boundaries for the spend forecast: month-to-date pace and the
   // trailing-7d run rate. Kept out of the query so the "days elapsed" math is
@@ -209,13 +213,17 @@ export default async function OrgDashboardPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
+      <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Org</p>
+          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">
+            {dict.org.dashboard.breadcrumb}
+          </p>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
             Dashboard
           </h1>
-          <p className="mt-1 text-sm text-text-2">Trailing {range} days · aggregate view</p>
+          <p className="mt-1 text-sm text-text-2">
+            {format(dict.org.dashboard.trailing, { range })}
+          </p>
         </div>
         <DateRangePicker range={range} />
       </div>
@@ -265,7 +273,11 @@ export default async function OrgDashboardPage({
 
       {/* Weekly cost trend */}
       {trend.length > 0 && (
-        <Card title="Weekly cost trend" caption="Twelve weeks" hint="hover for detail">
+        <Card
+          title={dict.org.dashboard.weeklyCostTrend}
+          caption="Twelve weeks"
+          hint="hover for detail"
+        >
           <BarChart
             data={trend.map((t) => ({
               label: fmtDayShort(new Date(t.day)),
@@ -302,7 +314,7 @@ export default async function OrgDashboardPage({
       <ProjectionRealization
         caption="Each month's spend projection is recorded when it is shown, then compared against what the month actually cost. Months with too few sessions behind them read as not yet measurable rather than as a delta."
         realizations={monthRealizations}
-        title="Spend forecast vs actual"
+        title={dict.org.dashboard.spendForecastVsActual}
       />
 
       {/* Adoption funnel */}
@@ -310,7 +322,7 @@ export default async function OrgDashboardPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Cost by team */}
-        <Card title="Cost by team (top 10)" contentClassName="space-y-3">
+        <Card title={dict.org.dashboard.costByTeam} contentClassName="space-y-3">
           {teamCost.length === 0 ? (
             <CardEmpty>No team activity in this period.</CardEmpty>
           ) : (
@@ -326,9 +338,9 @@ export default async function OrgDashboardPage({
                 <Row key={t.teamSlug}>
                   <Cell>
                     {isAdmin ? (
-                      <a href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
+                      <Link href={`/team/${t.teamSlug}`} className="text-accent hover:underline">
                         {t.teamName}
-                      </a>
+                      </Link>
                     ) : (
                       t.teamName
                     )}
@@ -347,7 +359,7 @@ export default async function OrgDashboardPage({
         </Card>
 
         {/* Cost by repo */}
-        <Card title="Cost by repo (top 10)" contentClassName="space-y-3">
+        <Card title={dict.org.dashboard.costByRepo} contentClassName="space-y-3">
           {repoCost.length === 0 ? (
             <CardEmpty>No repo activity in this period.</CardEmpty>
           ) : (
@@ -376,7 +388,7 @@ export default async function OrgDashboardPage({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Model mix */}
-        <Card title="Cost by model" contentClassName="space-y-3">
+        <Card title={dict.org.dashboard.costByModel} contentClassName="space-y-3">
           {modelCost.length === 0 ? (
             <CardEmpty>No model usage in this period.</CardEmpty>
           ) : (
@@ -386,7 +398,9 @@ export default async function OrgDashboardPage({
                 return (
                   <div key={m.model} className="space-y-1">
                     <div className="flex justify-between text-sm">
-                      <span className="font-mono text-xs text-text">{m.model}</span>
+                      <span className="min-w-0 truncate font-mono text-xs text-text">
+                        {m.model}
+                      </span>
                       <span className="text-text-2">${m.costUsd.toFixed(2)}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-surface-2">
@@ -403,7 +417,7 @@ export default async function OrgDashboardPage({
         </Card>
 
         {/* Top tools */}
-        <TopTools title="Top Tools (org-wide)" tools={tools} />
+        <TopTools title={dict.org.dashboard.topTools} tools={tools} />
       </div>
 
       {/* Per-team model governance (admin-only) */}
@@ -413,12 +427,12 @@ export default async function OrgDashboardPage({
       <div className="grid gap-6 md:grid-cols-2">
         <FrictionDistributionChart
           distribution={effectiveness}
-          title="Friction distribution (org)"
+          title={dict.org.dashboard.frictionDistribution}
         />
         <ShapeDistributionChart histogram={effectiveness.shapeMix} />
       </div>
 
-      <CohortFrictionTrendChart points={frictionTrend} title="Org friction trend (weekly)" />
+      <CohortFrictionTrendChart points={frictionTrend} title={dict.org.dashboard.frictionTrend} />
 
       <CohortFrictionTable rows={cohortFriction} />
 

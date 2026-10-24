@@ -3,6 +3,7 @@
 import { useTransition } from 'react';
 
 import { SignOutIcon } from '@/components/icons';
+import { useDict } from '@/i18n/provider';
 
 /**
  * Sign-out. Lives in the rail footer beside the account identity — it was
@@ -10,6 +11,7 @@ import { SignOutIcon } from '@/components/icons';
  */
 export function SignOutButton() {
   const [pending, startTransition] = useTransition();
+  const dict = useDict();
 
   return (
     <button
@@ -21,9 +23,9 @@ export function SignOutButton() {
           window.location.href = '/login';
         })
       }
-      className="text-text-3 transition-colors hover:text-text-2 disabled:opacity-50"
-      title="Sign out"
-      aria-label="Sign out"
+      className="min-h-11 min-w-11 text-text-3 transition-colors hover:text-text-2 disabled:opacity-50"
+      title={dict.rail.signOut}
+      aria-label={dict.rail.signOut}
     >
       <SignOutIcon size={15} />
     </button>

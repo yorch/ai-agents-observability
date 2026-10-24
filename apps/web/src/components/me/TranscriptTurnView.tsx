@@ -98,7 +98,7 @@ export function TranscriptTurnView({ line }: { line: ParsedLine }) {
   if (line.kind === 'user-message') {
     return (
       <div className="space-y-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-text-2">You</span>
           {line.timestamp && (
             <span className="text-xs text-text-3">{formatTime(line.timestamp)}</span>

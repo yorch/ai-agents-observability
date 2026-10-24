@@ -1,5 +1,6 @@
 import { ADAPTER_AGENT_TYPES } from '@ai-agents-observability/schemas';
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { getConfig } from '@/lib/config';
 import { fmtDate } from '@/lib/fmt';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -70,14 +71,22 @@ function fmt(n: number): string {
  * dollar figure anywhere in the product — showing the operator the rate is the
  * whole job.
  */
-function RequestPricing({ pricing }: { pricing: RequestPricing }) {
+function RequestPricing({
+  dict,
+  pricing,
+}: {
+  dict: import('@/i18n/dictionary').Dictionary;
+  pricing: RequestPricing;
+}) {
   const allowances = Object.entries(pricing.included_requests_per_seat_month);
   const multipliers = Object.entries(pricing.multipliers).sort(([a], [b]) => a.localeCompare(b));
 
   return (
     <div className="space-y-3 rounded-lg border border-border-subtle bg-surface-2 p-4">
       <div>
-        <h3 className="text-xs font-semibold text-text">Request-denominated billing</h3>
+        <h3 className="text-xs font-semibold text-text">
+          {dict.admin.priceTables.requestDenominated}
+        </h3>
         <p className="mt-1 text-xs text-text-2">
           This agent also bills per request on some plans: a seat spends its monthly allowance at
           the model&rsquo;s multiplier, and only usage past that allowance is charged, at{' '}
@@ -125,17 +134,23 @@ function RequestPricing({ pricing }: { pricing: RequestPricing }) {
  * what the badge means. Still derived from the fetched tables rather than a
  * hard-coded name, so a genuinely request-only agent needs no edit here.
  */
-async function UnpricedModels({ notTokenBilled }: { notTokenBilled: Set<string> }) {
+async function UnpricedModels({
+  dict,
+  notTokenBilled,
+}: {
+  dict: import('@/i18n/dictionary').Dictionary;
+  notTokenBilled: Set<string>;
+}) {
   const rows = await getUnpricedModels();
 
   return (
     <Card
-      title="Unpriced models"
+      title={dict.admin.priceTables.unpricedModels}
       caption={`Models seen in the last ${UNPRICED_WINDOW_DAYS} days that carried tokens but resolved to no price row — those events were costed at $0. Add the actionable ones to the agent's table below.`}
       flush={rows.length > 0}
     >
       {rows.length === 0 ? (
-        <CardEmpty>Every model seen recently resolves to a price.</CardEmpty>
+        <CardEmpty>{dict.admin.priceTables.emptyUnpriced}</CardEmpty>
       ) : (
         <Table
           columns={[
@@ -181,6 +196,7 @@ async function UnpricedModels({ notTokenBilled }: { notTokenBilled: Set<string> 
 
 export default async function PriceTablesPage() {
   await requireOrgAdmin();
+  const { dict } = await getTranslations();
 
   const { ingestUrl } = getConfig();
 
@@ -191,10 +207,12 @@ export default async function PriceTablesPage() {
           Price tables
         </h1>
         <div className="rounded-lg border border-warn-line bg-warn-soft p-4 text-sm">
-          <p className="font-medium text-warn">INGEST_URL not configured</p>
+          <p className="font-medium text-warn">{dict.admin.priceTables.ingestUrlMissing}</p>
           <p className="mt-1 text-text-2">
             Set the{' '}
-            <code className="font-mono text-xs bg-surface-2 px-1 py-0.5 rounded">INGEST_URL</code>{' '}
+            <code className="font-mono text-xs bg-surface-2 px-1 py-0.5 rounded">
+              {dict.admin.priceTables.ingestUrl}
+            </code>{' '}
             environment variable in the web app to point at the ingest service (e.g.{' '}
             <code className="font-mono text-xs bg-surface-2 px-1 py-0.5 rounded">
               http://ingest:3001
@@ -219,12 +237,13 @@ export default async function PriceTablesPage() {
         <p className="text-sm text-text-2">
           Per-agent LLM pricing used for cost computation. Tables are JSON fixtures loaded by the
           ingest service at startup. Update the files under{' '}
-          <code className="font-mono text-xs">apps/ingest/src/data/</code> and redeploy to change
-          pricing.
+          <code className="font-mono text-xs">{dict.admin.priceTables.dataPath}</code> and redeploy
+          to change pricing.
         </p>
       </div>
 
       <UnpricedModels
+        dict={dict}
         notTokenBilled={
           new Set(
             results
@@ -253,7 +272,7 @@ export default async function PriceTablesPage() {
           {!result.ok ? (
             <p className="text-sm text-text-3 italic">{result.reason}</p>
           ) : Object.keys(result.prices).length === 0 ? (
-            <CardEmpty>No models configured — all sessions bill $0.</CardEmpty>
+            <CardEmpty>{dict.admin.priceTables.empty}</CardEmpty>
           ) : (
             <Table
               columns={[
@@ -285,7 +304,7 @@ export default async function PriceTablesPage() {
           )}
 
           {result.ok && result.request_pricing && (
-            <RequestPricing pricing={result.request_pricing} />
+            <RequestPricing dict={dict} pricing={result.request_pricing} />
           )}
         </section>
       ))}

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import type { ActionResult } from './action-result';
+import { useDict } from '@/i18n/provider';
+import type { ActionResult } from './action-result-types';
 
 /**
  * Result plumbing for client components that call an `ActionResult` action
@@ -13,6 +14,7 @@ export function useActionResult() {
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dict = useDict();
 
   function run(action: () => Promise<ActionResult>) {
     startTransition(async () => {
@@ -26,7 +28,7 @@ export function useActionResult() {
           setSaved(false);
         }
       } catch {
-        setError('Could not save — check your connection and try again.');
+        setError(dict.actionResult.networkError);
         setSaved(false);
       }
     });

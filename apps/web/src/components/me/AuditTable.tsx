@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { ButtonLink, Card, Cell, EmptyState, Pagination, Row, Table } from '@/components/ui';
+import { useDict } from '@/i18n/provider';
 import { fmtDateTime } from '@/lib/fmt';
 import type { AuditRow } from '@/lib/me-queries';
 
@@ -36,24 +39,25 @@ export function AuditTable({
   currentPage,
   hrefFor = (page) => `?page=${page}`,
 }: AuditTableProps) {
+  const dict = useDict();
   if (rows.length === 0) {
     // "No one has accessed your data yet" is a reassuring claim, and on an
     // out-of-range page it is a false one — there are entries, just not here.
     if (total > 0) {
       return (
         <EmptyState
-          title="Nothing on this page"
+          title={dict.me.settings.audit.nothingOnPage}
           action={
             <ButtonLink variant="secondary" href={hrefFor(1)}>
-              Back to page 1
+              {dict.me.settings.audit.backToPageOne}
             </ButtonLink>
           }
         >
-          These entries start on an earlier page.
+          {dict.me.settings.audit.startsEarlier}
         </EmptyState>
       );
     }
-    return <EmptyState>No one has accessed your data yet.</EmptyState>;
+    return <EmptyState>{dict.me.settings.audit.empty}</EmptyState>;
   }
 
   return (

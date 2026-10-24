@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { ReportDigest } from '@/components/reports/ReportDigest';
 import { PageHeader } from '@/components/team-org/PageHeader';
+import { getTranslations } from '@/i18n/server';
 import { currentUser } from '@/lib/auth';
 import { getMyReport } from '@/lib/reporting-queries';
 import { getUserCostDuration } from '@/lib/scatter-queries';
@@ -21,13 +22,13 @@ export default async function MyReportPage({
   if (!user) {
     redirect('/login');
   }
+  const { dict } = await getTranslations();
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;
 
   const since = daysAgo(range);
   const until = new Date();
   const options = { timezone: 'UTC', until };
-
   const [report, trends, scatter, concurrency, heatmap] = await Promise.all([
     getMyReport(user.id, range),
     getUserTrends(user.id, since, options),
@@ -49,9 +50,9 @@ export default async function MyReportPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        description="A shareable summary of your agent activity."
+        description={dict.me.report.description}
         range={range}
-        title="My report"
+        title={dict.me.report.title}
       />
       <ReportDigest
         apiHref={`/api/me/report?range=${range}`}

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { ProfileForm } from '@/components/me/ProfileForm';
+import { getTranslations } from '@/i18n/server';
 import { currentUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -10,11 +11,14 @@ export default async function SettingsProfilePage() {
     redirect('/login');
   }
 
+  const { dict } = await getTranslations();
   return (
     <div className="space-y-6 max-w-lg">
       <div>
-        <h2 className="font-display text-lg font-semibold text-text">Profile</h2>
-        <p className="mt-0.5 text-sm text-text-2">Update your display name and email address.</p>
+        <h2 className="font-display text-lg font-semibold text-text">
+          {dict.me.settings.profile.title}
+        </h2>
+        <p className="mt-0.5 text-sm text-text-2">{dict.me.settings.profile.description}</p>
       </div>
       <ProfileForm
         initialDisplayName={user.displayName}

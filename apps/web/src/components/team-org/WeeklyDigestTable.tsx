@@ -1,15 +1,17 @@
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { getTranslations } from '@/i18n/server';
 import { fmtUsd } from '@/lib/fmt';
 import type { ScopedTrendPoint } from '@/lib/trend-queries';
 import { completeWeeks } from '@/lib/weekly-digest';
 
 /** Weekly digest uses complete Monday–Sunday UTC weeks, avoiding partial-week noise. */
-export function WeeklyDigestTable({ points }: { points: ScopedTrendPoint[] }) {
+export async function WeeklyDigestTable({ points }: { points: ScopedTrendPoint[] }) {
+  const { dict } = await getTranslations();
   const rows = completeWeeks(points);
   return (
-    <Card title="Weekly digest" caption="Complete Monday–Sunday weeks · UTC">
+    <Card title={dict.org.weeklyDigest.title} caption={dict.org.weeklyDigest.caption}>
       {rows.length === 0 ? (
-        <CardEmpty>No complete week in this period.</CardEmpty>
+        <CardEmpty>{dict.org.weeklyDigest.empty}</CardEmpty>
       ) : (
         <Table
           columns={[
