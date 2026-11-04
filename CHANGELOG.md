@@ -6,6 +6,12 @@ The format is based on [Conventional Commits](https://conventionalcommits.org/)
 and generated automatically by `scripts/prepare-release.sh` as part of the
 release workflow (`.github/workflows/release.yml`).
 
+## v3.1.1 (2026-11-04)
+
+### Bug Fixes
+
+- web: full UX/UI review — layout, data-correctness and consistency fixes (#285)
+
 ## v3.1.0 (2026-10-05)
 
 ### Features
