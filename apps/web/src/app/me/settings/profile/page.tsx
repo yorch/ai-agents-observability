@@ -1,13 +1,12 @@
-import { redirect } from 'next/navigation';
 import { ProfileForm } from '@/components/me/ProfileForm';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SettingsProfilePage() {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   return (

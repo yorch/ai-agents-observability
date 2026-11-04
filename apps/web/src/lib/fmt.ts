@@ -40,6 +40,14 @@ export function fmtPct(ratio: number, digits = 0): string {
   return `${(ratio * 100).toFixed(digits)}%`;
 }
 
+/**
+ * Friction score (0 = smooth, 1 = stuck) on its native 0-1 scale, 2dp. Never
+ * render it as a percentage: "54%" reads as a share of sessions.
+ */
+export function fmtFriction(score: number): string {
+  return score.toFixed(2);
+}
+
 /** `fmtPct` with the null → "—" convention, paired like `fmtDurationOrDash`. */
 export function fmtPctOrDash(ratio: number | null, digits = 0): string {
   return ratio === null ? '—' : fmtPct(ratio, digits);
@@ -154,4 +162,21 @@ export function fmtTokens(n: number | bigint): string {
     between the list and the detail page. */
 export function fmtUsdSession(n: number): string {
   return `$${n.toFixed(3)}`;
+}
+
+const TIME_UTC = new Intl.DateTimeFormat('en-US', {
+  hour: '2-digit',
+  hourCycle: 'h23',
+  minute: '2-digit',
+  second: '2-digit',
+  timeZone: 'UTC',
+});
+
+/** Wall-clock time, e.g. "14:32:05". UTC, 24h — agrees with `fmtDateTime`'s clock. */
+export function fmtTimeUtc(d: Date | string | null): string {
+  if (d === null) {
+    return '—';
+  }
+  const date = typeof d === 'string' ? new Date(d) : d;
+  return Number.isNaN(date.getTime()) ? '—' : TIME_UTC.format(date);
 }

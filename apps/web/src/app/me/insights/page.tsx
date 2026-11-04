@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { ArrowRightIcon } from '@/components/icons';
 import { FrictionSourcesChart } from '@/components/me/FrictionSourcesChart';
@@ -8,7 +7,7 @@ import { ShapeTrendChart } from '@/components/me/ShapeTrendChart';
 import { DateRangePicker, LONG_RANGES } from '@/components/team-org/DateRangePicker';
 import { Card, Cell, EmptyState, Row, Sparkline, Table } from '@/components/ui';
 import { type AttributionCoverage, getAttributionCoverage } from '@/lib/attribution-coverage';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { getUserShapeTrend } from '@/lib/cohort-queries';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
 import { fmtBytes, fmtDurationOrDash, fmtTokens, fmtUsd, fmtUsdOrDash } from '@/lib/fmt';
@@ -59,7 +58,7 @@ export default async function InsightsPage({
 }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const params = await searchParams;
@@ -152,7 +151,7 @@ export default async function InsightsPage({
 
           {hasSessionData && (
             <>
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <FrictionTrendChart
                   points={effectiveness.trend}
                   scoredSessionCount={effectiveness.scoredSessionCount}
@@ -160,14 +159,14 @@ export default async function InsightsPage({
                 <ShapeDistributionChart histogram={effectiveness.shapeHistogram} />
               </div>
               <ShapeTrendChart buckets={shapeTrend} />
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <FrictionSourcesChart
                   scoredSessionCount={effectiveness.scoredSessionCount}
                   sources={effectiveness.sources}
                 />
                 {recommendations.length > 0 && <RecommendationsSection recs={recommendations} />}
               </div>
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <ContinuitySection continuity={continuity} />
                 <NotificationKindsSection rows={notificationKinds} />
               </div>
@@ -176,11 +175,11 @@ export default async function InsightsPage({
 
           {hasEventData && (
             <>
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <McpSection rows={mcp} />
                 <SlashCommandsSection rows={slashCmds} />
               </div>
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <SubagentsSection coverage={coverage} rows={subagents} />
                 <ToolPerfSection coverage={coverage} rows={toolPerf} />
               </div>
@@ -370,7 +369,8 @@ function McpSection({ rows }: { rows: McpUsageRow[] }) {
             <div className="flex items-center justify-between text-xs">
               <span className="font-mono font-medium text-text">{server}</span>
               <span className="text-text-3">
-                {totalCalls} calls · {pct(totalErrors, totalCalls)} errors
+                {totalCalls} {totalCalls === 1 ? 'call' : 'calls'} · {pct(totalErrors, totalCalls)}{' '}
+                errors
               </span>
             </div>
             {serverRows
@@ -601,9 +601,9 @@ function SubagentsSection({
     <SectionShell title="Subagents spawned" empty={rows.length === 0}>
       <div className="space-y-2">
         {rows.map((r) => (
-          <div key={r.subagentType} className="flex items-center justify-between text-sm">
-            <span className="font-mono text-xs text-text">{r.subagentType}</span>
-            <div className="flex items-center gap-3 text-xs text-text-2">
+          <div key={r.subagentType} className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0 truncate font-mono text-xs text-text">{r.subagentType}</span>
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-text-2">
               <span>{r.useCount}×</span>
               <span>{pct(r.useCount, total)}</span>
               {/* Labelled, not just placed: two dollar figures side by side with

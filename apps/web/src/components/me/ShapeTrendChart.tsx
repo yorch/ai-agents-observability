@@ -1,4 +1,4 @@
-import { Card } from '@/components/ui';
+import { Card, CardEmpty } from '@/components/ui';
 import type { WeeklyShapeBucket } from '@/lib/cohort-queries';
 import { fmtDayShort } from '@/lib/fmt';
 import { shapeBg } from './shape';
@@ -18,17 +18,12 @@ export function ShapeTrendChart({ buckets }: { buckets: WeeklyShapeBucket[] }) {
   );
 
   return (
-    <Card>
-      <h2 className="mb-1 text-xs font-semibold uppercase tracking-widest text-text-3">
-        Shape mix by week
-      </h2>
-      <p className="mb-4 text-xs text-text-3">
-        Session-shape mix by week — a shift toward implementation/focused-edit as you learn a
-        codebase is a proficiency signal.
-      </p>
-
+    <Card
+      title="Shape mix by week"
+      caption="Session-shape mix by week — a shift toward implementation/focused-edit as you learn a codebase is a proficiency signal."
+    >
       {weeksWithData.length < MIN_WEEKS_WITH_DATA ? (
-        <p className="text-sm text-text-3">Not enough history yet.</p>
+        <CardEmpty>Not enough history yet.</CardEmpty>
       ) : (
         <>
           <div className="flex items-end gap-1" style={{ height: BAR_HEIGHT_PX }}>

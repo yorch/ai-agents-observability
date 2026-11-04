@@ -179,6 +179,18 @@ export function ChartIcon(props: IconProps) {
   );
 }
 
+/** Four tiles — overview and dashboard landing pages. */
+export function DashboardIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="2.5" width="4.8" height="4.8" rx="1" />
+      <rect x="8.7" y="2.5" width="4.8" height="4.8" rx="1" />
+      <rect x="2.5" y="8.7" width="4.8" height="4.8" rx="1" />
+      <rect x="8.7" y="8.7" width="4.8" height="4.8" rx="1" />
+    </Icon>
+  );
+}
+
 /** Ascending columns — adoption, distributions. */
 export function BarsIcon(props: IconProps) {
   return (

@@ -1,4 +1,4 @@
-import { BarChart, Card, Cell, HBars, Row, Table } from '@/components/ui';
+import { BarChart, Card, CardEmpty, Cell, HBars, Row, Table } from '@/components/ui';
 import { fmtPct, fmtUsdSession } from '@/lib/fmt';
 import type { SessionVisualPoint } from '@/lib/sessions-queries';
 
@@ -16,18 +16,30 @@ export function SessionVisuals({ points }: { points: SessionVisualPoint[] }) {
   }
 
   const modelTotals = new Map<string, number>();
+  const modelTokens = new Map<string, number>();
   let cacheRead = 0;
   let input = 0;
   let cumulative = 0;
   for (const point of points) {
     const model = point.model ?? 'Unknown model';
     modelTotals.set(model, (modelTotals.get(model) ?? 0) + point.costUsd);
+    modelTokens.set(
+      model,
+      (modelTokens.get(model) ?? 0) +
+        point.inputTokens +
+        point.outputTokens +
+        point.cacheReadTokens +
+        point.cacheCreationTokens,
+    );
     cacheRead += point.cacheReadTokens;
     input += point.inputTokens;
     cumulative += point.costUsd;
   }
 
+  // A model row with no cost and no tokens (typically the null-model bucket of
+  // hook-only events) carries nothing to compare — drop it rather than list $0.000.
   const models = [...modelTotals.entries()]
+    .filter(([label, cost]) => cost > 0 || (modelTokens.get(label) ?? 0) > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([label, value], index) => ({ display: fmtUsdSession(value), index, label, value }));
   const cacheDenom = input + cacheRead;
@@ -42,8 +54,10 @@ export function SessionVisuals({ points }: { points: SessionVisualPoint[] }) {
           Session analysis
         </h2>
         <p className="mt-1 text-sm text-text-2">
-          Per-turn telemetry aggregates. Input tokens indicate context load; a model context-window
-          limit is not reported by every agent, so pressure is shown without an invented percentage.
+          From {points.length.toLocaleString()} per-turn record{points.length === 1 ? '' : 's'} of
+          telemetry, so these can differ from the session counters below. Input tokens indicate
+          context load; a model context-window limit is not reported by every agent, so pressure is
+          shown without an invented percentage.
         </p>
       </div>
 
@@ -121,6 +135,7 @@ export function SessionVisuals({ points }: { points: SessionVisualPoint[] }) {
         {hasTools && (
           <Card title="Tool activity" caption="Tool calls and errors by turn.">
             <BarChart
+              integer
               data={points.map((point) => ({
                 label: `T${point.turn}`,
                 values: [point.toolCalls - point.toolErrors, point.toolErrors],
@@ -132,20 +147,27 @@ export function SessionVisuals({ points }: { points: SessionVisualPoint[] }) {
         )}
 
         <Card title="Model mix" caption="Cost share by model in this session.">
-          <HBars rows={models} tinted />
-          <Table columns={[{ label: 'Model' }, { align: 'right', label: 'Cost', mono: true }]}>
-            {models.map((model) => (
-              <Row key={model.label}>
-                <Cell>{model.label}</Cell>
-                <Cell num>{model.display}</Cell>
-              </Row>
-            ))}
-          </Table>
+          {models.length === 0 ? (
+            <CardEmpty>No model usage recorded for this session.</CardEmpty>
+          ) : (
+            <>
+              <HBars rows={models} tinted />
+              <Table columns={[{ label: 'Model' }, { align: 'right', label: 'Cost', mono: true }]}>
+                {models.map((model) => (
+                  <Row key={model.label}>
+                    <Cell>{model.label}</Cell>
+                    <Cell num>{model.display}</Cell>
+                  </Row>
+                ))}
+              </Table>
+            </>
+          )}
         </Card>
 
         {hasSubagents && (
           <Card title="Subagent bursts" caption="Subagent-bearing events by turn.">
             <BarChart
+              integer
               data={points.map((point) => ({
                 label: `T${point.turn}`,
                 values: [point.subagentCalls],

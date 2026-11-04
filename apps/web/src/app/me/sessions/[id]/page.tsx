@@ -1,6 +1,6 @@
 import { parseRubricOutcome, parseRubricShape, SCORERS } from '@ai-agents-observability/schemas';
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
@@ -9,7 +9,7 @@ import { SessionJudgeCard } from '@/components/me/SessionJudgeCard';
 import { SessionPRLinks } from '@/components/me/SessionPRLinks';
 import { SessionVisuals } from '@/components/me/SessionVisuals';
 import { ShareSessionButton } from '@/components/me/ShareSessionButton';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
 import { getSessionJudgeScores } from '@/lib/judge-queries';
 import { getPrisma } from '@/lib/prisma';
@@ -44,7 +44,7 @@ export default async function SessionDetailPage({
 }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const { id } = await params;
@@ -184,8 +184,6 @@ export default async function SessionDetailPage({
         sessionId={id}
       />
 
-      {tab === 'timeline' && <SessionVisuals points={visualPoints} />}
-
       <SessionDetailTabs
         events={sessionEvents}
         modelBreakdown={modelBreakdown}
@@ -193,6 +191,7 @@ export default async function SessionDetailPage({
         skillRows={skillRows}
         subagentRows={toolBreakdown.subagents}
         tab={tab}
+        timelineExtra={<SessionVisuals points={visualPoints} />}
         toolRows={toolBreakdown.tools}
       />
     </div>

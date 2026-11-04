@@ -1,5 +1,5 @@
-import { Card, Cell, EmptyState, Row, Table } from '@/components/ui';
-import { fmtUsdSession } from '@/lib/fmt';
+import { Card, CardEmpty, Cell, cx, EmptyState, Row, Table } from '@/components/ui';
+import { fmtDurationOrDash, fmtUsdSession } from '@/lib/fmt';
 import type {
   ModelBreakdownRow,
   SessionSkillRow,
@@ -21,17 +21,14 @@ export function ToolsTab({
   return (
     <div className="space-y-4">
       {tools.length > 0 && (
-        <Card>
-          <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
-            Tools Used
-          </h3>
+        <Card title="Tools used">
           <Table
             columns={[
               { label: 'Tool' },
               { align: 'right', label: 'Calls', mono: true },
               { align: 'right', label: 'Errors', mono: true },
               { align: 'right', label: 'Denied', mono: true },
-              { align: 'right', label: 'Avg ms', mono: true },
+              { align: 'right', label: 'Avg time', mono: true },
             ]}
           >
             {tools.map((r) => (
@@ -43,22 +40,16 @@ export function ToolsTab({
                   )}
                 </Cell>
                 <Cell num className="text-text-2">
-                  {r.callCount}
+                  {r.callCount.toLocaleString()}
                 </Cell>
-                <Cell
-                  num
-                  className={`py-2 text-right font-mono ${r.errorCount > 0 ? 'text-crit' : 'text-text-3'}`}
-                >
+                <Cell num className={cx(r.errorCount > 0 ? 'text-crit' : 'text-text-3')}>
                   {r.errorCount > 0 ? r.errorCount : '—'}
                 </Cell>
-                <Cell
-                  num
-                  className={`py-2 text-right font-mono ${r.deniedCount > 0 ? 'text-warn' : 'text-text-3'}`}
-                >
+                <Cell num className={cx(r.deniedCount > 0 ? 'text-warn' : 'text-text-3')}>
                   {r.deniedCount > 0 ? r.deniedCount : '—'}
                 </Cell>
                 <Cell num className="text-text-3">
-                  {r.avgDurationMs != null ? r.avgDurationMs : '—'}
+                  {fmtDurationOrDash(r.avgDurationMs)}
                 </Cell>
               </Row>
             ))}
@@ -67,10 +58,7 @@ export function ToolsTab({
       )}
 
       {subagents.length > 0 && (
-        <Card>
-          <h3 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-text-3">
-            Subagents Spawned
-          </h3>
+        <Card title="Subagents spawned">
           <div className="divide-y divide-border">
             {subagents.map((r) => (
               <div key={r.subagentType} className="flex items-center justify-between py-2">
@@ -127,39 +115,34 @@ export function SkillsTab({ rows }: { rows: SessionSkillRow[] }) {
 
 export function ModelsTab({ costUsd, rows }: { costUsd: number; rows: ModelBreakdownRow[] }) {
   return (
-    <Card>
-      <h3 className="text-xs text-text-3 uppercase tracking-widest mb-4">Model Breakdown</h3>
-      <Table
-        columns={[
-          { label: 'Model' },
-          { align: 'right', label: 'Calls', mono: true },
-          { align: 'right', label: 'Input', mono: true },
-          { align: 'right', label: 'Output', mono: true },
-        ]}
-      >
-        {rows.length === 0 ? (
-          <Row>
-            <Cell colSpan={4} className="pt-4 text-center text-text-3">
-              No model data
-            </Cell>
-          </Row>
-        ) : (
-          rows.map((r) => (
+    <Card title="Model breakdown">
+      {rows.length === 0 ? (
+        <CardEmpty>No model calls recorded for this session.</CardEmpty>
+      ) : (
+        <Table
+          columns={[
+            { label: 'Model' },
+            { align: 'right', label: 'Calls', mono: true },
+            { align: 'right', label: 'Input tokens', mono: true },
+            { align: 'right', label: 'Output tokens', mono: true },
+          ]}
+        >
+          {rows.map((r) => (
             <Row key={r.model}>
               <Cell className="text-text-2">{r.model}</Cell>
               <Cell num className="text-text-2">
-                {r.calls}
+                {r.calls.toLocaleString()}
               </Cell>
               <Cell num className="text-text-2">
-                {r.inputTokens > 0n ? r.inputTokens.toString() : '—'}
+                {r.inputTokens > 0n ? Number(r.inputTokens).toLocaleString() : '—'}
               </Cell>
               <Cell num className="text-text-2">
-                {r.outputTokens > 0n ? r.outputTokens.toString() : '—'}
+                {r.outputTokens > 0n ? Number(r.outputTokens).toLocaleString() : '—'}
               </Cell>
             </Row>
-          ))
-        )}
-      </Table>
+          ))}
+        </Table>
+      )}
       <div className="mt-4 pt-4 border-t border-border text-xs text-text-3">
         Total cost: <span className="text-text-2 font-mono">{fmtUsdSession(costUsd)}</span>
       </div>

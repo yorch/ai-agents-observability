@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { savePrivacySettings } from '@/app/me/settings/privacy/actions';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { cx } from '@/components/ui/cx';
 import { useActionResult } from '@/lib/use-action-result';
 
 type Toggle = {
@@ -45,14 +46,16 @@ function ToggleRow({
         aria-labelledby={labelId}
         aria-describedby={descriptionId}
         onClick={() => onChange(toggle.name, !toggle.value)}
-        className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-transparent ${
-          toggle.value ? 'border-accent bg-accent' : 'border-border-strong bg-surface-2'
-        }`}
+        className={cx(
+          'relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-transparent',
+          toggle.value ? 'border-accent bg-accent' : 'border-border-strong bg-surface-2',
+        )}
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-text shadow ring-0 transition-transform mt-0.5 ${
-            toggle.value ? 'translate-x-5' : 'translate-x-0.5'
-          }`}
+          className={cx(
+            'mt-0.5 inline-block h-4 w-4 transform rounded-full shadow ring-0 transition-transform',
+            toggle.value ? 'translate-x-5 bg-bg' : 'translate-x-0.5 bg-text-3',
+          )}
         />
       </button>
     </div>

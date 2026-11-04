@@ -49,6 +49,7 @@ export const requestGrant = withActionResult(async (formData) => {
   });
 
   revalidatePath('/admin/access-grants');
+  revalidatePath('/me/grants');
   return { message: 'Request submitted.', ok: true };
 });
 

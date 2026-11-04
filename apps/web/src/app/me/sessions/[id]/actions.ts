@@ -7,11 +7,10 @@ import {
   parseRubricShape,
 } from '@ai-agents-observability/schemas';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 
 import { withActionResult } from '@/lib/action-result';
 import { writeAuditLog } from '@/lib/audit';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { getAllRunsPrisma, getPrisma } from '@/lib/prisma';
 import { deleteScore, upsertScore } from '@/lib/scores';
 import { getSession } from '@/lib/sessions-queries';
@@ -24,7 +23,7 @@ export type ShareResult = { error: string } | { email: string; ok: true; session
 export async function shareSession(formData: FormData): Promise<ShareResult> {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const sessionId = String(formData.get('sessionId') ?? '').trim();
@@ -130,7 +129,7 @@ export async function shareSession(formData: FormData): Promise<ShareResult> {
 export const submitSessionFeedback = withActionResult(async (formData) => {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const sessionId = String(formData.get('sessionId') ?? '').trim();
@@ -223,7 +222,7 @@ export type PRLinkResult = { error: string } | { ok: true };
 export async function linkSessionPR(formData: FormData): Promise<PRLinkResult> {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const sessionId = String(formData.get('sessionId') ?? '').trim();
@@ -277,7 +276,7 @@ export async function linkSessionPR(formData: FormData): Promise<PRLinkResult> {
 export async function unlinkSessionPR(formData: FormData): Promise<PRLinkResult> {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const sessionId = String(formData.get('sessionId') ?? '').trim();
@@ -320,7 +319,7 @@ export async function unlinkSessionPR(formData: FormData): Promise<PRLinkResult>
 export const revokeShare = withActionResult(async (formData) => {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const grantId = String(formData.get('grantId') ?? '').trim();

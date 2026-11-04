@@ -1,7 +1,7 @@
 import type { PrismaClient, User } from '@ai-agents-observability/db';
 import { OrgRole, TeamRole } from '@ai-agents-observability/db';
-import { notFound, redirect } from 'next/navigation';
-import { currentUser } from './auth';
+import { notFound } from 'next/navigation';
+import { currentUser, redirectToLogin } from './auth';
 import { grantCovers } from './grant-policy';
 import { getPrisma } from './prisma';
 
@@ -36,7 +36,7 @@ async function resolveActiveMembership(teamId: string, userId: string) {
 
 /**
  * Asserts authenticated and holds lead or maintainer role in the given team.
- * Redirects to /login if unauthenticated; 404 if team missing or user is not a lead.
+ * Redirects to /login (keeping the requested path as `next`) if unauthenticated; 404 if team missing or user is not a lead.
  */
 async function requireTeamRole(
   slug: string,
@@ -44,7 +44,7 @@ async function requireTeamRole(
 ): Promise<TeamContext> {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const team = await resolveTeam(slug);
@@ -72,7 +72,7 @@ export function requireTeamLead(slug: string): Promise<TeamContext> {
 
 /**
  * Asserts authenticated and is an active member of the team (any role).
- * Redirects to /login if unauthenticated; 404 if team missing or user not a member.
+ * Redirects to /login (keeping the requested path as `next`) if unauthenticated; 404 if team missing or user not a member.
  */
 export function requireTeamMember(slug: string): Promise<TeamContext> {
   return requireTeamRole(slug, () => true);
@@ -100,12 +100,12 @@ export type OrgContext = {
 
 /**
  * Asserts the caller has org_admin role.
- * Redirects to /login if unauthenticated; 404 if insufficient role.
+ * Redirects to /login (keeping the requested path as `next`) if unauthenticated; 404 if insufficient role.
  */
 export async function requireOrgAdmin(): Promise<OrgContext> {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
   if (user.orgRole !== OrgRole.ORG_ADMIN) {
     notFound();
@@ -115,12 +115,12 @@ export async function requireOrgAdmin(): Promise<OrgContext> {
 
 /**
  * Asserts the caller has org_admin or viewer_aggregate role.
- * Redirects to /login if unauthenticated; 404 if insufficient role.
+ * Redirects to /login (keeping the requested path as `next`) if unauthenticated; 404 if insufficient role.
  */
 export async function requireOrgViewer(): Promise<OrgContext> {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
   if (user.orgRole === OrgRole.MEMBER) {
     notFound();
@@ -158,7 +158,7 @@ export function canRequestGrants(role: OrgRole): boolean {
 export async function requireGrantRequester(): Promise<OrgContext> {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
   if (!canRequestGrants(user.orgRole)) {
     notFound();

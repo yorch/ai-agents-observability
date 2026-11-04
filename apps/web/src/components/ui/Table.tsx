@@ -4,16 +4,22 @@ import { cx } from './cx';
 export type Column = {
   align?: 'left' | 'right';
   label: string;
+  /**
+   * No-op, kept so existing call sites compile. Headers always use the body
+   * face — a mono header over mono figures and prose headers over the rest
+   * read as two tables. Body mono belongs on `Cell num`.
+   */
   mono?: boolean;
 };
 
 /**
  * Table primitive. Wraps itself in an overflow container so a wide table
- * scrolls inside its own card rather than pushing the page sideways.
+ * scrolls inside its own card rather than pushing the page sideways, with an
+ * edge shadow (`scroll-cue-x`, globals.css) while columns are out of view.
  */
 export function Table({ children, columns }: { children: ReactNode; columns: Column[] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="scroll-cue-x overflow-x-auto">
       {/* Column gutters are imposed by the table rather than by each cell, so
           rows built from bare `<td>`s stay aligned with the header. */}
       <table className="w-full text-sm [&_td]:pr-6 [&_td:last-child]:pr-0 [&_th]:pr-6 [&_th:last-child]:pr-0">
@@ -31,7 +37,6 @@ export function Table({ children, columns }: { children: ReactNode; columns: Col
                 className={cx(
                   'whitespace-nowrap pb-2',
                   col.align === 'right' ? 'text-right' : 'text-left',
-                  col.mono && 'font-mono',
                 )}
               >
                 {col.label}

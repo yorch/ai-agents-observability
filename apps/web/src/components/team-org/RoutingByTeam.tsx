@@ -1,4 +1,4 @@
-import { Cell, EmptyState, Row, Table } from '@/components/ui';
+import { Cell, EmptyState, Row, SectionHeader, Table } from '@/components/ui';
 import { fmtPctOrDash, fmtUsdOrDash } from '@/lib/fmt';
 import type { RoutingTeamRow } from '@/lib/org-queries';
 
@@ -20,9 +20,7 @@ export type RoutingByTeamProps = {
 export function RoutingByTeam({ rows }: RoutingByTeamProps) {
   return (
     <div className="space-y-3">
-      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
-        Routing accountability by team
-      </h2>
+      <SectionHeader>Routing accountability by team</SectionHeader>
       <p className="text-xs text-text-2">
         Observe-only — the platform never blocks a live tool call. This surfaces which teams are
         spending downgradeable-model budget on retrieval-only work (file reads, search) so leads can

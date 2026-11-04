@@ -1,4 +1,5 @@
 import { Stat } from '@/components/ui';
+import { fmtUsd } from '@/lib/fmt';
 import type { UsageSummary } from '@/lib/me-queries';
 
 /** Fractional change, guarding the divide-by-zero when the prior period is empty. */
@@ -22,7 +23,7 @@ export function SummaryCards({
       />
       <Stat
         label="Cost"
-        value={`$${thisWeek.totalCostUsd.toFixed(2)}`}
+        value={fmtUsd(thisWeek.totalCostUsd)}
         delta={delta(thisWeek.totalCostUsd, lastWeek.totalCostUsd)}
         deltaInverted
       />

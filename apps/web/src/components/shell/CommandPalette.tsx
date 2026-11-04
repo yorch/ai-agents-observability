@@ -1,12 +1,21 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { SearchIcon } from '@/components/icons';
+import { cx } from '@/components/ui/cx';
 import { useFocusTrap } from '@/lib/use-focus-trap';
-import { ADMIN_NAV, meNav, type NavGroup, ORG_NAV, teamNav } from './nav-model';
+import {
+  ADMIN_NAV,
+  meNav,
+  type NavGroup,
+  ORG_NAV,
+  type Scope,
+  scopeOf,
+  teamNav,
+} from './nav-model';
 
 type Command = { group: string; href: string; label: string };
 
@@ -25,11 +34,14 @@ export function CommandPalette({
   canViewOrg,
   isAdmin,
   showGrants,
+  teamName,
   teamSlug,
 }: {
   canViewOrg: boolean;
   isAdmin: boolean;
   showGrants: boolean;
+  /** Display name of `teamSlug`, so Team entries say which team they open. */
+  teamName: string | null;
   teamSlug: string | null;
 }) {
   const [open, setOpen] = useState(false);
@@ -37,6 +49,7 @@ export function CommandPalette({
   const [index, setIndex] = useState(0);
   const [isMac, setIsMac] = useState(false);
   const router = useRouter();
+  const scope = scopeOf(usePathname());
   const dialogRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // The trap owns Escape-to-close so stacked layers (palette over drawer)
@@ -48,18 +61,22 @@ export function CommandPalette({
   }, []);
 
   const commands = useMemo(() => {
-    const all = flatten(meNav(showGrants), 'Me');
+    const byScope: [Scope, Command[]][] = [['me', flatten(meNav(showGrants), 'Me')]];
     if (teamSlug) {
-      all.push(...flatten(teamNav(teamSlug), 'Team'));
+      byScope.push(['team', flatten(teamNav(teamSlug), `Team · ${teamName ?? teamSlug}`)]);
     }
     if (canViewOrg) {
-      all.push(...flatten(ORG_NAV, 'Org'));
+      byScope.push(['org', flatten(ORG_NAV, 'Org')]);
     }
     if (isAdmin) {
-      all.push(...flatten(ADMIN_NAV, 'Admin'));
+      byScope.push(['admin', flatten(ADMIN_NAV, 'Admin')]);
     }
-    return all;
-  }, [canViewOrg, isAdmin, showGrants, teamSlug]);
+    // The scope you are in is the one you most likely want next, so it leads;
+    // the rest keep their rail order. (A stable sort, so only `current` moves.)
+    return byScope
+      .sort(([a], [b]) => Number(b === scope) - Number(a === scope))
+      .flatMap(([, list]) => list);
+  }, [canViewOrg, isAdmin, scope, showGrants, teamName, teamSlug]);
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -127,7 +144,7 @@ export function CommandPalette({
       >
         <SearchIcon size={12} />
         <span>Go to…</span>
-        <kbd className="ml-auto rounded border border-border-subtle bg-surface-2 px-1.5 py-0.5 font-mono text-[10px]">
+        <kbd className="ml-auto rounded max-lg:hidden border border-border-subtle bg-surface-2 px-1.5 py-0.5 font-mono text-[10px]">
           {isMac ? '⌘' : 'Ctrl'} K
         </kbd>
       </button>
@@ -197,9 +214,10 @@ export function CommandPalette({
                     aria-selected={i === clamped}
                     onMouseEnter={() => setIndex(i)}
                     onClick={() => go(c.href)}
-                    className={`flex cursor-pointer items-baseline justify-between gap-3 rounded-md px-2.5 py-2 text-sm ${
-                      i === clamped ? 'bg-accent-dim text-text' : 'text-text-2'
-                    }`}
+                    className={cx(
+                      'flex cursor-pointer items-baseline justify-between gap-3 rounded-md px-2.5 py-2 text-sm',
+                      i === clamped ? 'bg-accent-dim text-text' : 'text-text-2',
+                    )}
                   >
                     <span>{c.label}</span>
                     <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-text-3">

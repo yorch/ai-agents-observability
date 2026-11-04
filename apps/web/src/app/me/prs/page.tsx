@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import { PrStateBadge } from '@/components/me/PrStateBadge';
 import {
   Button,
@@ -12,11 +11,11 @@ import {
   Stat,
   Table,
 } from '@/components/ui';
-import { fmtDate } from '@/lib/fmt';
+import { fmtDate, fmtUsd } from '@/lib/fmt';
 import { parsePageParam } from '@/lib/pagination';
 import { ExternalLinkIcon, WarningIcon } from '../../../components/icons';
 import { JiraLink } from '../../../components/JiraLink';
-import { currentUser } from '../../../lib/auth';
+import { currentUser, redirectToLogin } from '../../../lib/auth';
 import { getJiraBase } from '../../../lib/config';
 import type { PRListItem } from '../../../lib/pr-queries';
 import { getUserPRs } from '../../../lib/pr-queries';
@@ -125,7 +124,7 @@ function PRsTable({
                 {pr.sessionCount}
               </Cell>
               <Cell num className="text-text-2">
-                ${pr.totalCostUsd.toFixed(2)}
+                {fmtUsd(pr.totalCostUsd)}
               </Cell>
               <Cell num className="text-text-2 text-xs">
                 {pr.costPerLoc != null ? `$${pr.costPerLoc.toFixed(3)}` : '—'}
@@ -164,7 +163,7 @@ function PRsTable({
 export default async function PRsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const params = await searchParams;
@@ -185,14 +184,14 @@ export default async function PRsPage({ searchParams }: { searchParams: Promise<
   return (
     <div className="space-y-6">
       <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-        Pull Requests
+        Pull requests
       </h1>
 
       {/* Summary stats */}
       {total > 0 && (
         <div className="grid gap-4 sm:grid-cols-3">
           <Stat label="Total PRs" value={String(total)} />
-          <Stat label="Total cost" value={`$${totalCost.toFixed(2)}`} />
+          <Stat label="Total cost" value={fmtUsd(totalCost)} />
           <Stat label="Total sessions" value={String(totalSessions)} />
         </div>
       )}

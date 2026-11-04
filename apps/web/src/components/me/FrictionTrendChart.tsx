@@ -22,6 +22,7 @@ export function FrictionTrendChart({
         <AreaLine
           ariaLabel="Average friction score per day"
           points={points.map((p) => p.frictionScore)}
+          pointLabels={points.map((p) => p.date)}
           startLabel={points[0]?.date ?? ''}
           midLabel="0 (low) – 1 (high)"
           endLabel={points[points.length - 1]?.date ?? ''}

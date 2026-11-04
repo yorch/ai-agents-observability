@@ -9,10 +9,12 @@ import {
   ClockIcon,
   CodeIcon,
   CubeIcon,
+  DashboardIcon,
   GaugeIcon,
   GearIcon,
   KeyIcon,
   ListIcon,
+  LogIcon,
   PeopleIcon,
   PolicyIcon,
   PullRequestIcon,
@@ -46,11 +48,11 @@ export function meNav(showGrants: boolean): NavGroup[] {
   return [
     {
       items: [
-        { exact: true, href: '/me', icon: ChartIcon, label: 'Overview' },
+        { exact: true, href: '/me', icon: DashboardIcon, label: 'Overview' },
         { href: '/me/sessions', icon: ListIcon, label: 'Sessions' },
         { href: '/me/insights', icon: GaugeIcon, label: 'Insights' },
         { href: '/me/trends', icon: ChartIcon, label: 'Trends' },
-        { href: '/me/report', icon: ChartIcon, label: 'Report' },
+        { href: '/me/report', icon: LogIcon, label: 'Report' },
         { href: '/me/prs', icon: PullRequestIcon, label: 'Pull requests' },
         { href: '/me/search', icon: SearchIcon, label: 'Search' },
       ],
@@ -71,11 +73,11 @@ export function teamNav(slug: string): NavGroup[] {
   return [
     {
       items: [
-        { exact: true, href: base, icon: ChartIcon, label: 'Overview' },
+        { exact: true, href: base, icon: DashboardIcon, label: 'Overview' },
         { href: `${base}/roster`, icon: PeopleIcon, label: 'Roster' },
         { href: `${base}/sessions`, icon: ListIcon, label: 'Sessions' },
         { href: `${base}/prs`, icon: PullRequestIcon, label: 'Pull requests' },
-        { href: `${base}/report`, icon: ChartIcon, label: 'Report' },
+        { href: `${base}/report`, icon: LogIcon, label: 'Report' },
         { href: `${base}/trends`, icon: ChartIcon, label: 'Trends' },
       ],
       label: 'Team',
@@ -96,13 +98,13 @@ export function teamNav(slug: string): NavGroup[] {
 export const ORG_NAV: NavGroup[] = [
   {
     items: [
-      { href: '/org/dashboard', icon: ChartIcon, label: 'Dashboard' },
+      { href: '/org/dashboard', icon: DashboardIcon, label: 'Dashboard' },
       { href: '/org/adoption', icon: BarsIcon, label: 'Adoption' },
       { href: '/org/delivery', icon: ClockIcon, label: 'Delivery' },
       { href: '/org/roi', icon: GaugeIcon, label: 'ROI' },
       { href: '/org/quality', icon: SparkleIcon, label: 'Quality' },
       { href: '/org/benchmarks', icon: TargetIcon, label: 'Benchmarks' },
-      { href: '/org/report', icon: ChartIcon, label: 'Report' },
+      { href: '/org/report', icon: LogIcon, label: 'Report' },
       { href: '/org/trends', icon: ChartIcon, label: 'Trends' },
     ],
     label: 'Overview',
@@ -110,7 +112,7 @@ export const ORG_NAV: NavGroup[] = [
   {
     items: [
       { href: '/org/agents', icon: AgentIcon, label: 'Agents' },
-      { href: '/org/tools', icon: CodeIcon, label: 'Tool usage' },
+      { href: '/org/tools', icon: CodeIcon, label: 'Tools' },
       { href: '/org/mcp', icon: StackIcon, label: 'MCP' },
       { href: '/org/models', icon: CubeIcon, label: 'Models' },
       { href: '/org/skills', icon: StarIcon, label: 'Skills' },

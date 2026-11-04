@@ -49,10 +49,10 @@ export default async function OrgReportPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Organization"
+        breadcrumb="Org"
         description="Aggregate activity, ready for a leadership readout."
         range={range}
-        title="Organization report"
+        title="Report"
       />
       <ReportDigest
         apiHref={`/api/org/report?range=${range}`}

@@ -1,5 +1,5 @@
 import { agentDisplayName } from '@ai-agents-observability/schemas';
-import { Card, EmptyState } from '@/components/ui';
+import { Card, EmptyState, SectionHeader } from '@/components/ui';
 import { fmtUsd, fmtUsdOrDash } from '@/lib/fmt';
 import type { RegisteredProjection } from '@/lib/projections';
 import {
@@ -65,9 +65,7 @@ export function RoutingRecommendations({
 
   return (
     <div className="space-y-3">
-      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
-        Routing recommendations
-      </h2>
+      <SectionHeader>Routing recommendations</SectionHeader>
 
       {claims.length === 0 ? (
         // Two different findings, deliberately not collapsed into one sentence:

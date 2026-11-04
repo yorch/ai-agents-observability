@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { FrictionTrendChart } from '@/components/me/FrictionTrendChart';
 import { ModelMixChart } from '@/components/me/ModelMix';
@@ -9,7 +8,7 @@ import { SummaryCards } from '@/components/me/SummaryCards';
 import { TopTools } from '@/components/me/TopTools';
 import { DateRangePicker, LONG_RANGES } from '@/components/team-org/DateRangePicker';
 import { ButtonLink, EmptyState, SkeletonCard } from '@/components/ui';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { getUserEffectiveness } from '@/lib/effectiveness-queries';
 import { getModelMix, getRecentSessions, getTopTools, getUsageSummary } from '@/lib/me-queries';
 import { getUserOversight } from '@/lib/oversight-queries';
@@ -32,7 +31,7 @@ async function ToolsAndModels({
   tools: ReturnType<typeof getTopTools>;
 }) {
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <TopTools tools={await tools} />
       <ModelMixChart models={await models} />
     </div>
@@ -52,7 +51,7 @@ async function EffectivenessSection({
       <p className="mb-3 text-xs text-text-3 uppercase tracking-widest">
         Effectiveness · trailing {days} days
       </p>
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <FrictionTrendChart
           points={effectiveness.trend}
           scoredSessionCount={effectiveness.scoredSessionCount}
@@ -89,7 +88,7 @@ export default async function MePage({
 }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const params = await searchParams;

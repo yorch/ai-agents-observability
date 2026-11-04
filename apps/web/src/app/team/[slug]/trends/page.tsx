@@ -1,6 +1,6 @@
 import { ReportRangeControls } from '@/components/team-org/ReportRangeControls';
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, PageHeader } from '@/components/ui';
 import { parseReportRange } from '@/lib/reporting-range';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamCostDuration } from '@/lib/scatter-queries';
@@ -40,29 +40,24 @@ export default async function TeamTrendsPage({
   ]);
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team</p>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-            {teamName} trends
-          </h1>
-          <p className="mt-1 text-sm text-text-2">
-            Daily activity and model mix ·{' '}
-            {custom
-              ? `${window.from} → ${window.to} (${window.days} days)`
-              : `trailing ${range} days`}
-          </p>
-        </div>
-        <ReportRangeControls
-          basePath={`/team/${slug}/trends`}
-          range={range}
-          from={search.from}
-          to={search.to}
-          timezone={window.timezone}
-          repo={search.repo}
-          repos={repos}
-        />
-      </div>
+      <PageHeader
+        action={
+          <ReportRangeControls
+            basePath={`/team/${slug}/trends`}
+            range={range}
+            from={search.from}
+            to={search.to}
+            timezone={window.timezone}
+            repo={search.repo}
+            repos={repos}
+          />
+        }
+        breadcrumb={teamName}
+        description={`Daily activity and model mix · ${
+          custom ? `${window.from} to ${window.to} (${window.days} days)` : `trailing ${range} days`
+        }`}
+        title="Trends"
+      />
       {points.length === 0 ? (
         <EmptyState title="No activity in this period">
           Visible team sessions will appear here once members run an adapter.
@@ -74,6 +69,7 @@ export default async function TeamTrendsPage({
           heatmap={heatmap}
           points={points}
           scatter={scatter}
+          timezone={window.timezone}
         />
       )}
     </div>

@@ -33,7 +33,6 @@ export default async function TeamReportPage({
     getTeamReport({
       days: range,
       teamLabel: teamName,
-      totalMemberCount: visibility.totalCount,
       visibleIds: visibility.visibleIds,
     }),
     getTeamTrends(visibility.visibleIds, since, options),
@@ -55,10 +54,10 @@ export default async function TeamReportPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Team"
+        breadcrumb={teamName}
         description="Aggregate activity only; team privacy settings are applied."
         range={range}
-        title={`${teamName} report`}
+        title="Report"
       />
       <ReportDigest
         apiHref={`/api/team/${slug}/report?range=${range}`}

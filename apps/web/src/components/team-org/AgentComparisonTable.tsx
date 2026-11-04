@@ -1,6 +1,6 @@
 import { agentDisplayName } from '@ai-agents-observability/schemas';
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
-import { fmtPct, fmtTokens, fmtUsdOrDash } from '@/lib/fmt';
+import { fmtFriction, fmtPct, fmtTokens, fmtUsdOrDash } from '@/lib/fmt';
 import type { AgentComparisonRow } from '@/lib/org-queries';
 
 // Side-by-side comparison of agent products (agent_type) on cost and quality.
@@ -53,7 +53,7 @@ export function AgentComparisonTable({ rows }: { rows: AgentComparisonRow[] }) {
                 <Cell num>{fmtUsdOrDash(r.totalCostUsd)}</Cell>
                 <Cell num>{fmtUsdOrDash(r.avgCostUsd)}</Cell>
                 <Cell num className="text-text-2">
-                  {r.medianFriction != null ? r.medianFriction.toFixed(2) : '—'}
+                  {r.medianFriction != null ? fmtFriction(r.medianFriction) : '—'}
                 </Cell>
                 <Cell
                   num

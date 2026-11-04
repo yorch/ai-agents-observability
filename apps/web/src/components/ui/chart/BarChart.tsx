@@ -1,3 +1,4 @@
+import { cx } from '../cx';
 import { ChartHover } from './ChartHover';
 import { Legend } from './Legend';
 import { axisTicks, niceMax, seriesBg } from './scale';
@@ -18,11 +19,23 @@ export type BarDatum = { label: string; values: number[] };
 export function BarChart({
   data,
   format,
+  integer = false,
+  maxLabels = 8,
   series,
 }: {
   data: BarDatum[];
   /** Formats both the axis ticks and the tooltip value. */
   format: (v: number) => string;
+  /**
+   * The measure is a count, so every tick must land on a whole number — a
+   * "0.25 sessions" gridline is not a value the data can take.
+   */
+  integer?: boolean;
+  /**
+   * Most x-axis labels to print. Labels are thinned to fit rather than
+   * shrunk or truncated: an "O…" under every bar reads as nothing at all.
+   */
+  maxLabels?: number;
   /** Series names in fixed assignment order; length drives the stack depth. */
   series: string[];
 }) {
@@ -31,10 +44,18 @@ export function BarChart({
   }
 
   const totals = data.map((d) => d.values.reduce((a, b) => a + b, 0));
-  const top = niceMax(Math.max(...totals));
+  const nice = niceMax(Math.max(...totals));
+  // Four steps, so a whole-number axis needs a top that divides by four.
+  const top = integer ? Math.max(4, Math.ceil(nice / 4) * 4) : nice;
   const ticks = axisTicks(top).reverse();
-  // Past ~16 bars the labels collide, so thin them rather than shrink them.
-  const labelEvery = Math.ceil(data.length / 16);
+  // A date label is ~5 characters wide, so past `maxLabels` they collide in a
+  // half-width card. Thin them rather than shrink or truncate them.
+  const labelEvery = Math.max(1, Math.ceil(data.length / maxLabels));
+  const lastIndex = data.length - 1;
+  // A single measure is the page's signature colour, as every other
+  // single-measure mark in the app is; series hues are for telling entities
+  // apart, and there is only one here.
+  const single = series.length <= 1;
 
   return (
     <>
@@ -99,9 +120,12 @@ export function BarChart({
                               // biome-ignore lint/a11y/noNoninteractiveTabindex: the tooltip value must be reachable by keyboard, not hover-only (WCAG 1.4.13 / 2.1.1)
                               tabIndex={0}
                               aria-label={`${d.label} ${series[s] ?? ''}: ${text}`}
-                              className={`block focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${seriesBg(s)}${isTop ? ' rounded-t-[3px]' : ''}${
-                                s > 0 ? ' mb-[1.5px]' : ''
-                              }`}
+                              className={cx(
+                                'block focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+                                single ? 'bg-accent-muted' : seriesBg(s),
+                                isTop && 'rounded-t-[3px]',
+                                s > 0 && 'mb-[1.5px]',
+                              )}
                               style={{ height: `${share}%` }}
                               data-tip={`${d.label} · ${series[s] ?? ''}|${text}`}
                             />
@@ -114,20 +138,38 @@ export function BarChart({
               </div>
             </div>
 
-            <div className="mt-1.5 flex gap-[2px]">
+            {/* One slot per bar, on the same gap as the bars, so each label
+                sits under its bar. The text is a non-shrinking child that may
+                be wider than its slot: a flex child overflows both sides
+                equally, so it stays centred under the bar. The two end labels
+                anchor inward instead so they never run past the plot. */}
+            <div className="mt-1.5 flex gap-1" aria-hidden="true">
               {data.map((d, i) => (
                 <span
                   key={d.label}
-                  className="min-w-0 flex-1 truncate text-center font-mono text-[10px] text-text-3"
+                  className={cx(
+                    'flex min-w-0 flex-1',
+                    lastIndex === 0
+                      ? 'justify-center'
+                      : i === 0
+                        ? 'justify-start'
+                        : i === lastIndex
+                          ? 'justify-end'
+                          : 'justify-center',
+                  )}
                 >
-                  {i % labelEvery === 0 ? d.label : ''}
+                  {i % labelEvery === 0 && (
+                    <span className="shrink-0 whitespace-nowrap font-mono text-[10px] text-text-3">
+                      {d.label}
+                    </span>
+                  )}
                 </span>
               ))}
             </div>
           </div>
         </div>
       </ChartHover>
-      <Legend items={series.map((label, index) => ({ index, label }))} />
+      {!single && <Legend items={series.map((label, index) => ({ index, label }))} />}
     </>
   );
 }

@@ -127,7 +127,7 @@ export default async function InstallPage({
           , or use the installer script:
         </p>
 
-        <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
+        <pre className="whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           {`curl -fsSL ${REPO_URL}/raw/main/scripts/install.sh | bash`}
         </pre>
 
@@ -146,7 +146,7 @@ export default async function InstallPage({
         <p className="text-sm text-text-2">
           Then make both executable and install them to the same directory:
         </p>
-        <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
+        <pre className="whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           {`chmod +x aiot-<os>-<arch> aiot-runtime-<os>-<arch>
 mkdir -p ~/.local/bin
 mv aiot-<os>-<arch> ~/.local/bin/aiot
@@ -166,7 +166,7 @@ mv aiot-runtime-<os>-<arch> ~/.local/bin/aiot-runtime`}
         <p className="text-sm text-text-2">
           If the server is not on localhost, point the hook at it, then log in:
         </p>
-        <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
+        <pre className="whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           {`aiot config set web-url https://observability.example.com
 aiot config set ingest-url https://ingest.example.com
 aiot login`}
@@ -207,7 +207,7 @@ aiot login`}
           </Segmented>
         </div>
 
-        <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
+        <pre className="whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
           {selected.flag === 'claude-code'
             ? 'aiot install'
             : `aiot install --agent ${selected.flag}`}
@@ -221,7 +221,7 @@ aiot login`}
             {DELIVERY_MODES.map((m) => (
               <Row key={m.mode}>
                 <Cell className="text-text">{m.mode}</Cell>
-                <Cell className="text-text-2">
+                <Cell className="whitespace-nowrap text-text-2">
                   <code className="font-mono text-xs">{m.command}</code>
                 </Cell>
                 <Cell className="text-text-2">{m.runs}</Cell>
@@ -275,7 +275,7 @@ aiot login`}
           <p className="text-sm text-text-2">
             If you have historical sessions from before the hook was installed, backfill them:
           </p>
-          <pre className="rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
+          <pre className="whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md bg-surface-2 px-4 py-3 text-sm font-mono text-text overflow-x-auto">
             {`aiot import --dry-run
 aiot import --agent ${selected.flag} --since 2026-01-01`}
           </pre>

@@ -12,6 +12,8 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 
 export function StatusBadge({ status }: { status: string }) {
   return (
-    <Badge tone={STATUS_TONE[status.toUpperCase()] ?? 'neutral'}>{status.toLowerCase()}</Badge>
+    <Badge tone={STATUS_TONE[status.toUpperCase()] ?? 'neutral'}>
+      {status.toLowerCase().replaceAll('_', ' ')}
+    </Badge>
   );
 }

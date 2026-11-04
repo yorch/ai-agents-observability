@@ -1,6 +1,7 @@
-import { notFound, redirect } from 'next/navigation';
+import { agentDisplayName } from '@ai-agents-observability/schemas';
+import { notFound } from 'next/navigation';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/fmt';
 import { getSession } from '@/lib/sessions-queries';
 
@@ -11,7 +12,7 @@ type PageParams = { id: string };
 export default async function TranscriptPage({ params }: { params: Promise<PageParams> }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const { id } = await params;
@@ -24,6 +25,7 @@ export default async function TranscriptPage({ params }: { params: Promise<PageP
     <TranscriptPanel
       backHref={`/me/sessions/${id}`}
       hasTranscript={Boolean(session.transcriptS3Key)}
+      labels={{ assistant: agentDisplayName(session.agentType), user: 'You' }}
       sessionId={id}
       subtitle={`${session.repoName ?? 'Unknown repo'} · ${fmtDateTime(session.startedAt)} UTC`}
     />

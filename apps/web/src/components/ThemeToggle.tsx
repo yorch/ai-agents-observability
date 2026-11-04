@@ -34,7 +34,7 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label="Toggle light/dark mode"
       aria-pressed={light}
-      className="text-text-3 transition-colors hover:text-text-2"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-3 transition-colors hover:bg-surface-2 hover:text-text-2"
       title={light ? 'Switch to dark' : 'Switch to light'}
     >
       {light ? <MoonIcon size={15} /> : <SunIcon size={15} />}

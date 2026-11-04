@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui';
+import { Delta } from '@/components/ui/Stat';
 
 export function AdoptionFunnel({
   funnel: { everUsers, active30d, active7d, newThisMonth, active30dDelta },
@@ -11,28 +12,6 @@ export function AdoptionFunnel({
     active30dDelta: number | null;
   };
 }) {
-  const renderDeltaBadge = (delta: number | null) => {
-    if (delta === null || delta === undefined) {
-      return null;
-    }
-
-    const percentValue = Math.round(delta * 100);
-    const isPositive = percentValue >= 0;
-    const prefix = isPositive ? '+' : '';
-    const percentText = `${prefix}${percentValue}%`;
-
-    let colorClass: string;
-    if (percentValue === 0) {
-      colorClass = 'text-text-3';
-    } else if (isPositive) {
-      colorClass = 'text-good';
-    } else {
-      colorClass = 'text-crit';
-    }
-
-    return <span className={`ml-2 inline text-xs font-mono ${colorClass}`}>{percentText}</span>;
-  };
-
   const rows = [
     { delta: null, label: 'Total users (ever)', value: everUsers },
     { delta: active30dDelta, label: 'Active last 30d', value: active30d },
@@ -46,9 +25,11 @@ export function AdoptionFunnel({
         {rows.map(({ label, value, delta }) => (
           <div key={label} className="flex justify-between">
             <span className="text-sm text-text-2">{label}</span>
-            <div className="flex items-baseline">
-              <span className="font-semibold text-text font-mono">{value}</span>
-              {renderDeltaBadge(delta)}
+            <div className="flex items-baseline gap-2">
+              <span className="w-12 text-right font-mono font-semibold text-text">{value}</span>
+              <span className="w-14 text-left">
+                {delta !== null && <Delta value={delta} inverted={false} />}
+              </span>
             </div>
           </div>
         ))}

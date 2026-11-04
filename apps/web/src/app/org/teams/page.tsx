@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, PageHeader } from '@/components/ui';
 
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgViewer } from '@/lib/roles';
@@ -19,10 +19,11 @@ export default async function OrgTeamsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">Teams</h1>
-        <p className="mt-1 text-sm text-text-2">{teams.length} teams in this organisation</p>
-      </div>
+      <PageHeader
+        breadcrumb="Org"
+        description={`${teams.length} teams in this organisation`}
+        title="Teams"
+      />
 
       {teams.length === 0 ? (
         <EmptyState>No teams configured yet</EmptyState>

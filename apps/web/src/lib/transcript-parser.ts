@@ -15,6 +15,8 @@ export type ToolResultBlock = {
   type: 'tool_result';
   tool_use_id: string;
   content: unknown;
+  /** The tool reported failure (`is_error: true` on the result block). */
+  isError?: boolean;
   toolName?: string;
 };
 
@@ -31,7 +33,18 @@ export type ContentBlock =
 
 export type ParsedLine =
   | { kind: 'user-message'; content: string; timestamp?: string; src: unknown }
-  | { kind: 'tool-results'; results: ToolResultBlock[]; timestamp?: string; src: unknown }
+  | {
+      kind: 'tool-results';
+      results: ToolResultBlock[];
+      /**
+       * Text blocks that rode on the same user line as the results (an
+       * interruption note, typically). Kept so the line is not silently lost;
+       * not counted as a prompt.
+       */
+      note?: string;
+      timestamp?: string;
+      src: unknown;
+    }
   | {
       kind: 'assistant-turn';
       blocks: ContentBlock[];
@@ -51,6 +64,21 @@ export type TranscriptStats = {
   firstTimestamp?: string;
   lastTimestamp?: string;
 };
+
+// Claude Code writes these as a user line when the person interrupts a turn.
+// They are not prompts: render them as the muted note shape (a tool-results
+// line with no results), and keep them out of the user-turn count.
+const INTERRUPT_MARKER = /^\[Request interrupted by user( for tool use)?\]$/;
+
+function interruptNote(note: string, src: unknown, timestamp: string | undefined): ParsedLine {
+  return {
+    kind: 'tool-results',
+    note,
+    results: [],
+    src,
+    ...(timestamp !== undefined && { timestamp }),
+  };
+}
 
 /**
  * Parse one raw NDJSON line into a typed ParsedLine.
@@ -75,8 +103,16 @@ export function parseTranscriptLine(rawLine: string, toolNameMap: Map<string, st
   const timestamp = line.timestamp as string | undefined;
 
   if (type === 'user' && message) {
+    // Harness-injected lines (caveats, expanded slash-command bodies) are not
+    // something the person typed — never a prompt.
+    if (line.isMeta === true) {
+      return { kind: 'metadata', lineType: 'meta', src: obj };
+    }
     const content = message.content;
     if (typeof content === 'string') {
+      if (INTERRUPT_MARKER.test(content.trim())) {
+        return interruptNote(content.trim(), obj, timestamp);
+      }
       return {
         content,
         kind: 'user-message',
@@ -85,23 +121,47 @@ export function parseTranscriptLine(rawLine: string, toolNameMap: Map<string, st
       };
     }
     if (Array.isArray(content)) {
-      const toolResults: ToolResultBlock[] = content
-        .filter((b: unknown) => (b as Record<string, unknown>).type === 'tool_result')
-        .map((b: unknown) => {
-          const block = b as Record<string, unknown>;
+      const toolResults: ToolResultBlock[] = [];
+      const texts: string[] = [];
+      for (const b of content as unknown[]) {
+        if (!b || typeof b !== 'object') {
+          continue;
+        }
+        const block = b as Record<string, unknown>;
+        if (block.type === 'tool_result') {
           const toolUseId = block.tool_use_id as string | undefined;
           const toolName = toolUseId ? toolNameMap.get(toolUseId) : undefined;
-          return {
+          toolResults.push({
             content: block.content,
             tool_use_id: toolUseId ?? '',
             type: 'tool_result' as const,
+            ...(block.is_error === true && { isError: true }),
             ...(toolName !== undefined && { toolName }),
-          };
-        });
+          });
+        } else if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
+          texts.push(block.text);
+        }
+      }
       if (toolResults.length > 0) {
         return {
           kind: 'tool-results',
           results: toolResults,
+          src: obj,
+          ...(texts.length > 0 && { note: texts.join('\n\n') }),
+          ...(timestamp !== undefined && { timestamp }),
+        };
+      }
+      // A prompt carried as text blocks rather than a bare string is still a
+      // prompt — the hook's own importer maps exactly this shape to
+      // UserPromptSubmit (apps/hook/src/lib/import-synth.ts).
+      if (texts.length > 0) {
+        const joined = texts.join('\n\n');
+        if (INTERRUPT_MARKER.test(joined.trim())) {
+          return interruptNote(joined.trim(), obj, timestamp);
+        }
+        return {
+          content: texts.join('\n\n'),
+          kind: 'user-message',
           src: obj,
           ...(timestamp !== undefined && { timestamp }),
         };

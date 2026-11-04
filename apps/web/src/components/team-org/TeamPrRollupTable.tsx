@@ -1,5 +1,5 @@
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
-import { fmtDate } from '@/lib/fmt';
+import { fmtDate, fmtHoursShort, fmtUsd } from '@/lib/fmt';
 import type { TeamPrRollupRow } from '@/lib/team-queries';
 
 export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
@@ -41,14 +41,14 @@ export function TeamPrRollupTable({ rows }: { rows: TeamPrRollupRow[] }) {
             <Cell className="text-text-2 text-xs">{fmtDate(row.mergedAt)}</Cell>
             <Cell>
               <div className="inline-flex rounded-full bg-surface-2 px-2 py-0.5 font-mono text-xs text-text-2">
-                ${row.totalCostUsd.toFixed(2)}
+                {fmtUsd(row.totalCostUsd)}
               </div>
             </Cell>
             <Cell num className="text-text-2 text-xs">
               {row.sessionCount}
             </Cell>
             <Cell num className="text-text-2 text-xs">
-              {row.timeToMergeHours !== null ? `${row.timeToMergeHours.toFixed(1)}h` : '—'}
+              {row.timeToMergeHours !== null ? fmtHoursShort(row.timeToMergeHours) : '—'}
             </Cell>
           </Row>
         ))}

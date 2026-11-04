@@ -1,5 +1,5 @@
 import { ADAPTER_AGENT_TYPES } from '@ai-agents-observability/schemas';
-import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { Card, CardEmpty, Cell, PageHeader, Row, Table } from '@/components/ui';
 import { getConfig } from '@/lib/config';
 import { fmtDate } from '@/lib/fmt';
 import { requireOrgAdmin } from '@/lib/roles';
@@ -179,6 +179,16 @@ async function UnpricedModels({ notTokenBilled }: { notTokenBilled: Set<string> 
   );
 }
 
+// The page's purpose, shown whether or not the ingest URL is configured: the
+// configured branch and the notice both need it to say what the tables are for.
+const PURPOSE = (
+  <>
+    Per-agent LLM pricing used for cost computation. Tables are JSON fixtures loaded by the ingest
+    service at startup. Update the files under{' '}
+    <code className="font-mono text-xs">apps/ingest/src/data/</code> and redeploy to change pricing.
+  </>
+);
+
 export default async function PriceTablesPage() {
   await requireOrgAdmin();
 
@@ -187,9 +197,7 @@ export default async function PriceTablesPage() {
   if (!ingestUrl) {
     return (
       <div className="space-y-4">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
-          Price tables
-        </h1>
+        <PageHeader breadcrumb="Admin" title="Price tables" description={PURPOSE} />
         <div className="rounded-lg border border-warn-line bg-warn-soft p-4 text-sm">
           <p className="font-medium text-warn">INGEST_URL not configured</p>
           <p className="mt-1 text-text-2">
@@ -212,17 +220,7 @@ export default async function PriceTablesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-1">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
-          Price tables
-        </h1>
-        <p className="text-sm text-text-2">
-          Per-agent LLM pricing used for cost computation. Tables are JSON fixtures loaded by the
-          ingest service at startup. Update the files under{' '}
-          <code className="font-mono text-xs">apps/ingest/src/data/</code> and redeploy to change
-          pricing.
-        </p>
-      </div>
+      <PageHeader breadcrumb="Admin" title="Price tables" description={PURPOSE} />
 
       <UnpricedModels
         notTokenBilled={

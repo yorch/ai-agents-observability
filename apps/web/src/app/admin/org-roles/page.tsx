@@ -1,5 +1,5 @@
 import { OrgRole } from '@ai-agents-observability/db';
-import { ActionForm, Button, Cell, Row, Select, Table } from '@/components/ui';
+import { ActionForm, Button, Cell, PageHeader, Row, Select, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setOrgRole } from './actions';
@@ -13,6 +13,26 @@ const ROLES: OrgRole[] = [
   OrgRole.ORG_ADMIN,
 ];
 
+const ORG_ROLE_LABEL: Record<OrgRole, { description: string; label: string }> = {
+  [OrgRole.MEMBER]: {
+    description: 'Sees only their own sessions. No org-wide views.',
+    label: 'Member',
+  },
+  [OrgRole.VIEWER_AGGREGATE]: {
+    description: 'Org dashboards and aggregate numbers. No individual sessions.',
+    label: 'Aggregate viewer',
+  },
+  [OrgRole.INVESTIGATOR]: {
+    description:
+      'Aggregate access, and can request time-boxed transcript grants. Never standing access to individual sessions.',
+    label: 'Investigator',
+  },
+  [OrgRole.ORG_ADMIN]: {
+    description: 'Approves access grants and manages org roles.',
+    label: 'Org admin',
+  },
+};
+
 export default async function OrgRolesAdminPage() {
   await requireOrgAdmin();
 
@@ -25,14 +45,20 @@ export default async function OrgRolesAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-text">Org roles</h1>
-        <p className="text-sm text-text-2">
-          Assign org-level roles. <span className="text-text-2">investigator</span> grants aggregate
-          access plus the ability to request time-boxed access grants — never standing access to
-          individual sessions. Changes are audited.
-        </p>
-      </div>
+      <PageHeader
+        breadcrumb="Admin"
+        title="Org roles"
+        description="Assign org-level roles. Changes are audited."
+      />
+
+      <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]">
+        {ROLES.map((r) => (
+          <div key={r} className="contents">
+            <dt className="font-medium text-text">{ORG_ROLE_LABEL[r].label}</dt>
+            <dd className="text-text-2">{ORG_ROLE_LABEL[r].description}</dd>
+          </div>
+        ))}
+      </dl>
 
       <Table columns={[{ label: 'User' }, { label: 'Role' }]}>
         {users.map((u) => (
@@ -52,7 +78,7 @@ export default async function OrgRolesAdminPage() {
                 >
                   {ROLES.map((r) => (
                     <option key={r} value={r}>
-                      {r}
+                      {ORG_ROLE_LABEL[r].label}
                     </option>
                   ))}
                 </Select>

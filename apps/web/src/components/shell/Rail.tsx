@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { cx } from '@/components/ui/cx';
 import { Select } from '@/components/ui/Field';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { CommandPalette } from './CommandPalette';
@@ -74,7 +75,10 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
   }, []);
 
   const scope = scopeOf(pathname);
+  // The layout orders `teams` with the viewer's own (led) team first, so
+  // outside team scope the TEAM segment opens their home team.
   const activeTeam = scope === 'team' ? teamSlugOf(pathname) : (teams[0]?.githubSlug ?? null);
+  const activeTeamName = teams.find((t) => t.githubSlug === activeTeam)?.name ?? activeTeam;
 
   let groups: NavGroup[] = [];
   if (scope === 'me') {
@@ -96,8 +100,10 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
 
   return (
     <>
-      {/* Mobile bar — the rail collapses to a single control below `lg`. */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3 lg:hidden">
+      {/* Mobile bar — the rail collapses to a single control below `lg`. Sticky,
+          so the Menu button is reachable from anywhere down a long page. Its
+          height (h-14) is what the open drawer is offset by. */}
+      <div className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-bg px-4 lg:hidden">
         <Link href="/me" className="font-display text-sm font-semibold tracking-tight text-text">
           Observability
         </Link>
@@ -107,7 +113,7 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
             aria-expanded={open}
             aria-controls={drawerId}
             onClick={() => setOpen((v) => !v)}
-            className="rounded-md border border-border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest text-text-2 transition-colors hover:text-text"
+            className="inline-flex h-8 items-center rounded-md border border-border px-2.5 font-mono text-[10px] uppercase tracking-widest text-text-2 transition-colors hover:text-text"
           >
             {open ? 'Close' : 'Menu'}
           </button>
@@ -118,9 +124,16 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
         id={drawerId}
         ref={drawerRef}
         aria-label="Primary"
-        className={`${
-          open ? 'flex' : 'hidden'
-        } shrink-0 flex-col gap-6 border-border bg-surface px-3 py-4 max-lg:border-b lg:flex lg:w-56 lg:border-r`}
+        className={cx(
+          open ? 'flex' : 'hidden',
+          'shrink-0 flex-col gap-6 border-border bg-surface px-3 py-4 lg:flex lg:w-56 lg:border-r',
+          // Below lg the open drawer overlays the page under the sticky bar
+          // rather than pushing the content down.
+          'max-lg:fixed max-lg:inset-x-0 max-lg:top-14 max-lg:bottom-0 max-lg:z-40 max-lg:overflow-y-auto',
+          // On desktop the rail holds still while the page scrolls, so the
+          // account row stays pinned to the viewport, not the page bottom.
+          'lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto',
+        )}
       >
         <Link
           href="/me"
@@ -133,6 +146,7 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
           canViewOrg={canViewOrg}
           isAdmin={isAdmin}
           showGrants={showGrants}
+          teamName={activeTeamName}
           teamSlug={activeTeam}
         />
 
@@ -143,9 +157,14 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
                 key={s.scope}
                 href={s.href}
                 aria-current={scope === s.scope ? 'page' : undefined}
-                className={`flex-1 rounded-md py-1.5 text-center font-mono text-[10px] uppercase tracking-widest transition-colors ${
-                  scope === s.scope ? 'bg-surface text-text' : 'text-text-3 hover:text-text'
-                }`}
+                className={cx(
+                  'flex-1 rounded-md py-1.5 text-center font-mono text-[10px] uppercase tracking-widest transition-colors',
+                  // The hairline carries selection in light theme, where the
+                  // surface step against surface-2 is nearly invisible.
+                  scope === s.scope
+                    ? 'bg-surface text-text shadow-[inset_0_0_0_1px_var(--c-border-strong)]'
+                    : 'text-text-3 hover:text-text',
+                )}
               >
                 {SCOPE_LABEL[s.scope]}
               </Link>
@@ -168,11 +187,12 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
                   key={item.href}
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
-                  className={`relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                  className={cx(
+                    'relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors',
                     active
                       ? 'bg-accent-dim font-medium text-text before:absolute before:top-1.5 before:bottom-1.5 before:-left-3 before:w-0.5 before:rounded-r-sm before:bg-accent'
-                      : 'text-text-2 hover:bg-surface-2 hover:text-text'
-                  }`}
+                      : 'text-text-2 hover:bg-surface-2 hover:text-text',
+                  )}
                 >
                   <Icon size={14} className="shrink-0 opacity-80" />
                   {item.label}
@@ -184,12 +204,14 @@ export function Rail({ canViewOrg, isAdmin, showGrants, teams, userLabel }: Rail
 
         {/* One account row, not one per breakpoint — a second copy would mean a
             second hydrated ThemeToggle and a second MutationObserver. Ordered
-            first in the drawer, pinned last in the rail. */}
-        <div className="flex items-center gap-2.5 px-2 max-lg:order-first max-lg:border-b max-lg:border-border max-lg:pb-3 lg:mt-auto lg:pt-4">
+            first in the drawer, pinned last in the rail — and sticky there,
+            so it stays on screen when the org nav is taller than the
+            viewport and the rail scrolls. */}
+        <div className="flex items-center gap-1 px-2 max-lg:order-first max-lg:border-b max-lg:border-border max-lg:pb-3 lg:sticky lg:bottom-0 lg:-mx-3 lg:-mb-4 lg:mt-auto lg:border-t lg:border-border-subtle lg:bg-surface lg:px-5 lg:py-3">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 font-mono text-[9px] text-text-2">
             {initials(userLabel)}
           </span>
-          <span className="min-w-0 flex-1 truncate text-xs text-text-2" title={userLabel}>
+          <span className="ml-1.5 min-w-0 flex-1 truncate text-xs text-text-2" title={userLabel}>
             {userLabel}
           </span>
           <ThemeToggle />

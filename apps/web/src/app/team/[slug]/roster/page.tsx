@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { DateRangePicker } from '@/components/team-org/DateRangePicker';
-import { Cell, EmptyState, Row, Table } from '@/components/ui';
+import { PageHeader } from '@/components/team-org/PageHeader';
+import { Card, Cell, EmptyState, Row, Table } from '@/components/ui';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
+import { fmtUsd } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamRoster } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
@@ -39,23 +40,17 @@ export default async function TeamRosterPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team</p>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-            {teamName}
-          </h1>
-          <p className="mt-1 text-sm text-text-2">
-            {members.length} {members.length === 1 ? 'member' : 'members'} · trailing {range} days
-          </p>
-        </div>
-        <DateRangePicker range={range} />
-      </div>
+      <PageHeader
+        breadcrumb={teamName}
+        description={`${members.length} ${members.length === 1 ? 'member' : 'members'} · trailing ${range} days`}
+        range={range}
+        title="Roster"
+      />
 
       {members.length === 0 ? (
         <EmptyState>No members in this team yet.</EmptyState>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
+        <Card>
           <Table
             columns={[
               { label: 'Member' },
@@ -64,48 +59,56 @@ export default async function TeamRosterPage({
               { align: 'right', label: `Cost (${range}d)` },
             ]}
           >
-            {members.map((m) => (
-              <Row key={m.userId}>
-                <Cell>
-                  <div className="flex items-center gap-3">
-                    <div>
-                      {m.canViewStats ? (
-                        <Link
-                          href={`/team/${slug}/member/${m.githubLogin}`}
-                          className="font-medium text-text hover:text-text-2"
-                        >
-                          {m.displayName ?? m.githubLogin}
-                        </Link>
-                      ) : (
-                        <p className="font-medium text-text">{m.displayName ?? m.githubLogin}</p>
-                      )}
-                      {m.displayName && <p className="text-xs text-text-3">@{m.githubLogin}</p>}
+            {members.map((m) => {
+              // githubLogin is nullable (password-auth users); the member route is
+              // keyed on it, so no login means no link and no "@" line.
+              const name =
+                m.displayName ?? (m.githubLogin ? `@${m.githubLogin}` : 'Unknown member');
+              return (
+                <Row key={m.userId}>
+                  <Cell>
+                    <div className="flex items-center gap-3">
+                      <div>
+                        {m.canViewStats && m.githubLogin ? (
+                          <Link
+                            href={`/team/${slug}/member/${m.githubLogin}`}
+                            className="font-medium text-text hover:text-text-2"
+                          >
+                            {name}
+                          </Link>
+                        ) : (
+                          <p className="font-medium text-text">{name}</p>
+                        )}
+                        {m.displayName && m.githubLogin && (
+                          <p className="text-xs text-text-3">@{m.githubLogin}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </Cell>
-                <Cell>
-                  <span className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 text-xs text-text-2">
-                    {ROLE_LABEL[m.role] ?? m.role}
-                  </span>
-                </Cell>
-                {m.canViewStats ? (
-                  <>
-                    <Cell num className="text-text-2">
-                      {m.sessionCount ?? 0}
-                    </Cell>
-                    <Cell num className="text-text-2">
-                      ${(m.totalCostUsd ?? 0).toFixed(2)}
-                    </Cell>
-                  </>
-                ) : (
-                  <Cell colSpan={2} num className="text-xs text-text-3 italic">
-                    Privacy opted out
                   </Cell>
-                )}
-              </Row>
-            ))}
+                  <Cell>
+                    <span className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 text-xs text-text-2">
+                      {ROLE_LABEL[m.role] ?? m.role}
+                    </span>
+                  </Cell>
+                  {m.canViewStats ? (
+                    <>
+                      <Cell num className="text-text-2">
+                        {m.sessionCount ?? 0}
+                      </Cell>
+                      <Cell num className="text-text-2">
+                        {fmtUsd(m.totalCostUsd ?? 0)}
+                      </Cell>
+                    </>
+                  ) : (
+                    <Cell colSpan={2} num className="text-xs text-text-3 italic">
+                      Privacy opted out
+                    </Cell>
+                  )}
+                </Row>
+              );
+            })}
           </Table>
-        </div>
+        </Card>
       )}
 
       <p className="text-xs text-text-3">

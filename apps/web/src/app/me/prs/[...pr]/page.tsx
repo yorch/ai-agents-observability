@@ -1,10 +1,10 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon, ExternalLinkIcon } from '@/components/icons';
 import { PrStateBadge } from '@/components/me/PrStateBadge';
-import { Card, EmptyState } from '@/components/ui';
-import { currentUser } from '@/lib/auth';
-import { fmtDate } from '@/lib/fmt';
+import { Card, EmptyState, SectionHeader, Stat } from '@/components/ui';
+import { currentUser, redirectToLogin } from '@/lib/auth';
+import { fmtDate, fmtDateTime, fmtDurationSec, fmtUsd, fmtUsdSession } from '@/lib/fmt';
 import { getPRDetail } from '@/lib/pr-queries';
 import { getPrisma } from '@/lib/prisma';
 
@@ -24,10 +24,25 @@ function formatActiveTime(seconds: number | null): string {
   return `${m}m`;
 }
 
+type SessionRow = {
+  endedAt: Date | null;
+  startedAt: Date;
+  totalCostUsd: unknown;
+};
+
+function sessionLabel(row: SessionRow | undefined, id: string): string {
+  if (!row) {
+    return id.slice(0, 8);
+  }
+  return `${fmtDateTime(row.startedAt)} UTC · ${fmtDurationSec(
+    row.endedAt ? Math.round((row.endedAt.getTime() - row.startedAt.getTime()) / 1000) : null,
+  )} · ${fmtUsdSession(Number(row.totalCostUsd))}`;
+}
+
 export default async function PRDetailPage({ params }: { params: Promise<PageParams> }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const { pr: segments } = await params;
@@ -58,6 +73,17 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
     notFound();
   }
 
+  // Identify contributing sessions by date/duration/cost rather than UUID. Only
+  // the viewer's own sessions resolve; others fall back to the short id.
+  const sessionRows =
+    pr.contributingSessionIds.length > 0
+      ? await db.session.findMany({
+          select: { endedAt: true, sessionId: true, startedAt: true, totalCostUsd: true },
+          where: { sessionId: { in: pr.contributingSessionIds }, userId: user.id },
+        })
+      : [];
+  const sessionById = new Map(sessionRows.map((r) => [r.sessionId, r]));
+
   const githubHref = `https://github.com/${pr.repoOwner}/${pr.repoName}/pull/${pr.prNumber}`;
   const hasRollup = pr.contributingSessionIds.length > 0 || pr.totalCostUsd > 0;
 
@@ -68,7 +94,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
         href="/me/prs"
         className="inline-flex items-center gap-1 text-sm text-text-2 hover:text-text"
       >
-        <ArrowLeftIcon /> Pull Requests
+        <ArrowLeftIcon /> Pull requests
       </Link>
 
       {/* Header */}
@@ -120,24 +146,10 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       {/* Summary cards */}
       {hasRollup && (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <Card>
-            <div className="text-xs text-text-3 uppercase tracking-wide">Cost</div>
-            <div className="mt-1 text-2xl font-semibold">${pr.totalCostUsd.toFixed(2)}</div>
-          </Card>
-          <Card>
-            <div className="text-xs text-text-3 uppercase tracking-wide">Sessions</div>
-            <div className="mt-1 text-2xl font-semibold">{pr.sessionCount}</div>
-          </Card>
-          <Card>
-            <div className="text-xs text-text-3 uppercase tracking-wide">Contributors</div>
-            <div className="mt-1 text-2xl font-semibold">{pr.contributorCount}</div>
-          </Card>
-          <Card>
-            <div className="text-xs text-text-3 uppercase tracking-wide">Active Time</div>
-            <div className="mt-1 text-2xl font-semibold">
-              {formatActiveTime(pr.totalActiveSeconds)}
-            </div>
-          </Card>
+          <Stat label="Cost" value={fmtUsd(pr.totalCostUsd)} />
+          <Stat label="Sessions" value={pr.sessionCount.toLocaleString()} />
+          <Stat label="Contributors" value={pr.contributorCount.toLocaleString()} />
+          <Stat label="Active time" value={formatActiveTime(pr.totalActiveSeconds)} />
         </div>
       )}
 
@@ -146,25 +158,24 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
         (pr.totalInputTokens !== null ||
           pr.totalOutputTokens !== null ||
           pr.totalToolCalls !== null) && (
-          <Card contentClassName="space-y-2">
-            <h2 className="text-sm font-medium text-text-2">Usage breakdown</h2>
+          <Card title="Usage breakdown" contentClassName="space-y-2">
             <div className="grid gap-4 text-sm sm:grid-cols-3">
               {pr.totalInputTokens !== null && (
                 <div>
                   <div className="text-xs text-text-3">Input tokens</div>
-                  <div className="text-text">{pr.totalInputTokens.toString()}</div>
+                  <div className="text-text">{Number(pr.totalInputTokens).toLocaleString()}</div>
                 </div>
               )}
               {pr.totalOutputTokens !== null && (
                 <div>
                   <div className="text-xs text-text-3">Output tokens</div>
-                  <div className="text-text">{pr.totalOutputTokens.toString()}</div>
+                  <div className="text-text">{Number(pr.totalOutputTokens).toLocaleString()}</div>
                 </div>
               )}
               {pr.totalToolCalls !== null && (
                 <div>
                   <div className="text-xs text-text-3">Tool calls</div>
-                  <div className="text-text">{pr.totalToolCalls}</div>
+                  <div className="text-text">{pr.totalToolCalls.toLocaleString()}</div>
                 </div>
               )}
             </div>
@@ -180,9 +191,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
       {/* Contributing sessions */}
       {pr.contributingSessionIds.length > 0 && (
         <div className="space-y-3">
-          <h2 className="font-display text-sm font-semibold text-text">
-            Contributing Sessions ({pr.contributingSessionIds.length})
-          </h2>
+          <SectionHeader>Contributing sessions ({pr.contributingSessionIds.length})</SectionHeader>
           <div className="rounded-lg border border-border overflow-hidden">
             {pr.contributingSessionIds.map((sessionId) => (
               <div
@@ -193,7 +202,7 @@ export default async function PRDetailPage({ params }: { params: Promise<PagePar
                   href={`/me/sessions/${sessionId}`}
                   className="font-mono text-sm text-text-2 hover:text-text"
                 >
-                  {sessionId}
+                  {sessionLabel(sessionById.get(sessionId), sessionId)}
                 </Link>
                 <Link
                   href={`/me/sessions/${sessionId}`}

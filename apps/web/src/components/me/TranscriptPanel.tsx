@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ArrowLeftIcon } from '@/components/icons';
+import type { TranscriptLabels } from '@/components/me/TranscriptTurnView';
 import { TranscriptViewer } from '@/components/me/TranscriptViewer';
 import { EmptyState } from '@/components/ui';
 
@@ -8,6 +9,7 @@ export function TranscriptPanel({
   apiUrl,
   backHref,
   hasTranscript,
+  labels,
   notice,
   sessionId,
   subtitle,
@@ -15,12 +17,14 @@ export function TranscriptPanel({
   apiUrl?: string;
   backHref: string;
   hasTranscript: boolean;
+  /** Speaker labels — the agent's display name and the session owner. */
+  labels: TranscriptLabels;
   notice?: ReactNode;
   sessionId: string;
   subtitle: ReactNode;
 }) {
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <Link
         href={backHref}
         className="inline-flex items-center gap-1 text-sm text-text-3 hover:text-accent transition-colors"
@@ -35,7 +39,7 @@ export function TranscriptPanel({
       </div>
 
       {hasTranscript ? (
-        <TranscriptViewer sessionId={sessionId} apiUrl={apiUrl} />
+        <TranscriptViewer sessionId={sessionId} apiUrl={apiUrl} labels={labels} />
       ) : (
         <EmptyState>No transcript available for this session.</EmptyState>
       )}

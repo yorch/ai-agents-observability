@@ -147,7 +147,7 @@ export default async function OrgSkillDetailPage({
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-text-3">
                     {withSkill.avgCostUsd > withoutSkill.avgCostUsd
-                      ? `Sessions using /${name} cost ${((withSkill.avgCostUsd / withoutSkill.avgCostUsd - 1) * 100).toFixed(0)}% more on average — longer or more complex tasks.`
+                      ? `Sessions using /${name} cost ${((withSkill.avgCostUsd / withoutSkill.avgCostUsd - 1) * 100).toFixed(0)}% more on average. Sessions that use it may be longer or more complex; this is an association, not a cause.`
                       : `Sessions using /${name} cost ${((1 - withSkill.avgCostUsd / withoutSkill.avgCostUsd) * 100).toFixed(0)}% less on average.`}
                   </p>
                 </div>

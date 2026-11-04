@@ -183,7 +183,9 @@ export function ActiveSessionStream({ slug }: { slug: string }) {
                     {s.ownerDisplayName ?? `@${s.ownerLogin}`}
                   </Link>
                 ) : (
-                  <span className="text-text-3">—</span>
+                  <span className={s.ownerDisplayName ? undefined : 'text-text-3'}>
+                    {s.ownerDisplayName ?? '—'}
+                  </span>
                 )}
               </Cell>
               <Cell className="text-text-2 text-xs">

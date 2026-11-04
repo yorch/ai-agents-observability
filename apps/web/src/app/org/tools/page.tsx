@@ -1,15 +1,19 @@
+import { agentDisplayName } from '@ai-agents-observability/schemas';
 import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, CardEmpty, Cell, ChartHover, Row, SeriesBadge, Stat, Table } from '@/components/ui';
+import { cx } from '@/components/ui/cx';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
-import { fmtDayShort, fmtUsdOrDash } from '@/lib/fmt';
+import { ciPassRate } from '@/lib/ci-pass-rate';
+import { fmtDayShort, fmtPct, fmtUsd, fmtUsdOrDash } from '@/lib/fmt';
 import {
   type CategoryStatRow,
   type DailyToolVolumeRow,
   getDailyToolVolume,
   getMcpServerUsage,
   getOrgSkillSequences,
+  getOrgUniqueToolCount,
   getSkillAdoptionFunnel,
   getSkillRoi,
   getSkillUsage,
@@ -27,6 +31,7 @@ import {
 } from '@/lib/org-queries';
 import { requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
+import { toolCategoryLabel } from '@/lib/tool-category-labels';
 export const dynamic = 'force-dynamic';
 
 export default async function OrgToolsPage({
@@ -52,6 +57,7 @@ export default async function OrgToolsPage({
     skillSequences,
     skillRoi,
     coverage,
+    uniqueTools,
   ] = await Promise.all([
     getToolStats(since, 20),
     getToolCategoryBreakdown(since),
@@ -63,12 +69,14 @@ export default async function OrgToolsPage({
     getOrgSkillSequences(since),
     getSkillRoi(since),
     getAttributionCoverage(visibleIds, since),
+    getOrgUniqueToolCount(since),
   ]);
 
-  const totalCalls = tools.reduce((s, t) => s + t.callCount, 0);
-  const totalDenials = tools.reduce((s, t) => s + t.denyCount, 0);
+  // Totals come from the full-window category breakdown, not the capped Top-20
+  // table (which would understate them); unique tools is its own uncapped count.
+  const totalCalls = categories.reduce((s, c) => s + c.callCount, 0);
+  const totalDenials = categories.reduce((s, c) => s + c.denyCount, 0);
   const overallDenyRate = totalCalls > 0 ? totalDenials / totalCalls : 0;
-  const uniqueTools = tools.length;
   const avgDurations = tools.map((t) => t.avgDurationMs).filter((d): d is number => d !== null);
   const overallAvgDuration =
     avgDurations.length > 0
@@ -79,15 +87,15 @@ export default async function OrgToolsPage({
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Org"
-        description={`Trailing ${range} days · tool usage across the org`}
+        description={`Tools & skills · trailing ${range} days · across the org`}
         range={range}
-        title="Tools & Skills"
+        title="Tools"
       />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat label={`Tool calls (${range}d)`} value={totalCalls.toLocaleString()} />
-        <Stat label="Unique tools" value={uniqueTools.toString()} />
+        <Stat label="Tool calls" value={totalCalls.toLocaleString()} sub={`last ${range}d`} />
+        <Stat label="Unique tools" value={uniqueTools.toLocaleString()} />
         <Stat
           label="Denial rate"
           value={totalCalls > 0 ? `${(overallDenyRate * 100).toFixed(1)}%` : '—'}
@@ -101,17 +109,13 @@ export default async function OrgToolsPage({
 
       {/* Daily volume trend */}
       {dailyVolume.length > 0 && (
-        <Card>
-          <h2 className="mb-4 font-display text-sm font-semibold text-text">
-            Daily tool call volume ({range}d)
-          </h2>
+        <Card title={`Daily tool call volume (${range}d)`}>
           <DailyVolumeBars volume={dailyVolume} />
         </Card>
       )}
 
       {/* Top tools table */}
-      <Card contentClassName="space-y-3">
-        <h2 className="font-display text-sm font-semibold text-text">Top tools ({range}d)</h2>
+      <Card title={`Top 20 tools (${range}d)`} contentClassName="space-y-3">
         {tools.length === 0 ? (
           <CardEmpty>No tool activity in this period.</CardEmpty>
         ) : (
@@ -122,9 +126,13 @@ export default async function OrgToolsPage({
         )}
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Category breakdown */}
-        <Card title="By category" contentClassName="space-y-3">
+        <Card
+          title="By category"
+          caption="Top-level calls only; sub-agent spawns excluded; uncategorised calls counted as Other"
+          contentClassName="space-y-3"
+        >
           {categories.length === 0 ? (
             <CardEmpty>No tool activity in this period.</CardEmpty>
           ) : (
@@ -161,37 +169,33 @@ export default async function OrgToolsPage({
 
       {/* Team skill matrix */}
       {teamSkillMatrix.length > 0 && (
-        <Card contentClassName="space-y-3">
-          <div>
-            <h2 className="font-display text-sm font-semibold text-text">Skill adoption by team</h2>
-            <p className="text-xs text-text-3 mt-0.5">Which skills each team uses most</p>
-          </div>
+        <Card
+          title="Skill adoption by team"
+          caption="Which skills each team uses most"
+          contentClassName="space-y-3"
+        >
           <TeamSkillMatrix rows={teamSkillMatrix} />
         </Card>
       )}
 
       {/* Skill workflows */}
       {skillSequences.length > 0 && (
-        <Card contentClassName="space-y-3">
-          <div>
-            <h2 className="font-display text-sm font-semibold text-text">Skill workflows</h2>
-            <p className="text-xs text-text-3 mt-0.5">
-              Most common consecutive skill pairs within sessions
-            </p>
-          </div>
+        <Card
+          title="Skill workflows"
+          caption="Most common consecutive skill pairs within sessions"
+          contentClassName="space-y-3"
+        >
           <SkillSequences rows={skillSequences} />
         </Card>
       )}
 
       {/* Skill ROI */}
       {skillRoi.length > 0 && (
-        <Card contentClassName="space-y-3">
-          <div>
-            <h2 className="font-display text-sm font-semibold text-text">Skill × PR CI status</h2>
-            <p className="text-xs text-text-3 mt-0.5">
-              Sessions using each skill, broken down by PR CI outcome
-            </p>
-          </div>
+        <Card
+          title="Skill × PR CI status"
+          caption="Sessions using each skill, broken down by PR CI outcome"
+          contentClassName="space-y-3"
+        >
           <SkillRoiTable rows={skillRoi} />
         </Card>
       )}
@@ -202,6 +206,8 @@ export default async function OrgToolsPage({
 function DailyVolumeBars({ volume }: { volume: DailyToolVolumeRow[] }) {
   const max = Math.max(...volume.map((v) => v.callCount), 1);
   const anyDenied = volume.some((v) => v.denyCount > 0);
+  // Thin the date labels the way BarChart does so neighbours never collide.
+  const labelEvery = Math.ceil(volume.length / 10);
   return (
     <>
       {/*
@@ -219,44 +225,51 @@ function DailyVolumeBars({ volume }: { volume: DailyToolVolumeRow[] }) {
         no legend. This one maps the real tokens instead.
       */}
       <ChartHover>
-        <div className="flex items-end gap-0.5 h-28">
-          {volume.map((v) => {
-            const height = Math.max(4, (v.callCount / max) * 112);
-            const denyHeight = v.callCount > 0 ? (v.denyCount / v.callCount) * height : 0;
-            const label = fmtDayShort(new Date(v.day));
-            return (
-              <div key={v.day.toISOString()} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-[9px] text-text-3">{v.callCount}</span>
+        <div className="overflow-x-auto pt-6">
+          <div className="flex h-28 min-w-[480px] items-end gap-0.5">
+            {volume.map((v, i) => {
+              const height = Math.max(4, (v.callCount / max) * 112);
+              const denyHeight = v.callCount > 0 ? (v.denyCount / v.callCount) * height : 0;
+              const label = fmtDayShort(new Date(v.day));
+              return (
                 <div
-                  role="img"
-                  // biome-ignore lint/a11y/noNoninteractiveTabindex: chart marks need keyboard tooltip parity
-                  tabIndex={0}
-                  aria-label={`${label}: ${v.callCount} calls, ${v.denyCount} denied`}
-                  data-tip={`${label}|${v.callCount} calls · ${v.denyCount} denied`}
-                  className="w-full rounded-t bg-accent-muted relative min-h-1 outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
-                  style={{ height: `${height}px` }}
+                  key={v.day.toISOString()}
+                  className="flex min-w-0 flex-1 flex-col items-center gap-1"
                 >
-                  {denyHeight > 0 && (
-                    <div
-                      className="absolute right-0 bottom-0 left-0 rounded-t bg-warn"
-                      style={{ height: `${denyHeight}px` }}
-                    />
-                  )}
+                  <span className="text-[10px] text-text-3">{v.callCount}</span>
+                  <div
+                    role="img"
+                    // biome-ignore lint/a11y/noNoninteractiveTabindex: chart marks need keyboard tooltip parity
+                    tabIndex={0}
+                    aria-label={`${label}: ${v.callCount} calls, ${v.denyCount} denied`}
+                    data-tip={`${label}|${v.callCount} calls · ${v.denyCount} denied`}
+                    className="w-full rounded-t bg-accent-muted relative min-h-1 outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
+                    style={{ height: `${height}px` }}
+                  >
+                    {denyHeight > 0 && (
+                      <div
+                        className="absolute right-0 bottom-0 left-0 rounded-t bg-warn"
+                        style={{ height: `${denyHeight}px` }}
+                      />
+                    )}
+                  </div>
+                  {/* Text, not colour, is what says a denial happened. */}
+                  <span className="h-3 text-[10px] leading-3 text-warn">
+                    {v.denyCount > 0 ? v.denyCount : ''}
+                  </span>
+                  <span className="h-3 w-full whitespace-nowrap text-center text-[10px] text-text-3">
+                    {i % labelEvery === 0 ? label : ''}
+                  </span>
                 </div>
-                {/* Text, not colour, is what says a denial happened. */}
-                {v.denyCount > 0 && (
-                  <span className="text-[8px] text-warn">{v.denyCount} denied</span>
-                )}
-                <span className="text-[8px] text-text-3">{label}</span>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </ChartHover>
       {anyDenied && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-text-2">
           <span className="h-2 w-2 shrink-0 rounded-sm bg-warn" />
-          Denied calls, also counted under each bar
+          Number under a bar: denied calls (also in the chart data table)
         </p>
       )}
       <details className="mt-4 text-sm text-text-2">
@@ -283,6 +296,7 @@ function DailyVolumeBars({ volume }: { volume: DailyToolVolumeRow[] }) {
 
 function ToolsTable({ tools }: { tools: ToolStatRow[] }) {
   const maxCalls = Math.max(...tools.map((t) => t.callCount), 1);
+  const multiAgent = new Set(tools.map((t) => t.agentType)).size > 1;
   return (
     <Table
       columns={[
@@ -300,10 +314,15 @@ function ToolsTable({ tools }: { tools: ToolStatRow[] }) {
       ]}
     >
       {tools.map((t) => (
-        <Row key={t.toolName}>
+        <Row key={`${t.agentType ?? ''}:${t.toolName}:${t.category}`}>
           <Cell>
             <div className="space-y-1">
-              <span className="font-mono text-xs text-text truncate block max-w-48">
+              {multiAgent && t.agentType && (
+                <span className="block text-[10px] text-text-3">
+                  {agentDisplayName(t.agentType)}
+                </span>
+              )}
+              <span className="block min-w-40 max-w-72 font-mono text-xs text-text [overflow-wrap:anywhere]">
                 {t.toolName}
               </span>
               <div className="h-1 w-full rounded-full bg-surface">
@@ -314,7 +333,7 @@ function ToolsTable({ tools }: { tools: ToolStatRow[] }) {
               </div>
             </div>
           </Cell>
-          <Cell>
+          <Cell className="whitespace-nowrap">
             <CategoryBadge category={t.category} />
           </Cell>
           <Cell num className="text-xs">
@@ -359,7 +378,7 @@ function CategoryBreakdown({ categories }: { categories: CategoryStatRow[] }) {
         return (
           <div key={c.category} className="space-y-1">
             <div className="flex justify-between text-xs">
-              <span className="font-mono text-text">{c.category}</span>
+              <span className="text-text">{toolCategoryLabel(c.category)}</span>
               <span className="text-text-2">
                 {c.callCount.toLocaleString()}
                 {c.denyCount > 0 && <span className="text-warn ml-1">({c.denyCount} denied)</span>}
@@ -460,9 +479,10 @@ function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skill
             </Cell>
             <Cell>
               <span
-                className={`text-xs px-1.5 py-0.5 rounded font-mono ${
-                  s.kind === 'skill' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-2'
-                }`}
+                className={cx(
+                  'rounded px-1.5 py-0.5 font-mono text-xs',
+                  s.kind === 'skill' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-2',
+                )}
               >
                 {s.kind === 'skill' ? 'skill' : '/cmd'}
               </span>
@@ -474,7 +494,7 @@ function SkillsTable({ adoption, skills }: { adoption: SkillAdoptionRow[]; skill
               {s.distinctUsers}
             </Cell>
             <Cell num className="text-xs text-text-2">
-              {s.avgSessionCostUsd != null ? `$${s.avgSessionCostUsd.toFixed(2)}` : '—'}
+              {s.avgSessionCostUsd != null ? fmtUsd(s.avgSessionCostUsd) : '—'}
             </Cell>
             <Cell num className="text-xs text-text-2">
               {fmtUsdOrDash(s.attributedCostUsd)}
@@ -529,9 +549,10 @@ function TeamSkillMatrix({ rows }: { rows: TeamSkillRow[] }) {
           <Cell>
             <span className="font-mono text-text">{name}</span>
             <span
-              className={`ml-2 text-[10px] px-1 py-0.5 rounded ${
-                kind === 'skill' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-2'
-              }`}
+              className={cx(
+                'ml-2 rounded px-1 py-0.5 text-[10px]',
+                kind === 'skill' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-text-2',
+              )}
             >
               {kind === 'skill' ? 's' : '/'}
             </span>
@@ -580,6 +601,13 @@ function SkillSequences({ rows }: { rows: OrgSkillSequenceRow[] }) {
   );
 }
 
+function passRateTone(rate: number | null): string {
+  if (rate === null) {
+    return 'text-text-3';
+  }
+  return rate >= 0.8 ? 'text-good' : rate >= 0.5 ? 'text-warn' : 'text-crit';
+}
+
 const CI_COLORS: Record<string, string> = {
   failure: 'text-crit',
   pending: 'text-warn',
@@ -608,13 +636,14 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
         <div className="space-y-4">
           {[...bySkill.entries()].map(([skill, ciRows]) => {
             const total = ciRows.reduce((s, r) => s + r.sessionCount, 0);
-            const successCount = ciRows.find((r) => r.ciStatus === 'success')?.sessionCount ?? 0;
-            const passRate = total > 0 ? (successCount / total) * 100 : 0;
+            const passRate = ciPassRate(ciRows);
             return (
               <div key={skill} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-mono text-text">{skill}</span>
-                  <span className="text-good font-mono">{passRate.toFixed(0)}% pass</span>
+                  <span className={cx('font-mono', passRateTone(passRate))}>
+                    {passRate === null ? 'n/a' : `${fmtPct(passRate)} pass`}
+                  </span>
                 </div>
                 <div className="flex gap-1">
                   {ciRows.map((r) => {
@@ -632,17 +661,17 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
                           tabIndex={0}
                           aria-label={`${skill}, ${r.ciStatus}: ${r.sessionCount} sessions`}
                           data-tip={`${r.ciStatus}|${r.sessionCount} sessions`}
-                          className={`h-2 rounded-sm outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent ${
+                          className={cx(
+                            'h-2 rounded-sm outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent',
                             r.ciStatus === 'success'
                               ? 'bg-good/50'
                               : r.ciStatus === 'failure'
                                 ? 'bg-crit/50'
-                                : 'bg-warn/50'
-                          }`}
+                                : 'bg-warn/50',
+                          )}
                         />
-                        {/* Distinct short words, not a 4-char slice — "succ"/"fail"
-                        collide at a glance and leaned on colour to disambiguate. */}
-                        <span className={`${cls} block truncate text-center`}>
+                        {/* Distinct short words, not a 4-char slice — "pass"/"fail"/"pending". */}
+                        <span className={cx(cls, 'block truncate text-center')}>
                           {r.ciStatus === 'success'
                             ? 'pass'
                             : r.ciStatus === 'failure'
@@ -658,6 +687,7 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
           })}
         </div>
       </ChartHover>
+      <p className="text-xs text-text-3">pass = success ÷ (success + failure); pending excluded</p>
       <details className="text-sm text-text-2">
         <summary className="cursor-pointer text-text-3">View CI outcomes</summary>
         <Table
@@ -683,15 +713,21 @@ function SkillRoiTable({ rows }: { rows: SkillRoiRow[] }) {
 }
 
 // Categories, not severities — each gets its own fixed series slot so no two
-// kinds share a colour and none of them reads as a warning.
+// kinds share a colour and none of them reads as a warning. Keys are the
+// `TOOL_CATEGORIES` taxonomy; `task`/`other` stay neutral.
 const CATEGORY_SERIES: Record<string, number> = {
-  browser: 2,
-  file_ops: 0,
+  exec: 1,
+  fs_read: 0,
+  fs_write: 5,
   mcp: 4,
   search: 3,
-  shell: 1,
+  web: 2,
 };
 
 function CategoryBadge({ category }: { category: string }) {
-  return <SeriesBadge index={CATEGORY_SERIES[category] ?? null}>{category}</SeriesBadge>;
+  return (
+    <SeriesBadge index={CATEGORY_SERIES[category] ?? null}>
+      {toolCategoryLabel(category)}
+    </SeriesBadge>
+  );
 }

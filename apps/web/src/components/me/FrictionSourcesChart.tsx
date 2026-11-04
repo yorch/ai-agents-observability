@@ -1,5 +1,5 @@
 import { SparkleIcon } from '@/components/icons';
-import { Card } from '@/components/ui';
+import { Card, CardEmpty } from '@/components/ui';
 import type { FrictionSources } from '@/lib/effectiveness-queries';
 
 // Order, label, color, and one-line meaning for each friction driver. The keys
@@ -31,17 +31,12 @@ export function FrictionSourcesChart({
   const total = DRIVERS.reduce((sum, d) => sum + sources[d.key], 0);
 
   return (
-    <Card>
-      <h2 className="mb-1 text-xs font-semibold uppercase tracking-widest text-text-3">
-        Friction sources
-      </h2>
-      <p className="mb-4 text-xs text-text-3">
-        What drives your average friction, across {scoredSessionCount} scored session
-        {scoredSessionCount === 1 ? '' : 's'}.
-      </p>
-
+    <Card
+      title="Friction sources"
+      caption={`What drives your average friction, across ${scoredSessionCount} scored session${scoredSessionCount === 1 ? '' : 's'}.`}
+    >
       {scoredSessionCount === 0 ? (
-        <p className="text-sm text-text-3">No scored sessions in this period.</p>
+        <CardEmpty>No scored sessions in this period.</CardEmpty>
       ) : total === 0 ? (
         <p className="inline-flex items-center gap-1.5 text-sm text-text-2">
           No measurable friction — your sessions ran clean.

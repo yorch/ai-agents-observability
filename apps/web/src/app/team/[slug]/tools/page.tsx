@@ -1,6 +1,6 @@
 import { CostAttributionNote } from '@/components/CostAttributionNote';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
+import { Card, cx, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import { fmtUsdOrDash } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
@@ -8,9 +8,11 @@ import {
   getTeamSkillUsage,
   getTeamToolCategoryBreakdown,
   getTeamToolStats,
+  getTeamUniqueToolCount,
   resolveTeamVisibility,
 } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
+import { toolCategoryLabel } from '@/lib/tool-category-labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,29 +31,32 @@ export default async function TeamToolsPage({
   const since = daysAgo(range);
 
   const { visibleIds } = await resolveTeamVisibility(teamId);
-  const [tools, categories, skills, coverage] = await Promise.all([
+  const [tools, categories, uniqueTools, skills, coverage] = await Promise.all([
     getTeamToolStats(visibleIds, since),
     getTeamToolCategoryBreakdown(visibleIds, since),
+    getTeamUniqueToolCount(visibleIds, since),
     getTeamSkillUsage(visibleIds, since),
     getAttributionCoverage(visibleIds, since),
   ]);
 
-  const totalCalls = tools.reduce((s, r) => s + r.callCount, 0);
-  const totalDenied = tools.reduce((s, r) => s + r.denyCount, 0);
+  // Window-wide totals come from the category breakdown (the full population);
+  // `tools` is only the top-20 page and would understate every headline number.
+  const totalCalls = categories.reduce((s, r) => s + r.callCount, 0);
+  const totalDenied = categories.reduce((s, r) => s + r.denyCount, 0);
   const denyRate = totalCalls > 0 ? totalDenied / totalCalls : 0;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Team"
+        breadcrumb={teamName}
         description={`Tool & skill usage · trailing ${range} days`}
         range={range}
-        title={teamName}
+        title="Tools"
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Tool calls" value={totalCalls.toLocaleString()} />
-        <Stat label="Unique tools" value={tools.length.toString()} />
+        <Stat label="Unique tools" value={uniqueTools.toLocaleString()} />
         <Stat label="Denial rate" value={`${(denyRate * 100).toFixed(1)}%`} />
       </div>
 
@@ -64,7 +69,7 @@ export default async function TeamToolsPage({
                 key={c.category}
                 className="flex items-center gap-2 rounded bg-surface-2 px-3 py-1.5 text-sm"
               >
-                <span className="capitalize text-text">{c.category}</span>
+                <span className="text-text">{toolCategoryLabel(c.category)}</span>
                 <span className="font-mono text-xs text-text-2">
                   {c.callCount.toLocaleString()}
                 </span>
@@ -75,8 +80,7 @@ export default async function TeamToolsPage({
       )}
 
       {tools.length > 0 ? (
-        <Card>
-          <SectionHeader>Top tools</SectionHeader>
+        <Card title="Top tools" caption="Top 20 by calls">
           <Table
             columns={[
               { label: 'Tool' },
@@ -97,7 +101,10 @@ export default async function TeamToolsPage({
                   {r.callCount.toLocaleString()}
                 </td>
                 <td
-                  className={`py-2 text-right font-mono ${r.denyCount > 0 ? 'text-warn' : 'text-text-3'}`}
+                  className={cx(
+                    'py-2 text-right font-mono',
+                    r.denyCount > 0 ? 'text-warn' : 'text-text-3',
+                  )}
                 >
                   {r.denyCount > 0 ? r.denyCount : '—'}
                 </td>

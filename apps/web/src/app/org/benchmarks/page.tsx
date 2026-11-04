@@ -1,6 +1,7 @@
 import { TriangleDownIcon, TriangleUpIcon } from '@/components/icons';
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, Cell, EmptyState, Row, Table } from '@/components/ui';
+import { fmtFriction, fmtUsdSession } from '@/lib/fmt';
 import { getTeamBenchmarks } from '@/lib/org-queries';
 import { isOrgAdmin, requireOrgViewer } from '@/lib/roles';
 import { daysAgo } from '@/lib/time';
@@ -27,7 +28,7 @@ function DeltaBadge({
   value: number;
 }) {
   const dir = delta(value, median, lowerIsBetter);
-  const color = dir === 'above' ? 'text-good' : dir === 'below' ? 'text-crit' : 'text-text-2';
+  const color = dir === 'above' ? 'text-good' : dir === 'below' ? 'text-warn' : 'text-text-2';
   // The org median is the baseline this whole chip is ABOUT, and it lived only
   // in `title` — so the one number that makes the comparison meaningful was
   // hover-only. Direction was a triangle plus a colour, neither of which has an
@@ -70,24 +71,21 @@ export default async function OrgBenchmarksPage({
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Org"
-        description={`Cross-team efficiency comparison · trailing ${weeks} week${weeks !== 1 ? 's' : ''} · teams with ≥5 sessions`}
+        description={`Team benchmarks · cross-team efficiency comparison · trailing ${weeks} week${weeks !== 1 ? 's' : ''} · teams with ≥5 sessions`}
         range={range}
-        title="Team Benchmarks"
+        title="Benchmarks"
       />
 
       {/* Org median reference */}
-      <Card>
-        <h2 className="mb-3 font-display text-sm font-semibold text-text">
-          Org medians (baseline)
-        </h2>
+      <Card title="Org medians (baseline)">
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <MedianCard
             label="Cost / session"
-            value={medians.avgCostPerSession > 0 ? `$${medians.avgCostPerSession.toFixed(3)}` : '—'}
+            value={medians.avgCostPerSession > 0 ? fmtUsdSession(medians.avgCostPerSession) : '—'}
           />
           <MedianCard
             label="Friction p50"
-            value={medians.frictionP50 != null ? medians.frictionP50.toFixed(2) : '—'}
+            value={medians.frictionP50 != null ? fmtFriction(medians.frictionP50) : '—'}
           />
           <MedianCard
             label="Sessions / user / wk"
@@ -153,7 +151,7 @@ export default async function OrgBenchmarksPage({
                 </Cell>
                 <Cell num>
                   <DeltaBadge
-                    label={`$${t.avgCostPerSession.toFixed(3)}`}
+                    label={fmtUsdSession(t.avgCostPerSession)}
                     median={medians.avgCostPerSession}
                     value={t.avgCostPerSession}
                     lowerIsBetter={true}
@@ -162,7 +160,7 @@ export default async function OrgBenchmarksPage({
                 <Cell num>
                   {t.frictionP50 != null ? (
                     <DeltaBadge
-                      label={t.frictionP50.toFixed(2)}
+                      label={fmtFriction(t.frictionP50)}
                       median={medians.frictionP50 ?? 0}
                       value={t.frictionP50}
                       lowerIsBetter={true}

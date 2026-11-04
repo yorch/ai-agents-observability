@@ -3,8 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CaretRightIcon } from '@/components/icons';
 import { TranscriptStatsBar } from '@/components/me/TranscriptStatsBar';
-import { TranscriptTurnView } from '@/components/me/TranscriptTurnView';
+import {
+  DEFAULT_TRANSCRIPT_LABELS,
+  type TranscriptLabels,
+  TranscriptTurnView,
+} from '@/components/me/TranscriptTurnView';
 import { Button } from '@/components/ui/Button';
+import { cx } from '@/components/ui/cx';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Field';
 import { Segmented, SegmentedButton } from '@/components/ui/Segmented';
 import { computeStats, type ParsedLine, parseTranscriptLine } from '@/lib/transcript-parser';
@@ -49,7 +55,11 @@ type ContentBlock =
   | { type: string; [key: string]: unknown };
 
 function TextBlockView({ block }: { block: TextBlock }) {
-  return <p className="whitespace-pre-wrap text-text-2 text-sm leading-relaxed">{block.text}</p>;
+  return (
+    <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-text-2 text-sm leading-relaxed">
+      {block.text}
+    </p>
+  );
 }
 
 function ToolUseBlockView({ block }: { block: ToolUseBlock }) {
@@ -64,7 +74,7 @@ function ToolUseBlockView({ block }: { block: ToolUseBlock }) {
         <span className="text-xs text-text-3">tool</span>
         <span className="font-semibold">{block.name}</span>
       </summary>
-      <pre className="px-3 pb-2 pt-1 text-xs text-text-2 overflow-x-auto whitespace-pre-wrap break-words">
+      <pre className="px-3 pb-2 pt-1 text-xs text-text-2 overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere]">
         {inputJson}
       </pre>
     </details>
@@ -76,6 +86,7 @@ function ToolResultBlockView({ block }: { block: ToolResultBlock }) {
     typeof block.content === 'string'
       ? block.content
       : (JSON.stringify(block.content, null, 2) ?? '');
+  // Shown in full: the <pre> scrolls (max-h-64), so nothing needs cutting.
   const isLong = raw.length > 500;
   return (
     <details className="group rounded border border-border bg-surface text-sm">
@@ -87,8 +98,8 @@ function ToolResultBlockView({ block }: { block: ToolResultBlock }) {
         <span className="text-xs">tool result</span>
         {isLong && <span className="text-text-3 text-xs">({raw.length} chars)</span>}
       </summary>
-      <pre className="px-3 pb-2 pt-1 text-xs text-text-3 overflow-x-auto whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
-        {isLong ? `${raw.slice(0, 500)}…` : raw}
+      <pre className="px-3 pb-2 pt-1 text-xs text-text-3 overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] max-h-64 overflow-y-auto">
+        {raw}
       </pre>
     </details>
   );
@@ -96,7 +107,7 @@ function ToolResultBlockView({ block }: { block: ToolResultBlock }) {
 
 function UnknownBlockView({ block }: { block: { type: string; [key: string]: unknown } }) {
   return (
-    <pre className="rounded bg-surface px-3 py-2 text-xs text-text-3 overflow-x-auto whitespace-pre-wrap break-words">
+    <pre className="rounded bg-surface px-3 py-2 text-xs text-text-3 overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere]">
       {JSON.stringify(block)}
     </pre>
   );
@@ -132,7 +143,7 @@ function MessageContent({ content }: { content: string | ContentBlock[] | undefi
     );
   }
   return (
-    <pre className="text-xs text-text-3 whitespace-pre-wrap break-words">
+    <pre className="text-xs text-text-3 whitespace-pre-wrap [overflow-wrap:anywhere]">
       {JSON.stringify(content)}
     </pre>
   );
@@ -143,7 +154,9 @@ function RawLine({ line }: { line: RawLine }) {
     return (
       <div className="rounded px-3 py-2 bg-surface border border-border-subtle">
         <span className="text-xs text-text-3 mr-2">raw</span>
-        <span className="text-xs text-text-3 font-mono">{String(line.raw)}</span>
+        <span className="text-xs text-text-3 font-mono [overflow-wrap:anywhere]">
+          {String(line.raw)}
+        </span>
       </div>
     );
   }
@@ -161,13 +174,14 @@ function RawLine({ line }: { line: RawLine }) {
 
   return (
     <div
-      className={`rounded px-3 py-2 space-y-1 ${
+      className={cx(
+        'min-w-0 rounded px-3 py-2 space-y-1 border',
         isUser
-          ? 'bg-surface border border-border-subtle'
+          ? 'bg-surface border-border-subtle'
           : isAssistant
-            ? 'bg-accent-dim border border-accent-line'
-            : 'bg-surface border border-border-subtle'
-      }`}
+            ? 'bg-accent-dim border-accent-line'
+            : 'bg-surface border-border-subtle',
+      )}
     >
       <div className="flex items-center justify-between mb-1">
         <span className="block text-xs text-text-3 capitalize">{effectiveRole}</span>
@@ -176,7 +190,7 @@ function RawLine({ line }: { line: RawLine }) {
       {message ? (
         <MessageContent content={message.content as string | ContentBlock[] | undefined} />
       ) : (
-        <pre className="text-xs text-text-3 whitespace-pre-wrap break-words">
+        <pre className="text-xs text-text-3 whitespace-pre-wrap [overflow-wrap:anywhere]">
           {JSON.stringify(line)}
         </pre>
       )}
@@ -223,19 +237,33 @@ function rawSearchText(line: ParsedLine): string {
 
 const WINDOW_STEP = 300;
 
+class HttpError extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(`HTTP ${status}`);
+    this.status = status;
+  }
+}
+
 export function TranscriptViewer({
   apiUrl,
+  labels = DEFAULT_TRANSCRIPT_LABELS,
   sessionId,
 }: {
   apiUrl?: string | undefined;
+  labels?: TranscriptLabels;
   sessionId: string;
 }) {
   const [parsedLines, setParsedLines] = useState<ParsedLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // HTTP status of a failed fetch; null for a network/parse failure.
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(WINDOW_STEP);
   const [viewMode, setViewMode] = useState<'conversation' | 'raw'>('conversation');
+  // Bumped by Retry to re-run the fetch effect.
+  const [attempt, setAttempt] = useState(0);
 
   const toolNameMapRef = useRef<Map<string, string>>(new Map());
 
@@ -248,13 +276,14 @@ export function TranscriptViewer({
     setParsedLines([]);
     setLoading(true);
     setError(null);
+    setErrorStatus(null);
     setVisibleCount(WINDOW_STEP);
 
     (async () => {
       try {
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
+          throw new HttpError(res.status);
         }
         const reader = res.body?.getReader();
         if (!reader) {
@@ -316,6 +345,7 @@ export function TranscriptViewer({
         if (cancelled || (err instanceof DOMException && err.name === 'AbortError')) {
           return;
         }
+        setErrorStatus(err instanceof HttpError ? err.status : null);
         setError(err instanceof Error ? err.message : 'Failed to load transcript');
         setLoading(false);
       }
@@ -325,7 +355,7 @@ export function TranscriptViewer({
       cancelled = true;
       controller.abort();
     };
-  }, [url]);
+  }, [url, attempt]);
 
   const stats = useMemo(() => computeStats(parsedLines), [parsedLines]);
 
@@ -348,14 +378,40 @@ export function TranscriptViewer({
     return <div className="animate-pulse motion-reduce:animate-none h-96 bg-surface rounded-lg" />;
   }
   if (error) {
+    const accessDenied = errorStatus === 401 || errorStatus === 403;
+    const notFound = errorStatus === 404;
     return (
-      <p role="alert" className="text-sm text-crit">
-        Error: {error}
-      </p>
+      <div role="alert">
+        {accessDenied ? (
+          <EmptyState title="Access to this transcript was denied">
+            Your access may have expired or been revoked. Reload the page or sign in again; if it
+            persists, ask an org admin about your access grant.
+          </EmptyState>
+        ) : notFound ? (
+          <EmptyState title="Transcript not found">
+            It may not have been uploaded yet. The session's telemetry is unaffected; check back
+            shortly.
+          </EmptyState>
+        ) : (
+          <EmptyState
+            title="Couldn't load this transcript"
+            action={
+              <Button size="sm" variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
+                Retry
+              </Button>
+            }
+          >
+            {errorStatus === null
+              ? 'The connection failed.'
+              : `The transcript store returned an error (HTTP ${errorStatus}).`}{' '}
+            The session's telemetry is unaffected; try again in a moment.
+          </EmptyState>
+        )}
+      </div>
     );
   }
   if (parsedLines.length === 0) {
-    return <p className="text-sm text-text-3">Transcript is empty.</p>;
+    return <EmptyState title="No transcript content recorded yet." />;
   }
 
   const visible = filtered.slice(0, visibleCount);
@@ -365,7 +421,7 @@ export function TranscriptViewer({
     <div className="space-y-3">
       {(stats.userTurns > 0 || stats.toolCalls > 0) && <TranscriptStatsBar stats={stats} />}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Input
           type="search"
           value={query}
@@ -375,7 +431,7 @@ export function TranscriptViewer({
           }}
           aria-label="Search in transcript"
           placeholder="Search in transcript…"
-          className="flex-1"
+          className="min-w-48 flex-1"
         />
         {/*
           Search-as-you-type with no live region gave no feedback at all: a
@@ -391,13 +447,13 @@ export function TranscriptViewer({
         <span className="text-xs text-text-3 font-mono whitespace-nowrap" aria-hidden="true">
           {query.trim()
             ? `${filtered.length} / ${modeFiltered.length}`
-            : `${modeFiltered.length} lines`}
+            : `${modeFiltered.length.toLocaleString()} entries`}
           {loading ? ' · loading…' : ''}
         </span>
         <span role="status" className="sr-only">
           {query.trim()
-            ? `${filtered.length} of ${modeFiltered.length} lines match`
-            : `${modeFiltered.length} lines`}
+            ? `${filtered.length} of ${modeFiltered.length} entries match`
+            : `${modeFiltered.length} entries`}
           {loading ? ', loading' : ''}
         </span>
         <div className="shrink-0">
@@ -419,12 +475,12 @@ export function TranscriptViewer({
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-text-3">No lines match &quot;{query}&quot;.</p>
+        <p className="text-sm text-text-3">No entries match &quot;{query}&quot;.</p>
       ) : (
-        <div className="space-y-2 font-mono text-sm">
+        <div className="min-w-0 space-y-2 font-mono text-sm">
           {visible.map((line, i) =>
             viewMode === 'conversation' ? (
-              <TranscriptTurnView key={i} line={line} />
+              <TranscriptTurnView key={i} labels={labels} line={line} />
             ) : (
               <RawLine key={i} line={line.src as RawLine} />
             ),

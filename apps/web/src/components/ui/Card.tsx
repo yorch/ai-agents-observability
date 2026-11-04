@@ -5,8 +5,12 @@ type CardProps = {
   /** Small secondary text under the title (e.g. "Trailing 30 days"). */
   caption?: ReactNode;
   children: ReactNode;
-  /** Layout classes for the card itself — `md:col-span-2`, `h-full`. */
-  className?: string;
+  /**
+   * Layout classes for the card itself — `md:col-span-2`, `h-full`. Accepts
+   * `undefined` so a wrapper can pass its own optional `className` straight
+   * through under exactOptionalPropertyTypes.
+   */
+  className?: string | undefined;
   /**
    * Classes for the content block below the heading. Spacing between a card's
    * children belongs here, not on `className`: `space-y-*` acts on siblings,

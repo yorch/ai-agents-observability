@@ -93,6 +93,7 @@ export function ScopedTrendCharts({
   concurrency = [],
   heatmap = [],
   drilldownHref,
+  timezone = 'UTC',
 }: {
   points: ScopedTrendPoint[];
   scatter?: CostDurationPoint[];
@@ -100,6 +101,8 @@ export function ScopedTrendCharts({
   concurrency?: ConcurrencyPoint[];
   heatmap?: ActivityHeatmapCell[];
   drilldownHref?: string | undefined;
+  /** IANA zone the heatmap was bucketed in; defaults to UTC. */
+  timezone?: string | undefined;
 }) {
   const models = modelSeries(points);
   const namedModels = new Set(models.filter((model) => model !== 'Other'));
@@ -116,7 +119,7 @@ export function ScopedTrendCharts({
   }));
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       {scatter && (
         <div className="lg:col-span-2">
           <CostDurationScatter
@@ -155,32 +158,34 @@ export function ScopedTrendCharts({
         title="Trend data"
         caption="Exact daily values for accessible comparison"
         className="lg:col-span-2"
-        flush
       >
         {points.length === 0 ? (
           <CardEmpty>No activity in this period.</CardEmpty>
         ) : (
-          <Table
-            columns={[
-              { label: 'Day' },
-              { align: 'right', label: 'Sessions' },
-              { align: 'right', label: 'Spend' },
-            ]}
-          >
-            {points.map((point) => (
-              <Row key={point.day.toISOString()}>
-                <Cell>{fmtDayShort(point.day)}</Cell>
-                <Cell num>{point.sessionCount.toLocaleString()}</Cell>
-                <Cell num>{fmtUsd(point.costUsd)}</Cell>
-              </Row>
-            ))}
-          </Table>
+          <details className="text-sm text-text-2">
+            <summary className="cursor-pointer text-text-3">View daily data</summary>
+            <Table
+              columns={[
+                { label: 'Day' },
+                { align: 'right', label: 'Sessions' },
+                { align: 'right', label: 'Spend' },
+              ]}
+            >
+              {points.map((point) => (
+                <Row key={point.day.toISOString()}>
+                  <Cell>{fmtDayShort(point.day)}</Cell>
+                  <Cell num>{point.sessionCount.toLocaleString()}</Cell>
+                  <Cell num>{fmtUsd(point.costUsd)}</Cell>
+                </Row>
+              ))}
+            </Table>
+          </details>
         )}
       </Card>
       <ActivityCalendar points={points} />
-      <ActivityHeatmap cells={heatmap} />
-      <WeeklyDigestTable points={points} />
-      {drilldownHref && (
+      <ActivityHeatmap cells={heatmap} timezone={timezone} />
+      <WeeklyDigestTable className="lg:col-span-2" points={points} />
+      {drilldownHref && !scatter && (
         <ButtonLink href={drilldownHref} size="sm" variant="secondary">
           Explore sessions in this period
         </ButtonLink>
@@ -194,7 +199,7 @@ function ConcurrencyCharts({ points }: { points: ConcurrencyPoint[] }) {
   const active = points.filter((point) => point.sessionCount > 0);
   const peak = Math.max(...active.map((point) => point.peakConcurrent), 0);
   return (
-    <div className="grid gap-6 lg:col-span-2 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 lg:col-span-2 lg:grid-cols-2">
       <Card title="Parallel sessions" caption="Peak overlapping interactive sessions by day">
         {active.length === 0 ? (
           <CardEmpty>No parallel activity in this period.</CardEmpty>
@@ -232,30 +237,32 @@ function ConcurrencyCharts({ points }: { points: ConcurrencyPoint[] }) {
         title="Concurrency data"
         caption="Exact daily values for accessible comparison"
         className="lg:col-span-2"
-        flush
       >
         {active.length === 0 ? (
           <CardEmpty>No parallel activity in this period.</CardEmpty>
         ) : (
-          <Table
-            columns={[
-              { label: 'Day' },
-              { align: 'right', label: 'Sessions' },
-              { align: 'right', label: 'Peak concurrent' },
-              { align: 'right', label: 'Parallel sessions' },
-              { align: 'right', label: 'Share' },
-            ]}
-          >
-            {active.map((point) => (
-              <Row key={point.day.toISOString()}>
-                <Cell>{fmtDayShort(point.day)}</Cell>
-                <Cell num>{point.sessionCount.toLocaleString()}</Cell>
-                <Cell num>{point.peakConcurrent.toLocaleString()}</Cell>
-                <Cell num>{point.parallelSessionCount.toLocaleString()}</Cell>
-                <Cell num>{(point.parallelShare * 100).toFixed(1)}%</Cell>
-              </Row>
-            ))}
-          </Table>
+          <details className="text-sm text-text-2">
+            <summary className="cursor-pointer text-text-3">View daily data</summary>
+            <Table
+              columns={[
+                { label: 'Day' },
+                { align: 'right', label: 'Sessions' },
+                { align: 'right', label: 'Peak concurrent' },
+                { align: 'right', label: 'Parallel sessions' },
+                { align: 'right', label: 'Share' },
+              ]}
+            >
+              {active.map((point) => (
+                <Row key={point.day.toISOString()}>
+                  <Cell>{fmtDayShort(point.day)}</Cell>
+                  <Cell num>{point.sessionCount.toLocaleString()}</Cell>
+                  <Cell num>{point.peakConcurrent.toLocaleString()}</Cell>
+                  <Cell num>{point.parallelSessionCount.toLocaleString()}</Cell>
+                  <Cell num>{(point.parallelShare * 100).toFixed(1)}%</Cell>
+                </Row>
+              ))}
+            </Table>
+          </details>
         )}
       </Card>
     </div>

@@ -1,4 +1,5 @@
 import { ArrowDownIcon, ArrowUpIcon } from '@/components/icons';
+import { cx } from './cx';
 
 type Accent = 'good' | 'warn' | 'crit';
 
@@ -19,7 +20,8 @@ type StatProps = {
   delta?: number | null;
   /**
    * Set for metrics where up is bad (spend, friction, error rate) so a rise
-   * reads as warning rather than success.
+   * reads as warning rather than success. Forgetting it on a cost tile paints
+   * a spend spike green — check every `delta` on a cost-like metric.
    */
   deltaInverted?: boolean;
   label: string;
@@ -44,9 +46,10 @@ export function Delta({ value, inverted }: { value: number; inverted: boolean })
   const favourable = inverted ? !up : up;
   return (
     <span
-      className={`inline-flex items-center gap-1 font-mono text-xs ${
-        favourable ? 'text-good' : 'text-warn'
-      }`}
+      className={cx(
+        'inline-flex items-center gap-1 font-mono text-xs',
+        favourable ? 'text-good' : 'text-warn',
+      )}
     >
       {up ? <ArrowUpIcon size={12} /> : <ArrowDownIcon size={12} />}
       {Math.abs(pct)}%
@@ -60,7 +63,10 @@ export function Stat({ accent, delta, deltaInverted = false, label, note, sub, v
     <div className="space-y-1 rounded-lg border border-border bg-surface p-4">
       <p className="text-xs uppercase tracking-wider text-text-3">{label}</p>
       <p
-        className={`font-mono text-2xl font-semibold ${accent ? ACCENT_CLASS[accent] : 'text-text'}`}
+        className={cx(
+          'font-mono text-2xl font-semibold',
+          accent ? ACCENT_CLASS[accent] : 'text-text',
+        )}
       >
         {value}
       </p>

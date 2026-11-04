@@ -78,6 +78,7 @@ export default async function TeamMemberSessionDetailPage({
       </Link>
 
       <SessionDetailHeader
+        ownerLabel={displayName}
         session={session}
         transcriptHref={
           session.transcriptS3Key && member.canViewTranscripts

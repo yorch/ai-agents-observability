@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowRightIcon } from '@/components/icons';
-import { buttonClasses, Card, EmptyState } from '@/components/ui';
+import { buttonClasses, Card, EmptyState, PageHeader } from '@/components/ui';
 import { fmtDate, fmtDateTime } from '@/lib/fmt';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
@@ -77,27 +77,34 @@ export default async function GrantsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <h1 className="font-display text-xl font-semibold tracking-tight text-text">
-            My access grants
-          </h1>
-          <p className="text-sm text-text-2">
+      <PageHeader
+        title="My access grants"
+        description={
+          <>
             Time-boxed grants give you access to another user&apos;s sessions and transcripts.
             {isAdmin
               ? ' As org admin you also have standing access to all individual sessions.'
               : ' Each grant must be approved by an org admin before it becomes active.'}
-          </p>
-        </div>
-        <Link href="/admin/access-grants/new" className={buttonClasses('primary', 'sm')}>
-          Request grant
-        </Link>
-      </div>
+          </>
+        }
+        action={
+          <Link href="/me/grants/new" className={buttonClasses('primary', 'sm')}>
+            Request grant
+          </Link>
+        }
+      />
 
       {grants.length === 0 && (
-        <EmptyState title="No access grants yet.">
-          Request a grant above to gain time-boxed access to a specific user&apos;s sessions or a
-          single session.
+        <EmptyState
+          title="No access grants yet."
+          action={
+            <Link href="/me/grants/new" className={buttonClasses('primary', 'sm')}>
+              Request grant
+            </Link>
+          }
+        >
+          Request a grant to gain time-boxed access to a specific user&apos;s sessions or a single
+          session.
         </EmptyState>
       )}
 

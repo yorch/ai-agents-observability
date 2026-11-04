@@ -10,9 +10,9 @@ import { RoutingByTeam } from '@/components/team-org/RoutingByTeam';
 import type { RegisteredRoutingClaim } from '@/components/team-org/RoutingRecommendations';
 import { RoutingRecommendations } from '@/components/team-org/RoutingRecommendations';
 import { RoutingSimulator } from '@/components/team-org/RoutingSimulator';
-import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
+import { Card, Cell, EmptyState, Row, SectionHeader, Stat, Table } from '@/components/ui';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
-import { fmtTokens } from '@/lib/fmt';
+import { fmtTokens, fmtUsd } from '@/lib/fmt';
 import { getModelPolicies } from '@/lib/model-policy';
 import {
   getOrgModelDetail,
@@ -234,16 +234,17 @@ export default async function OrgModelsPage({
     <div className="space-y-8">
       <PageHeader
         breadcrumb="Org"
-        description={`Trailing ${range} days · model spend, cache efficiency, and routing guidance`}
+        description={`Model cost optimization · trailing ${range} days · model spend, cache efficiency, and routing guidance`}
         range={range}
-        title="Model Cost Optimization"
+        title="Models"
       />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat
-          label={`LLM spend (${range}d)`}
-          value={totalCostUsd > 0 ? `$${totalCostUsd.toFixed(2)}` : '—'}
+          label="LLM spend"
+          value={totalCostUsd > 0 ? fmtUsd(totalCostUsd) : '—'}
+          sub={`last ${range}d`}
         />
         <Stat
           label="Cache hit rate"
@@ -253,7 +254,7 @@ export default async function OrgModelsPage({
         />
         <Stat
           label="Est. cache savings"
-          value={estimatedCacheSavings > 0 ? `$${estimatedCacheSavings.toFixed(2)}` : '—'}
+          value={estimatedCacheSavings > 0 ? fmtUsd(estimatedCacheSavings) : '—'}
           note="vs. paying full input price"
         />
         <Stat label="Active models" value={models.length > 0 ? models.length.toString() : '—'} />
@@ -277,6 +278,7 @@ export default async function OrgModelsPage({
           {/* Did the recommendations work? (P13-006, supersedes P10-006) */}
           <ProjectionRealization
             caption="Every routing recommendation is recorded when it is shown, then compared against the retrieval spend that actually followed — with an outcome guard, so a saving that came with more friction, tool errors or reverts is flagged rather than celebrated."
+            emptyText="No routing recommendations have been recorded yet. They are compared with actual spend once the period they cover has closed."
             realizations={realizations}
             title="Recommendations vs what happened"
           />
@@ -286,9 +288,7 @@ export default async function OrgModelsPage({
 
           {/* Model breakdown table */}
           <div className="space-y-3">
-            <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
-              Spend by model
-            </h2>
+            <SectionHeader>Spend by model</SectionHeader>
             <Table
               columns={[
                 { label: 'Model' },
@@ -315,7 +315,7 @@ export default async function OrgModelsPage({
                       {m.sessionCount.toLocaleString()}
                     </Cell>
                     <Cell num className="text-text">
-                      ${m.totalCostUsd.toFixed(2)}
+                      {fmtUsd(m.totalCostUsd)}
                     </Cell>
                     <Cell num className="text-text-2">
                       {costPct.toFixed(1)}%
@@ -343,25 +343,31 @@ export default async function OrgModelsPage({
 
           {/* Cache guidance */}
           <div className="space-y-3">
-            <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
-              Cache efficiency guidance
-            </h2>
+            <SectionHeader>Cache efficiency guidance</SectionHeader>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <GuidanceCard
-                accent="good"
-                title="What cache hit rate means"
-                body="Prompt caching reuses previous context at a fraction of the input token price — around a tenth, on most providers' tables. A 40–60% cache hit rate is typical for iterative coding sessions. Below 20% suggests sessions are starting fresh each time."
-              />
-              <GuidanceCard
-                accent="warn"
-                title="How to improve cache efficiency"
-                body="Keep system prompts and file context stable across turns. Avoid regenerating tool outputs that haven't changed. Long-running sessions naturally accumulate cache — encourage fewer session restarts."
-              />
-              <GuidanceCard
-                accent="series1"
-                title="Model routing quick wins"
-                body="File reads, grep, and web searches don't require premium-tier reasoning. Routing them to a cheaper tier typically cuts cost several-fold per call with no quality loss. The recommendations above name the target tier and an example model for each agent, derived from that agent's own price table."
-              />
+              <Card title="What cache hit rate means">
+                <p className="text-xs leading-relaxed text-text-2">
+                  Prompt caching reuses previous context at a fraction of the input token price —
+                  around a tenth, on most providers' tables. A 40–60% cache hit rate is typical for
+                  iterative coding sessions. Below 20% suggests sessions are starting fresh each
+                  time.
+                </p>
+              </Card>
+              <Card title="How to improve cache efficiency">
+                <p className="text-xs leading-relaxed text-text-2">
+                  Keep system prompts and file context stable across turns. Avoid regenerating tool
+                  outputs that haven't changed. Long-running sessions naturally accumulate cache —
+                  encourage fewer session restarts.
+                </p>
+              </Card>
+              <Card title="Model routing quick wins">
+                <p className="text-xs leading-relaxed text-text-2">
+                  File reads, grep, and web searches don't require premium-tier reasoning. Routing
+                  them to a cheaper tier typically cuts cost several-fold per call with no quality
+                  loss. The recommendations above name the target tier and an example model for each
+                  agent, derived from that agent's own price table.
+                </p>
+              </Card>
             </div>
           </div>
         </>
@@ -392,30 +398,5 @@ function TierBadge({ tier }: { tier: ModelTier | null }) {
     <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-series-1/10 text-series-1 border border-series-1/30">
       standard
     </span>
-  );
-}
-
-function GuidanceCard({
-  accent,
-  body,
-  title,
-}: {
-  accent: 'good' | 'series1' | 'warn';
-  body: string;
-  title: string;
-}) {
-  const borderCls =
-    accent === 'good'
-      ? 'border-good-line'
-      : accent === 'warn'
-        ? 'border-warn-line'
-        : 'border-series-1/40';
-  const titleCls =
-    accent === 'good' ? 'text-good' : accent === 'warn' ? 'text-warn' : 'text-series-1';
-  return (
-    <div className={`rounded-lg border ${borderCls} bg-surface p-4 space-y-2`}>
-      <p className={`text-xs font-semibold ${titleCls}`}>{title}</p>
-      <p className="text-xs text-text-2 leading-relaxed">{body}</p>
-    </div>
   );
 }

@@ -1,12 +1,26 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { ReactNode } from 'react';
+import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from '@/components/icons';
+import { StatusBadge } from '@/components/me/StatusBadge';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { Cell, EmptyState, Row, Table } from '@/components/ui';
+import { buttonClasses, Cell, cx, EmptyState, Row, SectionHeader, Table } from '@/components/ui';
 import { frictionBadge } from '@/lib/effectiveness';
-import { fmtDateTime, fmtUsd, fmtUsdOrDash, fmtUsdSession } from '@/lib/fmt';
+import { fmtDate, fmtDateTime, fmtDurationSec, fmtFriction, fmtUsdSession } from '@/lib/fmt';
 import { type SessionSearchResult, searchSessions } from '@/lib/org-queries';
 import { canViewIndividuals, requireOrgViewer } from '@/lib/roles';
-import { diffToolMix, getSessionComparison, metricDelta } from '@/lib/session-compare-queries';
+import {
+  type ComparePickSummary,
+  diffToolMix,
+  getComparePickSummary,
+  getSessionComparison,
+  metricDelta,
+} from '@/lib/session-compare-queries';
+
+/** "+x" / "−x" / "" around an unsigned formatter — never "$-0.00". */
+function signed(d: number, fmt: (abs: number) => string): string {
+  return `${d > 0 ? '+' : d < 0 ? '\u2212' : ''}${fmt(Math.abs(d))}`;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -39,14 +53,27 @@ export default async function SessionComparePage({
   if (!leftId || !rightId) {
     const { orgRole } = await requireOrgViewer();
     const recent = await searchSessions({ page: 1 }, canViewIndividuals(orgRole));
+    // The picker renders only an empty state when there is nothing to pick, so
+    // the pick summaries (an access-checked, audited lookup) would go unseen.
+    const hasSessions = recent.results.length > 0;
+    const [leftPick, rightPick] = await Promise.all([
+      leftId && hasSessions ? getComparePickSummary(leftId) : Promise.resolve(null),
+      rightId && hasSessions ? getComparePickSummary(rightId) : Promise.resolve(null),
+    ]);
     return (
       <div className="space-y-6">
         <PageHeader
           breadcrumb="Org"
           description="Choose two sessions to compare side-by-side"
-          title="Session comparison"
+          title="Compare sessions"
         />
-        <SessionPicker leftId={leftId} recent={recent.results.slice(0, 25)} rightId={rightId} />
+        <SessionPicker
+          leftId={leftId}
+          leftPick={leftPick}
+          recent={recent.results.slice(0, 25)}
+          rightId={rightId}
+          rightPick={rightPick}
+        />
       </div>
     );
   }
@@ -62,7 +89,7 @@ export default async function SessionComparePage({
     }
     return (
       <div className="space-y-6">
-        <PageHeader breadcrumb="Org" description="" title="Session comparison" />
+        <PageHeader breadcrumb="Org" description="" title="Compare sessions" />
         <EmptyState>{comparison.error}</EmptyState>
       </div>
     );
@@ -86,90 +113,92 @@ export default async function SessionComparePage({
       <PageHeader
         breadcrumb="Org"
         description="Side-by-side comparison of two sessions — tool mix, cost, friction, and outcome"
-        title="Session comparison"
+        title="Compare sessions"
       />
 
       {/* Session links */}
-      <div className="flex gap-4 text-sm">
+      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
         <Link
-          className="text-text-2 hover:text-text underline-offset-2 hover:underline"
+          className="inline-flex items-center gap-1 text-text-2 hover:text-text underline-offset-2 hover:underline"
           href={`/org/sessions/${leftId}`}
         >
-          ← Left session
+          <ArrowLeftIcon size={12} /> Session A
         </Link>
         <Link
-          className="text-text-2 hover:text-text underline-offset-2 hover:underline"
+          className="inline-flex items-center gap-1 text-text-2 hover:text-text underline-offset-2 hover:underline"
           href={`/org/sessions/${rightId}`}
         >
-          Right session →
+          Session B <ArrowRightIcon size={12} />
         </Link>
       </div>
 
-      {/* Summary comparison cards */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Summary comparison cards. Only cost and friction are judged (lower is
+          better); a count delta is a difference, not a verdict. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ComparisonStat
+          judge
           label="Cost"
-          leftValue={fmtUsd(left.detail.costUsd)}
-          rightValue={fmtUsd(right.detail.costUsd)}
+          leftValue={fmtUsdSession(left.detail.costUsd)}
+          rightValue={fmtUsdSession(right.detail.costUsd)}
           delta={costDelta.delta}
-          formatDelta={(d) => fmtUsdOrDash(d)}
+          formatDelta={(d) => signed(d, fmtUsdSession)}
         />
         <ComparisonStat
           label="Duration"
-          leftValue={
-            left.detail.durationSeconds ? formatDuration(left.detail.durationSeconds) : '—'
-          }
-          rightValue={
-            right.detail.durationSeconds ? formatDuration(right.detail.durationSeconds) : '—'
-          }
+          leftValue={fmtDurationSec(left.detail.durationSeconds)}
+          rightValue={fmtDurationSec(right.detail.durationSeconds)}
           delta={durationDelta.delta}
-          formatDelta={(d) => (d !== null ? formatDuration(d) : '—')}
+          formatDelta={(d) => signed(d, fmtDurationSec)}
         />
         <ComparisonStat
+          judge
           label="Friction"
           leftValue={
             left.detail.frictionScore !== null
-              ? `${left.detail.frictionScore.toFixed(2)} (${frictionBadge(left.detail.frictionScore).label})`
+              ? `${fmtFriction(left.detail.frictionScore)} (${frictionBadge(left.detail.frictionScore).label})`
               : '—'
           }
           rightValue={
             right.detail.frictionScore !== null
-              ? `${right.detail.frictionScore.toFixed(2)} (${frictionBadge(right.detail.frictionScore).label})`
+              ? `${fmtFriction(right.detail.frictionScore)} (${frictionBadge(right.detail.frictionScore).label})`
               : '—'
           }
           delta={frictionDelta.delta}
-          formatDelta={(d) => (d !== null ? d.toFixed(2) : '—')}
+          formatDelta={(d) => signed(d, fmtFriction)}
         />
         <ComparisonStat
           label="Tool calls"
           leftValue={left.detail.toolCallCount.toLocaleString()}
           rightValue={right.detail.toolCallCount.toLocaleString()}
           delta={toolCallDelta.delta}
-          formatDelta={(d) => (d !== null ? d.toLocaleString() : '—')}
+          formatDelta={(d) => signed(d, (n) => n.toLocaleString())}
         />
         <ComparisonStat
           label="Tool errors"
           leftValue={left.detail.toolErrorCount.toLocaleString()}
           rightValue={right.detail.toolErrorCount.toLocaleString()}
           delta={toolErrorDelta.delta}
-          formatDelta={(d) => (d !== null ? d.toLocaleString() : '—')}
+          formatDelta={(d) => signed(d, (n) => n.toLocaleString())}
         />
         <ComparisonStat
           label="Total tokens"
           leftValue={Number(left.detail.inputTokens + left.detail.outputTokens).toLocaleString()}
           rightValue={Number(right.detail.inputTokens + right.detail.outputTokens).toLocaleString()}
           delta={tokenDelta.delta}
-          formatDelta={(d) => (d !== null ? d.toLocaleString() : '—')}
+          formatDelta={(d) => signed(d, (n) => n.toLocaleString())}
         />
       </div>
 
       {/* Metadata comparison */}
       <div className="space-y-3">
-        <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
-          Session metadata
-        </h2>
-        <Table columns={[{ label: 'Field' }, { label: 'Left' }, { label: 'Right' }]}>
-          <MetadataRow field="Status" left={left.detail.status} right={right.detail.status} />
+        <SectionHeader>Session metadata</SectionHeader>
+        <Table columns={[{ label: 'Field' }, { label: 'A' }, { label: 'B' }]}>
+          <MetadataRow
+            field="Status"
+            left={<StatusBadge status={left.detail.status} />}
+            right={<StatusBadge status={right.detail.status} />}
+            same={left.detail.status === right.detail.status}
+          />
           <MetadataRow
             field="Model"
             left={left.detail.primaryModel ?? '—'}
@@ -210,8 +239,8 @@ export default async function SessionComparePage({
 
       {/* Outcome comparison */}
       <div className="space-y-3">
-        <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">PR outcome</h2>
-        <Table columns={[{ label: 'Field' }, { label: 'Left' }, { label: 'Right' }]}>
+        <SectionHeader>PR outcome</SectionHeader>
+        <Table columns={[{ label: 'Field' }, { label: 'A' }, { label: 'B' }]}>
           <MetadataRow
             field="PR number"
             left={left.outcome.prNumber ? `#${left.outcome.prNumber}` : '—'}
@@ -234,32 +263,20 @@ export default async function SessionComparePage({
           />
           <MetadataRow
             field="Merged"
-            left={
-              left.outcome.prMergedAt ? left.outcome.prMergedAt.toISOString().slice(0, 10) : '—'
-            }
-            right={
-              right.outcome.prMergedAt ? right.outcome.prMergedAt.toISOString().slice(0, 10) : '—'
-            }
+            left={fmtDate(left.outcome.prMergedAt)}
+            right={fmtDate(right.outcome.prMergedAt)}
           />
           <MetadataRow
             field="Reverted"
-            left={
-              left.outcome.prRevertedAt ? left.outcome.prRevertedAt.toISOString().slice(0, 10) : '—'
-            }
-            right={
-              right.outcome.prRevertedAt
-                ? right.outcome.prRevertedAt.toISOString().slice(0, 10)
-                : '—'
-            }
+            left={fmtDate(left.outcome.prRevertedAt)}
+            right={fmtDate(right.outcome.prRevertedAt)}
           />
         </Table>
       </div>
 
       {/* Tool mix diff */}
       <div className="space-y-3">
-        <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">
-          Tool mix comparison
-        </h2>
+        <SectionHeader>Tool mix comparison</SectionHeader>
         {toolDiff.length === 0 ? (
           <EmptyState>No tool calls in either session.</EmptyState>
         ) : (
@@ -267,11 +284,11 @@ export default async function SessionComparePage({
             columns={[
               { label: 'Tool' },
               { label: 'Category' },
-              { align: 'right', label: 'Left calls' },
-              { align: 'right', label: 'Left errors' },
-              { align: 'right', label: 'Right calls' },
-              { align: 'right', label: 'Right errors' },
-              { align: 'right', label: 'Δ calls' },
+              { align: 'right', label: 'A calls' },
+              { align: 'right', label: 'A errors' },
+              { align: 'right', label: 'B calls' },
+              { align: 'right', label: 'B errors' },
+              { align: 'right', label: 'B − A calls' },
             ]}
           >
             {toolDiff.map((row) => {
@@ -292,14 +309,8 @@ export default async function SessionComparePage({
                   <Cell num className="text-text-2">
                     {row.rightErrors.toLocaleString()}
                   </Cell>
-                  <Cell
-                    num
-                    className={
-                      callDelta > 0 ? 'text-warn' : callDelta < 0 ? 'text-good' : 'text-text-3'
-                    }
-                  >
-                    {callDelta > 0 ? '+' : ''}
-                    {callDelta !== 0 ? callDelta.toLocaleString() : '—'}
+                  <Cell num className="text-text-3">
+                    {callDelta !== 0 ? signed(callDelta, (n) => n.toLocaleString()) : '—'}
                   </Cell>
                 </Row>
               );
@@ -311,68 +322,94 @@ export default async function SessionComparePage({
   );
 }
 
-function formatDuration(seconds: number): string {
-  if (seconds >= 3600) {
-    return `${(seconds / 3600).toFixed(1)}h`;
-  }
-  if (seconds >= 60) {
-    return `${(seconds / 60).toFixed(1)}m`;
-  }
-  return `${seconds}s`;
-}
-
 function ComparisonStat({
+  judge = false,
   label,
   leftValue,
   rightValue,
   delta,
   formatDelta,
 }: {
+  /** Colour the delta as better/worse. Only for lower-is-better metrics. */
+  judge?: boolean;
   label: string;
   leftValue: string;
   rightValue: string;
   delta: number | null;
-  formatDelta: (d: number | null) => string;
+  /** Formats a non-zero delta, sign included. */
+  formatDelta: (d: number) => string;
 }) {
   const deltaStr = delta !== null && delta !== 0 ? formatDelta(delta) : '—';
   const deltaClass =
-    delta === null
-      ? 'text-text-3'
-      : delta > 0
+    judge && delta !== null && delta !== 0
+      ? delta > 0
         ? 'text-warn'
-        : delta < 0
-          ? 'text-good'
-          : 'text-text-3';
-  const sign = delta !== null && delta > 0 ? '+' : '';
+        : 'text-good'
+      : 'text-text-3';
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-2">
+    <div className="min-w-0 rounded-lg border border-border bg-surface p-4 space-y-2">
       <p className="text-[10px] font-mono uppercase tracking-widest text-text-3">{label}</p>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <p className="text-[10px] text-text-3">Left</p>
-          <p className="text-sm font-mono font-medium text-text">{leftValue}</p>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="min-w-0">
+          <p className="text-[10px] text-text-3">A</p>
+          <p className="text-sm font-mono font-medium text-text [overflow-wrap:anywhere]">
+            {leftValue}
+          </p>
         </div>
-        <div>
-          <p className="text-[10px] text-text-3">Right</p>
-          <p className="text-sm font-mono font-medium text-text">{rightValue}</p>
+        <div className="min-w-0">
+          <p className="text-[10px] text-text-3">B</p>
+          <p className="text-sm font-mono font-medium text-text [overflow-wrap:anywhere]">
+            {rightValue}
+          </p>
         </div>
       </div>
-      <p className={`text-xs font-mono ${deltaClass}`}>
-        Δ {sign}
-        {deltaStr}
+      <p className={cx('text-xs font-mono', deltaClass)}>
+        <span className="text-text-3">B − A</span> {deltaStr}
       </p>
     </div>
   );
 }
 
-function MetadataRow({ field, left, right }: { field: string; left: string; right: string }) {
-  const same = left === right;
+function MetadataRow({
+  field,
+  left,
+  right,
+  same = left === right,
+}: {
+  field: string;
+  left: ReactNode;
+  right: ReactNode;
+  same?: boolean;
+}) {
   return (
     <Row>
       <Cell className="text-text-2 text-sm">{field}</Cell>
-      <Cell className={`text-sm ${same ? 'text-text-2' : 'text-text'}`}>{left}</Cell>
-      <Cell className={`text-sm ${same ? 'text-text-2' : 'text-text'}`}>{right}</Cell>
+      <Cell className={cx('text-sm', same ? 'text-text-2' : 'text-text')}>{left}</Cell>
+      <Cell className={cx('text-sm', same ? 'text-text-2' : 'text-text')}>{right}</Cell>
     </Row>
+  );
+}
+
+function PickSummary({
+  id,
+  pick,
+  slot,
+}: {
+  id: string;
+  pick: ComparePickSummary | null;
+  slot: 'A' | 'B';
+}) {
+  return (
+    <p className="text-sm text-text-2">
+      <span className="font-mono text-xs text-text-3">Session {slot}:</span>{' '}
+      {pick ? (
+        <Link className="hover:text-text hover:underline" href={`/org/sessions/${id}`}>
+          {pick.repoName ?? 'Unknown repo'} · {pick.ownerLabel} · {fmtDateTime(pick.startedAt)} UTC
+        </Link>
+      ) : (
+        <span className="text-text-3">not found or not visible to you</span>
+      )}
+    </p>
   );
 }
 
@@ -382,12 +419,16 @@ function MetadataRow({ field, left, right }: { field: string; left: string; righ
  */
 function SessionPicker({
   leftId,
+  leftPick,
   recent,
   rightId,
+  rightPick,
 }: {
   leftId: string | null;
+  leftPick: ComparePickSummary | null;
   recent: SessionSearchResult[];
   rightId: string | null;
+  rightPick: ComparePickSummary | null;
 }) {
   if (recent.length === 0) {
     return (
@@ -409,11 +450,17 @@ function SessionPicker({
 
   return (
     <>
-      <p className="text-sm text-text-2">
-        {leftId
-          ? 'Session A is chosen — pick session B to see the comparison.'
-          : 'Pick session A, then session B.'}
-      </p>
+      <div className="space-y-1">
+        <p className="text-sm text-text-2">
+          {leftId
+            ? 'Session A is chosen — pick session B to see the comparison.'
+            : rightId
+              ? 'Session B is chosen — pick session A to see the comparison.'
+              : 'Pick session A, then session B.'}
+        </p>
+        {leftId && <PickSummary id={leftId} pick={leftPick} slot="A" />}
+        {rightId && <PickSummary id={rightId} pick={rightPick} slot="B" />}
+      </div>
       <Table
         columns={[
           { label: 'Started (UTC)' },
@@ -430,7 +477,9 @@ function SessionPicker({
           return (
             <Row key={session.sessionId}>
               <Cell className="text-xs text-text-2">{fmtDateTime(session.startedAt)}</Cell>
-              <Cell className="text-xs text-text-2">{session.githubLogin ?? '—'}</Cell>
+              <Cell className="text-xs text-text-2">
+                {session.githubLogin ?? session.displayName ?? '—'}
+              </Cell>
               <Cell className="text-xs text-text-2">{session.repoName ?? '—'}</Cell>
               <Cell num className="text-xs text-text-2">
                 {session.toolCallCount.toLocaleString()}
@@ -439,22 +488,30 @@ function SessionPicker({
                 {fmtUsdSession(session.costUsd)}
               </Cell>
               <Cell>
-                <span className="flex gap-2 text-xs">
+                <span className="flex gap-2">
                   {isLeft ? (
-                    <span className="text-accent">A ✓</span>
+                    <span className="relative inline-flex items-center gap-1 px-2 text-xs text-accent">
+                      A <CheckIcon size={12} />
+                      <span className="sr-only">(chosen)</span>
+                    </span>
                   ) : (
                     <Link
-                      className="text-accent hover:underline"
+                      aria-label="Compare as session A"
+                      className={buttonClasses('secondary', 'sm')}
                       href={slotHref('left', session.sessionId)}
                     >
                       A
                     </Link>
                   )}
                   {isRight ? (
-                    <span className="text-accent">B ✓</span>
+                    <span className="relative inline-flex items-center gap-1 px-2 text-xs text-accent">
+                      B <CheckIcon size={12} />
+                      <span className="sr-only">(chosen)</span>
+                    </span>
                   ) : (
                     <Link
-                      className="text-accent hover:underline"
+                      aria-label="Compare as session B"
+                      className={buttonClasses('secondary', 'sm')}
                       href={slotHref('right', session.sessionId)}
                     >
                       B

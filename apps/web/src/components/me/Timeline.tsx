@@ -1,9 +1,13 @@
 import type { ReactNode } from 'react';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
-import { Card, TONE_TEXT } from '@/components/ui';
+import { Card, cx, TONE_TEXT } from '@/components/ui';
 import { frictionBadge } from '@/lib/effectiveness';
-import { fmtDateTime, fmtDurationSec } from '@/lib/fmt';
-import type { SessionDetail, SessionEvent } from '@/lib/sessions-queries';
+import { fmtDateTime, fmtDurationSec, fmtFriction, fmtTimeUtc } from '@/lib/fmt';
+import {
+  SESSION_EVENTS_LIMIT,
+  type SessionDetail,
+  type SessionEvent,
+} from '@/lib/sessions-queries';
 import { ShapeBadge } from './shape';
 
 function Stat({ label, value }: { label: string; value: ReactNode }) {
@@ -35,8 +39,13 @@ function describeEvent(ev: SessionEvent): {
   if (ev.eventType === 'SessionStart') {
     return { color: 'bg-accent', label: 'Session started' };
   }
-  if (ev.eventType === 'Stop' || ev.eventType === 'SessionEnd') {
+  // `Stop` fires at the end of every agent response (TURN_END_EVENT_TYPE in
+  // packages/schemas cost-attribution) — only `SessionEnd` ends the session.
+  if (ev.eventType === 'SessionEnd') {
     return { color: 'bg-text-3', label: 'Session ended' };
+  }
+  if (ev.eventType === 'Stop') {
+    return { color: 'bg-border-strong', label: 'Response finished' };
   }
   if (ev.eventType === 'SubagentStop') {
     return {
@@ -46,7 +55,7 @@ function describeEvent(ev: SessionEvent): {
     };
   }
   if (ev.eventType === 'PreCompact') {
-    return { color: 'bg-warn/60', label: 'Context compacted' };
+    return { color: 'bg-series-none', label: 'Context compacted' };
   }
   if (ev.eventType === 'PreToolUse' || ev.eventType === 'PostToolUse') {
     const tool = ev.toolName ?? ev.mcpTool ?? '?';
@@ -60,8 +69,8 @@ function describeEvent(ev: SessionEvent): {
     const color = denied
       ? 'bg-crit'
       : ev.eventType === 'PostToolUse'
-        ? 'bg-good/60'
-        : 'bg-accent-muted';
+        ? 'bg-accent-muted'
+        : 'bg-accent';
     const sublabel = denied ? 'denied' : ev.mcpServer ? `via ${ev.mcpServer}` : undefined;
     return { color, label, sublabel };
   }
@@ -72,7 +81,7 @@ function describeEvent(ev: SessionEvent): {
     };
   }
   if (ev.eventType === 'Notification') {
-    return { color: 'bg-series-4/60', label: 'Notification' };
+    return { color: 'bg-series-4', label: 'Notification' };
   }
   return { color: 'bg-text-3', label: ev.eventType, sublabel: ev.model ?? undefined };
 }
@@ -148,9 +157,7 @@ export function Timeline({
             frictionInfo ? (
               <span className={TONE_TEXT[frictionInfo.tone]}>
                 {frictionInfo.label}{' '}
-                <span className="text-text-3 text-xs">
-                  ({((frictionScore ?? 0) * 100).toFixed(0)}%)
-                </span>
+                <span className="text-text-3 text-xs">({fmtFriction(frictionScore ?? 0)})</span>
               </span>
             ) : (
               '—'
@@ -162,36 +169,44 @@ export function Timeline({
 
       {/* Per-event timeline */}
       {events.length > 0 ? (
-        <div className="relative">
-          <div className="absolute left-2.5 top-0 bottom-0 w-px bg-border" />
-          <div className="space-y-1">
-            {events.map((ev, i) => {
-              const { color, label, sublabel } = describeEvent(ev);
-              const isDenied = ev.toolWasDenied;
-              return (
-                <div key={i} className="flex gap-3 pl-8 relative items-start py-0.5">
-                  <div
-                    className={`absolute left-0 top-2 h-5 w-5 rounded-full border flex items-center justify-center ${isDenied ? 'bg-crit-soft border-crit-line' : 'bg-surface border-border'}`}
-                  >
-                    <div className={`h-2 w-2 rounded-full ${color}`} />
+        <div className="space-y-3">
+          <div className="relative">
+            <div className="absolute left-2.5 top-0 bottom-0 w-px bg-border" />
+            <div className="space-y-1">
+              {events.map((ev, i) => {
+                const { color, label, sublabel } = describeEvent(ev);
+                const isDenied = ev.toolWasDenied;
+                return (
+                  <div key={i} className="flex gap-3 pl-8 relative items-start py-0.5">
+                    <div
+                      className={cx(
+                        'absolute left-0 top-2 h-5 w-5 rounded-full border flex items-center justify-center',
+                        isDenied ? 'bg-crit-soft border-crit-line' : 'bg-surface border-border',
+                      )}
+                    >
+                      <div className={cx('h-2 w-2 rounded-full', color)} />
+                    </div>
+                    <div className="min-w-0">
+                      <span
+                        className={cx('text-sm font-mono', isDenied ? 'text-crit' : 'text-text-2')}
+                      >
+                        {label}
+                      </span>
+                      {sublabel && <span className="ml-2 text-xs text-text-3">{sublabel}</span>}
+                      <span className="ml-2 text-xs text-text-3 font-mono">
+                        {fmtTimeUtc(ev.ts)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <span className={`text-sm font-mono ${isDenied ? 'text-crit' : 'text-text-2'}`}>
-                      {label}
-                    </span>
-                    {sublabel && <span className="ml-2 text-xs text-text-3">{sublabel}</span>}
-                    <span className="ml-2 text-xs text-text-3 font-mono">
-                      {ev.ts.toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
+          <p className="text-xs text-text-3">
+            {events.length >= SESSION_EVENTS_LIMIT
+              ? `Showing the first ${SESSION_EVENTS_LIMIT.toLocaleString()} events — open the transcript for the full record. Times in UTC.`
+              : 'Times in UTC.'}
+          </p>
         </div>
       ) : (
         <div className="relative">

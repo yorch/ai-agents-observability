@@ -1,4 +1,5 @@
 import { Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { fmtUsd } from '@/lib/fmt';
 import type { TeamModelGovernanceRow } from '@/lib/org-queries';
 
 export function ModelGovernanceTable({ rows }: { rows: TeamModelGovernanceRow[] }) {
@@ -24,12 +25,12 @@ export function ModelGovernanceTable({ rows }: { rows: TeamModelGovernanceRow[] 
         {rows.map((row) => (
           <Row key={row.teamSlug}>
             <Cell className="text-text">{row.teamName}</Cell>
-            <Cell className="text-xs text-text-2">{row.topModel}</Cell>
+            <Cell className="whitespace-nowrap font-mono text-xs text-text-2">{row.topModel}</Cell>
             <Cell num className="text-text-2 text-xs">
               {row.modelCostPct.toFixed(0)}%
             </Cell>
             <Cell num className="text-xs text-text-2">
-              ${row.totalCostUsd.toFixed(2)}
+              {fmtUsd(row.totalCostUsd)}
             </Cell>
           </Row>
         ))}

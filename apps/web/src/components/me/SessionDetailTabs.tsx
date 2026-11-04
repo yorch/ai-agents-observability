@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react';
 import { ModelsTab, SkillsTab, ToolsTab } from '@/components/me/SessionTabs';
 import { Timeline } from '@/components/me/Timeline';
+import { cx } from '@/components/ui/cx';
 import type {
   ModelBreakdownRow,
   SessionDetail,
@@ -23,6 +25,7 @@ export function SessionDetailTabs({
   skillRows,
   subagentRows,
   tab,
+  timelineExtra,
   toolRows,
 }: {
   events: SessionEvent[];
@@ -31,6 +34,11 @@ export function SessionDetailTabs({
   skillRows: SessionSkillRow[];
   subagentRows: SessionSubagentRow[];
   tab: string;
+  /**
+   * Timeline-only content rendered inside the Timeline panel, below the tab
+   * bar — so switching tabs never moves the bar itself.
+   */
+  timelineExtra?: ReactNode;
   toolRows: SessionToolRow[];
 }) {
   return (
@@ -42,11 +50,12 @@ export function SessionDetailTabs({
               key={t.id}
               href={t.href}
               aria-current={tab === t.id ? 'page' : undefined}
-              className={`pb-3 border-b-2 transition-colors ${
+              className={cx(
+                'pb-3 border-b-2 transition-colors',
                 tab === t.id
                   ? 'border-accent text-text'
-                  : 'border-transparent text-text-2 hover:text-text'
-              }`}
+                  : 'border-transparent text-text-2 hover:text-text',
+              )}
             >
               {t.label}
             </a>
@@ -54,7 +63,12 @@ export function SessionDetailTabs({
         </nav>
       </div>
 
-      {tab === 'timeline' && <Timeline events={events} session={session} />}
+      {tab === 'timeline' && (
+        <div className="space-y-6">
+          {timelineExtra}
+          <Timeline events={events} session={session} />
+        </div>
+      )}
       {tab === 'tools' && <ToolsTab subagents={subagentRows} tools={toolRows} />}
       {tab === 'skills' && <SkillsTab rows={skillRows} />}
       {tab === 'models' && <ModelsTab costUsd={session.costUsd} rows={modelBreakdown} />}

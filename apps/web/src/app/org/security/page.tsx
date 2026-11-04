@@ -15,6 +15,7 @@ import {
   getRepoExposure,
 } from '@/lib/security-queries';
 import { daysAgo } from '@/lib/time';
+import { TOOL_CATEGORY_META } from '@/lib/tool-category-labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,16 +26,7 @@ export const dynamic = 'force-dynamic';
 // developer's activity is exposed — every event query is scoped to org-metadata
 // sharers, and drill-downs go through the standard audited session paths.
 
-const CATEGORY_META: Record<string, { label: string; risk: 'high' | 'med' | 'low' }> = {
-  exec: { label: 'Code execution', risk: 'high' },
-  fs_read: { label: 'File reads', risk: 'low' },
-  fs_write: { label: 'File writes', risk: 'med' },
-  mcp: { label: 'MCP calls', risk: 'med' },
-  other: { label: 'Other', risk: 'low' },
-  search: { label: 'Search', risk: 'low' },
-  task: { label: 'Subagent tasks', risk: 'low' },
-  web: { label: 'Network / web', risk: 'high' },
-};
+const CATEGORY_META = TOOL_CATEGORY_META;
 
 const RISK_TONE: Record<string, BadgeTone> = {
   high: 'crit',
@@ -136,7 +128,7 @@ export default async function OrgSecurityPage({
       {/* Tool-category exposure */}
       <Card
         title="Tool-category exposure"
-        caption="What kinds of powerful access the agents used, and how widely."
+        caption="What kinds of powerful access the agents used, and how widely. Includes sub-agent spawns; uncategorised calls excluded."
         contentClassName="space-y-3"
       >
         {categories.length === 0 ? (
@@ -166,10 +158,10 @@ export default async function OrgSecurityPage({
             {repoExposure.map((r) => (
               <Row key={r.repoName}>
                 <Cell className="text-xs text-text">{r.repoName}</Cell>
-                <Cell num className="text-crit">
+                <Cell num className="text-text">
                   {r.execCalls.toLocaleString()}
                 </Cell>
-                <Cell num className="text-crit">
+                <Cell num className="text-text">
                   {r.webCalls.toLocaleString()}
                 </Cell>
                 <Cell num className="text-text-2">
@@ -244,7 +236,7 @@ export default async function OrgSecurityPage({
                 <Cell className="text-text">
                   {REDACTION_CLASS_LABELS[c.redactionClass] ?? c.redactionClass}
                 </Cell>
-                <Cell num className="text-crit">
+                <Cell num className="text-text">
                   {c.sessionCount.toLocaleString()}
                 </Cell>
               </Row>
@@ -309,7 +301,7 @@ export default async function OrgSecurityPage({
                   {r.category && <span className="ml-1.5 text-text-3">{r.category}</span>}
                 </Cell>
                 <Cell className="text-xs text-text-2">{r.repoName ?? '—'}</Cell>
-                <Cell num className="text-warn">
+                <Cell num className="text-text-2">
                   {fmtBytes(r.outputBytes)}
                 </Cell>
               </Row>

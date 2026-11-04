@@ -17,6 +17,7 @@ import {
 } from '@/lib/subject-quality-queries';
 import {
   getTeamDailySkillVolume,
+  getTeamSkillAdopterCount,
   getTeamSkillAdoptionFunnel,
   getTeamSkillUsage,
   resolveTeamVisibility,
@@ -40,9 +41,10 @@ export default async function TeamSkillsPage({
   const since = daysAgo(range);
 
   const { visibleIds } = await resolveTeamVisibility(teamId);
-  const [skills, funnel, trend, quality, deprecation, coverage] = await Promise.all([
+  const [skills, funnel, adopters, trend, quality, deprecation, coverage] = await Promise.all([
     getTeamSkillUsage(visibleIds, since),
     getTeamSkillAdoptionFunnel(visibleIds, since),
+    getTeamSkillAdopterCount(visibleIds, since),
     getTeamDailySkillVolume(visibleIds, since),
     // The same component as /org/skills, scoped to the team's visible members —
     // the panel inherits its volume gates, so a small team simply reads
@@ -53,7 +55,6 @@ export default async function TeamSkillsPage({
   ]);
 
   const totalInvocations = skills.reduce((s, r) => s + r.callCount, 0);
-  const uniqueAdopters = funnel.length > 0 ? funnel.reduce((s, r) => s + r.recentUsers, 0) : 0;
 
   // The stored series behind the error-rate column (P13-013). Keyed the same
   // way `scores.subject_id` is, so the panel needs no id-shaping of its own.
@@ -62,16 +63,16 @@ export default async function TeamSkillsPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Team"
+        breadcrumb={teamName}
         description={`Skills · trailing ${range} days`}
         range={range}
-        title={teamName}
+        title="Skills"
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Unique skills" value={skills.length.toString()} />
         <Stat label="Total invocations" value={totalInvocations.toLocaleString()} />
-        <Stat label="Active adopters" value={uniqueAdopters.toString()} />
+        <Stat label="Active adopters" value={adopters.toString()} />
       </div>
 
       <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />

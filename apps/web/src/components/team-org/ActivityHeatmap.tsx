@@ -10,13 +10,20 @@ function labelHour(hour: number): string {
 }
 
 /** A UTC weekday/hour activity map with an exact-data fallback for accessibility. */
-export function ActivityHeatmap({ cells }: { cells: ActivityHeatmapCell[] }) {
+export function ActivityHeatmap({
+  cells,
+  timezone = 'UTC',
+}: {
+  cells: ActivityHeatmapCell[];
+  timezone?: string | undefined;
+}) {
+  const zone = timezone;
   const bySlot = new Map(cells.map((cell) => [`${cell.dayOfWeek}:${cell.hour}`, cell]));
   const max = Math.max(...cells.map((cell) => cell.sessionCount), 1);
   return (
     <Card
       title="Activity by hour"
-      caption="UTC weekday and start hour · darker cells indicate more sessions"
+      caption={`${zone} weekday and start hour · darker cells indicate more sessions`}
     >
       {cells.length === 0 ? (
         <CardEmpty>No hourly activity in this period.</CardEmpty>
@@ -24,15 +31,15 @@ export function ActivityHeatmap({ cells }: { cells: ActivityHeatmapCell[] }) {
         <>
           <div className="overflow-x-auto">
             <div
-              className="grid min-w-[720px] gap-1 text-[10px] text-text-3"
-              style={{ gridTemplateColumns: '2.5rem repeat(24, minmax(1.25rem, 1fr))' }}
+              className="grid min-w-[480px] gap-0.5 text-[10px] text-text-3"
+              style={{ gridTemplateColumns: '2.5rem repeat(24, minmax(0, 1fr))' }}
               role="img"
-              aria-label="Session count by weekday and UTC hour"
+              aria-label={`Session count by weekday and ${zone} hour`}
             >
               <span aria-hidden="true" />
               {HOURS.map((hour) => (
                 <span className="text-center" key={hour}>
-                  {hour}
+                  {hour % 3 === 0 ? hour : ''}
                 </span>
               ))}
               {DAYS.map((day, dayOfWeek) => (
@@ -45,7 +52,7 @@ export function ActivityHeatmap({ cells }: { cells: ActivityHeatmapCell[] }) {
                       <span
                         className="aspect-square rounded-sm bg-accent-muted"
                         key={hour}
-                        title={`${day} ${labelHour(hour)} UTC: ${sessions.toLocaleString()} sessions`}
+                        title={`${day} ${labelHour(hour)} ${zone}: ${sessions.toLocaleString()} sessions`}
                         style={{ opacity: sessions ? 0.2 + 0.8 * Math.sqrt(sessions / max) : 0.08 }}
                       />
                     );
@@ -66,7 +73,7 @@ export function ActivityHeatmap({ cells }: { cells: ActivityHeatmapCell[] }) {
               {cells.map((cell) => (
                 <Row key={`${cell.dayOfWeek}:${cell.hour}`}>
                   <Cell>
-                    {DAYS[cell.dayOfWeek]} {labelHour(cell.hour)} UTC
+                    {DAYS[cell.dayOfWeek]} {labelHour(cell.hour)} {zone}
                   </Cell>
                   <Cell num>{cell.sessionCount.toLocaleString()}</Cell>
                   <Cell num>{fmtUsd(cell.costUsd)}</Cell>

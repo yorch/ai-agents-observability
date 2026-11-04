@@ -27,20 +27,32 @@ const MODE_LABEL: Record<string, string> = {
   plan: 'plan',
 };
 
-export function OversightPanel({ data }: { data: OversightSummary }) {
+export function OversightPanel({
+  data,
+  scope = 'me',
+}: {
+  data: OversightSummary;
+  /** Whose activity this summarises; drives the copy ("by you" is wrong on a team or org page). */
+  scope?: 'me' | 'team' | 'org';
+}) {
   if (data.totalSessions === 0) {
     return null;
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-text-3 uppercase tracking-widest">Oversight &amp; autonomy</p>
+      {scope === 'me' && (
+        <p className="text-xs text-text-3 uppercase tracking-widest">Oversight &amp; autonomy</p>
+      )}
 
       {data.rubberStamp && (
         <div className="rounded-lg border border-crit-line bg-crit-soft p-3 text-sm text-crit">
           <span className="font-semibold">Heads up — oversight looks reflexive.</span> Most sessions
           ran with no per-action gate, denials are near zero, and responses to prompts are very
-          fast. Worth a second look at a recent autonomous session before trusting the next one.
+          fast.{' '}
+          {scope === 'me'
+            ? 'Worth a second look at a recent autonomous session before trusting the next one.'
+            : 'Worth a second look at a recent autonomous session in this scope.'}
         </div>
       )}
 
@@ -84,12 +96,12 @@ export function OversightPanel({ data }: { data: OversightSummary }) {
           value={fmtDurationOrDash(data.avgResponseMs)}
           sub={`${data.responseSampleCount} prompts`}
         />
+        <Stat label="Permission prompts" value={data.permissionPromptCount.toLocaleString()} />
         <Stat
-          label="Prompts"
-          value={data.permissionPromptCount.toLocaleString()}
-          sub="permission"
+          label="Interrupts"
+          value={data.interruptCount.toLocaleString()}
+          sub={scope === 'me' ? 'by you' : scope === 'team' ? 'by team members' : 'by developers'}
         />
-        <Stat label="Interrupts" value={data.interruptCount.toLocaleString()} sub="by you" />
       </div>
     </div>
   );
