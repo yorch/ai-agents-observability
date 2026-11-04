@@ -1,10 +1,10 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { SessionDetailHeader } from '@/components/me/SessionDetailHeader';
 import { SessionDetailTabs } from '@/components/me/SessionDetailTabs';
 import { AuditAction, writeAuditLog } from '@/lib/audit';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { resolveOrgSessionAccess } from '@/lib/roles';
 import type {
   ModelBreakdownRow,
@@ -36,7 +36,7 @@ export default async function OrgSessionDetailPage({
   const { id } = await params;
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const ctx = await getSessionOrgContext(id);

@@ -61,12 +61,11 @@ export async function getMyReport(userId: string, days: number): Promise<ReportD
 export async function getTeamReport(input: {
   days: number;
   teamLabel: string;
-  totalMemberCount: number;
   visibleIds: string[];
 }): Promise<ReportDigest> {
   const { start } = windowFor(input.days);
   const [{ current, deltas }, models, tools] = await Promise.all([
-    getTeamSummaryWithDelta(input.days, input.visibleIds, input.totalMemberCount),
+    getTeamSummaryWithDelta(input.days, input.visibleIds),
     getTeamModelMix(start, input.visibleIds),
     getTeamTopTools(start, input.visibleIds, 5),
   ]);

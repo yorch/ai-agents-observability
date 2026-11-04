@@ -40,7 +40,7 @@ export default async function OrgKnowledgePage({
         breadcrumb="Org"
         description={`What developers asked agents about · trailing ${range} days · aggregate topic counts, no individual content`}
         range={range}
-        title="Knowledge gaps"
+        title="Knowledge"
       />
 
       {totalSessions === 0 ? (

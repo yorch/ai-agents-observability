@@ -1,8 +1,7 @@
-import { redirect } from 'next/navigation';
 import { ReportRangeControls } from '@/components/team-org/ReportRangeControls';
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
-import { EmptyState } from '@/components/ui';
-import { currentUser } from '@/lib/auth';
+import { EmptyState, PageHeader } from '@/components/ui';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { parseReportRange } from '@/lib/reporting-range';
 import { getUserCostDuration } from '@/lib/scatter-queries';
 import {
@@ -20,7 +19,7 @@ export default async function MeTrendsPage({
 }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
   const params = await searchParams;
   const window = parseReportRange(params);
@@ -39,28 +38,29 @@ export default async function MeTrendsPage({
   ]);
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-            My trends
-          </h1>
-          <p className="mt-1 text-sm text-text-2">
+      <PageHeader
+        breadcrumb="Me"
+        title="My trends"
+        description={
+          <>
             Daily activity and model mix ·{' '}
             {custom
               ? `${window.from} → ${window.to} (${window.days} days)`
               : `trailing ${range} days`}
-          </p>
-        </div>
-        <ReportRangeControls
-          basePath="/me/trends"
-          range={range}
-          from={params.from}
-          to={params.to}
-          timezone={window.timezone}
-          repo={params.repo}
-          repos={repos}
-        />
-      </div>
+          </>
+        }
+        action={
+          <ReportRangeControls
+            basePath="/me/trends"
+            range={range}
+            from={params.from}
+            to={params.to}
+            timezone={window.timezone}
+            repo={params.repo}
+            repos={repos}
+          />
+        }
+      />
       {points.length === 0 ? (
         <EmptyState title="No activity in this period">
           Install an adapter and run a session to start seeing trends.
@@ -71,6 +71,7 @@ export default async function MeTrendsPage({
           heatmap={heatmap}
           points={points}
           scatter={scatter}
+          timezone={window.timezone}
         />
       )}
     </div>

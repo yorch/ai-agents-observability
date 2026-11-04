@@ -37,7 +37,7 @@ export default async function OrgPromptsPage({
         breadcrumb="Org"
         description={`User prompts clustered by intent · trailing ${range} days · aggregate cost and friction per cluster`}
         range={range}
-        title="Prompt patterns"
+        title="Prompts"
       />
 
       {totalSessions === 0 ? (

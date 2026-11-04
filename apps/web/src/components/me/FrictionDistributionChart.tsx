@@ -1,6 +1,7 @@
-import { Card } from '@/components/ui';
+import { Card, CardEmpty } from '@/components/ui';
 import { FRICTION_VERSION } from '@/lib/effectiveness';
 import type { EffectivenessDistribution } from '@/lib/effectiveness-queries';
+import { fmtFriction } from '@/lib/fmt';
 
 // Suppress aggregate friction below this many scored sessions, to prevent
 // re-identifying individuals in small teams (P7-004). Not configurable.
@@ -15,22 +16,14 @@ export function FrictionDistributionChart({
   distribution: EffectivenessDistribution;
   title?: string;
 }) {
-  const header = (
-    <div className="mb-4 flex items-center justify-between">
-      <h2 className="font-mono text-[10px] uppercase tracking-widest text-text-3">{title}</h2>
-      <span className="text-[10px] uppercase tracking-wide text-text-3">v{FRICTION_VERSION}</span>
-    </div>
-  );
-
   const { friction, scoredSessions } = distribution;
 
   if (!friction || scoredSessions < MIN_AGG_SCORED) {
     return (
-      <Card>
-        {header}
-        <p className="text-sm text-text-3">
+      <Card title={title} hint={`v${FRICTION_VERSION}`}>
+        <CardEmpty>
           Not enough data — needs at least {MIN_AGG_SCORED} scored sessions in this period.
-        </p>
+        </CardEmpty>
       </Card>
     );
   }
@@ -40,8 +33,7 @@ export function FrictionDistributionChart({
   const mid = clamp(friction.p50) * 100;
 
   return (
-    <Card>
-      {header}
+    <Card title={title} hint={`v${FRICTION_VERSION}`}>
       <div className="relative h-3 w-full rounded-full bg-surface-2">
         {/* p25–p75 interquartile span */}
         <div
@@ -52,13 +44,13 @@ export function FrictionDistributionChart({
         <div
           className="absolute top-[-2px] h-[16px] w-0.5 bg-accent"
           style={{ left: `${mid}%` }}
-          title={`median ${friction.p50.toFixed(2)}`}
+          title={`median ${fmtFriction(friction.p50)}`}
         />
       </div>
       <div className="mt-3 flex justify-between text-xs text-text-2">
-        <span>p25 {friction.p25.toFixed(2)}</span>
-        <span className="text-text">median {friction.p50.toFixed(2)}</span>
-        <span>p75 {friction.p75.toFixed(2)}</span>
+        <span>p25 {fmtFriction(friction.p25)}</span>
+        <span className="text-text">median {fmtFriction(friction.p50)}</span>
+        <span>p75 {fmtFriction(friction.p75)}</span>
       </div>
       <p className="mt-2 text-[10px] text-text-3">
         {scoredSessions} scored sessions · 0 (low) – 1 (high)

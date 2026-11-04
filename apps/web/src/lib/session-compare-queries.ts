@@ -212,3 +212,50 @@ export function diffToolMix(left: SessionToolRow[], right: SessionToolRow[]): To
     })
     .sort((a, b) => b.leftCalls + b.rightCalls - (a.leftCalls + a.rightCalls));
 }
+
+export type ComparePickSummary = {
+  ownerLabel: string;
+  repoName: string | null;
+  startedAt: Date;
+};
+
+/**
+ * One-line identity for a session already chosen as A or B in the compare
+ * picker, so the choice stays visible when it is not among the recent rows.
+ * Same gate as the comparison itself (resolveOrgSessionAccess); returns null
+ * rather than an error so an inaccessible id is indistinguishable from a
+ * missing one. Audited like `loadSessionSide`: getSessionOrgContext's contract
+ * is that every cross-user drill-in writes a VIEW_SESSION row.
+ */
+export async function getComparePickSummary(sessionId: string): Promise<ComparePickSummary | null> {
+  const user = await currentUser();
+  if (!user) {
+    return null;
+  }
+  const ctx = await getSessionOrgContext(sessionId);
+  if (!ctx) {
+    return null;
+  }
+  const access = await resolveOrgSessionAccess(user, {
+    ownerUserId: ctx.ownerUserId,
+    sessionId,
+  });
+  if (!access) {
+    return null;
+  }
+  void writeAuditLog({
+    action: AuditAction.VIEW_SESSION,
+    actorUserId: user.id,
+    targetSessionId: sessionId,
+    targetUserId: ctx.ownerUserId,
+  });
+  const detail = await getSession(ctx.ownerUserId, sessionId);
+  if (!detail) {
+    return null;
+  }
+  return {
+    ownerLabel: ctx.displayName ?? (ctx.ownerLogin ? `@${ctx.ownerLogin}` : 'Unknown user'),
+    repoName: detail.repoName,
+    startedAt: detail.startedAt,
+  };
+}

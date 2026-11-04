@@ -58,7 +58,7 @@ export default async function TeamMemberSessionsPage({
           {displayName}
         </h1>
         {member.displayName && <p className="text-xs text-text-3 mt-0.5">@{member.githubLogin}</p>}
-        <p className="mt-1 text-sm text-text-2">{total} sessions total</p>
+        <p className="mt-1 text-sm text-text-2">{total} sessions (all time)</p>
       </div>
 
       <SessionsTable sessions={sessions} total={total} currentPage={page} basePath={basePath} />

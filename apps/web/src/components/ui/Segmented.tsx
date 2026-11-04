@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
+import { cx } from './cx';
 
 const WRAP = 'inline-flex gap-0.5 rounded-lg border border-border bg-surface-2 p-0.5';
-const ITEM = 'rounded-md px-3 py-1 font-mono text-xs font-medium no-underline transition-colors';
+// nowrap: a two-word option ("Gemini CLI") must not wrap inside its pill; the
+// group scrolls or wraps as a whole instead.
+const ITEM =
+  'whitespace-nowrap rounded-md px-3 py-1 font-mono text-xs font-medium no-underline transition-colors';
 const ON = 'bg-accent text-bg';
 const OFF = 'text-text-3 hover:bg-surface hover:text-text';
 
@@ -38,7 +42,7 @@ export function SegmentedLink({
     <a
       href={href}
       aria-current={selected ? 'page' : undefined}
-      className={`${ITEM} ${selected ? ON : OFF}`}
+      className={cx(ITEM, selected ? ON : OFF)}
     >
       {children}
     </a>
@@ -60,7 +64,7 @@ export function SegmentedButton({
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`${ITEM} ${selected ? ON : OFF}`}
+      className={cx(ITEM, selected ? ON : OFF)}
     >
       {children}
     </button>

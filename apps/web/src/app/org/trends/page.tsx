@@ -1,6 +1,6 @@
 import { ReportRangeControls } from '@/components/team-org/ReportRangeControls';
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, PageHeader } from '@/components/ui';
 import { parseReportRange } from '@/lib/reporting-range';
 import { requireOrgViewer } from '@/lib/roles';
 import { getOrgCostDuration } from '@/lib/scatter-queries';
@@ -37,29 +37,24 @@ export default async function OrgTrendsPage({
   ]);
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Organization</p>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-            Organization trends
-          </h1>
-          <p className="mt-1 text-sm text-text-2">
-            Daily activity and model mix ·{' '}
-            {custom
-              ? `${window.from} → ${window.to} (${window.days} days)`
-              : `trailing ${range} days`}
-          </p>
-        </div>
-        <ReportRangeControls
-          basePath="/org/trends"
-          range={range}
-          from={params.from}
-          to={params.to}
-          timezone={window.timezone}
-          repo={params.repo}
-          repos={repos}
-        />
-      </div>
+      <PageHeader
+        action={
+          <ReportRangeControls
+            basePath="/org/trends"
+            range={range}
+            from={params.from}
+            to={params.to}
+            timezone={window.timezone}
+            repo={params.repo}
+            repos={repos}
+          />
+        }
+        breadcrumb="Org"
+        description={`Daily activity and model mix · ${
+          custom ? `${window.from} → ${window.to} (${window.days} days)` : `trailing ${range} days`
+        }`}
+        title="Trends"
+      />
       {points.length === 0 ? (
         <EmptyState title="No activity in this period">
           Shared team sessions will appear here once agents report activity.
@@ -71,6 +66,7 @@ export default async function OrgTrendsPage({
           heatmap={heatmap}
           points={points}
           scatter={scatter}
+          timezone={window.timezone}
         />
       )}
     </div>

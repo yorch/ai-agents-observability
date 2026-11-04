@@ -44,7 +44,7 @@ export function PasswordForm({ next }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form method="post" onSubmit={handleSubmit} className="space-y-3">
       <Field label="Email" htmlFor="email">
         <Input
           id="email"

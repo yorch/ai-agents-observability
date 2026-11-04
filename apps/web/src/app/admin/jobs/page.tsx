@@ -6,6 +6,7 @@ import {
   Card,
   Cell,
   EmptyState,
+  PageHeader,
   Row,
   Select,
   Table,
@@ -54,16 +55,11 @@ export default async function AdminJobsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Admin</p>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-          Scheduled Jobs
-        </h1>
-        <p className="mt-1 text-sm text-text-2">
-          Toggle, reschedule, and manually trigger nightly jobs. Changes take effect on the next
-          60-second scheduler poll.
-        </p>
-      </div>
+      <PageHeader
+        breadcrumb="Admin"
+        title="Jobs"
+        description="Toggle, reschedule, and manually trigger nightly jobs. Changes take effect on the next 60-second scheduler poll."
+      />
 
       {judgeSpend.scoredSessions > 0 && (
         <Card
@@ -92,7 +88,6 @@ export default async function AdminJobsPage() {
               { label: 'Schedule (UTC)' },
               { label: 'Last run' },
               { label: 'Status' },
-              { label: 'Actions' },
             ]}
           >
             {configs.map((cfg) => {
@@ -103,7 +98,39 @@ export default async function AdminJobsPage() {
                 cfg.runRequestedAt != null && (!run || cfg.runRequestedAt > run.startedAt);
               return (
                 <Row key={cfg.jobName}>
-                  <Cell className="text-xs text-text">{cfg.jobName}</Cell>
+                  <Cell className="text-xs text-text">
+                    {cfg.jobName}
+                    {/* Run now sits under the name, so it stays in the first
+                        column and is reachable without scrolling a wide table. */}
+                    <div className="mt-2">
+                      {/* No "Run now" for a disabled job. The scheduler refuses a
+                          manual trigger for one, so offering the button would be
+                          offering something the backend declines — and it would
+                          make the Enabled switch look advisory. judge-sessions is
+                          the case that matters: it ships off, and one click here
+                          used to start a paid model pass over developer
+                          transcripts regardless. */}
+                      {!CONFIGURABLE_JOBS.has(cfg.jobName) ? (
+                        // This page lists every job_config row, and the ingest
+                        // trigger endpoint mints a placeholder row (enabled=false)
+                        // for fixed-timer and operator-drain jobs. Telling an admin
+                        // to "enable to run" one of those points at an action the
+                        // server action refuses and that was never this page's to
+                        // offer — they run on their own timer or by operator
+                        // trigger against the ingest service.
+                        <span className="text-xs text-text-3">Operator-triggered only</span>
+                      ) : cfg.enabled ? (
+                        <ActionForm action={triggerJob}>
+                          <input type="hidden" name="jobName" value={cfg.jobName} />
+                          <Button size="sm" type="submit">
+                            Run now
+                          </Button>
+                        </ActionForm>
+                      ) : (
+                        <span className="text-xs text-text-3">Disabled — enable to run</span>
+                      )}
+                    </div>
+                  </Cell>
 
                   {/* Enabled + schedule form — submitted together */}
                   <Cell colSpan={2}>
@@ -162,7 +189,7 @@ export default async function AdminJobsPage() {
                     </ActionForm>
                   </Cell>
 
-                  <Cell className="text-xs text-text-2">
+                  <Cell className="whitespace-nowrap text-xs text-text-2">
                     {run
                       ? `${run.startedAt.toISOString().replace('T', ' ').slice(0, 19)} UTC`
                       : '—'}
@@ -179,35 +206,6 @@ export default async function AdminJobsPage() {
                       </span>
                     ) : (
                       <span className="text-text-3 text-xs">—</span>
-                    )}
-                  </Cell>
-
-                  <Cell>
-                    {/* No "Run now" for a disabled job. The scheduler refuses a
-                        manual trigger for one, so offering the button would be
-                        offering something the backend declines — and it would
-                        make the Enabled switch look advisory. judge-sessions is
-                        the case that matters: it ships off, and one click here
-                        used to start a paid model pass over developer
-                        transcripts regardless. */}
-                    {!CONFIGURABLE_JOBS.has(cfg.jobName) ? (
-                      // This page lists every job_config row, and the ingest
-                      // trigger endpoint mints a placeholder row (enabled=false)
-                      // for fixed-timer and operator-drain jobs. Telling an admin
-                      // to "enable to run" one of those points at an action the
-                      // server action refuses and that was never this page's to
-                      // offer — they run on their own timer or by operator
-                      // trigger against the ingest service.
-                      <span className="text-xs text-text-3">Operator-triggered only</span>
-                    ) : cfg.enabled ? (
-                      <ActionForm action={triggerJob}>
-                        <input type="hidden" name="jobName" value={cfg.jobName} />
-                        <Button size="sm" type="submit">
-                          Run now
-                        </Button>
-                      </ActionForm>
-                    ) : (
-                      <span className="text-xs text-text-3">Disabled — enable to run</span>
                     )}
                   </Cell>
                 </Row>

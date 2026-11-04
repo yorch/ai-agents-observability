@@ -100,9 +100,9 @@ export default async function OrgMcpPage({
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Org"
-        description={`Trailing ${range} days · server health, latency, and attributed LLM cost`}
+        description={`MCP integrations · trailing ${range} days · server health, latency, and attributed LLM cost`}
         range={range}
-        title="MCP Integrations"
+        title="MCP"
       />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

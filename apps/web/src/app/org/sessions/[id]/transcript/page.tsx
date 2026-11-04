@@ -1,10 +1,11 @@
+import { agentDisplayName } from '@ai-agents-observability/schemas';
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { TranscriptPanel } from '@/components/me/TranscriptPanel';
 import { Button, Field, Textarea } from '@/components/ui';
 import { MIN_JUSTIFICATION_LENGTH, normalizeJustification } from '@/lib/audit';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/fmt';
 import { resolveOrgSessionAccess } from '@/lib/roles';
 import { getSession, getSessionOrgContext } from '@/lib/sessions-queries';
@@ -24,7 +25,7 @@ export default async function OrgTranscriptPage({
   const { id } = await params;
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const ctx = await getSessionOrgContext(id);
@@ -48,12 +49,14 @@ export default async function OrgTranscriptPage({
   }
 
   const owner = ctx.displayName ?? (ctx.ownerLogin ? `@${ctx.ownerLogin}` : 'Unknown user');
+  const labels = { assistant: agentDisplayName(session.agentType), user: owner };
 
   if (!session.transcriptS3Key) {
     return (
       <TranscriptPanel
         backHref={`/org/sessions/${id}`}
         hasTranscript={false}
+        labels={labels}
         sessionId={id}
         subtitle={`${owner} · ${session.repoName ?? 'Unknown repo'} · ${fmtDateTime(session.startedAt)} UTC`}
       />
@@ -120,6 +123,7 @@ export default async function OrgTranscriptPage({
       apiUrl={apiUrl}
       backHref={`/org/sessions/${id}`}
       hasTranscript
+      labels={labels}
       notice={
         justification ? (
           <p className="mt-2 text-xs text-warn">

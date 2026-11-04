@@ -27,6 +27,9 @@ import { currentUser } from '@/lib/auth';
 import { getPrisma } from '@/lib/prisma';
 import { canRequestGrants } from '@/lib/roles';
 
+/** Lower sorts first: the team a viewer leads is their home team. */
+const ROLE_RANK: Record<string, number> = { LEAD: 0, MAINTAINER: 1, MEMBER: 2 };
+
 export const metadata = {
   description: 'Self-hosted observability for AI coding agents.',
   title: 'ai-agents-observability',
@@ -38,26 +41,47 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   let teams: RailTeam[] = [];
   if (user) {
+    // The viewer's own teams come first, leads before members, so the rail's
+    // TEAM scope (which opens `teams[0]`) lands on the team they run rather
+    // than whichever sorts first alphabetically. The rank is explicit: the
+    // TeamRole enum declares MEMBER before LEAD, so `orderBy: roleInTeam`
+    // would put members first.
+    const memberships = await getPrisma().teamMember.findMany({
+      select: { roleInTeam: true, team: { select: { githubSlug: true, name: true } } },
+      take: 100,
+      where: { leftAt: null, userId: user.id },
+    });
+    const own = memberships
+      .sort(
+        (a, b) =>
+          (ROLE_RANK[a.roleInTeam] ?? 9) - (ROLE_RANK[b.roleInTeam] ?? 9) ||
+          a.team.name.localeCompare(b.team.name),
+      )
+      .map((m) => m.team);
     if (canViewOrg) {
-      teams = await getPrisma().team.findMany({
+      const all = await getPrisma().team.findMany({
         orderBy: { name: 'asc' },
         select: { githubSlug: true, name: true },
         // Bounded: this list ships in the RSC payload of every page, and is
         // only read by the rail's team picker.
         take: 100,
       });
+      const ownSlugs = new Set(own.map((t) => t.githubSlug));
+      teams = [...own, ...all.filter((t) => !ownSlugs.has(t.githubSlug))].slice(0, 100);
     } else {
-      const membership = await getPrisma().teamMember.findFirst({
-        include: { team: { select: { githubSlug: true, name: true } } },
-        orderBy: [{ roleInTeam: 'asc' }, { team: { name: 'asc' } }],
-        where: { leftAt: null, userId: user.id },
-      });
-      teams = membership ? [membership.team] : [];
+      // A member-only viewer's rail opens one team: the one they rank highest in.
+      teams = own.slice(0, 1);
     }
   }
 
   return (
-    <html lang="en" className={`${syne.variable} ${dmSans.variable} ${ibmMono.variable}`}>
+    // The pre-paint script below adds `light` to <html> before React hydrates,
+    // so the server's class list and the client's differ by design.
+    <html
+      lang="en"
+      className={`${syne.variable} ${dmSans.variable} ${ibmMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         {/* Applies the stored theme before first paint. Without it the page
             renders dark and then snaps to light on hydration. */}

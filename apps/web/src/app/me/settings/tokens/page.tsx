@@ -1,7 +1,5 @@
-import { redirect } from 'next/navigation';
-
 import { TokenList } from '@/components/me/TokenList';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { getPrisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export default async function SettingsTokensPage() {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const tokens = await getPrisma().authToken.findMany({

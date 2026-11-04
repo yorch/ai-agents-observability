@@ -1,4 +1,14 @@
-import { ActionForm, Button, ButtonLink, Card, ConfirmButton, Input } from '@/components/ui';
+import {
+  ActionForm,
+  Badge,
+  type BadgeTone,
+  Button,
+  ButtonLink,
+  Card,
+  ConfirmButton,
+  Input,
+  PageHeader,
+} from '@/components/ui';
 import { fmtDateTime } from '@/lib/fmt';
 import { isGrantExpiringSoon } from '@/lib/grant-policy';
 import { getPrisma } from '@/lib/prisma';
@@ -16,6 +26,18 @@ type Grant = {
   scope: string;
   targetSessionId: string | null;
   targetUserId: string | null;
+};
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  active: 'good',
+  expired: 'neutral',
+  pending: 'warn',
+  revoked: 'crit',
+};
+
+const SCOPE_LABEL: Record<string, string> = {
+  SINGLE_SESSION: 'Single session',
+  USER_SESSIONS: 'All sessions of one user',
 };
 
 function status(g: Grant): string {
@@ -36,17 +58,20 @@ function expiringSoon(g: Grant): boolean {
 }
 
 /** The grant-lifetime box, identical on the per-row and bulk approve forms. */
-function HoursInput({ label }: { label: string }) {
+function HoursInput({ id }: { id: string }) {
   return (
-    <Input
-      size="sm"
-      type="number"
-      name="hours"
-      min={1}
-      placeholder="48"
-      aria-label={label}
-      className="w-20 text-right"
-    />
+    <label htmlFor={id} className="flex items-center gap-1.5 text-xs text-text-2">
+      Lifetime (hours)
+      <Input
+        id={id}
+        size="sm"
+        type="number"
+        name="hours"
+        min={1}
+        placeholder="48"
+        className="w-20 text-right"
+      />
+    </label>
   );
 }
 
@@ -55,8 +80,8 @@ function GrantCard({ g }: { g: Grant }) {
   return (
     <Card className="text-sm" contentClassName="space-y-2">
       <div className="flex items-center gap-2 text-xs text-text-3">
-        <span className="rounded bg-surface-2 px-1.5 py-0.5 text-text-2">{st}</span>
-        <span>· scope: {g.scope}</span>
+        <Badge tone={STATUS_TONE[st] ?? 'neutral'}>{st}</Badge>
+        <span>· scope: {SCOPE_LABEL[g.scope] ?? g.scope}</span>
         {g.expiresAt && <span>· expires {fmtDateTime(new Date(g.expiresAt))} UTC</span>}
         {expiringSoon(g) && (
           <span className="rounded bg-warn-soft px-1.5 py-0.5 text-warn">expiring soon</span>
@@ -72,9 +97,9 @@ function GrantCard({ g }: { g: Grant }) {
         {st === 'pending' && (
           <ActionForm action={approveGrant} className="inline-flex flex-wrap items-center gap-2">
             <input type="hidden" name="id" value={g.id} />
-            <HoursInput label="Grant lifetime (hours)" />
+            <HoursInput id={`hours-${g.id}`} />
             <Button size="sm" type="submit">
-              Approve (h)
+              Approve
             </Button>
           </ActionForm>
         )}
@@ -107,20 +132,16 @@ export default async function AccessGrantsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h1 className="font-display text-xl font-semibold tracking-tight text-text">
-            Access grants
-          </h1>
-          <p className="text-sm text-text-2">
-            Time-boxed, audited transcript access (§8.4). Approve a request to grant access for a
-            bounded window; revoke any time. The viewed user sees every grant in their audit feed.
-          </p>
-        </div>
-        <ButtonLink size="sm" href="/admin/access-grants/new">
-          New request
-        </ButtonLink>
-      </div>
+      <PageHeader
+        breadcrumb="Admin"
+        title="Access grants"
+        description="Time-boxed, audited transcript access. Approve a request to grant access for a bounded window; revoke any time. The viewed user sees every grant in their audit feed."
+        action={
+          <ButtonLink size="sm" href="/admin/access-grants/new">
+            New request
+          </ButtonLink>
+        }
+      />
 
       {/* Needs attention: pending requests awaiting approval (R8). */}
       <section className="space-y-3">
@@ -136,7 +157,7 @@ export default async function AccessGrantsPage() {
               action={approveAllPending}
               className="inline-flex flex-wrap items-center gap-2"
             >
-              <HoursInput label="Bulk grant lifetime (hours)" />
+              <HoursInput id="bulk-hours" />
               {/* Secondary, not the accent: a bulk approve should not outweigh
                   the per-row approvals it stands next to. */}
               <ConfirmButton
@@ -146,6 +167,7 @@ export default async function AccessGrantsPage() {
               >
                 Approve all ({pending.length})
               </ConfirmButton>
+              <span className="text-xs text-text-3">Default 48h</span>
             </ActionForm>
           )}
         </div>

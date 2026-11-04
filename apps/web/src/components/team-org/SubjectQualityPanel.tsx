@@ -108,6 +108,12 @@ export function SubjectQualityPanel({
   subjectNoun: string;
   title: string;
 }) {
+  // Acronyms ("MCP server") keep their case; the article follows the spoken
+  // first letter ("an MCP server", "a skill").
+  const isAcronym = /^[A-Z]{2,}/.test(subjectNoun);
+  const noun = isAcronym ? subjectNoun : subjectNoun.toLowerCase();
+  const article = /^(MCP|[AEIOUaeiou])/.test(subjectNoun) ? 'an' : 'a';
+
   if (rows.length === 0) {
     return (
       <Card caption={caption} title={title}>
@@ -122,7 +128,7 @@ export function SubjectQualityPanel({
         <Table
           columns={[
             { label: subjectNoun },
-            { align: 'right', label: 'Invocations', mono: true },
+            { align: 'right', label: 'Invocations (scored sessions)', mono: true },
             { align: 'right', label: 'Users', mono: true },
             { align: 'right', label: 'Downstream errors', mono: true },
             { label: 'Error-rate trend' },
@@ -136,8 +142,11 @@ export function SubjectQualityPanel({
             const errorRate = subjectErrorRate(r);
             return (
               <Row key={`${r.kind}:${r.name}`}>
-                <Cell>
-                  <span className="font-mono text-text">{r.name}</span>
+                <Cell className="whitespace-nowrap">
+                  <span className="font-mono text-text">
+                    {r.kind === 'mcp_server' ? '' : '/'}
+                    {r.name}
+                  </span>
                   {r.kind !== 'mcp_server' && (
                     <span className="ml-2 text-xs capitalize text-text-3">{r.kind}</span>
                   )}
@@ -194,13 +203,13 @@ export function SubjectQualityPanel({
         </Table>
 
         <p className="mt-3 text-xs text-text-3">
-          Association, not causation. The comparison pool for each {subjectNoun.toLowerCase()} is
-          restricted to sessions of the same shape, so a {subjectNoun.toLowerCase()} used mostly on
-          debugging work is compared against debugging sessions — but shape is a partial control
-          only. Task difficulty, repository and self-selection all survive it, and a{' '}
-          {subjectNoun.toLowerCase()} reached for on hard problems will look worse than one reached
-          for on easy ones. Read a difference here as a place to go and look, never as a verdict on
-          the {subjectNoun.toLowerCase()}.
+          Association, not causation. The comparison pool for each {noun} is restricted to sessions
+          of the same shape, so {article} {noun} used mostly on debugging work is compared against
+          debugging sessions — but shape is a partial control only. Task difficulty, repository and
+          self-selection all survive it, and {article} {noun} reached for on hard problems will look
+          worse than one reached for on easy ones. Read a difference here as a place to go and look,
+          never as a verdict on the {noun}. Invocation counts include only sessions that have been
+          scored, so they can be lower than the usage tables elsewhere on this page.
         </p>
         <p className="mt-2 text-xs text-text-3">
           Comparisons need at least {SUBJECT_MIN_SESSIONS_PER_ARM} sessions on each side and error

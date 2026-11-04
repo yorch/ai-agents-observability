@@ -1,3 +1,4 @@
+import { agentDisplayName } from '@ai-agents-observability/schemas';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
@@ -62,6 +63,10 @@ export default async function TeamMemberTranscriptPage({
       apiUrl={apiUrl}
       backHref={`/team/${slug}/member/${login}/sessions/${id}`}
       hasTranscript={Boolean(session.transcriptS3Key)}
+      labels={{
+        assistant: agentDisplayName(session.agentType),
+        user: member.displayName ?? `@${login}`,
+      }}
       sessionId={id}
       subtitle={`${session.repoName ?? 'Unknown repo'} · ${fmtDateTime(session.startedAt)} UTC`}
     />

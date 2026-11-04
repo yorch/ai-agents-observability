@@ -23,7 +23,6 @@ export const GET = withRouteLogging(
     const report = await getTeamReport({
       days,
       teamLabel: teamName,
-      totalMemberCount: visibility.totalCount,
       visibleIds: visibility.visibleIds,
     });
     const [trends, scatter, concurrency, heatmap] = await Promise.all([

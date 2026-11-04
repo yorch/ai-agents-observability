@@ -92,7 +92,9 @@ export default async function TeamSessionDetailPage({
         ownerLabel={ownerName}
         session={session}
         transcriptHref={
-          session.transcriptS3Key && member.canViewTranscripts
+          // The member route is keyed on login; a member without one has no
+          // transcript route to link to (never emit /member/null/...).
+          session.transcriptS3Key && member.canViewTranscripts && member.githubLogin
             ? `/team/${slug}/member/${member.githubLogin}/sessions/${id}/transcript`
             : null
         }

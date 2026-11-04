@@ -1,7 +1,7 @@
 import { AuditAction } from '@ai-agents-observability/db';
 import { CheckIcon } from '@/components/icons';
 import { OversightPanel } from '@/components/me/OversightPanel';
-import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { PageHeader } from '@/components/team-org/PageHeader';
 import { Cell, EmptyState, Row, Stat, Table } from '@/components/ui';
 import { getOrgOversight } from '@/lib/oversight-queries';
 import { getAgentPrProvenance } from '@/lib/pr-provenance-queries';
@@ -44,26 +44,19 @@ export default async function GovernancePage({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <h1 className="font-display text-xl font-semibold tracking-tight text-text">
-            Governance &amp; oversight
-          </h1>
-          <p className="max-w-2xl text-sm text-text-2">
-            Aggregate evidence of agent autonomy and privileged-access governance over the selected
-            window. Oversight evidence for AI-coding governance (EU AI Act Art. 14 / NIST AI RMF /
-            SOC 2) — aggregate only, no individual sessions or identities.
-          </p>
-        </div>
-        <DateRangePicker range={range} />
-      </div>
+      <PageHeader
+        breadcrumb="Org"
+        description="Aggregate evidence of agent autonomy and privileged-access governance over the selected window. Oversight evidence for AI-coding governance (EU AI Act Art. 14 / NIST AI RMF / SOC 2) — aggregate only, no individual sessions or identities."
+        range={range}
+        title="Governance"
+      />
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-text">Autonomy posture</h2>
         {oversight.totalSessions === 0 ? (
           <EmptyState>No sessions in this period.</EmptyState>
         ) : (
-          <OversightPanel data={oversight} />
+          <OversightPanel data={oversight} scope="org" />
         )}
       </section>
 

@@ -1,5 +1,5 @@
 import { ADAPTER_AGENT_TYPES, agentDisplayName } from '@ai-agents-observability/schemas';
-import { Badge, Card, CardEmpty, Cell, Row, Table } from '@/components/ui';
+import { Badge, Card, CardEmpty, Cell, PageHeader, Row, Table } from '@/components/ui';
 import { getAllRunsPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 
@@ -136,15 +136,11 @@ export default async function AdaptersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
-          Adapter health
-        </h1>
-        <p className="text-sm text-text-2">
-          Session activity by agent type. An adapter is considered active if it sent a session in
-          the last 48 hours.
-        </p>
-      </div>
+      <PageHeader
+        breadcrumb="Admin"
+        title="Adapter health"
+        description="Session activity by agent type. An adapter is considered active if it sent a session in the last 48 hours."
+      />
 
       <Table
         columns={[

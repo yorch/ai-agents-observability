@@ -1,12 +1,13 @@
 import { ScopedTrendCharts } from '@/components/team-org/ScopedTrendCharts';
 import { ButtonLink, Card, Cell, Row, Table } from '@/components/ui';
+import { fmtUsd } from '@/lib/fmt';
 import { type ReportDigest as Digest, formatReportDelta } from '@/lib/reporting';
 import type { CostDurationPoint } from '@/lib/scatter-queries';
 import type { ActivityHeatmapCell, ConcurrencyPoint, ScopedTrendPoint } from '@/lib/trend-queries';
 
 function value(value: number, unit: Digest['metrics'][number]['unit']): string {
   if (unit === 'usd') {
-    return `$${value.toFixed(2)}`;
+    return fmtUsd(value);
   }
   if (unit === 'hours') {
     return `${value.toFixed(1)}h`;
@@ -61,7 +62,6 @@ export function ReportDigest({
       <Card
         title="Period summary"
         caption={`Trailing ${report.period.days}-day period · compared with the preceding ${report.period.days} days`}
-        flush
       >
         <Table
           columns={[
@@ -86,7 +86,7 @@ export function ReportDigest({
         caption="Signals worth carrying into the next planning conversation"
       >
         {largestChange ? (
-          <div className="grid gap-4 text-sm md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
             <div>
               <p className="text-xs uppercase tracking-wider text-text-3">Largest movement</p>
               <p className="mt-1 text-text">
@@ -116,8 +116,8 @@ export function ReportDigest({
           drilldownHref={drilldownHref}
         />
       )}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card title="Top models" flush>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <Card title="Top models">
           <Table
             columns={[
               { label: 'Model' },
@@ -134,7 +134,7 @@ export function ReportDigest({
             ))}
           </Table>
         </Card>
-        <Card title="Top tools" flush>
+        <Card title="Top tools">
           <Table columns={[{ label: 'Tool' }, { align: 'right', label: 'Calls' }]}>
             {report.topTools.map((tool) => (
               <Row key={tool.name}>

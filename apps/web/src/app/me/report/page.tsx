@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation';
 import { ReportDigest } from '@/components/reports/ReportDigest';
 import { PageHeader } from '@/components/team-org/PageHeader';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { getMyReport } from '@/lib/reporting-queries';
 import { getUserCostDuration } from '@/lib/scatter-queries';
 import { daysAgo } from '@/lib/time';
@@ -19,7 +18,7 @@ export default async function MyReportPage({
 }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
   const { range: rangeParam } = await searchParams;
   const range = ([7, 30, 90].includes(Number(rangeParam)) ? Number(rangeParam) : 30) as 7 | 30 | 90;

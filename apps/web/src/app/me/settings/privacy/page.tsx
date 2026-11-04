@@ -1,8 +1,7 @@
-import { redirect } from 'next/navigation';
 import { DeleteDataButton } from '@/components/me/DeleteDataButton';
 import { PrivacyForm } from '@/components/me/PrivacyForm';
 import { Card } from '@/components/ui';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { getVisibilityPolicy } from '@/lib/visibility';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export default async function SettingsPrivacyPage() {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const policy = await getVisibilityPolicy(user.id);

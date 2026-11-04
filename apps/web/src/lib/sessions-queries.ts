@@ -51,6 +51,8 @@ export type SessionRow = {
 };
 
 export type SessionDetail = {
+  /** AgentType enum value ('CLAUDE_CODE', …) — label it with `agentDisplayName`. */
+  agentType: string;
   agentVersion: string | null;
   branch: string | null;
   claudeCodeVersion: string | null;
@@ -200,6 +202,7 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
   }
 
   return {
+    agentType: s.agentType,
     agentVersion: s.agentVersion,
     branch: s.gitBranch,
     claudeCodeVersion: s.claudeCodeVersion,
@@ -288,6 +291,12 @@ export type SessionEvent = {
   ts: Date;
 };
 
+/**
+ * Row cap for the per-session Timeline. The page compares against it to say the
+ * list was cut short instead of ending silently at the 500th event.
+ */
+export const SESSION_EVENTS_LIMIT = 500;
+
 export async function getSessionEvents(userId: string, sessionId: string): Promise<SessionEvent[]> {
   const prisma = getPrisma();
   const rows = await prisma.$queryRaw<
@@ -318,7 +327,7 @@ export async function getSessionEvents(userId: string, sessionId: string): Promi
     WHERE session_id = ${sessionId}::uuid
       AND user_id = ${userId}::uuid
     ORDER BY ts ASC
-    LIMIT 500
+    LIMIT ${SESSION_EVENTS_LIMIT}
   `);
 
   return rows.map((r) => ({

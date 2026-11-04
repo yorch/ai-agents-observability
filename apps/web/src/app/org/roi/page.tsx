@@ -400,10 +400,7 @@ export default async function OrgRoiPage({
       )}
 
       {/* Bug vs feature spend */}
-      <Card contentClassName="space-y-3">
-        <h2 className="font-display text-sm font-semibold text-text">
-          Bug vs feature spend ({range}d)
-        </h2>
+      <Card title={`Bug vs feature spend (${range}d)`} contentClassName="space-y-3">
         {classified.length === 0 ? (
           <p className="text-sm text-text-3">
             No classified tickets in this window. Issue types come from the Jira sync (JIRA_BASE_URL
@@ -433,13 +430,7 @@ export default async function OrgRoiPage({
             >
               {issueTypes.map((t) => (
                 <Row key={t.issueType}>
-                  <Cell
-                    className={`py-2 text-xs ${
-                      BUG_ISSUE_TYPES.has(t.issueType.toLowerCase()) ? 'text-warn' : 'text-text'
-                    }`}
-                  >
-                    {t.issueType}
-                  </Cell>
+                  <Cell className="py-2 text-xs text-text">{t.issueType}</Cell>
                   <Cell num className="text-text-2">
                     {t.ticketCount}
                   </Cell>
@@ -479,8 +470,7 @@ export default async function OrgRoiPage({
       </Card>
 
       {/* ROI by repo */}
-      <Card contentClassName="space-y-3">
-        <h2 className="font-display text-sm font-semibold text-text">ROI by repo ({range}d)</h2>
+      <Card title={`ROI by repo (${range}d)`} contentClassName="space-y-3">
         {repoRoi.length === 0 ? (
           <CardEmpty>No merged PRs in this period.</CardEmpty>
         ) : (
@@ -520,6 +510,10 @@ export default async function OrgRoiPage({
             ))}
           </Table>
         )}
+        <p className="text-xs text-text-3">
+          Highlighted when the revert rate is above {fmtPct(HIGH_REVERT_RATE)} or the CI-clean rate
+          is below {fmtPct(LOW_CI_CLEAN_RATE)}.
+        </p>
       </Card>
 
       <p className="text-xs text-text-3 text-center pt-2">

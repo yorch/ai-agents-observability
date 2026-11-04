@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { TeamPrRollupTable } from '@/components/team-org/TeamPrRollupTable';
 import { Stat } from '@/components/ui';
-import { fmtHoursShort } from '@/lib/fmt';
+import { fmtHoursShort, fmtUsd } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
 import {
   getTeamPRDeliveryStats,
@@ -35,10 +35,10 @@ export default async function TeamPrsPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Team"
+        breadcrumb={teamName}
         description={`Trailing ${range} days`}
         range={range}
-        title={teamName}
+        title="Pull requests"
       />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -47,7 +47,7 @@ export default async function TeamPrsPage({
         <Stat label="Median time to merge" value={fmtHoursShort(delivery.medianTimeToMergeHours)} />
         <Stat
           label="Avg cost / PR"
-          value={delivery.avgCostPerPR > 0 ? `$${delivery.avgCostPerPR.toFixed(2)}` : '—'}
+          value={delivery.avgCostPerPR > 0 ? fmtUsd(delivery.avgCostPerPR) : '—'}
         />
       </div>
 

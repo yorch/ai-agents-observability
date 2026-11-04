@@ -904,6 +904,11 @@ export type ToolStatRow = {
    * NULL means the events had no turn linkage — not $0.00. Pair with
    * `getAttributionCoverage` wherever they are shown.
    */
+  /**
+   * Raw `agent_type` enum value (render via `agentDisplayName`). Optional because
+   * the team producer still folds the agent into `toolName`.
+   */
+  agentType?: string | undefined;
   attributedCostUsd: number | null;
   avgDurationMs: number | null;
   callCount: number;
@@ -912,6 +917,7 @@ export type ToolStatRow = {
   denyRate: number;
   distinctUsers: number;
   downstreamCostUsd: number | null;
+  /** Bare tool name; the agent is carried separately in `agentType`. */
   toolName: string;
 };
 
@@ -1029,8 +1035,8 @@ export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow
     LIMIT ${limit}
   `);
 
-  const multiAgent = new Set(rows.map((r) => r.agent_type)).size > 1;
   return rows.map((r) => ({
+    agentType: r.agent_type,
     attributedCostUsd: r.attributed_cost_usd != null ? Number(r.attributed_cost_usd) : null,
     avgDurationMs: r.avg_duration_ms !== null ? Math.round(Number(r.avg_duration_ms)) : null,
     callCount: Number(r.call_count),
@@ -1039,8 +1045,48 @@ export async function getToolStats(since: Date, limit = 20): Promise<ToolStatRow
     denyRate: Number(r.call_count) > 0 ? Number(r.deny_count) / Number(r.call_count) : 0,
     distinctUsers: Number(r.distinct_users),
     downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
-    toolName: multiAgent ? `${r.agent_type}:${r.tool_name}` : r.tool_name,
+    toolName: r.tool_name,
   }));
+}
+
+/**
+ * Distinct (agent, tool) pairs over the whole window, with no LIMIT - the Top
+ * tools table is capped, so counting its rows understates this. Same
+ * definition as `getTeamUniqueToolCount`.
+ */
+export async function getOrgUniqueToolCount(since: Date): Promise<number> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) {
+    return 0;
+  }
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const [row] = await getPrisma().$queryRaw<[{ unique_tools: bigint }]>(Prisma.sql`
+    SELECT COUNT(DISTINCT (agent_type, tool_name)) AS unique_tools
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND tool_name IS NOT NULL
+      AND subagent_type IS NULL
+  `);
+  return Number(row?.unique_tools ?? 0);
+}
+
+/** Distinct users who invoked any skill or slash command in the window. */
+export async function getOrgSkillAdopterCount(since: Date): Promise<number> {
+  const userIds = await orgVisibleUserIds(since);
+  if (userIds.length === 0) {
+    return 0;
+  }
+  const uuids = Prisma.join(userIds.map((id) => Prisma.sql`${id}::uuid`));
+  const [row] = await getPrisma().$queryRaw<[{ adopters: bigint }]>(Prisma.sql`
+    SELECT COUNT(DISTINCT user_id) AS adopters
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
+  `);
+  return Number(row?.adopters ?? 0);
 }
 
 export async function getToolCategoryBreakdown(since: Date): Promise<CategoryStatRow[]> {
@@ -1061,6 +1107,9 @@ export async function getToolCategoryBreakdown(since: Date): Promise<CategorySta
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
+      -- Same population as getToolStats / getOrgUniqueToolCount, so the
+      -- headline totals reconcile with the tool table.
+      AND tool_name IS NOT NULL
       -- See getToolStats above: subagent_type IS NULL excludes sub-agent
       -- spawns without dropping NULL-category rows.
       AND subagent_type IS NULL
@@ -1478,8 +1527,20 @@ export async function getSkillRoi(since: Date): Promise<SkillRoiRow[]> {
     ORDER BY ss.skill_name, session_count DESC
   `);
 
+  return mapSkillRoiRows(rows);
+}
+
+/**
+ * `pr_ci_status` is the wire enum `SUCCESS | FAILURE | PENDING` (uppercase,
+ * packages/schemas session-context). Normalise at the source so every consumer
+ * compares against `'success' | 'failure' | 'pending'`; comparing the raw value
+ * to lowercase literals made every pass rate 0%.
+ */
+export function mapSkillRoiRows(
+  rows: { ci_status: string; session_count: bigint | number; skill_name: string }[],
+): SkillRoiRow[] {
   return rows.map((r) => ({
-    ciStatus: r.ci_status,
+    ciStatus: r.ci_status.toLowerCase(),
     sessionCount: Number(r.session_count),
     skillName: r.skill_name,
   }));
@@ -1698,6 +1759,8 @@ export type SessionSearchFilters = {
 
 export type SessionSearchResult = {
   costUsd: number;
+  /** Fallback label for password-login users who have no GitHub login. */
+  displayName: string | null;
   githubLogin: string | null;
   repoName: string | null;
   sessionId: string;
@@ -1806,7 +1869,7 @@ export async function searchSessions(
     prisma.session.findMany({
       include: {
         repo: { select: { githubName: true, githubOwner: true } },
-        user: { select: { githubLogin: true } },
+        user: { select: { displayName: true, githubLogin: true } },
       },
       orderBy: { startedAt: 'desc' },
       skip: (page - 1) * PAGE_SIZE,
@@ -1820,6 +1883,7 @@ export async function searchSessions(
     pageSize: PAGE_SIZE,
     results: rows.map((s) => ({
       costUsd: Number(s.totalCostUsd),
+      displayName: s.user.displayName,
       githubLogin: s.user.githubLogin,
       repoName: s.repo ? `${s.repo.githubOwner}/${s.repo.githubName}` : null,
       sessionId: s.sessionId,

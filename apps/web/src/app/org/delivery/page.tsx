@@ -56,15 +56,15 @@ export default async function OrgDeliveryPage({
           {...(stats.totalPRs > 0 ? { sub: `${stats.totalPRs - stats.mergedPRs} unmerged` } : {})}
         />
         <Stat
-          label="Median time-to-merge"
+          label="Median time to merge"
           value={fmtHoursShort(stats.medianTimeToMergeHours)}
           sub="from open to merge"
         />
         <Stat
           label="Avg cost / PR"
-          value={stats.avgCostPerPR > 0 ? `$${stats.avgCostPerPR.toFixed(2)}` : '—'}
+          value={stats.avgCostPerPR > 0 ? fmtUsd(stats.avgCostPerPR) : '—'}
           {...(stats.medianCostPerPR != null
-            ? { sub: `median $${stats.medianCostPerPR.toFixed(2)}` }
+            ? { sub: `median ${fmtUsd(stats.medianCostPerPR)}` }
             : {})}
         />
       </div>
@@ -248,7 +248,7 @@ export default async function OrgDeliveryPage({
                 <Cell num className="text-text-2">
                   {fmtHoursShort(r.medianTimeToMergeHours)}
                 </Cell>
-                <Cell num>{r.avgCostUsd > 0 ? `$${r.avgCostUsd.toFixed(2)}` : '—'}</Cell>
+                <Cell num>{r.avgCostUsd > 0 ? fmtUsd(r.avgCostUsd) : '—'}</Cell>
               </Row>
             ))}
           </Table>

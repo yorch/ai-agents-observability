@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, SectionHeader, Stat } from '@/components/ui';
+import { fmtPct } from '@/lib/fmt';
 import { requireTeamLead } from '@/lib/roles';
 import { getTeamSessionFrequencyDistribution, resolveTeamVisibility } from '@/lib/team-queries';
 import { daysAgo } from '@/lib/time';
@@ -32,10 +33,10 @@ export default async function TeamAdoptionPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Team"
+        breadcrumb={teamName}
         description={`Adoption · trailing ${range} days`}
         range={range}
-        title={teamName}
+        title="Adoption"
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -53,6 +54,7 @@ export default async function TeamAdoptionPage({
                 <span className="text-sm text-text">{b.bucket}</span>
                 <span className="font-mono text-sm text-text-2">
                   {b.userCount} member{b.userCount !== 1 ? 's' : ''}
+                  {visibleIds.length > 0 && ` · ${fmtPct(b.userCount / visibleIds.length)}`}
                 </span>
               </div>
               <div className="h-2 rounded-full bg-surface-2">

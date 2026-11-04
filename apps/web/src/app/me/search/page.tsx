@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 import { Button, Card, Input } from '@/components/ui';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/fmt';
 import { parsePageParam } from '@/lib/pagination';
 import { MIN_QUERY_LENGTH, searchOwnTranscripts } from '@/lib/search-queries';
@@ -15,7 +14,7 @@ export default async function MeSearchPage({
 }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const params = await searchParams;

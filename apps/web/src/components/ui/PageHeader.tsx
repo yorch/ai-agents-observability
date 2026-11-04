@@ -13,14 +13,17 @@ export function PageHeader({
 }: {
   /** Right-aligned control — a DateRangePicker, a filter, a primary button. */
   action?: ReactNode;
-  /** Scope label above the title: "Organization", a team name. */
+  /**
+   * Scope label above the title: "Org", "Admin", or a team's display name (a
+   * team page's title is the page — "Skills" — and the team goes here).
+   */
   breadcrumb?: string;
   description?: ReactNode;
   title: string;
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <div>
+      <div className="min-w-0">
         {breadcrumb && (
           <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-text-3">
             {breadcrumb}

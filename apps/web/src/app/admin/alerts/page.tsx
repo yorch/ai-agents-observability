@@ -1,14 +1,17 @@
 import {
+  type AlertRuleType,
   BUDGET_THRESHOLD_WINDOW_DAYS,
   parseBudgetThresholdParams,
 } from '@ai-agents-observability/schemas';
 import {
   ActionForm,
+  Badge,
   Button,
   Cell,
   ConfirmButton,
   Field,
   Input,
+  PageHeader,
   Row,
   Select,
   Table,
@@ -28,6 +31,24 @@ import {
 } from './actions';
 
 export const dynamic = 'force-dynamic';
+
+const RULE_TYPE_LABEL: Record<AlertRuleType, string> = {
+  autonomy_surge: 'Autonomy surge',
+  budget_threshold: 'Budget threshold',
+  disallowed_model: 'Disallowed model',
+  high_error_rate: 'High error rate',
+  routing_waste: 'Routing waste',
+  secret_exposure: 'Secret exposure',
+  spend_spike: 'Spend spike',
+  team_spend_spike: 'Team spend spike',
+  unknown_model_surge: 'Unknown model surge',
+};
+
+const CHANNEL_TYPE_LABEL: Record<string, string> = {
+  email: 'Email',
+  slack_webhook: 'Slack webhook',
+  webhook: 'Webhook',
+};
 
 export default async function AlertsAdminPage() {
   await requireOrgAdmin();
@@ -51,13 +72,11 @@ export default async function AlertsAdminPage() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-1">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-text">Alerts</h1>
-        <p className="text-sm text-text-2">
-          Rules, notification channels, and history. Notifications carry aggregate signals only —
-          never session ids, user handles, or transcript content.
-        </p>
-      </div>
+      <PageHeader
+        breadcrumb="Admin"
+        title="Alerts"
+        description="Rules, notification channels, and history. Notifications carry aggregate signals only — never session ids, user handles, or transcript content."
+      />
 
       {/* Rules */}
       <section className="space-y-2">
@@ -76,7 +95,13 @@ export default async function AlertsAdminPage() {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span>
-                    {r.name} <span className="text-text-3">({r.ruleType})</span>
+                    {r.name}{' '}
+                    <span className="text-text-3">
+                      ({RULE_TYPE_LABEL[r.ruleType as AlertRuleType] ?? r.ruleType})
+                    </span>{' '}
+                    <Badge tone={r.enabled ? 'good' : 'neutral'}>
+                      {r.enabled ? 'Enabled' : 'Disabled'}
+                    </Badge>
                     {silenced && r.silencedUntil && (
                       <span className="ml-2 text-warn">
                         · silenced until {fmtDateTime(new Date(r.silencedUntil))} UTC
@@ -116,8 +141,8 @@ export default async function AlertsAdminPage() {
                     <ActionForm action={toggleRule}>
                       <input type="hidden" name="id" value={r.id} />
                       <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
-                      <Button type="submit" size="sm" variant={r.enabled ? 'primary' : 'secondary'}>
-                        {r.enabled ? 'Enabled' : 'Disabled'}
+                      <Button type="submit" size="sm" variant="secondary">
+                        {r.enabled ? 'Disable' : 'Enable'}
                       </Button>
                     </ActionForm>
                   </div>
@@ -174,7 +199,8 @@ export default async function AlertsAdminPage() {
             className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2 text-sm"
           >
             <span>
-              {c.channelType} <span className="text-text-3">{c.enabled ? '' : '(disabled)'}</span>
+              {CHANNEL_TYPE_LABEL[c.channelType] ?? c.channelType}{' '}
+              <span className="text-text-3">{c.enabled ? '' : '(disabled)'}</span>
             </span>
             <div className="flex gap-2">
               <ActionForm action={toggleChannel}>
@@ -198,9 +224,9 @@ export default async function AlertsAdminPage() {
         ))}
         <ActionForm action={addChannel} className="flex flex-wrap items-end gap-2 pt-2">
           <Select size="sm" name="channelType" defaultValue="webhook" aria-label="Channel type">
-            <option value="webhook">webhook</option>
-            <option value="slack_webhook">slack_webhook</option>
-            <option value="email">email</option>
+            <option value="webhook">Webhook</option>
+            <option value="slack_webhook">Slack webhook</option>
+            <option value="email">Email</option>
           </Select>
           <Input
             size="sm"
@@ -221,7 +247,8 @@ export default async function AlertsAdminPage() {
           <h2 className="text-sm font-medium text-warn">Recent delivery failures</h2>
           {failures.map((f) => (
             <p key={f.id.toString()} className="text-xs text-text-2">
-              {fmtDateTime(new Date(f.attemptedAt))} UTC · {f.channelType} · {f.error}
+              {fmtDateTime(new Date(f.attemptedAt))} UTC ·{' '}
+              {CHANNEL_TYPE_LABEL[f.channelType] ?? f.channelType} · {f.error}
             </p>
           ))}
         </section>

@@ -37,10 +37,10 @@ export default async function TeamAgentsPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Team"
+        breadcrumb={teamName}
         description={`Sub-agent usage · trailing ${range} days`}
         range={range}
-        title={teamName}
+        title="Agents"
       />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

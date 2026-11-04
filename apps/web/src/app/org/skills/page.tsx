@@ -6,11 +6,12 @@ import {
   DeprecationCandidates,
   SubjectQualityPanel,
 } from '@/components/team-org/SubjectQualityPanel';
-import { Card, EmptyState, SectionHeader, Stat, Table } from '@/components/ui';
+import { Card, EmptyState, Stat, Table } from '@/components/ui';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import { fmtUsdOrDash } from '@/lib/fmt';
 import {
   getDailySkillVolume,
+  getOrgSkillAdopterCount,
   getOrgSkillSequences,
   getSkillAdoptionFunnel,
   getSkillUsage,
@@ -37,18 +38,19 @@ export default async function OrgSkillsPage({
   const since = daysAgo(range);
 
   const visibleIds = await orgVisibleUserIds(since);
-  const [skills, funnel, trend, sequences, quality, deprecation, coverage] = await Promise.all([
-    getSkillUsage(since),
-    getSkillAdoptionFunnel(since),
-    getDailySkillVolume(since),
-    getOrgSkillSequences(since),
-    getSkillQuality(visibleIds, since),
-    getDeprecationCandidates(visibleIds, since),
-    getAttributionCoverage(visibleIds, since),
-  ]);
+  const [skills, funnel, trend, sequences, quality, deprecation, coverage, uniqueAdopters] =
+    await Promise.all([
+      getSkillUsage(since),
+      getSkillAdoptionFunnel(since),
+      getDailySkillVolume(since),
+      getOrgSkillSequences(since),
+      getSkillQuality(visibleIds, since),
+      getDeprecationCandidates(visibleIds, since),
+      getAttributionCoverage(visibleIds, since),
+      getOrgSkillAdopterCount(since),
+    ]);
 
   const totalInvocations = skills.reduce((s, r) => s + r.callCount, 0);
-  const uniqueAdopters = funnel.length > 0 ? Math.max(...funnel.map((r) => r.recentUsers)) : 0;
 
   // The stored series behind the error-rate column (P13-013). Keyed the same
   // way `scores.subject_id` is, so the panel needs no id-shaping of its own.
@@ -58,7 +60,7 @@ export default async function OrgSkillsPage({
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Org"
-        description={`Trailing ${range} days`}
+        description={`Skills · trailing ${range} days`}
         range={range}
         title="Skills"
       />
@@ -72,8 +74,7 @@ export default async function OrgSkillsPage({
       <DailyTrendBars points={trend.map((r) => ({ count: r.invocationCount, day: r.day }))} />
 
       {skills.length > 0 ? (
-        <Card>
-          <SectionHeader>All skills</SectionHeader>
+        <Card title="All skills">
           <Table
             columns={[
               { label: 'Name' },
@@ -135,8 +136,7 @@ export default async function OrgSkillsPage({
       <DeprecationCandidates candidates={deprecation} windowDays={range} />
 
       {funnel.length > 0 && (
-        <Card>
-          <SectionHeader>Adoption — new vs returning users</SectionHeader>
+        <Card title="Adoption — new vs returning users">
           <Table
             columns={[
               { label: 'Skill' },
@@ -158,8 +158,7 @@ export default async function OrgSkillsPage({
       )}
 
       {sequences.length > 0 && (
-        <Card>
-          <SectionHeader>Common skill sequences</SectionHeader>
+        <Card title="Common skill sequences">
           <Table
             columns={[
               { label: 'From' },

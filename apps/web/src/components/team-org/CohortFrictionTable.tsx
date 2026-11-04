@@ -1,6 +1,8 @@
 import { Card, CardEmpty, Cell, Row, Table, TONE_BG, TONE_TEXT } from '@/components/ui';
+import { cx } from '@/components/ui/cx';
 import type { CohortFrictionRow } from '@/lib/cohort-queries';
 import { frictionBadge } from '@/lib/effectiveness';
+import { fmtFriction } from '@/lib/fmt';
 
 // Small-n suppression mirrors the effectiveness aggregates elsewhere on
 // /org/dashboard: a cohort must have enough distinct devs and enough scored
@@ -20,7 +22,6 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
       r.scoredSessions >= MIN_COHORT_SCORED_SESSIONS &&
       r.medianFriction !== null,
   );
-  const maxFriction = Math.max(...qualifying.map((r) => r.medianFriction ?? 0), 0.01);
 
   return (
     <Card title="Cohort friction divergence" contentClassName="space-y-3">
@@ -37,7 +38,7 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
             { label: 'Cohort' },
             { align: 'right', label: 'Devs' },
             { align: 'right', label: 'Median friction' },
-            { label: '' },
+            { label: 'Scale 0–1' },
           ]}
         >
           {qualifying.map((r) => {
@@ -50,14 +51,15 @@ export function CohortFrictionTable({ rows }: { rows: CohortFrictionRow[] }) {
                 <Cell num className="text-text-2">
                   {r.userCount}
                 </Cell>
-                <Cell num className={`py-2 text-right font-mono ${TONE_TEXT[badge.tone]}`}>
-                  {(median * 100).toFixed(0)}%
+                <Cell num className={cx('py-2 text-right font-mono', TONE_TEXT[badge.tone])}>
+                  {fmtFriction(median)}
                 </Cell>
-                <Cell>
-                  <div className="h-1.5 rounded-full bg-surface-2">
+                <Cell className="w-32">
+                  {/* Fixed 0-1 domain, not max-in-table: 0.47 vs 0.54 must not read as 87% vs 100%. */}
+                  <div className="h-1.5 w-full rounded-full bg-surface-2">
                     <div
-                      className={`h-full rounded-full ${TONE_BG[badge.tone]}`}
-                      style={{ width: `${(median / maxFriction) * 100}%` }}
+                      className={cx('h-full rounded-full', TONE_BG[badge.tone])}
+                      style={{ width: `${Math.min(Math.max(median, 0), 1) * 100}%` }}
                     />
                   </div>
                 </Cell>

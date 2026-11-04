@@ -28,11 +28,12 @@ vi.mock('@ai-agents-observability/auth', () => ({
 // ── next/headers ──────────────────────────────────────────────────────────────
 
 const cookieStore = new Map<string, { value: string }>();
+let requestHeaders = new Headers();
 vi.mock('next/headers', () => ({
   cookies: async () => ({
     get: (name: string) => cookieStore.get(name),
   }),
-  headers: async () => new Headers(),
+  headers: async () => requestHeaders,
 }));
 
 // ── @ai-agents-observability/db ───────────────────────────────────────────────
@@ -85,11 +86,28 @@ describe('requireTeamLead', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     cookieStore.clear();
+    requestHeaders = new Headers();
   });
 
   it('redirects to /login when unauthenticated', async () => {
     const { requireTeamLead } = await import('../src/lib/roles.js');
     await expect(requireTeamLead('eng')).rejects.toThrow('REDIRECT:/login');
+  });
+
+  it('keeps the requested path as ?next= when the proxy supplied it', async () => {
+    // An expired-but-present cookie passes the proxy, which stamps the path;
+    // only currentUser() finds the session dead.
+    requestHeaders = new Headers({ 'x-pathname': '/team/eng/roster?range=7' });
+    const { requireTeamLead } = await import('../src/lib/roles.js');
+    await expect(requireTeamLead('eng')).rejects.toThrow(
+      'REDIRECT:/login?next=%2Fteam%2Feng%2Froster%3Frange%3D7',
+    );
+  });
+
+  it('drops a next path that is not same-origin relative', async () => {
+    requestHeaders = new Headers({ 'x-pathname': '//evil.example/x' });
+    const { requireTeamLead } = await import('../src/lib/roles.js');
+    await expect(requireTeamLead('eng')).rejects.toThrow(/^REDIRECT:\/login$/);
   });
 
   it('calls notFound() when team does not exist', async () => {

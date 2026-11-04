@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation';
 import { AuditTable } from '@/components/me/AuditTable';
 import { Button, ButtonLink, Field, Select } from '@/components/ui';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { getAuditLog } from '@/lib/me-queries';
 import { parsePageParam } from '@/lib/pagination';
 import { daysAgo } from '@/lib/time';
@@ -39,7 +38,7 @@ export default async function SettingsAuditPage({
 }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const params = await searchParams;

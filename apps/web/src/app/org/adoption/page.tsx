@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
-import { fmtDayShort } from '@/lib/fmt';
+import { fmtDayShort, fmtUsd } from '@/lib/fmt';
 import {
   getActiveUsersTrend,
   getAdoptionByTeam,
@@ -56,7 +56,7 @@ export default async function OrgAdoptionPage({
           label={`Avg cost / session (${range}d)`}
           value={
             summary.sessionCount > 0 && summary.totalCostUsd > 0
-              ? `$${(summary.totalCostUsd / summary.sessionCount).toFixed(2)}`
+              ? fmtUsd(summary.totalCostUsd / summary.sessionCount)
               : '—'
           }
         />
@@ -74,7 +74,7 @@ export default async function OrgAdoptionPage({
         )}
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Session frequency distribution */}
         <Card contentClassName="space-y-3">
           <h2 className="font-display text-sm font-semibold text-text">
@@ -95,7 +95,7 @@ export default async function OrgAdoptionPage({
                     <div className="flex justify-between text-xs">
                       <span className="text-text-2">{b.bucket}</span>
                       <span className="text-text-2">
-                        {b.userCount} users · {pct.toFixed(0)}%
+                        {b.userCount} {b.userCount === 1 ? 'user' : 'users'} · {pct.toFixed(0)}%
                       </span>
                     </div>
                     <div className="h-2 rounded-full bg-surface-2">

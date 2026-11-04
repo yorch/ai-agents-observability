@@ -1,4 +1,5 @@
 import { Prisma } from '@ai-agents-observability/db';
+import { agentDisplayName } from '@ai-agents-observability/schemas';
 
 import type {
   CategoryStatRow,
@@ -101,11 +102,10 @@ async function getTeamSummaryWindow(
   since: Date,
   until: Date | undefined,
   visibleIds: string[],
-  totalMemberCount: number,
 ): Promise<TeamSummary> {
   if (visibleIds.length === 0) {
     return {
-      activeMembers: totalMemberCount,
+      activeMembers: 0,
       cacheHitRate: 0,
       sessionCount: 0,
       totalCostUsd: 0,
@@ -149,9 +149,12 @@ async function getTeamSummaryWindow(
   // For cache hit rate the denominator includes all sessions (not just ended ones),
   // so run a second aggregate that doesn't filter on ended_at.
   const [cacheRow] = await prisma.$queryRaw<
-    [{ cache_read: bigint; input_tokens: bigint }]
+    [{ active_users: bigint; cache_read: bigint; input_tokens: bigint }]
   >(Prisma.sql`
     SELECT
+      -- Distinct members with at least one interactive session in the window:
+      -- the same definition the adoption page and the delta use.
+      COUNT(DISTINCT user_id)               AS active_users,
       COALESCE(SUM(total_cache_read), 0)    AS cache_read,
       COALESCE(SUM(total_input_tokens), 0)  AS input_tokens
     FROM interactive_sessions
@@ -166,7 +169,7 @@ async function getTeamSummaryWindow(
   const cacheHitRate = denom > 0 ? (cacheRead / denom) * 100 : 0;
 
   return {
-    activeMembers: totalMemberCount,
+    activeMembers: Number(cacheRow?.active_users ?? 0),
     cacheHitRate,
     sessionCount: agg._count.sessionId,
     totalCostUsd: Number(agg._sum.totalCostUsd ?? 0),
@@ -422,7 +425,6 @@ export async function getTeamRoster(teamId: string, since: Date): Promise<Roster
 export async function getTeamSummaryWithDelta(
   range: number,
   visibleIds: string[],
-  totalMemberCount: number,
 ): Promise<{
   current: TeamSummary;
   deltas: {
@@ -438,42 +440,17 @@ export async function getTeamSummaryWithDelta(
   const priorEnd = currentStart;
 
   const [current, prior] = await Promise.all([
-    getTeamSummaryWindow(currentStart, undefined, visibleIds, totalMemberCount),
-    getTeamSummaryWindow(priorStart, priorEnd, visibleIds, totalMemberCount),
+    getTeamSummaryWindow(currentStart, undefined, visibleIds),
+    getTeamSummaryWindow(priorStart, priorEnd, visibleIds),
   ]);
 
   const delta = (cur: number, prev: number): number | null =>
     prev > 0 ? (cur - prev) / prev : null;
 
-  // For activeMembers, compute distinct active users per window rather than
-  // returning the static roster count for both periods.
-  let activeMembersDelta: number | null = null;
-  if (visibleIds.length > 0) {
-    const uuids = toUuidList(visibleIds);
-    const [curActiveRow, priorActiveRow] = await Promise.all([
-      getPrisma().$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
-        SELECT COUNT(DISTINCT user_id) AS cnt
-        FROM interactive_sessions
-        WHERE user_id IN (${uuids})
-          AND started_at >= ${currentStart}
-      `),
-      getPrisma().$queryRaw<[{ cnt: bigint }]>(Prisma.sql`
-        SELECT COUNT(DISTINCT user_id) AS cnt
-        FROM interactive_sessions
-        WHERE user_id IN (${uuids})
-          AND started_at >= ${priorStart}
-          AND started_at < ${priorEnd}
-      `),
-    ]);
-    const curActive = Number(curActiveRow[0]?.cnt ?? 0);
-    const priorActive = Number(priorActiveRow[0]?.cnt ?? 0);
-    activeMembersDelta = delta(curActive, priorActive);
-  }
-
   return {
     current,
     deltas: {
-      activeMembers: activeMembersDelta,
+      activeMembers: delta(current.activeMembers, prior.activeMembers),
       cacheHitRate: delta(current.cacheHitRate, prior.cacheHitRate),
       sessionCount: delta(current.sessionCount, prior.sessionCount),
       totalCostUsd: delta(current.totalCostUsd, prior.totalCostUsd),
@@ -777,8 +754,30 @@ export async function getTeamToolStats(
     denyRate: Number(r.call_count) > 0 ? Number(r.deny_count) / Number(r.call_count) : 0,
     distinctUsers: Number(r.distinct_users),
     downstreamCostUsd: r.downstream_cost_usd != null ? Number(r.downstream_cost_usd) : null,
-    toolName: multiAgent ? `${r.agent_type}:${r.tool_name}` : r.tool_name,
+    toolName: multiAgent ? `${agentDisplayName(r.agent_type)}:${r.tool_name}` : r.tool_name,
   }));
+}
+
+/**
+ * Window-wide count of distinct tools, with the same population as
+ * getTeamToolStats but without its LIMIT — "Unique tools" must not be the
+ * page size.
+ */
+export async function getTeamUniqueToolCount(visibleIds: string[], since: Date): Promise<number> {
+  if (visibleIds.length === 0) {
+    return 0;
+  }
+  const uuids = toUuidList(visibleIds);
+  const [row] = await getPrisma().$queryRaw<[{ unique_tools: bigint }]>(Prisma.sql`
+    SELECT COUNT(DISTINCT (agent_type, tool_name)) AS unique_tools
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND event_type = 'PostToolUse'
+      AND tool_name IS NOT NULL
+      AND subagent_type IS NULL
+  `);
+  return Number(row?.unique_tools ?? 0);
 }
 
 export async function getTeamToolCategoryBreakdown(
@@ -800,6 +799,9 @@ export async function getTeamToolCategoryBreakdown(
     WHERE user_id IN (${uuids})
       AND ts >= ${since}
       AND event_type = 'PostToolUse'
+      -- Same population as getTeamToolStats, so the category chips and the
+      -- headline totals reconcile with the tool table.
+      AND tool_name IS NOT NULL
       -- See getTeamToolStats above: subagent_type IS NULL excludes sub-agent
       -- spawns without dropping NULL-category rows.
       AND subagent_type IS NULL
@@ -1043,6 +1045,26 @@ export async function getTeamSessionFrequencyDistribution(
 }
 
 // ── Team-scoped skill detail queries ─────────────────────────────────────────
+
+/**
+ * Distinct members who invoked any skill or slash command in the window. The
+ * per-skill funnel counts the same person once per skill, so summing it
+ * overstates adopters.
+ */
+export async function getTeamSkillAdopterCount(visibleIds: string[], since: Date): Promise<number> {
+  if (visibleIds.length === 0) {
+    return 0;
+  }
+  const uuids = toUuidList(visibleIds);
+  const [row] = await getPrisma().$queryRaw<[{ adopters: bigint }]>(Prisma.sql`
+    SELECT COUNT(DISTINCT user_id) AS adopters
+    FROM interactive_events
+    WHERE user_id IN (${uuids})
+      AND ts >= ${since}
+      AND (skill_name IS NOT NULL OR slash_command IS NOT NULL)
+  `);
+  return Number(row?.adopters ?? 0);
+}
 
 export async function getTeamSkillAdoptionFunnel(
   visibleIds: string[],

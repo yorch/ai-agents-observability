@@ -5,8 +5,9 @@ import { OversightPanel } from '@/components/me/OversightPanel';
 import { ShapeDistributionChart } from '@/components/me/ShapeDistributionChart';
 import { TopTools } from '@/components/me/TopTools';
 import { CohortFrictionTrendChart } from '@/components/team-org/CohortFrictionTrendChart';
-import { DateRangePicker } from '@/components/team-org/DateRangePicker';
+import { PageHeader } from '@/components/team-org/PageHeader';
 import { Card, CardEmpty, EmptyState, Stat } from '@/components/ui';
+import { cx } from '@/components/ui/cx';
 import { getAttributionCoverage } from '@/lib/attribution-coverage';
 import {
   getTeamEffectivenessDistribution,
@@ -54,7 +55,7 @@ export default async function TeamOverviewPage({
     oversight,
     coverage,
   ] = await Promise.all([
-    getTeamSummaryWithDelta(range, visibleIds, totalCount),
+    getTeamSummaryWithDelta(range, visibleIds),
     getTeamTopTools(since, visibleIds),
     getTeamModelMix(since, visibleIds),
     getTeamRoutingBreakdown(since, visibleIds),
@@ -78,27 +79,29 @@ export default async function TeamOverviewPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Team</p>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-            {teamName}
-          </h1>
-          <p className="mt-1 text-sm text-text-2">Trailing {range} days</p>
-        </div>
-        <DateRangePicker range={range} />
-      </div>
+      <PageHeader
+        breadcrumb={teamName}
+        description={`Trailing ${range} days`}
+        range={range}
+        title="Overview"
+      />
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div
+        className={cx(
+          'grid grid-cols-2 gap-4 md:grid-cols-5',
+          // Five tiles in two columns leave an orphan; the last spans the row on mobile.
+          '[&>:last-child]:col-span-2 md:[&>:last-child]:col-span-1',
+        )}
+      >
         <Stat
           label="Sessions"
           value={summary.sessionCount.toString()}
           delta={deltas.sessionCount}
         />
         <Stat
-          label="Cost (USD)"
-          value={`$${summary.totalCostUsd.toFixed(2)}`}
+          label="Cost"
+          value={fmtUsd(summary.totalCostUsd)}
           delta={deltas.totalCostUsd}
           deltaInverted
         />
@@ -106,6 +109,7 @@ export default async function TeamOverviewPage({
         <Stat
           label="Active members"
           value={summary.activeMembers.toString()}
+          sub={`of ${totalCount} on roster`}
           delta={deltas.activeMembers}
         />
         <Stat
@@ -121,8 +125,8 @@ export default async function TeamOverviewPage({
         </EmptyState>
       ) : (
         <>
-          <OversightPanel data={oversight} />
-          <div className="grid gap-6 md:grid-cols-2">
+          <OversightPanel data={oversight} scope="team" />
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card title="Team routing opportunities" caption={`Trailing ${range} days`}>
               {routingRecs.length === 0 ? (
                 <div className="space-y-3">
@@ -178,11 +182,11 @@ export default async function TeamOverviewPage({
               )}
             </Card>
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            <TopTools title="Top Tools" tools={tools} />
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <TopTools title="Top tools" tools={tools} />
             <ModelMixChart models={models} />
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <FrictionDistributionChart distribution={effectiveness} />
             <ShapeDistributionChart histogram={effectiveness.shapeMix} />
           </div>

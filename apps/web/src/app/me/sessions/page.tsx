@@ -1,9 +1,8 @@
 import { PERMISSION_MODES } from '@ai-agents-observability/schemas';
-import { redirect } from 'next/navigation';
 import { FilterChips } from '@/components/FilterChips';
 import { SessionsTable } from '@/components/me/SessionsTable';
 import { Button, ButtonLink, EmptyState, Field, FilterPanel, Input, Select } from '@/components/ui';
-import { currentUser } from '@/lib/auth';
+import { currentUser, redirectToLogin } from '@/lib/auth';
 import { getJiraBase } from '@/lib/config';
 import { parsePageParam } from '@/lib/pagination';
 import { getAllRunsPrisma } from '@/lib/prisma';
@@ -63,7 +62,7 @@ export default async function SessionsPage({
 }) {
   const user = await currentUser();
   if (!user) {
-    redirect('/login');
+    return redirectToLogin();
   }
 
   const params = await searchParams;
@@ -166,7 +165,7 @@ export default async function SessionsPage({
       {/* These filters wrap badly in a row; the same grid the org search uses
           keeps the labels readable and the controls on one baseline. */}
       <FilterPanel label="Session filters">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Field label="Repo" htmlFor="repo-filter">
             <Select id="repo-filter" name="repo" defaultValue={repo ?? ''}>
               <option value="">All repos</option>

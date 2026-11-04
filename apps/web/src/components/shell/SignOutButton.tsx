@@ -21,7 +21,7 @@ export function SignOutButton() {
           window.location.href = '/login';
         })
       }
-      className="text-text-3 transition-colors hover:text-text-2 disabled:opacity-50"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-3 transition-colors hover:bg-surface-2 hover:text-text-2 disabled:opacity-50"
       title="Sign out"
       aria-label="Sign out"
     >

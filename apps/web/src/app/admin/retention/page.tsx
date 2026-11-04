@@ -1,4 +1,4 @@
-import { ActionForm, Button, Cell, Input, Row, Table } from '@/components/ui';
+import { ActionForm, Button, Cell, Input, PageHeader, Row, Table } from '@/components/ui';
 import { getPrisma } from '@/lib/prisma';
 import { requireOrgAdmin } from '@/lib/roles';
 import { setTeamRetention } from './actions';
@@ -25,16 +25,11 @@ export default async function RetentionAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
-          Transcript retention
-        </h1>
-        <p className="text-sm text-text-2">
-          Per-team transcript retention overrides. Blank = global default ({GLOBAL_DEFAULT_DAYS}{' '}
-          days). Overrides are clamped to the org maximum ({ORG_MAX_DAYS} days). Changes are
-          audited.
-        </p>
-      </div>
+      <PageHeader
+        breadcrumb="Admin"
+        title="Transcript retention"
+        description={`Per-team transcript retention overrides. Blank = global default (${GLOBAL_DEFAULT_DAYS} days). Overrides are clamped to the org maximum (${ORG_MAX_DAYS} days). Changes are audited.`}
+      />
 
       {teams.length === 0 && <p className="text-sm text-text-3">No teams synced yet.</p>}
 

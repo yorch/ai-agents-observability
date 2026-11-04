@@ -98,10 +98,10 @@ export default async function TeamMcpPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Team"
+        breadcrumb={teamName}
         description={`MCP integrations · trailing ${range} days`}
         range={range}
-        title={teamName}
+        title="MCP"
       />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

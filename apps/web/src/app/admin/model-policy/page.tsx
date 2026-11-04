@@ -15,6 +15,7 @@ import {
   Cell,
   Field,
   Input,
+  PageHeader,
   Row,
   Select,
   Table,
@@ -134,17 +135,11 @@ export default async function ModelPolicyAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-text">
-          Model policy
-        </h1>
-        <p className="text-sm text-text-2">
-          Per-agent model tiers, allow-list and cheap-work categories. Tiers default to a ranking of
-          each agent&apos;s own price table; an override replaces the derived tier for that model
-          only. Routing recommendations and governance alerts both read this policy, so a change
-          takes effect without a redeploy. Every change is audited.
-        </p>
-      </div>
+      <PageHeader
+        breadcrumb="Admin"
+        title="Model policy"
+        description="Per-agent model tiers, allow-list and cheap-work categories. Tiers default to a ranking of each agent's own price table; an override replaces the derived tier for that model only. Routing recommendations and governance alerts both read this policy, so a change takes effect without a redeploy. Every change is audited."
+      />
 
       {sections.map((section) => (
         <Card

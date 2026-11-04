@@ -8,9 +8,20 @@ import { DateRangePicker } from '@/components/team-org/DateRangePicker';
 import { ModelGovernanceTable } from '@/components/team-org/ModelGovernanceTable';
 import { ProjectionRealization } from '@/components/team-org/ProjectionRealization';
 import { SpendForecast } from '@/components/team-org/SpendForecast';
-import { axisMoney, BarChart, Card, CardEmpty, Cell, Row, Stat, Table } from '@/components/ui';
+import {
+  axisMoney,
+  BarChart,
+  Card,
+  CardEmpty,
+  Cell,
+  PageHeader,
+  Row,
+  Stat,
+  Table,
+} from '@/components/ui';
+import { cx } from '@/components/ui/cx';
 import { getOrgCohortFriction } from '@/lib/cohort-queries';
-import { fmtDayShort } from '@/lib/fmt';
+import { fmtDayShort, fmtUsd } from '@/lib/fmt';
 import {
   getActiveBudget,
   getAnomalies,
@@ -209,16 +220,12 @@ export default async function OrgDashboardPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-xs text-text-3 uppercase tracking-wider mb-1">Org</p>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-text">
-            Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-text-2">Trailing {range} days · aggregate view</p>
-        </div>
-        <DateRangePicker range={range} />
-      </div>
+      <PageHeader
+        action={<DateRangePicker range={range} />}
+        breadcrumb="Org"
+        description={`Trailing ${range} days · aggregate view`}
+        title="Dashboard"
+      />
 
       {/* Anomaly banners */}
       {anomalies.length > 0 && (
@@ -239,27 +246,38 @@ export default async function OrgDashboardPage({
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div
+        className={cx(
+          'grid grid-cols-2 gap-4 md:grid-cols-5',
+          // Five tiles in two columns leave an orphan; the last spans the row on mobile.
+          '[&>:last-child]:col-span-2 md:[&>:last-child]:col-span-1',
+        )}
+      >
         <Stat
-          label={`Total cost (${range}d)`}
-          value={`$${summary.totalCostUsd.toFixed(2)}`}
+          label="Cost"
+          value={fmtUsd(summary.totalCostUsd)}
           delta={deltas.totalCostUsd}
+          deltaInverted
+          sub={`vs previous ${range}d`}
         />
         <Stat
           label="Sessions"
           value={summary.sessionCount.toString()}
           delta={deltas.sessionCount}
+          sub={`vs previous ${range}d`}
         />
         <Stat
           label="Active users"
           value={summary.activeUsers.toString()}
           delta={deltas.activeUsers}
+          sub={`vs previous ${range}d`}
         />
         <Stat label="Teams" value={summary.teamCount.toString()} />
         <Stat
           label="Cache hit rate"
           value={`${summary.cacheHitRate.toFixed(1)}%`}
           delta={deltas.cacheHitRate}
+          sub={`vs previous ${range}d`}
         />
       </div>
 
@@ -308,7 +326,7 @@ export default async function OrgDashboardPage({
       {/* Adoption funnel */}
       <AdoptionFunnel funnel={funnel} />
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Cost by team */}
         <Card title="Cost by team (top 10)" contentClassName="space-y-3">
           {teamCost.length === 0 ? (
@@ -339,7 +357,7 @@ export default async function OrgDashboardPage({
                   <Cell num className="text-text-2">
                     {t.sessionCount}
                   </Cell>
-                  <Cell num>${t.costUsd.toFixed(2)}</Cell>
+                  <Cell num>{fmtUsd(t.costUsd)}</Cell>
                 </Row>
               ))}
             </Table>
@@ -366,7 +384,7 @@ export default async function OrgDashboardPage({
                   <Cell num className="text-text-2">
                     {r.sessionCount}
                   </Cell>
-                  <Cell num>${r.costUsd.toFixed(2)}</Cell>
+                  <Cell num>{fmtUsd(r.costUsd)}</Cell>
                 </Row>
               ))}
             </Table>
@@ -374,7 +392,7 @@ export default async function OrgDashboardPage({
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Model mix */}
         <Card title="Cost by model" contentClassName="space-y-3">
           {modelCost.length === 0 ? (
@@ -387,7 +405,7 @@ export default async function OrgDashboardPage({
                   <div key={m.model} className="space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="font-mono text-xs text-text">{m.model}</span>
-                      <span className="text-text-2">${m.costUsd.toFixed(2)}</span>
+                      <span className="text-text-2">{fmtUsd(m.costUsd)}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-surface-2">
                       <div
@@ -403,14 +421,14 @@ export default async function OrgDashboardPage({
         </Card>
 
         {/* Top tools */}
-        <TopTools title="Top Tools (org-wide)" tools={tools} />
+        <TopTools title="Top tools (org-wide)" tools={tools} />
       </div>
 
       {/* Per-team model governance (admin-only) */}
       {isAdmin && <ModelGovernanceTable rows={modelGov} />}
 
       {/* Effectiveness — aggregate only, visibility-scoped */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <FrictionDistributionChart
           distribution={effectiveness}
           title="Friction distribution (org)"

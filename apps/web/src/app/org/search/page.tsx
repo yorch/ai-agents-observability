@@ -1,5 +1,7 @@
+import { agentDisplayName } from '@ai-agents-observability/schemas';
 import { FilterChips } from '@/components/FilterChips';
 import {
+  Badge,
   Button,
   ButtonLink,
   Card,
@@ -133,7 +135,7 @@ export default async function OrgSearchPage({
     from: 'From',
     jira: 'Ticket',
     model: 'Model',
-    q: 'Query',
+    q: 'Transcript text',
     repo: 'Repo',
     shape: 'Shape',
     team: 'Team',
@@ -153,6 +155,8 @@ export default async function OrgSearchPage({
         display = r ? `${r.githubOwner}/${r.githubName}` : value;
       } else if (key === 'user') {
         display = `${value.slice(0, 8)}…`;
+      } else if (key === 'agent') {
+        display = agentDisplayName(value);
       }
       return {
         href: buildUrl(params, { [key]: '', page: '' }),
@@ -278,7 +282,7 @@ export default async function OrgSearchPage({
                   <option value="">All agents</option>
                   {agentFacets.map((f) => (
                     <option key={f.agentType} value={f.agentType}>
-                      {f.agentType} ({f._count._all})
+                      {agentDisplayName(f.agentType)} ({f._count._all})
                     </option>
                   ))}
                 </Select>
@@ -349,6 +353,11 @@ export default async function OrgSearchPage({
             <h2 className="font-display text-sm font-semibold text-text">
               Sessions {sessionResults.total > 0 && `(${sessionResults.total})`}
             </h2>
+            {query && (
+              <p className="text-xs text-text-3">
+                Filtered by the facets above; transcript text is not applied to this list.
+              </p>
+            )}
 
             {sessionResults.results.length === 0 ? (
               <EmptyState
@@ -377,7 +386,9 @@ export default async function OrgSearchPage({
               >
                 {sessionResults.results.map((s) => (
                   <Row key={s.sessionId}>
-                    <Cell>{s.githubLogin}</Cell>
+                    <Cell>
+                      {s.githubLogin ?? s.displayName ?? <span className="text-text-3">—</span>}
+                    </Cell>
                     <Cell>
                       <a
                         href={`/org/sessions/${s.sessionId}`}
@@ -388,9 +399,7 @@ export default async function OrgSearchPage({
                     </Cell>
                     <Cell className="text-text-2 text-xs">{s.repoName ?? '—'}</Cell>
                     <Cell>
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-surface-2 text-text-2">
-                        {s.status}
-                      </span>
+                      <Badge tone="neutral">{s.status}</Badge>
                     </Cell>
                     <Cell num className="text-text-2">
                       {s.toolCallCount}

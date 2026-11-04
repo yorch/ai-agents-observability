@@ -43,27 +43,26 @@ function verdict(r: Realization): { label: string; tone: 'accent' | 'crit' | 'go
 
 export function ProjectionRealization({
   caption,
+  emptyText = 'No closed months with recorded projections yet. Accuracy appears here after the first month closes.',
   realizations,
   title,
 }: {
   caption: string;
+  /** Wording for the no-projections state; the default suits a monthly forecast. */
+  emptyText?: string;
   realizations: Realization[];
   title: string;
 }) {
   if (realizations.length === 0) {
     return (
       <Card title={title} caption={caption}>
-        <CardEmpty>
-          No projections recorded yet. Claims register themselves as they are rendered, so this
-          fills in from the next page view onward — there is deliberately no backfill of claims made
-          before the registry existed.
-        </CardEmpty>
+        <CardEmpty>{emptyText}</CardEmpty>
       </Card>
     );
   }
 
   return (
-    <Card title={title} caption={caption} flush>
+    <Card title={title} caption={caption}>
       <Table
         columns={[
           { label: 'Period' },
