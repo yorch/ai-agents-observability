@@ -353,8 +353,13 @@ export function writeTranscript(
   padKb = 0,
 ): void {
   const lines: string[] = [];
+  // Relative to now, never a fixed date: a drainer with a usable token drops rows
+  // older than MAX_AGE_MS (7 days), so a pinned date silently turns every e2e
+  // into "the queue was pruned" a week after it was written. One second per turn,
+  // ending an hour ago, keeps turn order and stays far inside the window.
+  const base = Date.now() - 60 * 60 * 1000 - turns * 1000;
   for (let i = 0; i < turns; i++) {
-    const ts = new Date(Date.UTC(2026, 8, 30, 10, 0, i)).toISOString();
+    const ts = new Date(base + i * 1000).toISOString();
     lines.push(
       JSON.stringify({
         cwd,
